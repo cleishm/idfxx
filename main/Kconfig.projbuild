@@ -1,0 +1,10 @@
+menu "IDFXX Configuration"
+
+    config IDF_TARGET_QEMU
+        bool "Build for QEMU"
+        default n
+        help
+            Enable this when building for QEMU emulation.
+            When enabled, hardware-dependent tests will be skipped.
+
+endmenu

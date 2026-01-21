@@ -1,0 +1,25 @@
+version: "0.9.0"
+description: "LCD panel I/O interface for SPI-based displays"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_spi:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_spi
+  cleishm/frequency:
+    version: "^1.1.1"
+    public: true
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32h2

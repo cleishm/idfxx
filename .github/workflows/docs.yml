@@ -1,0 +1,50 @@
+name: Deploy Documentation
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        run: apt-get update && apt-get install -y doxygen graphviz
+
+      - name: Configure and generate documentation
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py reconfigure
+          cmake --build build --target docs
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/html
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
