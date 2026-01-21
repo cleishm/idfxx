@@ -1,0 +1,8 @@
+menu "IDFXX"
+    config IDFXX_STD_FORMAT
+        bool "Enable std::format support"
+        default y
+        help
+            Enable std::formatter specializations for idfxx types.
+            Disable to reduce image size when formatting is not needed.
+endmenu

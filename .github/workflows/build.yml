@@ -1,0 +1,139 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ESP-IDF tools
+        run: |
+          . $IDF_PATH/export.sh
+          idf_tools.py install esp-clang
+          idf_tools.py export
+
+      - name: Configure and check formatting
+        run: |
+          . $IDF_PATH/export.sh
+          clang-format --version
+          idf.py reconfigure
+          cmake --build build --target format-check
+
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: with-exceptions
+            sdkconfig: sdkconfig.defaults
+          - name: no-exceptions
+            sdkconfig: sdkconfig.no-exceptions
+    name: build (${{ matrix.config.name }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          cp ${{ matrix.config.sdkconfig }} sdkconfig
+          idf.py reconfigure
+          idf.py build
+
+  qemu-test:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify QEMU Installation
+        run: |
+          . $IDF_PATH/export.sh
+          if ! command -v qemu-system-xtensa &> /dev/null; then
+            echo "Installing QEMU for Xtensa..."
+            python $IDF_PATH/tools/idf_tools.py install qemu-xtensa
+            python $IDF_PATH/tools/idf_tools.py install-python-env
+          fi
+          qemu-system-xtensa --version
+
+      - name: Build for QEMU
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          cp sdkconfig.qemu sdkconfig
+          idf.py reconfigure
+          idf.py build
+
+      - name: Create Flash Image for QEMU
+        run: |
+          . $IDF_PATH/export.sh
+          cd build
+          # Create 4MB flash image using ESP-IDF's flash_args
+          esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB -o qemu_flash.bin @flash_args
+          mv qemu_flash.bin ../qemu_flash.bin
+
+      - name: Run Tests in QEMU
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          # Run QEMU in background, capture PID, and exit when tests complete or timeout
+          mkfifo qemu_pipe
+          timeout 180s qemu-system-xtensa \
+            -machine esp32s3 \
+            -nographic \
+            -drive file=qemu_flash.bin,if=mtd,format=raw > qemu_pipe 2>&1 &
+          QEMU_PID=$!
+
+          # Read from pipe, log output, and kill QEMU when sentinel is detected
+          while IFS= read -r line; do
+            echo "$line" | tee -a qemu_output.log
+            if [[ "$line" == *"### TESTS COMPLETE ###"* ]]; then
+              kill $QEMU_PID 2>/dev/null || true
+              break
+            fi
+          done < qemu_pipe
+
+          wait $QEMU_PID 2>/dev/null || true
+          rm -f qemu_pipe
+
+      - name: Parse Test Results
+        run: |
+          if grep -q "Tests.*Failures.*Ignored" qemu_output.log; then
+            SUMMARY=$(grep -o "[0-9]* Tests [0-9]* Failures [0-9]* Ignored" qemu_output.log | tail -1)
+            echo "Test Summary: $SUMMARY"
+
+            FAILURES=$(echo "$SUMMARY" | grep -o "[0-9]* Failures" | cut -d' ' -f1)
+
+            if [ "$FAILURES" -eq "0" ]; then
+              echo "✅ All tests passed!"
+              exit 0
+            else
+              echo "❌ $FAILURES test(s) failed"
+              cat qemu_output.log
+              exit 1
+            fi
+          else
+            echo "❌ ERROR: Unity test summary not found in output"
+            cat qemu_output.log
+            exit 1
+          fi
+
+      - name: Upload QEMU Output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-test-output
+          path: qemu_output.log

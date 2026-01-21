@@ -1,0 +1,18 @@
+version: "0.9.0"
+description: "Hardware interrupt allocation and management for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_hw_support"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_core
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32h2

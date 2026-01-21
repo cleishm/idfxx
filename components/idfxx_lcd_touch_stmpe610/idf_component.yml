@@ -1,0 +1,29 @@
+version: "0.9.0"
+description: "STMPE610 resistive touch controller driver"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_lcd:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_lcd
+  cleishm/idfxx_lcd_touch:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_lcd_touch
+  espressif/esp_lcd_touch_stmpe610:
+    version: "^1.0.8"
+    public: true
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32h2
