@@ -1,0 +1,23 @@
+name: Publish Components
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload components to ESP Component Registry
+        uses: espressif/upload-components-ci-action@v1
+        with:
+          components: |
+            idfxx_core:components/core
+            idfxx_gpio:components/gpio
+            idfxx_nvs:components/nvs
+            idfxx_spi:components/spi
+          namespace: idfxx
+          api_token: ${{ secrets.IDF_COMPONENT_API_TOKEN }}

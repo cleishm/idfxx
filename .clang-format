@@ -1,0 +1,76 @@
+---
+# C++ Code Style Configuration for clang-format
+
+# Base style
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+UseTab: Never
+NamespaceIndentation: None
+AccessModifierOffset: -4
+
+# Line length
+ColumnLimit: 120
+BreakStringLiterals: no
+
+# Braces (K&R style)
+BreakBeforeBraces: Attach
+InsertBraces: true
+
+# Pointers and references (left-aligned with type)
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+# Templates
+SpaceAfterTemplateKeyword: false
+
+# Function parameters and arguments
+# Use BlockIndent for minimal diffs - avoids vertical alignment that changes unrelated lines
+AlignAfterOpenBracket: BlockIndent
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# Constructor initializers
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 4
+PackConstructorInitializers: Never
+
+# Short functions (allow inline getters)
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Include sorting
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Main header (matched by file name)
+  - Regex:           '^".*"$'
+    Priority:        1
+  # IDFXX headers (matched by file name)
+  - Regex:           '^<idfxx/.*>$'
+    Priority:        2
+  # Standard library
+  - Regex:           '^<.*>'
+    Priority:        3
+
+# Spaces
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInContainerLiterals: false
+
+# Alignment (minimize to avoid unrelated line changes in diffs)
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: DontAlign
+
+# Other formatting
+AlwaysBreakTemplateDeclarations: Yes
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
+# C++23 (using Latest for clang-format compatibility)
+Standard: Latest

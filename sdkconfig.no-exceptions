@@ -1,0 +1,9 @@
+# Build configuration without C++ exceptions
+# This verifies that all result-based APIs compile correctly
+
+# Disable C++ exceptions
+CONFIG_COMPILER_CXX_EXCEPTIONS=n
+
+# Keep other C++ features enabled
+CONFIG_COMPILER_CXX_RTTI=y
+CONFIG_COMPILER_CXX_STD_23=y

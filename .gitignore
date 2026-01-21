@@ -1,0 +1,33 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+.cache
+
+# ESP-IDF
+managed_components/
+dependencies.lock
+sdkconfig
+sdkconfig.old
+
+# Documentation
+docs/html/
+docs/xml/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+
+# Compiled
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
