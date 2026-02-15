@@ -21,15 +21,18 @@
 
 #include <idfxx/chrono>
 #include <idfxx/error>
+#include <idfxx/memory>
 
 #include <chrono>
 #include <cstddef>
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/idf_additions.h>
 #include <freertos/queue.h>
 #include <memory>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 namespace idfxx {
 
@@ -68,16 +71,17 @@ public:
      * @brief Creates a queue with the specified capacity.
      *
      * @param length Maximum number of items the queue can hold.
+     * @param mem_type Memory region for queue storage allocation.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
      * @throws std::system_error with idfxx::errc::no_mem if memory allocation fails.
      */
-    [[nodiscard]] explicit queue(size_t length)
+    [[nodiscard]] explicit queue(size_t length, memory_type mem_type = memory_type::internal)
         : _handle(nullptr) {
         if (length == 0) {
             throw std::system_error(errc::invalid_arg);
         }
-        _handle = xQueueCreate(length, sizeof(T));
+        _handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
         if (_handle == nullptr) {
             throw std::system_error(errc::no_mem);
         }
@@ -88,16 +92,18 @@ public:
      * @brief Creates a queue with the specified capacity.
      *
      * @param length Maximum number of items the queue can hold.
+     * @param mem_type Memory region for queue storage allocation.
      * @return The new queue, or an error.
      * @retval invalid_arg length is 0.
      * @retval no_mem Memory allocation failed.
      */
-    [[nodiscard]] static result<std::unique_ptr<queue>> make(size_t length) {
+    [[nodiscard]] static result<std::unique_ptr<queue>>
+    make(size_t length, memory_type mem_type = memory_type::internal) {
         if (length == 0) {
             return error(errc::invalid_arg);
         }
         auto q = std::unique_ptr<queue>(new queue());
-        q->_handle = xQueueCreate(length, sizeof(T));
+        q->_handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
         if (q->_handle == nullptr) {
             return error(errc::no_mem);
         }
@@ -111,7 +117,7 @@ public:
      */
     ~queue() {
         if (_handle != nullptr) {
-            vQueueDelete(_handle);
+            vQueueDeleteWithCaps(_handle);
         }
     }
 

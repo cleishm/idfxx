@@ -11,6 +11,7 @@ Task lifecycle management for ESP32.
 - **Suspend/resume control** with ISR-safe resume
 - **Task notifications** for lightweight wake-up (binary and counting semaphore patterns)
 - **Core affinity** for pinning tasks to specific cores
+- **PSRAM stack allocation** for placing task stacks in external memory
 
 ## Requirements
 
@@ -239,6 +240,24 @@ auto task = idfxx::task::make(
 // Use std::nullopt (default) to allow the task to run on any core
 ```
 
+### PSRAM Stack Allocation
+
+On devices with external PSRAM, place task stacks in external memory to free
+internal DRAM for DMA buffers and performance-critical data:
+
+```cpp
+#include <idfxx/task>
+
+auto task = idfxx::task::make(
+    {.name = "worker", .stack_size = 16384, .stack_mem = idfxx::memory_type::spiram},
+    my_task_function
+);
+
+// Use memory_type::internal (default) for internal DRAM
+```
+
+> **Note:** `memory_type::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+
 ### Task Control from ISR
 
 ```cpp
@@ -419,6 +438,11 @@ std::string name = idfxx::task::current_name();
 - `self.take()` - Block until notified, returns accumulated count (counting semaphore pattern)
 - `self.take_for(duration)` - Block until notified or timeout, returns count
 - `self.take_until(time_point)` - Block until notified or deadline, returns count
+
+### Configuration Types
+
+- `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem)
+- `idfxx::memory_type` - Memory region type (`internal`, `spiram`) — defined in `<idfxx/memory>`
 
 ### Query Methods
 

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <idfxx/chrono>
+#include <idfxx/memory>
 #include <idfxx/sched>
 #include <idfxx/task>
 #include <string>
@@ -459,3 +460,43 @@ TEST_CASE("queue destructor cleans up with items in queue", "[idfxx][queue]") {
     // If we get here without crashing, cleanup worked
     idfxx::delay(10ms);
 }
+
+// =============================================================================
+// Storage memory tests
+// =============================================================================
+
+TEST_CASE("queue::make with explicit internal storage", "[idfxx][queue]") {
+    auto result = queue<int>::make(10, memory_type::internal);
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_NOT_NULL(result->get());
+
+    auto& q = *result;
+    TEST_ASSERT_TRUE(q->try_send(42).has_value());
+    auto recv = q->try_receive(0ms);
+    TEST_ASSERT_TRUE(recv.has_value());
+    TEST_ASSERT_EQUAL(42, *recv);
+}
+
+#if CONFIG_SPIRAM
+
+TEST_CASE("queue::make with spiram storage", "[idfxx][queue]") {
+    auto result = queue<int>::make(10, memory_type::spiram);
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_NOT_NULL(result->get());
+
+    auto& q = *result;
+
+    // Verify basic send/receive works with PSRAM-backed queue
+    TEST_ASSERT_TRUE(q->try_send(42).has_value());
+    TEST_ASSERT_TRUE(q->try_send(99).has_value());
+
+    auto recv1 = q->try_receive(0ms);
+    TEST_ASSERT_TRUE(recv1.has_value());
+    TEST_ASSERT_EQUAL(42, *recv1);
+
+    auto recv2 = q->try_receive(0ms);
+    TEST_ASSERT_TRUE(recv2.has_value());
+    TEST_ASSERT_EQUAL(99, *recv2);
+}
+
+#endif // CONFIG_SPIRAM

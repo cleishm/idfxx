@@ -7,9 +7,11 @@
 #include "idfxx/memory"
 #include "unity.h"
 
+#include <esp_heap_caps.h>
 #include <esp_memory_utils.h>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 using namespace idfxx;
@@ -18,6 +20,16 @@ using namespace idfxx;
 // Compile-time tests (static_assert)
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
+
+// memory_type enum values match ESP-IDF heap capability flags
+static_assert(
+    std::to_underlying(memory_type::internal) == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+    "memory_type::internal must match MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT"
+);
+static_assert(
+    std::to_underlying(memory_type::spiram) == MALLOC_CAP_SPIRAM,
+    "memory_type::spiram must match MALLOC_CAP_SPIRAM"
+);
 
 // value_type trait
 static_assert(std::is_same_v<dram_allocator<int>::value_type, int>);

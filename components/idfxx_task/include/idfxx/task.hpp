@@ -20,6 +20,7 @@
 #include <idfxx/chrono>
 #include <idfxx/cpu>
 #include <idfxx/error>
+#include <idfxx/memory>
 
 #include <chrono>
 #include <freertos/FreeRTOS.h>
@@ -250,6 +251,7 @@ public:
         size_t stack_size = 4096;                            ///< Stack size in bytes
         unsigned int priority = 5;                           ///< Task priority (0 = lowest)
         std::optional<core_id> core_affinity = std::nullopt; ///< Core pin (nullopt = any core)
+        memory_type stack_mem = memory_type::internal;       ///< Stack memory type
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

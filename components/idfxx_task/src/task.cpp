@@ -62,7 +62,7 @@ void task::trampoline(void* arg) {
     if (expected == context::state_t::detached) {
         // Detached: self-clean.
         delete ctx;
-        vTaskDelete(nullptr);
+        vTaskDeleteWithCaps(nullptr);
     }
 
     // Destroying: destructor will force-kill us. Suspend until killed.
@@ -76,8 +76,15 @@ result<TaskHandle_t> task::_create(context* ctx, const config& cfg) {
     BaseType_t core =
         cfg.core_affinity ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity)) : tskNO_AFFINITY;
 
-    BaseType_t ret = xTaskCreatePinnedToCore(
-        trampoline, cfg.name.data(), cfg.stack_size, ctx, static_cast<UBaseType_t>(cfg.priority), &handle, core
+    BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(
+        trampoline,
+        cfg.name.data(),
+        cfg.stack_size,
+        ctx,
+        static_cast<UBaseType_t>(cfg.priority),
+        &handle,
+        core,
+        std::to_underlying(cfg.stack_mem)
     );
 
     if (ret != pdPASS) {
@@ -191,7 +198,7 @@ task::~task() {
             vTaskResume(_handle);
             xTaskNotifyGive(_handle);
         } while (xSemaphoreTake(_context->join_sem, 1) != pdTRUE);
-        vTaskDelete(_handle);
+        vTaskDeleteWithCaps(_handle);
     }
     delete _context;
 }
@@ -261,7 +268,7 @@ result<void> task::try_detach() {
             expected, context::state_t::detached, std::memory_order_acq_rel, std::memory_order_acquire
         )) {
         // completed: task is suspended. Delete it and clean up context.
-        vTaskDelete(_handle);
+        vTaskDeleteWithCaps(_handle);
         delete _context;
     }
     _handle = nullptr;
@@ -282,11 +289,11 @@ result<void> task::try_kill() {
             expected, context::state_t::destroying, std::memory_order_acq_rel, std::memory_order_acquire
         )) {
         // Task hasn't completed yet. Force delete it.
-        vTaskDelete(_handle);
+        vTaskDeleteWithCaps(_handle);
     } else {
         // Task completed and is suspended. Take semaphore and delete.
         xSemaphoreTake(_context->join_sem, portMAX_DELAY);
-        vTaskDelete(_handle);
+        vTaskDeleteWithCaps(_handle);
     }
 
     _handle = nullptr;
@@ -307,14 +314,14 @@ result<void> task::_try_join(TickType_t ticks) {
         return error(std::errc::resource_deadlock_would_occur);
     }
     if (_context->state.load(std::memory_order_acquire) == context::state_t::completed) {
-        vTaskDelete(_handle);
+        vTaskDeleteWithCaps(_handle);
         _handle = nullptr;
         return {};
     }
     if (xSemaphoreTake(_context->join_sem, ticks) != pdTRUE) {
         return error(errc::timeout);
     }
-    vTaskDelete(_handle);
+    vTaskDeleteWithCaps(_handle);
     _handle = nullptr;
     return {};
 }

@@ -9,6 +9,7 @@ Type-safe queue for inter-task communication on ESP32.
 - **Send-to-front support** for priority message insertion
 - **Overwrite support** for "latest value" mailbox patterns
 - **Peek without removing** items from the queue
+- **PSRAM storage** for placing large queues in external memory
 - **Query methods** - `size()`, `available()`, `empty()`, `full()`
 
 ## Requirements
@@ -122,6 +123,19 @@ void consumer_task(void* arg) {
 }
 ```
 
+### PSRAM Storage
+
+Place queue storage in external PSRAM to free internal DRAM:
+
+```cpp
+#include <idfxx/queue>
+
+// Create a large queue in PSRAM
+idfxx::queue<sensor_reading> q(1000, idfxx::memory_type::spiram);
+```
+
+> **Note:** `memory_type::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+
 ### Send-to-Front (Priority Messages)
 
 ```cpp
@@ -174,8 +188,9 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 ### Construction
 
-- `queue(length)` - Create a queue with the specified capacity (exception-based)
-- `queue::make(length)` - Create a queue with the specified capacity (result-based)
+- `queue(length, mem_type)` - Create a queue with the specified capacity (exception-based)
+- `queue::make(length, mem_type)` - Create a queue with the specified capacity (result-based)
+- `idfxx::memory_type` - Memory region type (`internal`, `spiram`) — defined in `<idfxx/memory>`
 
 ### Send
 

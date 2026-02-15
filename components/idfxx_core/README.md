@@ -9,7 +9,7 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
 - **Chrono utilities** for FreeRTOS tick conversions
-- **Custom memory allocators** for DRAM, IRAM, and DMA-capable memory
+- **Custom memory allocators** for DRAM, PSRAM, and DMA-capable memory
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
 
 ## Requirements
@@ -74,6 +74,12 @@ vTaskDelay(delay);
 
 // ISR-safe vector using DRAM allocator
 std::vector<int, idfxx::dram_allocator<int>> isr_safe_vector;
+
+// Large buffer in external PSRAM (requires CONFIG_SPIRAM)
+std::vector<uint8_t, idfxx::spiram_allocator<uint8_t>> psram_buffer;
+
+// DMA-capable buffer for peripheral transfers
+std::vector<uint8_t, idfxx::dma_allocator<uint8_t>> dma_buffer;
 ```
 
 ## API Overview
@@ -91,10 +97,11 @@ std::vector<int, idfxx::dram_allocator<int>> isr_safe_vector;
 
 - `to_ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
 
-### Memory Allocators (`<idfxx/memory>`)
+### Memory (`<idfxx/memory>`)
 
+- `memory_type` - Memory region enum (`internal`, `spiram`) for controlling allocation placement
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
-- `iram_allocator<T>` - Allocates from instruction RAM
+- `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
 
 ## Error Codes

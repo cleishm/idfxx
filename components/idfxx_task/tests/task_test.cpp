@@ -12,6 +12,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <idfxx/chrono>
+#include <idfxx/memory>
 #include <idfxx/sched>
 #include <type_traits>
 
@@ -99,6 +100,7 @@ TEST_CASE("task::config default values", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(4096, cfg.stack_size);
     TEST_ASSERT_EQUAL(5, cfg.priority);
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
+    TEST_ASSERT_TRUE(cfg.stack_mem == memory_type::internal);
 }
 
 TEST_CASE("task name is stored correctly", "[idfxx][task]") {
@@ -161,17 +163,16 @@ TEST_CASE("task suspend and resume", "[idfxx][task]") {
 
     // Let task run
     idfxx::delay(50ms);
-    int count_before_suspend = counter.load();
-    TEST_ASSERT_GREATER_THAN(0, count_before_suspend);
+    TEST_ASSERT_GREATER_THAN(0, counter.load());
 
     // Suspend
     auto suspend_result = t->try_suspend();
     TEST_ASSERT_TRUE(suspend_result.has_value());
 
-    // Wait and check counter doesn't increase
-    idfxx::delay(50ms);
+    // Read counter after suspend, then verify it doesn't increase
     int count_after_suspend = counter.load();
-    TEST_ASSERT_EQUAL(count_before_suspend, count_after_suspend);
+    idfxx::delay(50ms);
+    TEST_ASSERT_EQUAL(count_after_suspend, counter.load());
 
     // Resume
     auto resume_result = t->try_resume();
@@ -738,6 +739,42 @@ TEST_CASE("task with core affinity", "[idfxx][task]") {
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(executed.load());
 }
+
+TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
+    std::atomic<bool> executed{false};
+
+    auto result = task::make(
+        {.name = "internal_stack", .stack_mem = memory_type::internal},
+        [&executed](task::self&) {
+            executed.store(true);
+            idfxx::delay(50ms);
+        }
+    );
+
+    TEST_ASSERT_TRUE(result.has_value());
+
+    idfxx::delay(100ms);
+    TEST_ASSERT_TRUE(executed.load());
+}
+
+#if CONFIG_SPIRAM
+TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
+    std::atomic<bool> executed{false};
+
+    auto result = task::make(
+        {.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory_type::spiram},
+        [&executed](task::self&) {
+            executed.store(true);
+            idfxx::delay(50ms);
+        }
+    );
+
+    TEST_ASSERT_TRUE(result.has_value());
+
+    idfxx::delay(100ms);
+    TEST_ASSERT_TRUE(executed.load());
+}
+#endif
 
 TEST_CASE("task is_completed returns true for raw function pointer tasks", "[idfxx][task]") {
     auto result = task::make(

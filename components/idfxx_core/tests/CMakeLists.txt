@@ -7,7 +7,9 @@ set(IDFXX_CORE_TEST_SOURCES
     error_test.cpp
     chrono_test.cpp
     flags_test.cpp
+    memory_dma_allocator_test.cpp
     memory_dram_allocator_test.cpp
+    memory_spiram_allocator_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,
