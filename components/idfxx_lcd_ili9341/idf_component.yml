@@ -15,7 +15,7 @@ dependencies:
     override_path: ../idfxx_lcd
   espressif/esp_lcd_ili9341:
     version: "^2.0.2"
-    public: true
+    public: false
 targets:
   - esp32
   - esp32s2

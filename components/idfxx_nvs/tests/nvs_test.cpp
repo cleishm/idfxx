@@ -7,8 +7,6 @@
 #include "idfxx/nvs"
 #include "unity.h"
 
-#include <nvs.h>
-#include <nvs_flash.h>
 #include <type_traits>
 #include <utility>
 
@@ -50,24 +48,6 @@ static_assert(!sized_integral<void*>);
 // nvs::errc is an error_code_enum
 static_assert(std::is_error_code_enum_v<nvs::errc>);
 
-// Error codes have expected values (matching ESP-IDF)
-static_assert(std::to_underlying(nvs::errc::not_found) == ESP_ERR_NVS_NOT_FOUND);
-static_assert(std::to_underlying(nvs::errc::type_mismatch) == ESP_ERR_NVS_TYPE_MISMATCH);
-static_assert(std::to_underlying(nvs::errc::read_only) == ESP_ERR_NVS_READ_ONLY);
-static_assert(std::to_underlying(nvs::errc::not_enough_space) == ESP_ERR_NVS_NOT_ENOUGH_SPACE);
-static_assert(std::to_underlying(nvs::errc::invalid_name) == ESP_ERR_NVS_INVALID_NAME);
-static_assert(std::to_underlying(nvs::errc::invalid_handle) == ESP_ERR_NVS_INVALID_HANDLE);
-static_assert(std::to_underlying(nvs::errc::remove_failed) == ESP_ERR_NVS_REMOVE_FAILED);
-static_assert(std::to_underlying(nvs::errc::key_too_long) == ESP_ERR_NVS_KEY_TOO_LONG);
-static_assert(std::to_underlying(nvs::errc::invalid_state) == ESP_ERR_NVS_INVALID_STATE);
-static_assert(std::to_underlying(nvs::errc::invalid_length) == ESP_ERR_NVS_INVALID_LENGTH);
-static_assert(std::to_underlying(nvs::errc::no_free_pages) == ESP_ERR_NVS_NO_FREE_PAGES);
-static_assert(std::to_underlying(nvs::errc::value_too_long) == ESP_ERR_NVS_VALUE_TOO_LONG);
-static_assert(std::to_underlying(nvs::errc::part_not_found) == ESP_ERR_NVS_PART_NOT_FOUND);
-
-// nvs key is the correct size
-static_assert(nvs::flash::key_size == NVS_KEY_SIZE);
-
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
@@ -106,7 +86,7 @@ static void ensure_nvs_init() {
     auto result = nvs::flash::try_init();
     if (!result && (result.error() == nvs::errc::no_free_pages ||
                     result.error() == nvs::errc::new_version_found)) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
+        TEST_ASSERT_TRUE(nvs::flash::try_erase().has_value());
         result = nvs::flash::try_init();
     }
     TEST_ASSERT_TRUE(result.has_value());

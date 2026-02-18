@@ -13,7 +13,6 @@
 #include <idfxx/lcd/panel>
 #include <idfxx/lcd/panel_io>
 
-#include <esp_lcd_ili9341.h>
 #include <memory>
 
 /**

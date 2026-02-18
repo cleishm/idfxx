@@ -14,8 +14,6 @@
 #include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/touch>
 
-#include <esp_lcd_touch.h>
-
 /**
  * @headerfile <idfxx/lcd/stmpe610>
  * @brief LCD driver classes.

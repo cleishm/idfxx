@@ -10,6 +10,24 @@
 #include <nvs_flash.h>
 #include <utility>
 
+// Verify error codes match ESP-IDF constants
+static_assert(std::to_underlying(idfxx::nvs::errc::not_found) == ESP_ERR_NVS_NOT_FOUND);
+static_assert(std::to_underlying(idfxx::nvs::errc::type_mismatch) == ESP_ERR_NVS_TYPE_MISMATCH);
+static_assert(std::to_underlying(idfxx::nvs::errc::read_only) == ESP_ERR_NVS_READ_ONLY);
+static_assert(std::to_underlying(idfxx::nvs::errc::not_enough_space) == ESP_ERR_NVS_NOT_ENOUGH_SPACE);
+static_assert(std::to_underlying(idfxx::nvs::errc::invalid_name) == ESP_ERR_NVS_INVALID_NAME);
+static_assert(std::to_underlying(idfxx::nvs::errc::invalid_handle) == ESP_ERR_NVS_INVALID_HANDLE);
+static_assert(std::to_underlying(idfxx::nvs::errc::remove_failed) == ESP_ERR_NVS_REMOVE_FAILED);
+static_assert(std::to_underlying(idfxx::nvs::errc::key_too_long) == ESP_ERR_NVS_KEY_TOO_LONG);
+static_assert(std::to_underlying(idfxx::nvs::errc::invalid_state) == ESP_ERR_NVS_INVALID_STATE);
+static_assert(std::to_underlying(idfxx::nvs::errc::invalid_length) == ESP_ERR_NVS_INVALID_LENGTH);
+static_assert(std::to_underlying(idfxx::nvs::errc::no_free_pages) == ESP_ERR_NVS_NO_FREE_PAGES);
+static_assert(std::to_underlying(idfxx::nvs::errc::value_too_long) == ESP_ERR_NVS_VALUE_TOO_LONG);
+static_assert(std::to_underlying(idfxx::nvs::errc::part_not_found) == ESP_ERR_NVS_PART_NOT_FOUND);
+
+// Verify key size matches ESP-IDF constant
+static_assert(idfxx::nvs::flash::key_size == NVS_KEY_SIZE);
+
 namespace {
 const char* TAG = "idfxx::nvs";
 }

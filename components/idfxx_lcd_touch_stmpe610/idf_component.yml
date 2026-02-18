@@ -19,7 +19,7 @@ dependencies:
     override_path: ../idfxx_lcd_touch
   espressif/esp_lcd_touch_stmpe610:
     version: "^1.0.8"
-    public: true
+    public: false
 targets:
   - esp32
   - esp32s2

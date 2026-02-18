@@ -3,6 +3,7 @@
 
 #include <idfxx/lcd/stmpe610>
 
+#include <esp_lcd_touch.h>
 #include <esp_lcd_touch_stmpe610.h>
 #include <esp_log.h>
 

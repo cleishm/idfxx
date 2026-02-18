@@ -6,7 +6,6 @@
 
 #include "idfxx/i2c/master"
 
-#include <driver/i2c_master.h>
 #include <type_traits>
 #include <unity.h>
 #include <vector>
