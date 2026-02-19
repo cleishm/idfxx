@@ -30,6 +30,8 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_lcd_ili9341](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ili9341) | ILI9341 LCD controller driver (240x320) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_touch](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch) | LCD touch controller interface | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
 | [idfxx_lcd_touch_stmpe610](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610) | STMPE610 resistive touch controller driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
+| **Sensor Drivers** | | |
+| [idfxx_ds18x20](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20) | DS18x20 1-Wire temperature sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ds18x20.html) |
 
 ## Features
 

@@ -55,13 +55,13 @@ static_assert(std::to_underlying(resolution::bits_12) == 0x7F);
 
 TEST_CASE("address default construction is any", "[idfxx][ds18x20]") {
     address addr;
-    TEST_ASSERT_EQUAL_UINT64(0, addr.raw());
+    TEST_ASSERT_TRUE(addr.raw() == 0);
     TEST_ASSERT_TRUE(addr == address::any());
 }
 
 TEST_CASE("address from raw value", "[idfxx][ds18x20]") {
     address addr{0x28FF123456789ABC};
-    TEST_ASSERT_EQUAL_UINT64(0x28FF123456789ABC, addr.raw());
+    TEST_ASSERT_TRUE(addr.raw() == 0x28FF123456789ABC);
     TEST_ASSERT_EQUAL_UINT8(0xBC, addr.family());
 }
 
