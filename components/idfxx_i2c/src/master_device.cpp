@@ -164,7 +164,7 @@ result<void> master_device::_try_write_register(
 }
 
 result<void> master_device::_try_write_registers(
-    std::vector<uint16_t> registers,
+    std::span<const uint16_t> registers,
     const uint8_t* buf,
     size_t size,
     std::chrono::milliseconds timeout

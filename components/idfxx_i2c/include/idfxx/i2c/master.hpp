@@ -23,8 +23,10 @@
 
 #include <chrono>
 #include <frequency/frequency>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -298,7 +300,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void transmit(const std::vector<uint8_t> data) { unwrap(try_transmit(data)); }
+    void transmit(std::span<const uint8_t> data) { unwrap(try_transmit(data)); }
 
     /**
      * @brief Transmits data to the device.
@@ -310,7 +312,7 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void transmit(const std::vector<uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    void transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
     }
 
@@ -348,7 +350,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_transmit(const std::vector<uint8_t> data) {
+    [[nodiscard]] result<void> try_transmit(std::span<const uint8_t> data) {
         return try_transmit(data, DEFAULT_TIMEOUT);
     }
 
@@ -362,7 +364,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
-    try_transmit(const std::vector<uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    try_transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         return try_transmit(data.data(), data.size(), timeout);
     }
 
@@ -456,20 +458,19 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void receive(std::vector<uint8_t> buf) { unwrap(try_receive(buf)); }
+    void receive(std::span<uint8_t> buf) { unwrap(try_receive(buf)); }
 
     /**
      * @brief Receives data from the device.
      *
      * @param buf    Buffer for received data.
-     * @param size   Number of bytes to receive.
      * @param timeout Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void receive(std::vector<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_receive(buf, timeout));
     }
 #endif
@@ -532,7 +533,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_receive(std::vector<uint8_t> buf) { return try_receive(buf, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf) { return try_receive(buf, DEFAULT_TIMEOUT); }
 
     /**
      * @brief Receives data from the device.
@@ -543,8 +544,7 @@ public:
      * @return Success, or an error.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_receive(std::vector<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         return try_receive(buf.data(), buf.size(), timeout);
     }
 
@@ -558,7 +558,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_register(uint16_t reg, const std::vector<uint8_t> buf) { unwrap(try_write_register(reg, buf)); }
+    void write_register(uint16_t reg, std::span<const uint8_t> buf) { unwrap(try_write_register(reg, buf)); }
 
     /**
      * @brief Writes data to a register.
@@ -571,8 +571,7 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void
-    write_register(uint16_t reg, const std::vector<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void write_register(uint16_t reg, std::span<const uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_write_register(reg, buf, timeout));
     }
 
@@ -614,7 +613,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_register(uint16_t reg, const std::vector<uint8_t> buf) {
+    [[nodiscard]] result<void> try_write_register(uint16_t reg, std::span<const uint8_t> buf) {
         return try_write_register(reg, buf.data(), buf.size(), DEFAULT_TIMEOUT);
     }
 
@@ -628,11 +627,8 @@ public:
      * @return Success, or an error.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_write_register(
-        uint16_t reg,
-        const std::vector<uint8_t> buf,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
+    [[nodiscard]] result<void>
+    try_write_register(uint16_t reg, std::span<const uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         return try_write_register(reg, buf.data(), buf.size(), timeout);
     }
 
@@ -680,7 +676,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_register(uint8_t regHigh, uint8_t regLow, const std::vector<uint8_t> buf) {
+    void write_register(uint8_t regHigh, uint8_t regLow, std::span<const uint8_t> buf) {
         unwrap(try_write_register(regHigh, regLow, buf));
     }
 
@@ -699,7 +695,7 @@ public:
     void write_register(
         uint8_t regHigh,
         uint8_t regLow,
-        const std::vector<uint8_t> buf,
+        std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         unwrap(try_write_register(regHigh, regLow, buf, timeout));
@@ -753,7 +749,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_register(uint8_t regHigh, uint8_t regLow, const std::vector<uint8_t> buf) {
+    [[nodiscard]] result<void> try_write_register(uint8_t regHigh, uint8_t regLow, std::span<const uint8_t> buf) {
         return try_write_register(regHigh, regLow, buf, DEFAULT_TIMEOUT);
     }
 
@@ -771,7 +767,7 @@ public:
     [[nodiscard]] result<void> try_write_register(
         uint8_t regHigh,
         uint8_t regLow,
-        const std::vector<uint8_t> buf,
+        std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return try_write_register(regHigh, regLow, buf.data(), buf.size(), timeout);
@@ -823,7 +819,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_registers(std::vector<uint16_t> registers, const std::vector<uint8_t> buf) {
+    void write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
         unwrap(try_write_registers(registers, buf));
     }
 
@@ -839,8 +835,8 @@ public:
      */
     template<typename Rep, typename Period>
     void write_registers(
-        std::vector<uint16_t> registers,
-        const std::vector<uint8_t> buf,
+        std::span<const uint16_t> registers,
+        std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         unwrap(try_write_registers(registers, buf, timeout));
@@ -856,7 +852,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_registers(std::vector<uint16_t> registers, const uint8_t* buf, size_t size) {
+    void write_registers(std::span<const uint16_t> registers, const uint8_t* buf, size_t size) {
         unwrap(try_write_registers(registers, buf, size));
     }
 
@@ -873,12 +869,82 @@ public:
      */
     template<typename Rep, typename Period>
     void write_registers(
-        std::vector<uint16_t> registers,
+        std::span<const uint16_t> registers,
         const uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         unwrap(try_write_registers(registers, buf, size, timeout));
+    }
+
+    // C++23: std::span cannot be constructed from a braced initializer list until C++26 (P2447).
+    // Remove these overloads when C++26 becomes the minimum standard.
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void write_registers(std::initializer_list<uint16_t> registers, std::span<const uint8_t> buf) {
+        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param timeout   Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<typename Rep, typename Period>
+    void write_registers(
+        std::initializer_list<uint16_t> registers,
+        std::span<const uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param size      Number of bytes per register.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
+        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param size      Number of bytes per register.
+     * @param timeout   Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<typename Rep, typename Period>
+    void write_registers(
+        std::initializer_list<uint16_t> registers,
+        const uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout);
     }
 #endif
 
@@ -890,7 +956,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_registers(std::vector<uint16_t> registers, const std::vector<uint8_t> buf) {
+    [[nodiscard]] result<void> try_write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
         return try_write_registers(registers, buf, DEFAULT_TIMEOUT);
     }
 
@@ -905,8 +971,8 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
-        std::vector<uint16_t> registers,
-        const std::vector<uint8_t> buf,
+        std::span<const uint16_t> registers,
+        std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return try_write_registers(registers, buf.data(), buf.size(), timeout);
@@ -921,7 +987,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_registers(std::vector<uint16_t> registers, const uint8_t* buf, size_t size) {
+    [[nodiscard]] result<void>
+    try_write_registers(std::span<const uint16_t> registers, const uint8_t* buf, size_t size) {
         return try_write_registers(registers, buf, size, DEFAULT_TIMEOUT);
     }
 
@@ -937,12 +1004,80 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
-        std::vector<uint16_t> registers,
+        std::span<const uint16_t> registers,
         const uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return _try_write_registers(registers, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    // C++23: std::span cannot be constructed from a braced initializer list until C++26 (P2447).
+    // Remove these overloads when C++26 becomes the minimum standard.
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void>
+    try_write_registers(std::initializer_list<uint16_t> registers, std::span<const uint8_t> buf) {
+        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param timeout   Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_write_registers(
+        std::initializer_list<uint16_t> registers,
+        std::span<const uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param size      Number of bytes per register.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void>
+    try_write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
+        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size);
+    }
+
+    /**
+     * @brief Writes data to multiple registers.
+     *
+     * @param registers Register addresses.
+     * @param buf       Data to write.
+     * @param size      Number of bytes per register.
+     * @param timeout   Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_write_registers(
+        std::initializer_list<uint16_t> registers,
+        const uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout);
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -988,7 +1123,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void read_register(uint16_t reg, std::vector<uint8_t> buf) { unwrap(try_read_register(reg, buf)); }
+    void read_register(uint16_t reg, std::span<uint8_t> buf) { unwrap(try_read_register(reg, buf)); }
 
     /**
      * @brief Reads data from a register.
@@ -1001,7 +1136,7 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void read_register(uint16_t reg, std::vector<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void read_register(uint16_t reg, std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_read_register(reg, buf, timeout));
     }
 
@@ -1070,7 +1205,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read_register(uint16_t reg, std::vector<uint8_t>& buf) {
+    [[nodiscard]] result<void> try_read_register(uint16_t reg, std::span<uint8_t> buf) {
         return try_read_register(reg, buf, DEFAULT_TIMEOUT);
     }
 
@@ -1084,7 +1219,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
-    try_read_register(uint16_t reg, std::vector<uint8_t>& buf, const std::chrono::duration<Rep, Period>& timeout) {
+    try_read_register(uint16_t reg, std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         return try_read_register(reg, buf.data(), buf.size(), timeout);
     }
 
@@ -1231,7 +1366,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read_register(uint8_t regHigh, uint8_t regLow, std::vector<uint8_t> buf) {
+    [[nodiscard]] result<void> try_read_register(uint8_t regHigh, uint8_t regLow, std::span<uint8_t> buf) {
         return try_read_register(regHigh, regLow, buf, DEFAULT_TIMEOUT);
     }
 
@@ -1249,7 +1384,7 @@ public:
     [[nodiscard]] result<void> try_read_register(
         uint8_t regHigh,
         uint8_t regLow,
-        std::vector<uint8_t> buf,
+        std::span<uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return try_read_register(regHigh, regLow, buf.data(), buf.size(), timeout);
@@ -1307,7 +1442,7 @@ private:
         std::chrono::milliseconds timeout
     );
     [[nodiscard]] result<void> _try_write_registers(
-        std::vector<uint16_t> registers,
+        std::span<const uint16_t> registers,
         const uint8_t* buf,
         size_t size,
         std::chrono::milliseconds timeout

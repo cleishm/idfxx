@@ -25,6 +25,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <system_error>
 #include <vector>
@@ -187,11 +188,11 @@ public:
     /**
      * @brief Stores binary data.
      * @param key  Key name.
-     * @param data Data vector.
+     * @param data Data to store.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void set_blob(std::string_view key, const std::vector<uint8_t>& data) { unwrap(try_set_blob(key, data)); }
+    void set_blob(std::string_view key, std::span<const uint8_t> data) { unwrap(try_set_blob(key, data)); }
 
     /**
      * @brief Retrieves binary data.
@@ -274,8 +275,13 @@ public:
      */
     [[nodiscard]] result<void> try_set_blob(std::string_view key, const void* data, size_t length);
 
-    /** @copydoc try_set_blob(std::string_view, const void*, size_t) */
-    [[nodiscard]] result<void> try_set_blob(std::string_view key, const std::vector<uint8_t>& data);
+    /**
+     * @brief Stores binary data.
+     * @param key  Key name.
+     * @param data Data to store.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_set_blob(std::string_view key, std::span<const uint8_t> data);
 
     /**
      * @brief Retrieves binary data.

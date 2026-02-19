@@ -281,7 +281,7 @@ result<void> nvs::try_set_blob(std::string_view key, const void* data, size_t le
     return {};
 }
 
-result<void> nvs::try_set_blob(std::string_view key, const std::vector<uint8_t>& data) {
+result<void> nvs::try_set_blob(std::string_view key, std::span<const uint8_t> data) {
     return try_set_blob(key, data.data(), data.size());
 }
 
