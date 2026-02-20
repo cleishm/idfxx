@@ -10,23 +10,12 @@
 #include <type_traits>
 
 using namespace idfxx::ds18x20;
+using idfxx::onewire::address;
 
 // =============================================================================
 // Compile-time tests (static_assert)
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
-
-// address is trivially copyable and constexpr-constructible
-static_assert(std::is_trivially_copyable_v<address>);
-static_assert(std::is_default_constructible_v<address>);
-static_assert(address{}.raw() == 0);
-static_assert(address::any().raw() == 0);
-static_assert(address{0x28}.family() == 0x28);
-
-// address comparison
-static_assert(address{} == address::any());
-static_assert(address{0x1234} != address{0x5678});
-static_assert(address{0x1234} < address{0x5678});
 
 // device is copyable and movable
 static_assert(std::is_copy_constructible_v<device>);
@@ -52,42 +41,6 @@ static_assert(std::to_underlying(resolution::bits_12) == 0x7F);
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
-
-TEST_CASE("address default construction is any", "[idfxx][ds18x20]") {
-    address addr;
-    TEST_ASSERT_TRUE(addr.raw() == 0);
-    TEST_ASSERT_TRUE(addr == address::any());
-}
-
-TEST_CASE("address from raw value", "[idfxx][ds18x20]") {
-    address addr{0x28FF123456789ABC};
-    TEST_ASSERT_TRUE(addr.raw() == 0x28FF123456789ABC);
-    TEST_ASSERT_EQUAL_UINT8(0xBC, addr.family());
-}
-
-TEST_CASE("address family extraction", "[idfxx][ds18x20]") {
-    // DS18B20 family code in low byte
-    address addr{0x1234567890ABCD28};
-    TEST_ASSERT_EQUAL_UINT8(0x28, addr.family());
-    TEST_ASSERT_EQUAL_UINT8(std::to_underlying(family::ds18b20), addr.family());
-}
-
-TEST_CASE("address equality comparison", "[idfxx][ds18x20]") {
-    address a{0x1234};
-    address b{0x1234};
-    address c{0x5678};
-
-    TEST_ASSERT_TRUE(a == b);
-    TEST_ASSERT_FALSE(a == c);
-}
-
-TEST_CASE("address ordering comparison", "[idfxx][ds18x20]") {
-    address a{0x1000};
-    address b{0x2000};
-
-    TEST_ASSERT_TRUE(a < b);
-    TEST_ASSERT_FALSE(b < a);
-}
 
 TEST_CASE("device make with NC pin returns error", "[idfxx][ds18x20]") {
     auto result = device::make(idfxx::gpio::nc());
@@ -151,18 +104,6 @@ TEST_CASE("try_measure_and_read_multi with empty span returns empty", "[idfxx][d
 TEST_CASE("try_scan_devices with NC pin returns error", "[idfxx][ds18x20]") {
     auto result = try_scan_devices(idfxx::gpio::nc());
     TEST_ASSERT_FALSE(result.has_value());
-}
-
-TEST_CASE("to_string for address::any()", "[idfxx][ds18x20]") {
-    auto s = idfxx::to_string(address::any());
-    TEST_ASSERT_EQUAL_STRING("DS18X20_ANY", s.c_str());
-}
-
-TEST_CASE("to_string for address with value", "[idfxx][ds18x20]") {
-    // 0x28 in low byte, then 0xFF, 0x12, ...
-    address addr{0xBC9A785634120028};
-    auto s = idfxx::to_string(addr);
-    TEST_ASSERT_EQUAL_STRING("28:00:12:34:56:78:9A:BC", s.c_str());
 }
 
 TEST_CASE("to_string for family enum", "[idfxx][ds18x20]") {

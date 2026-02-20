@@ -5,7 +5,7 @@ DS18x20 1-Wire temperature sensor driver.
 ## Features
 
 - DS18S20, DS1822, DS18B20, and MAX31850 temperature sensor support
-- Typed 1-Wire address with family code extraction and hex formatting
+- Typed 1-Wire address via `onewire::address`
 - Bus scanning to discover connected devices
 - Type-safe temperature values using `thermo::millicelsius`
 - Temperature measurement with configurable resolution (9-12 bit)
@@ -144,7 +144,7 @@ try {
 
 ### Types
 
-- `address` - Typed 64-bit 1-Wire ROM address with family code extraction
+- `onewire::address` - Typed 64-bit 1-Wire ROM address (from `idfxx_onewire`)
 - `family` - Device family enum (ds18s20, ds1822, ds18b20, max31850)
 - `resolution` - ADC resolution enum (bits_9, bits_10, bits_11, bits_12)
 

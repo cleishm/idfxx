@@ -24,6 +24,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_gpio](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gpio) | GPIO pin management with ISR support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gpio.html) |
 | [idfxx_i2c](https://github.com/cleishm/idfxx/tree/main/components/idfxx_i2c) | I2C master bus and device driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__i2c.html) |
 | [idfxx_spi](https://github.com/cleishm/idfxx/tree/main/components/idfxx_spi) | SPI master bus driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__spi.html) |
+| [idfxx_onewire](https://github.com/cleishm/idfxx/tree/main/components/idfxx_onewire) | 1-Wire bus protocol driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__onewire.html) |
 | [idfxx_nvs](https://github.com/cleishm/idfxx/tree/main/components/idfxx_nvs) | Non-Volatile Storage (NVS) wrapper | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__nvs.html) |
 | **Display Drivers** | | |
 | [idfxx_lcd](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd) | LCD panel I/O interface for SPI-based displays | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |

@@ -20,6 +20,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/onewire>
 
 #include <array>
 #include <cstdint>
@@ -60,61 +61,6 @@ enum class resolution : uint8_t {
     bits_10 = 0x3F, ///< 10-bit resolution (~187.5ms conversion)
     bits_11 = 0x5F, ///< 11-bit resolution (~375ms conversion)
     bits_12 = 0x7F, ///< 12-bit resolution (~750ms conversion, default)
-};
-
-/**
- * @headerfile <idfxx/ds18x20>
- * @brief 1-Wire device address.
- *
- * Typed wrapper around a 64-bit 1-Wire ROM address. Each device on the bus
- * has a unique address containing a family code (low byte), serial number,
- * and CRC (high byte).
- *
- * For single-device buses, address::any() can be used to skip ROM matching.
- */
-class address {
-public:
-    /** @brief Constructs an address with value 0 (equivalent to any()). */
-    constexpr address() = default;
-
-    /**
-     * @brief Constructs an address from a raw 64-bit value.
-     * @param raw The 64-bit ROM address.
-     */
-    constexpr explicit address(uint64_t raw)
-        : _raw(raw) {}
-
-    /**
-     * @brief Returns the wildcard address for single-device buses.
-     *
-     * When only one sensor is connected, this address can be used to skip
-     * ROM matching, simplifying communication.
-     *
-     * @return The wildcard address (value 0).
-     */
-    [[nodiscard]] static constexpr address any() { return address{}; }
-
-    /**
-     * @brief Returns the underlying 64-bit ROM address.
-     * @return The raw address value.
-     */
-    [[nodiscard]] constexpr uint64_t raw() const { return _raw; }
-
-    /**
-     * @brief Extracts the family code from the address.
-     *
-     * The family code is stored in the low byte of the ROM address and
-     * identifies the device type (e.g., 0x28 for DS18B20).
-     *
-     * @return The 8-bit family code.
-     */
-    [[nodiscard]] constexpr uint8_t family() const { return static_cast<uint8_t>(_raw & 0xFF); }
-
-    constexpr bool operator==(const address&) const = default;
-    constexpr auto operator<=>(const address&) const = default;
-
-private:
-    uint64_t _raw = 0;
 };
 
 class device;
@@ -191,7 +137,7 @@ inline std::vector<thermo::millicelsius> measure_and_read_multi(std::span<const 
  * Lightweight, copyable value type representing a specific sensor on a 1-Wire bus.
  * Each device is identified by its GPIO pin and 64-bit ROM address.
  *
- * For single-sensor buses, use address::any() (the default) to skip ROM matching:
+ * For single-sensor buses, use onewire::address::any() (the default) to skip ROM matching:
  * @code
  * auto dev = idfxx::ds18x20::device(idfxx::gpio_4);
  * thermo::millicelsius temp = dev.measure_and_read();
@@ -212,22 +158,22 @@ public:
      * @brief Constructs a validated device.
      *
      * @param pin GPIO pin connected to the 1-Wire bus.
-     * @param addr Device address (default: address::any() for single-device buses).
+     * @param addr Device address (default: onewire::address::any() for single-device buses).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the pin is not connected.
      */
-    [[nodiscard]] explicit device(idfxx::gpio pin, address addr = address::any());
+    [[nodiscard]] explicit device(idfxx::gpio pin, onewire::address addr = onewire::address::any());
 #endif
 
     /**
      * @brief Creates a validated device.
      *
      * @param pin GPIO pin connected to the 1-Wire bus.
-     * @param addr Device address (default: address::any() for single-device buses).
+     * @param addr Device address (default: onewire::address::any() for single-device buses).
      * @return The device, or an error if the pin is not connected.
      * @retval invalid_state If the pin is not connected.
      */
-    [[nodiscard]] static result<device> make(idfxx::gpio pin, address addr = address::any());
+    [[nodiscard]] static result<device> make(idfxx::gpio pin, onewire::address addr = onewire::address::any());
 
     // Copyable and movable
     device(const device&) = default;
@@ -241,7 +187,7 @@ public:
     [[nodiscard]] constexpr idfxx::gpio pin() const { return _pin; }
 
     /** @brief Returns the device address. */
-    [[nodiscard]] constexpr address addr() const { return _addr; }
+    [[nodiscard]] constexpr onewire::address addr() const { return _addr; }
 
     // Temperature measurement
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -409,13 +355,13 @@ private:
 
     /** @cond INTERNAL */
     struct validated {};
-    device(idfxx::gpio pin, address addr, validated)
+    device(idfxx::gpio pin, onewire::address addr, validated)
         : _pin(pin)
         , _addr(addr) {}
     /** @endcond */
 
     idfxx::gpio _pin;
-    address _addr;
+    onewire::address _addr;
 };
 
 /** @} */ // end of idfxx_ds18x20
@@ -423,32 +369,6 @@ private:
 } // namespace idfxx::ds18x20
 
 namespace idfxx {
-
-/**
- * @headerfile <idfxx/ds18x20>
- * @brief Returns a string representation of a 1-Wire address.
- *
- * @param addr The address to convert.
- * @return "DS18X20_ANY" for the wildcard address, or colon-separated hex bytes (e.g., "28:FF:12:34:56:78:9A:BC").
- */
-[[nodiscard]] inline std::string to_string(ds18x20::address addr) {
-    if (addr == ds18x20::address::any()) {
-        return "DS18X20_ANY";
-    }
-    static constexpr char hex[] = "0123456789ABCDEF";
-    std::string result;
-    result.reserve(23);
-    auto raw = addr.raw();
-    for (int i = 0; i < 8; ++i) {
-        if (i > 0) {
-            result += ':';
-        }
-        auto byte = static_cast<uint8_t>((raw >> (i * 8)) & 0xFF);
-        result += hex[byte >> 4];
-        result += hex[byte & 0xF];
-    }
-    return result;
-}
 
 /**
  * @headerfile <idfxx/ds18x20>
@@ -508,17 +428,6 @@ namespace idfxx {
 #include <algorithm>
 #include <format>
 namespace std {
-template<>
-struct formatter<idfxx::ds18x20::address> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
-
-    template<typename FormatContext>
-    auto format(idfxx::ds18x20::address addr, FormatContext& ctx) const {
-        auto s = idfxx::to_string(addr);
-        return std::copy(s.begin(), s.end(), ctx.out());
-    }
-};
-
 template<>
 struct formatter<idfxx::ds18x20::family> {
     constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }

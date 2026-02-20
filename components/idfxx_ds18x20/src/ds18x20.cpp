@@ -23,7 +23,7 @@ namespace idfxx::ds18x20 {
 // -- device ------------------------------------------------------------------
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-device::device(idfxx::gpio pin, address addr)
+device::device(idfxx::gpio pin, onewire::address addr)
     : _pin(pin)
     , _addr(addr) {
     if (!_pin.is_connected()) {
@@ -32,7 +32,7 @@ device::device(idfxx::gpio pin, address addr)
 }
 #endif
 
-result<device> device::make(idfxx::gpio pin, address addr) {
+result<device> device::make(idfxx::gpio pin, onewire::address addr) {
     if (!pin.is_connected()) {
         ESP_LOGD(TAG, "Cannot create device: GPIO pin is not connected");
         return error(errc::invalid_state);
@@ -99,7 +99,7 @@ result<std::vector<device>> try_scan_devices(idfxx::gpio pin, size_t max_devices
         std::vector<device> devices;
         devices.reserve(found);
         for (size_t i = 0; i < found; ++i) {
-            devices.push_back(device(pin, address{addrs[i]}, device::validated{}));
+            devices.push_back(device(pin, onewire::address{addrs[i]}, device::validated{}));
         }
         return devices;
     });
