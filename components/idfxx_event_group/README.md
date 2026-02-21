@@ -47,8 +47,6 @@ template<> inline constexpr bool idfxx::enable_flags_operators<my_event> = true;
 
 ### Exception-based API
 
-If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
-
 ```cpp
 #include <idfxx/event_group>
 #include <idfxx/sched>
@@ -56,28 +54,25 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 using namespace std::chrono_literals;
 
+idfxx::event_group<my_event> eg;
+
+// Set bits from one task
+eg.set(my_event::data_ready);
+
+// Wait for any bit in another task
 try {
-    idfxx::event_group<my_event> eg;
-
-    // Set bits from one task
-    eg.set(my_event::data_ready);
-
-    // Wait for any bit in another task
     auto bits = eg.wait(my_event::data_ready | my_event::timeout,
                         idfxx::wait_mode::any);
 
     if (bits.contains(my_event::data_ready)) {
         idfxx::log::info("app", "Data is ready");
     }
-
 } catch (const std::system_error& e) {
-    idfxx::log::error("app", "Error: {}", e.what());
+    idfxx::log::error("app", "Wait error: {}", e.what());
 }
 ```
 
 ### Result-based API
-
-If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
 
 ```cpp
 #include <idfxx/event_group>
@@ -86,18 +81,14 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
 
 using namespace std::chrono_literals;
 
-auto eg = idfxx::event_group<my_event>::make();
-if (!eg) {
-    idfxx::log::error("app", "Failed to create event group: {}", eg.error().message());
-    return;
-}
+idfxx::event_group<my_event> eg;
 
 // Set bits from one task
-(*eg)->set(my_event::data_ready);
+eg.set(my_event::data_ready);
 
 // Wait for any bit with timeout
-auto bits = (*eg)->try_wait(my_event::data_ready | my_event::timeout,
-                            idfxx::wait_mode::any, 100ms);
+auto bits = eg.try_wait(my_event::data_ready | my_event::timeout,
+                        idfxx::wait_mode::any, 100ms);
 if (bits) {
     if (bits->contains(my_event::data_ready)) {
         idfxx::log::info("app", "Data is ready");
@@ -120,12 +111,12 @@ idfxx::event_group<my_event> eg;
 auto wait_bits = my_event::data_ready | my_event::timeout;
 
 // Task 1: set data_ready, wait for both
-auto t1 = idfxx::task::make({.name = "task1"}, [&](idfxx::task::self&) {
+idfxx::task t1({.name = "task1"}, [&](idfxx::task::self&) {
     eg.sync(my_event::data_ready, wait_bits, 500ms);
 });
 
 // Task 2: set timeout, wait for both
-auto t2 = idfxx::task::make({.name = "task2"}, [&](idfxx::task::self&) {
+idfxx::task t2({.name = "task2"}, [&](idfxx::task::self&) {
     eg.sync(my_event::timeout, wait_bits, 500ms);
 });
 ```
@@ -146,8 +137,7 @@ void IRAM_ATTR my_isr() {
 
 ### Construction
 
-- `event_group()` - Create event group (exception-based)
-- `event_group::make()` - Create event group (result-based)
+- `event_group()` - Create event group
 
 ### Set / Clear / Get
 

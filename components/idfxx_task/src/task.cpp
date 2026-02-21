@@ -64,7 +64,7 @@ void task::trampoline(void* arg) {
     }
 }
 
-result<TaskHandle_t> task::_create(context* ctx, const config& cfg) {
+TaskHandle_t task::_create(context* ctx, const config& cfg) {
     TaskHandle_t handle = nullptr;
     BaseType_t core =
         cfg.core_affinity ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity)) : tskNO_AFFINITY;
@@ -88,49 +88,6 @@ result<TaskHandle_t> task::_create(context* ctx, const config& cfg) {
     return handle;
 }
 
-result<std::unique_ptr<task>> task::make(config cfg, std::move_only_function<void(self&)> task_func) {
-    auto* ctx = new context{};
-    ctx->func = std::move(task_func);
-    ctx->join_sem = xSemaphoreCreateBinary();
-    if (ctx->join_sem == nullptr) {
-        delete ctx;
-        raise_no_mem();
-    }
-    return _create(ctx, cfg).transform([&](auto handle) {
-        return std::unique_ptr<task>(new task(handle, std::string{cfg.name}, ctx));
-    });
-}
-
-result<std::unique_ptr<task>> task::make(config cfg, void (*task_func)(self&, void*), void* arg) {
-    auto* ctx = new context{};
-    ctx->func_ptr = task_func;
-    ctx->func_ptr_arg = arg;
-    ctx->join_sem = xSemaphoreCreateBinary();
-    if (ctx->join_sem == nullptr) {
-        delete ctx;
-        raise_no_mem();
-    }
-    return _create(ctx, cfg).transform([&](auto handle) {
-        return std::unique_ptr<task>(new task(handle, std::string{cfg.name}, ctx));
-    });
-}
-
-result<void> task::try_spawn(config cfg, std::move_only_function<void(self&)> task_func) {
-    auto* ctx = new context{};
-    ctx->func = std::move(task_func);
-    ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
-    return _create(ctx, cfg).transform([](auto) {});
-}
-
-result<void> task::try_spawn(config cfg, void (*task_func)(self&, void*), void* arg) {
-    auto* ctx = new context{};
-    ctx->func_ptr = task_func;
-    ctx->func_ptr_arg = arg;
-    ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
-    return _create(ctx, cfg).transform([](auto) {});
-}
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
     : _handle(nullptr)
     , _name(cfg.name)
@@ -142,7 +99,7 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
         delete ctx;
         raise_no_mem();
     }
-    _handle = unwrap(_create(ctx, cfg));
+    _handle = _create(ctx, cfg);
     _context = ctx;
 }
 
@@ -158,10 +115,24 @@ task::task(const config& cfg, void (*task_func)(self&, void*), void* arg)
         delete ctx;
         raise_no_mem();
     }
-    _handle = unwrap(_create(ctx, cfg));
+    _handle = _create(ctx, cfg);
     _context = ctx;
 }
-#endif
+
+void task::spawn(config cfg, std::move_only_function<void(self&)> task_func) {
+    auto* ctx = new context{};
+    ctx->func = std::move(task_func);
+    ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
+    (void)_create(ctx, cfg);
+}
+
+void task::spawn(config cfg, void (*task_func)(self&, void*), void* arg) {
+    auto* ctx = new context{};
+    ctx->func_ptr = task_func;
+    ctx->func_ptr_arg = arg;
+    ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
+    (void)_create(ctx, cfg);
+}
 
 task::task(TaskHandle_t handle, std::string name, context* ctx)
     : _handle(handle)

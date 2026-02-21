@@ -292,13 +292,12 @@ TEST_CASE("queue blocking send succeeds when consumer frees space", "[idfxx][que
     std::atomic<bool> sent{false};
 
     // Producer task: blocks trying to send to a full queue
-    auto t_result = task::make({.name = "q_producer"}, [&q, &sent](task::self&) {
+    auto t = std::make_unique<task>(task::config{.name = "q_producer"}, [&q, &sent](task::self&) {
         auto r = q->try_send(2, 500ms);
         if (r.has_value()) {
             sent.store(true);
         }
     });
-    TEST_ASSERT_TRUE(t_result.has_value());
 
     // Let producer block
     idfxx::delay(50ms);
@@ -327,13 +326,12 @@ TEST_CASE("queue blocking receive succeeds when producer sends", "[idfxx][queue]
     std::atomic<int> received{0};
 
     // Consumer task: blocks trying to receive from an empty queue
-    auto t_result = task::make({.name = "q_consumer"}, [&q, &received](task::self&) {
+    auto t = std::make_unique<task>(task::config{.name = "q_consumer"}, [&q, &received](task::self&) {
         auto r = q->try_receive(500ms);
         if (r.has_value()) {
             received.store(*r);
         }
     });
-    TEST_ASSERT_TRUE(t_result.has_value());
 
     // Let consumer block
     idfxx::delay(50ms);
@@ -410,16 +408,15 @@ TEST_CASE("queue producer-consumer across tasks", "[idfxx][queue]") {
     std::atomic<int> sum{0};
 
     // Producer task
-    auto producer = task::make({.name = "q_prod"}, [&q](task::self&) {
+    auto producer = std::make_unique<task>(task::config{.name = "q_prod"}, [&q](task::self&) {
         for (int i = 1; i <= num_items; ++i) {
             auto r = q->try_send(i, 500ms);
             (void)r;
         }
     });
-    TEST_ASSERT_TRUE(producer.has_value());
 
     // Consumer task
-    auto consumer = task::make({.name = "q_cons"}, [&q, &sum](task::self& self) {
+    auto consumer = std::make_unique<task>(task::config{.name = "q_cons"}, [&q, &sum](task::self& self) {
         for (int i = 0; i < num_items; ++i) {
             auto r = q->try_receive(500ms);
             if (r.has_value()) {
@@ -427,13 +424,12 @@ TEST_CASE("queue producer-consumer across tasks", "[idfxx][queue]") {
             }
         }
     });
-    TEST_ASSERT_TRUE(consumer.has_value());
 
     // Wait for both tasks to finish
-    auto join1 = (*producer)->try_join(5000ms);
+    auto join1 = producer->try_join(5000ms);
     TEST_ASSERT_TRUE(join1.has_value());
 
-    auto join2 = (*consumer)->try_join(5000ms);
+    auto join2 = consumer->try_join(5000ms);
     TEST_ASSERT_TRUE(join2.has_value());
 
     // Sum of 1..20 = 210

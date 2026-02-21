@@ -28,7 +28,6 @@
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
-#include <memory>
 #include <type_traits>
 
 namespace idfxx {
@@ -50,9 +49,7 @@ enum class wait_mode {
  * tasks and ISRs. Event bits are represented as a `flags<E>` value, providing
  * full type safety.
  *
- * Event groups are non-copyable and non-movable. Use the factory method make()
- * for result-based construction or the throwing constructor when exceptions are
- * enabled.
+ * Event groups are non-copyable and non-movable.
  *
  * @tparam E The flag enum type (must satisfy flag_enum concept). The underlying
  *           type must fit within EventBits_t.
@@ -79,11 +76,9 @@ template<flag_enum E>
     requires(sizeof(std::underlying_type_t<E>) <= sizeof(EventBits_t))
 class event_group {
 public:
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates an event group.
      *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] event_group()
@@ -91,20 +86,6 @@ public:
         if (_handle == nullptr) {
             raise_no_mem();
         }
-    }
-#endif
-
-    /**
-     * @brief Creates an event group.
-     *
-     * @return The new event group, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<event_group>> make() {
-        auto eg = std::unique_ptr<event_group>(new event_group(private_tag{}));
-        if (eg->_handle == nullptr) {
-            raise_no_mem();
-        }
-        return eg;
     }
 
     /**
@@ -522,11 +503,6 @@ public:
     [[nodiscard]] EventGroupHandle_t idf_handle() const noexcept { return _handle; }
 
 private:
-    struct private_tag {};
-
-    event_group(private_tag) noexcept
-        : _handle(xEventGroupCreate()) {}
-
     [[nodiscard]] result<flags<E>> _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
         EventBits_t result_bits = xEventGroupWaitBits(
             _handle, bits.value(), clear_on_exit ? pdTRUE : pdFALSE, mode == wait_mode::all ? pdTRUE : pdFALSE, ticks

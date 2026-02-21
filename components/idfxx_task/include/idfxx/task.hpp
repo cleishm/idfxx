@@ -39,8 +39,7 @@ namespace idfxx {
  *
  * Manages a task with automatic cleanup on destruction.
  *
- * Tasks are non-copyable and non-movable. Use the factory method make() for
- * result-based construction or the throwing constructor when exceptions are enabled.
+ * Tasks are non-copyable and non-movable.
  *
  * @note The task function runs in the created task's context, not the caller's context.
  */
@@ -254,7 +253,6 @@ public:
         memory_type stack_mem = memory_type::internal;       ///< Stack memory type
     };
 
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a task with a std::move_only_function callback.
      *
@@ -263,8 +261,7 @@ public:
      * @param cfg Task configuration.
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit task(const config& cfg, std::move_only_function<void(self&)> task_func);
 
@@ -277,40 +274,10 @@ public:
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction and the user argument.
      * @param arg Argument passed to the task function.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit task(const config& cfg, void (*task_func)(self&, void*), void* arg);
-#endif
 
-    /**
-     * @brief Creates a task with a std::move_only_function callback.
-     *
-     * The task starts executing immediately after creation.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction.
-     * @return The new task, or an error.
-
-     */
-    [[nodiscard]] static result<std::unique_ptr<task>> make(config cfg, std::move_only_function<void(self&)> task_func);
-
-    /**
-     * @brief Creates a task with a raw function pointer callback.
-     *
-     * The task starts executing immediately after creation.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction and the user argument.
-     * @param arg Argument passed to the task function.
-     * @return The new task, or an error.
-
-     */
-    [[nodiscard]] static result<std::unique_ptr<task>> make(config cfg, void (*task_func)(self&, void*), void* arg);
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a fire-and-forget task with a std::move_only_function callback.
      *
@@ -319,12 +286,9 @@ public:
      * @param cfg Task configuration.
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::bad_alloc if memory allocation fails.
      */
-    static void spawn(config cfg, std::move_only_function<void(self&)> task_func) {
-        unwrap(try_spawn(std::move(cfg), std::move(task_func)));
-    }
+    static void spawn(config cfg, std::move_only_function<void(self&)> task_func);
 
     /**
      * @brief Creates a fire-and-forget task with a raw function pointer callback.
@@ -335,40 +299,9 @@ public:
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction and the user argument.
      * @param arg Argument passed to the task function.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::bad_alloc if memory allocation fails.
      */
-    static void spawn(config cfg, void (*task_func)(self&, void*), void* arg) {
-        unwrap(try_spawn(std::move(cfg), task_func, arg));
-    }
-#endif
-
-    /**
-     * @brief Creates a fire-and-forget task with a std::move_only_function callback.
-     *
-     * The task starts executing immediately and cleans up its resources when complete.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction.
-     * @return Success, or an error.
-
-     */
-    [[nodiscard]] static result<void> try_spawn(config cfg, std::move_only_function<void(self&)> task_func);
-
-    /**
-     * @brief Creates a fire-and-forget task with a raw function pointer callback.
-     *
-     * The task starts executing immediately and cleans up its resources when complete.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction and the user argument.
-     * @param arg Argument passed to the task function.
-     * @return Success, or an error.
-
-     */
-    [[nodiscard]] static result<void> try_spawn(config cfg, void (*task_func)(self&, void*), void* arg);
+    static void spawn(config cfg, void (*task_func)(self&, void*), void* arg);
 
     /**
      * @brief Destroys the task, requesting stop and blocking until the task function completes.
@@ -797,7 +730,7 @@ public:
 private:
     static void trampoline(void* arg);
 
-    [[nodiscard]] static result<TaskHandle_t> _create(context* ctx, const config& cfg);
+    [[nodiscard]] static TaskHandle_t _create(context* ctx, const config& cfg);
     [[nodiscard]] result<void> _try_join(TickType_t ticks);
 
     explicit task(TaskHandle_t handle, std::string name, context* ctx);

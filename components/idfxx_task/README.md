@@ -36,8 +36,6 @@ Or add `idfxx_task` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ### Exception-based API
 
-If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
-
 ```cpp
 #include <idfxx/sched>
 #include <idfxx/task>
@@ -45,38 +43,8 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 using namespace std::chrono_literals;
 
-try {
-    // Create a task that runs a lambda
-    idfxx::task my_task(
-        {.name = "worker", .stack_size = 4096, .priority = 5},
-        [](idfxx::task::self&) {
-            while (true) {
-                idfxx::log::info("worker", "Working...");
-                idfxx::delay(1s);
-            }
-        }
-    );
-
-    // Task runs until my_task goes out of scope
-
-} catch (const std::system_error& e) {
-    idfxx::log::error("main", "Error: {}", e.what());
-}
-```
-
-### Result-based API
-
-If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
-
-```cpp
-#include <idfxx/sched>
-#include <idfxx/task>
-#include <idfxx/log>
-
-using namespace std::chrono_literals;
-
-// Create task
-auto result = idfxx::task::make(
+// Create a task that runs a lambda
+idfxx::task my_task(
     {.name = "worker", .stack_size = 4096, .priority = 5},
     [](idfxx::task::self&) {
         while (true) {
@@ -86,12 +54,30 @@ auto result = idfxx::task::make(
     }
 );
 
-if (!result) {
-    idfxx::log::error("main", "Failed to create task: {}", result.error().message());
-    return;
-}
+// Task runs until my_task goes out of scope
+```
 
-auto& my_task = *result;
+### Result-based API
+
+Use `try_*` methods for operations that can fail at runtime:
+
+```cpp
+#include <idfxx/sched>
+#include <idfxx/task>
+#include <idfxx/log>
+
+using namespace std::chrono_literals;
+
+// Create task
+auto my_task = std::make_unique<idfxx::task>(
+    idfxx::task::config{.name = "worker", .stack_size = 4096, .priority = 5},
+    [](idfxx::task::self&) {
+        while (true) {
+            idfxx::log::info("worker", "Working...");
+            idfxx::delay(1s);
+        }
+    }
+);
 
 // Suspend and resume
 if (auto r = my_task->try_suspend(); !r) {
@@ -157,13 +143,10 @@ try {
 Result-based API:
 
 ```cpp
-auto result = idfxx::task::make(
-    {.name = "worker"},
+auto worker = std::make_unique<idfxx::task>(
+    idfxx::task::config{.name = "worker"},
     [](idfxx::task::self&) { process_data(); }
 );
-
-if (!result) { /* handle error */ }
-auto& worker = *result;
 
 // Wait up to 500ms
 if (auto r = worker->try_join(500ms); !r) {
@@ -205,8 +188,8 @@ worker.join(1s);
 Result-based API:
 
 ```cpp
-auto result = idfxx::task::make(
-    {.name = "worker"},
+auto worker = std::make_unique<idfxx::task>(
+    idfxx::task::config{.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
             do_work();
@@ -214,9 +197,6 @@ auto result = idfxx::task::make(
         }
     }
 );
-
-if (!result) { /* handle error */ }
-auto& worker = *result;
 
 worker->request_stop();
 if (auto r = worker->try_join(1s); !r) {
@@ -232,7 +212,7 @@ Pin tasks to specific cores:
 #include <idfxx/task>
 #include <idfxx/cpu>
 
-auto task = idfxx::task::make(
+idfxx::task pinned(
     {.name = "pinned", .core_affinity = idfxx::core_id::core_0},
     my_task_function
 );
@@ -248,7 +228,7 @@ internal DRAM for DMA buffers and performance-critical data:
 ```cpp
 #include <idfxx/task>
 
-auto task = idfxx::task::make(
+idfxx::task worker(
     {.name = "worker", .stack_size = 16384, .stack_mem = idfxx::memory_type::spiram},
     my_task_function
 );
@@ -342,8 +322,8 @@ uint32_t count = self.take_until(deadline);
 Result-based API:
 
 ```cpp
-auto result = idfxx::task::make(
-    {.name = "worker"},
+auto worker = std::make_unique<idfxx::task>(
+    idfxx::task::config{.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
             self.wait();
@@ -352,9 +332,6 @@ auto result = idfxx::task::make(
         }
     }
 );
-
-if (!result) { /* handle error */ }
-auto& worker = *result;
 
 if (auto r = worker->try_notify(); !r) {
     // handle error (task detached or completed)
@@ -403,17 +380,15 @@ std::string name = idfxx::task::current_name();
 
 ## API Overview
 
-### Factory Methods
-
-- `task::make(config, callback)` - Create task with std::move_only_function callback
-- `task::make(config, fn, arg)` - Create task with raw function pointer callback
-- `task::spawn(config, callback)` / `task::try_spawn(config, callback)` - Create fire-and-forget task (std::move_only_function)
-- `task::spawn(config, fn, arg)` / `task::try_spawn(config, fn, arg)` - Create fire-and-forget task (raw function pointer)
-
-### Constructors (exception-based)
+### Constructors
 
 - `task(config, callback)` - Create task with std::move_only_function callback
 - `task(config, fn, arg)` - Create task with raw function pointer callback
+
+### Spawn
+
+- `task::spawn(config, callback)` - Create fire-and-forget task (std::move_only_function)
+- `task::spawn(config, fn, arg)` - Create fire-and-forget task (raw function pointer)
 
 ### Task Control
 
