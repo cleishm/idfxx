@@ -292,7 +292,7 @@ public:
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction.
      * @return The new task, or an error.
-     * @retval no_mem Memory allocation failed or insufficient stack.
+
      */
     [[nodiscard]] static result<std::unique_ptr<task>> make(config cfg, std::move_only_function<void(self&)> task_func);
 
@@ -306,7 +306,7 @@ public:
      *                  reference for task self-interaction and the user argument.
      * @param arg Argument passed to the task function.
      * @return The new task, or an error.
-     * @retval no_mem Memory allocation failed or insufficient stack.
+
      */
     [[nodiscard]] static result<std::unique_ptr<task>> make(config cfg, void (*task_func)(self&, void*), void* arg);
 
@@ -352,7 +352,7 @@ public:
      * @param task_func Function to execute in the task context. Receives a @ref self
      *                  reference for task self-interaction.
      * @return Success, or an error.
-     * @retval no_mem Memory allocation failed or insufficient stack.
+
      */
     [[nodiscard]] static result<void> try_spawn(config cfg, std::move_only_function<void(self&)> task_func);
 
@@ -366,7 +366,7 @@ public:
      *                  reference for task self-interaction and the user argument.
      * @param arg Argument passed to the task function.
      * @return Success, or an error.
-     * @retval no_mem Memory allocation failed or insufficient stack.
+
      */
     [[nodiscard]] static result<void> try_spawn(config cfg, void (*task_func)(self&, void*), void* arg);
 

@@ -42,6 +42,28 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 - **Zero-overhead abstractions** - Minimal runtime cost over raw ESP-IDF APIs
 - **ESP Component Registry** - Install via `idf_component.yml`
 
+## Error Handling
+
+All idfxx components provide two API styles:
+
+- **Exception-based** — Methods throw `std::system_error` on failure (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Result-based** — `try_*` methods return `idfxx::result<T>` (`std::expected<T, std::error_code>`), always available
+
+### Out-of-Memory
+
+All out-of-memory conditions are treated as **fatal** — the same as a failed C++ `operator new`. When
+any allocation fails (whether from C++, ESP-IDF, or FreeRTOS), idfxx will:
+
+- **Throw `std::bad_alloc`** if exceptions are enabled (`CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Call `abort()`** if exceptions are disabled
+
+This applies uniformly to both API styles. OOM is never returned as a recoverable error code in
+`idfxx::result<T>`. Code that uses idfxx does not need to check for out-of-memory errors — either
+the call succeeds or the program terminates (or an exception propagates).
+
+If you need to handle potential out-of-memory conditions gracefully (e.g. pre-checking available
+heap before a large allocation), use the ESP-IDF and FreeRTOS APIs directly.
+
 ## Configuration
 
 ### `std::format` Support (`CONFIG_IDFXX_STD_FORMAT`)

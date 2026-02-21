@@ -31,7 +31,6 @@ static_assert(std::is_same_v<result<void>, std::expected<void, std::error_code>>
 
 // Error codes have expected values (matching ESP-IDF)
 static_assert(std::to_underlying(errc::fail) == ESP_FAIL);
-static_assert(std::to_underlying(errc::no_mem) == ESP_ERR_NO_MEM);
 static_assert(std::to_underlying(errc::invalid_arg) == ESP_ERR_INVALID_ARG);
 static_assert(std::to_underlying(errc::invalid_state) == ESP_ERR_INVALID_STATE);
 static_assert(std::to_underlying(errc::invalid_size) == ESP_ERR_INVALID_SIZE);
@@ -63,7 +62,6 @@ TEST_CASE("error_category messages are not empty", "[idfxx][error]") {
 
     // Test all defined error codes have non-empty messages
     TEST_ASSERT_FALSE(cat.message(std::to_underlying(errc::fail)).empty());
-    TEST_ASSERT_FALSE(cat.message(std::to_underlying(errc::no_mem)).empty());
     TEST_ASSERT_FALSE(cat.message(std::to_underlying(errc::invalid_arg)).empty());
     TEST_ASSERT_FALSE(cat.message(std::to_underlying(errc::invalid_state)).empty());
     TEST_ASSERT_FALSE(cat.message(std::to_underlying(errc::invalid_size)).empty());
@@ -82,24 +80,20 @@ TEST_CASE("error_category message content is correct", "[idfxx][error]") {
     const auto& cat = default_category();
 
     TEST_ASSERT_EQUAL_STRING("Generic failure", cat.message(std::to_underlying(errc::fail)).c_str());
-    TEST_ASSERT_EQUAL_STRING("Out of memory", cat.message(std::to_underlying(errc::no_mem)).c_str());
     TEST_ASSERT_EQUAL_STRING("Invalid argument", cat.message(std::to_underlying(errc::invalid_arg)).c_str());
     TEST_ASSERT_EQUAL_STRING("Operation timed out", cat.message(std::to_underlying(errc::timeout)).c_str());
 }
 
 TEST_CASE("make_error_code from errc", "[idfxx][error]") {
-    std::error_code ec = make_error_code(errc::no_mem);
+    std::error_code ec = make_error_code(errc::invalid_arg);
 
-    TEST_ASSERT_EQUAL(std::to_underlying(errc::no_mem), ec.value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), ec.value());
     TEST_ASSERT_EQUAL_STRING("idfxx::Error", ec.category().name());
-    TEST_ASSERT_EQUAL_STRING("Out of memory", ec.message().c_str());
+    TEST_ASSERT_EQUAL_STRING("Invalid argument", ec.message().c_str());
 }
 
 TEST_CASE("make_error_code from esp_err_t", "[idfxx][error]") {
     // Test mapping of ESP-IDF error codes
-    std::error_code ec_no_mem = make_error_code(ESP_ERR_NO_MEM);
-    TEST_ASSERT_EQUAL(std::to_underlying(errc::no_mem), ec_no_mem.value());
-
     std::error_code ec_invalid_arg = make_error_code(ESP_ERR_INVALID_ARG);
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), ec_invalid_arg.value());
 
@@ -130,10 +124,10 @@ TEST_CASE("wrap with ESP_OK returns success", "[idfxx][error]") {
 }
 
 TEST_CASE("wrap with error returns unexpected", "[idfxx][error]") {
-    result<void> r = wrap(ESP_ERR_NO_MEM);
+    result<void> r = wrap(ESP_ERR_INVALID_ARG);
 
     TEST_ASSERT_FALSE(r.has_value());
-    TEST_ASSERT_EQUAL(std::to_underlying(errc::no_mem), r.error().value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
 }
 
 TEST_CASE("result with value", "[idfxx][error]") {
@@ -157,11 +151,11 @@ TEST_CASE("result value_or returns default on error", "[idfxx][error]") {
 }
 
 TEST_CASE("error from errc returns unexpected with correct error code", "[idfxx][error]") {
-    auto e = error(errc::no_mem);
+    auto e = error(errc::invalid_arg);
     // Verify the error value matches
     result<int> r = e;
     TEST_ASSERT_FALSE(r.has_value());
-    TEST_ASSERT_EQUAL(std::to_underlying(errc::no_mem), r.error().value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
     TEST_ASSERT_EQUAL_STRING("idfxx::Error", r.error().category().name());
 }
 
@@ -179,8 +173,8 @@ TEST_CASE("result value_or returns value on success", "[idfxx][error]") {
 }
 
 TEST_CASE("error codes can be compared", "[idfxx][error]") {
-    std::error_code ec1 = errc::no_mem;
-    std::error_code ec2 = errc::no_mem;
+    std::error_code ec1 = errc::invalid_arg;
+    std::error_code ec2 = errc::invalid_arg;
     std::error_code ec3 = errc::timeout;
 
     TEST_ASSERT_TRUE(ec1 == ec2);
@@ -199,12 +193,12 @@ TEST_CASE("error from std::error_code preserves value and category", "[idfxx][er
 
 TEST_CASE("error from std::error_code propagates between result types", "[idfxx][error]") {
     // Simulate propagating an error from result<void> to result<int>
-    result<void> r1 = error(errc::no_mem);
+    result<void> r1 = error(errc::invalid_arg);
     TEST_ASSERT_FALSE(r1.has_value());
 
     result<int> r2 = error(r1.error());
     TEST_ASSERT_FALSE(r2.has_value());
-    TEST_ASSERT_EQUAL(std::to_underlying(errc::no_mem), r2.error().value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r2.error().value());
     TEST_ASSERT_EQUAL_STRING("idfxx::Error", r2.error().category().name());
 }
 

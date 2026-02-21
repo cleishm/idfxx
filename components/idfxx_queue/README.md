@@ -242,7 +242,6 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 Queue operations use error codes from `idfxx::errc`:
 
 - `invalid_arg` - Queue length is 0
-- `no_mem` - Memory allocation failed during queue creation
 - `timeout` - Send or receive operation timed out (queue full or empty)
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.

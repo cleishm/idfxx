@@ -74,7 +74,8 @@ public:
      * @param mem_type Memory region for queue storage allocation.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
-     * @throws std::system_error with idfxx::errc::no_mem if memory allocation fails.
+     * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
+     * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit queue(size_t length, memory_type mem_type = memory_type::internal)
         : _handle(nullptr) {
@@ -83,7 +84,7 @@ public:
         }
         _handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
         if (_handle == nullptr) {
-            throw std::system_error(errc::no_mem);
+            raise_no_mem();
         }
     }
 #endif
@@ -95,7 +96,6 @@ public:
      * @param mem_type Memory region for queue storage allocation.
      * @return The new queue, or an error.
      * @retval invalid_arg length is 0.
-     * @retval no_mem Memory allocation failed.
      */
     [[nodiscard]] static result<std::unique_ptr<queue>>
     make(size_t length, memory_type mem_type = memory_type::internal) {
@@ -105,7 +105,7 @@ public:
         auto q = std::unique_ptr<queue>(new queue());
         q->_handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
         if (q->_handle == nullptr) {
-            return error(errc::no_mem);
+            raise_no_mem();
         }
         return q;
     }

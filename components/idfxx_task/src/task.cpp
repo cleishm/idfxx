@@ -6,13 +6,6 @@
 #include <atomic>
 #include <esp_attr.h>
 #include <freertos/semphr.h>
-#include <new>
-
-#ifdef __INTELLISENSE__
-#define IDFXX_NOTHROW_NEW new
-#else
-#define IDFXX_NOTHROW_NEW new (std::nothrow)
-#endif
 
 namespace idfxx {
 
@@ -89,22 +82,19 @@ result<TaskHandle_t> task::_create(context* ctx, const config& cfg) {
 
     if (ret != pdPASS) {
         delete ctx;
-        return error(errc::no_mem);
+        raise_no_mem();
     }
 
     return handle;
 }
 
 result<std::unique_ptr<task>> task::make(config cfg, std::move_only_function<void(self&)> task_func) {
-    auto* ctx = IDFXX_NOTHROW_NEW context{};
-    if (!ctx) {
-        return error(errc::no_mem);
-    }
+    auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->join_sem = xSemaphoreCreateBinary();
     if (ctx->join_sem == nullptr) {
         delete ctx;
-        return error(errc::no_mem);
+        raise_no_mem();
     }
     return _create(ctx, cfg).transform([&](auto handle) {
         return std::unique_ptr<task>(new task(handle, std::string{cfg.name}, ctx));
@@ -112,16 +102,13 @@ result<std::unique_ptr<task>> task::make(config cfg, std::move_only_function<voi
 }
 
 result<std::unique_ptr<task>> task::make(config cfg, void (*task_func)(self&, void*), void* arg) {
-    auto* ctx = IDFXX_NOTHROW_NEW context{};
-    if (!ctx) {
-        return error(errc::no_mem);
-    }
+    auto* ctx = new context{};
     ctx->func_ptr = task_func;
     ctx->func_ptr_arg = arg;
     ctx->join_sem = xSemaphoreCreateBinary();
     if (ctx->join_sem == nullptr) {
         delete ctx;
-        return error(errc::no_mem);
+        raise_no_mem();
     }
     return _create(ctx, cfg).transform([&](auto handle) {
         return std::unique_ptr<task>(new task(handle, std::string{cfg.name}, ctx));
@@ -129,20 +116,14 @@ result<std::unique_ptr<task>> task::make(config cfg, void (*task_func)(self&, vo
 }
 
 result<void> task::try_spawn(config cfg, std::move_only_function<void(self&)> task_func) {
-    auto* ctx = IDFXX_NOTHROW_NEW context{};
-    if (!ctx) {
-        return error(errc::no_mem);
-    }
+    auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
     return _create(ctx, cfg).transform([](auto) {});
 }
 
 result<void> task::try_spawn(config cfg, void (*task_func)(self&, void*), void* arg) {
-    auto* ctx = IDFXX_NOTHROW_NEW context{};
-    if (!ctx) {
-        return error(errc::no_mem);
-    }
+    auto* ctx = new context{};
     ctx->func_ptr = task_func;
     ctx->func_ptr_arg = arg;
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
@@ -159,7 +140,7 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
     ctx->join_sem = xSemaphoreCreateBinary();
     if (ctx->join_sem == nullptr) {
         delete ctx;
-        throw std::system_error(errc::no_mem);
+        raise_no_mem();
     }
     _handle = unwrap(_create(ctx, cfg));
     _context = ctx;
@@ -175,7 +156,7 @@ task::task(const config& cfg, void (*task_func)(self&, void*), void* arg)
     ctx->join_sem = xSemaphoreCreateBinary();
     if (ctx->join_sem == nullptr) {
         delete ctx;
-        throw std::system_error(errc::no_mem);
+        raise_no_mem();
     }
     _handle = unwrap(_create(ctx, cfg));
     _context = ctx;

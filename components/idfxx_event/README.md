@@ -248,7 +248,6 @@ Extends `event_loop` with manual dispatch:
 Event operations use error codes from `idfxx::errc` and ESP-IDF:
 
 - `invalid_arg` - Invalid handle or parameter
-- `no_mem` - Out of memory
 - `invalid_state` - Loop not created or already destroyed
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.

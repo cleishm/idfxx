@@ -25,6 +25,7 @@
 
 #include <expected>
 #include <functional>
+#include <new>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -43,7 +44,6 @@ namespace idfxx {
 enum class errc : esp_err_t {
     // clang-format off
     fail                = -1,    /**< Generic failure. */
-    no_mem              = 0x101, /**< Out of memory */
     invalid_arg         = 0x102, /**< Invalid argument */
     invalid_state       = 0x103, /**< Invalid state */
     invalid_size        = 0x104, /**< Invalid size */
@@ -105,9 +105,9 @@ public:
  *
  * Maps common ESP-IDF error codes to corresponding idfxx::errc values, or
  * returns an std::error_code with idfxx::errc::fail for unknown ESP-IDF
- * error codes.
+ * error codes. Throws std::bad_alloc (or aborts) on ESP_ERR_NO_MEM.
  */
-[[nodiscard]] std::error_code make_error_code(esp_err_t e) noexcept;
+[[nodiscard]] std::error_code make_error_code(esp_err_t e);
 
 /**
  * @brief result type wrapping a value or error code.
@@ -169,6 +169,25 @@ template<typename E>
     return std::unexpected<std::error_code>(make_error_code(e));
 }
 
+/** @cond INTERNAL */
+/// ESP_ERR_NO_MEM value — verified by static_assert in error.cpp
+constexpr esp_err_t _esp_err_no_mem = 0x101;
+
+/**
+ * @brief Throws std::bad_alloc (or aborts) on out-of-memory.
+ *
+ * When exceptions are enabled, throws std::bad_alloc. Otherwise, calls abort().
+ * Treats all OOM conditions as fatal, consistent with C++ operator new behavior.
+ */
+[[noreturn]] inline void raise_no_mem() {
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    throw std::bad_alloc();
+#else
+    abort();
+#endif
+}
+/** @endcond */
+
 /**
  * @brief Creates an unexpected error from an esp_err_t value.
  *
@@ -176,10 +195,15 @@ template<typename E>
  * `idfxx::result<T>`. Converts the ESP-IDF error code to a
  * `std::error_code` using `make_error_code`.
  *
+ * Throws std::bad_alloc (or aborts) on ESP_ERR_NO_MEM.
+ *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.
  */
-[[nodiscard]] inline std::unexpected<std::error_code> error(esp_err_t e) noexcept {
+[[nodiscard]] inline std::unexpected<std::error_code> error(esp_err_t e) {
+    if (e == _esp_err_no_mem) {
+        raise_no_mem();
+    }
     return std::unexpected<std::error_code>(make_error_code(e));
 }
 
@@ -208,6 +232,8 @@ template<typename E>
 
 /**
  * @brief Wraps an esp_err_t into a result<void>.
+ *
+ * Throws std::bad_alloc (or aborts) on ESP_ERR_NO_MEM.
  *
  * @param e The esp_err_t value to wrap.
  *

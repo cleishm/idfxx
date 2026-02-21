@@ -109,7 +109,6 @@ std::vector<uint8_t, idfxx::dma_allocator<uint8_t>> dma_buffer;
 The `idfxx::errc` enum provides common error codes compatible with ESP-IDF:
 
 - `fail` - Generic failure
-- `no_mem` - Out of memory
 - `invalid_arg` - Invalid argument
 - `invalid_state` - Invalid state
 - `timeout` - Operation timed out
@@ -123,6 +122,10 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
 - `result<T>` is the standard return type for fallible operations across idfxx
 - Memory allocators are stateless and can be used with standard containers
 - Chrono conversions handle overflow by clamping to `portMAX_DELAY`
+- **Out-of-memory is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
+  `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. OOM is never
+  returned as a recoverable error in `result<T>`. Use the ESP-IDF and FreeRTOS APIs directly
+  if you need to handle potential out-of-memory conditions gracefully.
 
 ## License
 

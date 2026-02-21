@@ -247,7 +247,6 @@ Timer operations use error codes from `idfxx::errc`:
 
 - `invalid_state` - Timer already running (start) or not running (stop)
 - `invalid_arg` - Invalid configuration or duration
-- `no_mem` - Memory allocation failed
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 

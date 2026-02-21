@@ -120,7 +120,7 @@ public:
      * @param cfg Timer configuration.
      * @param callback Function to call when timer fires.
      * @return The new timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration.
      */
     [[nodiscard]] static result<std::unique_ptr<timer>> make(config cfg, std::move_only_function<void()> callback);
@@ -134,7 +134,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration.
      */
     [[nodiscard]] static result<std::unique_ptr<timer>> make(config cfg, void (*callback)(void*), void* arg);
@@ -333,7 +333,7 @@ public:
      * @param timeout Time until the callback is invoked.
      * @param callback Function to call when timer fires.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration or timeout value.
      * @retval invalid_state Timer could not be started.
      */
@@ -369,7 +369,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration or timeout value.
      * @retval invalid_state Timer could not be started.
      */
@@ -401,7 +401,7 @@ public:
      * @param time Absolute time at which the callback should be invoked.
      * @param callback Function to call when timer fires.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
@@ -432,7 +432,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
@@ -464,7 +464,7 @@ public:
      * @param interval Time between callback invocations.
      * @param callback Function to call when timer fires.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration or interval value.
      * @retval invalid_state Timer could not be started.
      */
@@ -500,7 +500,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-     * @retval no_mem Memory allocation failed.
+
      * @retval invalid_arg Invalid configuration or interval value.
      * @retval invalid_state Timer could not be started.
      */

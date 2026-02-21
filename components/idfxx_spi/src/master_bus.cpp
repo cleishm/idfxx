@@ -38,14 +38,14 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
     if (res != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(res));
         switch (res) {
+        case ESP_ERR_NO_MEM:
+            raise_no_mem();
         case ESP_ERR_INVALID_ARG:
             return error(errc::invalid_arg);
         case ESP_ERR_INVALID_STATE:
             return error(errc::invalid_state);
         case ESP_ERR_NOT_FOUND:
             return error(errc::not_found);
-        case ESP_ERR_NO_MEM:
-            return error(errc::no_mem);
         default:
             return error(errc::invalid_state);
         }

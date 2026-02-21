@@ -145,7 +145,10 @@ static std::optional<nvs::errc> make_errc(esp_err_t e) noexcept {
     }
 }
 
-std::unexpected<std::error_code> nvs_error(esp_err_t e) noexcept {
+std::unexpected<std::error_code> nvs_error(esp_err_t e) {
+    if (e == ESP_ERR_NO_MEM) {
+        raise_no_mem();
+    }
     return std::unexpected(
         make_errc(e).transform([](nvs::errc ec) { return std::error_code{std::to_underlying(ec), nvs_category()}; }
         ).value_or(make_error_code(e))

@@ -343,7 +343,7 @@ private:
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.
  */
-[[nodiscard]] std::unexpected<std::error_code> nvs_error(esp_err_t e) noexcept;
+[[nodiscard]] std::unexpected<std::error_code> nvs_error(esp_err_t e);
 
 class nvs::flash {
 public:
@@ -473,7 +473,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init();
@@ -490,7 +490,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(const secure_config& cfg);
@@ -505,7 +505,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t);
@@ -519,7 +519,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(std::string_view partition_label);
@@ -534,7 +534,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(std::string_view partition_label, const secure_config& cfg);
@@ -548,7 +548,7 @@ public:
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
      * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-     * @retval nvs::errc::no_mem in case memory could not be allocated for the internal structures.
+
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t, std::string_view partition_label);

@@ -84,12 +84,12 @@ public:
      * @brief Creates an event group.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error with idfxx::errc::no_mem if memory allocation fails.
+     * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] event_group()
         : _handle(xEventGroupCreate()) {
         if (_handle == nullptr) {
-            throw std::system_error(errc::no_mem);
+            raise_no_mem();
         }
     }
 #endif
@@ -98,12 +98,11 @@ public:
      * @brief Creates an event group.
      *
      * @return The new event group, or an error.
-     * @retval no_mem Memory allocation failed.
      */
     [[nodiscard]] static result<std::unique_ptr<event_group>> make() {
         auto eg = std::unique_ptr<event_group>(new event_group(private_tag{}));
         if (eg->_handle == nullptr) {
-            return error(errc::no_mem);
+            raise_no_mem();
         }
         return eg;
     }

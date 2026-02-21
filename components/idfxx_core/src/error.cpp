@@ -5,6 +5,8 @@
 
 #include <esp_err.h>
 
+static_assert(idfxx::_esp_err_no_mem == ESP_ERR_NO_MEM);
+
 namespace idfxx {
 
 const error_category& default_category() noexcept {
@@ -20,8 +22,6 @@ std::string error_category::message(int ec) const {
     switch (errc(ec)) {
     case errc::fail:
         return "Generic failure";
-    case errc::no_mem:
-        return "Out of memory";
     case errc::invalid_arg:
         return "Invalid argument";
     case errc::invalid_state:
@@ -53,8 +53,6 @@ std::string error_category::message(int ec) const {
 
 static errc make_errc(esp_err_t e) noexcept {
     switch (e) {
-    case ESP_ERR_NO_MEM:
-        return errc::no_mem;
     case ESP_ERR_INVALID_ARG:
         return errc::invalid_arg;
     case ESP_ERR_INVALID_STATE:
@@ -84,7 +82,10 @@ static errc make_errc(esp_err_t e) noexcept {
     }
 }
 
-std::error_code make_error_code(esp_err_t e) noexcept {
+std::error_code make_error_code(esp_err_t e) {
+    if (e == ESP_ERR_NO_MEM) {
+        raise_no_mem();
+    }
     return make_error_code(make_errc(e));
 }
 

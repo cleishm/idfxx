@@ -6,18 +6,11 @@
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#include <new>
 
 #if CONFIG_ESP_TIMER_IN_IRAM
 #define TIMER_ISR_ATTR IRAM_ATTR
 #else
 #define TIMER_ISR_ATTR
-#endif
-
-#ifdef __INTELLISENSE__
-#define IDFXX_NOTHROW_NEW new
-#else
-#define IDFXX_NOTHROW_NEW new (std::nothrow)
 #endif
 
 namespace idfxx {
@@ -49,23 +42,15 @@ result<std::unique_ptr<timer>> timer::make(config cfg, std::move_only_function<v
     }
 #endif
 
-    auto* ctx = IDFXX_NOTHROW_NEW context{};
-    if (!ctx) {
-        return error(errc::no_mem);
-    }
-
+    auto* ctx = new context{};
     ctx->callback = std::move(callback);
     ctx->mutex = xSemaphoreCreateMutex();
     if (!ctx->mutex) {
         delete ctx;
-        return error(errc::no_mem);
+        raise_no_mem();
     }
 
-    auto t = std::unique_ptr<timer>(IDFXX_NOTHROW_NEW timer(nullptr, std::string{cfg.name}, ctx));
-    if (!t) {
-        delete ctx;
-        return error(errc::no_mem);
-    }
+    auto t = std::unique_ptr<timer>(new timer(nullptr, std::string{cfg.name}, ctx));
 
     esp_timer_create_args_t args{
         .callback = &trampoline,
@@ -102,7 +87,7 @@ result<std::unique_ptr<timer>> timer::make(config cfg, void (*callback)(void*), 
         return error(err);
     }
 
-    return std::unique_ptr<timer>(IDFXX_NOTHROW_NEW timer(handle, std::move(name)));
+    return std::unique_ptr<timer>(new timer(handle, std::move(name)));
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -120,7 +105,7 @@ timer::timer(const config& cfg, std::move_only_function<void()> callback)
     ctx->mutex = xSemaphoreCreateMutex();
     if (!ctx->mutex) {
         delete ctx;
-        throw std::system_error(make_error_code(ESP_ERR_NO_MEM));
+        raise_no_mem();
     }
     _context = ctx;
 

@@ -37,7 +37,7 @@ static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t addr
         );
         switch (err) {
         case ESP_ERR_NO_MEM:
-            return error(errc::no_mem);
+            raise_no_mem();
         default:
             return error(errc::invalid_arg);
         }

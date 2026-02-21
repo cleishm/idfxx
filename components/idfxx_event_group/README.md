@@ -182,7 +182,6 @@ void IRAM_ATTR my_isr() {
 Wait and sync operations use error codes from `idfxx::errc`:
 
 - `timeout` - The wait condition was not satisfied within the specified time
-- `no_mem` - Memory allocation failed during construction
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 

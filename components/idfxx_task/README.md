@@ -462,7 +462,6 @@ std::string name = idfxx::task::current_name();
 
 Task operations use error codes from `idfxx::errc`:
 
-- `no_mem` - Memory allocation failed or insufficient stack
 - `invalid_state` - Task has been detached, already joined, or operation invalid for current state
 - `timeout` - Join did not complete within the specified duration
 

@@ -41,10 +41,10 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, gpio sda, gpio s
             esp_err_to_name(err)
         );
         switch (err) {
+        case ESP_ERR_NO_MEM:
+            raise_no_mem();
         case ESP_ERR_NOT_FOUND:
             return error(errc::not_found);
-        case ESP_ERR_NO_MEM:
-            return error(errc::no_mem);
         default:
             return error(errc::invalid_arg);
         }
