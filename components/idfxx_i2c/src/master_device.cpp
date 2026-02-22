@@ -49,40 +49,54 @@ static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t addr
     return handle;
 }
 
-result<std::unique_ptr<master_device>> master_device::make(std::shared_ptr<master_bus> bus, uint8_t address) {
-    if (bus == nullptr) {
-        ESP_LOGD(TAG, "Cannot create I2C master device: bus is null");
-        return error(errc::invalid_arg);
-    }
-
-    return make_device(*bus, address).transform([&](auto handle) {
-        return std::unique_ptr<master_device>(new master_device(bus, handle, address));
-    });
+result<master_device> master_device::make(master_bus& bus, uint8_t address) {
+    return make_device(bus, address).transform([&](auto handle) { return master_device(&bus, handle, address); });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_device::master_device(std::shared_ptr<master_bus> bus, uint8_t address) {
-    if (bus == nullptr) {
-        throw std::system_error(errc::invalid_arg, "I2C master_bus is null");
-    }
-
-    auto handle = unwrap(make_device(*bus, address));
-    _bus = std::move(bus);
-    _handle = handle;
-    _address = address;
-}
+master_device::master_device(master_bus& bus, uint8_t address)
+    : _bus(&bus)
+    , _handle(unwrap(make_device(bus, address)))
+    , _address(address) {}
 #endif
 
-master_device::master_device(std::shared_ptr<master_bus> bus, i2c_master_dev_handle_t handle, uint8_t address)
-    : _bus(std::move(bus))
+master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint8_t address)
+    : _bus(bus)
     , _handle(handle)
     , _address(address) {}
 
+master_device::master_device(master_device&& other) noexcept
+    : _bus(other._bus)
+    , _handle(other._handle)
+    , _address(other._address) {
+    other._bus = nullptr;
+    other._handle = nullptr;
+}
+
+master_device& master_device::operator=(master_device&& other) noexcept {
+    if (this != &other) {
+        if (_handle != nullptr) {
+            i2c_master_bus_rm_device(_handle);
+        }
+        _bus = other._bus;
+        _handle = other._handle;
+        _address = other._address;
+        other._bus = nullptr;
+        other._handle = nullptr;
+    }
+    return *this;
+}
+
 master_device::~master_device() {
-    i2c_master_bus_rm_device(_handle);
+    if (_handle != nullptr) {
+        i2c_master_bus_rm_device(_handle);
+    }
 }
 
 result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     std::scoped_lock lock(*_bus);
 
     esp_err_t err = i2c_master_transmit(_handle, buf, size, timeout.count());
@@ -109,6 +123,9 @@ result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::
 }
 
 result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     std::scoped_lock lock(*_bus);
 
     esp_err_t err = i2c_master_receive(_handle, buf, size, timeout.count());
@@ -136,6 +153,9 @@ result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono:
 
 result<void>
 master_device::_try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     // Combine register address and data into single buffer
     uint8_t buffer[2 + size];
     buffer[0] = (reg >> 8) & 0xFF;
@@ -153,6 +173,9 @@ result<void> master_device::_try_write_register(
     size_t size,
     std::chrono::milliseconds timeout
 ) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     // Combine register address and data into single buffer
     uint8_t buffer[2 + size];
     buffer[0] = regHigh;
@@ -169,6 +192,9 @@ result<void> master_device::_try_write_registers(
     size_t size,
     std::chrono::milliseconds timeout
 ) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     std::scoped_lock lock(*_bus);
 
     for (const auto& reg : registers) {
@@ -183,6 +209,9 @@ result<void> master_device::_try_write_registers(
 
 result<void>
 master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     std::scoped_lock lock(*_bus);
 
     uint8_t buffer[2]{(uint8_t)(reg >> 8), (uint8_t)(reg & 0xFF)};
@@ -199,6 +228,9 @@ result<void> master_device::_try_read_register(
     size_t size,
     std::chrono::milliseconds timeout
 ) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     std::scoped_lock lock(*_bus);
 
     uint8_t buffer[2]{regHigh, regLow};

@@ -21,6 +21,7 @@
 #include <idfxx/error>
 #include <idfxx/gpio>
 
+#include <cassert>
 #include <chrono>
 #include <frequency/frequency>
 #include <initializer_list>
@@ -62,22 +63,14 @@ enum class port : int {
  *
  * Represents an I2C bus operating in master mode. Satisfies the Lockable
  * named requirement for use with std::lock_guard and std::unique_lock.
+ *
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values. The Lockable methods (lock/try_lock/unlock)
+ * silently no-op on a moved-from object.
  */
 class master_bus {
 public:
-    /**
-     * @brief Creates a new I2C master bus.
-     *
-     * @param port      I2C port number.
-     * @param sda       GPIO pin for the SDA line.
-     * @param scl       GPIO pin for the SCL line.
-     * @param frequency Clock frequency in Hz.
-     *
-     * @return The new master_bus, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<master_bus>>
-    make(enum port port, gpio sda, gpio scl, freq::hertz frequency);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new I2C master bus.
@@ -93,21 +86,48 @@ public:
     [[nodiscard]] explicit master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency);
 #endif
 
+    /**
+     * @brief Creates a new I2C master bus.
+     *
+     * @param port      I2C port number.
+     * @param sda       GPIO pin for the SDA line.
+     * @param scl       GPIO pin for the SCL line.
+     * @param frequency Clock frequency in Hz.
+     *
+     * @return The new master_bus, or an error.
+     */
+    [[nodiscard]] static result<master_bus> make(enum port port, gpio sda, gpio scl, freq::hertz frequency);
+
     ~master_bus();
 
     master_bus(const master_bus&) = delete;
     master_bus& operator=(const master_bus&) = delete;
-    master_bus(master_bus&&) = delete;
-    master_bus& operator=(master_bus&&) = delete;
+    master_bus(master_bus&& other) noexcept;
+    master_bus& operator=(master_bus&& other) noexcept;
 
     /** @brief Acquires exclusive access to the bus. */
-    void lock() const { _mux.lock(); }
+    void lock() const {
+        if (!_mux) {
+            return;
+        }
+        _mux->lock();
+    }
 
     /** @brief Tries to acquire exclusive access without blocking. */
-    [[nodiscard]] bool try_lock() const noexcept { return _mux.try_lock(); }
+    [[nodiscard]] bool try_lock() const noexcept {
+        if (!_mux) {
+            return false;
+        }
+        return _mux->try_lock();
+    }
 
     /** @brief Releases exclusive access to the bus. */
-    void unlock() const { _mux.unlock(); }
+    void unlock() const {
+        if (!_mux) {
+            return;
+        }
+        _mux->unlock();
+    }
 
     /** @brief Returns the underlying ESP-IDF bus handle. */
     [[nodiscard]] i2c_master_bus_handle_t handle() const { return _handle; }
@@ -195,8 +215,8 @@ private:
     [[nodiscard]] std::vector<uint8_t> _scan_devices(std::chrono::milliseconds timeout) const;
     [[nodiscard]] result<void> _probe(uint8_t address, std::chrono::milliseconds timeout) const;
 
-    mutable std::recursive_mutex _mux;
-    i2c_master_bus_handle_t _handle;
+    mutable std::unique_ptr<std::recursive_mutex> _mux;
+    i2c_master_bus_handle_t _handle = nullptr;
     enum port _port;
     freq::hertz _frequency;
 };
@@ -207,22 +227,19 @@ private:
  *
  * Represents a specific device at a 7-bit address. Provides methods for
  * raw data transfer and register-based read/write operations.
+ *
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values.
  */
 class master_device {
 public:
-    /**
-     * @brief Creates a new device on the specified bus.
-     *
-     * @param bus     The parent bus.
-     * @param address 7-bit device address.
-     *
-     * @return The new master_device, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<master_device>> make(std::shared_ptr<master_bus> bus, uint8_t address);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new device on the specified bus.
+     *
+     * Does not take ownership of @p bus. It is the caller's responsibility to ensure that
+     * this device does not outlive the bus.
      *
      * @param bus     The parent bus.
      * @param address 7-bit device address.
@@ -230,18 +247,37 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit master_device(std::shared_ptr<master_bus> bus, uint8_t address);
+    [[nodiscard]] explicit master_device(master_bus& bus, uint8_t address);
 #endif
+
+    /**
+     * @brief Creates a new device on the specified bus.
+     *
+     * Does not take ownership of @p bus. It is the caller's responsibility to ensure that
+     * this device does not outlive the bus.
+     *
+     * @param bus     The parent bus.
+     * @param address 7-bit device address.
+     *
+     * @return The new master_device, or an error.
+     */
+    [[nodiscard]] static result<master_device> make(master_bus& bus, uint8_t address);
 
     ~master_device();
 
     master_device(const master_device&) = delete;
     master_device& operator=(const master_device&) = delete;
-    master_device(master_device&&) = delete;
-    master_device& operator=(master_device&&) = delete;
+    master_device(master_device&& other) noexcept;
+    master_device& operator=(master_device&& other) noexcept;
 
-    /** @brief Returns the parent bus. */
-    [[nodiscard]] const std::shared_ptr<master_bus>& bus() const { return _bus; }
+    /**
+     * @brief Returns the parent bus.
+     * @pre The object has not been moved from.
+     */
+    [[nodiscard]] master_bus& bus() const {
+        assert(_bus != nullptr);
+        return *_bus;
+    }
 
     /** @brief Returns the underlying ESP-IDF device handle. */
     [[nodiscard]] i2c_master_dev_handle_t handle() const { return _handle; }
@@ -268,7 +304,7 @@ public:
      */
     template<typename Rep, typename Period>
     void probe(const std::chrono::duration<Rep, Period>& timeout) const {
-        _bus->probe(_address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        unwrap(try_probe(timeout));
     }
 #endif
 
@@ -288,6 +324,9 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_probe(const std::chrono::duration<Rep, Period>& timeout) const {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         return _bus->try_probe(_address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -1427,7 +1466,7 @@ public:
     }
 
 private:
-    explicit master_device(std::shared_ptr<master_bus> bus, i2c_master_dev_handle_t handle, uint8_t address);
+    explicit master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint8_t address);
 
     [[nodiscard]] result<void> _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
@@ -1452,9 +1491,9 @@ private:
     [[nodiscard]] result<void>
     _try_read_register(uint8_t regHigh, uint8_t regLow, uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
 
-    std::shared_ptr<master_bus> _bus;
-    i2c_master_dev_handle_t _handle;
-    uint8_t _address;
+    master_bus* _bus = nullptr;
+    i2c_master_dev_handle_t _handle = nullptr;
+    uint8_t _address = 0;
 };
 
 /** @} */ // end of idfxx_i2c

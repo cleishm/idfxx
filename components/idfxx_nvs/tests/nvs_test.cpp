@@ -24,9 +24,9 @@ static_assert(!std::is_default_constructible_v<nvs>);
 static_assert(!std::is_copy_constructible_v<nvs>);
 static_assert(!std::is_copy_assignable_v<nvs>);
 
-// nvs is not movable (fixed handle ownership)
-static_assert(!std::is_move_constructible_v<nvs>);
-static_assert(!std::is_move_assignable_v<nvs>);
+// nvs is move-only
+static_assert(std::is_move_constructible_v<nvs>);
+static_assert(std::is_move_assignable_v<nvs>);
 
 // sized_integral concept accepts all expected types
 static_assert(sized_integral<uint8_t>);
@@ -97,7 +97,7 @@ TEST_CASE("nvs::make with valid namespace succeeds", "[idfxx][nvs]") {
 
     auto result = nvs::make("test_ns");
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_TRUE(result.value()->is_writeable());
+    TEST_ASSERT_TRUE(result->is_writeable());
 }
 
 TEST_CASE("nvs::make with read_only flag", "[idfxx][nvs]") {
@@ -107,13 +107,13 @@ TEST_CASE("nvs::make with read_only flag", "[idfxx][nvs]") {
     {
         auto rw = nvs::make("test_ro");
         TEST_ASSERT_TRUE(rw.has_value());
-        TEST_ASSERT_TRUE(rw.value()->is_writeable());
+        TEST_ASSERT_TRUE(rw->is_writeable());
     }
 
     // Now open read-only
     auto ro = nvs::make("test_ro", true);
     TEST_ASSERT_TRUE(ro.has_value());
-    TEST_ASSERT_FALSE(ro.value()->is_writeable());
+    TEST_ASSERT_FALSE(ro->is_writeable());
 }
 
 TEST_CASE("nvs::make with invalid namespace name fails", "[idfxx][nvs]") {
@@ -133,7 +133,7 @@ TEST_CASE("nvs set and get string", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_str");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set a string
     auto set_result = nvs.try_set_string("key1", "hello world");
@@ -154,7 +154,7 @@ TEST_CASE("nvs get non-existent key returns not_found", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_nf");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     auto result = nvs.try_get_string("nonexistent_key");
     TEST_ASSERT_FALSE(result.has_value());
@@ -166,7 +166,7 @@ TEST_CASE("nvs set and get blob", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_blob");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set a blob using vector
     std::vector<uint8_t> data{0x01, 0x02, 0x03, 0x04, 0x05};
@@ -188,7 +188,7 @@ TEST_CASE("nvs set and get blob with raw pointer", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_blobp");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set a blob using raw pointer
     uint8_t data[]{0xAA, 0xBB, 0xCC};
@@ -211,7 +211,7 @@ TEST_CASE("nvs set and get integer values", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_int");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // uint8_t
     TEST_ASSERT_TRUE(nvs.try_set_value<uint8_t>("u8", 255).has_value());
@@ -269,7 +269,7 @@ TEST_CASE("nvs erase key", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_erase");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set a value
     TEST_ASSERT_TRUE(nvs.try_set_string("to_erase", "value").has_value());
@@ -293,7 +293,7 @@ TEST_CASE("nvs erase non-existent key returns not_found", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_ernf");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     auto result = nvs.try_erase("does_not_exist");
     TEST_ASSERT_FALSE(result.has_value());
@@ -305,7 +305,7 @@ TEST_CASE("nvs erase_all", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_erall");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set multiple values
     TEST_ASSERT_TRUE(nvs.try_set_string("key1", "value1").has_value());
@@ -330,14 +330,14 @@ TEST_CASE("nvs read-only handle cannot write", "[idfxx][nvs]") {
     {
         auto rw = nvs::make("test_ro_w");
         TEST_ASSERT_TRUE(rw.has_value());
-        TEST_ASSERT_TRUE(rw.value()->try_set_string("key", "value").has_value());
-        TEST_ASSERT_TRUE(rw.value()->try_commit().has_value());
+        TEST_ASSERT_TRUE(rw->try_set_string("key", "value").has_value());
+        TEST_ASSERT_TRUE(rw->try_commit().has_value());
     }
 
     // Open read-only
     auto ro = nvs::make("test_ro_w", true);
     TEST_ASSERT_TRUE(ro.has_value());
-    auto& nvs = *ro.value();
+    auto& nvs = *ro;
 
     // Reading should work
     auto get_result = nvs.try_get_string("key");
@@ -380,7 +380,7 @@ TEST_CASE("nvs type mismatch error", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_type");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Ensure clean namespace by erasing any existing keys
     TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
@@ -402,7 +402,7 @@ TEST_CASE("nvs key too long error", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_keylen");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // NVS key max length is 15 characters
     auto result = nvs.try_set_string("this_key_name_is_definitely_too_long", "value");
@@ -415,7 +415,7 @@ TEST_CASE("nvs empty string value", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_empty");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set empty string
     TEST_ASSERT_TRUE(nvs.try_set_string("empty", "").has_value());
@@ -433,7 +433,7 @@ TEST_CASE("nvs empty blob value", "[idfxx][nvs]") {
 
     auto nvs_handle = nvs::make("test_eblob");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
-    auto& nvs = *nvs_handle.value();
+    auto& nvs = *nvs_handle;
 
     // Set empty blob
     std::vector<uint8_t> empty_data;

@@ -31,9 +31,9 @@ static_assert(!std::is_default_constructible_v<task>);
 static_assert(!std::is_copy_constructible_v<task>);
 static_assert(!std::is_copy_assignable_v<task>);
 
-// task is not movable
-static_assert(!std::is_move_constructible_v<task>);
-static_assert(!std::is_move_assignable_v<task>);
+// task is move-only
+static_assert(std::is_move_constructible_v<task>);
+static_assert(std::is_move_assignable_v<task>);
 
 // task::self is not default constructible
 static_assert(!std::is_default_constructible_v<task::self>);

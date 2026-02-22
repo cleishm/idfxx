@@ -48,7 +48,7 @@ using namespace frequency_literals;
 
 try {
     // Create I2C bus
-    auto bus = std::make_shared<idfxx::i2c::master_bus>(
+    idfxx::i2c::master_bus bus(
         idfxx::i2c::port::i2c0,  // I2C port
         idfxx::gpio_21,          // SDA pin
         idfxx::gpio_22,          // SCL pin
@@ -56,13 +56,13 @@ try {
     );
 
     // Create device on the bus
-    auto device = std::make_unique<idfxx::i2c::master_device>(
-        bus,     // Shared pointer to bus
+    idfxx::i2c::master_device device(
+        bus,     // Reference to bus
         0x3C     // 7-bit device address
     );
 
     // Read from register (throws on error)
-    auto data = device->read_register(0x00, 1);
+    auto data = device.read_register(0x00, 1);
     idfxx::log::info("I2C", "Register value: 0x{:02X}", data[0]);
 
 } catch (const std::system_error& e) {
@@ -96,7 +96,7 @@ auto bus = std::move(*bus_result);
 
 // Create device on the bus
 auto dev_result = idfxx::i2c::master_device::make(
-    bus,     // Shared pointer to bus
+    bus,     // Reference to bus
     0x3C     // 7-bit device address
 );
 
@@ -107,7 +107,7 @@ if (!dev_result) {
 auto device = std::move(*dev_result);
 
 // Read from register
-auto data_result = device->try_read_register(0x00, 1);
+auto data_result = device.try_read_register(0x00, 1);
 if (data_result) {
     idfxx::log::info("I2C", "Register value: 0x{:02X}", (*data_result)[0]);
 } else {
@@ -120,12 +120,12 @@ if (data_result) {
 ```cpp
 using namespace frequency_literals;
 
-auto bus = std::make_shared<idfxx::i2c::master_bus>(
+idfxx::i2c::master_bus bus(
     idfxx::i2c::port::i2c0, idfxx::gpio_21, idfxx::gpio_22, 100_kHz
 );
 
 // Scan for devices on the bus
-std::vector<uint8_t> devices = bus->scan_devices();
+std::vector<uint8_t> devices = bus.scan_devices();
 
 idfxx::log::info("I2C", "Found {} device(s):", devices.size());
 for (uint8_t addr : devices) {
@@ -136,36 +136,36 @@ for (uint8_t addr : devices) {
 ### Register Operations
 
 ```cpp
-auto device = std::make_unique<idfxx::i2c::master_device>(bus, 0x3C);
+idfxx::i2c::master_device device(bus, 0x3C);
 
 // Write to 16-bit register
 std::vector<uint8_t> data{0x01, 0x02, 0x03};
-device->write_register(0x1000, data);
+device.write_register(0x1000, data);
 
 // Read from 16-bit register
-auto read_data = device->read_register(0x1000, 3);
+auto read_data = device.read_register(0x1000, 3);
 for (uint8_t byte : read_data) {
     idfxx::log::info("I2C", "0x{:02X}", byte);
 }
 
 // Write to 8-bit register (using regHigh, regLow)
-device->write_register(0x10, 0x00, data);
+device.write_register(0x10, 0x00, data);
 
 // Read from 8-bit register
-auto read_8bit = device->read_register(0x10, 0x00, 3);
+auto read_8bit = device.read_register(0x10, 0x00, 3);
 ```
 
 ### Raw Transmit/Receive
 
 ```cpp
-auto device = std::make_unique<idfxx::i2c::master_device>(bus, 0x3C);
+idfxx::i2c::master_device device(bus, 0x3C);
 
 // Transmit raw bytes
 std::vector<uint8_t> tx_data{0x00, 0x01, 0x02};
-device->transmit(tx_data);
+device.transmit(tx_data);
 
 // Receive raw bytes
-auto rx_data = device->receive(4);
+auto rx_data = device.receive(4);
 idfxx::log::info("I2C", "Received {} bytes", rx_data.size());
 ```
 
@@ -176,19 +176,19 @@ The `master_bus` class implements the Lockable concept:
 ```cpp
 using namespace frequency_literals;
 
-auto bus = std::make_shared<idfxx::i2c::master_bus>(
+idfxx::i2c::master_bus bus(
     idfxx::i2c::port::i2c0, idfxx::gpio_21, idfxx::gpio_22, 100_kHz
 );
 
 // Automatic locking with RAII
 {
-    std::lock_guard<idfxx::i2c::master_bus> lock(*bus);
+    std::lock_guard<idfxx::i2c::master_bus> lock(bus);
     // Exclusive bus access here
     // Multiple operations without interruption
 }
 
 // Or use unique_lock for more control
-std::unique_lock<idfxx::i2c::master_bus> lock(*bus, std::defer_lock);
+std::unique_lock<idfxx::i2c::master_bus> lock(bus, std::defer_lock);
 if (lock.try_lock()) {
     // Got the lock
 }
@@ -199,10 +199,10 @@ if (lock.try_lock()) {
 ```cpp
 using namespace std::chrono_literals;
 
-auto device = std::make_unique<idfxx::i2c::master_device>(bus, 0x3C);
+idfxx::i2c::master_device device(bus, 0x3C);
 
 // Read with custom timeout
-auto data = device->read_register(0x00, 1, 500ms);
+auto data = device.read_register(0x00, 1, 500ms);
 
 // Default timeout is 50ms (idfxx::i2c::DEFAULT_TIMEOUT)
 ```
@@ -212,6 +212,7 @@ auto data = device->read_register(0x00, 1, 500ms);
 ### master_bus
 
 **Creation:**
+- `master_bus(port, sda, scl, frequency)` - Constructor (exception-based, if enabled)
 - `make(port, sda, scl, frequency)` - Create bus (result-based)
 
 **Operations:**
@@ -227,6 +228,7 @@ auto data = device->read_register(0x00, 1, 500ms);
 ### master_device
 
 **Creation:**
+- `master_device(bus, address)` - Constructor (exception-based, if enabled)
 - `make(bus, address)` - Create device (result-based)
 
 **Raw I/O:**
@@ -255,7 +257,7 @@ See the [Installation](#installation) section above for details on adding `idfxx
 
 - Addresses are 7-bit (not including R/W bit)
 - Register addresses for `write_register(uint16_t, ...)` are sent MSB first
-- Bus must be kept alive while devices exist (use `std::shared_ptr`)
+- The bus must remain alive while devices using it exist; the caller is responsible for ensuring this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)
 - Bus scanning probes addresses 0x08-0x77
 - Multiple devices can share the same bus

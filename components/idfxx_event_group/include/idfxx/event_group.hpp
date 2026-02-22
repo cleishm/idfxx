@@ -49,7 +49,9 @@ enum class wait_mode {
  * tasks and ISRs. Event bits are represented as a `flags<E>` value, providing
  * full type safety.
  *
- * Event groups are non-copyable and non-movable.
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values.
  *
  * @tparam E The flag enum type (must satisfy flag_enum concept). The underlying
  *           type must fit within EventBits_t.
@@ -100,11 +102,26 @@ public:
         }
     }
 
-    // Non-copyable and non-movable
     event_group(const event_group&) = delete;
     event_group& operator=(const event_group&) = delete;
-    event_group(event_group&&) = delete;
-    event_group& operator=(event_group&&) = delete;
+
+    /** @brief Move constructor. Transfers event group ownership. */
+    event_group(event_group&& other) noexcept
+        : _handle(other._handle) {
+        other._handle = nullptr;
+    }
+
+    /** @brief Move assignment. Transfers event group ownership. */
+    event_group& operator=(event_group&& other) noexcept {
+        if (this != &other) {
+            if (_handle != nullptr) {
+                vEventGroupDelete(_handle);
+            }
+            _handle = other._handle;
+            other._handle = nullptr;
+        }
+        return *this;
+    }
 
     // =========================================================================
     // Set operations
@@ -123,6 +140,9 @@ public:
      *         value may have bits cleared by tasks that were unblocked.
      */
     flags<E> set(flags<E> bits) noexcept {
+        if (_handle == nullptr) {
+            return {};
+        }
         return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupSetBits(_handle, bits.value())));
     }
 
@@ -139,6 +159,9 @@ public:
      * @return The event group bits before clearing.
      */
     flags<E> clear(flags<E> bits) noexcept {
+        if (_handle == nullptr) {
+            return {};
+        }
         return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupClearBits(_handle, bits.value())));
     }
 
@@ -152,6 +175,9 @@ public:
      * @return The current event group bits.
      */
     [[nodiscard]] flags<E> get() const noexcept {
+        if (_handle == nullptr) {
+            return {};
+        }
         return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupGetBits(_handle)));
     }
 
@@ -456,6 +482,9 @@ public:
      * @endcode
      */
     [[nodiscard]] isr_set_result IRAM_ATTR set_from_isr(flags<E> bits) noexcept {
+        if (_handle == nullptr) {
+            return {false, false};
+        }
         BaseType_t woken = pdFALSE;
         BaseType_t ret = xEventGroupSetBitsFromISR(_handle, bits.value(), &woken);
         return {ret == pdPASS, woken == pdTRUE};
@@ -474,6 +503,9 @@ public:
      *       be cleared immediately.
      */
     [[nodiscard]] flags<E> IRAM_ATTR clear_from_isr(flags<E> bits) noexcept {
+        if (_handle == nullptr) {
+            return {};
+        }
         return flags<E>::from_raw(
             static_cast<std::underlying_type_t<E>>(xEventGroupClearBitsFromISR(_handle, bits.value()))
         );
@@ -485,6 +517,9 @@ public:
      * @return The current event group bits.
      */
     [[nodiscard]] flags<E> IRAM_ATTR get_from_isr() const noexcept {
+        if (_handle == nullptr) {
+            return {};
+        }
         return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupGetBitsFromISR(_handle)));
     }
 
@@ -504,6 +539,9 @@ public:
 
 private:
     [[nodiscard]] result<flags<E>> _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         EventBits_t result_bits = xEventGroupWaitBits(
             _handle, bits.value(), clear_on_exit ? pdTRUE : pdFALSE, mode == wait_mode::all ? pdTRUE : pdFALSE, ticks
         );
@@ -516,6 +554,9 @@ private:
     }
 
     [[nodiscard]] result<flags<E>> _try_sync(flags<E> set_bits, flags<E> wait_bits, TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         EventBits_t result_bits = xEventGroupSync(_handle, set_bits.value(), wait_bits.value(), ticks);
         auto result_flags = flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(result_bits));
         if (!result_flags.contains(wait_bits)) {
@@ -524,7 +565,7 @@ private:
         return result_flags;
     }
 
-    EventGroupHandle_t _handle;
+    EventGroupHandle_t _handle = nullptr;
 };
 
 /** @} */ // end of idfxx_event_group

@@ -21,13 +21,8 @@
 
 #include <idfxx/error>
 
-#include <expected>
-#include <functional>
-#include <memory>
-#include <optional>
 #include <span>
 #include <string_view>
-#include <system_error>
 #include <vector>
 
 typedef uint32_t nvs_handle_t;
@@ -53,6 +48,10 @@ concept sized_integral =
  * Provides persistent key-value storage in flash memory. Supports strings,
  * binary blobs, and integer types from 8 to 64 bits.
  *
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return nvs::errc::invalid_handle. Simple accessors
+ * return default values.
+ *
  * Changes are not persisted until commit() is called.
  */
 class nvs {
@@ -70,9 +69,9 @@ public:
         invalid_handle       = 0x1107,  /*!< Handle has been closed or is NULL */
         remove_failed        = 0x1108,  /*!< The value wasn’t updated because flash write operation has failed. The value was written however, and update will be finished after re-initialization of nvs, provided that flash operation doesn’t fail again. */
         key_too_long         = 0x1109,  /*!< Key name is too long */
-        invalid_state        = 0x110b,  /*!< NVS is in an inconsistent state due to a previous error. Call nvs::flash_init() again and create a new nvs object. */
+        invalid_state        = 0x110b,  /*!< NVS is in an inconsistent state due to a previous error. Call nvs::flash::init() again and create a new nvs object. */
         invalid_length       = 0x110c,  /*!< String or blob length is not sufficient to store data */
-        no_free_pages        = 0x110d,  /*!< NVS partition doesn't contain any empty pages. This may happen if NVS partition was truncated. Erase the whole partition and call nvs::flash_init() again. */
+        no_free_pages        = 0x110d,  /*!< NVS partition doesn't contain any empty pages. This may happen if NVS partition was truncated. Erase the whole partition and call nvs::flash::init() again. */
         value_too_long       = 0x110e,  /*!< Value doesn't fit into the entry or string or blob length is longer than supported by the implementation */
         part_not_found       = 0x110f,  /*!< Partition with specified name is not found in the partition table */
         new_version_found    = 0x1110,  /*!< NVS partition contains data in new format and cannot be recognized by this version of code */
@@ -101,16 +100,6 @@ public:
 
     class flash;
 
-    /**
-     * @brief Opens a NVS namespace.
-     *
-     * @param namespace_name Namespace name (max 15 characters).
-     * @param read_only      If true, opens in read-only mode.
-     *
-     * @return The new nvs handle, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<nvs>> make(std::string_view namespace_name, bool read_only = false);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Opens a NVS namespace.
@@ -124,12 +113,26 @@ public:
     [[nodiscard]] explicit nvs(std::string_view namespace_name, bool read_only = false);
 #endif
 
+    /**
+     * @brief Opens a NVS namespace.
+     *
+     * @param namespace_name Namespace name (max 15 characters).
+     * @param read_only      If true, opens in read-only mode.
+     *
+     * @return The new nvs handle, or an error.
+     */
+    [[nodiscard]] static result<nvs> make(std::string_view namespace_name, bool read_only = false);
+
     ~nvs();
 
     nvs(const nvs&) = delete;
     nvs& operator=(const nvs&) = delete;
-    nvs(nvs&&) = delete;
-    nvs& operator=(nvs&&) = delete;
+
+    /** @brief Move constructor. Transfers handle ownership. */
+    nvs(nvs&& other) noexcept;
+
+    /** @brief Move assignment. Transfers handle ownership. */
+    nvs& operator=(nvs&& other) noexcept;
 
     /** @brief Returns true if the handle allows writes. */
     [[nodiscard]] bool is_writeable() const { return !_read_only; }
@@ -314,8 +317,8 @@ public:
 private:
     nvs(nvs_handle_t handle, bool read_only);
 
-    nvs_handle_t _handle;
-    bool _read_only;
+    nvs_handle_t _handle = 0;
+    bool _read_only = false;
 };
 
 /**

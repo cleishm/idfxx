@@ -26,9 +26,9 @@ static_assert(!std::is_default_constructible_v<master_bus>);
 static_assert(!std::is_copy_constructible_v<master_bus>);
 static_assert(!std::is_copy_assignable_v<master_bus>);
 
-// master_bus is non-movable
-static_assert(!std::is_move_constructible_v<master_bus>);
-static_assert(!std::is_move_assignable_v<master_bus>);
+// master_bus is move-only
+static_assert(std::is_move_constructible_v<master_bus>);
+static_assert(std::is_move_assignable_v<master_bus>);
 
 // Verify port enum values
 static_assert(static_cast<int>(port::i2c0) == 0);
@@ -62,7 +62,7 @@ TEST_CASE("master_bus scan_devices returns vector", "[idfxx][i2c][master_bus]") 
         TEST_FAIL_MESSAGE("Failed to create I2C bus - check GPIO pins are valid for your hardware");
     }
 
-    auto& bus = *bus_result.value();
+    auto& bus = *bus_result;
 
     // Scan for devices (may return empty if no devices connected)
     auto devices = bus.scan_devices();
@@ -75,7 +75,7 @@ TEST_CASE("master_bus try_probe with invalid address returns error", "[idfxx][i2
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
 
-    auto& bus = *bus_result.value();
+    auto& bus = *bus_result;
 
     // Try probing address 0x00 (reserved, should fail)
     auto probe_result = bus.try_probe(0x00);
@@ -88,7 +88,7 @@ TEST_CASE("master_bus is lockable", "[idfxx][i2c][master_bus]") {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
 
-    auto& bus = *bus_result.value();
+    auto& bus = *bus_result;
 
     // Verify lock/unlock methods exist and work
     bus.lock();
@@ -120,7 +120,7 @@ TEST_CASE("master_bus frequency accessor works", "[idfxx][i2c][master_bus]") {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
 
-    auto& bus = *bus_result.value();
+    auto& bus = *bus_result;
     TEST_ASSERT_EQUAL(400000, bus.frequency().count());
 }
 
@@ -130,7 +130,7 @@ TEST_CASE("master_bus port accessor works", "[idfxx][i2c][master_bus]") {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
 
-    auto& bus = *bus_result.value();
+    auto& bus = *bus_result;
     TEST_ASSERT_EQUAL(port::i2c0, bus.port());
     TEST_ASSERT_EQUAL(std::to_underlying(port::i2c0), std::to_underlying(bus.port()));
 }

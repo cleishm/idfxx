@@ -54,25 +54,44 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
     return {};
 }
 
-result<std::unique_ptr<master_bus>>
-master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config config) {
-    return init_bus(host, config, dma_chan).transform([&] {
-        return std::unique_ptr<master_bus>(new master_bus{host});
-    });
+result<master_bus> master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config config) {
+    return init_bus(host, config, dma_chan).transform([&] { return master_bus{host}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_bus::master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config) {
+master_bus::master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config)
+    : _host(host)
+    , _initialized(false) {
     unwrap(init_bus(host, config, dma_chan));
-    _host = host;
+    _initialized = true;
 }
 #endif
 
 master_bus::master_bus(enum host_device host)
     : _host(host) {}
 
+master_bus::master_bus(master_bus&& other) noexcept
+    : _host(other._host)
+    , _initialized(other._initialized) {
+    other._initialized = false;
+}
+
+master_bus& master_bus::operator=(master_bus&& other) noexcept {
+    if (this != &other) {
+        if (_initialized) {
+            spi_bus_free(static_cast<spi_host_device_t>(_host));
+        }
+        _host = other._host;
+        _initialized = other._initialized;
+        other._initialized = false;
+    }
+    return *this;
+}
+
 master_bus::~master_bus() {
-    spi_bus_free(static_cast<spi_host_device_t>(_host));
+    if (_initialized) {
+        spi_bus_free(static_cast<spi_host_device_t>(_host));
+    }
 }
 
 } // namespace idfxx::spi

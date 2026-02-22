@@ -28,9 +28,9 @@ static_assert(!std::is_default_constructible_v<timer>);
 static_assert(!std::is_copy_constructible_v<timer>);
 static_assert(!std::is_copy_assignable_v<timer>);
 
-// timer is not movable
-static_assert(!std::is_move_constructible_v<timer>);
-static_assert(!std::is_move_assignable_v<timer>);
+// timer is move-only
+static_assert(std::is_move_constructible_v<timer>);
+static_assert(std::is_move_assignable_v<timer>);
 
 // Enum values match ESP-IDF values
 static_assert(std::to_underlying(timer::dispatch_method::task) == ESP_TIMER_TASK);
@@ -51,8 +51,7 @@ TEST_CASE("timer::make with functional callback succeeds", "[idfxx][timer]") {
     auto result = timer::make({.name = "test_timer"}, [&called]() { called = true; });
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_NOT_NULL((*result)->idf_handle());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
 }
 
 TEST_CASE("timer::make with raw callback succeeds", "[idfxx][timer]") {
@@ -66,14 +65,13 @@ TEST_CASE("timer::make with raw callback succeeds", "[idfxx][timer]") {
     );
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_NOT_NULL((*result)->idf_handle());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
 }
 
 TEST_CASE("timer is not active after creation", "[idfxx][timer]") {
     auto result = timer::make({}, []() {});
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_FALSE((*result)->is_active());
+    TEST_ASSERT_FALSE(result->is_active());
 }
 
 TEST_CASE("timer::clock::now returns monotonically increasing time", "[idfxx][timer]") {
@@ -97,16 +95,16 @@ TEST_CASE("timer start_once makes timer active", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    TEST_ASSERT_FALSE(t->is_active());
+    TEST_ASSERT_FALSE(t.is_active());
 
-    auto start_result = t->try_start_once(1s);
+    auto start_result = t.try_start_once(1s);
     TEST_ASSERT_TRUE(start_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
     // Stop the timer
-    auto stop_result = t->try_stop();
+    auto stop_result = t.try_stop();
     TEST_ASSERT_TRUE(stop_result.has_value());
-    TEST_ASSERT_FALSE(t->is_active());
+    TEST_ASSERT_FALSE(t.is_active());
 }
 
 TEST_CASE("timer start_periodic makes timer active", "[idfxx][timer]") {
@@ -114,20 +112,20 @@ TEST_CASE("timer start_periodic makes timer active", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    TEST_ASSERT_FALSE(t->is_active());
+    TEST_ASSERT_FALSE(t.is_active());
 
-    auto start_result = t->try_start_periodic(100ms);
+    auto start_result = t.try_start_periodic(100ms);
     TEST_ASSERT_TRUE(start_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
     // Check period
-    auto period = t->period();
+    auto period = t.period();
     TEST_ASSERT_EQUAL(100000, period.count()); // 100ms = 100000us
 
     // Stop the timer
-    auto stop_result = t->try_stop();
+    auto stop_result = t.try_stop();
     TEST_ASSERT_TRUE(stop_result.has_value());
-    TEST_ASSERT_FALSE(t->is_active());
+    TEST_ASSERT_FALSE(t.is_active());
 }
 
 TEST_CASE("timer start_once fails when already running", "[idfxx][timer]") {
@@ -136,15 +134,15 @@ TEST_CASE("timer start_once fails when already running", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start once
-    auto start_result = t->try_start_once(1s);
+    auto start_result = t.try_start_once(1s);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Try to start again - should fail
-    auto second_start = t->try_start_once(1s);
+    auto second_start = t.try_start_once(1s);
     TEST_ASSERT_FALSE(second_start.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), second_start.error().value());
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer stop fails when not running", "[idfxx][timer]") {
@@ -153,7 +151,7 @@ TEST_CASE("timer stop fails when not running", "[idfxx][timer]") {
     auto& t = *result;
 
     // Timer is not running
-    auto stop_result = t->try_stop();
+    auto stop_result = t.try_stop();
     TEST_ASSERT_FALSE(stop_result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), stop_result.error().value());
 }
@@ -164,16 +162,16 @@ TEST_CASE("timer restart works", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start
-    auto start_result = t->try_start_once(1s);
+    auto start_result = t.try_start_once(1s);
     TEST_ASSERT_TRUE(start_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
     // Restart with different timeout
-    auto restart_result = t->try_restart(500ms);
+    auto restart_result = t.try_restart(500ms);
     TEST_ASSERT_TRUE(restart_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer restart starts a non-running timer", "[idfxx][timer]") {
@@ -182,12 +180,12 @@ TEST_CASE("timer restart starts a non-running timer", "[idfxx][timer]") {
     auto& t = *result;
 
     // Timer is not running - restart should start it
-    TEST_ASSERT_FALSE(t->is_active());
-    auto restart_result = t->try_restart(500ms);
+    TEST_ASSERT_FALSE(t.is_active());
+    auto restart_result = t.try_restart(500ms);
     TEST_ASSERT_TRUE(restart_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer one-shot callback fires", "[idfxx][timer]") {
@@ -197,14 +195,14 @@ TEST_CASE("timer one-shot callback fires", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start with short timeout
-    auto start_result = t->try_start_once(10ms);
+    auto start_result = t.try_start_once(10ms);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for callback
     idfxx::delay(50ms);
 
     TEST_ASSERT_TRUE(called.load());
-    TEST_ASSERT_FALSE(t->is_active()); // One-shot timer stops after firing
+    TEST_ASSERT_FALSE(t.is_active()); // One-shot timer stops after firing
 }
 
 TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
@@ -214,7 +212,7 @@ TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start periodic timer
-    auto start_result = t->try_start_periodic(20ms);
+    auto start_result = t.try_start_periodic(20ms);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for multiple callbacks
@@ -223,7 +221,7 @@ TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
     // Should have fired at least 3 times (100ms / 20ms = 5, but allow some margin)
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer raw callback fires", "[idfxx][timer]") {
@@ -239,7 +237,7 @@ TEST_CASE("timer raw callback fires", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start with short timeout
-    auto start_result = t->try_start_once(10ms);
+    auto start_result = t.try_start_once(10ms);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for callback
@@ -256,11 +254,11 @@ TEST_CASE("timer expiry_time returns valid time", "[idfxx][timer]") {
     auto now = timer::clock::now();
 
     // Start timer
-    auto start_result = t->try_start_once(100ms);
+    auto start_result = t.try_start_once(100ms);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Get expiry time
-    auto expiry = t->expiry_time();
+    auto expiry = t.expiry_time();
 
     auto expected_min = now + 90ms; // Allow some margin
     auto expected_max = now + 110ms;
@@ -268,7 +266,7 @@ TEST_CASE("timer expiry_time returns valid time", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(expiry >= expected_min);
     TEST_ASSERT_TRUE(expiry <= expected_max);
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer destructor stops running timer", "[idfxx][timer]") {
@@ -276,9 +274,9 @@ TEST_CASE("timer destructor stops running timer", "[idfxx][timer]") {
         auto result = timer::make({.name = "destructor_test"}, []() {});
         TEST_ASSERT_TRUE(result.has_value());
 
-        auto start_result = (*result)->try_start_once(1s);
+        auto start_result = result->try_start_once(1s);
         TEST_ASSERT_TRUE(start_result.has_value());
-        TEST_ASSERT_TRUE((*result)->is_active());
+        TEST_ASSERT_TRUE(result->is_active());
 
         // Timer goes out of scope here and should be stopped and deleted
     }
@@ -293,7 +291,7 @@ TEST_CASE("timer next_alarm returns valid time", "[idfxx][timer]") {
     auto& t = *result;
 
     // Start timer
-    auto start_result = t->try_start_once(100ms);
+    auto start_result = t.try_start_once(100ms);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     auto next = timer::next_alarm();
@@ -302,13 +300,13 @@ TEST_CASE("timer next_alarm returns valid time", "[idfxx][timer]") {
     // Next alarm should be in the future
     TEST_ASSERT_TRUE(next > now);
 
-    (void)t->try_stop();
+    (void)t.try_stop();
 }
 
 TEST_CASE("timer with empty name works", "[idfxx][timer]") {
     auto result = timer::make({}, []() {});
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL((*result)->idf_handle());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
 }
 
 TEST_CASE("timer with custom dispatch method", "[idfxx][timer]") {
@@ -333,20 +331,20 @@ TEST_CASE("timer accepts various duration types", "[idfxx][timer]") {
     auto& t = *result;
 
     // Milliseconds
-    TEST_ASSERT_TRUE(t->try_start_once(100ms).has_value());
-    (void)t->try_stop();
+    TEST_ASSERT_TRUE(t.try_start_once(100ms).has_value());
+    (void)t.try_stop();
 
     // Seconds
-    TEST_ASSERT_TRUE(t->try_start_once(1s).has_value());
-    (void)t->try_stop();
+    TEST_ASSERT_TRUE(t.try_start_once(1s).has_value());
+    (void)t.try_stop();
 
     // Microseconds
-    TEST_ASSERT_TRUE(t->try_start_once(std::chrono::microseconds(50000)).has_value());
-    (void)t->try_stop();
+    TEST_ASSERT_TRUE(t.try_start_once(std::chrono::microseconds(50000)).has_value());
+    (void)t.try_stop();
 
     // Mixed arithmetic
-    TEST_ASSERT_TRUE(t->try_start_once(500ms + 500ms).has_value());
-    (void)t->try_stop();
+    TEST_ASSERT_TRUE(t.try_start_once(500ms + 500ms).has_value());
+    (void)t.try_stop();
 }
 
 // =============================================================================
@@ -358,11 +356,11 @@ TEST_CASE("timer start_once_isr", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    auto err = t->try_start_once_isr(100000); // 100ms
+    auto err = t.try_start_once_isr(100000); // 100ms
     TEST_ASSERT_EQUAL(ESP_OK, err);
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    err = t->try_stop_isr();
+    err = t.try_stop_isr();
     TEST_ASSERT_EQUAL(ESP_OK, err);
 }
 
@@ -371,11 +369,11 @@ TEST_CASE("timer start_periodic_isr", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    auto err = t->try_start_periodic_isr(50000); // 50ms
+    auto err = t.try_start_periodic_isr(50000); // 50ms
     TEST_ASSERT_EQUAL(ESP_OK, err);
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    err = t->try_stop_isr();
+    err = t.try_stop_isr();
     TEST_ASSERT_EQUAL(ESP_OK, err);
 }
 
@@ -384,14 +382,14 @@ TEST_CASE("timer restart_isr", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    auto err = t->try_start_once_isr(1000000); // 1s
+    auto err = t.try_start_once_isr(1000000); // 1s
     TEST_ASSERT_EQUAL(ESP_OK, err);
 
-    err = t->try_restart_isr(500000); // 500ms
+    err = t.try_restart_isr(500000); // 500ms
     TEST_ASSERT_EQUAL(ESP_OK, err);
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    err = t->try_stop_isr();
+    err = t.try_stop_isr();
     TEST_ASSERT_EQUAL(ESP_OK, err);
 }
 
@@ -401,12 +399,12 @@ TEST_CASE("timer restart_isr starts a non-running timer", "[idfxx][timer]") {
     auto& t = *result;
 
     // Timer is not running - restart should start it
-    TEST_ASSERT_FALSE(t->is_active());
-    auto err = t->try_restart_isr(500000); // 500ms
+    TEST_ASSERT_FALSE(t.is_active());
+    auto err = t.try_restart_isr(500000); // 500ms
     TEST_ASSERT_EQUAL(ESP_OK, err);
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
-    (void)t->try_stop_isr();
+    (void)t.try_stop_isr();
 }
 
 TEST_CASE("timer stop_isr fails when not running", "[idfxx][timer]") {
@@ -414,7 +412,7 @@ TEST_CASE("timer stop_isr fails when not running", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    auto err = t->try_stop_isr();
+    auto err = t.try_stop_isr();
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE, err);
 }
 
@@ -423,13 +421,13 @@ TEST_CASE("timer start_once_isr fails when already running", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
 
-    auto err = t->try_start_once_isr(1000000);
+    auto err = t.try_start_once_isr(1000000);
     TEST_ASSERT_EQUAL(ESP_OK, err);
 
-    err = t->try_start_once_isr(1000000);
+    err = t.try_start_once_isr(1000000);
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE, err);
 
-    (void)t->try_stop_isr();
+    (void)t.try_stop_isr();
 }
 
 // =============================================================================
@@ -439,13 +437,13 @@ TEST_CASE("timer start_once_isr fails when already running", "[idfxx][timer]") {
 TEST_CASE("timer name returns configured name", "[idfxx][timer]") {
     auto result = timer::make({.name = "my_timer"}, []() {});
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL_STRING("my_timer", (*result)->name().c_str());
+    TEST_ASSERT_EQUAL_STRING("my_timer", result->name().c_str());
 }
 
 TEST_CASE("timer name returns empty string when unnamed", "[idfxx][timer]") {
     auto result = timer::make({}, []() {});
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL_STRING("", (*result)->name().c_str());
+    TEST_ASSERT_EQUAL_STRING("", result->name().c_str());
 }
 
 // =============================================================================
@@ -457,14 +455,14 @@ TEST_CASE("timer::try_start_once static with functional callback", "[idfxx][time
     auto result = timer::try_start_once({.name = "static_once"}, 10ms, [&called]() { called.store(true); });
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
     idfxx::delay(50ms);
 
     TEST_ASSERT_TRUE(called.load());
-    TEST_ASSERT_FALSE((*result)->is_active()); // One-shot timer stops after firing
+    TEST_ASSERT_FALSE(result->is_active()); // One-shot timer stops after firing
 }
 
 TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer]") {
@@ -477,8 +475,8 @@ TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer]") {
     );
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
     idfxx::delay(50ms);
@@ -491,11 +489,11 @@ TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][
     auto result = timer::try_start_periodic({.name = "static_periodic"}, 20ms, [&count]() { count.fetch_add(1); });
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Check period
-    auto period = (*result)->period();
+    auto period = result->period();
     TEST_ASSERT_EQUAL(20000, period.count()); // 20ms = 20000us
 
     // Wait for multiple callbacks
@@ -503,7 +501,7 @@ TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][
 
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
 
-    (void)(*result)->try_stop();
+    (void)result->try_stop();
 }
 
 TEST_CASE("timer::try_start_periodic static with raw callback", "[idfxx][timer]") {
@@ -516,15 +514,15 @@ TEST_CASE("timer::try_start_periodic static with raw callback", "[idfxx][timer]"
     );
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for multiple callbacks
     idfxx::delay(100ms);
 
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
 
-    (void)(*result)->try_stop();
+    (void)result->try_stop();
 }
 
 TEST_CASE("timer from static factory cleans up on destruction", "[idfxx][timer]") {
@@ -532,7 +530,7 @@ TEST_CASE("timer from static factory cleans up on destruction", "[idfxx][timer]"
     {
         auto result = timer::try_start_once({.name = "static_cleanup"}, 1s, [&called]() { called.store(true); });
         TEST_ASSERT_TRUE(result.has_value());
-        TEST_ASSERT_TRUE((*result)->is_active());
+        TEST_ASSERT_TRUE(result->is_active());
 
         // Timer goes out of scope here - should be stopped and deleted
     }
@@ -557,9 +555,9 @@ TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx]
 
     // Start at now + 50ms
     auto target = timer::clock::now() + 50ms;
-    auto start_result = t->try_start_once(target);
+    auto start_result = t.try_start_once(target);
     TEST_ASSERT_TRUE(start_result.has_value());
-    TEST_ASSERT_TRUE(t->is_active());
+    TEST_ASSERT_TRUE(t.is_active());
 
     // Should not have fired yet
     idfxx::delay(10ms);
@@ -568,7 +566,7 @@ TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx]
     // Wait for it to fire
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(called.load());
-    TEST_ASSERT_FALSE(t->is_active());
+    TEST_ASSERT_FALSE(t.is_active());
 }
 
 TEST_CASE("timer try_start_once with time_point in the past fires immediately", "[idfxx][timer]") {
@@ -579,7 +577,7 @@ TEST_CASE("timer try_start_once with time_point in the past fires immediately", 
 
     // Start at a time in the past
     auto past = timer::clock::now() - 1s;
-    auto start_result = t->try_start_once(past);
+    auto start_result = t.try_start_once(past);
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Should fire very quickly
@@ -593,14 +591,14 @@ TEST_CASE("timer::try_start_once static with time_point and functional callback"
     auto result = timer::try_start_once({.name = "static_tp_func"}, target, [&called]() { called.store(true); });
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
     idfxx::delay(50ms);
 
     TEST_ASSERT_TRUE(called.load());
-    TEST_ASSERT_FALSE((*result)->is_active());
+    TEST_ASSERT_FALSE(result->is_active());
 }
 
 TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idfxx][timer]") {
@@ -614,8 +612,8 @@ TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idf
     );
 
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_NOT_NULL(result->get());
-    TEST_ASSERT_TRUE((*result)->is_active());
+    TEST_ASSERT_NOT_NULL(result->idf_handle());
+    TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
     idfxx::delay(50ms);
@@ -639,7 +637,7 @@ TEST_CASE("timer destruction waits for one-shot callback to complete", "[idfxx][
         });
         TEST_ASSERT_TRUE(result.has_value());
 
-        auto start_result = (*result)->try_start_once(10ms);
+        auto start_result = result->try_start_once(10ms);
         TEST_ASSERT_TRUE(start_result.has_value());
 
         // Wait for callback to begin executing
@@ -666,7 +664,7 @@ TEST_CASE("timer destruction waits for periodic callback to complete", "[idfxx][
         });
         TEST_ASSERT_TRUE(result.has_value());
 
-        auto start_result = (*result)->try_start_periodic(10ms);
+        auto start_result = result->try_start_periodic(10ms);
         TEST_ASSERT_TRUE(start_result.has_value());
 
         // Wait for callback to begin executing

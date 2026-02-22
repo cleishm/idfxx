@@ -120,18 +120,18 @@ extern "C" void app_main() {
 
     try {
         // Initialize SPI bus for LCD and touch controller
-        auto spi_bus = std::make_shared<spi::master_bus>(
+        spi::master_bus spi_bus(
             spi::host_device::spi2,
+            spi::dma_chan::ch_auto,
             spi::bus_config{
                 .mosi_io_num = gpio_23,
                 .miso_io_num = gpio_19,
                 .sclk_io_num = gpio_18,
-            },
-            spi::dma_chan::ch_auto
+            }
         );
 
         // Create panel I/O for LCD
-        auto panel_io = std::make_shared<lcd::panel_io>(
+        lcd::panel_io panel_io(
             spi_bus,
             lcd::panel_io::spi_config{
                 .cs_gpio = gpio_14,
@@ -145,9 +145,9 @@ extern "C" void app_main() {
         );
 
         // Create ILI9341 LCD panel (240x320)
-        auto display = std::make_unique<lcd::ili9341>(
+        lcd::ili9341 display(
             panel_io,
-            lcd::panel::dev_config{
+            lcd::panel::config{
                 .reset_gpio = gpio_33,
                 .rgb_element_order = lcd::rgb_element_order::bgr,
                 .bits_per_pixel = 16,
@@ -155,7 +155,7 @@ extern "C" void app_main() {
         );
 
         // Turn on the display
-        display->display_on(true);
+        display.display_on(true);
 
         // Configure backlight GPIO
         auto backlight = gpio_32;
@@ -190,12 +190,12 @@ extern "C" void app_main() {
     // Initialize SPI bus for LCD and touch controller
     auto spi_bus_res = spi::master_bus::make(
         spi::host_device::spi2,
+        spi::dma_chan::ch_auto,
         spi::bus_config{
             .mosi_io_num = gpio_23,
             .miso_io_num = gpio_19,
             .sclk_io_num = gpio_18,
-        },
-        spi::dma_chan::ch_auto
+        }
     );
     if (!spi_bus_res) {
         idfxx::log::error("app", "Failed to initialize SPI bus: {}", spi_bus_res.error().message());
@@ -225,7 +225,7 @@ extern "C" void app_main() {
     // Create ILI9341 LCD panel (240x320)
     auto display_res = lcd::ili9341::make(
         panel_io,
-        lcd::panel::dev_config{
+        lcd::panel::config{
             .reset_gpio = gpio_33,
             .rgb_element_order = lcd::rgb_element_order::bgr,
             .bits_per_pixel = 16,
@@ -238,7 +238,7 @@ extern "C" void app_main() {
     auto display = std::move(*display_res);
 
     // Turn on the display
-    if (auto res = display->try_display_on(true); !res) {
+    if (auto res = display.try_display_on(true); !res) {
         idfxx::log::error("app", "Failed to turn on display: {}", res.error().message());
         return;
     }

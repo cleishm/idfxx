@@ -62,7 +62,7 @@ std::string nvs::error_category::message(int ec) const {
     case nvs::errc::key_too_long:
         return "Key name is too long";
     case nvs::errc::invalid_state:
-        return "NVS is in an inconsistent state due to a previous error. Call nvs::flash_init() again and create a new nvs object";
+        return "NVS is in an inconsistent state due to a previous error. Call nvs::flash::init() again and create a new nvs object";
     case nvs::errc::invalid_length:
         return "String or blob length is not sufficient to store data";
     case nvs::errc::no_free_pages:
@@ -170,10 +170,8 @@ static result<nvs_handle_t> open_nvs(std::string_view namespace_name, bool read_
     return handle;
 }
 
-result<std::unique_ptr<nvs>> nvs::make(std::string_view namespace_name, bool read_only) {
-    return open_nvs(namespace_name, read_only).transform([&](auto handle) {
-        return std::unique_ptr<nvs>(new nvs{handle, read_only});
-    });
+result<nvs> nvs::make(std::string_view namespace_name, bool read_only) {
+    return open_nvs(namespace_name, read_only).transform([&](auto handle) { return nvs{handle, read_only}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -185,11 +183,34 @@ nvs::nvs(nvs_handle_t handle, bool read_only)
     : _handle(handle)
     , _read_only(read_only) {}
 
+nvs::nvs(nvs&& other) noexcept
+    : _handle(other._handle)
+    , _read_only(other._read_only) {
+    other._handle = 0;
+}
+
+nvs& nvs::operator=(nvs&& other) noexcept {
+    if (this != &other) {
+        if (_handle != 0) {
+            nvs_close(_handle);
+        }
+        _handle = other._handle;
+        _read_only = other._read_only;
+        other._handle = 0;
+    }
+    return *this;
+}
+
 nvs::~nvs() {
-    nvs_close(_handle);
+    if (_handle != 0) {
+        nvs_close(_handle);
+    }
 }
 
 result<void> nvs::try_commit() {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot commit: handle is read-only");
         return error(nvs::errc::read_only);
@@ -203,6 +224,9 @@ result<void> nvs::try_commit() {
 }
 
 result<void> nvs::try_erase(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot erase: handle is read-only");
         return error(nvs::errc::read_only);
@@ -219,6 +243,9 @@ result<void> nvs::try_erase(std::string_view key) {
 }
 
 result<void> nvs::try_erase_all() {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot erase_all: handle is read-only");
         return error(nvs::errc::read_only);
@@ -232,6 +259,9 @@ result<void> nvs::try_erase_all() {
 }
 
 result<void> nvs::try_set_string(std::string_view key, std::string_view value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot set_string: handle is read-only");
         return error(nvs::errc::read_only);
@@ -247,6 +277,9 @@ result<void> nvs::try_set_string(std::string_view key, std::string_view value) {
 }
 
 result<std::string> nvs::try_get_string(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
 
     // First, get the required size
@@ -271,6 +304,9 @@ result<std::string> nvs::try_get_string(std::string_view key) {
 }
 
 result<void> nvs::try_set_blob(std::string_view key, const void* data, size_t length) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot set_blob: handle is read-only");
         return error(nvs::errc::read_only);
@@ -289,6 +325,9 @@ result<void> nvs::try_set_blob(std::string_view key, std::span<const uint8_t> da
 }
 
 result<std::vector<uint8_t>> nvs::try_get_blob(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
 
     // First, get the required size
@@ -316,6 +355,9 @@ result<std::vector<uint8_t>> nvs::try_get_blob(std::string_view key) {
 // uint8_t
 template<>
 result<void> nvs::try_set_value<uint8_t>(std::string_view key, uint8_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         ESP_LOGD(TAG, "Cannot set uint8_t: handle is read-only");
         return error(nvs::errc::read_only);
@@ -331,6 +373,9 @@ result<void> nvs::try_set_value<uint8_t>(std::string_view key, uint8_t value) {
 
 template<>
 result<uint8_t> nvs::try_get_value<uint8_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     uint8_t value;
     esp_err_t err = nvs_get_u8(_handle, key_str.c_str(), &value);
@@ -346,6 +391,9 @@ result<uint8_t> nvs::try_get_value<uint8_t>(std::string_view key) {
 // int8_t
 template<>
 result<void> nvs::try_set_value<int8_t>(std::string_view key, int8_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -360,6 +408,9 @@ result<void> nvs::try_set_value<int8_t>(std::string_view key, int8_t value) {
 
 template<>
 result<int8_t> nvs::try_get_value<int8_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     int8_t value;
     esp_err_t err = nvs_get_i8(_handle, key_str.c_str(), &value);
@@ -375,6 +426,9 @@ result<int8_t> nvs::try_get_value<int8_t>(std::string_view key) {
 // uint16_t
 template<>
 result<void> nvs::try_set_value<uint16_t>(std::string_view key, uint16_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -389,6 +443,9 @@ result<void> nvs::try_set_value<uint16_t>(std::string_view key, uint16_t value) 
 
 template<>
 result<uint16_t> nvs::try_get_value<uint16_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     uint16_t value;
     esp_err_t err = nvs_get_u16(_handle, key_str.c_str(), &value);
@@ -404,6 +461,9 @@ result<uint16_t> nvs::try_get_value<uint16_t>(std::string_view key) {
 // int16_t
 template<>
 result<void> nvs::try_set_value<int16_t>(std::string_view key, int16_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -418,6 +478,9 @@ result<void> nvs::try_set_value<int16_t>(std::string_view key, int16_t value) {
 
 template<>
 result<int16_t> nvs::try_get_value<int16_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     int16_t value;
     esp_err_t err = nvs_get_i16(_handle, key_str.c_str(), &value);
@@ -433,6 +496,9 @@ result<int16_t> nvs::try_get_value<int16_t>(std::string_view key) {
 // uint32_t
 template<>
 result<void> nvs::try_set_value<uint32_t>(std::string_view key, uint32_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -447,6 +513,9 @@ result<void> nvs::try_set_value<uint32_t>(std::string_view key, uint32_t value) 
 
 template<>
 result<uint32_t> nvs::try_get_value<uint32_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     uint32_t value;
     esp_err_t err = nvs_get_u32(_handle, key_str.c_str(), &value);
@@ -462,6 +531,9 @@ result<uint32_t> nvs::try_get_value<uint32_t>(std::string_view key) {
 // int32_t
 template<>
 result<void> nvs::try_set_value<int32_t>(std::string_view key, int32_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -476,6 +548,9 @@ result<void> nvs::try_set_value<int32_t>(std::string_view key, int32_t value) {
 
 template<>
 result<int32_t> nvs::try_get_value<int32_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     int32_t value;
     esp_err_t err = nvs_get_i32(_handle, key_str.c_str(), &value);
@@ -491,6 +566,9 @@ result<int32_t> nvs::try_get_value<int32_t>(std::string_view key) {
 // uint64_t
 template<>
 result<void> nvs::try_set_value<uint64_t>(std::string_view key, uint64_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -505,6 +583,9 @@ result<void> nvs::try_set_value<uint64_t>(std::string_view key, uint64_t value) 
 
 template<>
 result<uint64_t> nvs::try_get_value<uint64_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     uint64_t value;
     esp_err_t err = nvs_get_u64(_handle, key_str.c_str(), &value);
@@ -520,6 +601,9 @@ result<uint64_t> nvs::try_get_value<uint64_t>(std::string_view key) {
 // int64_t
 template<>
 result<void> nvs::try_set_value<int64_t>(std::string_view key, int64_t value) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     if (_read_only) {
         return error(nvs::errc::read_only);
     }
@@ -534,6 +618,9 @@ result<void> nvs::try_set_value<int64_t>(std::string_view key, int64_t value) {
 
 template<>
 result<int64_t> nvs::try_get_value<int64_t>(std::string_view key) {
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
     std::string key_str{key};
     int64_t value;
     esp_err_t err = nvs_get_i64(_handle, key_str.c_str(), &value);

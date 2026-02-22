@@ -16,11 +16,13 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// stmpe610 is non-copyable and non-movable
+// stmpe610 is non-copyable
 static_assert(!std::is_copy_constructible_v<stmpe610>);
 static_assert(!std::is_copy_assignable_v<stmpe610>);
-static_assert(!std::is_move_constructible_v<stmpe610>);
-static_assert(!std::is_move_assignable_v<stmpe610>);
+
+// stmpe610 is move-only
+static_assert(std::is_move_constructible_v<stmpe610>);
+static_assert(std::is_move_assignable_v<stmpe610>);
 
 // stmpe610 inherits from touch base class
 static_assert(std::is_base_of_v<touch, stmpe610>);
@@ -55,37 +57,6 @@ TEST_CASE("touch::config default rst_gpio and int_gpio are NC", "[idfxx][lcd][st
     TEST_ASSERT_EQUAL(GPIO_NUM_NC, config.int_gpio.num());
 }
 
-TEST_CASE("stmpe610 make with null panel_io returns error", "[idfxx][lcd][stmpe610]") {
-    using namespace idfxx;
-
-    // Passing null panel_io should fail - use inline config
-    std::shared_ptr<idfxx::lcd::panel_io> null_io;
-    auto result = stmpe610::make(null_io, {
-        .x_max = 240,
-        .y_max = 320,
-    });
-    TEST_ASSERT_FALSE(result.has_value());
-}
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("stmpe610 constructor with null panel_io throws", "[idfxx][lcd][stmpe610]") {
-    using namespace idfxx;
-
-    std::shared_ptr<idfxx::lcd::panel_io> null_io;
-
-    // Constructing with null panel_io should throw - tests exception-based API with inline config
-    bool threw = false;
-    try {
-        std::make_unique<stmpe610>(null_io, touch::config{
-            .x_max = 240,
-            .y_max = 320,
-        });
-    } catch (const std::system_error&) {
-        threw = true;
-    }
-    TEST_ASSERT_TRUE_MESSAGE(threw, "Expected std::system_error to be thrown");
-}
-#endif
 
 TEST_CASE("touch::config with different x_max and y_max values", "[idfxx][lcd][stmpe610]") {
     using namespace idfxx;

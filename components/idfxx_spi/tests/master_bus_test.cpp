@@ -25,9 +25,9 @@ static_assert(!std::is_default_constructible_v<master_bus>);
 static_assert(!std::is_copy_constructible_v<master_bus>);
 static_assert(!std::is_copy_assignable_v<master_bus>);
 
-// master_bus is not movable (fixed bus ownership)
-static_assert(!std::is_move_constructible_v<master_bus>);
-static_assert(!std::is_move_assignable_v<master_bus>);
+// master_bus is move-only
+static_assert(std::is_move_constructible_v<master_bus>);
+static_assert(std::is_move_assignable_v<master_bus>);
 
 // host_device enum values match ESP-IDF values
 static_assert(static_cast<spi_host_device_t>(host_device::spi1) == SPI1_HOST);
@@ -95,7 +95,7 @@ TEST_CASE("master_bus::make with valid config succeeds", "[idfxx][spi]") {
 
     auto result = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL(host_device::spi2, result.value()->host());
+    TEST_ASSERT_EQUAL(host_device::spi2, result->host());
 }
 
 TEST_CASE("master_bus::make with invalid GPIO fails", "[idfxx][spi]") {
@@ -116,7 +116,7 @@ TEST_CASE("master_bus host() returns correct host", "[idfxx][spi]") {
 
     auto result = master_bus::make(host_device::spi2, dma_chan::disabled, cfg);
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL(host_device::spi2, result.value()->host());
+    TEST_ASSERT_EQUAL(host_device::spi2, result->host());
 }
 
 #if SOC_SPI_PERIPH_NUM > 2
@@ -128,7 +128,7 @@ TEST_CASE("master_bus::make with SPI3 host succeeds", "[idfxx][spi]") {
 
     auto result = master_bus::make(host_device::spi3, dma_chan::ch_auto, cfg);
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL(host_device::spi3, result.value()->host());
+    TEST_ASSERT_EQUAL(host_device::spi3, result->host());
 }
 #endif
 
@@ -176,11 +176,8 @@ TEST_CASE("master_bus constructor with invalid host throws", "[idfxx][spi]") {
     bool threw = false;
     try {
         // Use host value >= SPI_HOST_MAX which should fail validation
-        std::make_unique<master_bus>(
-            static_cast<host_device>(99),
-            dma_chan::ch_auto,
-bus_config{}
-        );
+        master_bus bus(static_cast<host_device>(99), dma_chan::ch_auto, bus_config{});
+        (void)bus;
     } catch (const std::system_error&) {
         threw = true;
     }

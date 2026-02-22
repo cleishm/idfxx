@@ -23,7 +23,6 @@
 #include <chrono>
 #include <esp_timer.h>
 #include <functional>
-#include <memory>
 #include <string>
 
 namespace idfxx {
@@ -35,8 +34,9 @@ namespace idfxx {
  * Supports both one-shot and periodic timers with callbacks dispatched either
  * from a dedicated timer task or directly from ISR context.
  *
- * Timers are non-copyable and non-movable. Use the factory method make() for
- * result-based construction or the throwing constructor when exceptions are enabled.
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values.
  */
 class timer {
 public:
@@ -123,7 +123,7 @@ public:
 
      * @retval invalid_arg Invalid configuration.
      */
-    [[nodiscard]] static result<std::unique_ptr<timer>> make(config cfg, std::move_only_function<void()> callback);
+    [[nodiscard]] static result<timer> make(config cfg, std::move_only_function<void()> callback);
 
     /**
      * @brief Creates a timer with a raw function pointer callback.
@@ -137,7 +137,7 @@ public:
 
      * @retval invalid_arg Invalid configuration.
      */
-    [[nodiscard]] static result<std::unique_ptr<timer>> make(config cfg, void (*callback)(void*), void* arg);
+    [[nodiscard]] static result<timer> make(config cfg, void (*callback)(void*), void* arg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -165,7 +165,7 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static std::unique_ptr<timer> start_once(
+    [[nodiscard]] static timer start_once(
         config cfg,
         const std::chrono::duration<Rep, Period>& timeout,
         std::move_only_function<void()> callback
@@ -197,7 +197,7 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static std::unique_ptr<timer>
+    [[nodiscard]] static timer
     start_once(config cfg, const std::chrono::duration<Rep, Period>& timeout, void (*callback)(void*), void* arg) {
         return unwrap(try_start_once(std::move(cfg), timeout, callback, arg));
     }
@@ -224,7 +224,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] static std::unique_ptr<timer>
+    [[nodiscard]] static timer
     start_once(config cfg, clock::time_point time, std::move_only_function<void()> callback) {
         return unwrap(try_start_once(std::move(cfg), time, std::move(callback)));
     }
@@ -250,8 +250,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] static std::unique_ptr<timer>
-    start_once(config cfg, clock::time_point time, void (*callback)(void*), void* arg) {
+    [[nodiscard]] static timer start_once(config cfg, clock::time_point time, void (*callback)(void*), void* arg) {
         return unwrap(try_start_once(std::move(cfg), time, callback, arg));
     }
 
@@ -280,7 +279,7 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static std::unique_ptr<timer> start_periodic(
+    [[nodiscard]] static timer start_periodic(
         config cfg,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
@@ -312,7 +311,7 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static std::unique_ptr<timer>
+    [[nodiscard]] static timer
     start_periodic(config cfg, const std::chrono::duration<Rep, Period>& interval, void (*callback)(void*), void* arg) {
         return unwrap(try_start_periodic(std::move(cfg), interval, callback, arg));
     }
@@ -338,7 +337,7 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<std::unique_ptr<timer>> try_start_once(
+    [[nodiscard]] static result<timer> try_start_once(
         config cfg,
         const std::chrono::duration<Rep, Period>& timeout,
         std::move_only_function<void()> callback
@@ -347,7 +346,7 @@ public:
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_once(timeout);
+        auto r = t->try_start_once(timeout);
         if (!r) {
             return error(r.error());
         }
@@ -374,13 +373,13 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<std::unique_ptr<timer>>
+    [[nodiscard]] static result<timer>
     try_start_once(config cfg, const std::chrono::duration<Rep, Period>& timeout, void (*callback)(void*), void* arg) {
         auto t = make(std::move(cfg), callback, arg);
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_once(timeout);
+        auto r = t->try_start_once(timeout);
         if (!r) {
             return error(r.error());
         }
@@ -405,13 +404,13 @@ public:
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
-    [[nodiscard]] static result<std::unique_ptr<timer>>
+    [[nodiscard]] static result<timer>
     try_start_once(config cfg, clock::time_point time, std::move_only_function<void()> callback) {
         auto t = make(std::move(cfg), std::move(callback));
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_once(time);
+        auto r = t->try_start_once(time);
         if (!r) {
             return error(r.error());
         }
@@ -436,13 +435,13 @@ public:
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
-    [[nodiscard]] static result<std::unique_ptr<timer>>
+    [[nodiscard]] static result<timer>
     try_start_once(config cfg, clock::time_point time, void (*callback)(void*), void* arg) {
         auto t = make(std::move(cfg), callback, arg);
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_once(time);
+        auto r = t->try_start_once(time);
         if (!r) {
             return error(r.error());
         }
@@ -469,7 +468,7 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<std::unique_ptr<timer>> try_start_periodic(
+    [[nodiscard]] static result<timer> try_start_periodic(
         config cfg,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
@@ -478,7 +477,7 @@ public:
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_periodic(interval);
+        auto r = t->try_start_periodic(interval);
         if (!r) {
             return error(r.error());
         }
@@ -505,7 +504,7 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<std::unique_ptr<timer>> try_start_periodic(
+    [[nodiscard]] static result<timer> try_start_periodic(
         config cfg,
         const std::chrono::duration<Rep, Period>& interval,
         void (*callback)(void*),
@@ -515,7 +514,7 @@ public:
         if (!t) {
             return t;
         }
-        auto r = (*t)->try_start_periodic(interval);
+        auto r = t->try_start_periodic(interval);
         if (!r) {
             return error(r.error());
         }
@@ -530,11 +529,10 @@ public:
      */
     ~timer();
 
-    // Non-copyable and non-movable
     timer(const timer&) = delete;
     timer& operator=(const timer&) = delete;
-    timer(timer&&) = delete;
-    timer& operator=(timer&&) = delete;
+    timer(timer&& other) noexcept;
+    timer& operator=(timer&& other) noexcept;
 
     /**
      * @brief Returns the underlying ESP-IDF timer handle.
@@ -612,6 +610,9 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_start_once(const std::chrono::duration<Rep, Period>& timeout) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         return wrap(esp_timer_start_once(_handle, to_us(timeout)));
     }
 
@@ -626,6 +627,9 @@ public:
      * @retval invalid_state Timer is already running.
      */
     [[nodiscard]] result<void> try_start_once(clock::time_point time) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         auto timeout_us = std::max(int64_t{0}, (time - clock::now()).count());
         return wrap(esp_timer_start_once(_handle, static_cast<uint64_t>(timeout_us)));
     }
@@ -640,7 +644,7 @@ public:
      * @code
      * using namespace std::chrono_literals;
      * constexpr uint64_t timeout_us = std::chrono::microseconds(100ms).count();
-     * timer->try_start_once_isr(timeout_us);
+     * t.try_start_once_isr(timeout_us);
      * @endcode
      *
      * @param timeout_us Timeout in microseconds.
@@ -664,6 +668,9 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_start_periodic(const std::chrono::duration<Rep, Period>& interval) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         return wrap(esp_timer_start_periodic(_handle, to_us(interval)));
     }
 
@@ -677,7 +684,7 @@ public:
      * @code
      * using namespace std::chrono_literals;
      * constexpr uint64_t interval_us = std::chrono::microseconds(100ms).count();
-     * timer->try_start_periodic_isr(interval_us);
+     * t.try_start_periodic_isr(interval_us);
      * @endcode
      *
      * @param interval_us Interval in microseconds.
@@ -715,6 +722,9 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_restart(const std::chrono::duration<Rep, Period>& timeout) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         auto err = esp_timer_restart(_handle, to_us(timeout));
         if (err == ESP_ERR_INVALID_STATE) {
             return wrap(esp_timer_start_once(_handle, to_us(timeout)));
@@ -732,7 +742,7 @@ public:
      * @code
      * using namespace std::chrono_literals;
      * constexpr uint64_t timeout_us = std::chrono::microseconds(100ms).count();
-     * timer->try_restart_isr(timeout_us);
+     * t.try_restart_isr(timeout_us);
      * @endcode
      *
      * @param timeout_us Timeout in microseconds.
@@ -756,7 +766,12 @@ public:
      * @return Success, or an error.
      * @retval invalid_state Timer is not running.
      */
-    result<void> try_stop() { return wrap(esp_timer_stop(_handle)); }
+    result<void> try_stop() {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
+        return wrap(esp_timer_stop(_handle));
+    }
 
     /**
      * @brief Stops the timer (ISR-compatible).
@@ -774,7 +789,12 @@ public:
      * @brief Checks if the timer is currently running.
      * @return true if the timer is active, false otherwise.
      */
-    [[nodiscard]] bool is_active() const noexcept { return esp_timer_is_active(_handle); }
+    [[nodiscard]] bool is_active() const noexcept {
+        if (_handle == nullptr) {
+            return false;
+        }
+        return esp_timer_is_active(_handle);
+    }
 
     /**
      * @brief Returns the period of a periodic timer.
@@ -786,6 +806,9 @@ public:
      * @retval 0ms For one-shot timers.
      */
     [[nodiscard]] std::chrono::microseconds period() const noexcept {
+        if (_handle == nullptr) {
+            return std::chrono::microseconds{0};
+        }
         uint64_t period_us = 0;
         esp_timer_get_period(_handle, &period_us);
         return std::chrono::microseconds{static_cast<int64_t>(period_us)};
@@ -801,6 +824,9 @@ public:
      * @retval clock::time_point::max() For periodic timers.
      */
     [[nodiscard]] clock::time_point expiry_time() const noexcept {
+        if (_handle == nullptr) {
+            return clock::time_point::max();
+        }
         uint64_t expiry;
         if (esp_timer_get_expiry_time(_handle, &expiry) != ESP_OK) {
             return clock::time_point::max();
@@ -838,7 +864,7 @@ private:
 
     static void trampoline(void* arg);
 
-    esp_timer_handle_t _handle;
+    esp_timer_handle_t _handle = nullptr;
     std::string _name;
     context* _context = nullptr;
 };

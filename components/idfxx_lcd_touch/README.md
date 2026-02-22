@@ -41,7 +41,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/log>
 
 // Create touch controller using a concrete implementation
-auto touch = std::make_shared<idfxx::lcd::stmpe610>(
+idfxx::lcd::stmpe610 touch(
     panel_io,
     idfxx::lcd::touch::config {
         .x_max = 240,
@@ -61,7 +61,7 @@ auto touch = std::make_shared<idfxx::lcd::stmpe610>(
 );
 
 // Access ESP-IDF handle for lower-level operations
-esp_lcd_touch_handle_t handle = touch->idf_handle();
+esp_lcd_touch_handle_t handle = touch.idf_handle();
 ```
 
 ### Result-based API
@@ -81,7 +81,7 @@ if (!touch_result) {
 auto touch = std::move(*touch_result);
 
 // Access ESP-IDF handle for lower-level operations
-esp_lcd_touch_handle_t handle = touch->idf_handle();
+esp_lcd_touch_handle_t handle = touch.idf_handle();
 ```
 
 ### Using a Named Config Variable
@@ -107,7 +107,7 @@ idfxx::lcd::touch::config touch_config{
 };
 
 // Must use std::move() when passing a named config variable
-auto touch = std::make_shared<idfxx::lcd::stmpe610>(panel_io, std::move(touch_config));
+idfxx::lcd::stmpe610 touch(panel_io, std::move(touch_config));
 ```
 
 ### Coordinate Transformation
@@ -246,16 +246,16 @@ Extend the `touch` base class to create custom implementations:
 ```cpp
 class my_touch_controller : public idfxx::lcd::touch {
 public:
-    static result<std::unique_ptr<my_touch_controller>> make(
-        std::shared_ptr<idfxx::lcd::panel_io> panel_io,
+    static result<my_touch_controller> make(
+        idfxx::lcd::panel_io& panel_io,
         const config& cfg);
 
     esp_lcd_touch_handle_t idf_handle() const override {
-        return handle_;
+        return _handle;
     }
 
 private:
-    esp_lcd_touch_handle_t handle_;
+    esp_lcd_touch_handle_t _handle;
 };
 ```
 

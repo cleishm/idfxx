@@ -23,9 +23,9 @@ void stmpe610::process_coordinates(
 ) {
     void* user_data = tp->config.user_data;
     if (user_data != nullptr) {
-        auto self = static_cast<stmpe610*>(user_data);
-        if (self->_process_coordinates != nullptr) {
-            self->_process_coordinates(x, y, strength, point_num, max_point_num);
+        auto* state = static_cast<callback_state*>(user_data);
+        if (state->process_coordinates != nullptr) {
+            state->process_coordinates(x, y, strength, point_num, max_point_num);
         }
     }
 }
@@ -49,7 +49,7 @@ result<esp_lcd_touch_handle_t> stmpe610::make_handle(esp_lcd_panel_io_handle_t i
             },
         .process_coordinates = process_coordinates,
         .interrupt_callback = nullptr,
-        .user_data = this,
+        .user_data = _callbacks.get(),
         .driver_data = nullptr,
     };
 
@@ -62,33 +62,46 @@ result<esp_lcd_touch_handle_t> stmpe610::make_handle(esp_lcd_panel_io_handle_t i
     return handle;
 }
 
-result<std::unique_ptr<stmpe610>> stmpe610::make(std::shared_ptr<idfxx::lcd::panel_io> panel_io, struct config config) {
-    if (panel_io == nullptr) {
-        ESP_LOGE(TAG, "Cannot create stmpe610 touch controller: panel_io is null");
-        return error(errc::invalid_arg);
-    }
-
-    auto self = std::unique_ptr<stmpe610>(new stmpe610());
-    self->_process_coordinates = std::move(config.process_coordinates);
-    self->_panel_io = std::move(panel_io);
-
-    return self->make_handle(self->_panel_io->idf_handle(), config).transform([&](auto handle) {
-        self->_handle = handle;
-        return std::move(self);
-    });
-}
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-stmpe610::stmpe610(std::shared_ptr<idfxx::lcd::panel_io> panel_io, struct config config) {
-    if (panel_io == nullptr) {
-        throw std::system_error(errc::invalid_arg, "panel_io is null");
+stmpe610::stmpe610(idfxx::lcd::panel_io& panel_io, struct config config) {
+    if (config.process_coordinates) {
+        _callbacks = std::make_unique<callback_state>(std::move(config.process_coordinates));
     }
-
-    _process_coordinates = std::move(config.process_coordinates);
-    _panel_io = std::move(panel_io);
-    _handle = unwrap(make_handle(_panel_io->idf_handle(), config));
+    _handle = unwrap(make_handle(panel_io.idf_handle(), config));
 }
 #endif
+
+result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, struct config config) {
+    stmpe610 self;
+    if (config.process_coordinates) {
+        self._callbacks = std::make_unique<callback_state>(std::move(config.process_coordinates));
+    }
+
+    auto handle_result = self.make_handle(panel_io.idf_handle(), config);
+    if (!handle_result.has_value()) {
+        return error(handle_result.error());
+    }
+    self._handle = *handle_result;
+    return self;
+}
+
+stmpe610::stmpe610(stmpe610&& other) noexcept
+    : _handle(other._handle)
+    , _callbacks(std::move(other._callbacks)) {
+    other._handle = nullptr;
+}
+
+stmpe610& stmpe610::operator=(stmpe610&& other) noexcept {
+    if (this != &other) {
+        if (_handle != nullptr) {
+            esp_lcd_touch_del(_handle);
+        }
+        _handle = other._handle;
+        _callbacks = std::move(other._callbacks);
+        other._handle = nullptr;
+    }
+    return *this;
+}
 
 stmpe610::~stmpe610() {
     if (_handle != nullptr) {

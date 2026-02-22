@@ -118,7 +118,7 @@ result<void> event_loop::try_destroy_system() {
 }
 
 event_loop& event_loop::system() {
-    static event_loop instance{nullptr};
+    static event_loop instance{nullptr, true};
     return instance;
 }
 
@@ -128,6 +128,29 @@ result<void> event_loop::try_listener_remove(listener_handle handle) {
     }
 
     return unregister_listener(handle._loop, handle._instance, handle._base, handle._id);
+}
+
+event_loop::event_loop(event_loop&& other) noexcept
+    : _handle(other._handle)
+    , _system(other._system) {
+    other._handle = nullptr;
+    other._system = false;
+}
+
+event_loop& event_loop::operator=(event_loop&& other) noexcept {
+    if (this != &other) {
+        if (_handle != nullptr) {
+            esp_err_t err = esp_event_loop_delete(_handle);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to delete event loop: %s", make_error_code(err).message().c_str());
+            }
+        }
+        _handle = other._handle;
+        _system = other._system;
+        other._handle = nullptr;
+        other._system = false;
+    }
+    return *this;
 }
 
 event_loop::~event_loop() {
@@ -154,10 +177,12 @@ void event_loop::unique_listener_handle::reset() noexcept {
 }
 
 // =============================================================================
-// User event loop factory implementations
+// Event loop factory implementations
 // =============================================================================
 
-result<std::unique_ptr<user_event_loop>> event_loop::try_make_user(size_t queue_size) {
+namespace {
+
+result<esp_event_loop_handle_t> create_loop(size_t queue_size) {
     esp_event_loop_args_t args{
         .queue_size = static_cast<int32_t>(queue_size),
         .task_name = nullptr,
@@ -167,15 +192,13 @@ result<std::unique_ptr<user_event_loop>> event_loop::try_make_user(size_t queue_
     };
 
     esp_event_loop_handle_t handle = nullptr;
-    esp_err_t err = esp_event_loop_create(&args, &handle);
-    if (err != ESP_OK) {
+    if (auto err = esp_event_loop_create(&args, &handle); err != ESP_OK) {
         return error(err);
     }
-
-    return std::unique_ptr<user_event_loop>(new user_event_loop(handle));
+    return handle;
 }
 
-result<std::unique_ptr<event_loop>> event_loop::try_make_user(task_config task, size_t queue_size) {
+result<esp_event_loop_handle_t> create_loop(const event_loop::task_config& task, size_t queue_size) {
     auto core_id_to_freertos = [](std::optional<core_id> affinity) -> BaseType_t {
         return affinity.has_value() ? static_cast<BaseType_t>(*affinity) : tskNO_AFFINITY;
     };
@@ -189,12 +212,38 @@ result<std::unique_ptr<event_loop>> event_loop::try_make_user(task_config task, 
     };
 
     esp_event_loop_handle_t handle = nullptr;
-    esp_err_t err = esp_event_loop_create(&args, &handle);
-    if (err != ESP_OK) {
+    if (auto err = esp_event_loop_create(&args, &handle); err != ESP_OK) {
         return error(err);
     }
+    return handle;
+}
 
-    return std::unique_ptr<event_loop>(new user_event_loop(handle));
+} // namespace
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+event_loop::event_loop(task_config task, size_t queue_size)
+    : event_loop(unwrap(create_loop(std::move(task), queue_size))) {}
+#endif
+
+result<event_loop> event_loop::make(task_config task, size_t queue_size) {
+    auto handle_result = create_loop(std::move(task), queue_size);
+    if (!handle_result.has_value()) {
+        return error(handle_result.error());
+    }
+    return event_loop(*handle_result);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+user_event_loop::user_event_loop(size_t queue_size)
+    : event_loop(unwrap(create_loop(queue_size))) {}
+#endif
+
+result<user_event_loop> user_event_loop::make(size_t queue_size) {
+    auto handle_result = create_loop(queue_size);
+    if (!handle_result.has_value()) {
+        return error(handle_result.error());
+    }
+    return user_event_loop(*handle_result);
 }
 
 } // namespace idfxx

@@ -24,7 +24,6 @@
 
 #include <esp_event.h>
 #include <functional>
-#include <memory>
 #include <type_traits>
 
 /**
@@ -191,7 +190,10 @@ class user_event_loop;
  * @headerfile <idfxx/event>
  * @brief Base class for event loops.
  *
- * Provides listener registration and event posting operations.
+ * Provides listener registration and event posting operations. This type
+ * is non-copyable and move-only. Result-returning methods on a moved-from
+ * object return errc::invalid_state. Simple accessors return default/null
+ * values.
  *
  * @code
  * void register_listeners(event_loop& loop) {
@@ -200,8 +202,8 @@ class user_event_loop;
  * }
  *
  * // Use with user-created loop (with task)
- * auto loop = event_loop::make_user(32, {.name = "events"});
- * register_listeners(*loop);
+ * auto loop = event_loop({.name = "events"});
+ * register_listeners(loop);
  *
  * // Use with system loop
  * event_loop::create_system();
@@ -258,7 +260,7 @@ public:
     [[nodiscard]] static event_loop& system();
 
     // =========================================================================
-    // User event loop creation
+    // Event loop creation (with dedicated task)
     // =========================================================================
 
     /**
@@ -280,43 +282,21 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Creates a user event loop without a dedicated task.
-     *
-     * Events must be dispatched manually via user_event_loop::run().
-     *
-     * @param queue_size Maximum number of events in the queue.
-     * @return A user event loop with manual dispatch support.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
-     */
-    static std::unique_ptr<user_event_loop> make_user(size_t queue_size = 32);
-
-    /**
-     * @brief Creates a user event loop with a dedicated dispatch task.
+     * @brief Creates an event loop with a dedicated dispatch task.
      *
      * The task automatically dispatches events from the queue.
      *
      * @param task Configuration for the dedicated dispatch task.
      * @param queue_size Maximum number of events in the queue.
-     * @return An event loop with automatic dispatch.
+     *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    static std::unique_ptr<event_loop> make_user(task_config task, size_t queue_size = 32);
+    [[nodiscard]] explicit event_loop(task_config task, size_t queue_size = 32);
 #endif
 
     /**
-     * @brief Creates a user event loop without a dedicated task.
-     *
-     * Events must be dispatched manually via user_event_loop::try_run().
-     *
-     * @param queue_size Maximum number of events in the queue.
-     * @return A user event loop with manual dispatch support, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<user_event_loop>> try_make_user(size_t queue_size = 32);
-
-    /**
-     * @brief Creates a user event loop with a dedicated dispatch task.
+     * @brief Creates an event loop with a dedicated dispatch task.
      *
      * The task automatically dispatches events from the queue.
      *
@@ -324,7 +304,7 @@ public:
      * @param queue_size Maximum number of events in the queue.
      * @return An event loop with automatic dispatch, or an error.
      */
-    [[nodiscard]] static result<std::unique_ptr<event_loop>> try_make_user(task_config task, size_t queue_size = 32);
+    [[nodiscard]] static result<event_loop> make(task_config task, size_t queue_size = 32);
 
     // =========================================================================
     // Listener registration (base + specific id)
@@ -527,7 +507,10 @@ public:
     template<typename IdEnum>
     [[nodiscard]] result<void>
     try_post(event_base<IdEnum> base, IdEnum id, const void* data = nullptr, size_t size = 0) {
-        if (_handle == nullptr) {
+        if (!_system && _handle == nullptr) {
+            return error(errc::invalid_state);
+        }
+        if (_system) {
             return wrap(esp_event_post(base.idf_base(), static_cast<int32_t>(id), data, size, portMAX_DELAY));
         }
         return wrap(esp_event_post_to(_handle, base.idf_base(), static_cast<int32_t>(id), data, size, portMAX_DELAY));
@@ -554,8 +537,11 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
+        if (!_system && _handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         auto ticks = chrono::ticks(timeout);
-        if (_handle == nullptr) {
+        if (_system) {
             return wrap(esp_event_post(base.idf_base(), static_cast<int32_t>(id), data, size, ticks));
         }
         return wrap(esp_event_post_to(_handle, base.idf_base(), static_cast<int32_t>(id), data, size, ticks));
@@ -603,23 +589,28 @@ public:
      */
     [[nodiscard]] esp_event_loop_handle_t idf_handle() const { return _handle; }
 
-    /**
-     * @brief Virtual destructor. Deletes the owned event loop handle if non-null.
-     */
-    virtual ~event_loop();
+    ~event_loop();
 
     event_loop(const event_loop&) = delete;
     event_loop& operator=(const event_loop&) = delete;
-    event_loop(event_loop&&) = delete;
-    event_loop& operator=(event_loop&&) = delete;
+
+    /** @brief Move constructor. Transfers ownership of the event loop. */
+    event_loop(event_loop&& other) noexcept;
+
+    /** @brief Move assignment. Transfers ownership of the event loop. */
+    event_loop& operator=(event_loop&& other) noexcept;
 
 protected:
+    event_loop() = default;
+
     /**
      * @brief Constructs an event_loop with the given handle.
      * @param handle The ESP-IDF event loop handle, or nullptr for the system loop.
+     * @param system If true, this is the system event loop singleton.
      */
-    explicit event_loop(esp_event_loop_handle_t handle)
-        : _handle(handle) {}
+    explicit event_loop(esp_event_loop_handle_t handle, bool system = false)
+        : _handle(handle)
+        , _system(system) {}
 
 private:
     static result<listener_handle> register_listener(
@@ -640,7 +631,8 @@ private:
         int32_t id
     );
 
-    esp_event_loop_handle_t _handle;
+    esp_event_loop_handle_t _handle = nullptr;
+    bool _system = false;
 };
 
 /**
@@ -758,27 +750,48 @@ private:
  *
  * Inherits all listener registration and event posting operations from
  * event_loop, and adds manual dispatch via run()/try_run(). Created
- * via event_loop::make_user() or event_loop::try_make_user() without
- * a task_config.
+ * via user_event_loop::make() or its constructor.
  *
  * @code
  * // Create loop without task (manual dispatch)
- * auto loop = event_loop::make_user(16);
- * loop->listener_add(my_events, my_event::started, callback);
- * loop->post(my_events, my_event::started);
- * loop->run(100ms);
+ * auto loop = user_event_loop(16);
+ * loop.listener_add(my_events, my_event::started, callback);
+ * loop.post(my_events, my_event::started);
+ * loop.run(100ms);
  *
  * // Generic code accepts event_loop&
  * void register_handlers(event_loop& loop) {
  *     loop.listener_add(my_events, my_event::started, callback);
  * }
- * register_handlers(*loop);
+ * register_handlers(loop);
  * @endcode
  */
 class user_event_loop : public event_loop {
-    friend class event_loop;
-
 public:
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates a user event loop without a dedicated task.
+     *
+     * Events must be dispatched manually via run().
+     *
+     * @param queue_size Maximum number of events in the queue.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] explicit user_event_loop(size_t queue_size);
+#endif
+
+    /**
+     * @brief Creates a user event loop without a dedicated task.
+     *
+     * Events must be dispatched manually via try_run().
+     *
+     * @param queue_size Maximum number of events in the queue.
+     * @return A user event loop with manual dispatch support, or an error.
+     */
+    [[nodiscard]] static result<user_event_loop> make(size_t queue_size = 32);
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     // =========================================================================
     // Manual dispatch (for loops without dedicated task)
@@ -813,15 +826,20 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_run(const std::chrono::duration<Rep, Period>& duration) {
+        if (idf_handle() == nullptr) {
+            return error(errc::invalid_state);
+        }
         return wrap(esp_event_loop_run(idf_handle(), chrono::ticks(duration)));
     }
 
     user_event_loop(const user_event_loop&) = delete;
     user_event_loop& operator=(const user_event_loop&) = delete;
-    user_event_loop(user_event_loop&&) = delete;
-    user_event_loop& operator=(user_event_loop&&) = delete;
+    user_event_loop(user_event_loop&&) noexcept = default;
+    user_event_loop& operator=(user_event_loop&&) noexcept = default;
 
 private:
+    user_event_loop() = default;
+
     explicit user_event_loop(esp_event_loop_handle_t handle)
         : event_loop(handle) {}
 };
@@ -831,16 +849,6 @@ private:
 // =============================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-inline std::unique_ptr<user_event_loop> event_loop::make_user(size_t queue_size) {
-    auto result = try_make_user(queue_size);
-    return std::move(result).transform_error([](auto ec) -> std::error_code { throw std::system_error(ec); }).value();
-}
-
-inline std::unique_ptr<event_loop> event_loop::make_user(task_config task, size_t queue_size) {
-    auto result = try_make_user(std::move(task), queue_size);
-    return std::move(result).transform_error([](auto ec) -> std::error_code { throw std::system_error(ec); }).value();
-}
-
 template<typename IdEnum>
 event_loop::listener_handle
 event_loop::listener_add(event_base<IdEnum> base, IdEnum id, event_callback<std::type_identity_t<IdEnum>> callback) {
@@ -882,12 +890,18 @@ result<event_loop::listener_handle> event_loop::try_listener_add(
     IdEnum id,
     event_callback<std::type_identity_t<IdEnum>> callback
 ) {
+    if (!_system && _handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     return register_listener<IdEnum>(_handle, base.idf_base(), static_cast<int32_t>(id), std::move(callback));
 }
 
 template<typename IdEnum>
 result<event_loop::listener_handle>
 event_loop::try_listener_add(event_base<IdEnum> base, event_callback<std::type_identity_t<IdEnum>> callback) {
+    if (!_system && _handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     return register_listener<IdEnum>(_handle, base.idf_base(), ESP_EVENT_ANY_ID, std::move(callback));
 }
 

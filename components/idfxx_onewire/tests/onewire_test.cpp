@@ -31,12 +31,12 @@ static_assert(address::any() != address::none());
 static_assert(address{0x1234} != address{0x5678});
 static_assert(address{0x1234} < address{0x5678});
 
-// bus is non-copyable, non-movable, and not default constructible
+// bus is non-copyable, move-only, and not default constructible
 static_assert(!std::is_default_constructible_v<bus>);
 static_assert(!std::is_copy_constructible_v<bus>);
 static_assert(!std::is_copy_assignable_v<bus>);
-static_assert(!std::is_move_constructible_v<bus>);
-static_assert(!std::is_move_assignable_v<bus>);
+static_assert(std::is_move_constructible_v<bus>);
+static_assert(std::is_move_assignable_v<bus>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -91,7 +91,7 @@ TEST_CASE("bus::make with NC pin returns error", "[idfxx][onewire]") {
 TEST_CASE("bus::make with valid pin succeeds", "[idfxx][onewire]") {
     auto result = bus::make(idfxx::gpio_4);
     TEST_ASSERT_TRUE(result.has_value());
-    TEST_ASSERT_EQUAL(4, result.value()->pin().num());
+    TEST_ASSERT_EQUAL(4, result->pin().num());
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -114,7 +114,7 @@ TEST_CASE("bus constructor with valid pin succeeds", "[idfxx][onewire]") {
 TEST_CASE("bus is lockable", "[idfxx][onewire]") {
     auto result = bus::make(idfxx::gpio_4);
     TEST_ASSERT_TRUE(result.has_value());
-    auto& b = *result.value();
+    auto& b = *result;
 
     // Verify lock/unlock methods exist and work
     b.lock();

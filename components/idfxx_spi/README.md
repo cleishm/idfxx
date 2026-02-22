@@ -36,7 +36,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 ```cpp
 try {
-    auto bus = std::make_unique<idfxx::spi::master_bus>(
+    idfxx::spi::master_bus bus(
         idfxx::spi::host_device::spi2,
         idfxx::spi::dma_chan::ch_auto,
         idfxx::spi::bus_config{ /* ... */ }
@@ -66,7 +66,7 @@ idfxx::spi::bus_config config{
     .max_transfer_sz = 4096,
 };
 
-// Create SPI bus - returns idfxx::result<std::unique_ptr<idfxx::spi::master_bus>>
+// Create SPI bus - returns idfxx::result<idfxx::spi::master_bus>
 auto bus_result = idfxx::spi::master_bus::make(
     idfxx::spi::host_device::spi2,  // SPI host
     idfxx::spi::dma_chan::ch_auto,  // DMA channel (or dma_chan::disabled)
@@ -86,7 +86,7 @@ idfxx::log::info("SPI", "SPI bus initialized");
 ### With DMA
 
 ```cpp
-auto bus = std::make_unique<idfxx::spi::master_bus>(
+idfxx::spi::master_bus bus(
     idfxx::spi::host_device::spi2,
     idfxx::spi::dma_chan::ch_auto,  // Automatic DMA channel selection
     idfxx::spi::bus_config{
@@ -101,7 +101,7 @@ auto bus = std::make_unique<idfxx::spi::master_bus>(
 ### Without DMA
 
 ```cpp
-auto bus = std::make_unique<idfxx::spi::master_bus>(
+idfxx::spi::master_bus bus(
     idfxx::spi::host_device::spi2,
     idfxx::spi::dma_chan::disabled,  // No DMA
     idfxx::spi::bus_config{ /* ... */ }
@@ -116,20 +116,20 @@ The SPI bus is commonly used with LCD panels.
 #include <idfxx/spi/master>
 #include <idfxx/lcd/panel_io>
 
-// Create shared SPI bus
-auto spi_bus = std::make_shared<idfxx::spi::master_bus>(
+// Create SPI bus
+idfxx::spi::master_bus spi_bus(
     idfxx::spi::host_device::spi2,
     idfxx::spi::dma_chan::ch_auto,
     idfxx::spi::bus_config{ /* ... */ }
 );
 
 // Create panel I/O using the bus
-auto panel_io = std::make_unique<idfxx::lcd::panel_io>(
-    spi_bus,              // Shared pointer to bus
+idfxx::lcd::panel_io panel_io(
+    spi_bus,              // Reference to bus
     idfxx::lcd::panel_io::spi_config{ /* ... */ }
 );
 
-// Bus is kept alive as long as panel_io exists
+// Caller must ensure spi_bus outlives panel_io
 ```
 
 ## API Overview
@@ -144,7 +144,7 @@ auto panel_io = std::make_unique<idfxx::lcd::panel_io>(
 - `host()` - Get SPI host device
 
 **Lifetime:**
-- Non-copyable and non-movable
+- Non-copyable and move-only
 - Destructor automatically cleans up resources
 
 ## SPI Hosts
@@ -166,11 +166,10 @@ Via `idfxx::spi::dma_chan`:
 ## Important Notes
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<std::unique_ptr<master_bus>>` (always available)
+  - `make()` returns `result<master_bus>` (always available)
   - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - Only one bus can be initialized per SPI host
 - The bus must remain alive while devices using it exist
-- Use `std::shared_ptr` when passing to other components
 - DMA enables larger transfers but requires DMA-capable memory
 - Maximum transfer size without DMA is ~64 bytes
 - With DMA, transfer size is limited by `max_transfer_sz` in config

@@ -46,6 +46,9 @@ public:
 
     virtual ~panel() = default;
 
+    panel(const panel&) = delete;
+    panel& operator=(const panel&) = delete;
+
     /** @brief Returns the underlying ESP-IDF handle. */
     [[nodiscard]] virtual esp_lcd_panel_handle_t idf_handle() const = 0;
 
@@ -101,6 +104,9 @@ public:
      * @return Success, or an error.
      */
     [[nodiscard]] virtual result<void> try_display_on(bool on) = 0;
+
+protected:
+    panel() = default;
 };
 
 } // namespace idfxx::lcd

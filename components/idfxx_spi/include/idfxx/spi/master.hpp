@@ -24,7 +24,6 @@
 #include <idfxx/intr_types>
 
 #include <driver/spi_master.h>
-#include <memory>
 #include <string>
 
 /**
@@ -152,22 +151,11 @@ struct bus_config {
  * @headerfile <idfxx/spi/master>
  * @brief A SPI master bus.
  *
- * Represents a SPI bus operating in master mode.
+ * Represents a SPI bus operating in master mode. This type is non-copyable
+ * and move-only. The destructor is a no-op on a moved-from object.
  */
 class master_bus {
 public:
-    /**
-     * @brief Creates a new SPI master bus.
-     *
-     * @param host     SPI host device (e.g., SPI2_HOST).
-     * @param dma_chan DMA channel, or idfxx::spi::dma_chan::disabled.
-     * @param config   Bus configuration.
-     *
-     * @return The new bus, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<master_bus>>
-    make(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Constructs a new SPI master bus.
@@ -182,12 +170,28 @@ public:
     [[nodiscard]] explicit master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
 #endif
 
+    /**
+     * @brief Creates a new SPI master bus.
+     *
+     * @param host     SPI host device (e.g., SPI2_HOST).
+     * @param dma_chan DMA channel, or idfxx::spi::dma_chan::disabled.
+     * @param config   Bus configuration.
+     *
+     * @return The new bus, or an error.
+     */
+    [[nodiscard]] static result<master_bus>
+    make(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
+
     ~master_bus();
 
     master_bus(const master_bus&) = delete;
     master_bus& operator=(const master_bus&) = delete;
-    master_bus(master_bus&&) = delete;
-    master_bus& operator=(master_bus&&) = delete;
+
+    /** @brief Move constructor. Transfers bus ownership. */
+    master_bus(master_bus&& other) noexcept;
+
+    /** @brief Move assignment. Transfers bus ownership. */
+    master_bus& operator=(master_bus&& other) noexcept;
 
     /** @brief Returns the host device ID the bus is using. */
     [[nodiscard]] enum host_device host() const { return _host; }
@@ -196,6 +200,7 @@ private:
     explicit master_bus(enum host_device host);
 
     enum host_device _host;
+    bool _initialized = true;
 };
 
 /** @} */ // end of idfxx_spi

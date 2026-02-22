@@ -253,7 +253,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 ## Important Notes
 
 - **ISR dispatch**: Use the raw function pointer overload with `dispatch_method::isr` for ISR-safe callbacks. The std::move_only_function overload allocates memory that may not be in IRAM.
-- **Non-copyable/movable**: Timer is non-copyable and non-movable to ensure callback pointer stability.
+- **Non-copyable/move-only**: Timer is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops and deletes the timer.
 - **Name storage**: Timer names are copied internally and remain valid for the timer's lifetime.
 

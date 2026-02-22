@@ -44,7 +44,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 using namespace frequency_literals;
 
 try {
-    auto spi_bus = std::make_shared<idfxx::spi::master_bus>(
+    idfxx::spi::master_bus spi_bus(
         idfxx::spi::host_device::spi2,
         idfxx::spi::dma_chan::ch_auto,
         idfxx::spi::bus_config {
@@ -55,7 +55,7 @@ try {
         }
     );
 
-    auto panel_io = std::make_shared<idfxx::lcd::panel_io>(
+    idfxx::lcd::panel_io panel_io(
         spi_bus,
         idfxx::lcd::panel_io::spi_config {
             .cs_gpio = idfxx::gpio_5,
@@ -123,7 +123,7 @@ idfxx::lcd::panel_io::spi_config io_config{
 };
 
 // Must use std::move() when passing a named config variable
-auto panel_io = std::make_shared<idfxx::lcd::panel_io>(spi_bus, std::move(io_config));
+idfxx::lcd::panel_io panel_io(spi_bus, std::move(io_config));
 ```
 
 ### With Display Panel
@@ -136,7 +136,7 @@ The `panel_io` is typically passed to LCD panel drivers.
 
 // Create SPI bus and panel I/O (as shown above)
 auto spi_bus = /* ... */;
-auto panel_io = std::make_shared<idfxx::lcd::panel_io>(
+idfxx::lcd::panel_io panel_io(
     spi_bus, idfxx::lcd::panel_io::spi_config{ /* ... */ });
 
 // Create ILI9341 display using the panel I/O
@@ -146,24 +146,27 @@ idfxx::lcd::panel::config panel_config{
     .bits_per_pixel = 16,
 };
 
-auto display = std::make_unique<idfxx::lcd::ili9341>(panel_io, std::move(panel_config));
+idfxx::lcd::ili9341 display(panel_io, std::move(panel_config));
 ```
 
 ### With Touch Controller
 
-The same `panel_io` can be shared with touch controllers.
+The same SPI bus can be shared with touch controllers (using different CS pins and separate `panel_io` instances).
 
 ```cpp
 #include <idfxx/lcd/panel_io>
-#include <idfxx/lcd/touch/stmpe610>
+#include <idfxx/lcd/stmpe610>
 
-// Use the same panel I/O for touch controller
+// Create a separate panel I/O for the touch controller
+idfxx::lcd::panel_io touch_panel_io(
+    spi_bus, idfxx::lcd::panel_io::spi_config{ /* ... */ });
+
 idfxx::lcd::touch::config touch_config{
     .x_max = 240,
     .y_max = 320,
 };
 
-auto touch = std::make_unique<idfxx::lcd::touch::stmpe610>(panel_io, touch_config);
+idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 ```
 
 ## API Overview
@@ -179,8 +182,8 @@ auto touch = std::make_unique<idfxx::lcd::touch::stmpe610>(panel_io, touch_confi
 
 **Lifetime:**
 - Destructor automatically calls `esp_lcd_panel_io_del()`
-- Non-copyable and non-movable
-- Keeps SPI bus alive via `std::shared_ptr`
+- Non-copyable and move-only
+- Takes SPI bus by reference; the caller must ensure the bus outlives the panel I/O
 
 ## Configuration
 
@@ -226,7 +229,7 @@ idfxx::lcd::panel_io::spi_config io_config{
 ## Important Notes
 
 - The SPI bus must be created before the panel I/O
-- Panel I/O keeps the SPI bus alive via `std::shared_ptr`
+- The caller must ensure the SPI bus outlives the panel I/O
 - Multiple panel I/O instances can share the same SPI bus (with different CS pins)
 - The `dc_gpio` (Data/Command) is required for most LCD controllers
 - Clock frequency (`pclk_freq`) affects display performance

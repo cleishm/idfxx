@@ -70,43 +70,43 @@ static_assert(std::is_move_assignable_v<event_loop::unique_listener_handle>);
 static_assert(!std::is_copy_constructible_v<event_loop::unique_listener_handle>);
 static_assert(!std::is_copy_assignable_v<event_loop::unique_listener_handle>);
 
-// event_loop is non-copyable, non-moveable
+// event_loop is move-only
 static_assert(!std::is_copy_constructible_v<event_loop>);
 static_assert(!std::is_copy_assignable_v<event_loop>);
-static_assert(!std::is_move_constructible_v<event_loop>);
-static_assert(!std::is_move_assignable_v<event_loop>);
+static_assert(std::is_move_constructible_v<event_loop>);
+static_assert(std::is_move_assignable_v<event_loop>);
 
-// user_event_loop is non-copyable, non-moveable
+// user_event_loop is move-only
 static_assert(!std::is_copy_constructible_v<user_event_loop>);
 static_assert(!std::is_copy_assignable_v<user_event_loop>);
-static_assert(!std::is_move_constructible_v<user_event_loop>);
-static_assert(!std::is_move_assignable_v<user_event_loop>);
+static_assert(std::is_move_constructible_v<user_event_loop>);
+static_assert(std::is_move_assignable_v<user_event_loop>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
-TEST_CASE("event_loop::try_make_user creates loop successfully", "[idfxx][event]") {
-    auto result = event_loop::try_make_user();
+TEST_CASE("user_event_loop::make creates loop successfully", "[idfxx][event]") {
+    auto result = user_event_loop::make();
     TEST_ASSERT_TRUE(result);
-    TEST_ASSERT_NOT_NULL(result.value()->idf_handle());
+    TEST_ASSERT_NOT_NULL(result.value().idf_handle());
 }
 
-TEST_CASE("event_loop::try_make_user with task creates loop", "[idfxx][event]") {
-    auto result = event_loop::try_make_user({.name = "test_events", .stack_size = 2048, .priority = 5}, 16);
+TEST_CASE("event_loop::make with task creates loop", "[idfxx][event]") {
+    auto result = event_loop::make({.name = "test_events", .stack_size = 2048, .priority = 5}, 16);
     TEST_ASSERT_TRUE(result);
-    TEST_ASSERT_NOT_NULL(result.value()->idf_handle());
+    TEST_ASSERT_NOT_NULL(result.value().idf_handle());
 
     // Give task time to start
     idfxx::delay(10ms);
 }
 
 TEST_CASE("user_event_loop posts and receives typed events", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
     std::atomic<int> counter{0};
     test_event_id received_id = test_event_id::event_a;
 
-    auto handle_result = loop->try_listener_add(
+    auto handle_result = loop.try_listener_add(
         test_events, test_event_id::event_b,
         [&counter, &received_id](event_base<test_event_id>, test_event_id id, void*) {
             received_id = id;
@@ -115,7 +115,7 @@ TEST_CASE("user_event_loop posts and receives typed events", "[idfxx][event]") {
     TEST_ASSERT_TRUE(handle_result);
 
     // Post event
-    auto post_result = loop->try_post(test_events, test_event_id::event_b);
+    auto post_result = loop.try_post(test_events, test_event_id::event_b);
     TEST_ASSERT_TRUE(post_result);
 
     // Wait for event to be processed
@@ -126,21 +126,21 @@ TEST_CASE("user_event_loop posts and receives typed events", "[idfxx][event]") {
 }
 
 TEST_CASE("user_event_loop listener receives any event from base", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
     // Register for any event from test_events base
     auto handle_result =
-        loop->try_listener_add(test_events, [&counter](event_base<test_event_id>, test_event_id id, void*) {
+        loop.try_listener_add(test_events, [&counter](event_base<test_event_id>, test_event_id id, void*) {
             counter++;
         });
     TEST_ASSERT_TRUE(handle_result);
 
     // Post different events
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_b));
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_c));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_b));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_c));
 
     idfxx::delay(50ms);
 
@@ -148,23 +148,23 @@ TEST_CASE("user_event_loop listener receives any event from base", "[idfxx][even
 }
 
 TEST_CASE("user_event_loop listener via event_type", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
     auto evt = test_events(test_event_id::event_a);
     auto handle_result =
-        loop->try_listener_add(evt, [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; });
+        loop.try_listener_add(evt, [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; });
     TEST_ASSERT_TRUE(handle_result);
 
-    TEST_ASSERT_TRUE(loop->try_post(evt));
+    TEST_ASSERT_TRUE(loop.try_post(evt));
     idfxx::delay(50ms);
 
     TEST_ASSERT_EQUAL(1, counter.load());
 }
 
 TEST_CASE("user_event_loop posts event with data", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     struct payload {
         int value;
@@ -172,7 +172,7 @@ TEST_CASE("user_event_loop posts event with data", "[idfxx][event]") {
 
     std::atomic<int> received_value{0};
 
-    auto handle_result = loop->try_listener_add(
+    auto handle_result = loop.try_listener_add(
         test_events, test_event_id::event_a,
         [&received_value](event_base<test_event_id>, test_event_id id, void* data) {
             if (data) {
@@ -182,7 +182,7 @@ TEST_CASE("user_event_loop posts event with data", "[idfxx][event]") {
     TEST_ASSERT_TRUE(handle_result);
 
     payload p{42};
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a, &p, sizeof(p)));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a, &p, sizeof(p)));
 
     idfxx::delay(50ms);
 
@@ -190,41 +190,41 @@ TEST_CASE("user_event_loop posts event with data", "[idfxx][event]") {
 }
 
 TEST_CASE("user_event_loop listener removal", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
-    auto handle = loop->try_listener_add(test_events, test_event_id::event_a,
-                                          [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
+    auto handle = loop.try_listener_add(test_events, test_event_id::event_a,
+                                        [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
                       .value();
 
     // Post and verify
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(1, counter.load());
 
     // Remove listener
-    auto remove_result = loop->try_listener_remove(handle);
+    auto remove_result = loop.try_listener_remove(handle);
     TEST_ASSERT_TRUE(remove_result);
 
     // Post again - should not increment
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(1, counter.load());
 }
 
 TEST_CASE("unique_listener_handle RAII cleanup", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
     {
         event_loop::unique_listener_handle unique_handle{
-            loop->try_listener_add(test_events, test_event_id::event_a,
-                                   [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
+            loop.try_listener_add(test_events, test_event_id::event_a,
+                                  [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
                 .value()};
 
-        TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+        TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
         idfxx::delay(50ms);
         TEST_ASSERT_EQUAL(1, counter.load());
 
@@ -232,19 +232,19 @@ TEST_CASE("unique_listener_handle RAII cleanup", "[idfxx][event]") {
     }
 
     // Post again - should not increment since listener was removed
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(1, counter.load());
 }
 
 TEST_CASE("unique_listener_handle move semantics", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
     event_loop::unique_listener_handle handle1{
-        loop->try_listener_add(test_events, test_event_id::event_a,
-                               [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
+        loop.try_listener_add(test_events, test_event_id::event_a,
+                              [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
             .value()};
 
     // Move to new handle
@@ -254,13 +254,13 @@ TEST_CASE("unique_listener_handle move semantics", "[idfxx][event]") {
     TEST_ASSERT_FALSE(static_cast<bool>(handle1));
     TEST_ASSERT_TRUE(static_cast<bool>(handle2));
 
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(1, counter.load());
 }
 
 TEST_CASE("unique_listener_handle release", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}).value();
+    auto loop = event_loop::make({.name = "test_loop"}).value();
 
     std::atomic<int> counter{0};
 
@@ -268,8 +268,8 @@ TEST_CASE("unique_listener_handle release", "[idfxx][event]") {
 
     {
         event_loop::unique_listener_handle unique_handle{
-            loop->try_listener_add(test_events, test_event_id::event_a,
-                                   [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
+            loop.try_listener_add(test_events, test_event_id::event_a,
+                                  [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; })
                 .value()};
 
         raw_handle = unique_handle.release();
@@ -277,33 +277,33 @@ TEST_CASE("unique_listener_handle release", "[idfxx][event]") {
     }
 
     // Listener should still be active after unique_handle destroyed
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(1, counter.load());
 
     // Clean up manually
-    std::ignore = loop->try_listener_remove(raw_handle);
+    std::ignore = loop.try_listener_remove(raw_handle);
 }
 
 TEST_CASE("user_event_loop manual dispatch without task", "[idfxx][event]") {
     // Create loop without dedicated task
-    auto loop = event_loop::try_make_user(16).value();
+    auto loop = user_event_loop::make(16).value();
 
     std::atomic<int> counter{0};
 
-    auto handle_result = loop->try_listener_add(
+    auto handle_result = loop.try_listener_add(
         test_events, test_event_id::event_a,
         [&counter](event_base<test_event_id>, test_event_id id, void*) { counter++; });
     TEST_ASSERT_TRUE(handle_result);
 
     // Post event
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
 
     // Counter should still be 0 since no dispatch yet
     TEST_ASSERT_EQUAL(0, counter.load());
 
     // Manually dispatch
-    TEST_ASSERT_TRUE(loop->try_run(100ms));
+    TEST_ASSERT_TRUE(loop.try_run(100ms));
 
     TEST_ASSERT_EQUAL(1, counter.load());
 }
@@ -338,22 +338,22 @@ TEST_CASE("event_loop::system posts and receives events", "[idfxx][event]") {
 }
 
 TEST_CASE("multiple listeners for same event", "[idfxx][event]") {
-    auto loop = event_loop::try_make_user({.name = "test_loop"}, 32).value();
+    auto loop = event_loop::make({.name = "test_loop"}, 32).value();
 
     std::atomic<int> counter1{0};
     std::atomic<int> counter2{0};
 
     event_loop::unique_listener_handle handle1{
-        loop->try_listener_add(test_events, test_event_id::event_a,
-                               [&counter1](event_base<test_event_id>, test_event_id id, void*) { counter1++; })
+        loop.try_listener_add(test_events, test_event_id::event_a,
+                              [&counter1](event_base<test_event_id>, test_event_id id, void*) { counter1++; })
             .value()};
 
     event_loop::unique_listener_handle handle2{
-        loop->try_listener_add(test_events, test_event_id::event_a,
-                               [&counter2](event_base<test_event_id>, test_event_id id, void*) { counter2++; })
+        loop.try_listener_add(test_events, test_event_id::event_a,
+                              [&counter2](event_base<test_event_id>, test_event_id id, void*) { counter2++; })
             .value()};
 
-    TEST_ASSERT_TRUE(loop->try_post(test_events, test_event_id::event_a));
+    TEST_ASSERT_TRUE(loop.try_post(test_events, test_event_id::event_a));
     idfxx::delay(50ms);
 
     TEST_ASSERT_EQUAL(1, counter1.load());
@@ -387,8 +387,8 @@ TEST_CASE("generic function works with both loop types", "[idfxx][event]") {
     };
 
     // Test with user-created loop
-    auto user_loop = event_loop::try_make_user({.name = "test_loop"}).value();
-    int user_count = post_and_count(*user_loop);
+    auto user_loop = event_loop::make({.name = "test_loop"}).value();
+    int user_count = post_and_count(user_loop);
     TEST_ASSERT_EQUAL(1, user_count);
 
     // Test with system loop
@@ -398,4 +398,9 @@ TEST_CASE("generic function works with both loop types", "[idfxx][event]") {
     std::ignore = event_loop::try_destroy_system();
 }
 
-
+TEST_CASE("moved-from event_loop returns invalid_state", "[idfxx][event]") {
+    auto loop = event_loop::make({.name = "test"}).value();
+    auto moved = std::move(loop);
+    auto result = loop.try_post(test_events, test_event_id::event_a);
+    TEST_ASSERT_FALSE(result);
+}

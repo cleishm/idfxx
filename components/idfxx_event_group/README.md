@@ -178,7 +178,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 ## Important Notes
 
 - **clear_on_exit defaults to true**: Wait operations clear the matched bits by default, preventing accidental double-processing of events.
-- **Non-copyable/movable**: Event groups are non-copyable and non-movable.
+- **Non-copyable/move-only**: Event groups are non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically deletes the event group. Tasks blocked on the group are unblocked.
 - **ISR set is deferred**: `set_from_isr()` posts to the timer daemon task. It can fail if the command queue is full.
 - **Bit width**: The enum's underlying type must fit within `EventBits_t` (typically 24 usable bits on ESP32).
