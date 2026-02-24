@@ -139,6 +139,37 @@ task::task(TaskHandle_t handle, std::string name, context* ctx)
     , _name(std::move(name))
     , _context(ctx) {}
 
+task::task(task&& other) noexcept
+    : _handle(other._handle)
+    , _name(std::move(other._name))
+    , _context(other._context) {
+    other._handle = nullptr;
+    other._context = nullptr;
+}
+
+task& task::operator=(task&& other) noexcept {
+    if (this != &other) {
+        // Clean up current state (same as destructor)
+        if (_handle != nullptr) {
+            _context->stop_flag.store(true, std::memory_order_release);
+            do {
+                vTaskResume(_handle);
+                xTaskNotifyGive(_handle);
+            } while (xSemaphoreTake(_context->join_sem, 1) != pdTRUE);
+            vTaskDeleteWithCaps(_handle);
+        }
+        delete _context;
+
+        // Transfer from other
+        _handle = other._handle;
+        _name = std::move(other._name);
+        _context = other._context;
+        other._handle = nullptr;
+        other._context = nullptr;
+    }
+    return *this;
+}
+
 task::~task() {
     if (_handle != nullptr) {
         _context->stop_flag.store(true, std::memory_order_release);

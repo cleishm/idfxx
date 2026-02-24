@@ -151,6 +151,11 @@ check_crc16(std::span<const uint8_t> data, std::span<const uint8_t, 2> inverted_
  * transfer, parasitic power control, and device search. Satisfies the
  * Lockable named requirement for use with std::lock_guard and std::unique_lock.
  *
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values. The Lockable methods (lock/try_lock/unlock)
+ * silently no-op on a moved-from object.
+ *
  * @code
  * auto bus = idfxx::onewire::bus(idfxx::gpio_4);
  * if (bus.reset()) {
@@ -161,15 +166,6 @@ check_crc16(std::span<const uint8_t> data, std::span<const uint8_t, 2> inverted_
  */
 class bus {
 public:
-    /**
-     * @brief Creates a new 1-Wire bus controller.
-     *
-     * @param pin GPIO pin connected to the 1-Wire bus.
-     * @return The new bus, or an error if the pin is not connected.
-     * @retval invalid_state If the pin is not connected.
-     */
-    [[nodiscard]] static result<std::unique_ptr<bus>> make(gpio pin);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new 1-Wire bus controller.
@@ -181,21 +177,45 @@ public:
     [[nodiscard]] explicit bus(gpio pin);
 #endif
 
+    /**
+     * @brief Creates a new 1-Wire bus controller.
+     *
+     * @param pin GPIO pin connected to the 1-Wire bus.
+     * @return The new bus, or an error if the pin is not connected.
+     * @retval invalid_state If the pin is not connected.
+     */
+    [[nodiscard]] static result<bus> make(gpio pin);
+
     ~bus() = default;
 
     bus(const bus&) = delete;
     bus& operator=(const bus&) = delete;
-    bus(bus&&) = delete;
-    bus& operator=(bus&&) = delete;
+    bus(bus&& other) noexcept = default;
+    bus& operator=(bus&& other) noexcept = default;
 
     /** @brief Acquires exclusive access to the bus. */
-    void lock() const { _mux.lock(); }
+    void lock() const {
+        if (!_mux) {
+            return;
+        }
+        _mux->lock();
+    }
 
     /** @brief Tries to acquire exclusive access without blocking. */
-    [[nodiscard]] bool try_lock() const noexcept { return _mux.try_lock(); }
+    [[nodiscard]] bool try_lock() const noexcept {
+        if (!_mux) {
+            return false;
+        }
+        return _mux->try_lock();
+    }
 
     /** @brief Releases exclusive access to the bus. */
-    void unlock() const { _mux.unlock(); }
+    void unlock() const {
+        if (!_mux) {
+            return;
+        }
+        _mux->unlock();
+    }
 
     /** @brief Returns the GPIO pin. */
     [[nodiscard]] gpio pin() const noexcept { return _pin; }
@@ -417,11 +437,12 @@ private:
     /** @cond INTERNAL */
     struct validated {};
     bus(gpio pin, validated)
-        : _pin(pin) {}
+        : _pin(pin)
+        , _mux(std::make_unique<std::recursive_mutex>()) {}
     /** @endcond */
 
     gpio _pin;
-    mutable std::recursive_mutex _mux;
+    mutable std::unique_ptr<std::recursive_mutex> _mux;
 };
 
 /** @} */ // end of idfxx_onewire

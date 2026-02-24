@@ -59,7 +59,8 @@ idfxx::task my_task(
 
 ### Result-based API
 
-Use `try_*` methods for operations that can fail at runtime:
+Task construction always uses the constructor (allocation failure aborts). Use
+`try_*` methods for operations that can fail at runtime:
 
 ```cpp
 #include <idfxx/sched>
@@ -68,9 +69,9 @@ Use `try_*` methods for operations that can fail at runtime:
 
 using namespace std::chrono_literals;
 
-// Create task
-auto my_task = std::make_unique<idfxx::task>(
-    idfxx::task::config{.name = "worker", .stack_size = 4096, .priority = 5},
+// Create task (constructor aborts on allocation failure)
+idfxx::task my_task(
+    {.name = "worker", .stack_size = 4096, .priority = 5},
     [](idfxx::task::self&) {
         while (true) {
             idfxx::log::info("worker", "Working...");
@@ -80,13 +81,13 @@ auto my_task = std::make_unique<idfxx::task>(
 );
 
 // Suspend and resume
-if (auto r = my_task->try_suspend(); !r) {
+if (auto r = my_task.try_suspend(); !r) {
     idfxx::log::error("main", "Failed to suspend");
 }
 
 idfxx::delay(5s);
 
-if (auto r = my_task->try_resume(); !r) {
+if (auto r = my_task.try_resume(); !r) {
     idfxx::log::error("main", "Failed to resume");
 }
 ```
@@ -143,16 +144,16 @@ try {
 Result-based API:
 
 ```cpp
-auto worker = std::make_unique<idfxx::task>(
-    idfxx::task::config{.name = "worker"},
+idfxx::task worker(
+    {.name = "worker"},
     [](idfxx::task::self&) { process_data(); }
 );
 
 // Wait up to 500ms
-if (auto r = worker->try_join(500ms); !r) {
+if (auto r = worker.try_join(500ms); !r) {
     if (r.error() == idfxx::errc::timeout) {
         // Task didn't finish in time — still joinable
-        worker->try_detach();  // or try again later
+        worker.try_detach();  // or try again later
     }
 }
 ```
@@ -188,8 +189,8 @@ worker.join(1s);
 Result-based API:
 
 ```cpp
-auto worker = std::make_unique<idfxx::task>(
-    idfxx::task::config{.name = "worker"},
+idfxx::task worker(
+    {.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
             do_work();
@@ -198,8 +199,8 @@ auto worker = std::make_unique<idfxx::task>(
     }
 );
 
-worker->request_stop();
-if (auto r = worker->try_join(1s); !r) {
+worker.request_stop();
+if (auto r = worker.try_join(1s); !r) {
     // handle timeout
 }
 ```
@@ -322,8 +323,8 @@ uint32_t count = self.take_until(deadline);
 Result-based API:
 
 ```cpp
-auto worker = std::make_unique<idfxx::task>(
-    idfxx::task::config{.name = "worker"},
+idfxx::task worker(
+    {.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
             self.wait();
@@ -333,7 +334,7 @@ auto worker = std::make_unique<idfxx::task>(
     }
 );
 
-if (auto r = worker->try_notify(); !r) {
+if (auto r = worker.try_notify(); !r) {
     // handle error (task detached or completed)
 }
 ```
@@ -451,7 +452,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **Prefer timeouts**: Use `join(duration)` or `try_join(duration)` over the no-argument versions to avoid blocking indefinitely on tasks that may not return.
 - **Completed tasks**: Operations on a completed task (suspend, resume, set_priority) return `invalid_state`. Use `is_completed()` to check.
 - **Detached/spawned tasks**: Detached and spawned tasks clean up automatically when their function returns.
-- **Non-copyable/movable**: Task is non-copyable and non-movable to ensure handle stability.
+- **Non-copyable/move-only**: Task is non-copyable and move-only.
 - **Notification index 0 reserved**: `wait()`/`take()`/`notify()` use FreeRTOS notification index 0. If you need additional notification indices, access them directly via `idf_handle()`.
 
 ## License

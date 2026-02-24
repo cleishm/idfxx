@@ -18,11 +18,13 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// panel_io is non-copyable and non-movable
+// panel_io is non-copyable
 static_assert(!std::is_copy_constructible_v<panel_io>);
 static_assert(!std::is_copy_assignable_v<panel_io>);
-static_assert(!std::is_move_constructible_v<panel_io>);
-static_assert(!std::is_move_assignable_v<panel_io>);
+
+// panel_io is move-only
+static_assert(std::is_move_constructible_v<panel_io>);
+static_assert(std::is_move_assignable_v<panel_io>);
 
 // Enum values match ESP-IDF constants
 static_assert(std::to_underlying(rgb_element_order::rgb) == LCD_RGB_ELEMENT_ORDER_RGB);
@@ -79,22 +81,6 @@ TEST_CASE("spi_config flags initialization", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(0, config.flags.cs_high_active);
 }
 
-TEST_CASE("panel_io make with null spi_bus returns error", "[idfxx][lcd]") {
-    using namespace idfxx;
-
-    // Passing null spi_bus should fail
-    std::shared_ptr<idfxx::spi::master_bus> null_bus;
-    auto result = panel_io::make(null_bus, {
-        .cs_gpio = gpio_5,
-        .dc_gpio = gpio_2,
-        .spi_mode = 0,
-        .pclk_freq = freq::megahertz(10),
-        .trans_queue_depth = 10,
-        .lcd_cmd_bits = 8,
-        .lcd_param_bits = 8,
-    });
-    TEST_ASSERT_FALSE(result.has_value());
-}
 
 TEST_CASE("rgb_element_order enum values", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(LCD_RGB_ELEMENT_ORDER_RGB, std::to_underlying(rgb_element_order::rgb));
@@ -147,27 +133,3 @@ TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(8, config.cs_enable_posttrans);
 }
 
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("panel_io constructor with null spi_bus throws", "[idfxx][lcd]") {
-    using namespace idfxx;
-
-    std::shared_ptr<idfxx::spi::master_bus> null_bus;
-
-    // Constructing with null bus should throw - tests exception-based API with inline config
-    bool threw = false;
-    try {
-        std::make_shared<panel_io>(null_bus, panel_io::spi_config{
-            .cs_gpio = gpio_5,
-            .dc_gpio = gpio_2,
-            .spi_mode = 0,
-            .pclk_freq = freq::megahertz(10),
-            .trans_queue_depth = 10,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-        });
-    } catch (const std::system_error&) {
-        threw = true;
-    }
-    TEST_ASSERT_TRUE_MESSAGE(threw, "Expected std::system_error to be thrown");
-}
-#endif

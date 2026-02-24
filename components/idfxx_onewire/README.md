@@ -93,7 +93,7 @@ if (!bus_result) {
     idfxx::log::error("OW", "Failed to create bus: {}", bus_result.error().message());
     return;
 }
-auto& bus = **bus_result;
+auto& bus = *bus_result;
 
 if (bus.reset()) {
     auto result = bus.try_skip_rom();

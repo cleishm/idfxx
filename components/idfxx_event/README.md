@@ -42,11 +42,11 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 using namespace idfxx;
 
-// Create user event loop with dedicated task
-auto loop = event_loop::make_user(32, {.name = "events"});
+// Create event loop with dedicated task
+auto loop = event_loop({.name = "events"}, 32);
 
 // Register typed listener for specific WiFi event
-auto handle = loop->listener_add(
+auto handle = loop.listener_add(
     event_base<wifi_event_t>{WIFI_EVENT},
     WIFI_EVENT_STA_START,
     [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
@@ -74,7 +74,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
 using namespace idfxx;
 
 // Create event loop
-auto loop_result = event_loop::try_make_user(32, {.name = "events"});
+auto loop_result = event_loop::make({.name = "events"}, 32);
 if (!loop_result) {
     idfxx::log::error("app", "Failed to create event loop: {}", loop_result.error().message());
     return;
@@ -82,7 +82,7 @@ if (!loop_result) {
 auto loop = std::move(*loop_result);
 
 // Register listener
-auto handle_result = loop->try_listener_add(
+auto handle_result = loop.try_listener_add(
     event_base<wifi_event_t>{WIFI_EVENT},
     WIFI_EVENT_STA_START,
     [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
@@ -110,7 +110,7 @@ ESP_EVENT_DEFINE_BASE(MY_APP_EVENT);
 inline constexpr event_base<my_event> my_app{MY_APP_EVENT};
 
 // Register listener
-loop->listener_add(my_app, my_event::started,
+loop.listener_add(my_app, my_event::started,
     [](event_base<my_event>, my_event id, void* data) {
         idfxx::log::info("app", "App started!");
     });
@@ -118,14 +118,14 @@ loop->listener_add(my_app, my_event::started,
 // Post event with data
 struct my_data { int value; };
 my_data payload{42};
-loop->post(my_app, my_event::data_ready, &payload, sizeof(payload));
+loop.post(my_app, my_event::data_ready, &payload, sizeof(payload));
 ```
 
 ### Listen for Any Event from a Base
 
 ```cpp
 // Omit the ID parameter to listen for any event
-loop->listener_add(event_base<wifi_event_t>{WIFI_EVENT},
+loop.listener_add(event_base<wifi_event_t>{WIFI_EVENT},
     [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
         idfxx::log::info("app", "WiFi event: {}", static_cast<int>(id));
     });
@@ -137,12 +137,12 @@ loop->listener_add(event_base<wifi_event_t>{WIFI_EVENT},
 // Create event_type using operator()
 auto wifi_start = event_base<wifi_event_t>{WIFI_EVENT}(WIFI_EVENT_STA_START);
 
-loop->listener_add(wifi_start,
+loop.listener_add(wifi_start,
     [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
         idfxx::log::info("app", "WiFi started!");
     });
 
-loop->post(wifi_start);
+loop.post(wifi_start);
 ```
 
 ### RAII Listener Handle
@@ -151,7 +151,7 @@ loop->post(wifi_start);
 {
     // Take ownership with unique_listener_handle
     event_loop::unique_listener_handle handle{
-        loop->listener_add(base, id, callback)
+        loop.listener_add(base, id, callback)
     };
 
     // Listener is active while handle is in scope
@@ -167,7 +167,7 @@ void IRAM_ATTR my_handler(void* arg, esp_event_base_t base, int32_t id, void* da
     // IRAM-safe handler
 }
 
-loop->listener_add(
+loop.listener_add(
     event_base<void>{WIFI_EVENT},
     WIFI_EVENT_STA_START,
     my_handler,
@@ -180,11 +180,11 @@ loop->listener_add(
 using namespace std::chrono_literals;
 
 // Create loop without task
-auto loop = event_loop::make_user(16);
+auto loop = user_event_loop(16);
 
 // Manually dispatch events
 while (running) {
-    loop->run(100ms);
+    loop.run(100ms);
 }
 ```
 
@@ -218,9 +218,8 @@ Static methods for system event loop:
 - `destroy_system()` / `try_destroy_system()` - Destroy system event loop
 - `system()` - Get reference to system event loop
 
-Static factory methods for user event loops:
-- `make_user(queue_size)` / `try_make_user(queue_size)` - Create loop without task (returns `user_event_loop`)
-- `make_user(queue_size, task_config)` / `try_make_user(queue_size, task_config)` - Create loop with task
+Factory for event loop with dedicated task:
+- `event_loop(task_config, queue_size)` / `make(task_config, queue_size)` - Create loop with task
 
 Instance methods:
 - `listener_add(...)` / `try_listener_add(...)` - Register listeners (multiple overloads)
@@ -229,6 +228,9 @@ Instance methods:
 - `idf_handle()` - Get underlying esp_event_loop_handle_t
 
 ### user_event_loop
+
+Factory for event loop without dedicated task:
+- `user_event_loop(queue_size)` / `make(queue_size)` - Create loop without task
 
 Extends `event_loop` with manual dispatch:
 - `run(duration)` / `try_run(duration)` - Dispatch pending events

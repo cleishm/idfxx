@@ -26,7 +26,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -39,7 +38,9 @@ namespace idfxx {
  *
  * Manages a task with automatic cleanup on destruction.
  *
- * Tasks are non-copyable and non-movable.
+ * Tasks are non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values.
  *
  * @note The task function runs in the created task's context, not the caller's context.
  */
@@ -113,7 +114,7 @@ public:
          *         or a stop was requested.
          */
         template<typename Rep, typename Period>
-        [[nodiscard]] bool wait_for(const std::chrono::duration<Rep, Period>& timeout) noexcept {
+        bool wait_for(const std::chrono::duration<Rep, Period>& timeout) noexcept {
             return _take(chrono::ticks(timeout)) != 0;
         }
 
@@ -132,7 +133,7 @@ public:
          *         reached or a stop was requested.
          */
         template<typename Clock, typename Duration>
-        [[nodiscard]] bool wait_until(const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
+        bool wait_until(const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
             auto remaining = deadline - Clock::now();
             if (remaining <= decltype(remaining)::zero()) {
                 return _take(0) != 0;
@@ -169,7 +170,7 @@ public:
          *         expired or a stop was requested.
          */
         template<typename Rep, typename Period>
-        [[nodiscard]] uint32_t take_for(const std::chrono::duration<Rep, Period>& timeout) noexcept {
+        uint32_t take_for(const std::chrono::duration<Rep, Period>& timeout) noexcept {
             return _take(chrono::ticks(timeout));
         }
 
@@ -189,7 +190,7 @@ public:
          *         was reached or a stop was requested.
          */
         template<typename Clock, typename Duration>
-        [[nodiscard]] uint32_t take_until(const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
+        uint32_t take_until(const std::chrono::time_point<Clock, Duration>& deadline) noexcept {
             auto remaining = deadline - Clock::now();
             if (remaining <= decltype(remaining)::zero()) {
                 return _take(0);
@@ -319,11 +320,10 @@ public:
      */
     ~task();
 
-    // Non-copyable and non-movable
     task(const task&) = delete;
     task& operator=(const task&) = delete;
-    task(task&&) = delete;
-    task& operator=(task&&) = delete;
+    task(task&& other) noexcept;
+    task& operator=(task&& other) noexcept;
 
     /**
      * @brief Returns the underlying FreeRTOS task handle.
@@ -735,9 +735,9 @@ private:
 
     explicit task(TaskHandle_t handle, std::string name, context* ctx);
 
-    TaskHandle_t _handle;
+    TaskHandle_t _handle = nullptr;
     std::string _name;
-    context* _context;
+    context* _context = nullptr;
 };
 
 /** @} */ // end of idfxx_task

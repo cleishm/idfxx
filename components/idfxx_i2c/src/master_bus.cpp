@@ -61,9 +61,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, gpio sda, gpio s
     return handle;
 }
 
-result<std::unique_ptr<master_bus>> master_bus::make(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
+result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
     return make_bus(port, sda, scl, frequency).transform([&](auto handle) {
-        return std::unique_ptr<master_bus>(new master_bus{handle, port, frequency});
+        return master_bus{handle, port, frequency};
     });
 }
 
@@ -73,15 +73,43 @@ master_bus::master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency
 #endif
 
 master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency)
-    : _handle(handle)
+    : _mux(std::make_unique<std::recursive_mutex>())
+    , _handle(handle)
     , _port(port)
     , _frequency(frequency) {}
 
+master_bus::master_bus(master_bus&& other) noexcept
+    : _mux(std::move(other._mux))
+    , _handle(other._handle)
+    , _port(other._port)
+    , _frequency(other._frequency) {
+    other._handle = nullptr;
+}
+
+master_bus& master_bus::operator=(master_bus&& other) noexcept {
+    if (this != &other) {
+        if (_handle != nullptr) {
+            i2c_del_master_bus(_handle);
+        }
+        _mux = std::move(other._mux);
+        _handle = other._handle;
+        _port = other._port;
+        _frequency = other._frequency;
+        other._handle = nullptr;
+    }
+    return *this;
+}
+
 master_bus::~master_bus() {
-    i2c_del_master_bus(_handle);
+    if (_handle != nullptr) {
+        i2c_del_master_bus(_handle);
+    }
 }
 
 std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout) const {
+    if (_handle == nullptr) {
+        return {};
+    }
     std::vector<uint8_t> devices;
 
     ESP_LOGD(TAG, "Scanning I2C bus %d...", std::to_underlying(_port));
@@ -110,9 +138,12 @@ std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout
 }
 
 result<void> master_bus::_probe(uint8_t address, std::chrono::milliseconds timeout) const {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
     esp_err_t err;
     {
-        std::scoped_lock lock(_mux);
+        std::scoped_lock lock(*_mux);
         err = i2c_master_probe(_handle, address, timeout.count());
     }
     if (err == ESP_OK) {

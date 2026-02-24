@@ -62,7 +62,7 @@ Supported targets: esp32, esp32s2, esp32s3, esp32c3, esp32c6, esp32h2
 
 **Result Type**: `idfxx::result<T>` is an alias for `std::expected<T, std::error_code>`. Use `idfxx::error(idfxx::errc::...)` to return errors.
 
-**Factory Pattern**: Components use `make()` static methods returning `result<std::unique_ptr<T>>` for result-based construction.
+**Factory Pattern**: Components use `make()` static methods returning `result<T>` for result-based construction.
 
 **Type-safe Flags**: `idfxx::flags<E>` template provides bitfield operations on scoped enums with type safety.
 
@@ -85,7 +85,7 @@ struct config {
 };
 ```
 
-**RAII Resource Management**: Classes managing ESP-IDF resources are non-copyable and non-movable with explicit cleanup in destructors.
+**RAII Resource Management**: Classes managing ESP-IDF resources are non-copyable and move-only, with explicit cleanup in destructors that check for moved-from state. Parent-child relationships (e.g., bus-device) use references in the public API; the caller ensures parents outlive children.
 
 **Lockable Interface**: Bus classes (I2C, SPI) implement C++ Lockable (`lock()`, `try_lock()`, `unlock()`) for use with `std::lock_guard`.
 
@@ -171,7 +171,7 @@ Exception-based methods should not have abbreviated documentation. Inline implem
 - `@defgroup` / `@ingroup` for hierarchical organization
 - `@retval` for documenting error conditions
 - `@cond INTERNAL` / `@endcond` for hiding implementation details
-- `[[nodiscard]]` attribute on all result-returning functions
+- `[[nodiscard]]` attribute on result-returning functions, unless intentionally omitted to allow fire-and-forget usage (e.g., where callers may not need to check the result)
 
 **Component README** structure:
 1. Title and one-line description

@@ -45,7 +45,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 try {
     using namespace frequency_literals;
 
-    auto spi_bus = std::make_shared<idfxx::spi::master_bus>(
+    idfxx::spi::master_bus spi_bus(
         idfxx::spi::host_device::spi2,
         idfxx::spi::dma_chan::ch_auto,
         idfxx::spi::bus_config {
@@ -56,7 +56,7 @@ try {
         }
     );
 
-    auto touch_panel_io = std::make_shared<idfxx::lcd::panel_io>(
+    idfxx::lcd::panel_io touch_panel_io(
         spi_bus,
         idfxx::lcd::panel_io::spi_config {
             .cs_gpio = idfxx::gpio_15,  // Touch CS pin
@@ -69,7 +69,7 @@ try {
         }
     );
 
-    auto touch = std::make_unique<idfxx::lcd::stmpe610>(
+    idfxx::lcd::stmpe610 touch(
         touch_panel_io,
         idfxx::lcd::touch::config {
             .x_max = 240,
@@ -138,7 +138,7 @@ idfxx::lcd::touch::config touch_config{
 };
 
 // Must use std::move() when passing a named config variable
-auto touch = std::make_unique<idfxx::lcd::stmpe610>(touch_panel_io, std::move(touch_config));
+idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 ```
 
 ### Sharing SPI Bus with Display
@@ -148,8 +148,8 @@ STMPE610 can share the same SPI bus as the display (using different CS pins). Th
 ```cpp
 using namespace frequency_literals;
 
-// Create shared SPI bus
-auto spi_bus = std::make_shared<idfxx::spi::master_bus>(
+// Create SPI bus
+idfxx::spi::master_bus spi_bus(
     idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_config
 );
 
@@ -160,7 +160,7 @@ idfxx::lcd::panel_io::spi_config display_io_config{
     .pclk_freq = 40_MHz,
     // ... other config
 };
-auto display_panel_io = std::make_shared<idfxx::lcd::panel_io>(
+idfxx::lcd::panel_io display_panel_io(
     spi_bus, std::move(display_io_config)
 );
 
@@ -171,16 +171,16 @@ idfxx::lcd::panel_io::spi_config touch_io_config{
     .pclk_freq = 1_MHz,
     // ... other config
 };
-auto touch_panel_io = std::make_shared<idfxx::lcd::panel_io>(
+idfxx::lcd::panel_io touch_panel_io(
     spi_bus, std::move(touch_io_config)
 );
 
 // Create display and touch
-auto display = std::make_unique<idfxx::lcd::ili9341>(
+idfxx::lcd::ili9341 display(
     display_panel_io,
     idfxx::lcd::panel::config { /* ... */ }
 );
-auto touch = std::make_unique<idfxx::lcd::stmpe610>(
+idfxx::lcd::stmpe610 touch(
     touch_panel_io,
     idfxx::lcd::touch::config { /* ... */ }
 );
@@ -193,12 +193,12 @@ auto touch = std::make_unique<idfxx::lcd::stmpe610>(
 #include <lvgl.h>
 
 // Assumes touch_panel_io and touch_config defined as in Basic Example above
-auto touch = std::make_unique<idfxx::lcd::stmpe610>(
+idfxx::lcd::stmpe610 touch(
     touch_panel_io, std::move(touch_config)
 );
 
 // Get ESP-IDF handle for LVGL integration
-esp_lcd_touch_handle_t handle = touch->idf_handle();
+esp_lcd_touch_handle_t handle = touch.idf_handle();
 
 // Use with LVGL touch driver
 // (See LVGL documentation for complete integration)
@@ -216,10 +216,10 @@ void initialize_touch(idfxx::lcd::touch& touch) {
 }
 
 // Assumes touch_panel_io and touch_config defined as in Basic Example above
-auto stmpe610 = std::make_unique<idfxx::lcd::stmpe610>(
+idfxx::lcd::stmpe610 stmpe610(
     touch_panel_io, std::move(touch_config)
 );
-initialize_touch(*stmpe610);
+initialize_touch(stmpe610);
 ```
 
 ## API Overview
@@ -234,9 +234,9 @@ initialize_touch(*stmpe610);
 - `idf_handle()` - Get ESP-IDF touch handle
 
 **Lifetime:**
-- Non-copyable and non-movable
+- Non-copyable and move-only
 - Destructor automatically cleans up touch resources
-- Keeps `panel_io` alive via `std::shared_ptr`
+- Takes `panel_io` by reference; the caller must ensure the panel I/O outlives the touch controller
 
 **Specifications:**
 - Type: Resistive touch
@@ -303,10 +303,10 @@ Adjust these values to match your specific display module and mounting orientati
 ## Important Notes
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<std::unique_ptr<stmpe610>>` (always available)
+  - `make()` returns `result<stmpe610>` (always available)
   - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - The `panel_io` must be created before the touch controller
-- The touch controller keeps `panel_io` alive via `std::shared_ptr`
+- The caller must ensure `panel_io` outlives the touch controller
 - STMPE610 typically uses much slower SPI clock than displays (1-2 MHz vs 10-40 MHz)
 - Touch and display can share SPI bus but need different CS pins
 - Reset and interrupt pins are optional (default to `idfxx::gpio::nc()`)

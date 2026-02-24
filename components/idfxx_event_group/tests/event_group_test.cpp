@@ -35,9 +35,9 @@ inline constexpr bool idfxx::enable_flags_operators<test_event> = true;
 static_assert(!std::is_copy_constructible_v<event_group<test_event>>);
 static_assert(!std::is_copy_assignable_v<event_group<test_event>>);
 
-// event_group<test_event> is not movable
-static_assert(!std::is_move_constructible_v<event_group<test_event>>);
-static_assert(!std::is_move_assignable_v<event_group<test_event>>);
+// event_group<test_event> is move-only
+static_assert(std::is_move_constructible_v<event_group<test_event>>);
+static_assert(std::is_move_assignable_v<event_group<test_event>>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)

@@ -13,8 +13,6 @@
 #include <idfxx/lcd/panel>
 #include <idfxx/lcd/panel_io>
 
-#include <memory>
-
 /**
  * @headerfile <idfxx/lcd/ili9341>
  * @brief LCD driver classes.
@@ -29,20 +27,12 @@ namespace idfxx::lcd {
  */
 class ili9341 : public panel {
 public:
-    /**
-     * @brief Creates a new ili9341 panel.
-     *
-     * @param panel_io The panel I/O interface.
-     * @param config   panel configuration.
-     *
-     * @return The new ili9341, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<ili9341>>
-    make(std::shared_ptr<idfxx::lcd::panel_io> panel_io, panel::config config);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new ili9341 panel.
+     *
+     * Does not take ownership of @p panel_io. It is the caller's responsibility to ensure that
+     * this panel does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
      * @param config   panel configuration.
@@ -50,28 +40,42 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit ili9341(std::shared_ptr<idfxx::lcd::panel_io> panel_io, panel::config config);
+    [[nodiscard]] explicit ili9341(idfxx::lcd::panel_io& panel_io, panel::config config);
 #endif
+
+    /**
+     * @brief Creates a new ili9341 panel.
+     *
+     * Does not take ownership of @p panel_io. It is the caller's responsibility to ensure that
+     * this panel does not outlive the panel I/O interface.
+     *
+     * @param panel_io The panel I/O interface.
+     * @param config   panel configuration.
+     *
+     * @return The new ili9341, or an error.
+     */
+    [[nodiscard]] static result<ili9341> make(idfxx::lcd::panel_io& panel_io, panel::config config);
 
     ~ili9341();
 
     ili9341(const ili9341&) = delete;
     ili9341& operator=(const ili9341&) = delete;
-    ili9341(ili9341&&) = delete;
-    ili9341& operator=(ili9341&&) = delete;
+    ili9341(ili9341&& other) noexcept;
+    ili9341& operator=(ili9341&& other) noexcept;
 
+    /** @copydoc panel::idf_handle() */
     [[nodiscard]] esp_lcd_panel_handle_t idf_handle() const override;
+    /** @copydoc panel::try_swap_xy() */
     [[nodiscard]] result<void> try_swap_xy(bool swap) override;
+    /** @copydoc panel::try_mirror() */
     [[nodiscard]] result<void> try_mirror(bool mirrorX, bool mirrorY) override;
+    /** @copydoc panel::try_display_on() */
     [[nodiscard]] result<void> try_display_on(bool on) override;
 
 private:
-    explicit ili9341() = default;
+    ili9341() = default;
 
-    result<esp_lcd_panel_handle_t> make_handle(esp_lcd_panel_io_handle_t io_handle, const panel::config& config);
-
-    std::shared_ptr<idfxx::lcd::panel_io> _panel_io;
-    esp_lcd_panel_handle_t _handle;
+    esp_lcd_panel_handle_t _handle = nullptr;
 };
 
 } // namespace idfxx::lcd

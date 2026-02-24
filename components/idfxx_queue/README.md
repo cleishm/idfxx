@@ -79,13 +79,13 @@ if (!q) {
 }
 
 // Send an item
-if (auto result = (*q)->try_send(42, 100ms); !result) {
+if (auto result = q->try_send(42, 100ms); !result) {
     idfxx::log::error("queue", "Failed to send: {}", result.error().message());
     return;
 }
 
 // Receive an item
-auto item = (*q)->try_receive(100ms);
+auto item = q->try_receive(100ms);
 if (!item) {
     idfxx::log::error("queue", "Failed to receive: {}", item.error().message());
     return;
@@ -249,7 +249,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 ## Important Notes
 
 - **Trivially copyable**: The message type `T` must be trivially copyable (`std::is_trivially_copyable_v<T>`). This is enforced at compile time via a `requires` clause.
-- **Non-copyable/movable**: Queue instances are non-copyable and non-movable to ensure handle stability.
+- **Non-copyable/move-only**: Queue instances are non-copyable and move-only.
 - **RAII cleanup**: The destructor automatically deletes the queue and discards any remaining items.
 - **ISR safety**: Use the `*_from_isr` methods in interrupt context. Pass the `yield` field to `idfxx::yield_from_isr()` to perform any necessary context switch.
 - **Overwrite semantics**: `overwrite()` is most useful with a queue of length 1. With longer queues, it overwrites the most recently written item when the queue is full.

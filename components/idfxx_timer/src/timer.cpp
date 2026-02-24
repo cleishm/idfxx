@@ -35,7 +35,7 @@ void timer::trampoline(void* arg) {
     xSemaphoreGive(ctx->mutex);
 }
 
-result<std::unique_ptr<timer>> timer::make(config cfg, std::move_only_function<void()> callback) {
+result<timer> timer::make(config cfg, std::move_only_function<void()> callback) {
 #ifdef CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD
     if (cfg.dispatch == dispatch_method::isr) {
         return error(ESP_ERR_INVALID_ARG);
@@ -50,13 +50,13 @@ result<std::unique_ptr<timer>> timer::make(config cfg, std::move_only_function<v
         raise_no_mem();
     }
 
-    auto t = std::unique_ptr<timer>(new timer(nullptr, std::string{cfg.name}, ctx));
+    timer t(nullptr, std::string{cfg.name}, ctx);
 
     esp_timer_create_args_t args{
         .callback = &trampoline,
         .arg = ctx,
         .dispatch_method = static_cast<esp_timer_dispatch_t>(cfg.dispatch),
-        .name = t->_name.empty() ? nullptr : t->_name.c_str(),
+        .name = t._name.empty() ? nullptr : t._name.c_str(),
         .skip_unhandled_events = cfg.skip_unhandled_events,
     };
 
@@ -66,11 +66,11 @@ result<std::unique_ptr<timer>> timer::make(config cfg, std::move_only_function<v
         return error(err);
     }
 
-    t->_handle = handle;
+    t._handle = handle;
     return t;
 }
 
-result<std::unique_ptr<timer>> timer::make(config cfg, void (*callback)(void*), void* arg) {
+result<timer> timer::make(config cfg, void (*callback)(void*), void* arg) {
     std::string name{cfg.name};
 
     esp_timer_create_args_t args{
@@ -87,7 +87,7 @@ result<std::unique_ptr<timer>> timer::make(config cfg, void (*callback)(void*), 
         return error(err);
     }
 
-    return std::unique_ptr<timer>(new timer(handle, std::move(name)));
+    return timer(handle, std::move(name));
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -152,6 +152,38 @@ timer::timer(esp_timer_handle_t handle, std::string name)
     : _handle(handle)
     , _name(std::move(name)) {}
 
+timer::timer(timer&& other) noexcept
+    : _handle(other._handle)
+    , _name(std::move(other._name))
+    , _context(other._context) {
+    other._handle = nullptr;
+    other._context = nullptr;
+}
+
+timer& timer::operator=(timer&& other) noexcept {
+    if (this != &other) {
+        // Clean up current state
+        if (_handle) {
+            esp_timer_stop(_handle);
+            if (_context) {
+                xSemaphoreTake(_context->mutex, portMAX_DELAY);
+                _context->callback = nullptr;
+                xSemaphoreGive(_context->mutex);
+            }
+            esp_timer_delete(_handle);
+        }
+        delete _context;
+
+        // Transfer from other
+        _handle = other._handle;
+        _name = std::move(other._name);
+        _context = other._context;
+        other._handle = nullptr;
+        other._context = nullptr;
+    }
+    return *this;
+}
+
 timer::~timer() {
     if (_handle) {
         // Stop the timer if it's running (ignore any errors)
@@ -170,14 +202,23 @@ timer::~timer() {
 }
 
 esp_err_t TIMER_ISR_ATTR timer::try_start_once_isr(uint64_t timeout_us) {
+    if (_handle == nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
     return esp_timer_start_once(_handle, timeout_us);
 }
 
 esp_err_t TIMER_ISR_ATTR timer::try_start_periodic_isr(uint64_t interval_us) {
+    if (_handle == nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
     return esp_timer_start_periodic(_handle, interval_us);
 }
 
 esp_err_t TIMER_ISR_ATTR timer::try_restart_isr(uint64_t timeout_us) {
+    if (_handle == nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
     auto err = esp_timer_restart(_handle, timeout_us);
     if (err == ESP_ERR_INVALID_STATE) {
         return esp_timer_start_once(_handle, timeout_us);
@@ -186,6 +227,9 @@ esp_err_t TIMER_ISR_ATTR timer::try_restart_isr(uint64_t timeout_us) {
 }
 
 esp_err_t TIMER_ISR_ATTR timer::try_stop_isr() {
+    if (_handle == nullptr) {
+        return ESP_ERR_INVALID_STATE;
+    }
     return esp_timer_stop(_handle);
 }
 

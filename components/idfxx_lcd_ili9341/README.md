@@ -46,7 +46,7 @@ try {
     using namespace frequency_literals;
 
     // Create SPI bus
-    auto spi_bus = std::make_shared<idfxx::spi::master_bus>(
+    idfxx::spi::master_bus spi_bus(
         idfxx::spi::host_device::spi2,
         idfxx::spi::dma_chan::ch_auto,
         idfxx::spi::bus_config {
@@ -58,7 +58,7 @@ try {
     );
 
     // Create panel I/O
-    auto panel_io = std::make_shared<idfxx::lcd::panel_io>(
+    idfxx::lcd::panel_io panel_io(
         spi_bus,
         idfxx::lcd::panel_io::spi_config {
             .cs_gpio = idfxx::gpio_5,
@@ -72,7 +72,7 @@ try {
     );
 
     // Create ILI9341 panel
-    auto panel = std::make_unique<idfxx::lcd::ili9341>(
+    idfxx::lcd::ili9341 panel(
         panel_io,
         idfxx::lcd::panel::config {
             .reset_gpio = idfxx::gpio_4,
@@ -82,9 +82,9 @@ try {
     );
 
     // Operations throw on error
-    panel->swap_xy(true);
-    panel->mirror(false, true);
-    panel->display_on(true);
+    panel.swap_xy(true);
+    panel.mirror(false, true);
+    panel.display_on(true);
 
 } catch (const std::system_error& e) {
     idfxx::log::error("LCD", "Error: {}", e.what());
@@ -131,7 +131,7 @@ if (!panel_result) {
 auto panel = std::move(*panel_result);
 
 // Initialize display
-panel->try_display_on(true);
+panel.try_display_on(true);
 
 idfxx::log::info("LCD", "Display initialized successfully");
 ```
@@ -149,43 +149,43 @@ idfxx::lcd::panel::config panel_config{
 };
 
 // Must use std::move() when passing a named config variable
-auto panel = std::make_unique<idfxx::lcd::ili9341>(panel_io, std::move(panel_config));
+idfxx::lcd::ili9341 panel(panel_io, std::move(panel_config));
 ```
 
 ### Display Control
 
 ```cpp
 // Assumes panel_io and panel_config defined as in Basic Example above
-auto panel = std::make_unique<idfxx::lcd::ili9341>(panel_io, std::move(panel_config));
+idfxx::lcd::ili9341 panel(panel_io, std::move(panel_config));
 
 // Swap X and Y axes for portrait/landscape
-panel->swap_xy(true);
+panel.swap_xy(true);
 
 // Mirror display
-panel->mirror(true, false);  // Mirror X, don't mirror Y
+panel.mirror(true, false);  // Mirror X, don't mirror Y
 
 // Turn display on/off
-panel->display_on(true);
+panel.display_on(true);
 ```
 
 ### Display Orientation Examples
 
 ```cpp
 // Portrait (default) - 240 wide x 320 tall
-panel->swap_xy(false);
-panel->mirror(false, false);
+panel.swap_xy(false);
+panel.mirror(false, false);
 
 // Landscape - 320 wide x 240 tall
-panel->swap_xy(true);
-panel->mirror(true, false);
+panel.swap_xy(true);
+panel.mirror(true, false);
 
 // Portrait (flipped)
-panel->swap_xy(false);
-panel->mirror(true, true);
+panel.swap_xy(false);
+panel.mirror(true, true);
 
 // Landscape (flipped)
-panel->swap_xy(true);
-panel->mirror(false, true);
+panel.swap_xy(true);
+panel.mirror(false, true);
 ```
 
 ### Integration with LVGL
@@ -195,10 +195,10 @@ panel->mirror(false, true);
 #include <lvgl.h>
 
 // Assumes panel_io and panel_config defined as in Basic Example above
-auto panel = std::make_unique<idfxx::lcd::ili9341>(panel_io, std::move(panel_config));
+idfxx::lcd::ili9341 panel(panel_io, std::move(panel_config));
 
 // Get ESP-IDF handle for LVGL integration
-esp_lcd_panel_handle_t handle = panel->idf_handle();
+esp_lcd_panel_handle_t handle = panel.idf_handle();
 
 // Use with LVGL driver
 // (See LVGL documentation for complete integration)
@@ -224,7 +224,7 @@ esp_lcd_panel_handle_t handle = panel->idf_handle();
 - `idf_handle()` - Get ESP-IDF panel handle
 
 **Lifetime:**
-- Non-copyable and non-movable
+- Non-copyable and move-only
 - Destructor automatically cleans up panel resources
 
 **Specifications:**
@@ -258,10 +258,10 @@ idfxx::lcd::panel::config panel_config{
 ## Important Notes
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<std::unique_ptr<ili9341>>` (always available)
+  - `make()` returns `result<ili9341>` (always available)
   - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - The `panel_io` must be created before creating the panel
-- The panel keeps `panel_io` alive via `std::shared_ptr`
+- The caller must ensure `panel_io` outlives the panel
 - Reset pin is optional (use `idfxx::gpio::nc()` if not connected)
 - RGB element order depends on specific display module (try both if colors are wrong)
 - 16-bit color depth (RGB565) is most common for ILI9341

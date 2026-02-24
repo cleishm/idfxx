@@ -37,7 +37,9 @@ namespace idfxx::lcd {
  * @brief SPI-based panel I/O interface.
  *
  * Provides the communication layer for LCD panels and touch controllers
- * that use SPI.
+ * that use SPI. This type is non-copyable and move-only. Result-returning
+ * methods on a moved-from object return errc::invalid_state. Simple
+ * accessors return default/null values.
  */
 class panel_io {
 public:
@@ -80,20 +82,12 @@ public:
         } flags = {};                            ///< Extra flags to fine-tune the SPI device
     };
 
-    /**
-     * @brief Creates a new panel I/O interface.
-     *
-     * @param spi_bus The SPI bus.
-     * @param config  Panel I/O configuration.
-     *
-     * @return The new panel_io, or an error.
-     */
-    [[nodiscard]] static result<std::unique_ptr<panel_io>>
-    make(std::shared_ptr<idfxx::spi::master_bus> spi_bus, spi_config config);
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new panel I/O interface.
+     *
+     * Does not take ownership of @p spi_bus. It is the caller's responsibility to ensure that
+     * this panel_io does not outlive the bus.
      *
      * @param spi_bus The SPI bus.
      * @param config  Panel I/O configuration.
@@ -101,29 +95,45 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit panel_io(std::shared_ptr<idfxx::spi::master_bus> spi_bus, spi_config config);
+    [[nodiscard]] explicit panel_io(idfxx::spi::master_bus& spi_bus, spi_config config);
 #endif
+
+    /**
+     * @brief Creates a new panel I/O interface.
+     *
+     * Does not take ownership of @p spi_bus. It is the caller's responsibility to ensure that
+     * this panel_io does not outlive the bus.
+     *
+     * @param spi_bus The SPI bus.
+     * @param config  Panel I/O configuration.
+     *
+     * @return The new panel_io, or an error.
+     */
+    [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config config);
 
     ~panel_io();
 
     panel_io(const panel_io&) = delete;
     panel_io& operator=(const panel_io&) = delete;
-    panel_io(panel_io&&) = delete;
-    panel_io& operator=(panel_io&&) = delete;
+    panel_io(panel_io&& other) noexcept;
+    panel_io& operator=(panel_io&& other) noexcept;
 
     /** @brief Returns the underlying ESP-IDF handle. */
     [[nodiscard]] esp_lcd_panel_io_handle_t idf_handle() const { return _handle; }
 
 private:
-    explicit panel_io() = default;
+    panel_io() = default;
 
     result<esp_lcd_panel_io_handle_t> make_handle(idfxx::spi::host_device host, const panel_io::spi_config& config);
     static bool
     on_color_transfer_done(esp_lcd_panel_io_handle_t handle, esp_lcd_panel_io_event_data_t* edata, void* user_ctx);
 
-    std::shared_ptr<idfxx::spi::master_bus> _spi_bus;
-    esp_lcd_panel_io_handle_t _handle;
-    color_transfer_done_callback _on_color_transfer_done;
+    struct callback_state {
+        color_transfer_done_callback on_color_transfer_done;
+    };
+
+    esp_lcd_panel_io_handle_t _handle = nullptr;
+    std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks
 };
 
 /** @} */ // end of idfxx_lcd

@@ -67,8 +67,14 @@ public:
 
     virtual ~touch() = default;
 
+    touch(const touch&) = delete;
+    touch& operator=(const touch&) = delete;
+
     /** @brief Returns the underlying ESP-IDF handle. */
     [[nodiscard]] virtual esp_lcd_touch_handle_t idf_handle() const = 0;
+
+protected:
+    touch() = default;
 };
 
 } // namespace idfxx::lcd

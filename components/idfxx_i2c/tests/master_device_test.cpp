@@ -25,19 +25,13 @@ static_assert(!std::is_default_constructible_v<master_device>);
 static_assert(!std::is_copy_constructible_v<master_device>);
 static_assert(!std::is_copy_assignable_v<master_device>);
 
-// master_device is non-movable
-static_assert(!std::is_move_constructible_v<master_device>);
-static_assert(!std::is_move_assignable_v<master_device>);
+// master_device is move-only
+static_assert(std::is_move_constructible_v<master_device>);
+static_assert(std::is_move_assignable_v<master_device>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
-
-TEST_CASE("master_device::make with null bus returns error", "[idfxx][i2c][master_device]") {
-    auto result = master_device::make(nullptr, 0x50);
-    TEST_ASSERT_FALSE(result.has_value());
-    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
-}
 
 TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_device]") {
     // Create a bus first
@@ -45,13 +39,13 @@ TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_de
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     // Create a device (0x50 is common EEPROM address, may not be present)
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
     TEST_ASSERT_EQUAL(0x50, device.address());
 }
 
@@ -63,12 +57,12 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
 
     // Verify API exists (will likely fail without actual device)
     std::vector<uint8_t> data{0x01, 0x02, 0x03};
@@ -82,12 +76,12 @@ TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
 
     // Verify API exists
     std::vector<uint8_t> buffer(10);
@@ -101,12 +95,12 @@ TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_devi
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
 
     // Verify 16-bit register API exists
     std::vector<uint8_t> data{0xAB, 0xCD};
@@ -124,12 +118,12 @@ TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_devic
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
 
     // Verify 16-bit register API exists
     std::vector<uint8_t> buffer(10);
@@ -147,12 +141,12 @@ TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_dev
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
+    auto& device = *device_result;
 
     // Verify multi-register write API exists
     std::vector<uint16_t> registers{0x0010, 0x0011, 0x0012};
@@ -167,12 +161,11 @@ TEST_CASE("master_device bus accessor works", "[idfxx][i2c][master_device]") {
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
-    std::shared_ptr<master_bus> bus = std::move(bus_result.value());
+    auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50);
     TEST_ASSERT_TRUE(device_result.has_value());
 
-    auto& device = *device_result.value();
-    TEST_ASSERT_NOT_NULL(device.bus().get());
-    TEST_ASSERT_EQUAL(std::to_underlying(port::i2c0), std::to_underlying(device.bus()->port()));
+    auto& device = *device_result;
+    TEST_ASSERT_EQUAL(std::to_underlying(port::i2c0), std::to_underlying(device.bus().port()));
 }

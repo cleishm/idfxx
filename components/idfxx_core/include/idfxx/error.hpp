@@ -23,8 +23,10 @@
  * @{
  */
 
+#include <concepts>
 #include <expected>
 #include <functional>
+#include <memory>
 #include <new>
 #include <string>
 #include <system_error>
@@ -116,6 +118,49 @@ public:
  */
 template<typename T>
 using result = std::expected<T, std::error_code>;
+
+/**
+ * @brief Concept for types that provide a static `make()` factory method returning `result<T>`.
+ *
+ * A type satisfies this concept if `T::make(args...)` is a valid expression
+ * returning `result<T>` for the given argument types.
+ *
+ * @tparam T    The type to check.
+ * @tparam Args The argument types to pass to `T::make()`.
+ */
+template<typename T, typename... Args>
+concept has_factory = requires {
+    { T::make(std::declval<Args>()...) } -> std::same_as<result<T>>;
+};
+
+/**
+ * @brief Constructs a `T` via its `make()` factory and wraps it in a `std::unique_ptr`.
+ *
+ * Convenience helper for obtaining heap-allocated, polymorphically usable objects
+ * from result-based factory methods.
+ *
+ * @tparam T    The type to construct. Must have a static `make()` method returning `result<T>`.
+ * @tparam Args The argument types forwarded to `T::make()`.
+ * @param args  Arguments forwarded to `T::make()`.
+ *
+ * @return A `result` containing a `unique_ptr<T>`, or an error.
+ *
+ * @code
+ * auto r = idfxx::make_unique<ili9341>(panel_io, config);
+ * if (r) {
+ *     std::unique_ptr<panel> p = std::move(*r);
+ * }
+ * @endcode
+ */
+template<typename T, typename... Args>
+    requires has_factory<T, Args...>
+[[nodiscard]] result<std::unique_ptr<T>> make_unique(Args&&... args) {
+    auto r = T::make(std::forward<Args>(args)...);
+    if (!r) {
+        return error(r.error());
+    }
+    return std::make_unique<T>(std::move(*r));
+}
 
 /**
  * @brief Creates an unexpected error from an error code enum.

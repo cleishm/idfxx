@@ -29,7 +29,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/idf_additions.h>
 #include <freertos/queue.h>
-#include <memory>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -44,8 +43,9 @@ namespace idfxx {
  * between ISRs and tasks. Messages are copied into and out of the queue
  * by value.
  *
- * Queues are non-copyable and non-movable. Use the factory method make() for
- * result-based construction or the throwing constructor when exceptions are enabled.
+ * This type is non-copyable and move-only. Result-returning methods on a
+ * moved-from object return errc::invalid_state. Simple accessors return
+ * default/null values.
  *
  * @tparam T The message type. Must be trivially copyable.
  *
@@ -74,7 +74,6 @@ public:
      * @param mem_type Memory region for queue storage allocation.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
-     * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
      * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit queue(size_t length, memory_type mem_type = memory_type::internal)
@@ -97,14 +96,13 @@ public:
      * @return The new queue, or an error.
      * @retval invalid_arg length is 0.
      */
-    [[nodiscard]] static result<std::unique_ptr<queue>>
-    make(size_t length, memory_type mem_type = memory_type::internal) {
+    [[nodiscard]] static result<queue> make(size_t length, memory_type mem_type = memory_type::internal) {
         if (length == 0) {
             return error(errc::invalid_arg);
         }
-        auto q = std::unique_ptr<queue>(new queue());
-        q->_handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
-        if (q->_handle == nullptr) {
+        queue q;
+        q._handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
+        if (q._handle == nullptr) {
             raise_no_mem();
         }
         return q;
@@ -121,11 +119,26 @@ public:
         }
     }
 
-    // Non-copyable and non-movable
     queue(const queue&) = delete;
     queue& operator=(const queue&) = delete;
-    queue(queue&&) = delete;
-    queue& operator=(queue&&) = delete;
+
+    /** @brief Move constructor. Transfers queue ownership. */
+    queue(queue&& other) noexcept
+        : _handle(other._handle) {
+        other._handle = nullptr;
+    }
+
+    /** @brief Move assignment. Transfers queue ownership. */
+    queue& operator=(queue&& other) noexcept {
+        if (this != &other) {
+            if (_handle != nullptr) {
+                vQueueDeleteWithCaps(_handle);
+            }
+            _handle = other._handle;
+            other._handle = nullptr;
+        }
+        return *this;
+    }
 
     // =========================================================================
     // Send operations
@@ -363,7 +376,12 @@ public:
      *
      * @param item The item to write.
      */
-    void try_overwrite(const T& item) noexcept { xQueueOverwrite(_handle, &item); }
+    void try_overwrite(const T& item) noexcept {
+        if (_handle == nullptr) {
+            return;
+        }
+        xQueueOverwrite(_handle, &item);
+    }
 
     // =========================================================================
     // Receive operations
@@ -607,6 +625,9 @@ public:
      * @endcode
      */
     [[nodiscard]] isr_send_result IRAM_ATTR send_from_isr(const T& item) noexcept {
+        if (_handle == nullptr) {
+            return {false, false};
+        }
         BaseType_t woken = pdFALSE;
         BaseType_t ret = xQueueSendFromISR(_handle, &item, &woken);
         return {ret == pdTRUE, woken == pdTRUE};
@@ -630,6 +651,9 @@ public:
      * @endcode
      */
     [[nodiscard]] isr_send_result IRAM_ATTR send_to_front_from_isr(const T& item) noexcept {
+        if (_handle == nullptr) {
+            return {false, false};
+        }
         BaseType_t woken = pdFALSE;
         BaseType_t ret = xQueueSendToFrontFromISR(_handle, &item, &woken);
         return {ret == pdTRUE, woken == pdTRUE};
@@ -655,6 +679,9 @@ public:
      * @endcode
      */
     [[nodiscard]] bool IRAM_ATTR overwrite_from_isr(const T& item) noexcept {
+        if (_handle == nullptr) {
+            return false;
+        }
         BaseType_t woken = pdFALSE;
         xQueueOverwriteFromISR(_handle, &item, &woken);
         return woken == pdTRUE;
@@ -680,6 +707,9 @@ public:
      * @endcode
      */
     [[nodiscard]] isr_receive_result IRAM_ATTR receive_from_isr() noexcept {
+        if (_handle == nullptr) {
+            return {std::nullopt, false};
+        }
         T item;
         BaseType_t woken = pdFALSE;
         if (xQueueReceiveFromISR(_handle, &item, &woken) == pdTRUE) {
@@ -702,6 +732,9 @@ public:
      * @endcode
      */
     [[nodiscard]] std::optional<T> IRAM_ATTR peek_from_isr() const noexcept {
+        if (_handle == nullptr) {
+            return std::nullopt;
+        }
         T item;
         if (xQueuePeekFromISR(_handle, &item) == pdTRUE) {
             return item;
@@ -718,28 +751,48 @@ public:
      *
      * @return The number of items in the queue.
      */
-    [[nodiscard]] size_t size() const noexcept { return uxQueueMessagesWaiting(_handle); }
+    [[nodiscard]] size_t size() const noexcept {
+        if (_handle == nullptr) {
+            return 0;
+        }
+        return uxQueueMessagesWaiting(_handle);
+    }
 
     /**
      * @brief Returns the number of free spaces in the queue.
      *
      * @return The number of items that can be sent before the queue is full.
      */
-    [[nodiscard]] size_t available() const noexcept { return uxQueueSpacesAvailable(_handle); }
+    [[nodiscard]] size_t available() const noexcept {
+        if (_handle == nullptr) {
+            return 0;
+        }
+        return uxQueueSpacesAvailable(_handle);
+    }
 
     /**
      * @brief Checks if the queue is empty.
      *
      * @return true if the queue contains no items, false otherwise.
      */
-    [[nodiscard]] bool empty() const noexcept { return uxQueueMessagesWaiting(_handle) == 0; }
+    [[nodiscard]] bool empty() const noexcept {
+        if (_handle == nullptr) {
+            return true;
+        }
+        return uxQueueMessagesWaiting(_handle) == 0;
+    }
 
     /**
      * @brief Checks if the queue is full.
      *
      * @return true if the queue has no free spaces, false otherwise.
      */
-    [[nodiscard]] bool full() const noexcept { return uxQueueSpacesAvailable(_handle) == 0; }
+    [[nodiscard]] bool full() const noexcept {
+        if (_handle == nullptr) {
+            return false;
+        }
+        return uxQueueSpacesAvailable(_handle) == 0;
+    }
 
     /**
      * @brief Returns the underlying FreeRTOS queue handle.
@@ -756,13 +809,21 @@ public:
      *
      * After reset, the queue is empty and all previously stored items are discarded.
      */
-    void reset() noexcept { xQueueReset(_handle); }
+    void reset() noexcept {
+        if (_handle == nullptr) {
+            return;
+        }
+        xQueueReset(_handle);
+    }
 
 private:
     queue() noexcept
         : _handle(nullptr) {}
 
     [[nodiscard]] result<void> _try_send(const T& item, TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         if (xQueueSend(_handle, &item, ticks) != pdTRUE) {
             return error(errc::timeout);
         }
@@ -770,6 +831,9 @@ private:
     }
 
     [[nodiscard]] result<void> _try_send_to_front(const T& item, TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         if (xQueueSendToFront(_handle, &item, ticks) != pdTRUE) {
             return error(errc::timeout);
         }
@@ -777,6 +841,9 @@ private:
     }
 
     [[nodiscard]] result<T> _try_receive(TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         T item;
         if (xQueueReceive(_handle, &item, ticks) != pdTRUE) {
             return error(errc::timeout);
@@ -785,6 +852,9 @@ private:
     }
 
     [[nodiscard]] result<T> _try_peek(TickType_t ticks) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
         T item;
         if (xQueuePeek(_handle, &item, ticks) != pdTRUE) {
             return error(errc::timeout);
@@ -792,7 +862,7 @@ private:
         return item;
     }
 
-    QueueHandle_t _handle;
+    QueueHandle_t _handle = nullptr;
 };
 
 /** @} */ // end of idfxx_queue

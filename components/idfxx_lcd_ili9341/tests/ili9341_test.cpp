@@ -16,11 +16,13 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// ili9341 is non-copyable and non-movable
+// ili9341 is non-copyable
 static_assert(!std::is_copy_constructible_v<ili9341>);
 static_assert(!std::is_copy_assignable_v<ili9341>);
-static_assert(!std::is_move_constructible_v<ili9341>);
-static_assert(!std::is_move_assignable_v<ili9341>);
+
+// ili9341 is move-only
+static_assert(std::is_move_constructible_v<ili9341>);
+static_assert(std::is_move_assignable_v<ili9341>);
 
 // ili9341 inherits from panel base class
 static_assert(std::is_base_of_v<panel, ili9341>);
@@ -55,20 +57,6 @@ TEST_CASE("panel::config default reset_gpio is NC", "[idfxx][lcd][ili9341]") {
     TEST_ASSERT_EQUAL(GPIO_NUM_NC, config.reset_gpio.num());
 }
 
-TEST_CASE("ili9341 make with null panel_io returns error", "[idfxx][lcd][ili9341]") {
-    using namespace idfxx;
-
-    panel::config config{
-        .reset_gpio = gpio::nc(),
-        .rgb_element_order = rgb_element_order::bgr,
-        .bits_per_pixel = 16,
-    };
-
-    // Passing null panel_io should fail
-    std::shared_ptr<idfxx::lcd::panel_io> null_io;
-    auto result = ili9341::make(null_io, config);
-    TEST_ASSERT_FALSE(result.has_value());
-}
 
 TEST_CASE("panel::config with RGB element order", "[idfxx][lcd][ili9341]") {
     using namespace idfxx;
@@ -136,22 +124,3 @@ TEST_CASE("panel::config with reset_active_high flag", "[idfxx][lcd][ili9341]") 
     TEST_ASSERT_EQUAL(1, config.flags.reset_active_high);
 }
 
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("ili9341 constructor with null panel_io throws", "[idfxx][lcd][ili9341]") {
-    using namespace idfxx;
-
-    std::shared_ptr<idfxx::lcd::panel_io> null_io;
-
-    // Constructing with null panel_io should throw - tests exception-based API with inline config
-    bool threw = false;
-    try {
-        std::make_unique<ili9341>(null_io, panel::config{
-            .rgb_element_order = rgb_element_order::bgr,
-            .bits_per_pixel = 16,
-        });
-    } catch (const std::system_error&) {
-        threw = true;
-    }
-    TEST_ASSERT_TRUE_MESSAGE(threw, "Expected std::system_error to be thrown");
-}
-#endif
