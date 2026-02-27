@@ -1,0 +1,26 @@
+version: "0.9.0"
+description: "Type-safe HTTPS server for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_https_server"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_http:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_http
+  cleishm/idfxx_http_server:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_http_server
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32h2

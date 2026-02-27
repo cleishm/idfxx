@@ -1,0 +1,22 @@
+version: "0.9.0"
+description: "Type-safe HTTP client for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_http_client"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_http:
+    version: "^0.9.0"
+    public: true
+    override_path: ../idfxx_http
+targets:
+  - esp32
+  - esp32s2
+  - esp32s3
+  - esp32c3
+  - esp32c6
+  - esp32h2
