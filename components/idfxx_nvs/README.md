@@ -10,6 +10,8 @@ Type-safe persistent key-value storage in flash memory.
 - Type-safe storage for integers (8-64 bits), strings, and binary blobs
 - Explicit commit model for atomic updates
 - Read-only mode support
+- Partition-based APIs for multi-partition NVS configurations
+- NVS encryption key generation and reading
 - Domain-specific error codes
 
 ## Requirements
@@ -159,6 +161,43 @@ auto value = nvs.get_string("name");
 nvs.set_string("name", "NewName");  // throws!
 ```
 
+### Partition-Based Usage
+
+```cpp
+#include <idfxx/nvs>
+#include <idfxx/partition>
+
+// Find and initialize a specific NVS partition
+auto part = idfxx::partition::find(
+    idfxx::partition::type::data,
+    idfxx::partition::subtype::data_nvs);
+idfxx::nvs::flash::init(part);
+
+// Open a namespace on the specific partition
+idfxx::nvs nvs(part, "settings");
+nvs.set_string("key", "value");
+nvs.commit();
+```
+
+### NVS Encryption Key Management
+
+```cpp
+#include <idfxx/nvs>
+#include <idfxx/partition>
+
+// Find the NVS keys partition
+auto key_part = idfxx::partition::find(
+    idfxx::partition::type::data,
+    idfxx::partition::subtype::data_nvs_keys);
+
+// Generate keys (or read existing ones)
+auto cfg = idfxx::nvs::flash::generate_keys(key_part);
+
+// Initialize NVS with encryption
+auto nvs_part = idfxx::partition::find("nvs");
+idfxx::nvs::flash::init(nvs_part, cfg);
+```
+
 ## API Overview
 
 The component provides two API styles:
@@ -169,9 +208,11 @@ The component provides two API styles:
 
 **Exception-based:**
 - `nvs(namespace, read_only)` - Constructor throws on error
+- `nvs(partition, namespace, read_only)` - Opens on a specific partition
 
 **Result-based:**
 - `nvs::make(namespace, read_only)` → `result<nvs>`
+- `nvs::make(partition, namespace, read_only)` → `result<nvs>`
 
 ### Querying State
 
@@ -227,6 +268,24 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 - `key_too_long` - Key name exceeds limit
 - And more...
 
+### Flash Management
+
+**Exception-based:**
+- `flash::init()` / `flash::init(label)` / `flash::init(partition)` - Initialize NVS
+- `flash::init(cfg)` / `flash::init(partition, cfg)` - Initialize with encryption
+- `flash::init(insecure)` / `flash::init(insecure, partition)` - Initialize without encryption
+- `flash::deinit()` / `flash::deinit(label)` - Deinitialize NVS
+- `flash::erase()` / `flash::erase(label)` / `flash::erase(partition)` - Erase NVS data
+- `flash::generate_keys(partition)` → `secure_config` - Generate encryption keys
+- `flash::read_security_cfg(partition)` → `secure_config` - Read encryption keys
+
+**Result-based:**
+- `flash::try_init(...)` → `result<void>` (same overloads as above)
+- `flash::try_deinit(...)` → `result<void>`
+- `flash::try_erase(...)` → `result<void>`
+- `flash::try_generate_keys(partition)` → `result<secure_config>`
+- `flash::try_read_security_cfg(partition)` → `result<secure_config>`
+
 ## Important Notes
 
 - **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs
@@ -238,6 +297,7 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 - Key names are limited to 15 characters
 - Each namespace is independent
 - Call `nvs::flash::init()` or `nvs::flash::try_init()` once before using NVS
+- Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
 - Supported integer types: `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`, `uint64_t`, `int64_t`
 
 ## License
