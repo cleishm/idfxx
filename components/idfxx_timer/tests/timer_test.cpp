@@ -16,6 +16,24 @@
 using namespace idfxx;
 using namespace std::chrono_literals;
 
+namespace {
+
+// Poll until a flag is set, with generous timeout for QEMU virtual time reliability.
+void wait_for(const std::atomic<bool>& flag) {
+    for (int i = 0; i < 500 && !flag.load(); ++i) {
+        idfxx::delay(10ms);
+    }
+}
+
+// Poll until a counter reaches a minimum value.
+void wait_for_count(const std::atomic<int>& counter, int min_count) {
+    for (int i = 0; i < 500 && counter.load() < min_count; ++i) {
+        idfxx::delay(10ms);
+    }
+}
+
+} // namespace
+
 // =============================================================================
 // Compile-time tests (static_assert)
 // These verify correctness at compile time - if this file compiles, they pass.
@@ -199,7 +217,7 @@ TEST_CASE("timer one-shot callback fires", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
     TEST_ASSERT_FALSE(t.is_active()); // One-shot timer stops after firing
@@ -216,7 +234,7 @@ TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for multiple callbacks
-    idfxx::delay(100ms);
+    wait_for_count(count, 3);
 
     // Should have fired at least 3 times (100ms / 20ms = 5, but allow some margin)
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
@@ -241,7 +259,7 @@ TEST_CASE("timer raw callback fires", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
 }
@@ -459,7 +477,7 @@ TEST_CASE("timer::try_start_once static with functional callback", "[idfxx][time
     TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
     TEST_ASSERT_FALSE(result->is_active()); // One-shot timer stops after firing
@@ -479,7 +497,7 @@ TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
 }
@@ -497,7 +515,7 @@ TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][
     TEST_ASSERT_EQUAL(20000, period.count()); // 20ms = 20000us
 
     // Wait for multiple callbacks
-    idfxx::delay(100ms);
+    wait_for_count(count, 3);
 
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
 
@@ -518,7 +536,7 @@ TEST_CASE("timer::try_start_periodic static with raw callback", "[idfxx][timer]"
     TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for multiple callbacks
-    idfxx::delay(100ms);
+    wait_for_count(count, 3);
 
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
 
@@ -564,7 +582,7 @@ TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx]
     TEST_ASSERT_FALSE(called.load());
 
     // Wait for it to fire
-    idfxx::delay(100ms);
+    wait_for(called);
     TEST_ASSERT_TRUE(called.load());
     TEST_ASSERT_FALSE(t.is_active());
 }
@@ -581,7 +599,7 @@ TEST_CASE("timer try_start_once with time_point in the past fires immediately", 
     TEST_ASSERT_TRUE(start_result.has_value());
 
     // Should fire very quickly
-    idfxx::delay(50ms);
+    wait_for(called);
     TEST_ASSERT_TRUE(called.load());
 }
 
@@ -595,7 +613,7 @@ TEST_CASE("timer::try_start_once static with time_point and functional callback"
     TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
     TEST_ASSERT_FALSE(result->is_active());
@@ -616,7 +634,7 @@ TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idf
     TEST_ASSERT_TRUE(result->is_active());
 
     // Wait for callback
-    idfxx::delay(50ms);
+    wait_for(called);
 
     TEST_ASSERT_TRUE(called.load());
 }
@@ -641,9 +659,8 @@ TEST_CASE("timer destruction waits for one-shot callback to complete", "[idfxx][
         TEST_ASSERT_TRUE(start_result.has_value());
 
         // Wait for callback to begin executing
-        while (!callback_started.load()) {
-            idfxx::delay(1ms);
-        }
+        wait_for(callback_started);
+        TEST_ASSERT_TRUE(callback_started.load());
 
         // Timer is destroyed here while callback is still running (sleeping for 100ms)
     }
@@ -668,9 +685,8 @@ TEST_CASE("timer destruction waits for periodic callback to complete", "[idfxx][
         TEST_ASSERT_TRUE(start_result.has_value());
 
         // Wait for callback to begin executing
-        while (!callback_started.load()) {
-            idfxx::delay(1ms);
-        }
+        wait_for(callback_started);
+        TEST_ASSERT_TRUE(callback_started.load());
 
         // Timer is destroyed here while callback is still running
     }
@@ -772,7 +788,7 @@ TEST_CASE("timer::start_once static factory with exception API", "[idfxx][timer]
     auto t = timer::start_once({.name = "exc_static"}, 10ms, [&called]() { called.store(true); });
 
     TEST_ASSERT_TRUE(t.is_active());
-    idfxx::delay(50ms);
+    wait_for(called);
     TEST_ASSERT_TRUE(called.load());
 }
 
@@ -781,7 +797,7 @@ TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][ti
     auto t = timer::start_periodic({.name = "exc_periodic_static"}, 20ms, [&count]() { count.fetch_add(1); });
 
     TEST_ASSERT_TRUE(t.is_active());
-    idfxx::delay(100ms);
+    wait_for_count(count, 3);
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
     t.stop();
 }
@@ -815,12 +831,14 @@ TEST_CASE("multiple timers running concurrently", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(rc->is_active());
 
     // Wait for callbacks
-    idfxx::delay(200ms);
+    for (int i = 0; i < 500 && (count_a.load() < 5 || count_b.load() < 4 || count_c.load() < 3); ++i) {
+        idfxx::delay(10ms);
+    }
 
     // All should have fired multiple times
-    TEST_ASSERT_GREATER_OR_EQUAL(5, count_a.load());  // 200/20 = 10
-    TEST_ASSERT_GREATER_OR_EQUAL(4, count_b.load());  // 200/30 ~ 6
-    TEST_ASSERT_GREATER_OR_EQUAL(3, count_c.load());  // 200/40 = 5
+    TEST_ASSERT_GREATER_OR_EQUAL(5, count_a.load());
+    TEST_ASSERT_GREATER_OR_EQUAL(4, count_b.load());
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count_c.load());
 
     (void)ra->try_stop();
     (void)rb->try_stop();
