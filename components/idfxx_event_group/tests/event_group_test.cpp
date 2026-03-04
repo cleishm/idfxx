@@ -296,6 +296,45 @@ TEST_CASE("event_group sync times out", "[idfxx][event_group]") {
     TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), sync_result.error().value());
 }
 
+TEST_CASE("event_group wait_until with future deadline succeeds", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    eg.set(test_event::event_a);
+
+    auto deadline = chrono::tick_clock::now() + 100ms;
+    auto result = eg.try_wait_until(test_event::event_a, wait_mode::any, deadline);
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_TRUE(result->contains(test_event::event_a));
+}
+
+TEST_CASE("event_group try_sync_until succeeds", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    auto wait_bits = test_event::event_a | test_event::event_b;
+
+    // Task sets event_b
+    auto t = std::make_unique<task>(task::config{.name = "sync_until"}, [&eg](task::self&) {
+        idfxx::delay(50ms);
+        (void)eg.try_sync(test_event::event_b, test_event::event_a | test_event::event_b, 500ms);
+    });
+
+    auto deadline = chrono::tick_clock::now() + 1s;
+    auto result = eg.try_sync_until(test_event::event_a, wait_bits, deadline);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto join = t->try_join(1s);
+    TEST_ASSERT_TRUE(join.has_value());
+}
+
+TEST_CASE("event_group try_sync_until times out with past deadline", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    auto past = chrono::tick_clock::now();
+    auto result = eg.try_sync_until(test_event::event_a, test_event::event_a | test_event::event_b, past);
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), result.error().value());
+}
+
 // =============================================================================
 // Destructor test
 // =============================================================================
@@ -311,4 +350,99 @@ TEST_CASE("event_group destructor cleans up", "[idfxx][event_group]") {
 
     // If we get here without crashing, cleanup worked
     idfxx::delay(10ms);
+}
+
+// =============================================================================
+// Exception-based API tests
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("event_group wait succeeds via exception API", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    eg.set(test_event::event_a);
+
+    auto bits = eg.wait(test_event::event_a, wait_mode::any, 0ms);
+    TEST_ASSERT_TRUE(bits.contains(test_event::event_a));
+}
+
+TEST_CASE("event_group wait throws on timeout", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    bool threw = false;
+    try {
+        (void)eg.wait(test_event::event_a, wait_mode::any, 0ms);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("event_group wait_until succeeds via exception API", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    eg.set(test_event::event_b);
+
+    auto deadline = idfxx::chrono::tick_clock::now() + 100ms;
+    auto bits = eg.wait_until(test_event::event_b, wait_mode::any, deadline);
+    TEST_ASSERT_TRUE(bits.contains(test_event::event_b));
+}
+
+TEST_CASE("event_group wait_until throws on deadline", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+
+    bool threw = false;
+    try {
+        auto deadline = idfxx::chrono::tick_clock::now(); // already past
+        (void)eg.wait_until(test_event::event_a, wait_mode::any, deadline);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// Moved-from state tests
+// =============================================================================
+
+TEST_CASE("moved-from event_group returns defaults", "[idfxx][event_group]") {
+    event_group<test_event> eg;
+    eg.set(test_event::event_a);
+
+    auto moved = std::move(eg);
+
+    // moved-from object: simple operations return default values
+    TEST_ASSERT_NULL(eg.idf_handle());
+    TEST_ASSERT_TRUE(eg.get().empty());
+    TEST_ASSERT_TRUE(eg.set(test_event::event_b).empty());
+    TEST_ASSERT_TRUE(eg.clear(test_event::event_a).empty());
+
+    // result-based wait on moved-from returns invalid_state
+    auto wait_result = eg.try_wait(test_event::event_a, wait_mode::any, 0ms);
+    TEST_ASSERT_FALSE(wait_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), wait_result.error().value());
+
+    // Moved-to object should work normally
+    TEST_ASSERT_NOT_NULL(moved.idf_handle());
+    TEST_ASSERT_FALSE(moved.get().empty());
+}
+
+TEST_CASE("event_group move assignment cleans up target", "[idfxx][event_group]") {
+    event_group<test_event> eg1;
+    event_group<test_event> eg2;
+
+    eg1.set(test_event::event_a);
+    eg2.set(test_event::event_b);
+
+    // Move assignment should clean up target
+    eg1 = std::move(eg2);
+
+    TEST_ASSERT_NOT_NULL(eg1.idf_handle());
+    TEST_ASSERT_NULL(eg2.idf_handle());
+    TEST_ASSERT_TRUE(eg1.get().contains(test_event::event_b));
 }

@@ -31,10 +31,11 @@
  */
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <esp_log.h>
 #include <format>
+#include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -253,7 +254,26 @@ void set_default_level(level lvl);
  * @param buffer Pointer to the buffer data.
  * @param length Number of bytes to log.
  */
-void buffer_hex(level lvl, const char* tag, const void* buffer, size_t length);
+void buffer_hex(level lvl, const char* tag, const void* buffer, uint16_t length);
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Log a contiguous range as hexadecimal bytes.
+ *
+ * Outputs the buffer contents as hex values, 16 bytes per line.
+ * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ *
+ * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+ * @param lvl The log severity level.
+ * @param tag The log tag identifying the source.
+ * @param data The data to log.
+ */
+template<std::ranges::contiguous_range R>
+    requires(sizeof(std::ranges::range_value_t<R>) == 1)
+void buffer_hex(level lvl, const char* tag, const R& data) {
+    auto sp = std::span(data);
+    buffer_hex(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+}
 
 /**
  * @headerfile <idfxx/log>
@@ -267,7 +287,27 @@ void buffer_hex(level lvl, const char* tag, const void* buffer, size_t length);
  * @param buffer Pointer to the buffer data.
  * @param length Number of bytes to log.
  */
-void buffer_char(level lvl, const char* tag, const void* buffer, size_t length);
+void buffer_char(level lvl, const char* tag, const void* buffer, uint16_t length);
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Log a contiguous range as printable characters.
+ *
+ * Outputs the buffer contents as characters, 16 per line. Non-printable
+ * characters are not shown.
+ * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ *
+ * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+ * @param lvl The log severity level.
+ * @param tag The log tag identifying the source.
+ * @param data The data to log.
+ */
+template<std::ranges::contiguous_range R>
+    requires(sizeof(std::ranges::range_value_t<R>) == 1)
+void buffer_char(level lvl, const char* tag, const R& data) {
+    auto sp = std::span(data);
+    buffer_char(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+}
 
 /**
  * @headerfile <idfxx/log>
@@ -281,7 +321,27 @@ void buffer_char(level lvl, const char* tag, const void* buffer, size_t length);
  * @param buffer Pointer to the buffer data.
  * @param length Number of bytes to log.
  */
-void buffer_hex_dump(level lvl, const char* tag, const void* buffer, size_t length);
+void buffer_hex_dump(level lvl, const char* tag, const void* buffer, uint16_t length);
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Log a contiguous range as a formatted hex dump.
+ *
+ * Outputs a hex dump with memory addresses, hex values, and ASCII
+ * representation, similar to the output of the `xxd` command.
+ * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ *
+ * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+ * @param lvl The log severity level.
+ * @param tag The log tag identifying the source.
+ * @param data The data to log.
+ */
+template<std::ranges::contiguous_range R>
+    requires(sizeof(std::ranges::range_value_t<R>) == 1)
+void buffer_hex_dump(level lvl, const char* tag, const R& data) {
+    auto sp = std::span(data);
+    buffer_hex_dump(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+}
 
 /**
  * @headerfile <idfxx/log>
@@ -452,8 +512,23 @@ public:
      * @param buffer Pointer to the buffer data.
      * @param length Number of bytes to log.
      */
-    void buffer_hex(level lvl, const void* buffer, size_t length) const {
+    void buffer_hex(level lvl, const void* buffer, uint16_t length) const {
         idfxx::log::buffer_hex(lvl, _tag, buffer, length);
+    }
+
+    /**
+     * @brief Log a contiguous range as hexadecimal bytes.
+     *
+     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     *
+     * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+     * @param lvl The log severity level.
+     * @param data The data to log.
+     */
+    template<std::ranges::contiguous_range R>
+        requires(sizeof(std::ranges::range_value_t<R>) == 1)
+    void buffer_hex(level lvl, const R& data) const {
+        idfxx::log::buffer_hex(lvl, _tag, data);
     }
 
     /**
@@ -463,8 +538,24 @@ public:
      * @param buffer Pointer to the buffer data.
      * @param length Number of bytes to log.
      */
-    void buffer_char(level lvl, const void* buffer, size_t length) const {
+    void buffer_char(level lvl, const void* buffer, uint16_t length) const {
         idfxx::log::buffer_char(lvl, _tag, buffer, length);
+    }
+
+    /**
+     * @brief Log a contiguous range as printable characters.
+     *
+     * Non-printable characters are not shown.
+     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     *
+     * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+     * @param lvl The log severity level.
+     * @param data The data to log.
+     */
+    template<std::ranges::contiguous_range R>
+        requires(sizeof(std::ranges::range_value_t<R>) == 1)
+    void buffer_char(level lvl, const R& data) const {
+        idfxx::log::buffer_char(lvl, _tag, data);
     }
 
     /**
@@ -474,8 +565,23 @@ public:
      * @param buffer Pointer to the buffer data.
      * @param length Number of bytes to log.
      */
-    void buffer_hex_dump(level lvl, const void* buffer, size_t length) const {
+    void buffer_hex_dump(level lvl, const void* buffer, uint16_t length) const {
         idfxx::log::buffer_hex_dump(lvl, _tag, buffer, length);
+    }
+
+    /**
+     * @brief Log a contiguous range as a formatted hex dump.
+     *
+     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     *
+     * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
+     * @param lvl The log severity level.
+     * @param data The data to log.
+     */
+    template<std::ranges::contiguous_range R>
+        requires(sizeof(std::ranges::range_value_t<R>) == 1)
+    void buffer_hex_dump(level lvl, const R& data) const {
+        idfxx::log::buffer_hex_dump(lvl, _tag, data);
     }
 
 private:

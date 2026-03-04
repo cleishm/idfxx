@@ -267,19 +267,6 @@ public:
     [[nodiscard]] explicit task(const config& cfg, std::move_only_function<void(self&)> task_func);
 
     /**
-     * @brief Creates a task with a raw function pointer callback.
-     *
-     * The task starts executing immediately after construction.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction and the user argument.
-     * @param arg Argument passed to the task function.
-     * @throws std::bad_alloc if memory allocation fails.
-     */
-    [[nodiscard]] explicit task(const config& cfg, void (*task_func)(self&, void*), void* arg);
-
-    /**
      * @brief Creates a fire-and-forget task with a std::move_only_function callback.
      *
      * The task starts executing immediately and cleans up its resources when complete.
@@ -290,19 +277,6 @@ public:
      * @throws std::bad_alloc if memory allocation fails.
      */
     static void spawn(config cfg, std::move_only_function<void(self&)> task_func);
-
-    /**
-     * @brief Creates a fire-and-forget task with a raw function pointer callback.
-     *
-     * The task starts executing immediately and cleans up its resources when complete.
-     *
-     * @param cfg Task configuration.
-     * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction and the user argument.
-     * @param arg Argument passed to the task function.
-     * @throws std::bad_alloc if memory allocation fails.
-     */
-    static void spawn(config cfg, void (*task_func)(self&, void*), void* arg);
 
     /**
      * @brief Destroys the task, requesting stop and blocking until the task function completes.
@@ -730,8 +704,10 @@ public:
 private:
     static void trampoline(void* arg);
 
-    [[nodiscard]] static TaskHandle_t _create(context* ctx, const config& cfg);
+    static TaskHandle_t _create(context* ctx, const config& cfg, const char* name);
     [[nodiscard]] result<void> _try_join(TickType_t ticks);
+    void _stop_and_delete() noexcept;
+    [[nodiscard]] bool _is_running() const noexcept;
 
     explicit task(TaskHandle_t handle, std::string name, context* ctx);
 

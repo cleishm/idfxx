@@ -88,9 +88,7 @@ master_bus::master_bus(master_bus&& other) noexcept
 
 master_bus& master_bus::operator=(master_bus&& other) noexcept {
     if (this != &other) {
-        if (_handle != nullptr) {
-            i2c_del_master_bus(_handle);
-        }
+        _delete();
         _mux = std::move(other._mux);
         _handle = other._handle;
         _port = other._port;
@@ -101,6 +99,10 @@ master_bus& master_bus::operator=(master_bus&& other) noexcept {
 }
 
 master_bus::~master_bus() {
+    _delete();
+}
+
+void master_bus::_delete() noexcept {
     if (_handle != nullptr) {
         i2c_del_master_bus(_handle);
     }

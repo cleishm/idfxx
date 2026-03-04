@@ -11,6 +11,7 @@
 #include <utility>
 
 // Verify error codes match ESP-IDF constants
+static_assert(std::to_underlying(idfxx::nvs::errc::not_initialized) == ESP_ERR_NVS_NOT_INITIALIZED);
 static_assert(std::to_underlying(idfxx::nvs::errc::not_found) == ESP_ERR_NVS_NOT_FOUND);
 static_assert(std::to_underlying(idfxx::nvs::errc::type_mismatch) == ESP_ERR_NVS_TYPE_MISMATCH);
 static_assert(std::to_underlying(idfxx::nvs::errc::read_only) == ESP_ERR_NVS_READ_ONLY);
@@ -24,6 +25,15 @@ static_assert(std::to_underlying(idfxx::nvs::errc::invalid_length) == ESP_ERR_NV
 static_assert(std::to_underlying(idfxx::nvs::errc::no_free_pages) == ESP_ERR_NVS_NO_FREE_PAGES);
 static_assert(std::to_underlying(idfxx::nvs::errc::value_too_long) == ESP_ERR_NVS_VALUE_TOO_LONG);
 static_assert(std::to_underlying(idfxx::nvs::errc::part_not_found) == ESP_ERR_NVS_PART_NOT_FOUND);
+static_assert(std::to_underlying(idfxx::nvs::errc::new_version_found) == ESP_ERR_NVS_NEW_VERSION_FOUND);
+static_assert(std::to_underlying(idfxx::nvs::errc::xts_encr_failed) == ESP_ERR_NVS_XTS_ENCR_FAILED);
+static_assert(std::to_underlying(idfxx::nvs::errc::xts_decr_failed) == ESP_ERR_NVS_XTS_DECR_FAILED);
+static_assert(std::to_underlying(idfxx::nvs::errc::xts_cfg_failed) == ESP_ERR_NVS_XTS_CFG_FAILED);
+static_assert(std::to_underlying(idfxx::nvs::errc::xts_cfg_not_found) == ESP_ERR_NVS_XTS_CFG_NOT_FOUND);
+static_assert(std::to_underlying(idfxx::nvs::errc::encr_not_supported) == ESP_ERR_NVS_ENCR_NOT_SUPPORTED);
+static_assert(std::to_underlying(idfxx::nvs::errc::keys_not_initialized) == ESP_ERR_NVS_KEYS_NOT_INITIALIZED);
+static_assert(std::to_underlying(idfxx::nvs::errc::corrupt_key_part) == ESP_ERR_NVS_CORRUPT_KEY_PART);
+static_assert(std::to_underlying(idfxx::nvs::errc::wrong_encryption) == ESP_ERR_NVS_WRONG_ENCRYPTION);
 
 // Verify key size matches ESP-IDF constant
 static_assert(idfxx::nvs::flash::key_size == NVS_KEY_SIZE);
@@ -45,6 +55,8 @@ const char* nvs::error_category::name() const noexcept {
 
 std::string nvs::error_category::message(int ec) const {
     switch (nvs::errc(ec)) {
+    case nvs::errc::not_initialized:
+        return "NVS storage was not initialized";
     case nvs::errc::not_found:
         return "A requested entry couldn't be found or namespace doesn't exist yet and mode is NVS_READONLY";
     case nvs::errc::type_mismatch:
@@ -94,65 +106,28 @@ std::string nvs::error_category::message(int ec) const {
     }
 }
 
-static std::optional<nvs::errc> make_errc(esp_err_t e) noexcept {
-    switch (e) {
-    case ESP_ERR_NVS_NOT_FOUND:
-        return nvs::errc::not_found;
-    case ESP_ERR_NVS_TYPE_MISMATCH:
-        return nvs::errc::type_mismatch;
-    case ESP_ERR_NVS_READ_ONLY:
-        return nvs::errc::read_only;
-    case ESP_ERR_NVS_NOT_ENOUGH_SPACE:
-        return nvs::errc::not_enough_space;
-    case ESP_ERR_NVS_INVALID_NAME:
-        return nvs::errc::invalid_name;
-    case ESP_ERR_NVS_INVALID_HANDLE:
-        return nvs::errc::invalid_handle;
-    case ESP_ERR_NVS_REMOVE_FAILED:
-        return nvs::errc::remove_failed;
-    case ESP_ERR_NVS_KEY_TOO_LONG:
-        return nvs::errc::key_too_long;
-    case ESP_ERR_NVS_INVALID_STATE:
-        return nvs::errc::invalid_state;
-    case ESP_ERR_NVS_INVALID_LENGTH:
-        return nvs::errc::invalid_length;
-    case ESP_ERR_NVS_NO_FREE_PAGES:
-        return nvs::errc::no_free_pages;
-    case ESP_ERR_NVS_VALUE_TOO_LONG:
-        return nvs::errc::value_too_long;
-    case ESP_ERR_NVS_PART_NOT_FOUND:
-        return nvs::errc::part_not_found;
-    case ESP_ERR_NVS_NEW_VERSION_FOUND:
-        return nvs::errc::new_version_found;
-    case ESP_ERR_NVS_XTS_ENCR_FAILED:
-        return nvs::errc::xts_encr_failed;
-    case ESP_ERR_NVS_XTS_DECR_FAILED:
-        return nvs::errc::xts_decr_failed;
-    case ESP_ERR_NVS_XTS_CFG_FAILED:
-        return nvs::errc::xts_cfg_failed;
-    case ESP_ERR_NVS_XTS_CFG_NOT_FOUND:
-        return nvs::errc::xts_cfg_not_found;
-    case ESP_ERR_NVS_ENCR_NOT_SUPPORTED:
-        return nvs::errc::encr_not_supported;
-    case ESP_ERR_NVS_KEYS_NOT_INITIALIZED:
-        return nvs::errc::keys_not_initialized;
-    case ESP_ERR_NVS_CORRUPT_KEY_PART:
-        return nvs::errc::corrupt_key_part;
-    case ESP_ERR_NVS_WRONG_ENCRYPTION:
-        return nvs::errc::wrong_encryption;
-    default:
-        return std::nullopt;
-    }
+static bool is_nvs_error(esp_err_t e) noexcept {
+    return (e & 0xFF00) == ESP_ERR_NVS_BASE;
 }
 
 std::unexpected<std::error_code> nvs_error(esp_err_t e) {
     if (e == ESP_ERR_NO_MEM) {
         raise_no_mem();
     }
-    return std::unexpected(
-        make_errc(e).transform([](nvs::errc ec) { return std::error_code{std::to_underlying(ec), nvs_category()}; }
-        ).value_or(make_error_code(e))
-    );
+    if (is_nvs_error(e)) {
+        return std::unexpected(std::error_code{e, nvs_category()});
+    }
+    return error(e);
+}
+
+static result<void> guard_write(nvs_handle_t handle, bool read_only) {
+    if (handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
+    if (read_only) {
+        return error(nvs::errc::read_only);
+    }
+    return {};
 }
 
 static result<nvs_handle_t> open_nvs(std::string_view namespace_name, bool read_only) {
@@ -208,12 +183,8 @@ nvs::~nvs() {
 }
 
 result<void> nvs::try_commit() {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot commit: handle is read-only");
-        return error(nvs::errc::read_only);
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     esp_err_t err = nvs_commit(_handle);
     if (err != ESP_OK) {
@@ -224,12 +195,8 @@ result<void> nvs::try_commit() {
 }
 
 result<void> nvs::try_erase(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot erase: handle is read-only");
-        return error(nvs::errc::read_only);
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     std::string key_str{key};
     esp_err_t err = nvs_erase_key(_handle, key_str.c_str());
@@ -243,12 +210,8 @@ result<void> nvs::try_erase(std::string_view key) {
 }
 
 result<void> nvs::try_erase_all() {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot erase_all: handle is read-only");
-        return error(nvs::errc::read_only);
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     esp_err_t err = nvs_erase_all(_handle);
     if (err != ESP_OK) {
@@ -259,12 +222,8 @@ result<void> nvs::try_erase_all() {
 }
 
 result<void> nvs::try_set_string(std::string_view key, std::string_view value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot set_string: handle is read-only");
-        return error(nvs::errc::read_only);
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     std::string key_str{key};
     std::string value_str{value};
@@ -304,12 +263,8 @@ result<std::string> nvs::try_get_string(std::string_view key) {
 }
 
 result<void> nvs::try_set_blob(std::string_view key, const void* data, size_t length) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot set_blob: handle is read-only");
-        return error(nvs::errc::read_only);
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     std::string key_str{key};
     esp_err_t err = nvs_set_blob(_handle, key_str.c_str(), data, length);
@@ -350,288 +305,70 @@ result<std::vector<uint8_t>> nvs::try_get_blob(std::string_view key) {
     return value;
 }
 
-// Template specializations for numeric types
+// Traits mapping each integer type to its NVS get/set functions
+template<typename T>
+struct nvs_ops;
+// clang-format off
+template<> struct nvs_ops<uint8_t>  { static constexpr auto set = nvs_set_u8;  static constexpr auto get = nvs_get_u8;  };
+template<> struct nvs_ops<int8_t>   { static constexpr auto set = nvs_set_i8;  static constexpr auto get = nvs_get_i8;  };
+template<> struct nvs_ops<uint16_t> { static constexpr auto set = nvs_set_u16; static constexpr auto get = nvs_get_u16; };
+template<> struct nvs_ops<int16_t>  { static constexpr auto set = nvs_set_i16; static constexpr auto get = nvs_get_i16; };
+template<> struct nvs_ops<uint32_t> { static constexpr auto set = nvs_set_u32; static constexpr auto get = nvs_get_u32; };
+template<> struct nvs_ops<int32_t>  { static constexpr auto set = nvs_set_i32; static constexpr auto get = nvs_get_i32; };
+template<> struct nvs_ops<uint64_t> { static constexpr auto set = nvs_set_u64; static constexpr auto get = nvs_get_u64; };
+template<> struct nvs_ops<int64_t>  { static constexpr auto set = nvs_set_i64; static constexpr auto get = nvs_get_i64; };
+// clang-format on
 
-// uint8_t
-template<>
-result<void> nvs::try_set_value<uint8_t>(std::string_view key, uint8_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        ESP_LOGD(TAG, "Cannot set uint8_t: handle is read-only");
-        return error(nvs::errc::read_only);
+template<typename T>
+    requires sized_integral<T>
+result<void> nvs::try_set_value(std::string_view key, T value) {
+    if (auto r = guard_write(_handle, _read_only); !r) {
+        return r;
     }
     std::string key_str{key};
-    esp_err_t err = nvs_set_u8(_handle, key_str.c_str(), value);
+    esp_err_t err = nvs_ops<T>::set(_handle, key_str.c_str(), value);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set uint8_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to set key '%s': %s", key_str.c_str(), esp_err_to_name(err));
         return nvs_error(err);
     }
     return {};
 }
 
-template<>
-result<uint8_t> nvs::try_get_value<uint8_t>(std::string_view key) {
+template<typename T>
+    requires sized_integral<T>
+result<T> nvs::try_get_value(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
     }
     std::string key_str{key};
-    uint8_t value;
-    esp_err_t err = nvs_get_u8(_handle, key_str.c_str(), &value);
+    T value;
+    esp_err_t err = nvs_ops<T>::get(_handle, key_str.c_str(), &value);
     if (err != ESP_OK) {
         if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get uint8_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
+            ESP_LOGD(TAG, "Failed to get key '%s': %s", key_str.c_str(), esp_err_to_name(err));
         }
         return nvs_error(err);
     }
     return value;
 }
 
-// int8_t
-template<>
-result<void> nvs::try_set_value<int8_t>(std::string_view key, int8_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_i8(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set int8_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<int8_t> nvs::try_get_value<int8_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    int8_t value;
-    esp_err_t err = nvs_get_i8(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get int8_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// uint16_t
-template<>
-result<void> nvs::try_set_value<uint16_t>(std::string_view key, uint16_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_u16(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set uint16_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<uint16_t> nvs::try_get_value<uint16_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    uint16_t value;
-    esp_err_t err = nvs_get_u16(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get uint16_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// int16_t
-template<>
-result<void> nvs::try_set_value<int16_t>(std::string_view key, int16_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_i16(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set int16_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<int16_t> nvs::try_get_value<int16_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    int16_t value;
-    esp_err_t err = nvs_get_i16(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get int16_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// uint32_t
-template<>
-result<void> nvs::try_set_value<uint32_t>(std::string_view key, uint32_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_u32(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set uint32_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<uint32_t> nvs::try_get_value<uint32_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    uint32_t value;
-    esp_err_t err = nvs_get_u32(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get uint32_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// int32_t
-template<>
-result<void> nvs::try_set_value<int32_t>(std::string_view key, int32_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_i32(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set int32_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<int32_t> nvs::try_get_value<int32_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    int32_t value;
-    esp_err_t err = nvs_get_i32(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get int32_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// uint64_t
-template<>
-result<void> nvs::try_set_value<uint64_t>(std::string_view key, uint64_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_u64(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set uint64_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<uint64_t> nvs::try_get_value<uint64_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    uint64_t value;
-    esp_err_t err = nvs_get_u64(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get uint64_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
-
-// int64_t
-template<>
-result<void> nvs::try_set_value<int64_t>(std::string_view key, int64_t value) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    if (_read_only) {
-        return error(nvs::errc::read_only);
-    }
-    std::string key_str{key};
-    esp_err_t err = nvs_set_i64(_handle, key_str.c_str(), value);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set int64_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return {};
-}
-
-template<>
-result<int64_t> nvs::try_get_value<int64_t>(std::string_view key) {
-    if (_handle == 0) {
-        return error(nvs::errc::invalid_handle);
-    }
-    std::string key_str{key};
-    int64_t value;
-    esp_err_t err = nvs_get_i64(_handle, key_str.c_str(), &value);
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get int64_t key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        }
-        return nvs_error(err);
-    }
-    return value;
-}
+// Explicit template instantiations
+template result<void> nvs::try_set_value<uint8_t>(std::string_view, uint8_t);
+template result<void> nvs::try_set_value<int8_t>(std::string_view, int8_t);
+template result<void> nvs::try_set_value<uint16_t>(std::string_view, uint16_t);
+template result<void> nvs::try_set_value<int16_t>(std::string_view, int16_t);
+template result<void> nvs::try_set_value<uint32_t>(std::string_view, uint32_t);
+template result<void> nvs::try_set_value<int32_t>(std::string_view, int32_t);
+template result<void> nvs::try_set_value<uint64_t>(std::string_view, uint64_t);
+template result<void> nvs::try_set_value<int64_t>(std::string_view, int64_t);
+template result<uint8_t> nvs::try_get_value<uint8_t>(std::string_view);
+template result<int8_t> nvs::try_get_value<int8_t>(std::string_view);
+template result<uint16_t> nvs::try_get_value<uint16_t>(std::string_view);
+template result<int16_t> nvs::try_get_value<int16_t>(std::string_view);
+template result<uint32_t> nvs::try_get_value<uint32_t>(std::string_view);
+template result<int32_t> nvs::try_get_value<int32_t>(std::string_view);
+template result<uint64_t> nvs::try_get_value<uint64_t>(std::string_view);
+template result<int64_t> nvs::try_get_value<int64_t>(std::string_view);
 
 result<void> nvs::flash::try_init() {
     esp_err_t err = nvs_flash_init();

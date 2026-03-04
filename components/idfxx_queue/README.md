@@ -218,7 +218,7 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 ### Overwrite
 
-- `overwrite(item)` / `try_overwrite(item)` - Overwrite last item or send if not full (never blocks)
+- `overwrite(item)` - Overwrite last item or send if not full (never blocks)
 
 ### ISR Operations
 

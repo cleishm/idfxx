@@ -205,13 +205,13 @@ TEST_CASE("queue overwrite on single-item queue", "[idfxx][queue]") {
     TEST_ASSERT_TRUE(result.has_value());
     auto& q = *result;
 
-    q.try_overwrite(10);
+    q.overwrite(10);
     TEST_ASSERT_EQUAL(1, q.size());
 
-    q.try_overwrite(20);
+    q.overwrite(20);
     TEST_ASSERT_EQUAL(1, q.size());
 
-    q.try_overwrite(30);
+    q.overwrite(30);
     TEST_ASSERT_EQUAL(1, q.size());
 
     auto recv_result = q.try_receive(0ms);
@@ -491,3 +491,180 @@ TEST_CASE("queue::make with spiram storage", "[idfxx][queue]") {
 }
 
 #endif // CONFIG_SPIRAM
+
+// =============================================================================
+// Deadline-based operation tests
+// =============================================================================
+
+TEST_CASE("try_send_until with future deadline succeeds", "[idfxx][queue]") {
+    auto result = queue<int>::make(5);
+    TEST_ASSERT_TRUE(result.has_value());
+    auto& q = *result;
+
+    auto deadline = idfxx::chrono::tick_clock::now() + 100ms;
+    auto send_result = q.try_send_until(42, deadline);
+    TEST_ASSERT_TRUE(send_result.has_value());
+
+    auto recv_result = q.try_receive(0ms);
+    TEST_ASSERT_TRUE(recv_result.has_value());
+    TEST_ASSERT_EQUAL(42, *recv_result);
+}
+
+TEST_CASE("try_receive_until with future deadline succeeds", "[idfxx][queue]") {
+    auto result = queue<int>::make(5);
+    TEST_ASSERT_TRUE(result.has_value());
+    auto& q = *result;
+
+    (void)q.try_send(99, 0ms);
+
+    auto deadline = idfxx::chrono::tick_clock::now() + 100ms;
+    auto recv_result = q.try_receive_until(deadline);
+    TEST_ASSERT_TRUE(recv_result.has_value());
+    TEST_ASSERT_EQUAL(99, *recv_result);
+}
+
+TEST_CASE("try_receive_until with past deadline returns timeout", "[idfxx][queue]") {
+    auto result = queue<int>::make(5);
+    TEST_ASSERT_TRUE(result.has_value());
+    auto& q = *result;
+
+    auto deadline = idfxx::chrono::tick_clock::now(); // already past
+    auto recv_result = q.try_receive_until(deadline);
+    TEST_ASSERT_FALSE(recv_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), recv_result.error().value());
+}
+
+TEST_CASE("try_send_until on full queue with past deadline returns timeout", "[idfxx][queue]") {
+    auto result = queue<int>::make(1);
+    TEST_ASSERT_TRUE(result.has_value());
+    auto& q = *result;
+
+    (void)q.try_send(1, 0ms);
+
+    auto deadline = idfxx::chrono::tick_clock::now(); // already past
+    auto send_result = q.try_send_until(2, deadline);
+    TEST_ASSERT_FALSE(send_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), send_result.error().value());
+}
+
+// =============================================================================
+// Exception-based API tests
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("queue constructor succeeds", "[idfxx][queue]") {
+    queue<int> q(5);
+    TEST_ASSERT_NOT_NULL(q.idf_handle());
+    TEST_ASSERT_EQUAL(0, q.size());
+}
+
+TEST_CASE("queue constructor throws on zero length", "[idfxx][queue]") {
+    bool threw = false;
+    try {
+        queue<int> q(0);
+        (void)q;
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("queue send and receive via exception API", "[idfxx][queue]") {
+    queue<int> q(5);
+
+    q.send(42);
+    q.send(99);
+
+    TEST_ASSERT_EQUAL(42, q.receive(0ms));
+    TEST_ASSERT_EQUAL(99, q.receive(0ms));
+}
+
+TEST_CASE("queue receive throws on empty with timeout", "[idfxx][queue]") {
+    queue<int> q(5);
+
+    bool threw = false;
+    try {
+        (void)q.receive(0ms);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("queue send_to_front via exception API", "[idfxx][queue]") {
+    queue<int> q(5);
+
+    q.send(1);
+    q.send(2);
+    q.send_to_front(0);
+
+    TEST_ASSERT_EQUAL(0, q.receive(0ms));
+    TEST_ASSERT_EQUAL(1, q.receive(0ms));
+    TEST_ASSERT_EQUAL(2, q.receive(0ms));
+}
+
+TEST_CASE("queue send with timeout via exception API", "[idfxx][queue]") {
+    queue<int> q(2);
+    q.send(1);
+    q.send(2);
+
+    // Queue is full - send with zero timeout should throw
+    bool threw = false;
+    try {
+        q.send(3, 0ms);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// Moved-from state tests
+// =============================================================================
+
+TEST_CASE("moved-from queue returns invalid_state", "[idfxx][queue]") {
+    auto result = queue<int>::make(5);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto moved = std::move(*result);
+
+    // moved-from object should return invalid_state
+    auto send_result = result->try_send(42, 0ms);
+    TEST_ASSERT_FALSE(send_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), send_result.error().value());
+
+    auto recv_result = result->try_receive(0ms);
+    TEST_ASSERT_FALSE(recv_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), recv_result.error().value());
+
+    // Simple accessors return defaults
+    TEST_ASSERT_EQUAL(0, result->size());
+    TEST_ASSERT_EQUAL(0, result->available());
+    TEST_ASSERT_TRUE(result->empty());
+    TEST_ASSERT_FALSE(result->full());
+    TEST_ASSERT_NULL(result->idf_handle());
+
+    // Moved-to object should work normally
+    TEST_ASSERT_NOT_NULL(moved.idf_handle());
+    TEST_ASSERT_TRUE(moved.try_send(42, 0ms).has_value());
+}
+
+TEST_CASE("queue move assignment cleans up target", "[idfxx][queue]") {
+    auto r1 = queue<int>::make(5);
+    TEST_ASSERT_TRUE(r1.has_value());
+
+    auto r2 = queue<int>::make(3);
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    // Move assignment should clean up target and transfer source
+    *r1 = std::move(*r2);
+
+    TEST_ASSERT_NOT_NULL(r1->idf_handle());
+    TEST_ASSERT_NULL(r2->idf_handle());
+}

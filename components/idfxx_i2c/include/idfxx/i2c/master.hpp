@@ -212,6 +212,8 @@ public:
 private:
     explicit master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency);
 
+    void _delete() noexcept;
+
     [[nodiscard]] std::vector<uint8_t> _scan_devices(std::chrono::milliseconds timeout) const;
     [[nodiscard]] result<void> _probe(uint8_t address, std::chrono::milliseconds timeout) const;
 
@@ -1467,6 +1469,8 @@ public:
 
 private:
     explicit master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint8_t address);
+
+    void _delete() noexcept;
 
     [[nodiscard]] result<void> _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);

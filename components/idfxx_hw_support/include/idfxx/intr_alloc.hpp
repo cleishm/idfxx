@@ -11,15 +11,13 @@
  * @defgroup idfxx_hw_support Hardware Support Component
  * @brief Hardware interrupt allocation and management for ESP32.
  *
- * Provides type-safe interrupt allocation flags and CPU affinity types.
+ * Provides type-safe interrupt allocation flags.
  *
  * Depends on @ref idfxx_core for flags support.
  * @{
  */
 
 #include <idfxx/flags>
-
-#include <esp_intr_alloc.h>
 
 namespace idfxx {
 
@@ -33,18 +31,18 @@ namespace idfxx {
  * require assembly handlers and must pass NULL as the handler function.
  */
 enum class intr_flag : int {
-    none = 0,                 ///< No flags / default
-    level1 = 1u << 1,         ///< Accept Level 1 interrupt (lowest priority)
-    level2 = 1u << 2,         ///< Accept Level 2 interrupt
-    level3 = 1u << 3,         ///< Accept Level 3 interrupt
-    level4 = 1u << 4,         ///< Accept Level 4 interrupt
-    level5 = 1u << 5,         ///< Accept Level 5 interrupt
-    level6 = 1u << 6,         ///< Accept Level 6 interrupt
-    nmi = 1u << 7,            ///< Accept Level 7 / NMI (highest priority)
-    shared = 1u << 8,         ///< Interrupt can be shared between ISRs
-    edge = 1u << 9,           ///< Edge-triggered interrupt
-    iram = 1u << 10,          ///< ISR can be called if cache is disabled
-    intr_disabled = 1u << 11, ///< Return from ISR with interrupts disabled
+    none = 0,            ///< No flags / default
+    level1 = 1u << 1,    ///< Accept Level 1 interrupt (lowest priority)
+    level2 = 1u << 2,    ///< Accept Level 2 interrupt
+    level3 = 1u << 3,    ///< Accept Level 3 interrupt
+    level4 = 1u << 4,    ///< Accept Level 4 interrupt
+    level5 = 1u << 5,    ///< Accept Level 5 interrupt
+    level6 = 1u << 6,    ///< Accept Level 6 interrupt
+    nmi = 1u << 7,       ///< Accept Level 7 / NMI (highest priority)
+    shared = 1u << 8,    ///< Interrupt can be shared between ISRs
+    edge = 1u << 9,      ///< Edge-triggered interrupt
+    iram = 1u << 10,     ///< ISR can be called if cache is disabled
+    disabled = 1u << 11, ///< Return from ISR with interrupts disabled
 };
 
 } // namespace idfxx

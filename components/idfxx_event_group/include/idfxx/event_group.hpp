@@ -143,7 +143,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupSetBits(_handle, bits.value())));
+        return _from_bits(xEventGroupSetBits(_handle, bits.value()));
     }
 
     // =========================================================================
@@ -162,7 +162,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupClearBits(_handle, bits.value())));
+        return _from_bits(xEventGroupClearBits(_handle, bits.value()));
     }
 
     // =========================================================================
@@ -178,7 +178,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupGetBits(_handle)));
+        return _from_bits(xEventGroupGetBits(_handle));
     }
 
     // =========================================================================
@@ -506,9 +506,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return flags<E>::from_raw(
-            static_cast<std::underlying_type_t<E>>(xEventGroupClearBitsFromISR(_handle, bits.value()))
-        );
+        return _from_bits(xEventGroupClearBitsFromISR(_handle, bits.value()));
     }
 
     /**
@@ -520,7 +518,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(xEventGroupGetBitsFromISR(_handle)));
+        return _from_bits(xEventGroupGetBitsFromISR(_handle));
     }
 
     // =========================================================================
@@ -538,6 +536,10 @@ public:
     [[nodiscard]] EventGroupHandle_t idf_handle() const noexcept { return _handle; }
 
 private:
+    static flags<E> _from_bits(EventBits_t bits) noexcept {
+        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(bits));
+    }
+
     [[nodiscard]] result<flags<E>> _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
         if (_handle == nullptr) {
             return error(errc::invalid_state);
@@ -545,7 +547,7 @@ private:
         EventBits_t result_bits = xEventGroupWaitBits(
             _handle, bits.value(), clear_on_exit ? pdTRUE : pdFALSE, mode == wait_mode::all ? pdTRUE : pdFALSE, ticks
         );
-        auto result_flags = flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(result_bits));
+        auto result_flags = _from_bits(result_bits);
         bool satisfied = (mode == wait_mode::all) ? result_flags.contains(bits) : result_flags.contains_any(bits);
         if (!satisfied) {
             return error(errc::timeout);
@@ -558,7 +560,7 @@ private:
             return error(errc::invalid_state);
         }
         EventBits_t result_bits = xEventGroupSync(_handle, set_bits.value(), wait_bits.value(), ticks);
-        auto result_flags = flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(result_bits));
+        auto result_flags = _from_bits(result_bits);
         if (!result_flags.contains(wait_bits)) {
             return error(errc::timeout);
         }

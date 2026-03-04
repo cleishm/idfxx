@@ -23,16 +23,16 @@ void set_default_level(level lvl) {
     esp_log_level_set("*", static_cast<esp_log_level_t>(lvl));
 }
 
-void buffer_hex(level lvl, const char* tag, const void* buffer, size_t length) {
-    esp_log_buffer_hex_internal(tag, buffer, static_cast<uint16_t>(length), static_cast<esp_log_level_t>(lvl));
+void buffer_hex(level lvl, const char* tag, const void* buffer, uint16_t length) {
+    esp_log_buffer_hex_internal(tag, buffer, length, static_cast<esp_log_level_t>(lvl));
 }
 
-void buffer_char(level lvl, const char* tag, const void* buffer, size_t length) {
-    esp_log_buffer_char_internal(tag, buffer, static_cast<uint16_t>(length), static_cast<esp_log_level_t>(lvl));
+void buffer_char(level lvl, const char* tag, const void* buffer, uint16_t length) {
+    esp_log_buffer_char_internal(tag, buffer, length, static_cast<esp_log_level_t>(lvl));
 }
 
-void buffer_hex_dump(level lvl, const char* tag, const void* buffer, size_t length) {
-    esp_log_buffer_hexdump_internal(tag, buffer, static_cast<uint16_t>(length), static_cast<esp_log_level_t>(lvl));
+void buffer_hex_dump(level lvl, const char* tag, const void* buffer, uint16_t length) {
+    esp_log_buffer_hexdump_internal(tag, buffer, length, static_cast<esp_log_level_t>(lvl));
 }
 
 void logger::set_level(level lvl) const {

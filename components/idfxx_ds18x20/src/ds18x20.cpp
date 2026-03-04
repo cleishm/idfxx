@@ -10,7 +10,11 @@
 
 namespace {
 const char* TAG = "idfxx::ds18x20";
+
+thermo::millicelsius to_millicelsius(float temp) {
+    return thermo::millicelsius(static_cast<int64_t>(std::lround(temp * 1000.0f)));
 }
+} // namespace
 
 // Verify family enum values match C library constants
 static_assert(std::to_underlying(idfxx::ds18x20::family::ds18s20) == DS18X20_FAMILY_DS18S20);
@@ -24,12 +28,7 @@ namespace idfxx::ds18x20 {
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 device::device(idfxx::gpio pin, onewire::address addr)
-    : _pin(pin)
-    , _addr(addr) {
-    if (!_pin.is_connected()) {
-        throw std::system_error(make_error_code(errc::invalid_state), "GPIO pin is not connected");
-    }
-}
+    : device(unwrap(make(pin, addr))) {}
 #endif
 
 result<device> device::make(idfxx::gpio pin, onewire::address addr) {
@@ -47,14 +46,14 @@ result<void> device::try_measure(bool wait) {
 result<thermo::millicelsius> device::try_read_temperature() const {
     float temp;
     return wrap(ds18x20_read_temperature(_pin.idf_num(), _addr.raw(), &temp)).transform([&]() {
-        return thermo::millicelsius(static_cast<int64_t>(std::lround(temp * 1000.0f)));
+        return to_millicelsius(temp);
     });
 }
 
 result<thermo::millicelsius> device::try_measure_and_read() {
     float temp;
     return wrap(ds18x20_measure_and_read(_pin.idf_num(), _addr.raw(), &temp)).transform([&]() {
-        return thermo::millicelsius(static_cast<int64_t>(std::lround(temp * 1000.0f)));
+        return to_millicelsius(temp);
     });
 }
 
@@ -105,6 +104,9 @@ result<std::vector<device>> try_scan_devices(idfxx::gpio pin, size_t max_devices
     });
 }
 
+// Devices are grouped by GPIO pin so that a single batch measurement is issued per bus. Pointer-nulling tracks
+// processed devices in-place to avoid extra allocations, and `addrs` is reused across iterations via `.clear()`
+// to minimize heap activity.
 result<std::vector<thermo::millicelsius>> try_measure_and_read_multi(std::span<const device> devices) {
     if (devices.empty()) {
         return std::vector<thermo::millicelsius>{};
@@ -151,7 +153,7 @@ result<std::vector<thermo::millicelsius>> try_measure_and_read_multi(std::span<c
             }
 
             if (device_ptrs[j]->pin() == pin) {
-                temps[j] = thermo::millicelsius(static_cast<int64_t>(std::lround(*raw_temp * 1000.0f)));
+                temps[j] = to_millicelsius(*raw_temp);
                 ++raw_temp;
                 device_ptrs[j] = nullptr; // Mark as processed
             }

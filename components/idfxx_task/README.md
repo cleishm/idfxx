@@ -384,12 +384,10 @@ std::string name = idfxx::task::current_name();
 ### Constructors
 
 - `task(config, callback)` - Create task with std::move_only_function callback
-- `task(config, fn, arg)` - Create task with raw function pointer callback
 
 ### Spawn
 
-- `task::spawn(config, callback)` - Create fire-and-forget task (std::move_only_function)
-- `task::spawn(config, fn, arg)` - Create fire-and-forget task (raw function pointer)
+- `task::spawn(config, callback)` - Create fire-and-forget task
 
 ### Task Control
 

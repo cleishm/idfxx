@@ -678,3 +678,165 @@ TEST_CASE("timer destruction waits for periodic callback to complete", "[idfxx][
     // If destruction waited properly, the callback must have completed
     TEST_ASSERT_TRUE(callback_completed.load());
 }
+
+// =============================================================================
+// Moved-from state tests
+// =============================================================================
+
+TEST_CASE("moved-from timer returns invalid_state", "[idfxx][timer]") {
+    auto result = timer::make({.name = "move_test"}, []() {});
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto moved = std::move(*result);
+
+    // moved-from object should return invalid_state
+    auto start_result = result->try_start_once(100ms);
+    TEST_ASSERT_FALSE(start_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), start_result.error().value());
+
+    auto stop_result = result->try_stop();
+    TEST_ASSERT_FALSE(stop_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), stop_result.error().value());
+
+    auto restart_result = result->try_restart(100ms);
+    TEST_ASSERT_FALSE(restart_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), restart_result.error().value());
+
+    // Simple accessors return defaults
+    TEST_ASSERT_NULL(result->idf_handle());
+    TEST_ASSERT_FALSE(result->is_active());
+    TEST_ASSERT_EQUAL(0, result->period().count());
+
+    // Moved-to object should work normally
+    TEST_ASSERT_NOT_NULL(moved.idf_handle());
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("timer constructor with functional callback succeeds", "[idfxx][timer]") {
+    timer t({.name = "ctor_test"}, []() {});
+    TEST_ASSERT_NOT_NULL(t.idf_handle());
+}
+
+TEST_CASE("timer start_once throws on already-running timer", "[idfxx][timer]") {
+    timer t({.name = "throw_test"}, []() {});
+
+    t.start_once(1s);
+    TEST_ASSERT_TRUE(t.is_active());
+
+    bool threw = false;
+    try {
+        t.start_once(1s);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    t.stop();
+}
+
+TEST_CASE("timer stop throws when not running", "[idfxx][timer]") {
+    timer t({.name = "stop_throw"}, []() {});
+
+    bool threw = false;
+    try {
+        t.stop();
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("timer start_periodic and stop succeed via exception API", "[idfxx][timer]") {
+    timer t({.name = "exc_periodic"}, []() {});
+
+    t.start_periodic(100ms);
+    TEST_ASSERT_TRUE(t.is_active());
+    t.stop();
+    TEST_ASSERT_FALSE(t.is_active());
+}
+
+TEST_CASE("timer restart succeeds via exception API", "[idfxx][timer]") {
+    timer t({.name = "exc_restart"}, []() {});
+
+    t.start_once(1s);
+    t.restart(500ms);
+    TEST_ASSERT_TRUE(t.is_active());
+    t.stop();
+}
+
+TEST_CASE("timer::start_once static factory with exception API", "[idfxx][timer]") {
+    std::atomic<bool> called{false};
+    auto t = timer::start_once({.name = "exc_static"}, 10ms, [&called]() { called.store(true); });
+
+    TEST_ASSERT_TRUE(t.is_active());
+    idfxx::delay(50ms);
+    TEST_ASSERT_TRUE(called.load());
+}
+
+TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][timer]") {
+    std::atomic<int> count{0};
+    auto t = timer::start_periodic({.name = "exc_periodic_static"}, 20ms, [&count]() { count.fetch_add(1); });
+
+    TEST_ASSERT_TRUE(t.is_active());
+    idfxx::delay(100ms);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+    t.stop();
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// Multiple concurrent timer tests
+// =============================================================================
+
+TEST_CASE("multiple timers running concurrently", "[idfxx][timer]") {
+    std::atomic<int> count_a{0};
+    std::atomic<int> count_b{0};
+    std::atomic<int> count_c{0};
+
+    auto ra = timer::make({.name = "concurrent_a"}, [&count_a]() { count_a.fetch_add(1); });
+    auto rb = timer::make({.name = "concurrent_b"}, [&count_b]() { count_b.fetch_add(1); });
+    auto rc = timer::make({.name = "concurrent_c"}, [&count_c]() { count_c.fetch_add(1); });
+    TEST_ASSERT_TRUE(ra.has_value());
+    TEST_ASSERT_TRUE(rb.has_value());
+    TEST_ASSERT_TRUE(rc.has_value());
+
+    // Start all three with different periods
+    TEST_ASSERT_TRUE(ra->try_start_periodic(20ms).has_value());
+    TEST_ASSERT_TRUE(rb->try_start_periodic(30ms).has_value());
+    TEST_ASSERT_TRUE(rc->try_start_periodic(40ms).has_value());
+
+    // All should be active
+    TEST_ASSERT_TRUE(ra->is_active());
+    TEST_ASSERT_TRUE(rb->is_active());
+    TEST_ASSERT_TRUE(rc->is_active());
+
+    // Wait for callbacks
+    idfxx::delay(200ms);
+
+    // All should have fired multiple times
+    TEST_ASSERT_GREATER_OR_EQUAL(5, count_a.load());  // 200/20 = 10
+    TEST_ASSERT_GREATER_OR_EQUAL(4, count_b.load());  // 200/30 ~ 6
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count_c.load());  // 200/40 = 5
+
+    (void)ra->try_stop();
+    (void)rb->try_stop();
+    (void)rc->try_stop();
+}
+
+TEST_CASE("timer move assignment cleans up target", "[idfxx][timer]") {
+    auto r1 = timer::make({.name = "target"}, []() {});
+    TEST_ASSERT_TRUE(r1.has_value());
+
+    auto r2 = timer::make({.name = "source"}, []() {});
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    // Move assignment should clean up target and transfer source
+    *r1 = std::move(*r2);
+
+    TEST_ASSERT_NOT_NULL(r1->idf_handle());
+    TEST_ASSERT_NULL(r2->idf_handle());
+}

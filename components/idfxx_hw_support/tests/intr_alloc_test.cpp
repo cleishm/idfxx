@@ -37,7 +37,7 @@ static_assert(std::to_underlying(intr_flag::nmi) == ESP_INTR_FLAG_NMI);
 static_assert(std::to_underlying(intr_flag::shared) == ESP_INTR_FLAG_SHARED);
 static_assert(std::to_underlying(intr_flag::edge) == ESP_INTR_FLAG_EDGE);
 static_assert(std::to_underlying(intr_flag::iram) == ESP_INTR_FLAG_IRAM);
-static_assert(std::to_underlying(intr_flag::intr_disabled) == ESP_INTR_FLAG_INTRDISABLED);
+static_assert(std::to_underlying(intr_flag::disabled) == ESP_INTR_FLAG_INTRDISABLED);
 
 // Predefined masks have correct values
 static_assert(intr_flag_lowmed.value() ==

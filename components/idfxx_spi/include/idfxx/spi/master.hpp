@@ -17,13 +17,14 @@
  * @{
  */
 
+#include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/flags>
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
-#include <idfxx/intr_types>
 
 #include <driver/spi_master.h>
+#include <optional>
 #include <string>
 
 /**
@@ -138,11 +139,10 @@ struct bus_config {
 
     idfxx::flags<bus_flags> flags = {}; ///< Abilities of bus to be checked by the driver.
 
-    idfxx::intr_cpu_affinity_t isr_cpu_id =
-        idfxx::intr_cpu_affinity_t::automatic; ///< Select cpu core to register SPI ISR.
+    std::optional<idfxx::core_id> isr_cpu_id = std::nullopt; ///< Select cpu core to register SPI ISR.
 
     idfxx::flags<idfxx::intr_flag> intr_flags = {}; ///< Interrupt flags to set priority and IRAM attribute.
-                                                    ///< The `intr_flag::edge` and `intr_flag::intr_disabled` flags are
+                                                    ///< The `intr_flag::edge` and `intr_flag::disabled` flags are
                                                     ///< ignored by the driver. If `intr_flag::iram` is set, all
                                                     ///< callbacks must be placed in IRAM.
 };

@@ -69,29 +69,6 @@ TEST_CASE("task constructor with functional callback succeeds", "[idfxx][task]")
     idfxx::delay(50ms);
 }
 
-TEST_CASE("task constructor with raw callback succeeds", "[idfxx][task]") {
-    static std::atomic<bool> called{false};
-    called.store(false);
-
-    auto t = std::make_unique<task>(
-        task::config{.name = "test_task_raw"},
-        [](task::self&, void* arg) {
-            auto* flag = static_cast<std::atomic<bool>*>(arg);
-            flag->store(true);
-            // Keep running briefly
-            vTaskDelay(pdMS_TO_TICKS(100));
-        },
-        &called
-    );
-
-    TEST_ASSERT_NOT_NULL(t.get());
-    TEST_ASSERT_NOT_NULL(t->idf_handle());
-
-    // Wait for callback to execute
-    idfxx::delay(50ms);
-    TEST_ASSERT_TRUE(called.load());
-}
-
 TEST_CASE("task::config default values", "[idfxx][task]") {
     task::config cfg{};
     TEST_ASSERT_EQUAL_STRING("task", std::string{cfg.name}.c_str());
@@ -208,24 +185,6 @@ TEST_CASE("task::spawn creates fire-and-forget task", "[idfxx][task]") {
         executed.store(true);
         // Task cleans up automatically after returning
     });
-
-    // Wait for task to execute and complete
-    idfxx::delay(100ms);
-    TEST_ASSERT_TRUE(executed.load());
-}
-
-TEST_CASE("task::spawn with raw callback", "[idfxx][task]") {
-    static std::atomic<bool> executed{false};
-    executed.store(false);
-
-    task::spawn(
-        {.name = "spawn_raw_test"},
-        [](task::self&, void* arg) {
-            auto* flag = static_cast<std::atomic<bool>*>(arg);
-            flag->store(true);
-        },
-        &executed
-    );
 
     // Wait for task to execute and complete
     idfxx::delay(100ms);
@@ -538,10 +497,10 @@ TEST_CASE("self::stop_requested reflects external request", "[idfxx][task][stop]
 
     auto t = std::make_unique<task>(task::config{.name = "stop_self"}, [&](task::self& self) {
         self_stop_before.store(self.stop_requested());
-        // Wait for external request_stop
-        idfxx::delay(100ms);
+        // Wait for external request_stop (generous delay for QEMU timing imprecision)
+        idfxx::delay(200ms);
         self_stop_after.store(self.stop_requested());
-        idfxx::delay(100ms);
+        idfxx::delay(200ms);
     });
 
     idfxx::delay(50ms);
@@ -549,7 +508,7 @@ TEST_CASE("self::stop_requested reflects external request", "[idfxx][task][stop]
 
     t->request_stop();
 
-    idfxx::delay(100ms);
+    idfxx::delay(250ms);
     TEST_ASSERT_TRUE(self_stop_after.load());
 }
 
@@ -684,55 +643,6 @@ TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
     TEST_ASSERT_TRUE(executed.load());
 }
 #endif
-
-TEST_CASE("task is_completed returns true for raw function pointer tasks", "[idfxx][task]") {
-    auto t = std::make_unique<task>(
-        task::config{.name = "raw_complete"},
-        [](task::self&, void*) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-            // Return after brief delay
-        },
-        nullptr
-    );
-
-    // Initially should not be completed
-    TEST_ASSERT_FALSE(t->is_completed());
-
-    // Wait for task to complete
-    idfxx::delay(100ms);
-
-    // is_completed should return true after task function returns
-    TEST_ASSERT_TRUE(t->is_completed());
-}
-
-TEST_CASE("task detach works for raw function pointer tasks", "[idfxx][task]") {
-    static std::atomic<bool> completed{false};
-    completed.store(false);
-
-    auto t = std::make_unique<task>(
-        task::config{.name = "raw_detach"},
-        [](task::self&, void* arg) {
-            auto* flag = static_cast<std::atomic<bool>*>(arg);
-            idfxx::delay(50ms);
-            flag->store(true);
-        },
-        &completed
-    );
-
-    TEST_ASSERT_TRUE(t->joinable());
-
-    // Detach
-    auto detach_result = t->try_detach();
-    TEST_ASSERT_TRUE(detach_result.has_value());
-
-    // Should no longer be joinable
-    TEST_ASSERT_FALSE(t->joinable());
-    TEST_ASSERT_NULL(t->idf_handle());
-
-    // Wait for task to complete (it cleans up automatically)
-    idfxx::delay(100ms);
-    TEST_ASSERT_TRUE(completed.load());
-}
 
 // =============================================================================
 // task::self tests
@@ -1108,4 +1018,191 @@ TEST_CASE("wait returns immediately when stop requested", "[idfxx][task][notify]
     // Wait for task to complete
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(wait_returned.load());
+}
+
+// =============================================================================
+// kill tests
+// =============================================================================
+
+TEST_CASE("try_kill terminates a running task", "[idfxx][task]") {
+    std::atomic<bool> running{false};
+    auto t = std::make_unique<task>(task::config{.name = "kill_test"}, [&running](task::self&) {
+        running.store(true);
+        idfxx::delay(5000ms);
+    });
+
+    // Wait for task to start
+    idfxx::delay(50ms);
+    TEST_ASSERT_TRUE(running.load());
+
+    auto result = t->try_kill();
+    TEST_ASSERT_TRUE(result.has_value());
+
+    // Task should no longer be joinable after kill
+    TEST_ASSERT_FALSE(t->joinable());
+}
+
+TEST_CASE("try_kill on detached task returns invalid_state", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "kill_detached"}, [](task::self&) {
+        idfxx::delay(5000ms);
+    });
+
+    idfxx::delay(20ms);
+    TEST_ASSERT_TRUE(t->try_detach().has_value());
+
+    auto result = t->try_kill();
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), result.error().value());
+}
+
+TEST_CASE("try_kill on already-completed task succeeds", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "kill_done"}, [](task::self&) {
+        // Returns immediately
+    });
+
+    // Wait for task to finish
+    idfxx::delay(50ms);
+
+    auto result = t->try_kill();
+    TEST_ASSERT_TRUE(result.has_value());
+}
+
+// =============================================================================
+// join_until deadline tests
+// =============================================================================
+
+TEST_CASE("try_join_until with future deadline succeeds", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "join_until"}, [](task::self&) {
+        idfxx::delay(10ms);
+    });
+
+    auto deadline = idfxx::chrono::tick_clock::now() + 1s;
+    auto result = t->try_join_until(deadline);
+    TEST_ASSERT_TRUE(result.has_value());
+}
+
+TEST_CASE("try_join_until with past deadline returns timeout", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "join_past"}, [](task::self&) {
+        idfxx::delay(5000ms);
+    });
+
+    idfxx::delay(20ms);
+
+    auto deadline = idfxx::chrono::tick_clock::now(); // already past
+    auto result = t->try_join_until(deadline);
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), result.error().value());
+
+    // Clean up
+    TEST_ASSERT_TRUE(t->try_detach().has_value());
+}
+
+// =============================================================================
+// Exception-based API tests
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("task join succeeds via exception API", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "exc_join"}, [](task::self&) {
+        idfxx::delay(10ms);
+    });
+
+    idfxx::delay(50ms);
+    t->join(1s);
+    // If we get here, join succeeded
+}
+
+TEST_CASE("task join throws on timeout", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "exc_join_to"}, [](task::self& self) {
+        while (!self.stop_requested()) {
+            idfxx::delay(10ms);
+        }
+    });
+
+    bool threw = false;
+    try {
+        t->join(10ms);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    t->request_stop();
+    t->join(1s);
+}
+
+TEST_CASE("task kill succeeds via exception API", "[idfxx][task]") {
+    auto t = std::make_unique<task>(task::config{.name = "exc_kill"}, [](task::self& self) {
+        while (!self.stop_requested()) {
+            idfxx::delay(10ms);
+        }
+    });
+
+    idfxx::delay(20ms);
+    t->kill();
+    // If we get here, kill succeeded. Task is now non-joinable.
+}
+
+TEST_CASE("task suspend and resume via exception API", "[idfxx][task]") {
+    std::atomic<int> counter{0};
+    auto t = std::make_unique<task>(task::config{.name = "exc_suspend"}, [&counter](task::self& self) {
+        while (!self.stop_requested()) {
+            counter.fetch_add(1);
+            idfxx::delay(10ms);
+        }
+    });
+
+    idfxx::delay(30ms);
+    t->suspend();
+    auto count_at_suspend = counter.load();
+    idfxx::delay(50ms);
+    // Counter should not have increased while suspended
+    TEST_ASSERT_EQUAL(count_at_suspend, counter.load());
+
+    t->resume();
+    idfxx::delay(30ms);
+    TEST_ASSERT_GREATER_THAN(count_at_suspend, counter.load());
+
+    t->request_stop();
+    t->join(1s);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// Moved-from state tests
+// =============================================================================
+
+TEST_CASE("moved-from task returns invalid_state", "[idfxx][task]") {
+    std::atomic<bool> done{false};
+    auto t = std::make_unique<task>(task::config{.name = "move_src"}, [&done](task::self& self) {
+        while (!self.stop_requested()) {
+            idfxx::delay(10ms);
+        }
+        done.store(true);
+    });
+
+    idfxx::delay(20ms); // let task start
+
+    // Move the task
+    auto moved = std::move(*t);
+
+    // moved-from object should return invalid_state
+    TEST_ASSERT_NULL(t->idf_handle());
+
+    auto join_result = t->try_join(0ms);
+    TEST_ASSERT_FALSE(join_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), join_result.error().value());
+
+    auto suspend_result = t->try_suspend();
+    TEST_ASSERT_FALSE(suspend_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), suspend_result.error().value());
+
+    // Moved-to object should work normally
+    TEST_ASSERT_NOT_NULL(moved.idf_handle());
+    moved.request_stop();
+    TEST_ASSERT_TRUE(moved.try_join(1s).has_value());
+    TEST_ASSERT_TRUE(done.load());
 }

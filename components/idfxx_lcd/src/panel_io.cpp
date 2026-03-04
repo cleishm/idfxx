@@ -23,16 +23,24 @@ bool panel_io::on_color_transfer_done(
     return false;
 }
 
-result<esp_lcd_panel_io_handle_t>
-panel_io::make_handle(idfxx::spi::host_device host, const panel_io::spi_config& config) {
+panel_io::panel_io(esp_lcd_panel_io_handle_t handle, std::unique_ptr<callback_state> callbacks)
+    : _handle(handle)
+    , _callbacks(std::move(callbacks)) {}
+
+result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
+    std::unique_ptr<callback_state> cbs;
+    if (config.on_color_transfer_done) {
+        cbs = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
+    }
+
     esp_lcd_panel_io_spi_config_t lcd_config{
         .cs_gpio_num = config.cs_gpio.idf_num(),
         .dc_gpio_num = config.dc_gpio.idf_num(),
         .spi_mode = config.spi_mode,
         .pclk_hz = static_cast<uint32_t>(config.pclk_freq.count()),
         .trans_queue_depth = config.trans_queue_depth,
-        .on_color_trans_done = _callbacks ? panel_io::on_color_transfer_done : nullptr,
-        .user_ctx = _callbacks ? static_cast<void*>(_callbacks.get()) : nullptr,
+        .on_color_trans_done = cbs ? on_color_transfer_done : nullptr,
+        .user_ctx = cbs ? static_cast<void*>(cbs.get()) : nullptr,
         .lcd_cmd_bits = config.lcd_cmd_bits,
         .lcd_param_bits = config.lcd_param_bits,
         .cs_ena_pretrans = config.cs_enable_pretrans,
@@ -50,35 +58,17 @@ panel_io::make_handle(idfxx::spi::host_device host, const panel_io::spi_config& 
     };
 
     esp_lcd_panel_io_handle_t handle = nullptr;
-    auto err = esp_lcd_new_panel_io_spi(static_cast<spi_host_device_t>(host), &lcd_config, &handle);
+    auto err = esp_lcd_new_panel_io_spi(static_cast<spi_host_device_t>(spi_bus.host()), &lcd_config, &handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
         return error(err);
     }
-    return handle;
-}
-
-result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
-    panel_io self;
-    if (config.on_color_transfer_done) {
-        self._callbacks = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
-    }
-
-    auto handle_result = self.make_handle(spi_bus.host(), config);
-    if (!handle_result.has_value()) {
-        return error(handle_result.error());
-    }
-    self._handle = *handle_result;
-    return self;
+    return panel_io{handle, std::move(cbs)};
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config config) {
-    if (config.on_color_transfer_done) {
-        _callbacks = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
-    }
-    _handle = unwrap(make_handle(spi_bus.host(), config));
-}
+panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config config)
+    : panel_io(unwrap(make(spi_bus, std::move(config)))) {}
 #endif
 
 panel_io::panel_io(panel_io&& other) noexcept

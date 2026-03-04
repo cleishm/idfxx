@@ -349,22 +349,6 @@ public:
     // Overwrite operations
     // =========================================================================
 
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    /**
-     * @brief Overwrites the last item in the queue, or sends if the queue is not full.
-     *
-     * If the queue is full, the most recently written item is overwritten.
-     * If the queue is not full, the item is added to the back. This is most
-     * useful with a queue of length 1 to implement a "latest value" mailbox.
-     *
-     * This operation never blocks and always succeeds.
-     *
-     * @param item The item to write.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     */
-    void overwrite(const T& item) noexcept { try_overwrite(item); }
-#endif
-
     /**
      * @brief Overwrites the last item in the queue, or sends if the queue is not full.
      *
@@ -376,7 +360,7 @@ public:
      *
      * @param item The item to write.
      */
-    void try_overwrite(const T& item) noexcept {
+    void overwrite(const T& item) noexcept {
         if (_handle == nullptr) {
             return;
         }

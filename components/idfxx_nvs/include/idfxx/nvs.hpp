@@ -61,7 +61,8 @@ public:
      */
     enum class errc : esp_err_t {
         // clang-format off
-        not_found            = 0x1102,  /*!< A requested entry couldn't be found or namespace doesn’t exist yet and mode is NVS_READONLY */
+        not_initialized      = 0x1101,  /*!< NVS storage was not initialized. Call nvs::flash::init() first. */
+        not_found            = 0x1102,  /*!< A requested entry couldn’t be found or namespace doesn’t exist yet and mode is NVS_READONLY */
         type_mismatch        = 0x1103,  /*!< The type of set or get operation doesn't match the type of value stored in NVS */
         read_only            = 0x1104,  /*!< Storage handle was opened as read only */
         not_enough_space     = 0x1105,  /*!< There is not enough space in the underlying storage to save the value */

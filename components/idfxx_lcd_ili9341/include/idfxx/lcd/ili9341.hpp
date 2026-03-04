@@ -74,6 +74,8 @@ public:
 
 private:
     ili9341() = default;
+    explicit ili9341(esp_lcd_panel_handle_t handle)
+        : _handle(handle) {}
 
     esp_lcd_panel_handle_t _handle = nullptr;
 };
