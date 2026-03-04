@@ -95,7 +95,7 @@ TEST_CASE("task priority can be retrieved", "[idfxx][task]") {
 TEST_CASE("task stack_high_water_mark returns sensible value", "[idfxx][task]") {
     constexpr size_t stack_size = 4096;
     auto t = std::make_unique<task>(
-        task::config{.name = "hwm_test", .stack_size = stack_size}, [](task::self& self) { idfxx::delay(100ms); }
+        task::config{.name = "hwm_test", .stack_size = stack_size}, [](task::self& self) { idfxx::delay(10s); }
     );
 
     idfxx::delay(50ms);
