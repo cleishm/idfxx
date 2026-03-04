@@ -209,3 +209,82 @@ TEST_CASE("error code evaluates to true when set", "[idfxx][error]") {
     TEST_ASSERT_TRUE(static_cast<bool>(ec_error));
     TEST_ASSERT_FALSE(static_cast<bool>(ec_success));
 }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("unwrap returns value on success", "[idfxx][error]") {
+    result<int> r = 42;
+    TEST_ASSERT_EQUAL(42, unwrap(std::move(r)));
+}
+
+TEST_CASE("unwrap void succeeds on success", "[idfxx][error]") {
+    result<void> r = {};
+    unwrap(std::move(r));
+    // If we get here, it worked
+}
+
+TEST_CASE("unwrap throws system_error on error", "[idfxx][error]") {
+    result<int> r = error(errc::timeout);
+    bool threw = false;
+    try {
+        (void)unwrap(std::move(r));
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("unwrap void throws system_error on error", "[idfxx][error]") {
+    result<void> r = error(errc::invalid_arg);
+    bool threw = false;
+    try {
+        unwrap(std::move(r));
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// has_factory concept tests
+// =============================================================================
+
+namespace idfxx {
+
+struct test_widget {
+    int value;
+
+    explicit test_widget(int v) : value(v) {}
+
+    test_widget(test_widget&&) = default;
+    test_widget& operator=(test_widget&&) = default;
+    test_widget(const test_widget&) = delete;
+    test_widget& operator=(const test_widget&) = delete;
+
+    static result<test_widget> make(int v) {
+        if (v < 0) {
+            return error(errc::invalid_arg);
+        }
+        return test_widget{v};
+    }
+};
+
+} // namespace idfxx
+
+static_assert(has_factory<test_widget, int>);
+
+TEST_CASE("has_factory concept satisfied by test_widget", "[idfxx][error]") {
+    auto r = test_widget::make(42);
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_EQUAL(42, r->value);
+}
+
+TEST_CASE("has_factory make returns error on failure", "[idfxx][error]") {
+    auto r = test_widget::make(-1);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
+}

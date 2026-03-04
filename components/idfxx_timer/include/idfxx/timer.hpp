@@ -98,17 +98,6 @@ public:
      * @throws std::system_error on failure.
      */
     [[nodiscard]] explicit timer(const config& cfg, std::move_only_function<void()> callback);
-
-    /**
-     * @brief Creates a timer with a raw function pointer callback.
-     *
-     * @param cfg Timer configuration.
-     * @param callback Function to call when timer fires.
-     * @param arg Argument passed to the callback.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error on failure.
-     */
-    [[nodiscard]] explicit timer(const config& cfg, void (*callback)(void*), void* arg);
 #endif
 
     /**
@@ -179,12 +168,7 @@ public:
      * Combines timer creation and one-shot start into a single operation. If creation
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
-     * @code
-     * using namespace std::chrono_literals;
-     * auto t = idfxx::timer::start_once(
-     *     {.name = "my_timer"}, 100ms,
-     *     [](void* arg) { *static_cast<bool*>(arg) = true; }, &flag);
-     * @endcode
+     * @note This overload is suitable for ISR dispatch.
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
@@ -236,11 +220,7 @@ public:
      * fires at the specified time point. If the time point is in the past, the timer
      * fires as soon as possible.
      *
-     * @code
-     * auto t = idfxx::timer::start_once(
-     *     {.name = "alarm"}, idfxx::timer::clock::now() + 500ms,
-     *     [](void* arg) { *static_cast<bool*>(arg) = true; }, &flag);
-     * @endcode
+     * @note This overload is suitable for ISR dispatch.
      *
      * @param cfg Timer configuration.
      * @param time Absolute time at which the callback should be invoked.
@@ -293,12 +273,7 @@ public:
      * Combines timer creation and periodic start into a single operation. If creation
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
-     * @code
-     * using namespace std::chrono_literals;
-     * auto t = idfxx::timer::start_periodic(
-     *     {.name = "heartbeat"}, 100ms,
-     *     [](void* arg) { (*static_cast<int*>(arg))++; }, &count);
-     * @endcode
+     * @note This overload is suitable for ISR dispatch.
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
@@ -315,6 +290,7 @@ public:
     start_periodic(config cfg, const std::chrono::duration<Rep, Period>& interval, void (*callback)(void*), void* arg) {
         return unwrap(try_start_periodic(std::move(cfg), interval, callback, arg));
     }
+
 #endif
 
     /**
@@ -368,7 +344,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-
+     *
      * @retval invalid_arg Invalid configuration or timeout value.
      * @retval invalid_state Timer could not be started.
      */
@@ -431,7 +407,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-
+     *
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
@@ -499,7 +475,7 @@ public:
      * @param callback Function to call when timer fires.
      * @param arg Argument passed to the callback.
      * @return The new running timer, or an error.
-
+     *
      * @retval invalid_arg Invalid configuration or interval value.
      * @retval invalid_state Timer could not be started.
      */
@@ -854,8 +830,9 @@ private:
     struct context;
     /// @endcond
 
-    explicit timer(esp_timer_handle_t handle, std::string name, context* ctx);
-    explicit timer(esp_timer_handle_t handle, std::string name);
+    explicit timer(esp_timer_handle_t handle, std::string name, context* ctx = nullptr);
+
+    void _stop_and_delete() noexcept;
 
     template<typename Rep, typename Period>
     static constexpr int64_t to_us(const std::chrono::duration<Rep, Period>& d) {

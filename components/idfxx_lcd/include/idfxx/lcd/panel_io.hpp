@@ -124,13 +124,14 @@ public:
 private:
     panel_io() = default;
 
-    result<esp_lcd_panel_io_handle_t> make_handle(idfxx::spi::host_device host, const panel_io::spi_config& config);
-    static bool
-    on_color_transfer_done(esp_lcd_panel_io_handle_t handle, esp_lcd_panel_io_event_data_t* edata, void* user_ctx);
-
     struct callback_state {
         color_transfer_done_callback on_color_transfer_done;
     };
+
+    panel_io(esp_lcd_panel_io_handle_t handle, std::unique_ptr<callback_state> callbacks);
+
+    static bool
+    on_color_transfer_done(esp_lcd_panel_io_handle_t handle, esp_lcd_panel_io_event_data_t* edata, void* user_ctx);
 
     esp_lcd_panel_io_handle_t _handle = nullptr;
     std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks

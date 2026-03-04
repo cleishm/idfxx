@@ -4,6 +4,7 @@
 // Unit tests for idfxx scheduling utilities
 // Uses ESP-IDF Unity test framework
 
+#include "idfxx/chrono"
 #include "idfxx/sched"
 #include "unity.h"
 
@@ -108,6 +109,38 @@ TEST_CASE("delay() works with duration arithmetic", "[idfxx][sched]") {
 
     TickType_t expected = pdMS_TO_TICKS(20);
     TEST_ASSERT_GREATER_OR_EQUAL(expected, elapsed);
+}
+
+// =============================================================================
+// delay_until tests
+// =============================================================================
+
+TEST_CASE("delay_until() with past time point returns immediately", "[idfxx][sched]") {
+    // A time point in the past should not delay at all
+    auto past = idfxx::chrono::tick_clock::now() - std::chrono::milliseconds(100);
+    auto start = xTaskGetTickCount();
+    idfxx::delay_until(past);
+    auto elapsed = xTaskGetTickCount() - start;
+    TEST_ASSERT_EQUAL(0, elapsed);
+}
+
+TEST_CASE("delay_until() with future time point delays", "[idfxx][sched]") {
+    auto target = idfxx::chrono::tick_clock::now() + std::chrono::milliseconds(50);
+    auto start = xTaskGetTickCount();
+    idfxx::delay_until(target);
+    auto elapsed = xTaskGetTickCount() - start;
+
+    TickType_t expected = pdMS_TO_TICKS(50);
+    TEST_ASSERT_GREATER_OR_EQUAL(expected, elapsed);
+    TEST_ASSERT_LESS_OR_EQUAL(expected + 5, elapsed);
+}
+
+TEST_CASE("delay_until() with current time returns immediately", "[idfxx][sched]") {
+    auto now = idfxx::chrono::tick_clock::now();
+    auto start = xTaskGetTickCount();
+    idfxx::delay_until(now);
+    auto elapsed = xTaskGetTickCount() - start;
+    TEST_ASSERT_LESS_OR_EQUAL(1, elapsed);
 }
 
 // =============================================================================

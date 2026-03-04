@@ -87,70 +87,18 @@ result<timer> timer::make(config cfg, void (*callback)(void*), void* arg) {
         return error(err);
     }
 
-    return timer(handle, std::move(name));
+    return timer(handle, std::move(name), nullptr);
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 timer::timer(const config& cfg, std::move_only_function<void()> callback)
-    : _handle(nullptr)
-    , _name(cfg.name) {
-#ifdef CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD
-    if (cfg.dispatch == dispatch_method::isr) {
-        throw std::system_error(make_error_code(ESP_ERR_INVALID_ARG));
-    }
-#endif
-
-    auto* ctx = new context{};
-    ctx->callback = std::move(callback);
-    ctx->mutex = xSemaphoreCreateMutex();
-    if (!ctx->mutex) {
-        delete ctx;
-        raise_no_mem();
-    }
-    _context = ctx;
-
-    esp_timer_create_args_t args = {
-        .callback = &trampoline,
-        .arg = ctx,
-        .dispatch_method = static_cast<esp_timer_dispatch_t>(cfg.dispatch),
-        .name = _name.empty() ? nullptr : _name.c_str(),
-        .skip_unhandled_events = cfg.skip_unhandled_events,
-    };
-
-    auto err = esp_timer_create(&args, &_handle);
-    if (err != ESP_OK) {
-        delete _context;
-        _context = nullptr;
-        throw std::system_error(make_error_code(err));
-    }
-}
-
-timer::timer(const config& cfg, void (*callback)(void*), void* arg)
-    : _handle(nullptr)
-    , _name(cfg.name) {
-    esp_timer_create_args_t args = {
-        .callback = callback,
-        .arg = arg,
-        .dispatch_method = static_cast<esp_timer_dispatch_t>(cfg.dispatch),
-        .name = _name.empty() ? nullptr : _name.c_str(),
-        .skip_unhandled_events = cfg.skip_unhandled_events,
-    };
-
-    auto err = esp_timer_create(&args, &_handle);
-    if (err != ESP_OK) {
-        throw std::system_error(make_error_code(err));
-    }
-}
+    : timer(unwrap(make(config{cfg}, std::move(callback)))) {}
 #endif
 
 timer::timer(esp_timer_handle_t handle, std::string name, context* ctx)
     : _handle(handle)
     , _name(std::move(name))
     , _context(ctx) {}
-
-timer::timer(esp_timer_handle_t handle, std::string name)
-    : _handle(handle)
-    , _name(std::move(name)) {}
 
 timer::timer(timer&& other) noexcept
     : _handle(other._handle)
@@ -162,19 +110,8 @@ timer::timer(timer&& other) noexcept
 
 timer& timer::operator=(timer&& other) noexcept {
     if (this != &other) {
-        // Clean up current state
-        if (_handle) {
-            esp_timer_stop(_handle);
-            if (_context) {
-                xSemaphoreTake(_context->mutex, portMAX_DELAY);
-                _context->callback = nullptr;
-                xSemaphoreGive(_context->mutex);
-            }
-            esp_timer_delete(_handle);
-        }
-        delete _context;
+        _stop_and_delete();
 
-        // Transfer from other
         _handle = other._handle;
         _name = std::move(other._name);
         _context = other._context;
@@ -185,17 +122,17 @@ timer& timer::operator=(timer&& other) noexcept {
 }
 
 timer::~timer() {
-    if (_handle) {
-        // Stop the timer if it's running (ignore any errors)
-        esp_timer_stop(_handle);
+    _stop_and_delete();
+}
 
+void timer::_stop_and_delete() noexcept {
+    if (_handle) {
+        esp_timer_stop(_handle);
         if (_context) {
-            // Acquire the mutex to ensure any in-flight callback has completed
             xSemaphoreTake(_context->mutex, portMAX_DELAY);
             _context->callback = nullptr;
             xSemaphoreGive(_context->mutex);
         }
-
         esp_timer_delete(_handle);
     }
     delete _context;

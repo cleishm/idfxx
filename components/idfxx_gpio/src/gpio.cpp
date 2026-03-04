@@ -37,7 +37,7 @@ struct gpio_handlers {
 
     inline gpio_num_t num() const;
     result<void> activate();
-    void compact();
+    bool compact();
 };
 
 constexpr size_t GPIO_MAX = GPIO_NUM_MAX;
@@ -52,23 +52,24 @@ result<void> gpio_handlers::activate() {
         return {};
     }
 
+    // Pre-allocate before the ISR is registered so that the first
+    // handler additions don't allocate inside the critical section.
+    raw.reserve(2);
+    functional.reserve(2);
+
     auto _num = num();
     auto err = gpio_isr_handler_add(_num, &trampoline, reinterpret_cast<void*>(static_cast<uintptr_t>(_num)));
     return wrap(err).transform([this]() { activated.store(true, std::memory_order_relaxed); });
 }
 
-void gpio_handlers::compact() {
+bool gpio_handlers::compact() {
     std::erase_if(raw, [](const raw_entry& e) { return !e.active; });
     std::erase_if(functional, [](const functional_entry& e) { return !e.active; });
-
-    auto _num = num();
     if (raw.empty() && functional.empty()) {
-        auto err = gpio_isr_handler_remove(_num);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to remove ISR handler for GPIO %d: %s", static_cast<int>(_num), esp_err_to_name(err));
-        }
         activated.store(false, std::memory_order_relaxed);
+        return true;
     }
+    return false;
 }
 
 uint32_t next_id = 1;
@@ -119,12 +120,8 @@ result<gpio> gpio::make(int num) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-gpio::gpio(int num) {
-    if (num != GPIO_NUM_NC && (num < 0 || num >= GPIO_NUM_MAX || !GPIO_IS_VALID_GPIO(num))) {
-        throw std::system_error(errc::invalid_arg);
-    }
-    _num = static_cast<gpio_num_t>(num);
-}
+gpio::gpio(int num)
+    : gpio(unwrap(make(num))) {}
 #endif
 
 result<void> gpio::try_install_isr_service(flags<intr_flag> intr_flags) {
@@ -156,16 +153,17 @@ result<gpio::isr_handle> gpio::try_isr_handler_add(std::move_only_function<void(
     auto& gpio_handler = handlers[_num];
     return gpio_handler.activate().transform([&, handler = std::move(handler)]() mutable {
         portENTER_CRITICAL(&handlers_mux);
-        portENTER_CRITICAL(&active_mux);
+        gpio_handler.functional.reserve(gpio_handler.functional.size() + 1);
 
+        portENTER_CRITICAL(&active_mux);
         uint32_t id = next_id++;
         gpio_handler.functional.push_back(functional_entry{
             .id = id,
             .fn = std::move(handler),
             .active = true,
         });
-
         portEXIT_CRITICAL(&active_mux);
+
         portEXIT_CRITICAL(&handlers_mux);
         return isr_handle{_num, id};
     });
@@ -178,8 +176,9 @@ result<gpio::isr_handle> gpio::try_isr_handler_add(void (*fn)(void*), void* arg)
     auto& gpio_handler = handlers[_num];
     return gpio_handler.activate().transform([&, fn, arg]() {
         portENTER_CRITICAL(&handlers_mux);
-        portENTER_CRITICAL(&active_mux);
+        gpio_handler.raw.reserve(gpio_handler.raw.size() + 1);
 
+        portENTER_CRITICAL(&active_mux);
         uint32_t id = next_id++;
         gpio_handler.raw.push_back(raw_entry{
             .id = id,
@@ -187,8 +186,8 @@ result<gpio::isr_handle> gpio::try_isr_handler_add(void (*fn)(void*), void* arg)
             .arg = arg,
             .active = true,
         });
-
         portEXIT_CRITICAL(&active_mux);
+
         portEXIT_CRITICAL(&handlers_mux);
         return isr_handle{_num, id};
     });
@@ -222,15 +221,25 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
         portEXIT_CRITICAL_ISR(&active_mux);
     } else {
         // Non-ISR: acquire both locks, and remove directly
+        bool needs_remove = false;
         portENTER_CRITICAL(&handlers_mux);
         portENTER_CRITICAL(&active_mux);
 
         std::erase_if(gpio_handler.raw, [&](auto& e) { return e.id == handle._id; });
         std::erase_if(gpio_handler.functional, [&](auto& e) { return e.id == handle._id; });
-        gpio_handler.compact();
+        needs_remove = gpio_handler.compact();
 
         portEXIT_CRITICAL(&active_mux);
         portEXIT_CRITICAL(&handlers_mux);
+
+        if (needs_remove) {
+            auto err = gpio_isr_handler_remove(_num);
+            if (err != ESP_OK) {
+                ESP_LOGE(
+                    TAG, "Failed to remove ISR handler for GPIO %d: %s", static_cast<int>(_num), esp_err_to_name(err)
+                );
+            }
+        }
     }
 
     return {};
@@ -254,15 +263,25 @@ result<void> gpio::try_isr_handler_remove_all() {
         portEXIT_CRITICAL_ISR(&active_mux);
     } else {
         // Non-ISR: acquire both locks, and remove directly
+        bool needs_remove = false;
         portENTER_CRITICAL(&handlers_mux);
         portENTER_CRITICAL(&active_mux);
 
         gpio_handler.raw.clear();
         gpio_handler.functional.clear();
-        gpio_handler.compact();
+        needs_remove = gpio_handler.compact();
 
         portEXIT_CRITICAL(&active_mux);
         portEXIT_CRITICAL(&handlers_mux);
+
+        if (needs_remove) {
+            auto err = gpio_isr_handler_remove(_num);
+            if (err != ESP_OK) {
+                ESP_LOGE(
+                    TAG, "Failed to remove ISR handler for GPIO %d: %s", static_cast<int>(_num), esp_err_to_name(err)
+                );
+            }
+        }
     }
 
     return {};

@@ -8,8 +8,10 @@
 #include "unity.h"
 
 #include <driver/gpio.h>
+#include <bit>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using namespace idfxx;
 
@@ -282,6 +284,211 @@ TEST_CASE("gpio interrupt configuration", "[idfxx][gpio]") {
     TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::posedge).has_value());
     TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
     TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::disable).has_value());
+}
+
+// =============================================================================
+// input_enable and is_digital_io_pin_capable tests
+// =============================================================================
+
+TEST_CASE("gpio input_enable on valid pin succeeds", "[idfxx][gpio]") {
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_input_enable().has_value());
+}
+
+TEST_CASE("gpio input_enable on NC returns error", "[idfxx][gpio]") {
+    gpio nc = gpio::nc();
+    TEST_ASSERT_FALSE(nc.try_input_enable().has_value());
+}
+
+TEST_CASE("gpio is_digital_io_pin_capable", "[idfxx][gpio]") {
+    // Use the lowest digital IO capable pin for the current target
+    constexpr int digital_io_pin = std::countr_zero(SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK);
+    gpio g = gpio::make(digital_io_pin).value();
+    TEST_ASSERT_TRUE(g.is_digital_io_pin_capable());
+
+    // NC is not digital IO capable
+    TEST_ASSERT_FALSE(gpio::nc().is_digital_io_pin_capable());
+}
+
+// =============================================================================
+// ISR service tests
+// =============================================================================
+
+TEST_CASE("gpio ISR service install and uninstall", "[idfxx][gpio]") {
+    // Install ISR service
+    auto result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(result.has_value());
+
+    // Uninstall
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("gpio ISR handler add and remove with raw callback", "[idfxx][gpio]") {
+    // Install ISR service first
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+
+    // Configure as input with interrupt
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    // Add raw callback handler
+    static bool handler_called = false;
+    handler_called = false;
+    auto handle_result = g.try_isr_handler_add([](void* arg) { *static_cast<bool*>(arg) = true; }, &handler_called);
+    TEST_ASSERT_TRUE(handle_result.has_value());
+
+    // Remove handler
+    auto remove_result = g.try_isr_handler_remove(*handle_result);
+    TEST_ASSERT_TRUE(remove_result.has_value());
+
+    // Uninstall ISR service
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("gpio ISR handler add and remove with functional callback", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    // Add functional handler
+    auto handle_result = g.try_isr_handler_add([]() {});
+    TEST_ASSERT_TRUE(handle_result.has_value());
+
+    // Remove handler
+    auto remove_result = g.try_isr_handler_remove(*handle_result);
+    TEST_ASSERT_TRUE(remove_result.has_value());
+
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("gpio ISR handler remove all", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    // Add multiple handlers
+    auto h1 = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(h1.has_value());
+    auto h2 = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(h2.has_value());
+
+    // Remove all
+    auto remove_result = g.try_isr_handler_remove_all();
+    TEST_ASSERT_TRUE(remove_result.has_value());
+
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("unique_isr_handle RAII lifecycle", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    // Add handler and wrap in unique_isr_handle
+    auto handle_result = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(handle_result.has_value());
+
+    {
+        gpio::unique_isr_handle unique_handle(*handle_result);
+        // Handler is active here
+
+        // Move to another unique_isr_handle
+        gpio::unique_isr_handle moved_handle(std::move(unique_handle));
+        // unique_handle is now empty, moved_handle owns the handler
+    }
+    // moved_handle destructor removes the handler
+
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("unique_isr_handle release", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    auto handle_result = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(handle_result.has_value());
+
+    // Create unique handle
+    gpio::unique_isr_handle unique_handle(*handle_result);
+
+    // Release - transfers ownership back to raw handle
+    auto released = unique_handle.release();
+    // unique_handle destructor won't remove the handler now
+
+    // Clean up manually
+    auto remove_result = g.try_isr_handler_remove(released);
+    TEST_ASSERT_TRUE(remove_result.has_value());
+
+    gpio::uninstall_isr_service();
+}
+
+TEST_CASE("unique_isr_handle move assignment cleans up target", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+
+    auto h1_result = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(h1_result.has_value());
+    auto h2_result = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(h2_result.has_value());
+
+    gpio::unique_isr_handle handle1(*h1_result);
+    gpio::unique_isr_handle handle2(*h2_result);
+
+    // Move assign handle2 into handle1 - should remove handler1
+    handle1 = std::move(handle2);
+
+    // handle1 now owns handler2, handle2 is empty
+    // Destructor of handle1 removes handler2
+
+    gpio::uninstall_isr_service();
+}
+
+// =============================================================================
+// configure_gpios tests
+// =============================================================================
+
+TEST_CASE("configure_gpios with vector", "[idfxx][gpio]") {
+    gpio g0 = gpio::make(0).value();
+    gpio g2 = gpio::make(2).value();
+
+    gpio::config cfg{.mode = gpio::mode::output};
+    auto result = try_configure_gpios(cfg, std::vector<gpio>{g0, g2});
+    TEST_ASSERT_TRUE(result.has_value());
+}
+
+TEST_CASE("configure_gpios with variadic args", "[idfxx][gpio]") {
+    gpio g0 = gpio::make(0).value();
+    gpio g2 = gpio::make(2).value();
+
+    gpio::config cfg{.mode = gpio::mode::input};
+    auto result = try_configure_gpios(cfg, g0, g2);
+    TEST_ASSERT_TRUE(result.has_value());
+}
+
+TEST_CASE("configure_gpios with NC returns error", "[idfxx][gpio]") {
+    gpio::config cfg{.mode = gpio::mode::input};
+    auto result = try_configure_gpios(cfg, std::vector<gpio>{gpio::nc()});
+    TEST_ASSERT_FALSE(result.has_value());
 }
 
 // =============================================================================

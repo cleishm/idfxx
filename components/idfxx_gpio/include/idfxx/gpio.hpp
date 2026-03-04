@@ -345,16 +345,14 @@ public:
      * @retval invalid_arg If the gpio is input-only and an output mode is requested.
      */
     result<void> try_set_direction(enum mode mode) {
-        return guarded([&] { return gpio_set_direction(_num, static_cast<gpio_mode_t>(mode)); });
+        return guarded(gpio_set_direction, _num, static_cast<gpio_mode_t>(mode));
     }
     /**
      * @brief Enables input on this gpio.
      * @retval invalid_state If called on gpio::nc().
      * @note Only fails if called on gpio::nc().
      */
-    result<void> try_input_enable() {
-        return guarded([&] { return gpio_input_enable(_num); });
-    }
+    result<void> try_input_enable() { return guarded(gpio_input_enable, _num); }
     /**
      * @brief Sets the pull resistor mode.
      * @note On ESP32, only GPIOs that support both input & output have integrated
@@ -363,40 +361,32 @@ public:
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
     result<void> try_set_pull_mode(enum pull_mode mode) {
-        return guarded([&] { return gpio_set_pull_mode(_num, static_cast<gpio_pull_mode_t>(mode)); });
+        return guarded(gpio_set_pull_mode, _num, static_cast<gpio_pull_mode_t>(mode));
     }
     /**
      * @brief Enables the internal pull-up resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pullup_enable() {
-        return guarded([&] { return gpio_pullup_en(_num); });
-    }
+    result<void> try_pullup_enable() { return guarded(gpio_pullup_en, _num); }
     /**
      * @brief Disables the internal pull-up resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pullup_disable() {
-        return guarded([&] { return gpio_pullup_dis(_num); });
-    }
+    result<void> try_pullup_disable() { return guarded(gpio_pullup_dis, _num); }
     /**
      * @brief Enables the internal pull-down resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pulldown_enable() {
-        return guarded([&] { return gpio_pulldown_en(_num); });
-    }
+    result<void> try_pulldown_enable() { return guarded(gpio_pulldown_en, _num); }
     /**
      * @brief Disables the internal pull-down resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pulldown_disable() {
-        return guarded([&] { return gpio_pulldown_dis(_num); });
-    }
+    result<void> try_pulldown_disable() { return guarded(gpio_pulldown_dis, _num); }
 
     // Level (input/output)
     /**
@@ -432,7 +422,7 @@ public:
      * @retval invalid_arg If called on a gpio that is not output-capable.
      */
     result<void> try_set_drive_capability(enum drive_cap strength) {
-        return guarded([&] { return gpio_set_drive_capability(_num, static_cast<gpio_drive_cap_t>(strength)); });
+        return guarded(gpio_set_drive_capability, _num, static_cast<gpio_drive_cap_t>(strength));
     }
     /**
      * @brief Gets the current drive capability.

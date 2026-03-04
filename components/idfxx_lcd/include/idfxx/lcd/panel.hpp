@@ -59,7 +59,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    virtual void swap_xy(bool swap) { unwrap(try_swap_xy(swap)); }
+    void swap_xy(bool swap) { unwrap(try_swap_xy(swap)); }
 #endif
 
     /**
@@ -77,7 +77,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    virtual void mirror(bool mirrorX, bool mirrorY) { unwrap(try_mirror(mirrorX, mirrorY)); }
+    void mirror(bool mirrorX, bool mirrorY) { unwrap(try_mirror(mirrorX, mirrorY)); }
 #endif
 
     /**
@@ -95,7 +95,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    virtual void display_on(bool on) { unwrap(try_display_on(on)); }
+    void display_on(bool on) { unwrap(try_display_on(on)); }
 #endif
 
     /**

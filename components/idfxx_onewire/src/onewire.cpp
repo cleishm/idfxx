@@ -8,7 +8,20 @@
 
 namespace {
 const char* TAG = "idfxx::onewire";
+
+std::vector<idfxx::onewire::address> search_devices(onewire_search_t& search, gpio_num_t pin, size_t max_devices) {
+    std::vector<idfxx::onewire::address> devices;
+    devices.reserve(max_devices);
+    for (size_t i = 0; i < max_devices; ++i) {
+        onewire_addr_t addr = onewire_search_next(&search, pin);
+        if (addr == ONEWIRE_NONE) {
+            break;
+        }
+        devices.emplace_back(addr);
+    }
+    return devices;
 }
+} // namespace
 
 // Verify ONEWIRE_NONE matches address::none()
 static_assert(idfxx::onewire::address::none().raw() == ONEWIRE_NONE);
@@ -41,12 +54,7 @@ result<bus> bus::make(gpio pin) {
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 bus::bus(gpio pin)
-    : _pin(pin)
-    , _mux(std::make_unique<std::recursive_mutex>()) {
-    if (!_pin.is_connected()) {
-        throw std::system_error(make_error_code(errc::invalid_state), "GPIO pin is not connected");
-    }
-}
+    : bus(unwrap(make(pin))) {}
 #endif
 
 bool bus::reset() {
@@ -157,17 +165,7 @@ result<std::vector<address>> bus::try_search(size_t max_devices) {
     std::scoped_lock lock(*_mux);
     onewire_search_t search;
     onewire_search_start(&search);
-
-    std::vector<address> devices;
-    devices.reserve(max_devices);
-    for (size_t i = 0; i < max_devices; ++i) {
-        onewire_addr_t addr = onewire_search_next(&search, _pin.idf_num());
-        if (addr == ONEWIRE_NONE) {
-            break;
-        }
-        devices.emplace_back(addr);
-    }
-
+    auto devices = search_devices(search, _pin.idf_num(), max_devices);
     ESP_LOGD(TAG, "Found %zu device(s) on GPIO%d", devices.size(), _pin.num());
     return devices;
 }
@@ -179,17 +177,7 @@ result<std::vector<address>> bus::try_search(uint8_t family_code, size_t max_dev
     std::scoped_lock lock(*_mux);
     onewire_search_t search;
     onewire_search_prefix(&search, family_code);
-
-    std::vector<address> devices;
-    devices.reserve(max_devices);
-    for (size_t i = 0; i < max_devices; ++i) {
-        onewire_addr_t addr = onewire_search_next(&search, _pin.idf_num());
-        if (addr == ONEWIRE_NONE) {
-            break;
-        }
-        devices.emplace_back(addr);
-    }
-
+    auto devices = search_devices(search, _pin.idf_num(), max_devices);
     ESP_LOGD(TAG, "Found %zu device(s) on GPIO%d", devices.size(), _pin.num());
     return devices;
 }

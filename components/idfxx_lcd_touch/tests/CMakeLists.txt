@@ -1,9 +1,9 @@
-# Tests for idfxx_hw_support
+# Tests for idfxx_lcd_touch
 # Note: These tests require ESP-IDF and should be run on hardware or in the ESP-IDF test framework
 
 # Test source files
-set(IDFXX_HW_SUPPORT_TEST_SOURCES
-    intr_alloc_test.cpp
+set(IDFXX_LCD_TOUCH_TEST_SOURCES
+    touch_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,

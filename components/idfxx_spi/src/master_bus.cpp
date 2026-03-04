@@ -29,7 +29,11 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .data_io_default_level = config.data_io_default_level,
         .max_transfer_sz = config.max_transfer_sz,
         .flags = config.flags.value(),
-        .isr_cpu_id = static_cast<esp_intr_cpu_affinity_t>(config.isr_cpu_id),
+        // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
+        // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.
+        .isr_cpu_id = config.isr_cpu_id
+            ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*config.isr_cpu_id) + 1)
+            : ESP_INTR_CPU_AFFINITY_AUTO,
         .intr_flags = config.intr_flags.value(),
     };
 

@@ -14,6 +14,27 @@ const char* TAG = "idfxx::i2c::master_device";
 
 namespace idfxx::i2c {
 
+static result<void> map_xfer_error(esp_err_t err, const char* op, uint8_t address, enum port port) {
+    if (err == ESP_OK) {
+        return {};
+    }
+    if (err == ESP_ERR_TIMEOUT) {
+        ESP_LOGD(
+            TAG, "I2C %s timeout on device at address 0x%02X on bus port %d", op, address, std::to_underlying(port)
+        );
+        return error(errc::timeout);
+    }
+    ESP_LOGD(
+        TAG,
+        "I2C %s error on device at address 0x%02X on bus port %d: %s",
+        op,
+        address,
+        std::to_underlying(port),
+        esp_err_to_name(err)
+    );
+    return error(errc::invalid_arg);
+}
+
 static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t address) {
     i2c_device_config_t dev_config{
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -75,9 +96,7 @@ master_device::master_device(master_device&& other) noexcept
 
 master_device& master_device::operator=(master_device&& other) noexcept {
     if (this != &other) {
-        if (_handle != nullptr) {
-            i2c_master_bus_rm_device(_handle);
-        }
+        _delete();
         _bus = other._bus;
         _handle = other._handle;
         _address = other._address;
@@ -88,6 +107,10 @@ master_device& master_device::operator=(master_device&& other) noexcept {
 }
 
 master_device::~master_device() {
+    _delete();
+}
+
+void master_device::_delete() noexcept {
     if (_handle != nullptr) {
         i2c_master_bus_rm_device(_handle);
     }
@@ -98,28 +121,7 @@ result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::
         return error(errc::invalid_state);
     }
     std::scoped_lock lock(*_bus);
-
-    esp_err_t err = i2c_master_transmit(_handle, buf, size, timeout.count());
-    if (err == ESP_OK) {
-        return {};
-    } else if (err == ESP_ERR_TIMEOUT) {
-        ESP_LOGD(
-            TAG,
-            "I2C transmit timeout on device at address 0x%02X on bus port %d",
-            _address,
-            std::to_underlying(_bus->port())
-        );
-        return error(errc::timeout);
-    } else {
-        ESP_LOGD(
-            TAG,
-            "I2C transmit error on device at address 0x%02X on bus port %d: %s",
-            _address,
-            std::to_underlying(_bus->port()),
-            esp_err_to_name(err)
-        );
-        return error(errc::invalid_arg);
-    }
+    return map_xfer_error(i2c_master_transmit(_handle, buf, size, timeout.count()), "transmit", _address, _bus->port());
 }
 
 result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
@@ -127,43 +129,14 @@ result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono:
         return error(errc::invalid_state);
     }
     std::scoped_lock lock(*_bus);
-
-    esp_err_t err = i2c_master_receive(_handle, buf, size, timeout.count());
-    if (err == ESP_OK) {
-        return {};
-    } else if (err == ESP_ERR_TIMEOUT) {
-        ESP_LOGD(
-            TAG,
-            "I2C receive timeout on device at address 0x%02X on bus port %d",
-            _address,
-            std::to_underlying(_bus->port())
-        );
-        return error(errc::timeout);
-    } else {
-        ESP_LOGD(
-            TAG,
-            "I2C receive error on device at address 0x%02X on bus port %d: %s",
-            _address,
-            std::to_underlying(_bus->port()),
-            esp_err_to_name(err)
-        );
-        return error(errc::invalid_arg);
-    }
+    return map_xfer_error(i2c_master_receive(_handle, buf, size, timeout.count()), "receive", _address, _bus->port());
 }
 
 result<void>
 master_device::_try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    // Combine register address and data into single buffer
-    uint8_t buffer[2 + size];
-    buffer[0] = (reg >> 8) & 0xFF;
-    buffer[1] = reg & 0xFF;
-    if (buf && size > 0) {
-        memcpy(buffer + 2, buf, size);
-    }
-    return _try_transmit(buffer, 2 + size, timeout);
+    return _try_write_register(
+        static_cast<uint8_t>((reg >> 8) & 0xFF), static_cast<uint8_t>(reg & 0xFF), buf, size, timeout
+    );
 }
 
 result<void> master_device::_try_write_register(
@@ -173,11 +146,13 @@ result<void> master_device::_try_write_register(
     size_t size,
     std::chrono::milliseconds timeout
 ) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
     // Combine register address and data into single buffer
+#ifdef __GNUC__
     uint8_t buffer[2 + size];
+#else
+    std::vector<uint8_t> buf_storage(2 + size);
+    auto* buffer = buf_storage.data();
+#endif
     buffer[0] = regHigh;
     buffer[1] = regLow;
     if (buf && size > 0) {
@@ -209,16 +184,9 @@ result<void> master_device::_try_write_registers(
 
 result<void>
 master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    std::scoped_lock lock(*_bus);
-
-    uint8_t buffer[2]{(uint8_t)(reg >> 8), (uint8_t)(reg & 0xFF)};
-    return _try_transmit(buffer, 2, timeout).and_then([&]() {
-        vTaskDelay(pdMS_TO_TICKS(20)); // Delay between write and read for device processing
-        return _try_receive(buf, size, timeout);
-    });
+    return _try_read_register(
+        static_cast<uint8_t>((reg >> 8) & 0xFF), static_cast<uint8_t>(reg & 0xFF), buf, size, timeout
+    );
 }
 
 result<void> master_device::_try_read_register(

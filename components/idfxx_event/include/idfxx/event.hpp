@@ -507,13 +507,7 @@ public:
     template<typename IdEnum>
     [[nodiscard]] result<void>
     try_post(event_base<IdEnum> base, IdEnum id, const void* data = nullptr, size_t size = 0) {
-        if (!_system && _handle == nullptr) {
-            return error(errc::invalid_state);
-        }
-        if (_system) {
-            return wrap(esp_event_post(base.idf_base(), static_cast<int32_t>(id), data, size, portMAX_DELAY));
-        }
-        return wrap(esp_event_post_to(_handle, base.idf_base(), static_cast<int32_t>(id), data, size, portMAX_DELAY));
+        return _post(base.idf_base(), static_cast<int32_t>(id), data, size, portMAX_DELAY);
     }
 
     /**
@@ -537,14 +531,7 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        if (!_system && _handle == nullptr) {
-            return error(errc::invalid_state);
-        }
-        auto ticks = chrono::ticks(timeout);
-        if (_system) {
-            return wrap(esp_event_post(base.idf_base(), static_cast<int32_t>(id), data, size, ticks));
-        }
-        return wrap(esp_event_post_to(_handle, base.idf_base(), static_cast<int32_t>(id), data, size, ticks));
+        return _post(base.idf_base(), static_cast<int32_t>(id), data, size, chrono::ticks(timeout));
     }
 
     /**
@@ -630,6 +617,9 @@ private:
         esp_event_base_t base,
         int32_t id
     );
+
+    void _delete() noexcept;
+    result<void> _post(esp_event_base_t base, int32_t id, const void* data, size_t size, TickType_t ticks);
 
     esp_event_loop_handle_t _handle = nullptr;
     bool _system = false;

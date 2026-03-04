@@ -445,3 +445,185 @@ TEST_CASE("nvs empty blob value", "[idfxx][nvs]") {
     TEST_ASSERT_TRUE(result.has_value());
     TEST_ASSERT_EQUAL(0, result.value().size());
 }
+
+// =============================================================================
+// Exception-based API tests
+// =============================================================================
+
+// =============================================================================
+// Flash init/deinit tests
+// =============================================================================
+
+TEST_CASE("nvs::flash::try_deinit and reinit cycle", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    // Deinit should succeed
+    auto deinit_result = nvs::flash::try_deinit();
+    TEST_ASSERT_TRUE(deinit_result.has_value());
+
+    // After deinit, making an nvs handle should fail
+    auto nvs_result = nvs::make("test_dinit");
+    TEST_ASSERT_FALSE(nvs_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_initialized), nvs_result.error().value());
+
+    // Re-init should succeed
+    auto init_result = nvs::flash::try_init();
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    // Now making a handle should work again
+    auto nvs_result2 = nvs::make("test_dinit");
+    TEST_ASSERT_TRUE(nvs_result2.has_value());
+}
+
+TEST_CASE("nvs::flash::try_erase and reinit", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    // Write something first
+    {
+        auto ns = nvs::make("test_erase");
+        TEST_ASSERT_TRUE(ns.has_value());
+        TEST_ASSERT_TRUE(ns->try_set_string("key", "value").has_value());
+        TEST_ASSERT_TRUE(ns->try_commit().has_value());
+    }
+
+    // Deinit before erase
+    auto deinit_result = nvs::flash::try_deinit();
+    TEST_ASSERT_TRUE(deinit_result.has_value());
+
+    // Erase
+    auto erase_result = nvs::flash::try_erase();
+    TEST_ASSERT_TRUE(erase_result.has_value());
+
+    // Re-init
+    auto init_result = nvs::flash::try_init();
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    // Data should be gone after erase
+    {
+        auto ns = nvs::make("test_erase");
+        TEST_ASSERT_TRUE(ns.has_value());
+        auto get_result = ns->try_get_string("key");
+        TEST_ASSERT_FALSE(get_result.has_value());
+        TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), get_result.error().value());
+    }
+}
+
+// =============================================================================
+// Exception-based API tests
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("nvs constructor succeeds", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc");
+    TEST_ASSERT_TRUE(ns.is_writeable());
+}
+
+TEST_CASE("nvs set and get string via exception API", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc2");
+    ns.set_string("greeting", "hello");
+    ns.commit();
+
+    auto val = ns.get_string("greeting");
+    TEST_ASSERT_EQUAL_STRING("hello", val.c_str());
+}
+
+TEST_CASE("nvs get non-existent key throws", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc3");
+
+    bool threw = false;
+    try {
+        (void)ns.get_string("nonexistent");
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("nvs set_value and get_value via exception API", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc4");
+    ns.set_value<int32_t>("count", 42);
+    ns.commit();
+
+    auto val = ns.get_value<int32_t>("count");
+    TEST_ASSERT_EQUAL(42, val);
+}
+
+TEST_CASE("nvs read-only write throws", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    // Create namespace first
+    { nvs ns("test_ro_exc"); }
+
+    nvs ns("test_ro_exc", true);
+    TEST_ASSERT_FALSE(ns.is_writeable());
+
+    bool threw = false;
+    try {
+        ns.set_string("key", "value");
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::read_only), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// Moved-from state tests
+// =============================================================================
+
+TEST_CASE("moved-from nvs returns invalid_handle", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_move");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+
+    auto moved = std::move(*nvs_handle);
+
+    // moved-from object should return invalid_handle
+    auto set_result = nvs_handle->try_set_string("key", "value");
+    TEST_ASSERT_FALSE(set_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), set_result.error().value());
+
+    auto get_result = nvs_handle->try_get_string("key");
+    TEST_ASSERT_FALSE(get_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), get_result.error().value());
+
+    auto commit_result = nvs_handle->try_commit();
+    TEST_ASSERT_FALSE(commit_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), commit_result.error().value());
+
+    // Moved-to object should work normally
+    TEST_ASSERT_TRUE(moved.try_set_string("key", "value").has_value());
+}
+
+TEST_CASE("nvs move assignment cleans up target", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto r1 = nvs::make("test_mv1");
+    TEST_ASSERT_TRUE(r1.has_value());
+
+    auto r2 = nvs::make("test_mv2");
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    // Move assignment should close the target handle
+    *r1 = std::move(*r2);
+
+    // r1 should now be usable, r2 should be moved-from
+    TEST_ASSERT_TRUE(r1->try_set_string("k", "v").has_value());
+
+    auto set_result = r2->try_set_string("k", "v");
+    TEST_ASSERT_FALSE(set_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), set_result.error().value());
+}

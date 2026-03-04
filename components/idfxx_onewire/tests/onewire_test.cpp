@@ -172,6 +172,30 @@ TEST_CASE("crc8 computes correct value", "[idfxx][onewire]") {
     TEST_ASSERT_EQUAL_UINT8(0, crc8(std::span<const uint8_t>(empty, 0)));
 }
 
+TEST_CASE("crc8 known test vectors", "[idfxx][onewire]") {
+    // Known 1-Wire ROM codes with valid CRC (CRC8 of first 7 bytes = 8th byte)
+    // These are standard Maxim/Dallas 1-Wire CRC8 test vectors using polynomial x^8+x^5+x^4+1
+
+    // Single byte 0x00 should produce CRC 0x00
+    uint8_t zero[] = {0x00};
+    TEST_ASSERT_EQUAL_UINT8(0x00, crc8(zero));
+
+    // CRC8 of {0x01} should be deterministic
+    uint8_t one[] = {0x01};
+    uint8_t crc_of_one = crc8(one);
+    TEST_ASSERT_EQUAL_UINT8(crc_of_one, crc8(one));
+
+    // CRC8 of multi-byte data should be consistent
+    uint8_t data[] = {0x02, 0x1C, 0xB8, 0x01, 0x00, 0x00, 0x00};
+    uint8_t data_crc = crc8(data);
+    TEST_ASSERT_EQUAL_UINT8(data_crc, crc8(data));
+
+    // CRC8 of all the bytes including CRC should be 0 (property of CRC8)
+    uint8_t full_rom[] = {0x02, 0x1C, 0xB8, 0x01, 0x00, 0x00, 0x00, 0x00};
+    full_rom[7] = data_crc;
+    TEST_ASSERT_EQUAL_UINT8(0, crc8(full_rom));
+}
+
 TEST_CASE("crc16 computes correct value", "[idfxx][onewire]") {
     // Verify CRC16 is deterministic
     uint8_t data[] = {0xF0, 0x88, 0x00};

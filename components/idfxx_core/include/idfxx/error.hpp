@@ -215,8 +215,10 @@ template<typename E>
 }
 
 /** @cond INTERNAL */
+namespace detail {
 /// ESP_ERR_NO_MEM value — verified by static_assert in error.cpp
-constexpr esp_err_t _esp_err_no_mem = 0x101;
+constexpr esp_err_t esp_err_no_mem = 0x101;
+} // namespace detail
 
 /**
  * @brief Throws std::bad_alloc (or aborts) on out-of-memory.
@@ -246,9 +248,6 @@ constexpr esp_err_t _esp_err_no_mem = 0x101;
  * @return An unexpected value suitable for returning from result-returning functions.
  */
 [[nodiscard]] inline std::unexpected<std::error_code> error(esp_err_t e) {
-    if (e == _esp_err_no_mem) {
-        raise_no_mem();
-    }
     return std::unexpected<std::error_code>(make_error_code(e));
 }
 

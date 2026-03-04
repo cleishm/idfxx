@@ -5,7 +5,7 @@
 
 #include <esp_err.h>
 
-static_assert(idfxx::_esp_err_no_mem == ESP_ERR_NO_MEM);
+static_assert(idfxx::detail::esp_err_no_mem == ESP_ERR_NO_MEM);
 
 namespace idfxx {
 

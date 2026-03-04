@@ -7,7 +7,6 @@ Hardware interrupt allocation and management for ESP32.
 ## Features
 
 - Type-safe interrupt allocation flags with operator support
-- CPU affinity types for interrupt allocation
 - Header-only component with zero overhead
 
 ## Requirements
@@ -51,23 +50,6 @@ esp_intr_alloc(ETS_TIMER0_INTR_SOURCE,
                handler,
                nullptr,
                &handle);
-```
-
-### CPU Affinity
-
-```cpp
-#include <idfxx/intr_types>
-#include <idfxx/log>
-
-// Specify CPU core for interrupt allocation
-idfxx::intr_cpu_affinity_t affinity = idfxx::intr_cpu_affinity_t::cpu_1;
-
-// Convert to CPU core ID
-int core_id = idfxx::intr_cpu_affinity_to_core_id(affinity);
-idfxx::log::info("INTR", "Interrupt will run on core: {}", core_id);
-
-// Use automatic affinity (ESP-IDF decides)
-affinity = idfxx::intr_cpu_affinity_t::automatic;
 ```
 
 ### Combining Flags

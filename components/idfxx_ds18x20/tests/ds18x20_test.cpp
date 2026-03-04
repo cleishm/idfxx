@@ -129,3 +129,36 @@ TEST_CASE("to_string for unknown resolution", "[idfxx][ds18x20]") {
     auto s = idfxx::to_string(static_cast<resolution>(0x00));
     TEST_ASSERT_EQUAL_STRING("unknown(0x00)", s.c_str());
 }
+
+// =============================================================================
+// Formatter tests
+// =============================================================================
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+static_assert(std::formattable<family, char>);
+static_assert(std::formattable<resolution, char>);
+
+TEST_CASE("family formatter outputs correct names", "[idfxx][ds18x20]") {
+    TEST_ASSERT_EQUAL_STRING("DS18S20", std::format("{}", family::ds18s20).c_str());
+    TEST_ASSERT_EQUAL_STRING("DS1822", std::format("{}", family::ds1822).c_str());
+    TEST_ASSERT_EQUAL_STRING("DS18B20", std::format("{}", family::ds18b20).c_str());
+    TEST_ASSERT_EQUAL_STRING("MAX31850", std::format("{}", family::max31850).c_str());
+}
+
+TEST_CASE("resolution formatter outputs correct names", "[idfxx][ds18x20]") {
+    TEST_ASSERT_EQUAL_STRING("9-bit", std::format("{}", resolution::bits_9).c_str());
+    TEST_ASSERT_EQUAL_STRING("10-bit", std::format("{}", resolution::bits_10).c_str());
+    TEST_ASSERT_EQUAL_STRING("11-bit", std::format("{}", resolution::bits_11).c_str());
+    TEST_ASSERT_EQUAL_STRING("12-bit", std::format("{}", resolution::bits_12).c_str());
+}
+
+TEST_CASE("family formatter handles unknown values", "[idfxx][ds18x20]") {
+    auto s = std::format("{}", static_cast<family>(0xFF));
+    TEST_ASSERT_EQUAL_STRING("unknown(0xFF)", s.c_str());
+}
+
+TEST_CASE("resolution formatter handles unknown values", "[idfxx][ds18x20]") {
+    auto s = std::format("{}", static_cast<resolution>(0x00));
+    TEST_ASSERT_EQUAL_STRING("unknown(0x00)", s.c_str());
+}
+#endif // CONFIG_IDFXX_STD_FORMAT

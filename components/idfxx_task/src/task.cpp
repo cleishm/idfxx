@@ -11,8 +11,6 @@ namespace idfxx {
 
 struct task::context {
     std::move_only_function<void(task::self&)> func = nullptr;
-    void (*func_ptr)(task::self&, void*) = nullptr;
-    void* func_ptr_arg = nullptr;
 
     SemaphoreHandle_t join_sem = nullptr;
     std::atomic<bool> stop_flag{false};
@@ -30,10 +28,7 @@ struct task::context {
 void task::trampoline(void* arg) {
     auto* ctx = static_cast<context*>(arg);
 
-    if (ctx->func_ptr) {
-        self s{ctx};
-        ctx->func_ptr(s, ctx->func_ptr_arg);
-    } else if (ctx->func) {
+    if (ctx->func) {
         self s{ctx};
         ctx->func(s);
     }
@@ -64,14 +59,14 @@ void task::trampoline(void* arg) {
     }
 }
 
-TaskHandle_t task::_create(context* ctx, const config& cfg) {
+TaskHandle_t task::_create(context* ctx, const config& cfg, const char* name) {
     TaskHandle_t handle = nullptr;
     BaseType_t core =
         cfg.core_affinity ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity)) : tskNO_AFFINITY;
 
     BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(
         trampoline,
-        cfg.name.data(),
+        name,
         cfg.stack_size,
         ctx,
         static_cast<UBaseType_t>(cfg.priority),
@@ -89,9 +84,7 @@ TaskHandle_t task::_create(context* ctx, const config& cfg) {
 }
 
 task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
-    : _handle(nullptr)
-    , _name(cfg.name)
-    , _context(nullptr) {
+    : _name(cfg.name) {
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->join_sem = xSemaphoreCreateBinary();
@@ -99,23 +92,7 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
         delete ctx;
         raise_no_mem();
     }
-    _handle = _create(ctx, cfg);
-    _context = ctx;
-}
-
-task::task(const config& cfg, void (*task_func)(self&, void*), void* arg)
-    : _handle(nullptr)
-    , _name(cfg.name)
-    , _context(nullptr) {
-    auto* ctx = new context{};
-    ctx->func_ptr = task_func;
-    ctx->func_ptr_arg = arg;
-    ctx->join_sem = xSemaphoreCreateBinary();
-    if (ctx->join_sem == nullptr) {
-        delete ctx;
-        raise_no_mem();
-    }
-    _handle = _create(ctx, cfg);
+    _handle = _create(ctx, cfg, _name.c_str());
     _context = ctx;
 }
 
@@ -123,15 +100,8 @@ void task::spawn(config cfg, std::move_only_function<void(self&)> task_func) {
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
-    (void)_create(ctx, cfg);
-}
-
-void task::spawn(config cfg, void (*task_func)(self&, void*), void* arg) {
-    auto* ctx = new context{};
-    ctx->func_ptr = task_func;
-    ctx->func_ptr_arg = arg;
-    ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
-    (void)_create(ctx, cfg);
+    std::string name(cfg.name);
+    _create(ctx, cfg, name.c_str());
 }
 
 task::task(TaskHandle_t handle, std::string name, context* ctx)
@@ -149,16 +119,7 @@ task::task(task&& other) noexcept
 
 task& task::operator=(task&& other) noexcept {
     if (this != &other) {
-        // Clean up current state (same as destructor)
-        if (_handle != nullptr) {
-            _context->stop_flag.store(true, std::memory_order_release);
-            do {
-                vTaskResume(_handle);
-                xTaskNotifyGive(_handle);
-            } while (xSemaphoreTake(_context->join_sem, 1) != pdTRUE);
-            vTaskDeleteWithCaps(_handle);
-        }
-        delete _context;
+        _stop_and_delete();
 
         // Transfer from other
         _handle = other._handle;
@@ -171,6 +132,10 @@ task& task::operator=(task&& other) noexcept {
 }
 
 task::~task() {
+    _stop_and_delete();
+}
+
+void task::_stop_and_delete() noexcept {
     if (_handle != nullptr) {
         _context->stop_flag.store(true, std::memory_order_release);
         // Resume the task repeatedly until it completes. Looping is necessary because vTaskResume
@@ -186,15 +151,19 @@ task::~task() {
     delete _context;
 }
 
+bool task::_is_running() const noexcept {
+    return _handle != nullptr && _context->state.load(std::memory_order_acquire) == context::state_t::running;
+}
+
 unsigned int task::priority() const noexcept {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return 0;
     }
     return uxTaskPriorityGet(_handle);
 }
 
 size_t task::stack_high_water_mark() const noexcept {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return 0;
     }
     return static_cast<size_t>(uxTaskGetStackHighWaterMark(_handle)) * sizeof(StackType_t);
@@ -219,7 +188,7 @@ bool task::stop_requested() const noexcept {
 }
 
 result<void> task::try_suspend() {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return error(errc::invalid_state);
     }
     vTaskSuspend(_handle);
@@ -227,7 +196,7 @@ result<void> task::try_suspend() {
 }
 
 result<void> task::try_resume() {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return error(errc::invalid_state);
     }
     vTaskResume(_handle);
@@ -235,7 +204,7 @@ result<void> task::try_resume() {
 }
 
 result<void> task::try_set_priority(unsigned int new_priority) {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return error(errc::invalid_state);
     }
     vTaskPrioritySet(_handle, static_cast<UBaseType_t>(new_priority));
@@ -299,6 +268,8 @@ result<void> task::_try_join(TickType_t ticks) {
     if (_context->state.load(std::memory_order_acquire) == context::state_t::completed) {
         vTaskDeleteWithCaps(_handle);
         _handle = nullptr;
+        delete _context;
+        _context = nullptr;
         return {};
     }
     if (xSemaphoreTake(_context->join_sem, ticks) != pdTRUE) {
@@ -306,18 +277,20 @@ result<void> task::_try_join(TickType_t ticks) {
     }
     vTaskDeleteWithCaps(_handle);
     _handle = nullptr;
+    delete _context;
+    _context = nullptr;
     return {};
 }
 
 bool IRAM_ATTR task::resume_from_isr() noexcept {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return false;
     }
     return xTaskResumeFromISR(_handle) == pdTRUE;
 }
 
 result<void> task::try_notify() {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return error(errc::invalid_state);
     }
     xTaskNotifyGive(_handle);
@@ -325,7 +298,7 @@ result<void> task::try_notify() {
 }
 
 bool IRAM_ATTR task::notify_from_isr() noexcept {
-    if (_handle == nullptr || _context->state.load(std::memory_order_acquire) != context::state_t::running) {
+    if (!_is_running()) {
         return false;
     }
     BaseType_t woken = pdFALSE;

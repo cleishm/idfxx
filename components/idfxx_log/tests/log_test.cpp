@@ -7,9 +7,12 @@
 #include <idfxx/log>
 #include <unity.h>
 
+#include <array>
 #include <esp_log.h>
+#include <span>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 using namespace idfxx::log;
 
@@ -242,4 +245,53 @@ TEST_CASE("level formatter outputs correct names", "[idfxx][log]") {
 TEST_CASE("level formatter handles unknown values", "[idfxx][log]") {
     auto unknown = static_cast<level>(99);
     TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+}
+
+// =============================================================================
+// Range template buffer tests
+// =============================================================================
+
+TEST_CASE("buffer_hex with vector range", "[idfxx][log]") {
+    std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04};
+    idfxx::log::buffer_hex(level::info, "test_range", data);
+    // If we get here without crashing, it worked
+}
+
+TEST_CASE("buffer_hex with array range", "[idfxx][log]") {
+    std::array<uint8_t, 4> data = {0xAA, 0xBB, 0xCC, 0xDD};
+    idfxx::log::buffer_hex(level::info, "test_range", data);
+}
+
+TEST_CASE("buffer_hex with span range", "[idfxx][log]") {
+    uint8_t raw[] = {0x10, 0x20, 0x30};
+    std::span<const uint8_t> data(raw, sizeof(raw));
+    idfxx::log::buffer_hex(level::info, "test_range", data);
+}
+
+TEST_CASE("buffer_char with vector range", "[idfxx][log]") {
+    std::vector<uint8_t> data = {'H', 'i', '!', '\0'};
+    idfxx::log::buffer_char(level::info, "test_range", data);
+}
+
+TEST_CASE("buffer_hex_dump with vector range", "[idfxx][log]") {
+    std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04, 0x05};
+    idfxx::log::buffer_hex_dump(level::info, "test_range", data);
+}
+
+TEST_CASE("logger buffer_hex with vector range", "[idfxx][log]") {
+    constexpr logger log{"test_range_log"};
+    std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+    log.buffer_hex(level::debug, data);
+}
+
+TEST_CASE("logger buffer_hex_dump with array range", "[idfxx][log]") {
+    constexpr logger log{"test_range_log"};
+    std::array<uint8_t, 3> data = {0xAA, 0xBB, 0xCC};
+    log.buffer_hex_dump(level::debug, data);
+}
+
+TEST_CASE("buffer_hex with empty vector", "[idfxx][log]") {
+    std::vector<uint8_t> data;
+    idfxx::log::buffer_hex(level::info, "test_range", data);
+    // Empty buffer should not crash
 }

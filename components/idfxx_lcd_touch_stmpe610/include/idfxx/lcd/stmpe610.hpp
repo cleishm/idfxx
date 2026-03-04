@@ -42,7 +42,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit stmpe610(idfxx::lcd::panel_io& panel_io, struct config config);
+    [[nodiscard]] explicit stmpe610(idfxx::lcd::panel_io& panel_io, config config);
 #endif
 
     /**
@@ -56,7 +56,7 @@ public:
      *
      * @return The new stmpe610, or an error.
      */
-    [[nodiscard]] static result<stmpe610> make(idfxx::lcd::panel_io& panel_io, struct config config);
+    [[nodiscard]] static result<stmpe610> make(idfxx::lcd::panel_io& panel_io, config config);
 
     ~stmpe610();
 
@@ -71,7 +71,12 @@ public:
 private:
     stmpe610() = default;
 
-    result<esp_lcd_touch_handle_t> make_handle(esp_lcd_panel_io_handle_t io_handle, const config& config);
+    struct callback_state {
+        process_coordinates_callback process_coordinates;
+    };
+
+    stmpe610(esp_lcd_touch_handle_t handle, std::unique_ptr<callback_state> callbacks);
+
     static void process_coordinates(
         esp_lcd_touch_handle_t tp,
         uint16_t* x,
@@ -80,10 +85,6 @@ private:
         uint8_t* point_num,
         uint8_t max_point_num
     );
-
-    struct callback_state {
-        process_coordinates_callback process_coordinates;
-    };
 
     esp_lcd_touch_handle_t _handle = nullptr;
     std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks

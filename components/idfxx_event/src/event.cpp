@@ -35,9 +35,7 @@ handler_storage storage;
 // Trampoline function that ESP-IDF calls
 void listener_trampoline(void* handler_arg, esp_event_base_t base, int32_t id, void* event_data) {
     auto* ctx = static_cast<handler_context*>(handler_arg);
-    if (ctx != nullptr) {
-        ctx->callback(base, id, event_data);
-    }
+    ctx->callback(base, id, event_data);
 }
 
 // Clean up handler context storage (call AFTER ESP-IDF unregistration)
@@ -139,12 +137,7 @@ event_loop::event_loop(event_loop&& other) noexcept
 
 event_loop& event_loop::operator=(event_loop&& other) noexcept {
     if (this != &other) {
-        if (_handle != nullptr) {
-            esp_err_t err = esp_event_loop_delete(_handle);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to delete event loop: %s", make_error_code(err).message().c_str());
-            }
-        }
+        _delete();
         _handle = other._handle;
         _system = other._system;
         other._handle = nullptr;
@@ -154,12 +147,26 @@ event_loop& event_loop::operator=(event_loop&& other) noexcept {
 }
 
 event_loop::~event_loop() {
+    _delete();
+}
+
+void event_loop::_delete() noexcept {
     if (_handle != nullptr) {
         esp_err_t err = esp_event_loop_delete(_handle);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to delete event loop: %s", make_error_code(err).message().c_str());
         }
     }
+}
+
+result<void> event_loop::_post(esp_event_base_t base, int32_t id, const void* data, size_t size, TickType_t ticks) {
+    if (!_system && _handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    if (_system) {
+        return wrap(esp_event_post(base, id, data, size, ticks));
+    }
+    return wrap(esp_event_post_to(_handle, base, id, data, size, ticks));
 }
 
 // =============================================================================
@@ -203,9 +210,11 @@ result<esp_event_loop_handle_t> create_loop(const event_loop::task_config& task,
         return affinity.has_value() ? static_cast<BaseType_t>(*affinity) : tskNO_AFFINITY;
     };
 
+    std::string name(task.name);
+
     esp_event_loop_args_t args{
         .queue_size = static_cast<int32_t>(queue_size),
-        .task_name = task.name.data(),
+        .task_name = name.c_str(),
         .task_priority = static_cast<UBaseType_t>(task.priority),
         .task_stack_size = task.stack_size,
         .task_core_id = core_id_to_freertos(task.core_affinity),
@@ -226,11 +235,7 @@ event_loop::event_loop(task_config task, size_t queue_size)
 #endif
 
 result<event_loop> event_loop::make(task_config task, size_t queue_size) {
-    auto handle_result = create_loop(std::move(task), queue_size);
-    if (!handle_result.has_value()) {
-        return error(handle_result.error());
-    }
-    return event_loop(*handle_result);
+    return create_loop(std::move(task), queue_size).transform([](auto h) { return event_loop(h); });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -239,11 +244,7 @@ user_event_loop::user_event_loop(size_t queue_size)
 #endif
 
 result<user_event_loop> user_event_loop::make(size_t queue_size) {
-    auto handle_result = create_loop(queue_size);
-    if (!handle_result.has_value()) {
-        return error(handle_result.error());
-    }
-    return user_event_loop(*handle_result);
+    return create_loop(queue_size).transform([](auto h) { return user_event_loop(h); });
 }
 
 } // namespace idfxx
