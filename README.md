@@ -33,6 +33,11 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_lcd_touch_stmpe610](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610) | STMPE610 resistive touch controller driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
 | **Sensor Drivers** | | |
 | [idfxx_ds18x20](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20) | DS18x20 1-Wire temperature sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ds18x20.html) |
+| **Application Protocols** | | |
+| [idfxx_http](https://github.com/cleishm/idfxx/tree/main/components/idfxx_http) | Common HTTP types (methods, auth, transport) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__http.html) |
+| [idfxx_http_client](https://github.com/cleishm/idfxx/tree/main/components/idfxx_http_client) | HTTP/HTTPS client | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__http__client.html) |
+| [idfxx_http_server](https://github.com/cleishm/idfxx/tree/main/components/idfxx_http_server) | HTTP server with URI handler registration | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__http__server.html) |
+| [idfxx_https_server](https://github.com/cleishm/idfxx/tree/main/components/idfxx_https_server) | HTTPS server with TLS support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__https__server.html) |
 
 ## Features
 

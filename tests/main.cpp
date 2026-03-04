@@ -9,11 +9,14 @@
 
 #include <idfxx/log>
 
+#include <esp_netif.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 extern "C" void app_main()
 {
+    ESP_ERROR_CHECK(esp_netif_init());
+
     UNITY_BEGIN();
 
 #ifdef CONFIG_IDF_TARGET_QEMU
