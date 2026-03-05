@@ -3,6 +3,7 @@
 
 #include <idfxx/error>
 #include <idfxx/nvs>
+#include <idfxx/partition>
 
 #include <esp_log.h>
 #include <esp_system.h>
@@ -152,6 +153,41 @@ result<nvs> nvs::make(std::string_view namespace_name, bool read_only) {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 nvs::nvs(std::string_view namespace_name, bool read_only)
     : nvs(unwrap(open_nvs(namespace_name, read_only)), read_only) {}
+#endif
+
+static result<nvs_handle_t>
+open_nvs_from_partition(const idfxx::partition& part, std::string_view namespace_name, bool read_only) {
+    if (namespace_name.empty() || namespace_name.length() > 15) {
+        return idfxx::error(idfxx::nvs::errc::invalid_name);
+    }
+    std::string ns_str{namespace_name};
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open_from_partition(
+        part.idf_handle()->label, ns_str.c_str(), read_only ? NVS_READONLY : NVS_READWRITE, &handle
+    );
+    if (err != ESP_OK) {
+        ESP_LOGD(
+            TAG,
+            "Failed to open nvs namespace '%s' from partition '%.*s': %s",
+            ns_str.c_str(),
+            static_cast<int>(part.label().size()),
+            part.label().data(),
+            esp_err_to_name(err)
+        );
+        return idfxx::nvs_error(err);
+    }
+    return handle;
+}
+
+result<nvs> nvs::make(const partition& part, std::string_view namespace_name, bool read_only) {
+    return open_nvs_from_partition(part, namespace_name, read_only).transform([&](auto handle) {
+        return nvs{handle, read_only};
+    });
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+nvs::nvs(const partition& part, std::string_view namespace_name, bool read_only)
+    : nvs(unwrap(open_nvs_from_partition(part, namespace_name, read_only)), read_only) {}
 #endif
 
 nvs::nvs(nvs_handle_t handle, bool read_only)
@@ -471,6 +507,116 @@ result<void> nvs::flash::try_erase(std::string_view partition_label) {
         return nvs_error(err);
     }
     return {};
+}
+
+result<void> nvs::flash::try_init(const partition& part) {
+    esp_err_t err = nvs_flash_init_partition_ptr(part.idf_handle());
+    if (err != ESP_OK) {
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_init_partition_ptr('%.*s') failed: %s",
+            static_cast<int>(part.label().size()),
+            part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    return {};
+}
+
+result<void> nvs::flash::try_init(const partition& part, const secure_config& cfg) {
+    nvs_sec_cfg_t nvs_cfg{};
+    std::copy(cfg.eky.begin(), cfg.eky.end(), nvs_cfg.eky);
+    std::copy(cfg.tky.begin(), cfg.tky.end(), nvs_cfg.tky);
+    // No nvs_flash_secure_init_partition_ptr — use label-based API
+    std::string label_str{part.label()};
+    esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), &nvs_cfg);
+    memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
+    if (err != ESP_OK) {
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_secure_init_partition('%.*s') failed: %s",
+            static_cast<int>(part.label().size()),
+            part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    return {};
+}
+
+result<void> nvs::flash::try_init(insecure_t, const partition& part) {
+    // No nvs_flash_secure_init_partition_ptr — use label-based API
+    std::string label_str{part.label()};
+    esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), nullptr);
+    if (err != ESP_OK) {
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_init_partition('%.*s') failed: %s",
+            static_cast<int>(part.label().size()),
+            part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    return {};
+}
+
+result<void> nvs::flash::try_erase(const partition& part) {
+    esp_err_t err = nvs_flash_erase_partition_ptr(part.idf_handle());
+    if (err != ESP_OK) {
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_erase_partition_ptr('%.*s') failed: %s",
+            static_cast<int>(part.label().size()),
+            part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    return {};
+}
+
+result<nvs::flash::secure_config> nvs::flash::try_generate_keys(const partition& key_part) {
+    nvs_sec_cfg_t nvs_cfg{};
+    esp_err_t err = nvs_flash_generate_keys(key_part.idf_handle(), &nvs_cfg);
+    if (err != ESP_OK) {
+        memset(&nvs_cfg, 0, sizeof(nvs_cfg));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_generate_keys('%.*s') failed: %s",
+            static_cast<int>(key_part.label().size()),
+            key_part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    secure_config cfg{};
+    std::copy(std::begin(nvs_cfg.eky), std::end(nvs_cfg.eky), cfg.eky.begin());
+    std::copy(std::begin(nvs_cfg.tky), std::end(nvs_cfg.tky), cfg.tky.begin());
+    memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
+    return cfg;
+}
+
+result<nvs::flash::secure_config> nvs::flash::try_read_security_cfg(const partition& key_part) {
+    nvs_sec_cfg_t nvs_cfg{};
+    esp_err_t err = nvs_flash_read_security_cfg(key_part.idf_handle(), &nvs_cfg);
+    if (err != ESP_OK) {
+        memset(&nvs_cfg, 0, sizeof(nvs_cfg));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_read_security_cfg('%.*s') failed: %s",
+            static_cast<int>(key_part.label().size()),
+            key_part.label().data(),
+            esp_err_to_name(err)
+        );
+        return nvs_error(err);
+    }
+    secure_config cfg{};
+    std::copy(std::begin(nvs_cfg.eky), std::end(nvs_cfg.eky), cfg.eky.begin());
+    std::copy(std::begin(nvs_cfg.tky), std::end(nvs_cfg.tky), cfg.tky.begin());
+    memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
+    return cfg;
 }
 
 } // namespace idfxx

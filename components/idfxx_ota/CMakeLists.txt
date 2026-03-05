@@ -1,8 +1,7 @@
 idf_component_register(
-    SRCS "src/nvs.cpp"
+    SRCS "src/ota.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES idfxx_partition
-    PRIV_REQUIRES nvs_flash
+    REQUIRES app_update
 )
 
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)

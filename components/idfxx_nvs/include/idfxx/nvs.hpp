@@ -20,6 +20,7 @@
  */
 
 #include <idfxx/error>
+#include <idfxx/partition>
 
 #include <span>
 #include <string_view>
@@ -123,6 +124,32 @@ public:
      * @return The new nvs handle, or an error.
      */
     [[nodiscard]] static result<nvs> make(std::string_view namespace_name, bool read_only = false);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Opens a NVS namespace on a specific partition.
+     *
+     * @param part           The partition to open NVS storage from.
+     * @param namespace_name Namespace name (max 15 characters).
+     * @param read_only      If true, opens in read-only mode.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] explicit nvs(const partition& part, std::string_view namespace_name, bool read_only = false);
+#endif
+
+    /**
+     * @brief Opens a NVS namespace on a specific partition.
+     *
+     * @param part           The partition to open NVS storage from.
+     * @param namespace_name Namespace name (max 15 characters).
+     * @param read_only      If true, opens in read-only mode.
+     *
+     * @return The new nvs handle, or an error.
+     */
+    [[nodiscard]] static result<nvs>
+    make(const partition& part, std::string_view namespace_name, bool read_only = false);
 
     ~nvs();
 
@@ -453,6 +480,37 @@ public:
      * @throws std::system_error on failure.
      */
     static void init(insecure_t, std::string_view partition_label) { unwrap(try_init(insecure, partition_label)); }
+
+    /**
+     * @brief Initialize NVS flash storage for the specified partition.
+     *
+     * @param part The partition to initialize NVS storage on.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    static void init(const partition& part) { unwrap(try_init(part)); }
+
+    /**
+     * @brief Initialize NVS flash storage for the specified partition with encryption.
+     *
+     * @param part The partition to initialize NVS storage on.
+     * @param cfg  Security configuration (keys) to be used for NVS encryption/decryption.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    static void init(const partition& part, const secure_config& cfg) { unwrap(try_init(part, cfg)); }
+
+    /**
+     * @brief Initialize NVS flash storage for the specified partition without encryption.
+     *
+     * @param part The partition to initialize NVS storage on.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    static void init(insecure_t, const partition& part) { unwrap(try_init(insecure, part)); }
 #endif
 
     /**
@@ -557,6 +615,43 @@ public:
      */
     [[nodiscard]] static result<void> try_init(insecure_t, std::string_view partition_label);
 
+    /**
+     * @brief Initialize NVS flash storage for the specified partition.
+     *
+     * @param part The partition to initialize NVS storage on.
+     *
+     * @return Success, or an error.
+     * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
+     *         (which may happen if NVS partition was truncated).
+     * @retval Other error codes from the underlying flash storage driver.
+     */
+    [[nodiscard]] static result<void> try_init(const partition& part);
+
+    /**
+     * @brief Initialize NVS flash storage for the specified partition with encryption.
+     *
+     * @param part The partition to initialize NVS storage on.
+     * @param cfg  Security configuration (keys) to be used for NVS encryption/decryption.
+     *
+     * @return Success, or an error.
+     * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
+     *         (which may happen if NVS partition was truncated).
+     * @retval Other error codes from the underlying flash storage driver.
+     */
+    [[nodiscard]] static result<void> try_init(const partition& part, const secure_config& cfg);
+
+    /**
+     * @brief Initialize NVS flash storage for the specified partition without encryption.
+     *
+     * @param part The partition to initialize NVS storage on.
+     *
+     * @return Success, or an error.
+     * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
+     *         (which may happen if NVS partition was truncated).
+     * @retval Other error codes from the underlying flash storage driver.
+     */
+    [[nodiscard]] static result<void> try_init(insecure_t, const partition& part);
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Deinitialize NVS storage for the default NVS partition.
@@ -581,7 +676,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::not_initialized if the storage was not initialized prior to this call.
      */
-    [[nodiscard]] static result<void> try_deinit();
+    static result<void> try_deinit();
 
     /**
      * @brief Deinitialize NVS storage for the specified partition.
@@ -591,7 +686,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::not_initialized if the storage was not initialized prior to this call.
      */
-    [[nodiscard]] static result<void> try_deinit(std::string_view partition_label);
+    static result<void> try_deinit(std::string_view partition_label);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -610,6 +705,44 @@ public:
      * @throws std::system_error on failure.
      */
     static void erase(std::string_view partition_label) { unwrap(try_erase(partition_label)); }
+
+    /**
+     * @brief Erase the specified NVS partition.
+     *
+     * @param part The partition to erase.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    static void erase(const partition& part) { unwrap(try_erase(part)); }
+
+    /**
+     * @brief Generate NVS encryption keys and store them on a key partition.
+     *
+     * @param key_part The NVS key partition to generate keys on.
+     *
+     * @return The generated security configuration.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] static secure_config generate_keys(const partition& key_part) {
+        return unwrap(try_generate_keys(key_part));
+    }
+
+    /**
+     * @brief Read NVS encryption keys from a key partition.
+     *
+     * @param key_part The NVS key partition to read keys from.
+     *
+     * @return The security configuration read from the partition.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] static secure_config read_security_cfg(const partition& key_part) {
+        return unwrap(try_read_security_cfg(key_part));
+    }
 #endif
 
     /**
@@ -628,6 +761,36 @@ public:
      * @retval nvs::errc::not_found if specified partition is not found in the partition table.
      */
     [[nodiscard]] static result<void> try_erase(std::string_view partition_label);
+
+    /**
+     * @brief Erases the specified NVS partition.
+     *
+     * @param part The partition to erase.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] static result<void> try_erase(const partition& part);
+
+    /**
+     * @brief Generate NVS encryption keys and store them on a key partition.
+     *
+     * @param key_part The NVS key partition to generate keys on.
+     *
+     * @return The generated security configuration, or an error.
+     * @retval nvs::errc::xts_cfg_failed if key generation fails.
+     */
+    [[nodiscard]] static result<secure_config> try_generate_keys(const partition& key_part);
+
+    /**
+     * @brief Read NVS encryption keys from a key partition.
+     *
+     * @param key_part The NVS key partition to read keys from.
+     *
+     * @return The security configuration read from the partition, or an error.
+     * @retval nvs::errc::xts_cfg_not_found if no valid keys are found on the partition.
+     * @retval nvs::errc::corrupt_key_part if the key partition is corrupt.
+     */
+    [[nodiscard]] static result<secure_config> try_read_security_cfg(const partition& key_part);
 };
 
 } // namespace idfxx

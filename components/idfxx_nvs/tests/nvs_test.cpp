@@ -5,6 +5,7 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/nvs"
+#include "idfxx/partition"
 #include "unity.h"
 
 #include <type_traits>
@@ -627,3 +628,119 @@ TEST_CASE("nvs move assignment cleans up target", "[idfxx][nvs]") {
     TEST_ASSERT_FALSE(set_result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), set_result.error().value());
 }
+
+// =============================================================================
+// Partition-based API tests
+// =============================================================================
+
+static partition find_nvs_partition() {
+    auto result = partition::try_find(partition::type::data, partition::subtype::data_nvs);
+    TEST_ASSERT_TRUE(result.has_value());
+    return *result;
+}
+
+TEST_CASE("nvs::flash::try_init with partition", "[idfxx][nvs]") {
+    // Deinit first if already initialized
+    nvs::flash::try_deinit();
+
+    auto part = find_nvs_partition();
+
+    auto result = nvs::flash::try_init(part);
+    if (!result && (result.error() == nvs::errc::no_free_pages || result.error() == nvs::errc::new_version_found)) {
+        TEST_ASSERT_TRUE(nvs::flash::try_erase(part).has_value());
+        result = nvs::flash::try_init(part);
+    }
+    TEST_ASSERT_TRUE(result.has_value());
+
+    // Should be able to open a namespace now
+    auto nvs_result = nvs::make("test_pinit");
+    TEST_ASSERT_TRUE(nvs_result.has_value());
+}
+
+TEST_CASE("nvs::flash::try_erase with partition", "[idfxx][nvs]") {
+    auto part = find_nvs_partition();
+
+    // Ensure initialized
+    auto init_result = nvs::flash::try_init(part);
+    if (!init_result && (init_result.error() == nvs::errc::no_free_pages ||
+                         init_result.error() == nvs::errc::new_version_found)) {
+        TEST_ASSERT_TRUE(nvs::flash::try_erase(part).has_value());
+        init_result = nvs::flash::try_init(part);
+    }
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    // Write something
+    {
+        auto ns = nvs::make("test_perase");
+        TEST_ASSERT_TRUE(ns.has_value());
+        TEST_ASSERT_TRUE(ns->try_set_string("key", "value").has_value());
+        TEST_ASSERT_TRUE(ns->try_commit().has_value());
+    }
+
+    // Deinit, erase, reinit
+    TEST_ASSERT_TRUE(nvs::flash::try_deinit().has_value());
+    TEST_ASSERT_TRUE(nvs::flash::try_erase(part).has_value());
+    TEST_ASSERT_TRUE(nvs::flash::try_init(part).has_value());
+
+    // Data should be gone
+    {
+        auto ns = nvs::make("test_perase");
+        TEST_ASSERT_TRUE(ns.has_value());
+        auto get_result = ns->try_get_string("key");
+        TEST_ASSERT_FALSE(get_result.has_value());
+        TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), get_result.error().value());
+    }
+}
+
+TEST_CASE("nvs::make with partition", "[idfxx][nvs]") {
+    auto part = find_nvs_partition();
+    ensure_nvs_init();
+
+    // Deinit default, init via partition
+    nvs::flash::try_deinit();
+    auto init_result = nvs::flash::try_init(part);
+    if (!init_result && (init_result.error() == nvs::errc::no_free_pages ||
+                         init_result.error() == nvs::errc::new_version_found)) {
+        TEST_ASSERT_TRUE(nvs::flash::try_erase(part).has_value());
+        init_result = nvs::flash::try_init(part);
+    }
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    auto nvs_result = nvs::make(part, "test_pmake");
+    TEST_ASSERT_TRUE(nvs_result.has_value());
+    TEST_ASSERT_TRUE(nvs_result->is_writeable());
+
+    // Write and read back
+    TEST_ASSERT_TRUE(nvs_result->try_set_string("pkey", "pvalue").has_value());
+    TEST_ASSERT_TRUE(nvs_result->try_commit().has_value());
+
+    auto get_result = nvs_result->try_get_string("pkey");
+    TEST_ASSERT_TRUE(get_result.has_value());
+    TEST_ASSERT_EQUAL_STRING("pvalue", get_result->c_str());
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("nvs constructor with partition", "[idfxx][nvs]") {
+    auto part = find_nvs_partition();
+
+    // Deinit default, init via partition
+    nvs::flash::try_deinit();
+    auto init_result = nvs::flash::try_init(part);
+    if (!init_result && (init_result.error() == nvs::errc::no_free_pages ||
+                         init_result.error() == nvs::errc::new_version_found)) {
+        nvs::flash::erase(part);
+        nvs::flash::init(part);
+    }
+
+    nvs ns(part, "test_pexc");
+    TEST_ASSERT_TRUE(ns.is_writeable());
+
+    ns.set_string("greeting", "hello");
+    ns.commit();
+
+    auto val = ns.get_string("greeting");
+    TEST_ASSERT_EQUAL_STRING("hello", val.c_str());
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS

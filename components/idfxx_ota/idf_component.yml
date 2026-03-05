@@ -1,6 +1,6 @@
 version: "0.9.0"
-description: "Type-safe persistent key-value storage in flash memory"
-url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_nvs"
+description: "OTA firmware update session management with rollback support"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_ota"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
 dependencies:
