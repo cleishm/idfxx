@@ -10,6 +10,9 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **ESP-IDF error code integration** via `idfxx::errc` enum
 - **Chrono utilities** for FreeRTOS tick conversions
 - **Custom memory allocators** for DRAM, PSRAM, and DMA-capable memory
+- **System information** — reset reason, restart, shutdown handlers, heap monitoring
+- **Application metadata** — version, project name, build timestamps, ELF hash
+- **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
 
 ## Requirements
@@ -103,6 +106,32 @@ std::vector<uint8_t, idfxx::dma_allocator<uint8_t>> dma_buffer;
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
 - `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
+
+### System (`<idfxx/system>`)
+
+- `reset_reason` - Enum for all chip reset reasons
+- `last_reset_reason()` - Returns the reason for the most recent reset
+- `restart()` - Restarts the chip
+- `register_shutdown_handler()` / `try_register_shutdown_handler()` - Register shutdown callbacks
+- `unregister_shutdown_handler()` / `try_unregister_shutdown_handler()` - Remove shutdown callbacks
+- `free_heap_size()` - Current free heap in bytes
+- `free_internal_heap_size()` - Current free internal heap in bytes
+- `minimum_free_heap_size()` - Minimum free heap since boot
+
+### Application Info (`<idfxx/app>`)
+
+- `app::version()` - Application version string
+- `app::project_name()` - Project name
+- `app::compile_time()` / `app::compile_date()` - Build timestamps
+- `app::idf_version()` - ESP-IDF version used for the build
+- `app::secure_version()` - Secure version counter
+- `app::elf_sha256_hex()` - ELF SHA-256 hash as hex string
+
+### Random Numbers (`<idfxx/random>`)
+
+- `random()` - Hardware-generated random 32-bit value
+- `fill_random(span)` - Fill a buffer with random bytes
+- `random_device` - `UniformRandomBitGenerator` for use with standard distributions
 
 ## Error Codes
 

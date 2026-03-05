@@ -4,6 +4,8 @@
 # Test source files
 set(IDFXX_HW_SUPPORT_TEST_SOURCES
     intr_alloc_test.cpp
+    chip_test.cpp
+    mac_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,

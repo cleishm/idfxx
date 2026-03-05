@@ -10,6 +10,9 @@ set(IDFXX_CORE_TEST_SOURCES
     memory_dma_allocator_test.cpp
     memory_dram_allocator_test.cpp
     memory_spiram_allocator_test.cpp
+    system_test.cpp
+    app_test.cpp
+    random_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,

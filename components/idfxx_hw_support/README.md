@@ -1,13 +1,14 @@
 # idfxx_hw_support
 
-Hardware interrupt allocation and management for ESP32.
+Hardware support: interrupt allocation, chip info, and MAC addresses.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__hw__support.html)**
 
 ## Features
 
 - Type-safe interrupt allocation flags with operator support
-- Header-only component with zero overhead
+- Chip model identification, revision, and feature detection
+- MAC address value type with reading and configuration
 
 ## Requirements
 
@@ -72,12 +73,41 @@ if ((flags & idfxx::intr_flag::iram) != idfxx::intr_flag::none) {
 }
 ```
 
+### Chip Info
+
+```cpp
+#include <idfxx/chip>
+
+auto info = idfxx::chip_info::get();
+auto model = info.model();           // e.g. chip_model::esp32s3
+auto cores = info.cores();           // e.g. 2
+auto rev = info.revision();          // e.g. 100 (v1.0)
+
+if (info.features().contains(idfxx::chip_feature::wifi)) {
+    // Chip has WiFi
+}
+```
+
+### MAC Addresses
+
+```cpp
+#include <idfxx/mac>
+
+auto mac = idfxx::base_mac_address();
+auto s = idfxx::to_string(mac); // "AA:BB:CC:DD:EE:FF"
+
+// Result-based API
+auto r = idfxx::try_read_mac(idfxx::mac_type::wifi_sta);
+if (r) {
+    auto wifi_mac = *r;
+}
+```
+
 ## Important Notes
 
 - **Priority Levels**: Levels 1-3 can use C/C++ handlers. Levels 4-6 and NMI require assembly handlers and must pass NULL as the handler function.
 - **IRAM Flag**: Use `intr_flag::iram` for ISR handlers that need to run when cache is disabled (e.g., during flash operations).
 - **Shared Interrupts**: Multiple handlers can share the same interrupt source with `intr_flag::shared`.
-- **Header-Only**: This component is header-only with zero runtime overhead.
 - **Type Safety**: All enums are strongly typed and prevent accidental misuse.
 
 ## License
