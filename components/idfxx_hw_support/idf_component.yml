@@ -1,5 +1,5 @@
 version: "0.9.0"
-description: "Hardware interrupt allocation and management for ESP32"
+description: "Hardware support: interrupt allocation, chip info, and MAC addresses"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_hw_support"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
