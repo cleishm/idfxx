@@ -71,17 +71,17 @@ public:
      * @brief Creates a queue with the specified capacity.
      *
      * @param length Maximum number of items the queue can hold.
-     * @param mem_type Memory region for queue storage allocation.
+     * @param mem_caps Memory capability flags for queue storage allocation.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    [[nodiscard]] explicit queue(size_t length, memory_type mem_type = memory_type::internal)
+    [[nodiscard]] explicit queue(size_t length, flags<memory_caps> mem_caps = memory_caps::dram)
         : _handle(nullptr) {
         if (length == 0) {
             throw std::system_error(errc::invalid_arg);
         }
-        _handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
+        _handle = xQueueCreateWithCaps(length, sizeof(T), to_underlying(mem_caps));
         if (_handle == nullptr) {
             raise_no_mem();
         }
@@ -92,16 +92,16 @@ public:
      * @brief Creates a queue with the specified capacity.
      *
      * @param length Maximum number of items the queue can hold.
-     * @param mem_type Memory region for queue storage allocation.
+     * @param mem_caps Memory capability flags for queue storage allocation.
      * @return The new queue, or an error.
      * @retval invalid_arg length is 0.
      */
-    [[nodiscard]] static result<queue> make(size_t length, memory_type mem_type = memory_type::internal) {
+    [[nodiscard]] static result<queue> make(size_t length, flags<memory_caps> mem_caps = memory_caps::dram) {
         if (length == 0) {
             return error(errc::invalid_arg);
         }
         queue q;
-        q._handle = xQueueCreateWithCaps(length, sizeof(T), std::to_underlying(mem_type));
+        q._handle = xQueueCreateWithCaps(length, sizeof(T), to_underlying(mem_caps));
         if (q._handle == nullptr) {
             raise_no_mem();
         }
@@ -124,9 +124,7 @@ public:
 
     /** @brief Move constructor. Transfers queue ownership. */
     queue(queue&& other) noexcept
-        : _handle(other._handle) {
-        other._handle = nullptr;
-    }
+        : _handle(std::exchange(other._handle, nullptr)) {}
 
     /** @brief Move assignment. Transfers queue ownership. */
     queue& operator=(queue&& other) noexcept {
@@ -134,8 +132,7 @@ public:
             if (_handle != nullptr) {
                 vQueueDeleteWithCaps(_handle);
             }
-            _handle = other._handle;
-            other._handle = nullptr;
+            _handle = std::exchange(other._handle, nullptr);
         }
         return *this;
     }

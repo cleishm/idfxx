@@ -268,14 +268,12 @@ server::~server() {
 }
 
 server::server(server&& other) noexcept
-    : _handle(other._handle)
-    , _stop_fn(other._stop_fn)
+    : _handle(std::exchange(other._handle, nullptr))
+    , _stop_fn(std::exchange(other._stop_fn, nullptr))
     , _ctx(std::move(other._ctx))
     , _handlers(std::move(other._handlers))
     , _on_session_open(std::move(other._on_session_open))
     , _on_session_close(std::move(other._on_session_close)) {
-    other._handle = nullptr;
-    other._stop_fn = nullptr;
     if (_ctx) {
         _ctx->self = this;
     }
@@ -286,14 +284,12 @@ server& server::operator=(server&& other) noexcept {
         if (_handle) {
             _stop_fn(_handle);
         }
-        _handle = other._handle;
-        _stop_fn = other._stop_fn;
+        _handle = std::exchange(other._handle, nullptr);
+        _stop_fn = std::exchange(other._stop_fn, nullptr);
         _ctx = std::move(other._ctx);
         _handlers = std::move(other._handlers);
         _on_session_open = std::move(other._on_session_open);
         _on_session_close = std::move(other._on_session_close);
-        other._handle = nullptr;
-        other._stop_fn = nullptr;
         if (_ctx) {
             _ctx->self = this;
         }

@@ -6,6 +6,7 @@
 #include <esp_log.h>
 #include <map>
 #include <mutex>
+#include <utility>
 
 namespace {
 const char* TAG = "idfxx::event";
@@ -129,19 +130,14 @@ result<void> event_loop::try_listener_remove(listener_handle handle) {
 }
 
 event_loop::event_loop(event_loop&& other) noexcept
-    : _handle(other._handle)
-    , _system(other._system) {
-    other._handle = nullptr;
-    other._system = false;
-}
+    : _handle(std::exchange(other._handle, nullptr))
+    , _system(std::exchange(other._system, false)) {}
 
 event_loop& event_loop::operator=(event_loop&& other) noexcept {
     if (this != &other) {
         _delete();
-        _handle = other._handle;
-        _system = other._system;
-        other._handle = nullptr;
-        other._system = false;
+        _handle = std::exchange(other._handle, nullptr);
+        _system = std::exchange(other._system, false);
     }
     return *this;
 }

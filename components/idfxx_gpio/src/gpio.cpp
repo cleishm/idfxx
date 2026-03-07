@@ -125,7 +125,7 @@ gpio::gpio(int num)
 #endif
 
 result<void> gpio::try_install_isr_service(flags<intr_flag> intr_flags) {
-    return wrap(gpio_install_isr_service(intr_flags.value())).transform([&]() {
+    return wrap(gpio_install_isr_service(to_underlying(intr_flags))).transform([&]() {
         iram_isr = intr_flags.contains(intr_flag::iram);
     });
 }

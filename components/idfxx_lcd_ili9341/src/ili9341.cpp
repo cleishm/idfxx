@@ -6,6 +6,7 @@
 #include <esp_lcd_ili9341.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_log.h>
+#include <utility>
 
 namespace {
 
@@ -60,9 +61,7 @@ ili9341::ili9341(idfxx::lcd::panel_io& panel_io, panel::config config)
 #endif
 
 ili9341::ili9341(ili9341&& other) noexcept
-    : _handle(other._handle) {
-    other._handle = nullptr;
-}
+    : _handle(std::exchange(other._handle, nullptr)) {}
 
 ili9341& ili9341::operator=(ili9341&& other) noexcept {
     if (this != &other) {
@@ -70,8 +69,7 @@ ili9341& ili9341::operator=(ili9341&& other) noexcept {
             esp_lcd_panel_del(_handle);
         }
 
-        _handle = other._handle;
-        other._handle = nullptr;
+        _handle = std::exchange(other._handle, nullptr);
     }
     return *this;
 }

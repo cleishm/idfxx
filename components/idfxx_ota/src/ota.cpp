@@ -127,17 +127,14 @@ update::update(esp_ota_handle_t handle)
     : _handle(handle) {}
 
 update::update(update&& other) noexcept
-    : _handle(other._handle) {
-    other._handle = 0;
-}
+    : _handle(std::exchange(other._handle, 0)) {}
 
 update& update::operator=(update&& other) noexcept {
     if (this != &other) {
         if (_handle != 0) {
             esp_ota_abort(_handle);
         }
-        _handle = other._handle;
-        other._handle = 0;
+        _handle = std::exchange(other._handle, 0);
     }
     return *this;
 }

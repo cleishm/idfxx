@@ -4,6 +4,7 @@
 #include <idfxx/lcd/panel_io>
 
 #include <esp_log.h>
+#include <utility>
 
 namespace {
 const char* TAG = "idfxx::lcd::panel_io";
@@ -72,19 +73,16 @@ panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config config)
 #endif
 
 panel_io::panel_io(panel_io&& other) noexcept
-    : _handle(other._handle)
-    , _callbacks(std::move(other._callbacks)) {
-    other._handle = nullptr;
-}
+    : _handle(std::exchange(other._handle, nullptr))
+    , _callbacks(std::move(other._callbacks)) {}
 
 panel_io& panel_io::operator=(panel_io&& other) noexcept {
     if (this != &other) {
         if (_handle != nullptr) {
             esp_lcd_panel_io_del(_handle);
         }
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _callbacks = std::move(other._callbacks);
-        other._handle = nullptr;
     }
     return *this;
 }

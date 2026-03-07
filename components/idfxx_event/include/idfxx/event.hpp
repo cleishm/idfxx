@@ -25,6 +25,7 @@
 #include <esp_event.h>
 #include <functional>
 #include <type_traits>
+#include <utility>
 
 /**
  * @brief Defines an event base.
@@ -685,9 +686,7 @@ public:
      * @brief Move constructor.
      */
     unique_listener_handle(unique_listener_handle&& other) noexcept
-        : _handle(other._handle) {
-        other._handle = listener_handle{};
-    }
+        : _handle(std::exchange(other._handle, listener_handle{})) {}
 
     /**
      * @brief Move assignment.
@@ -695,8 +694,7 @@ public:
     unique_listener_handle& operator=(unique_listener_handle&& other) noexcept {
         if (this != &other) {
             reset();
-            _handle = other._handle;
-            other._handle = listener_handle{};
+            _handle = std::exchange(other._handle, listener_handle{});
         }
         return *this;
     }

@@ -29,6 +29,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <type_traits>
+#include <utility>
 
 namespace idfxx {
 
@@ -107,9 +108,7 @@ public:
 
     /** @brief Move constructor. Transfers event group ownership. */
     event_group(event_group&& other) noexcept
-        : _handle(other._handle) {
-        other._handle = nullptr;
-    }
+        : _handle(std::exchange(other._handle, nullptr)) {}
 
     /** @brief Move assignment. Transfers event group ownership. */
     event_group& operator=(event_group&& other) noexcept {
@@ -117,8 +116,7 @@ public:
             if (_handle != nullptr) {
                 vEventGroupDelete(_handle);
             }
-            _handle = other._handle;
-            other._handle = nullptr;
+            _handle = std::exchange(other._handle, nullptr);
         }
         return *this;
     }
@@ -143,7 +141,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return _from_bits(xEventGroupSetBits(_handle, bits.value()));
+        return _from_bits(xEventGroupSetBits(_handle, to_underlying(bits)));
     }
 
     // =========================================================================
@@ -162,7 +160,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return _from_bits(xEventGroupClearBits(_handle, bits.value()));
+        return _from_bits(xEventGroupClearBits(_handle, to_underlying(bits)));
     }
 
     // =========================================================================
@@ -486,7 +484,7 @@ public:
             return {false, false};
         }
         BaseType_t woken = pdFALSE;
-        BaseType_t ret = xEventGroupSetBitsFromISR(_handle, bits.value(), &woken);
+        BaseType_t ret = xEventGroupSetBitsFromISR(_handle, to_underlying(bits), &woken);
         return {ret == pdPASS, woken == pdTRUE};
     }
 
@@ -506,7 +504,7 @@ public:
         if (_handle == nullptr) {
             return {};
         }
-        return _from_bits(xEventGroupClearBitsFromISR(_handle, bits.value()));
+        return _from_bits(xEventGroupClearBitsFromISR(_handle, to_underlying(bits)));
     }
 
     /**
@@ -537,7 +535,7 @@ public:
 
 private:
     static flags<E> _from_bits(EventBits_t bits) noexcept {
-        return flags<E>::from_raw(static_cast<std::underlying_type_t<E>>(bits));
+        return flags<E>(static_cast<std::underlying_type_t<E>>(bits));
     }
 
     [[nodiscard]] result<flags<E>> _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
@@ -545,7 +543,11 @@ private:
             return error(errc::invalid_state);
         }
         EventBits_t result_bits = xEventGroupWaitBits(
-            _handle, bits.value(), clear_on_exit ? pdTRUE : pdFALSE, mode == wait_mode::all ? pdTRUE : pdFALSE, ticks
+            _handle,
+            to_underlying(bits),
+            clear_on_exit ? pdTRUE : pdFALSE,
+            mode == wait_mode::all ? pdTRUE : pdFALSE,
+            ticks
         );
         auto result_flags = _from_bits(result_bits);
         bool satisfied = (mode == wait_mode::all) ? result_flags.contains(bits) : result_flags.contains_any(bits);
@@ -559,7 +561,7 @@ private:
         if (_handle == nullptr) {
             return error(errc::invalid_state);
         }
-        EventBits_t result_bits = xEventGroupSync(_handle, set_bits.value(), wait_bits.value(), ticks);
+        EventBits_t result_bits = xEventGroupSync(_handle, to_underlying(set_bits), to_underlying(wait_bits), ticks);
         auto result_flags = _from_bits(result_bits);
         if (!result_flags.contains(wait_bits)) {
             return error(errc::timeout);

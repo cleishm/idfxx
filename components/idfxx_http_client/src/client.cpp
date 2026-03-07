@@ -281,14 +281,13 @@ client::client(
     , _client_key_pem(std::move(client_key_pem)) {}
 
 client::client(client&& other) noexcept
-    : _handle(other._handle)
+    : _handle(std::exchange(other._handle, nullptr))
     , _on_event(std::move(other._on_event))
     , _crt_bundle_attach(std::move(other._crt_bundle_attach))
     , _post_data(std::move(other._post_data))
     , _cert_pem(std::move(other._cert_pem))
     , _client_cert_pem(std::move(other._client_cert_pem))
     , _client_key_pem(std::move(other._client_key_pem)) {
-    other._handle = nullptr;
     if (_handle) {
         esp_http_client_set_user_data(_handle, this);
     }
@@ -299,14 +298,13 @@ client& client::operator=(client&& other) noexcept {
         if (_handle) {
             esp_http_client_cleanup(_handle);
         }
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _on_event = std::move(other._on_event);
         _crt_bundle_attach = std::move(other._crt_bundle_attach);
         _post_data = std::move(other._post_data);
         _cert_pem = std::move(other._cert_pem);
         _client_cert_pem = std::move(other._client_cert_pem);
         _client_key_pem = std::move(other._client_key_pem);
-        other._handle = nullptr;
         if (_handle) {
             esp_http_client_set_user_data(_handle, this);
         }

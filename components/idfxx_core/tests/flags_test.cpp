@@ -56,24 +56,24 @@ static_assert(std::is_nothrow_default_constructible_v<flags<test_flag>>);
 // Constexpr operations
 static_assert(flags<test_flag>{}.empty());
 static_assert(!flags<test_flag>{test_flag::flag_a}.empty());
-static_assert(flags<test_flag>{test_flag::flag_a}.value() == 1u);
-static_assert(flags<test_flag>::from_raw(5u).value() == 5u);
+static_assert(to_underlying(flags<test_flag>{test_flag::flag_a}) == 1u);
+static_assert(to_underlying(flags<test_flag>(5u)) == 5u);
 
 // Constexpr combine
-static_assert((flags{test_flag::flag_a} | flags{test_flag::flag_b}).value() == 3u);
-static_assert((test_flag::flag_a | test_flag::flag_b).value() == 3u);
+static_assert(to_underlying(flags{test_flag::flag_a} | flags{test_flag::flag_b}) == 3u);
+static_assert(to_underlying(test_flag::flag_a | test_flag::flag_b) == 3u);
 
 // Constexpr intersect
-static_assert((flags{test_flag::flag_a} & flags{test_flag::flag_a}).value() == 1u);
+static_assert(to_underlying(flags{test_flag::flag_a} & flags{test_flag::flag_a}) == 1u);
 static_assert((flags{test_flag::flag_a} & flags{test_flag::flag_b}).empty());
 
 // Constexpr toggle
-static_assert((flags{test_flag::flag_a} ^ flags{test_flag::flag_b}).value() == 3u);
+static_assert(to_underlying(flags{test_flag::flag_a} ^ flags{test_flag::flag_b}) == 3u);
 static_assert((flags{test_flag::flag_a} ^ flags{test_flag::flag_a}).empty());
 
 // Constexpr clear
 static_assert((flags{test_flag::flag_a} - flags{test_flag::flag_a}).empty());
-static_assert((flags{test_flag::flag_a} - flags{test_flag::flag_b}).value() == 1u);
+static_assert(to_underlying(flags{test_flag::flag_a} - flags{test_flag::flag_b}) == 1u);
 
 // Constexpr contains
 static_assert(flags{test_flag::flag_a}.contains(test_flag::flag_a));
@@ -100,7 +100,7 @@ TEST_CASE("flags default construction gives empty", "[idfxx][flags]") {
 
     TEST_ASSERT_TRUE(f.empty());
     TEST_ASSERT_FALSE(static_cast<bool>(f));
-    TEST_ASSERT_EQUAL_UINT32(0u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(0u, to_underlying(f));
 }
 
 TEST_CASE("flags construction from single enum value", "[idfxx][flags]") {
@@ -108,20 +108,20 @@ TEST_CASE("flags construction from single enum value", "[idfxx][flags]") {
 
     TEST_ASSERT_FALSE(f.empty());
     TEST_ASSERT_TRUE(static_cast<bool>(f));
-    TEST_ASSERT_EQUAL_UINT32(1u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(1u, to_underlying(f));
 }
 
 TEST_CASE("flags CTAD deduces correct type", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_b};
 
     static_assert(std::is_same_v<decltype(f), flags<test_flag>>);
-    TEST_ASSERT_EQUAL_UINT32(2u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(f));
 }
 
 TEST_CASE("flags combine with |", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a} | flags{test_flag::flag_b};
 
-    TEST_ASSERT_EQUAL_UINT32(3u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
     TEST_ASSERT_TRUE(f.contains(test_flag::flag_a));
     TEST_ASSERT_TRUE(f.contains(test_flag::flag_b));
 }
@@ -129,14 +129,14 @@ TEST_CASE("flags combine with |", "[idfxx][flags]") {
 TEST_CASE("flags combine multiple with |", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a} | test_flag::flag_b | test_flag::flag_c;
 
-    TEST_ASSERT_EQUAL_UINT32(7u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(7u, to_underlying(f));
 }
 
 TEST_CASE("flags |= modifies in place", "[idfxx][flags]") {
     flags<test_flag> f{test_flag::flag_a};
     f |= test_flag::flag_b;
 
-    TEST_ASSERT_EQUAL_UINT32(3u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
 }
 
 TEST_CASE("flags intersect with &", "[idfxx][flags]") {
@@ -145,7 +145,7 @@ TEST_CASE("flags intersect with &", "[idfxx][flags]") {
 
     auto result = f1 & f2;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, result.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(result));
     TEST_ASSERT_TRUE(result.contains(test_flag::flag_b));
 }
 
@@ -162,20 +162,20 @@ TEST_CASE("flags &= modifies in place", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
     f &= test_flag::flag_b | test_flag::flag_c;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(f));
 }
 
 TEST_CASE("flags toggle with ^", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a} ^ flags{test_flag::flag_b};
 
-    TEST_ASSERT_EQUAL_UINT32(3u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
 }
 
 TEST_CASE("flags toggle same bit clears it", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
     auto result = f ^ test_flag::flag_a;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, result.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(result));
     TEST_ASSERT_FALSE(result.contains(test_flag::flag_a));
     TEST_ASSERT_TRUE(result.contains(test_flag::flag_b));
 }
@@ -184,14 +184,14 @@ TEST_CASE("flags ^= modifies in place", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
     f ^= test_flag::flag_a;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(f));
 }
 
 TEST_CASE("flags clear with -", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
     auto result = f - test_flag::flag_a;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, result.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(result));
     TEST_ASSERT_FALSE(result.contains(test_flag::flag_a));
     TEST_ASSERT_TRUE(result.contains(test_flag::flag_b));
 }
@@ -200,14 +200,14 @@ TEST_CASE("flags clear unset flag has no effect", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a};
     auto result = f - test_flag::flag_b;
 
-    TEST_ASSERT_EQUAL_UINT32(1u, result.value());
+    TEST_ASSERT_EQUAL_UINT32(1u, to_underlying(result));
 }
 
 TEST_CASE("flags -= modifies in place", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
     f -= test_flag::flag_a;
 
-    TEST_ASSERT_EQUAL_UINT32(2u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(2u, to_underlying(f));
 }
 
 TEST_CASE("flags complement with ~", "[idfxx][flags]") {
@@ -281,13 +281,13 @@ TEST_CASE("flags operator bool matches !empty", "[idfxx][flags]") {
 TEST_CASE("flags value returns underlying bits", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_c;
 
-    TEST_ASSERT_EQUAL_UINT32(5u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(5u, to_underlying(f));
 }
 
-TEST_CASE("flags from_raw constructs from raw value", "[idfxx][flags]") {
-    auto f = flags<test_flag>::from_raw(7u);
+TEST_CASE("flags construct from raw value", "[idfxx][flags]") {
+    auto f = flags<test_flag>(7u);
 
-    TEST_ASSERT_EQUAL_UINT32(7u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(7u, to_underlying(f));
     TEST_ASSERT_TRUE(f.contains(test_flag::flag_a));
     TEST_ASSERT_TRUE(f.contains(test_flag::flag_b));
     TEST_ASSERT_TRUE(f.contains(test_flag::flag_c));
@@ -313,21 +313,21 @@ TEST_CASE("free operator E | E produces flags", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b;
 
     static_assert(std::is_same_v<decltype(f), flags<test_flag>>);
-    TEST_ASSERT_EQUAL_UINT32(3u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
 }
 
 TEST_CASE("free operator E & E produces flags", "[idfxx][flags]") {
     auto f = test_flag::flag_a & test_flag::flag_a;
 
     static_assert(std::is_same_v<decltype(f), flags<test_flag>>);
-    TEST_ASSERT_EQUAL_UINT32(1u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(1u, to_underlying(f));
 }
 
 TEST_CASE("free operator E ^ E produces flags", "[idfxx][flags]") {
     auto f = test_flag::flag_a ^ test_flag::flag_b;
 
     static_assert(std::is_same_v<decltype(f), flags<test_flag>>);
-    TEST_ASSERT_EQUAL_UINT32(3u, f.value());
+    TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
 }
 
 TEST_CASE("free operator ~E produces flags", "[idfxx][flags]") {

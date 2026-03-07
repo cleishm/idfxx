@@ -40,24 +40,24 @@ static_assert(std::to_underlying(intr_flag::iram) == ESP_INTR_FLAG_IRAM);
 static_assert(std::to_underlying(intr_flag::disabled) == ESP_INTR_FLAG_INTRDISABLED);
 
 // Predefined masks have correct values
-static_assert(intr_flag_lowmed.value() ==
+static_assert(to_underlying(intr_flag_lowmed) ==
               (std::to_underlying(intr_flag::level1) |
                std::to_underlying(intr_flag::level2) |
                std::to_underlying(intr_flag::level3)));
 
-static_assert(intr_flag_high.value() ==
+static_assert(to_underlying(intr_flag_high) ==
               (std::to_underlying(intr_flag::level4) |
                std::to_underlying(intr_flag::level5) |
                std::to_underlying(intr_flag::level6) |
                std::to_underlying(intr_flag::nmi)));
 
-static_assert(intr_flag_levelmask.value() ==
-              (intr_flag_lowmed.value() | intr_flag_high.value()));
+static_assert(to_underlying(intr_flag_levelmask) ==
+              (to_underlying(intr_flag_lowmed) | to_underlying(intr_flag_high)));
 
 // Flags can be combined at compile time
 static_assert((intr_flag::level1 | intr_flag::iram).contains(intr_flag::level1));
 static_assert((intr_flag::level1 | intr_flag::iram).contains(intr_flag::iram));
-static_assert((intr_flag::shared | intr_flag::edge).value() ==
+static_assert(to_underlying(intr_flag::shared | intr_flag::edge) ==
               (std::to_underlying(intr_flag::shared) | std::to_underlying(intr_flag::edge)));
 
 // =============================================================================
@@ -68,14 +68,14 @@ TEST_CASE("intr_flag default is none", "[idfxx][hw_support][intr_alloc]") {
     flags<intr_flag> f;
 
     TEST_ASSERT_TRUE(f.empty());
-    TEST_ASSERT_EQUAL_INT(0, f.value());
+    TEST_ASSERT_EQUAL_INT(0, to_underlying(f));
 }
 
 TEST_CASE("intr_flag single value construction", "[idfxx][hw_support][intr_alloc]") {
     flags<intr_flag> f{intr_flag::level1};
 
     TEST_ASSERT_FALSE(f.empty());
-    TEST_ASSERT_EQUAL_INT(ESP_INTR_FLAG_LEVEL1, f.value());
+    TEST_ASSERT_EQUAL_INT(ESP_INTR_FLAG_LEVEL1, to_underlying(f));
 }
 
 TEST_CASE("intr_flag combine with |", "[idfxx][hw_support][intr_alloc]") {
@@ -83,7 +83,7 @@ TEST_CASE("intr_flag combine with |", "[idfxx][hw_support][intr_alloc]") {
 
     TEST_ASSERT_TRUE(f.contains(intr_flag::level1));
     TEST_ASSERT_TRUE(f.contains(intr_flag::iram));
-    TEST_ASSERT_EQUAL_INT(ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_IRAM, f.value());
+    TEST_ASSERT_EQUAL_INT(ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_IRAM, to_underlying(f));
 }
 
 TEST_CASE("intr_flag combine multiple levels", "[idfxx][hw_support][intr_alloc]") {
@@ -183,7 +183,7 @@ TEST_CASE("intr_flag equality comparison", "[idfxx][hw_support][intr_alloc]") {
 
 TEST_CASE("intr_flag can be cast to int for ESP-IDF", "[idfxx][hw_support][intr_alloc]") {
     auto f = intr_flag::level1 | intr_flag::iram;
-    int raw_value = static_cast<int>(f.value());
+    int raw_value = static_cast<int>(to_underlying(f));
 
     TEST_ASSERT_EQUAL_INT(ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_IRAM, raw_value);
 }

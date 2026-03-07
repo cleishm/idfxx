@@ -461,7 +461,7 @@ TEST_CASE("queue destructor cleans up with items in queue", "[idfxx][queue]") {
 // =============================================================================
 
 TEST_CASE("queue::make with explicit internal storage", "[idfxx][queue]") {
-    auto result = queue<int>::make(10, memory_type::internal);
+    auto result = queue<int>::make(10, memory_caps::dram);
     TEST_ASSERT_TRUE(result.has_value());
     auto& q = *result;
     TEST_ASSERT_TRUE(q.try_send(42).has_value());
@@ -473,7 +473,7 @@ TEST_CASE("queue::make with explicit internal storage", "[idfxx][queue]") {
 #if CONFIG_SPIRAM
 
 TEST_CASE("queue::make with spiram storage", "[idfxx][queue]") {
-    auto result = queue<int>::make(10, memory_type::spiram);
+    auto result = queue<int>::make(10, memory_caps::spiram);
     TEST_ASSERT_TRUE(result.has_value());
     auto& q = *result;
 
