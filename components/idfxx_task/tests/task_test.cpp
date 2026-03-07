@@ -75,7 +75,7 @@ TEST_CASE("task::config default values", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(4096, cfg.stack_size);
     TEST_ASSERT_EQUAL(5, cfg.priority);
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
-    TEST_ASSERT_TRUE(cfg.stack_mem == memory_type::internal);
+    TEST_ASSERT_TRUE(cfg.stack_mem == memory_caps::dram);
 }
 
 TEST_CASE("task name is stored correctly", "[idfxx][task]") {
@@ -135,7 +135,8 @@ TEST_CASE("task suspend and resume", "[idfxx][task]") {
     auto suspend_result = t->try_suspend();
     TEST_ASSERT_TRUE(suspend_result.has_value());
 
-    // Read counter after suspend, then verify it doesn't increase
+    // Allow suspend to take effect, then verify counter doesn't increase
+    idfxx::delay(50ms);
     int count_after_suspend = counter.load();
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(count_after_suspend, counter.load());
@@ -616,7 +617,7 @@ TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
     auto t = std::make_unique<task>(
-        task::config{.name = "internal_stack", .stack_mem = memory_type::internal},
+        task::config{.name = "internal_stack", .stack_mem = memory_caps::dram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);
@@ -632,7 +633,7 @@ TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
     auto t = std::make_unique<task>(
-        task::config{.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory_type::spiram},
+        task::config{.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory_caps::spiram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);

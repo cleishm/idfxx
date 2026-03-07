@@ -4,6 +4,7 @@
 #include <idfxx/spi/master>
 
 #include <esp_log.h>
+#include <utility>
 
 namespace {
 const char* TAG = "idfxx::spi::bus";
@@ -28,13 +29,13 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .data7_io_num = config.data7_io_num.idf_num(),
         .data_io_default_level = config.data_io_default_level,
         .max_transfer_sz = config.max_transfer_sz,
-        .flags = config.flags.value(),
+        .flags = to_underlying(config.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
         // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.
         .isr_cpu_id = config.isr_cpu_id
             ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*config.isr_cpu_id) + 1)
             : ESP_INTR_CPU_AFFINITY_AUTO,
-        .intr_flags = config.intr_flags.value(),
+        .intr_flags = to_underlying(config.intr_flags),
     };
 
     esp_err_t res =
@@ -76,9 +77,7 @@ master_bus::master_bus(enum host_device host)
 
 master_bus::master_bus(master_bus&& other) noexcept
     : _host(other._host)
-    , _initialized(other._initialized) {
-    other._initialized = false;
-}
+    , _initialized(std::exchange(other._initialized, false)) {}
 
 master_bus& master_bus::operator=(master_bus&& other) noexcept {
     if (this != &other) {
@@ -86,8 +85,7 @@ master_bus& master_bus::operator=(master_bus&& other) noexcept {
             spi_bus_free(static_cast<spi_host_device_t>(_host));
         }
         _host = other._host;
-        _initialized = other._initialized;
-        other._initialized = false;
+        _initialized = std::exchange(other._initialized, false);
     }
     return *this;
 }

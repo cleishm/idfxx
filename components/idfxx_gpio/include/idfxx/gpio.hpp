@@ -25,6 +25,7 @@
 #include <driver/gpio.h>
 #include <functional>
 #include <string>
+#include <utility>
 
 namespace idfxx {
 
@@ -162,10 +163,8 @@ public:
          * @param other The handle to move from.
          */
         unique_isr_handle(unique_isr_handle&& other) noexcept
-            : _num(other._num)
-            , _id(other._id) {
-            other._num = GPIO_NUM_NC;
-        }
+            : _num(std::exchange(other._num, GPIO_NUM_NC))
+            , _id(other._id) {}
 
         /**
          * @brief Move assignment operator.
@@ -177,9 +176,8 @@ public:
                 if (_num != GPIO_NUM_NC) {
                     gpio{_num}.try_isr_handler_remove(isr_handle{_num, _id});
                 }
-                _num = other._num;
+                _num = std::exchange(other._num, GPIO_NUM_NC);
                 _id = other._id;
-                other._num = GPIO_NUM_NC;
             }
             return *this;
         }

@@ -118,7 +118,7 @@ public:
      * @return A flags set of chip_feature values.
      */
     [[nodiscard]] flags<chip_feature> features() const noexcept {
-        return flags<chip_feature>::from_raw(_info.features);
+        return flags<chip_feature>(static_cast<std::underlying_type_t<chip_feature>>(_info.features));
     }
 
     /**

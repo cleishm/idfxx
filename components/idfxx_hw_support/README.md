@@ -47,7 +47,7 @@ idfxx::flags<idfxx::intr_flag> high_priority = idfxx::intr_flag_high;   // Level
 
 // Pass to ESP-IDF functions
 esp_intr_alloc(ETS_TIMER0_INTR_SOURCE,
-               static_cast<int>(flags.value()),
+               static_cast<int>(to_underlying(flags)),
                handler,
                nullptr,
                &handle);

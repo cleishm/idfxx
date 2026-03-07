@@ -131,10 +131,10 @@ Place queue storage in external PSRAM to free internal DRAM:
 #include <idfxx/queue>
 
 // Create a large queue in PSRAM
-idfxx::queue<sensor_reading> q(1000, idfxx::memory_type::spiram);
+idfxx::queue<sensor_reading> q(1000, idfxx::memory_caps::spiram);
 ```
 
-> **Note:** `memory_type::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+> **Note:** `memory_caps::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
 
 ### Send-to-Front (Priority Messages)
 
@@ -190,7 +190,7 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 - `queue(length, mem_type)` - Create a queue with the specified capacity (exception-based)
 - `queue::make(length, mem_type)` - Create a queue with the specified capacity (result-based)
-- `idfxx::memory_type` - Memory region type (`internal`, `spiram`) — defined in `<idfxx/memory>`
+- `idfxx::memory_caps` - Memory capability flags (`dram`, `spiram`, etc.) — defined in `<idfxx/memory>`
 
 ### Send
 

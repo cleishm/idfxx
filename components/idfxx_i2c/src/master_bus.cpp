@@ -80,20 +80,17 @@ master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, freq::her
 
 master_bus::master_bus(master_bus&& other) noexcept
     : _mux(std::move(other._mux))
-    , _handle(other._handle)
+    , _handle(std::exchange(other._handle, nullptr))
     , _port(other._port)
-    , _frequency(other._frequency) {
-    other._handle = nullptr;
-}
+    , _frequency(other._frequency) {}
 
 master_bus& master_bus::operator=(master_bus&& other) noexcept {
     if (this != &other) {
         _delete();
         _mux = std::move(other._mux);
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _port = other._port;
         _frequency = other._frequency;
-        other._handle = nullptr;
     }
     return *this;
 }

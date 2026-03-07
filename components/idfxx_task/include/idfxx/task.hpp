@@ -251,7 +251,7 @@ public:
         size_t stack_size = 4096;                            ///< Stack size in bytes
         unsigned int priority = 5;                           ///< Task priority (0 = lowest)
         std::optional<core_id> core_affinity = std::nullopt; ///< Core pin (nullopt = any core)
-        memory_type stack_mem = memory_type::internal;       ///< Stack memory type
+        flags<memory_caps> stack_mem = memory_caps::dram;    ///< Stack memory capabilities
     };
 
     /**

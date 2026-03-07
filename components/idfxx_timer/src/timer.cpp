@@ -6,6 +6,7 @@
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <utility>
 
 #if CONFIG_ESP_TIMER_IN_IRAM
 #define TIMER_ISR_ATTR IRAM_ATTR
@@ -101,22 +102,17 @@ timer::timer(esp_timer_handle_t handle, std::string name, context* ctx)
     , _context(ctx) {}
 
 timer::timer(timer&& other) noexcept
-    : _handle(other._handle)
+    : _handle(std::exchange(other._handle, nullptr))
     , _name(std::move(other._name))
-    , _context(other._context) {
-    other._handle = nullptr;
-    other._context = nullptr;
-}
+    , _context(std::exchange(other._context, nullptr)) {}
 
 timer& timer::operator=(timer&& other) noexcept {
     if (this != &other) {
         _stop_and_delete();
 
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _name = std::move(other._name);
-        _context = other._context;
-        other._handle = nullptr;
-        other._context = nullptr;
+        _context = std::exchange(other._context, nullptr);
     }
     return *this;
 }

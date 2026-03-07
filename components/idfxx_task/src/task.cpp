@@ -6,6 +6,7 @@
 #include <atomic>
 #include <esp_attr.h>
 #include <freertos/semphr.h>
+#include <utility>
 
 namespace idfxx {
 
@@ -72,7 +73,7 @@ TaskHandle_t task::_create(context* ctx, const config& cfg, const char* name) {
         static_cast<UBaseType_t>(cfg.priority),
         &handle,
         core,
-        std::to_underlying(cfg.stack_mem)
+        to_underlying(cfg.stack_mem)
     );
 
     if (ret != pdPASS) {
@@ -110,23 +111,17 @@ task::task(TaskHandle_t handle, std::string name, context* ctx)
     , _context(ctx) {}
 
 task::task(task&& other) noexcept
-    : _handle(other._handle)
+    : _handle(std::exchange(other._handle, nullptr))
     , _name(std::move(other._name))
-    , _context(other._context) {
-    other._handle = nullptr;
-    other._context = nullptr;
-}
+    , _context(std::exchange(other._context, nullptr)) {}
 
 task& task::operator=(task&& other) noexcept {
     if (this != &other) {
         _stop_and_delete();
 
-        // Transfer from other
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _name = std::move(other._name);
-        _context = other._context;
-        other._handle = nullptr;
-        other._context = nullptr;
+        _context = std::exchange(other._context, nullptr);
     }
     return *this;
 }

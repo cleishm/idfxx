@@ -6,6 +6,7 @@
 #include <esp_lcd_touch.h>
 #include <esp_lcd_touch_stmpe610.h>
 #include <esp_log.h>
+#include <utility>
 
 namespace {
 const char* TAG = "idfxx::lcd::stmpe610";
@@ -77,19 +78,16 @@ stmpe610::stmpe610(idfxx::lcd::panel_io& panel_io, config config)
 #endif
 
 stmpe610::stmpe610(stmpe610&& other) noexcept
-    : _handle(other._handle)
-    , _callbacks(std::move(other._callbacks)) {
-    other._handle = nullptr;
-}
+    : _handle(std::exchange(other._handle, nullptr))
+    , _callbacks(std::move(other._callbacks)) {}
 
 stmpe610& stmpe610::operator=(stmpe610&& other) noexcept {
     if (this != &other) {
         if (_handle != nullptr) {
             esp_lcd_touch_del(_handle);
         }
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, nullptr);
         _callbacks = std::move(other._callbacks);
-        other._handle = nullptr;
     }
     return *this;
 }

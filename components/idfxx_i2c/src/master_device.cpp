@@ -87,21 +87,16 @@ master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, ui
     , _address(address) {}
 
 master_device::master_device(master_device&& other) noexcept
-    : _bus(other._bus)
-    , _handle(other._handle)
-    , _address(other._address) {
-    other._bus = nullptr;
-    other._handle = nullptr;
-}
+    : _bus(std::exchange(other._bus, nullptr))
+    , _handle(std::exchange(other._handle, nullptr))
+    , _address(other._address) {}
 
 master_device& master_device::operator=(master_device&& other) noexcept {
     if (this != &other) {
         _delete();
-        _bus = other._bus;
-        _handle = other._handle;
+        _bus = std::exchange(other._bus, nullptr);
+        _handle = std::exchange(other._handle, nullptr);
         _address = other._address;
-        other._bus = nullptr;
-        other._handle = nullptr;
     }
     return *this;
 }

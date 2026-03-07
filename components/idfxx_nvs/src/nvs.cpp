@@ -195,19 +195,16 @@ nvs::nvs(nvs_handle_t handle, bool read_only)
     , _read_only(read_only) {}
 
 nvs::nvs(nvs&& other) noexcept
-    : _handle(other._handle)
-    , _read_only(other._read_only) {
-    other._handle = 0;
-}
+    : _handle(std::exchange(other._handle, 0))
+    , _read_only(other._read_only) {}
 
 nvs& nvs::operator=(nvs&& other) noexcept {
     if (this != &other) {
         if (_handle != 0) {
             nvs_close(_handle);
         }
-        _handle = other._handle;
+        _handle = std::exchange(other._handle, 0);
         _read_only = other._read_only;
-        other._handle = 0;
     }
     return *this;
 }

@@ -93,15 +93,13 @@ public:
     /** @brief The underlying integral type of the enum. */
     using underlying = std::underlying_type_t<E>;
 
-private:
-    underlying value_{};
-
     /** @cond INTERNAL */
+    underlying bits{};
+
     constexpr explicit flags(underlying v) noexcept
-        : value_(v) {}
+        : bits(v) {}
     /** @endcond */
 
-public:
     /**
      * @brief Default constructor, initializes to empty flags (zero).
      */
@@ -116,7 +114,7 @@ public:
      * @param e The enum value to initialize from.
      */
     constexpr flags(E e) noexcept
-        : value_(std::to_underlying(e)) {}
+        : bits(std::to_underlying(e)) {}
 
     /**
      * @brief Combines flags using bitwise OR.
@@ -125,7 +123,7 @@ public:
      *
      * @return A new flags object containing all set bits from both operands.
      */
-    [[nodiscard]] constexpr flags operator|(flags other) const noexcept { return flags{value_ | other.value_}; }
+    [[nodiscard]] constexpr flags operator|(flags other) const noexcept { return flags{bits | other.bits}; }
 
     /**
      * @brief Combines flags in-place using bitwise OR.
@@ -135,7 +133,7 @@ public:
      * @return Reference to this object.
      */
     constexpr flags& operator|=(flags other) noexcept {
-        value_ |= other.value_;
+        bits |= other.bits;
         return *this;
     }
 
@@ -146,7 +144,7 @@ public:
      *
      * @return A new flags object containing only bits set in both operands.
      */
-    [[nodiscard]] constexpr flags operator&(flags other) const noexcept { return flags{value_ & other.value_}; }
+    [[nodiscard]] constexpr flags operator&(flags other) const noexcept { return flags{bits & other.bits}; }
 
     /**
      * @brief Intersects flags in-place using bitwise AND.
@@ -156,7 +154,7 @@ public:
      * @return Reference to this object.
      */
     constexpr flags& operator&=(flags other) noexcept {
-        value_ &= other.value_;
+        bits &= other.bits;
         return *this;
     }
 
@@ -167,7 +165,7 @@ public:
      *
      * @return A new flags object with toggled bits.
      */
-    [[nodiscard]] constexpr flags operator^(flags other) const noexcept { return flags{value_ ^ other.value_}; }
+    [[nodiscard]] constexpr flags operator^(flags other) const noexcept { return flags{bits ^ other.bits}; }
 
     /**
      * @brief Toggles flags in-place using bitwise XOR.
@@ -177,7 +175,7 @@ public:
      * @return Reference to this object.
      */
     constexpr flags& operator^=(flags other) noexcept {
-        value_ ^= other.value_;
+        bits ^= other.bits;
         return *this;
     }
 
@@ -190,7 +188,7 @@ public:
      *
      * @return A new flags object with the specified flags cleared.
      */
-    [[nodiscard]] constexpr flags operator-(flags other) const noexcept { return flags{value_ & ~other.value_}; }
+    [[nodiscard]] constexpr flags operator-(flags other) const noexcept { return flags{bits & ~other.bits}; }
 
     /**
      * @brief Clears specific flags in-place (set difference).
@@ -200,7 +198,7 @@ public:
      * @return Reference to this object.
      */
     constexpr flags& operator-=(flags other) noexcept {
-        value_ &= ~other.value_;
+        bits &= ~other.bits;
         return *this;
     }
 
@@ -212,7 +210,7 @@ public:
      *
      * @return A new flags object with all bits inverted.
      */
-    [[nodiscard]] constexpr flags operator~() const noexcept { return flags{~value_}; }
+    [[nodiscard]] constexpr flags operator~() const noexcept { return flags{~bits}; }
 
     /**
      * @brief Checks if all specified flags are set.
@@ -225,7 +223,7 @@ public:
      * @return True if all specified flags are set, false otherwise.
      */
     [[nodiscard]] constexpr bool contains(flags other) const noexcept {
-        return other.value_ != 0 && (value_ & other.value_) == other.value_;
+        return other.bits != 0 && (bits & other.bits) == other.bits;
     }
 
     /**
@@ -237,40 +235,21 @@ public:
      *
      * @return True if any specified flags are set, false otherwise.
      */
-    [[nodiscard]] constexpr bool contains_any(flags other) const noexcept { return (value_ & other.value_) != 0; }
+    [[nodiscard]] constexpr bool contains_any(flags other) const noexcept { return (bits & other.bits) != 0; }
 
     /**
      * @brief Checks if no flags are set.
      *
      * @return True if the flags object is empty (all bits zero).
      */
-    [[nodiscard]] constexpr bool empty() const noexcept { return value_ == 0; }
+    [[nodiscard]] constexpr bool empty() const noexcept { return bits == 0; }
 
     /**
      * @brief Explicit conversion to bool.
      *
      * @return True if any flags are set (non-zero), false if empty.
      */
-    [[nodiscard]] constexpr explicit operator bool() const noexcept { return value_ != 0; }
-
-    /**
-     * @brief Returns the underlying integral value.
-     *
-     * @return The underlying enum value.
-     */
-    [[nodiscard]] constexpr underlying value() const noexcept { return value_; }
-
-    /**
-     * @brief Constructs flags from a raw underlying value.
-     *
-     * Use with care, as this bypasses type safety and may create flags with
-     * bits set that don't correspond to defined enum values.
-     *
-     * @param v The raw underlying value.
-     *
-     * @return A flags object with the specified raw value.
-     */
-    [[nodiscard]] static constexpr flags from_raw(underlying v) noexcept { return flags{v}; }
+    [[nodiscard]] constexpr explicit operator bool() const noexcept { return bits != 0; }
 
     /**
      * @brief Equality comparison between flags objects.
@@ -286,7 +265,7 @@ public:
      *
      * @return True if this flags object equals the single enum value.
      */
-    [[nodiscard]] constexpr bool operator==(E e) const noexcept { return value_ == std::to_underlying(e); }
+    [[nodiscard]] constexpr bool operator==(E e) const noexcept { return bits == std::to_underlying(e); }
 };
 
 /**
@@ -355,6 +334,20 @@ template<flag_enum E>
 }
 
 /**
+ * @brief Returns the underlying integral value of a flags object.
+ *
+ * Free function equivalent of `flags<E>::value()`.
+ *
+ * @tparam E The flag enum type (must satisfy flag_enum concept).
+ * @param f The flags value.
+ * @return The underlying integral value.
+ */
+template<flag_enum E>
+[[nodiscard]] constexpr auto to_underlying(flags<E> f) noexcept {
+    return f.bits;
+}
+
+/**
  * @brief Returns a hexadecimal string representation of a flags value.
  *
  * @tparam E The flag enum type (must satisfy flag_enum concept).
@@ -367,7 +360,7 @@ template<flag_enum E>
     char buf[2 + sizeof(underlying) * 2];
     buf[0] = '0';
     buf[1] = 'x';
-    auto [ptr, ec] = std::to_chars(buf + 2, buf + sizeof(buf), f.value(), 16);
+    auto [ptr, ec] = std::to_chars(buf + 2, buf + sizeof(buf), to_underlying(f), 16);
     return std::string(buf, ptr);
 }
 
