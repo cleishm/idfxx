@@ -15,6 +15,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_hw_support](https://github.com/cleishm/idfxx/tree/main/components/idfxx_hw_support) | Hardware support: interrupt allocation, chip info, MAC addresses | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__hw__support.html) |
 | [idfxx_log](https://github.com/cleishm/idfxx/tree/main/components/idfxx_log) | Type-safe logging with std::format | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__log.html) |
 | **System Services** | | |
+| [idfxx_console](https://github.com/cleishm/idfxx/tree/main/components/idfxx_console) | Interactive console REPL and command management | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__console.html) |
 | [idfxx_event](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event) | Type-safe event loop for asynchronous events | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event.html) |
 | [idfxx_event_group](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event_group) | Type-safe FreeRTOS event group for inter-task synchronization | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event__group.html) |
 | [idfxx_queue](https://github.com/cleishm/idfxx/tree/main/components/idfxx_queue) | Type-safe FreeRTOS queue for inter-task communication | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__queue.html) |
