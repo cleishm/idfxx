@@ -171,7 +171,7 @@ Exception-based methods should not have abbreviated documentation. Inline implem
 - `@defgroup` / `@ingroup` for hierarchical organization
 - `@retval` for documenting error conditions
 - `@cond INTERNAL` / `@endcond` for hiding implementation details
-- `[[nodiscard]]` attribute on result-returning functions, unless intentionally omitted to allow fire-and-forget usage (e.g., where callers may not need to check the result)
+- `[[nodiscard]]` attribute on result-returning functions, unless intentionally omitted to allow fire-and-forget usage. Omit `[[nodiscard]]` on cleanup/teardown operations that are unlikely to fail in normal use (e.g., deregister, deinit, stop) where callers reasonably don't need to check the result. Keep `[[nodiscard]]` on creation, initialization, and operations where failure indicates a real problem the caller should handle.
 
 **Component README** structure:
 1. Title and one-line description

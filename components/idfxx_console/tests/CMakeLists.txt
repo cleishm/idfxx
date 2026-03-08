@@ -1,22 +1,9 @@
-# Tests for idfxx_core
+# Tests for idfxx_console
 # Note: These tests require ESP-IDF and should be run on hardware or in the ESP-IDF test framework
 
 # Test source files
-set(IDFXX_CORE_TEST_SOURCES
-    cpu_test.cpp
-    error_test.cpp
-    chrono_test.cpp
-    flags_test.cpp
-    memory_aligned_allocator_test.cpp
-    memory_dma_allocator_test.cpp
-    memory_dram_allocator_test.cpp
-    memory_heap_alloc_test.cpp
-    memory_heap_test.cpp
-    memory_spiram_allocator_test.cpp
-    system_test.cpp
-    app_test.cpp
-    random_test.cpp
-    uart_test.cpp
+set(IDFXX_CONSOLE_TEST_SOURCES
+    console_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,
