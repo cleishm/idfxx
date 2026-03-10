@@ -20,6 +20,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/intr_alloc>
 
 #include <cassert>
 #include <chrono>
@@ -27,6 +28,7 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -130,8 +132,8 @@ public:
 #if SOC_LP_I2C_SUPPORTED
         enum lp_clk_source lp_source_clk = lp_clk_source::default_source; ///< Clock source for LP I2C bus.
 #endif
-        uint8_t glitch_ignore_cnt = 7;      ///< Glitch filter count (0-7). Higher values filter more noise.
-        unsigned int intr_priority = 0;     ///< Interrupt priority (0 = auto).
+        uint8_t glitch_ignore_cnt = 7; ///< Glitch filter count (0-7). Higher values filter more noise.
+        std::optional<idfxx::intr_level> intr_level = {}; ///< Interrupt priority level, or empty for automatic.
         size_t trans_queue_depth = 0;       ///< Depth of internal transfer queue for asynchronous transactions.
         bool enable_internal_pullup = true; ///< Enable internal pull-up resistors on SDA and SCL.
         bool allow_pd = false;              ///< Allow powering down the bus during light sleep.

@@ -124,10 +124,9 @@ gpio::gpio(int num)
     : gpio(unwrap(make(num))) {}
 #endif
 
-result<void> gpio::try_install_isr_service(flags<intr_flag> intr_flags) {
-    return wrap(gpio_install_isr_service(to_underlying(intr_flags))).transform([&]() {
-        iram_isr = intr_flags.contains(intr_flag::iram);
-    });
+result<void> gpio::try_install_isr_service(intr_levels levels, flags<intr_flag> intr_flags) {
+    int raw = to_underlying(levels) | to_underlying(intr_flags);
+    return wrap(gpio_install_isr_service(raw)).transform([&]() { iram_isr = intr_flags.contains(intr_flag::iram); });
 }
 
 void gpio::uninstall_isr_service() {

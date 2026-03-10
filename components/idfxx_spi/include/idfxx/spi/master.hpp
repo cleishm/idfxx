@@ -141,10 +141,11 @@ struct bus_config {
 
     std::optional<idfxx::core_id> isr_cpu_id = std::nullopt; ///< Select cpu core to register SPI ISR.
 
-    idfxx::flags<idfxx::intr_flag> intr_flags = {}; ///< Interrupt flags to set priority and IRAM attribute.
-                                                    ///< The `intr_flag::edge` and `intr_flag::disabled` flags are
-                                                    ///< ignored by the driver. If `intr_flag::iram` is set, all
-                                                    ///< callbacks must be placed in IRAM.
+    idfxx::intr_levels intr_levels = {};            ///< Interrupt priority levels to accept.
+    idfxx::flags<idfxx::intr_flag> intr_flags = {}; ///< Behavioral interrupt flags. The `intr_flag::edge` and
+                                                    ///< `intr_flag::disabled` flags are ignored by the driver.
+                                                    ///< If `intr_flag::iram` is set, all callbacks must be
+                                                    ///< placed in IRAM.
 };
 
 /**
