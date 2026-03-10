@@ -242,7 +242,7 @@ Configuration structure defined in `idfxx_lcd`:
 - `rgb_element_order` - RGB element order (`idfxx::lcd::rgb_element_order::rgb` or `::bgr`)
 - `data_endian` - RGB data endian (`idfxx::lcd::rgb_data_endian::big` or `::little`)
 - `bits_per_pixel` - Color depth (typically 16 for RGB565)
-- `flags.reset_active_high` - Set if panel reset is high level active
+- `flags.reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
 - `vendor_config` - Vendor-specific configuration (optional)
 
 ### Typical ILI9341 Configuration

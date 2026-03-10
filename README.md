@@ -168,7 +168,7 @@ extern "C" void app_main() {
         // Configure backlight GPIO
         auto backlight = gpio_32;
         backlight.set_direction(gpio::mode::output);
-        backlight.set_level(true); // Turn on backlight
+        backlight.set_level(gpio::level::high); // Turn on backlight
 
         idfxx::log::info("app", "Display initialized successfully");
 
@@ -254,7 +254,7 @@ extern "C" void app_main() {
     // Configure backlight GPIO
     auto backlight = gpio_32;
     backlight.try_set_direction(gpio::mode::output);
-    backlight.try_set_level(true); // Turn on backlight
+    backlight.set_level(gpio::level::high); // Turn on backlight
 
     idfxx::log::info("app", "Display initialized successfully");
 }

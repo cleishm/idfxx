@@ -21,7 +21,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::panel::config
         .bits_per_pixel = config.bits_per_pixel,
         .flags =
             {
-                .reset_active_high = config.flags.reset_active_high,
+                .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.flags.reset_active_level)),
             },
         .vendor_config = config.vendor_config,
     };

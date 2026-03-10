@@ -254,8 +254,8 @@ Configuration structure defined in `idfxx_lcd`:
 - `y_max` - Maximum Y coordinate (display height)
 - `rst_gpio` - Reset pin GPIO (`idfxx::gpio::nc()` if not used)
 - `int_gpio` - Interrupt pin GPIO (`idfxx::gpio::nc()` if not used)
-- `levels.reset` - Active level for reset pin
-- `levels.interrupt` - Active level for interrupt pin
+- `levels.reset` - Active level for reset pin (`gpio::level::low` or `gpio::level::high`)
+- `levels.interrupt` - Active level for interrupt pin (`gpio::level::low` or `gpio::level::high`)
 - `flags.swap_xy` - Swap X and Y coordinates
 - `flags.mirror_x` - Mirror X axis
 - `flags.mirror_y` - Mirror Y axis

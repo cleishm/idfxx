@@ -108,22 +108,22 @@ TEST_CASE("panel::config flags initialization", "[idfxx][lcd][ili9341]") {
         .bits_per_pixel = 16,
     };
 
-    // Verify default flags are zero
-    TEST_ASSERT_EQUAL(0, config.flags.reset_active_high);
+    // Verify default flags
+    TEST_ASSERT_EQUAL(gpio::level::low, config.flags.reset_active_level);
 }
 
-TEST_CASE("panel::config with reset_active_high flag", "[idfxx][lcd][ili9341]") {
+TEST_CASE("panel::config with reset_active_level flag", "[idfxx][lcd][ili9341]") {
     using namespace idfxx;
 
     panel::config config{
         .reset_gpio = gpio_4,
         .rgb_element_order = rgb_element_order::bgr,
         .bits_per_pixel = 16,
+        .flags{
+            .reset_active_level = gpio::level::high,
+        },
     };
 
-    // Set reset_active_high flag
-    config.flags.reset_active_high = 1;
-
-    TEST_ASSERT_EQUAL(1, config.flags.reset_active_high);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.flags.reset_active_level);
 }
 
