@@ -70,7 +70,7 @@ TaskHandle_t task::_create(context* ctx, const config& cfg, const char* name) {
         name,
         cfg.stack_size,
         ctx,
-        static_cast<UBaseType_t>(cfg.priority),
+        static_cast<UBaseType_t>(cfg.priority.value()),
         &handle,
         core,
         to_underlying(cfg.stack_mem)
@@ -150,7 +150,7 @@ bool task::_is_running() const noexcept {
     return _handle != nullptr && _context->state.load(std::memory_order_acquire) == context::state_t::running;
 }
 
-unsigned int task::priority() const noexcept {
+task_priority task::priority() const noexcept {
     if (!_is_running()) {
         return 0;
     }
@@ -198,11 +198,11 @@ result<void> task::try_resume() {
     return {};
 }
 
-result<void> task::try_set_priority(unsigned int new_priority) {
+result<void> task::try_set_priority(task_priority new_priority) {
     if (!_is_running()) {
         return error(errc::invalid_state);
     }
-    vTaskPrioritySet(_handle, static_cast<UBaseType_t>(new_priority));
+    vTaskPrioritySet(_handle, static_cast<UBaseType_t>(new_priority.value()));
     return {};
 }
 
@@ -313,7 +313,7 @@ void task::self::suspend() noexcept {
     vTaskSuspend(nullptr);
 }
 
-unsigned int task::self::priority() const noexcept {
+task_priority task::self::priority() const noexcept {
     return uxTaskPriorityGet(nullptr);
 }
 
@@ -321,8 +321,8 @@ size_t task::self::stack_high_water_mark() const noexcept {
     return static_cast<size_t>(uxTaskGetStackHighWaterMark(nullptr)) * sizeof(StackType_t);
 }
 
-void task::self::set_priority(unsigned int new_priority) noexcept {
-    vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(new_priority));
+void task::self::set_priority(task_priority new_priority) noexcept {
+    vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(new_priority.value()));
 }
 
 std::string task::self::name() const {

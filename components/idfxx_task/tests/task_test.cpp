@@ -73,7 +73,7 @@ TEST_CASE("task::config default values", "[idfxx][task]") {
     task::config cfg{};
     TEST_ASSERT_EQUAL_STRING("task", std::string{cfg.name}.c_str());
     TEST_ASSERT_EQUAL(4096, cfg.stack_size);
-    TEST_ASSERT_EQUAL(5, cfg.priority);
+    TEST_ASSERT_EQUAL(5, cfg.priority.value());
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
     TEST_ASSERT_TRUE(cfg.stack_mem == memory_caps::dram);
 }
@@ -89,7 +89,7 @@ TEST_CASE("task priority can be retrieved", "[idfxx][task]") {
         task::config{.name = "priority_test", .priority = 7}, [](task::self& self) { idfxx::delay(100ms); }
     );
 
-    TEST_ASSERT_EQUAL(7, t->priority());
+    TEST_ASSERT_EQUAL(7, t->priority().value());
 }
 
 TEST_CASE("task stack_high_water_mark returns sensible value", "[idfxx][task]") {
@@ -109,11 +109,11 @@ TEST_CASE("task priority can be changed", "[idfxx][task]") {
         task::config{.name = "set_priority_test", .priority = 5}, [](task::self& self) { idfxx::delay(100ms); }
     );
 
-    TEST_ASSERT_EQUAL(5, t->priority());
+    TEST_ASSERT_EQUAL(5, t->priority().value());
 
     auto set_result = t->try_set_priority(10);
     TEST_ASSERT_TRUE(set_result.has_value());
-    TEST_ASSERT_EQUAL(10, t->priority());
+    TEST_ASSERT_EQUAL(10, t->priority().value());
 }
 
 TEST_CASE("task suspend and resume", "[idfxx][task]") {
@@ -294,7 +294,7 @@ TEST_CASE("task operations fail after completion", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), priority_result.error().value());
 
     // priority() should return 0
-    TEST_ASSERT_EQUAL(0, t->priority());
+    TEST_ASSERT_EQUAL(0, t->priority().value());
 
     // resume_from_isr should return false
     TEST_ASSERT_FALSE(t->resume_from_isr());
@@ -679,9 +679,9 @@ TEST_CASE("task::self priority round-trip", "[idfxx][task][self]") {
     std::atomic<unsigned int> changed_prio{0};
 
     auto t = std::make_unique<task>(task::config{.name = "self_prio", .priority = 7}, [&](task::self& self) {
-        initial_prio.store(self.priority());
+        initial_prio.store(self.priority().value());
         self.set_priority(12);
-        changed_prio.store(self.priority());
+        changed_prio.store(self.priority().value());
         idfxx::delay(100ms);
     });
 

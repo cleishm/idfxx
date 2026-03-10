@@ -203,14 +203,14 @@ public:
          *
          * @return The task priority level.
          */
-        [[nodiscard]] unsigned int priority() const noexcept;
+        [[nodiscard]] task_priority priority() const noexcept;
 
         /**
          * @brief Changes the current task priority.
          *
          * @param new_priority The new priority level.
          */
-        void set_priority(unsigned int new_priority) noexcept;
+        void set_priority(task_priority new_priority) noexcept;
 
         /**
          * @brief Returns the minimum free stack space (in bytes) since the task started.
@@ -249,7 +249,7 @@ public:
     struct config {
         std::string_view name = "task";                      ///< Task name (max 16 chars)
         size_t stack_size = 4096;                            ///< Stack size in bytes
-        unsigned int priority = 5;                           ///< Task priority (0 = lowest)
+        task_priority priority = 5;                          ///< Task priority (0 = lowest)
         std::optional<core_id> core_affinity = std::nullopt; ///< Core pin (nullopt = any core)
         flags<memory_caps> stack_mem = memory_caps::dram;    ///< Stack memory capabilities
     };
@@ -320,7 +320,7 @@ public:
      *
      * @return The task priority, or 0 if the task has been detached or completed.
      */
-    [[nodiscard]] unsigned int priority() const noexcept;
+    [[nodiscard]] task_priority priority() const noexcept;
 
     /**
      * @brief Returns the minimum free stack space (in bytes) since the task started.
@@ -485,7 +485,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error if the task has been detached or completed.
      */
-    void set_priority(unsigned int new_priority) { unwrap(try_set_priority(new_priority)); }
+    void set_priority(task_priority new_priority) { unwrap(try_set_priority(new_priority)); }
 #endif
 
     /**
@@ -495,7 +495,7 @@ public:
      * @return Success, or an error.
      * @retval invalid_state The task has been detached or completed.
      */
-    [[nodiscard]] result<void> try_set_priority(unsigned int new_priority);
+    [[nodiscard]] result<void> try_set_priority(task_priority new_priority);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

@@ -363,7 +363,7 @@ TEST_CASE("multiple listeners for same event", "[idfxx][event]") {
 TEST_CASE("event_loop::task_config default values", "[idfxx][event]") {
     event_loop::task_config task_cfg{.name = "test"};
     TEST_ASSERT_EQUAL(2048, task_cfg.stack_size);
-    TEST_ASSERT_EQUAL(5u, task_cfg.priority);
+    TEST_ASSERT_EQUAL(5u, task_cfg.priority.value());
     TEST_ASSERT_FALSE(task_cfg.core_affinity.has_value());
 }
 

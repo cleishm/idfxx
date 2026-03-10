@@ -295,7 +295,7 @@ public:
         size_t max_history_len = 32;                         ///< Maximum command history length
         std::filesystem::path history_save_path = {};        ///< File path for history persistence (empty = no save)
         size_t task_stack_size = 4096;                       ///< REPL task stack size in bytes
-        unsigned int task_priority = 2;                      ///< REPL task priority
+        task_priority priority = 2;                          ///< REPL task priority
         std::optional<core_id> core_affinity = std::nullopt; ///< Core affinity (nullopt = any core)
         std::string_view prompt = {};                        ///< Prompt string (empty = default "esp> ")
         size_t max_cmdline_length = 0;                       ///< Maximum command line length (0 = default 256)
