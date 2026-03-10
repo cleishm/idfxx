@@ -25,7 +25,7 @@ void idfxx::http::server::_populate_httpd_config(
     bool has_session_open,
     bool has_session_close
 ) {
-    httpd_cfg.task_priority = cfg.task_priority;
+    httpd_cfg.task_priority = cfg.priority.value();
     httpd_cfg.stack_size = cfg.stack_size;
     httpd_cfg.core_id =
         cfg.core_affinity ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity)) : tskNO_AFFINITY;

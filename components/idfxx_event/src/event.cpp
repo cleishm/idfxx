@@ -211,7 +211,7 @@ result<esp_event_loop_handle_t> create_loop(const event_loop::task_config& task,
     esp_event_loop_args_t args{
         .queue_size = static_cast<int32_t>(queue_size),
         .task_name = name.c_str(),
-        .task_priority = static_cast<UBaseType_t>(task.priority),
+        .task_priority = static_cast<UBaseType_t>(task.priority.value()),
         .task_stack_size = task.stack_size,
         .task_core_id = core_id_to_freertos(task.core_affinity),
     };

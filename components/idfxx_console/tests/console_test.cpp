@@ -202,7 +202,7 @@ TEST_CASE("console repl config default values", "[idfxx][console]") {
     repl::config cfg{};
     TEST_ASSERT_EQUAL(32, cfg.max_history_len);
     TEST_ASSERT_EQUAL(4096, cfg.task_stack_size);
-    TEST_ASSERT_EQUAL(2, cfg.task_priority);
+    TEST_ASSERT_EQUAL(2, cfg.priority.value());
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
     TEST_ASSERT_EQUAL(0, cfg.max_cmdline_length);
 }

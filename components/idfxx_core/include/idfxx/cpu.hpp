@@ -62,6 +62,64 @@ enum class core_id : unsigned int {
     }
 }
 
+/**
+ * @headerfile <idfxx/cpu>
+ * @brief Type-safe wrapper for FreeRTOS task priority values.
+ *
+ * Wraps an unsigned integer priority level with implicit conversion from
+ * unsigned int, so designated initializers like `.priority = 5` work
+ * without change.
+ *
+ * @code
+ * // Direct construction
+ * task_priority p{10};
+ *
+ * // Implicit conversion from unsigned int
+ * task_priority p = 5;
+ *
+ * // Access raw value for FreeRTOS APIs
+ * vTaskPrioritySet(handle, p.value());
+ * @endcode
+ */
+class task_priority {
+public:
+    /** @brief Default constructor. Initializes to priority 0 (idle). */
+    constexpr task_priority() noexcept
+        : _value(0) {}
+
+    /**
+     * @brief Constructs from an unsigned integer value.
+     *
+     * Non-explicit to allow implicit conversion in designated initializers.
+     *
+     * @param value The priority level.
+     */
+    constexpr task_priority(unsigned int value) noexcept
+        : _value(value) {}
+
+    /**
+     * @brief Returns the raw priority value.
+     * @return The priority as an unsigned integer.
+     */
+    [[nodiscard]] constexpr unsigned int value() const noexcept { return _value; }
+
+    /** @brief Default three-way comparison. */
+    constexpr auto operator<=>(const task_priority&) const = default;
+
+private:
+    unsigned int _value;
+};
+
+/**
+ * @brief Returns a string representation of a task priority.
+ *
+ * @param p The task priority to convert.
+ * @return The priority value as a decimal string.
+ */
+[[nodiscard]] inline std::string to_string(task_priority p) {
+    return std::to_string(p.value());
+}
+
 /** @} */ // end of idfxx_cpu
 
 } // namespace idfxx
@@ -79,6 +137,17 @@ struct formatter<idfxx::core_id> {
     template<typename FormatContext>
     auto format(idfxx::core_id c, FormatContext& ctx) const {
         auto s = to_string(c);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+
+template<>
+struct formatter<idfxx::task_priority> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::task_priority p, FormatContext& ctx) const {
+        auto s = to_string(p);
         return std::copy(s.begin(), s.end(), ctx.out());
     }
 };

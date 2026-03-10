@@ -517,7 +517,7 @@ public:
      */
     struct config {
         // Task
-        unsigned task_priority = 5;                          ///< Priority of the server task
+        task_priority priority = 5;                          ///< Priority of the server task
         size_t stack_size = 4096;                            ///< Stack size for the server task
         std::optional<core_id> core_affinity = std::nullopt; ///< Core pin (nullopt = any core)
 

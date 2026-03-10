@@ -161,7 +161,7 @@ esp_console_repl_config_t repl::_translate_config(const config& cfg) {
     esp_console_repl_config_t idf_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     idf_cfg.max_history_len = static_cast<uint32_t>(cfg.max_history_len);
     idf_cfg.task_stack_size = static_cast<uint32_t>(cfg.task_stack_size);
-    idf_cfg.task_priority = static_cast<uint32_t>(cfg.task_priority);
+    idf_cfg.task_priority = static_cast<uint32_t>(cfg.priority.value());
     idf_cfg.task_core_id = cfg.core_affinity.has_value() ? static_cast<BaseType_t>(*cfg.core_affinity) : tskNO_AFFINITY;
     if (cfg.max_cmdline_length > 0) {
         idf_cfg.max_cmdline_length = cfg.max_cmdline_length;

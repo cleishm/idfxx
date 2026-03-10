@@ -273,7 +273,7 @@ public:
         /** @brief Stack size for the task. */
         size_t stack_size = 2048;
         /** @brief Priority for the task. */
-        unsigned int priority = 5;
+        task_priority priority = 5;
         /**
          * @brief Core affinity for the task.
          * @note If nullopt, the task can run on any core.
