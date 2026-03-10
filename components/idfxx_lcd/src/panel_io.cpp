@@ -29,6 +29,23 @@ panel_io::panel_io(esp_lcd_panel_io_handle_t handle, std::unique_ptr<callback_st
     , _callbacks(std::move(callbacks)) {}
 
 result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
+    if (!config.cs_gpio.is_connected()) {
+        ESP_LOGD(TAG, "Field 'cs_gpio' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.pclk_freq.count() == 0) {
+        ESP_LOGD(TAG, "Field 'pclk_freq' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.lcd_cmd_bits == 0) {
+        ESP_LOGD(TAG, "Field 'lcd_cmd_bits' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.lcd_param_bits == 0) {
+        ESP_LOGD(TAG, "Field 'lcd_param_bits' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+
     std::unique_ptr<callback_state> cbs;
     if (config.on_color_transfer_done) {
         cbs = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));

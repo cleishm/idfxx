@@ -53,17 +53,20 @@ public:
 
     /**
      * @brief SPI-based panel I/O configuration.
+     *
+     * All fields have sensible defaults, but you must define cs_gpio, pclk_freq, lcd_cmd_bits,
+     * and lcd_param_bits at minimum.
      */
     struct spi_config {
-        gpio cs_gpio;             ///< GPIO used for CS line
-        gpio dc_gpio;             ///< GPIO used to select the D/C line, set this to -1 if the D/C line is not used
-        int spi_mode;             ///< Traditional SPI mode (0~3)
-        freq::hertz pclk_freq;    ///< Frequency of pixel clock
-        size_t trans_queue_depth; ///< Size of internal transaction queue
+        gpio cs_gpio = gpio::nc();    ///< GPIO used for CS line
+        gpio dc_gpio = gpio::nc();    ///< GPIO used to select the D/C line, set to gpio::nc() if not used
+        int spi_mode = 0;             ///< Traditional SPI mode (0~3)
+        freq::hertz pclk_freq{0};     ///< Frequency of pixel clock
+        size_t trans_queue_depth = 0; ///< Size of internal transaction queue
         color_transfer_done_callback on_color_transfer_done =
-            nullptr;        ///< Callback invoked when color data transfer has finished
-        int lcd_cmd_bits;   ///< Bit-width of LCD command
-        int lcd_param_bits; ///< Bit-width of LCD parameter
+            nullptr;            ///< Callback invoked when color data transfer has finished
+        int lcd_cmd_bits = 0;   ///< Bit-width of LCD command
+        int lcd_param_bits = 0; ///< Bit-width of LCD parameter
         uint8_t cs_enable_pretrans =
             0; ///< Amount of SPI bit-cycles the cs should be activated before the transmission (0-16)
         uint8_t cs_enable_posttrans =

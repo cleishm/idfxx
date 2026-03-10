@@ -34,10 +34,10 @@ public:
      * @brief Configuration structure for LCD panels.
      */
     struct config {
-        gpio reset_gpio = gpio::nc();             ///< GPIO number for hardware reset, or idfxx::gpio::nc() if not used
-        enum rgb_element_order rgb_element_order; ///< Set RGB element order, RGB or BGR
+        gpio reset_gpio = gpio::nc(); ///< GPIO number for hardware reset, or idfxx::gpio::nc() if not used
+        enum rgb_element_order rgb_element_order = rgb_element_order::rgb; ///< Set RGB element order, RGB or BGR
         rgb_data_endian data_endian = rgb_data_endian::big; ///< Set the data endian for color data larger than 1 byte
-        uint32_t bits_per_pixel;                            ///< Color depth, in bpp
+        uint32_t bits_per_pixel = 16;                       ///< Color depth, in bpp
         struct {
             unsigned int reset_active_high : 1 = 0; ///< Setting this if the panel reset is high level active
         } flags = {};                               ///< LCD panel config flags

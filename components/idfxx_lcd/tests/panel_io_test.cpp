@@ -18,6 +18,9 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
+// spi_config is default-constructible
+static_assert(std::is_default_constructible_v<panel_io::spi_config>);
+
 // panel_io is non-copyable
 static_assert(!std::is_copy_constructible_v<panel_io>);
 static_assert(!std::is_copy_assignable_v<panel_io>);

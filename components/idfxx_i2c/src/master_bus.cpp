@@ -54,6 +54,19 @@ lp_i2c_clock_source_t to_idf(lp_clk_source src) {
 namespace idfxx::i2c {
 
 static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus::config& config) {
+    if (!config.sda.is_connected()) {
+        ESP_LOGD(TAG, "Field 'sda' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (!config.scl.is_connected()) {
+        ESP_LOGD(TAG, "Field 'scl' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.frequency.count() == 0) {
+        ESP_LOGD(TAG, "Field 'frequency' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+
     i2c_master_bus_config_t bus_config{
         .i2c_port = std::to_underlying(port),
         .sda_io_num = config.sda.idf_num(),
