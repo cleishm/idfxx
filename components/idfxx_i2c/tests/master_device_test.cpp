@@ -29,6 +29,10 @@ static_assert(!std::is_copy_assignable_v<master_device>);
 static_assert(std::is_move_constructible_v<master_device>);
 static_assert(std::is_move_assignable_v<master_device>);
 
+// master_device::config is an aggregate with sensible defaults
+static_assert(std::is_aggregate_v<master_device::config>);
+static_assert(std::is_default_constructible_v<master_device::config>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
@@ -43,6 +47,37 @@ TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_de
 
     // Create a device (0x50 is common EEPROM address, may not be present)
     auto device_result = master_device::make(bus, 0x50);
+    TEST_ASSERT_TRUE(device_result.has_value());
+
+    auto& device = *device_result;
+    TEST_ASSERT_EQUAL(0x50, device.address());
+}
+
+TEST_CASE("master_device::make with config succeeds", "[idfxx][i2c][master_device]") {
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, freq::kilohertz(100));
+    if (!bus_result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus");
+    }
+    auto& bus = *bus_result;
+
+    auto device_result = master_device::make(bus, 0x50, {
+        .scl_speed = freq::kilohertz(400),
+    });
+    TEST_ASSERT_TRUE(device_result.has_value());
+
+    auto& device = *device_result;
+    TEST_ASSERT_EQUAL(0x50, device.address());
+}
+
+TEST_CASE("master_device::make with config default scl_speed uses bus frequency", "[idfxx][i2c][master_device]") {
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, freq::kilohertz(100));
+    if (!bus_result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus");
+    }
+    auto& bus = *bus_result;
+
+    // scl_speed = 0 means use bus frequency
+    auto device_result = master_device::make(bus, 0x50, {});
     TEST_ASSERT_TRUE(device_result.has_value());
 
     auto& device = *device_result;
