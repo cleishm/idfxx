@@ -36,6 +36,15 @@ stmpe610::stmpe610(esp_lcd_touch_handle_t handle, std::unique_ptr<callback_state
     , _callbacks(std::move(callbacks)) {}
 
 result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, config config) {
+    if (config.x_max == 0) {
+        ESP_LOGD(TAG, "Field 'x_max' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.y_max == 0) {
+        ESP_LOGD(TAG, "Field 'y_max' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+
     std::unique_ptr<callback_state> cbs;
     if (config.process_coordinates) {
         cbs = std::make_unique<callback_state>(std::move(config.process_coordinates));

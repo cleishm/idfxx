@@ -16,6 +16,9 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
+// panel::config is default-constructible
+static_assert(std::is_default_constructible_v<panel::config>);
+
 // ili9341 is non-copyable
 static_assert(!std::is_copy_constructible_v<ili9341>);
 static_assert(!std::is_copy_assignable_v<ili9341>);

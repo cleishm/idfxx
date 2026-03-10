@@ -110,7 +110,7 @@ public:
     /**
      * @brief I2C master bus configuration.
      *
-     * Provides full control over bus parameters. All fields have sensible defaults.
+     * All fields have sensible defaults, but you should define sda, scl, and frequency at minimum. For example:
      *
      * @code
      * idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
