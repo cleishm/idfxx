@@ -8,26 +8,71 @@
 #include <utility>
 
 namespace {
+
 const char* TAG = "idfxx::i2c::master_bus";
+
+using namespace idfxx::i2c;
+
+i2c_clock_source_t to_idf(clk_source src) {
+    switch (src) {
+#if SOC_I2C_SUPPORT_APB
+    case clk_source::apb:
+        return I2C_CLK_SRC_APB;
+#endif
+#if SOC_I2C_SUPPORT_REF_TICK
+    case clk_source::ref_tick:
+        return I2C_CLK_SRC_REF_TICK;
+#endif
+#if SOC_I2C_SUPPORT_XTAL
+    case clk_source::xtal:
+        return I2C_CLK_SRC_XTAL;
+#endif
+#if SOC_I2C_SUPPORT_RTC
+    case clk_source::rc_fast:
+        return I2C_CLK_SRC_RC_FAST;
+#endif
+    default:
+        return I2C_CLK_SRC_DEFAULT;
+    }
 }
+
+#if SOC_LP_I2C_SUPPORTED
+lp_i2c_clock_source_t to_idf(lp_clk_source src) {
+    switch (src) {
+    case lp_clk_source::lp_fast:
+        return LP_I2C_SCLK_LP_FAST;
+    case lp_clk_source::xtal_d2:
+        return LP_I2C_SCLK_XTAL_D2;
+    default:
+        return LP_I2C_SCLK_DEFAULT;
+    }
+}
+#endif
+
+} // namespace
 
 namespace idfxx::i2c {
 
-static result<i2c_master_bus_handle_t> make_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
+static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus::config& config) {
     i2c_master_bus_config_t bus_config{
         .i2c_port = std::to_underlying(port),
-        .sda_io_num = sda.idf_num(),
-        .scl_io_num = scl.idf_num(),
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .intr_priority = 0,     // auto
-        .trans_queue_depth = 0, // only valid in asynchronous transaction
+        .sda_io_num = config.sda.idf_num(),
+        .scl_io_num = config.scl.idf_num(),
+        .clk_source = to_idf(config.clk_source),
+        .glitch_ignore_cnt = config.glitch_ignore_cnt,
+        .intr_priority = static_cast<int>(config.intr_priority),
+        .trans_queue_depth = config.trans_queue_depth,
         .flags =
             {
-                .enable_internal_pullup = 1,
-                .allow_pd = 0, // do not allow power down
+                .enable_internal_pullup = config.enable_internal_pullup ? 1u : 0u,
+                .allow_pd = config.allow_pd ? 1u : 0u,
             },
     };
+#if SOC_LP_I2C_SUPPORTED
+    if (port == port::lp_i2c0) {
+        bus_config.lp_source_clk = to_idf(config.lp_source_clk);
+    }
+#endif
 
     i2c_master_bus_handle_t handle;
     if (auto err = i2c_new_master_bus(&bus_config, &handle); err != ESP_OK) {
@@ -35,9 +80,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, gpio sda, gpio s
             TAG,
             "Failed to create I2C master bus on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz): %s",
             std::to_underlying(port),
-            sda.num(),
-            scl.num(),
-            static_cast<int>(frequency.count()),
+            config.sda.num(),
+            config.scl.num(),
+            static_cast<int>(config.frequency.count()),
             esp_err_to_name(err)
         );
         switch (err) {
@@ -54,23 +99,28 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, gpio sda, gpio s
         TAG,
         "I2C master bus created on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz)",
         std::to_underlying(port),
-        sda.num(),
-        scl.num(),
-        static_cast<int>(frequency.count())
+        config.sda.num(),
+        config.scl.num(),
+        static_cast<int>(config.frequency.count())
     );
     return handle;
 }
 
-result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
-    return make_bus(port, sda, scl, frequency).transform([&](auto handle) {
-        return master_bus{handle, port, frequency};
-    });
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+master_bus::master_bus(enum port port, const struct config& config)
+    : master_bus(unwrap(make_bus(port, config)), port, config.frequency) {}
+
+master_bus::master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency)
+    : master_bus(port, config{.sda = sda, .scl = scl, .frequency = frequency}) {}
+#endif
+
+result<master_bus> master_bus::make(enum port port, const struct config& config) {
+    return make_bus(port, config).transform([&](auto handle) { return master_bus{handle, port, config.frequency}; });
 }
 
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_bus::master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency)
-    : master_bus(unwrap(make_bus(port, sda, scl, frequency)), port, frequency) {}
-#endif
+result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
+    return make(port, config{.sda = sda, .scl = scl, .frequency = frequency});
+}
 
 master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency)
     : _mux(std::make_unique<std::recursive_mutex>())
@@ -136,7 +186,7 @@ std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout
     return devices;
 }
 
-result<void> master_bus::_probe(uint8_t address, std::chrono::milliseconds timeout) const {
+result<void> master_bus::_probe(uint16_t address, std::chrono::milliseconds timeout) const {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }

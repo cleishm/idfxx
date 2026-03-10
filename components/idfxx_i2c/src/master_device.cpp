@@ -14,19 +14,19 @@ const char* TAG = "idfxx::i2c::master_device";
 
 namespace idfxx::i2c {
 
-static result<void> map_xfer_error(esp_err_t err, const char* op, uint8_t address, enum port port) {
+static result<void> map_xfer_error(esp_err_t err, const char* op, uint16_t address, enum port port) {
     if (err == ESP_OK) {
         return {};
     }
     if (err == ESP_ERR_TIMEOUT) {
         ESP_LOGD(
-            TAG, "I2C %s timeout on device at address 0x%02X on bus port %d", op, address, std::to_underlying(port)
+            TAG, "I2C %s timeout on device at address 0x%04X on bus port %d", op, address, std::to_underlying(port)
         );
         return error(errc::timeout);
     }
     ESP_LOGD(
         TAG,
-        "I2C %s error on device at address 0x%02X on bus port %d: %s",
+        "I2C %s error on device at address 0x%04X on bus port %d: %s",
         op,
         address,
         std::to_underlying(port),
@@ -35,15 +35,18 @@ static result<void> map_xfer_error(esp_err_t err, const char* op, uint8_t addres
     return error(errc::invalid_arg);
 }
 
-static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t address) {
+static result<i2c_master_dev_handle_t>
+make_device(master_bus& bus, uint16_t address, const master_device::config& config) {
+    auto scl_speed = config.scl_speed.count() > 0 ? config.scl_speed : bus.frequency();
+
     i2c_device_config_t dev_config{
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .dev_addr_length = config.addr_10bit ? I2C_ADDR_BIT_LEN_10 : I2C_ADDR_BIT_LEN_7,
         .device_address = address,
-        .scl_speed_hz = static_cast<uint32_t>(bus.frequency().count()),
-        .scl_wait_us = 0,
+        .scl_speed_hz = static_cast<uint32_t>(scl_speed.count()),
+        .scl_wait_us = config.scl_wait_us,
         .flags =
             {
-                .disable_ack_check = 0,
+                .disable_ack_check = config.disable_ack_check ? 1u : 0u,
             },
     };
 
@@ -51,7 +54,7 @@ static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t addr
     if (auto err = i2c_master_bus_add_device(bus.handle(), &dev_config, &handle); err != ESP_OK) {
         ESP_LOGD(
             TAG,
-            "Failed to create I2C master device at address 0x%02X on bus port %d: %s",
+            "Failed to create I2C master device at address 0x%04X on bus port %d: %s",
             address,
             std::to_underlying(bus.port()),
             esp_err_to_name(err)
@@ -65,23 +68,32 @@ static result<i2c_master_dev_handle_t> make_device(master_bus& bus, uint8_t addr
     }
 
     ESP_LOGD(
-        TAG, "I2C master device created at address 0x%02X on bus port %d", address, std::to_underlying(bus.port())
+        TAG, "I2C master device created at address 0x%04X on bus port %d", address, std::to_underlying(bus.port())
     );
     return handle;
 }
 
-result<master_device> master_device::make(master_bus& bus, uint8_t address) {
-    return make_device(bus, address).transform([&](auto handle) { return master_device(&bus, handle, address); });
-}
-
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_device::master_device(master_bus& bus, uint8_t address)
+master_device::master_device(master_bus& bus, uint16_t address, const struct config& config)
     : _bus(&bus)
-    , _handle(unwrap(make_device(bus, address)))
+    , _handle(unwrap(make_device(bus, address, config)))
     , _address(address) {}
+
+master_device::master_device(master_bus& bus, uint16_t address)
+    : master_device(bus, address, config{}) {}
 #endif
 
-master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint8_t address)
+result<master_device> master_device::make(master_bus& bus, uint16_t address, const struct config& config) {
+    return make_device(bus, address, config).transform([&](auto handle) {
+        return master_device(&bus, handle, address);
+    });
+}
+
+result<master_device> master_device::make(master_bus& bus, uint16_t address) {
+    return make(bus, address, config{});
+}
+
+master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint16_t address)
     : _bus(bus)
     , _handle(handle)
     , _address(address) {}
@@ -135,8 +147,8 @@ master_device::_try_write_register(uint16_t reg, const uint8_t* buf, size_t size
 }
 
 result<void> master_device::_try_write_register(
-    uint8_t regHigh,
-    uint8_t regLow,
+    uint8_t high,
+    uint8_t low,
     const uint8_t* buf,
     size_t size,
     std::chrono::milliseconds timeout
@@ -148,8 +160,8 @@ result<void> master_device::_try_write_register(
     std::vector<uint8_t> buf_storage(2 + size);
     auto* buffer = buf_storage.data();
 #endif
-    buffer[0] = regHigh;
-    buffer[1] = regLow;
+    buffer[0] = high;
+    buffer[1] = low;
     if (buf && size > 0) {
         memcpy(buffer + 2, buf, size);
     }
@@ -185,8 +197,8 @@ master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::
 }
 
 result<void> master_device::_try_read_register(
-    uint8_t regHigh,
-    uint8_t regLow,
+    uint8_t high,
+    uint8_t low,
     uint8_t* buf,
     size_t size,
     std::chrono::milliseconds timeout
@@ -196,7 +208,7 @@ result<void> master_device::_try_read_register(
     }
     std::scoped_lock lock(*_bus);
 
-    uint8_t buffer[2]{regHigh, regLow};
+    uint8_t buffer[2]{high, low};
     return _try_transmit(buffer, 2, timeout).and_then([&]() {
         vTaskDelay(pdMS_TO_TICKS(20)); // Delay between write and read for device processing
         return _try_receive(buf, size, timeout);

@@ -58,7 +58,7 @@ try {
     // Create device on the bus
     idfxx::i2c::master_device device(
         bus,     // Reference to bus
-        0x3C     // 7-bit device address
+        0x3C     // Device address
     );
 
     // Read from register (throws on error)
@@ -97,7 +97,7 @@ auto bus = std::move(*bus_result);
 // Create device on the bus
 auto dev_result = idfxx::i2c::master_device::make(
     bus,     // Reference to bus
-    0x3C     // 7-bit device address
+    0x3C     // Device address
 );
 
 if (!dev_result) {
@@ -113,6 +113,35 @@ if (data_result) {
 } else {
     idfxx::log::error("I2C", "Read failed: {}", data_result.error().message());
 }
+```
+
+### Advanced Configuration
+
+For fine-grained control over bus and device parameters, use the config-based constructors:
+
+```cpp
+#include <idfxx/i2c/master>
+
+using namespace frequency_literals;
+
+// Bus with custom settings
+idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
+    .sda = idfxx::gpio_21,
+    .scl = idfxx::gpio_22,
+    .frequency = 400_kHz,
+    .glitch_ignore_cnt = 10,
+    .enable_internal_pullup = false,
+});
+
+// Device with per-device SCL speed
+idfxx::i2c::master_device device(bus, 0x3C, {
+    .scl_speed = 100_kHz,  // Slower than bus default
+});
+
+// 10-bit addressed device
+idfxx::i2c::master_device device_10bit(bus, 0x1FF, {
+    .addr_10bit = true,
+});
 ```
 
 ### Scanning for Devices
@@ -148,7 +177,7 @@ for (uint8_t byte : read_data) {
     idfxx::log::info("I2C", "0x{:02X}", byte);
 }
 
-// Write to 8-bit register (using regHigh, regLow)
+// Write to 8-bit register (using high, low)
 device.write_register(0x10, 0x00, data);
 
 // Read from 8-bit register
@@ -212,8 +241,10 @@ auto data = device.read_register(0x00, 1, 500ms);
 ### master_bus
 
 **Creation:**
-- `master_bus(port, sda, scl, frequency)` - Constructor (exception-based, if enabled)
-- `make(port, sda, scl, frequency)` - Create bus (result-based)
+- `master_bus(port, config)` - Constructor (exception-based, if enabled)
+- `master_bus(port, sda, scl, frequency)` - Convenience constructor with defaults
+- `make(port, config)` - Create bus (result-based)
+- `make(port, sda, scl, frequency)` - Convenience factory with defaults
 
 **Operations:**
 - `scan_devices([timeout])` - Scan for devices
@@ -228,8 +259,10 @@ auto data = device.read_register(0x00, 1, 500ms);
 ### master_device
 
 **Creation:**
-- `master_device(bus, address)` - Constructor (exception-based, if enabled)
-- `make(bus, address)` - Create device (result-based)
+- `master_device(bus, address, config)` - Constructor (exception-based, if enabled)
+- `master_device(bus, address)` - Convenience constructor with defaults
+- `make(bus, address, config)` - Create device (result-based)
+- `make(bus, address)` - Convenience factory with defaults
 
 **Raw I/O:**
 - `try_transmit(data, [timeout])` - Send data
@@ -241,12 +274,12 @@ auto data = device.read_register(0x00, 1, 500ms);
 - `try_write_registers(regs, data, [timeout])` - Write to multiple registers
 
 **Register I/O (8-bit high/low):**
-- `try_write_register(regHigh, regLow, data, [timeout])`
-- `try_read_register(regHigh, regLow, size, [timeout])`
+- `try_write_register(high, low, data, [timeout])`
+- `try_read_register(high, low, size, [timeout])`
 
 **Properties:**
 - `bus()` - Parent bus
-- `address()` - 7-bit device address
+- `address()` - Device address
 - `handle()` - ESP-IDF device handle
 
 ## Integration
@@ -255,7 +288,7 @@ See the [Installation](#installation) section above for details on adding `idfxx
 
 ## Important Notes
 
-- Addresses are 7-bit (not including R/W bit)
+- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via `config.addr_10bit`
 - Register addresses for `write_register(uint16_t, ...)` are sent MSB first
 - The bus must remain alive while devices using it exist; the caller is responsible for ensuring this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)

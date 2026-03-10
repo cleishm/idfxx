@@ -57,6 +57,42 @@ enum class port : int {
 #endif
 };
 
+// Clock source enums use sequential values rather than matching the ESP-IDF
+// constants directly, since the underlying SOC_MOD_CLK_* values differ per
+// target. Conversion to ESP-IDF types is done in the implementation.
+
+/**
+ * @headerfile <idfxx/i2c/master>
+ * @brief I2C master bus clock source.
+ */
+enum class clk_source : int {
+    default_source = 0, ///< Default clock source for the target.
+#if SOC_I2C_SUPPORT_APB
+    apb, ///< APB clock source.
+#endif
+#if SOC_I2C_SUPPORT_REF_TICK
+    ref_tick, ///< REF_TICK clock source.
+#endif
+#if SOC_I2C_SUPPORT_XTAL
+    xtal, ///< XTAL clock source.
+#endif
+#if SOC_I2C_SUPPORT_RTC
+    rc_fast, ///< RC_FAST clock source.
+#endif
+};
+
+#if SOC_LP_I2C_SUPPORTED
+/**
+ * @headerfile <idfxx/i2c/master>
+ * @brief LP I2C bus clock source.
+ */
+enum class lp_clk_source : int {
+    default_source = 0, ///< Default LP clock source for the target.
+    lp_fast,            ///< LP_FAST (RTC_FAST) clock source.
+    xtal_d2,            ///< XTAL_D2 clock source.
+};
+#endif
+
 /**
  * @headerfile <idfxx/i2c/master>
  * @brief I2C master bus controller with thread-safe device access.
@@ -71,9 +107,59 @@ enum class port : int {
  */
 class master_bus {
 public:
+    /**
+     * @brief I2C master bus configuration.
+     *
+     * Provides full control over bus parameters. All fields have sensible defaults.
+     *
+     * @code
+     * idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
+     *     .sda = idfxx::gpio_21,
+     *     .scl = idfxx::gpio_22,
+     *     .frequency = 400_kHz,
+     *     .glitch_ignore_cnt = 10,
+     *     .enable_internal_pullup = false,
+     * });
+     * @endcode
+     */
+    struct config {
+        idfxx::gpio sda = gpio::nc();                            ///< GPIO pin for the SDA line.
+        idfxx::gpio scl = gpio::nc();                            ///< GPIO pin for the SCL line.
+        freq::hertz frequency{0};                                ///< Clock frequency in Hz.
+        enum clk_source clk_source = clk_source::default_source; ///< Clock source for the I2C master bus.
+#if SOC_LP_I2C_SUPPORTED
+        enum lp_clk_source lp_source_clk = lp_clk_source::default_source; ///< Clock source for LP I2C bus.
+#endif
+        uint8_t glitch_ignore_cnt = 7;      ///< Glitch filter count (0-7). Higher values filter more noise.
+        unsigned int intr_priority = 0;     ///< Interrupt priority (0 = auto).
+        size_t trans_queue_depth = 0;       ///< Depth of internal transfer queue for asynchronous transactions.
+        bool enable_internal_pullup = true; ///< Enable internal pull-up resistors on SDA and SCL.
+        bool allow_pd = false;              ///< Allow powering down the bus during light sleep.
+    };
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new I2C master bus.
+     *
+     * @param port   I2C port number.
+     * @param config Bus configuration.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
+     *     .sda = idfxx::gpio_21,
+     *     .scl = idfxx::gpio_22,
+     *     .frequency = 400_kHz,
+     *     .enable_internal_pullup = false,
+     * });
+     * @endcode
+     */
+    [[nodiscard]] explicit master_bus(enum port port, const struct config& config);
+
+    /**
+     * @brief Creates a new I2C master bus with default settings.
      *
      * @param port      I2C port number.
      * @param sda       GPIO pin for the SDA line.
@@ -88,6 +174,25 @@ public:
 
     /**
      * @brief Creates a new I2C master bus.
+     *
+     * @param port   I2C port number.
+     * @param config Bus configuration.
+     *
+     * @return The new master_bus, or an error.
+     *
+     * @code
+     * auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, {
+     *     .sda = idfxx::gpio_21,
+     *     .scl = idfxx::gpio_22,
+     *     .frequency = 400_kHz,
+     *     .enable_internal_pullup = false,
+     * });
+     * @endcode
+     */
+    [[nodiscard]] static result<master_bus> make(enum port port, const struct config& config);
+
+    /**
+     * @brief Creates a new I2C master bus with default settings.
      *
      * @param port      I2C port number.
      * @param sda       GPIO pin for the SDA line.
@@ -165,24 +270,24 @@ public:
     /**
      * @brief Probes for a device at the specified address.
      *
-     * @param address 7-bit device address.
+     * @param address Device address.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the device does not acknowledge or on error.
      */
-    void probe(uint8_t address) const { probe(address, DEFAULT_TIMEOUT); }
+    void probe(uint16_t address) const { probe(address, DEFAULT_TIMEOUT); }
 
     /**
      * @brief Probes for a device at the specified address.
      *
-     * @param address 7-bit device address.
+     * @param address Device address.
      * @param timeout Maximum time to wait for response.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the device does not acknowledge or on error.
      */
     template<typename Rep, typename Period>
-    void probe(uint8_t address, const std::chrono::duration<Rep, Period>& timeout) const {
+    void probe(uint16_t address, const std::chrono::duration<Rep, Period>& timeout) const {
         unwrap(_probe(address, std::chrono::ceil<std::chrono::milliseconds>(timeout)));
     }
 #endif
@@ -190,22 +295,22 @@ public:
     /**
      * @brief Probes for a device at the specified address.
      *
-     * @param address 7-bit device address.
+     * @param address Device address.
      *
      * @return Success if the device acknowledges, or an error.
      */
-    [[nodiscard]] result<void> try_probe(uint8_t address) const { return try_probe(address, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<void> try_probe(uint16_t address) const { return try_probe(address, DEFAULT_TIMEOUT); }
 
     /**
      * @brief Probes for a device at the specified address.
      *
-     * @param address 7-bit device address.
+     * @param address Device address.
      * @param timeout Maximum time to wait for response.
      *
      * @return Success if the device acknowledges, or an error.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_probe(uint8_t address, const std::chrono::duration<Rep, Period>& timeout) const {
+    [[nodiscard]] result<void> try_probe(uint16_t address, const std::chrono::duration<Rep, Period>& timeout) const {
         return _probe(address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -215,7 +320,7 @@ private:
     void _delete() noexcept;
 
     [[nodiscard]] std::vector<uint8_t> _scan_devices(std::chrono::milliseconds timeout) const;
-    [[nodiscard]] result<void> _probe(uint8_t address, std::chrono::milliseconds timeout) const;
+    [[nodiscard]] result<void> _probe(uint16_t address, std::chrono::milliseconds timeout) const;
 
     mutable std::unique_ptr<std::recursive_mutex> _mux;
     i2c_master_bus_handle_t _handle = nullptr;
@@ -225,9 +330,9 @@ private:
 
 /**
  * @headerfile <idfxx/i2c/master>
- * @brief I2C device at a specific 7-bit address with register operations.
+ * @brief I2C device at a specific address with register operations.
  *
- * Represents a specific device at a 7-bit address. Provides methods for
+ * Represents a specific device on an I2C bus. Provides methods for
  * raw data transfer and register-based read/write operations.
  *
  * This type is non-copyable and move-only. Result-returning methods on a
@@ -236,6 +341,25 @@ private:
  */
 class master_device {
 public:
+    /**
+     * @brief I2C device configuration.
+     *
+     * Provides per-device settings for SCL speed, addressing mode, and ACK behavior.
+     *
+     * @code
+     * idfxx::i2c::master_device device(bus, 0x3C, {
+     *     .scl_speed = 400_kHz,
+     *     .disable_ack_check = true,
+     * });
+     * @endcode
+     */
+    struct config {
+        freq::hertz scl_speed{0};       ///< Per-device SCL speed in Hz (0 = use bus frequency).
+        uint32_t scl_wait_us = 0;       ///< SCL wait time in microseconds (0 = default).
+        bool addr_10bit = false;        ///< Use 10-bit addressing mode instead of 7-bit.
+        bool disable_ack_check = false; ///< Disable ACK checking for this device.
+    };
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new device on the specified bus.
@@ -244,12 +368,33 @@ public:
      * this device does not outlive the bus.
      *
      * @param bus     The parent bus.
-     * @param address 7-bit device address.
+     * @param address Device address.
+     * @param config  Device configuration.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * idfxx::i2c::master_device device(bus, 0x3C, {
+     *     .scl_speed = 400_kHz,
+     * });
+     * @endcode
+     */
+    [[nodiscard]] explicit master_device(master_bus& bus, uint16_t address, const struct config& config);
+
+    /**
+     * @brief Creates a new device on the specified bus.
+     *
+     * Does not take ownership of @p bus. It is the caller's responsibility to ensure that
+     * this device does not outlive the bus.
+     *
+     * @param bus     The parent bus.
+     * @param address Device address.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit master_device(master_bus& bus, uint8_t address);
+    [[nodiscard]] explicit master_device(master_bus& bus, uint16_t address);
 #endif
 
     /**
@@ -259,11 +404,31 @@ public:
      * this device does not outlive the bus.
      *
      * @param bus     The parent bus.
-     * @param address 7-bit device address.
+     * @param address Device address.
+     * @param config  Device configuration.
+     *
+     * @return The new master_device, or an error.
+     *
+     * @code
+     * auto device = idfxx::i2c::master_device::make(bus, 0x3C, {
+     *     .scl_speed = 400_kHz,
+     * });
+     * @endcode
+     */
+    [[nodiscard]] static result<master_device> make(master_bus& bus, uint16_t address, const struct config& config);
+
+    /**
+     * @brief Creates a new device on the specified bus.
+     *
+     * Does not take ownership of @p bus. It is the caller's responsibility to ensure that
+     * this device does not outlive the bus.
+     *
+     * @param bus     The parent bus.
+     * @param address Device address.
      *
      * @return The new master_device, or an error.
      */
-    [[nodiscard]] static result<master_device> make(master_bus& bus, uint8_t address);
+    [[nodiscard]] static result<master_device> make(master_bus& bus, uint16_t address);
 
     ~master_device();
 
@@ -284,8 +449,8 @@ public:
     /** @brief Returns the underlying ESP-IDF device handle. */
     [[nodiscard]] i2c_master_dev_handle_t handle() const { return _handle; }
 
-    /** @brief Returns the 7-bit device address. */
-    [[nodiscard]] uint8_t address() const { return _address; }
+    /** @brief Returns the device address. */
+    [[nodiscard]] uint16_t address() const { return _address; }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -710,22 +875,22 @@ public:
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_register(uint8_t regHigh, uint8_t regLow, std::span<const uint8_t> buf) {
-        unwrap(try_write_register(regHigh, regLow, buf));
+    void write_register(uint8_t high, uint8_t low, std::span<const uint8_t> buf) {
+        unwrap(try_write_register(high, low, buf));
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param timeout Maximum time to wait for completion.
      *
@@ -734,34 +899,34 @@ public:
      */
     template<typename Rep, typename Period>
     void write_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        unwrap(try_write_register(regHigh, regLow, buf, timeout));
+        unwrap(try_write_register(high, low, buf, timeout));
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param size    Number of bytes.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write_register(uint8_t regHigh, uint8_t regLow, const uint8_t* buf, size_t size) {
-        unwrap(try_write_register(regHigh, regLow, buf, size));
+    void write_register(uint8_t high, uint8_t low, const uint8_t* buf, size_t size) {
+        unwrap(try_write_register(high, low, buf, size));
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param size    Number of bytes.
      * @param timeout Maximum time to wait for completion.
@@ -771,34 +936,34 @@ public:
      */
     template<typename Rep, typename Period>
     void write_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         const uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        unwrap(try_write_register(regHigh, regLow, buf, size, timeout));
+        unwrap(try_write_register(high, low, buf, size, timeout));
     }
 #endif
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_register(uint8_t regHigh, uint8_t regLow, std::span<const uint8_t> buf) {
-        return try_write_register(regHigh, regLow, buf, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void> try_write_register(uint8_t high, uint8_t low, std::span<const uint8_t> buf) {
+        return try_write_register(high, low, buf, DEFAULT_TIMEOUT);
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param timeout Maximum time to wait for completion.
      *
@@ -806,33 +971,33 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return try_write_register(regHigh, regLow, buf.data(), buf.size(), timeout);
+        return try_write_register(high, low, buf.data(), buf.size(), timeout);
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param size    Number of bytes.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_register(uint8_t regHigh, uint8_t regLow, const uint8_t* buf, size_t size) {
-        return try_write_register(regHigh, regLow, buf, size, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void> try_write_register(uint8_t high, uint8_t low, const uint8_t* buf, size_t size) {
+        return try_write_register(high, low, buf, size, DEFAULT_TIMEOUT);
     }
 
     /**
      * @brief Writes data to a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Data to write.
      * @param size    Number of bytes.
      * @param timeout Maximum time to wait for completion.
@@ -841,13 +1006,13 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         const uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_write_register(regHigh, regLow, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_write_register(high, low, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1297,8 +1462,8 @@ public:
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param size    Number of bytes to read.
      *
      * @return Received data.
@@ -1306,15 +1471,15 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] std::vector<uint8_t> read_register(uint8_t regHigh, uint8_t regLow, size_t size) {
-        return unwrap(try_read_register(regHigh, regLow, size));
+    [[nodiscard]] std::vector<uint8_t> read_register(uint8_t high, uint8_t low, size_t size) {
+        return unwrap(try_read_register(high, low, size));
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
@@ -1325,30 +1490,30 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] std::vector<uint8_t>
-    read_register(uint8_t regHigh, uint8_t regLow, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        return unwrap(try_read_register(regHigh, regLow, size, timeout));
+    read_register(uint8_t high, uint8_t low, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+        return unwrap(try_read_register(high, low, size, timeout));
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      * @param size    Number of bytes to read.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void read_register(uint8_t regHigh, uint8_t regLow, uint8_t* buf, size_t size) {
-        unwrap(try_read_register(regHigh, regLow, buf, size));
+    void read_register(uint8_t high, uint8_t low, uint8_t* buf, size_t size) {
+        unwrap(try_read_register(high, low, buf, size));
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
@@ -1358,34 +1523,34 @@ public:
      */
     template<typename Rep, typename Period>
     void read_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        unwrap(try_read_register(regHigh, regLow, buf, size, timeout));
+        unwrap(try_read_register(high, low, buf, size, timeout));
     }
 #endif
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param size    Number of bytes to read.
      *
      * @return Received data, or an error.
      */
-    [[nodiscard]] result<std::vector<uint8_t>> try_read_register(uint8_t regHigh, uint8_t regLow, size_t size) {
-        return try_read_register(regHigh, regLow, size, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<std::vector<uint8_t>> try_read_register(uint8_t high, uint8_t low, size_t size) {
+        return try_read_register(high, low, size, DEFAULT_TIMEOUT);
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
@@ -1393,29 +1558,29 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<std::vector<uint8_t>>
-    try_read_register(uint8_t regHigh, uint8_t regLow, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    try_read_register(uint8_t high, uint8_t low, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
         std::vector<uint8_t> buf(size);
-        return try_read_register(regHigh, regLow, buf, timeout).transform([&]() { return buf; });
+        return try_read_register(high, low, buf, timeout).transform([&]() { return buf; });
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read_register(uint8_t regHigh, uint8_t regLow, std::span<uint8_t> buf) {
-        return try_read_register(regHigh, regLow, buf, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void> try_read_register(uint8_t high, uint8_t low, std::span<uint8_t> buf) {
+        return try_read_register(high, low, buf, DEFAULT_TIMEOUT);
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      * @param timeout Maximum time to wait for completion.
      *
@@ -1423,33 +1588,33 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_read_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         std::span<uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return try_read_register(regHigh, regLow, buf.data(), buf.size(), timeout);
+        return try_read_register(high, low, buf.data(), buf.size(), timeout);
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      * @param size    Number of bytes to read.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read_register(uint8_t regHigh, uint8_t regLow, uint8_t* buf, size_t size) {
-        return try_read_register(regHigh, regLow, buf, size, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void> try_read_register(uint8_t high, uint8_t low, uint8_t* buf, size_t size) {
+        return try_read_register(high, low, buf, size, DEFAULT_TIMEOUT);
     }
 
     /**
      * @brief Reads data from a register.
      *
-     * @param regHigh High byte of register address.
-     * @param regLow  Low byte of register address.
+     * @param high    High byte of register address.
+     * @param low     Low byte of register address.
      * @param buf     Buffer for received data.
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
@@ -1458,17 +1623,17 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_read_register(
-        uint8_t regHigh,
-        uint8_t regLow,
+        uint8_t high,
+        uint8_t low,
         uint8_t* buf,
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_read_register(regHigh, regLow, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_read_register(high, low, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 private:
-    explicit master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint8_t address);
+    explicit master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint16_t address);
 
     void _delete() noexcept;
 
@@ -1477,13 +1642,8 @@ private:
 
     [[nodiscard]] result<void>
     _try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
-    [[nodiscard]] result<void> _try_write_register(
-        uint8_t regHigh,
-        uint8_t regLow,
-        const uint8_t* buf,
-        size_t size,
-        std::chrono::milliseconds timeout
-    );
+    [[nodiscard]] result<void>
+    _try_write_register(uint8_t high, uint8_t low, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_write_registers(
         std::span<const uint16_t> registers,
         const uint8_t* buf,
@@ -1493,11 +1653,11 @@ private:
     [[nodiscard]] result<void>
     _try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void>
-    _try_read_register(uint8_t regHigh, uint8_t regLow, uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    _try_read_register(uint8_t high, uint8_t low, uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
 
     master_bus* _bus = nullptr;
     i2c_master_dev_handle_t _handle = nullptr;
-    uint8_t _address = 0;
+    uint16_t _address = 0;
 };
 
 /** @} */ // end of idfxx_i2c

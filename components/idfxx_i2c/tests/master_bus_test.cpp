@@ -30,6 +30,10 @@ static_assert(!std::is_copy_assignable_v<master_bus>);
 static_assert(std::is_move_constructible_v<master_bus>);
 static_assert(std::is_move_assignable_v<master_bus>);
 
+// master_bus::config is an aggregate with sensible defaults
+static_assert(std::is_aggregate_v<master_bus::config>);
+static_assert(std::is_default_constructible_v<master_bus::config>);
+
 // Verify port enum values
 static_assert(static_cast<int>(port::i2c0) == 0);
 static_assert(std::to_underlying(port::i2c0) == 0);
@@ -53,6 +57,42 @@ TEST_CASE("master_bus::make with null GPIO returns error", "[idfxx][i2c][master_
     auto result = master_bus::make(port::i2c0, idfxx::gpio::nc(), idfxx::gpio::nc(), 100_kHz);
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
+}
+
+TEST_CASE("master_bus::make with config and null GPIO returns error", "[idfxx][i2c][master_bus]") {
+    auto result = master_bus::make(port::i2c0, {.frequency = 100_kHz});
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
+}
+
+TEST_CASE("master_bus::make with config succeeds", "[idfxx][i2c][master_bus]") {
+    auto result = master_bus::make(port::i2c0, {
+        .sda = idfxx::gpio_21,
+        .scl = idfxx::gpio_26,
+        .frequency = 400_kHz,
+    });
+    if (!result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus with config");
+    }
+
+    auto& bus = *result;
+    TEST_ASSERT_EQUAL(400000, bus.frequency().count());
+}
+
+TEST_CASE("master_bus::make with config custom settings succeeds", "[idfxx][i2c][master_bus]") {
+    auto result = master_bus::make(port::i2c0, {
+        .sda = idfxx::gpio_21,
+        .scl = idfxx::gpio_26,
+        .frequency = 100_kHz,
+        .glitch_ignore_cnt = 5,
+        .enable_internal_pullup = false,
+    });
+    if (!result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus with custom config");
+    }
+
+    auto& bus = *result;
+    TEST_ASSERT_EQUAL(100000, bus.frequency().count());
 }
 
 TEST_CASE("master_bus scan_devices returns vector", "[idfxx][i2c][master_bus]") {
