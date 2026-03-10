@@ -3,6 +3,7 @@
 
 #include <idfxx/i2c/master>
 
+#include <bit>
 #include <driver/i2c_master.h>
 #include <esp_log.h>
 #include <utility>
@@ -73,7 +74,8 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         .scl_io_num = config.scl.idf_num(),
         .clk_source = to_idf(config.clk_source),
         .glitch_ignore_cnt = config.glitch_ignore_cnt,
-        .intr_priority = static_cast<int>(config.intr_priority),
+        .intr_priority =
+            config.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*config.intr_level))) : 0,
         .trans_queue_depth = config.trans_queue_depth,
         .flags =
             {

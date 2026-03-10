@@ -35,7 +35,7 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .isr_cpu_id = config.isr_cpu_id
             ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*config.isr_cpu_id) + 1)
             : ESP_INTR_CPU_AFFINITY_AUTO,
-        .intr_flags = to_underlying(config.intr_flags),
+        .intr_flags = to_underlying(config.intr_levels) | to_underlying(config.intr_flags),
     };
 
     esp_err_t res =

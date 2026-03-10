@@ -443,22 +443,47 @@ public:
      *
      * Must be called before adding handlers with isr_handler_add().
      *
-     * @param intr_alloc_flags Flags for interrupt allocation (ESP_INTR_FLAG_*).
+     * @param levels Interrupt priority levels to accept.
+     * @param flags  Behavioral flags (e.g., `intr_flag::iram`).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    static void install_isr_service(flags<intr_flag> intr_alloc_flags = {}) {
-        unwrap(try_install_isr_service(intr_alloc_flags));
+    static void install_isr_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {}) {
+        unwrap(try_install_isr_service(levels, flags));
     }
+    /**
+     * @brief Installs the GPIO ISR service with default priority levels.
+     *
+     * Uses low/medium priority levels (1-3). Equivalent to calling
+     * `install_isr_service(intr_level_lowmed, flags)`.
+     *
+     * @param flags Behavioral flags (e.g., `intr_flag::iram`).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    static void install_isr_service(idfxx::flags<intr_flag> flags) { unwrap(try_install_isr_service(flags)); }
 #endif
     /**
      * @brief Installs the GPIO ISR service for per-gpio interrupt handlers.
      *
      * Must be called before adding handlers with isr_handler_add().
      *
-     * @param intr_flags Flags for interrupt allocation (ESP_INTR_FLAG_*).
+     * @param levels Interrupt priority levels to accept.
+     * @param flags  Behavioral flags (e.g., `intr_flag::iram`).
      */
-    [[nodiscard]] static result<void> try_install_isr_service(flags<intr_flag> intr_flags = {});
+    [[nodiscard]] static result<void>
+    try_install_isr_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {});
+    /**
+     * @brief Installs the GPIO ISR service with default priority levels.
+     *
+     * Uses low/medium priority levels (1-3). Equivalent to calling
+     * `try_install_isr_service(intr_level_lowmed, flags)`.
+     *
+     * @param flags Behavioral flags (e.g., `intr_flag::iram`).
+     */
+    [[nodiscard]] static result<void> try_install_isr_service(idfxx::flags<intr_flag> flags) {
+        return try_install_isr_service(intr_level_lowmed, flags);
+    }
     /**
      * @brief Uninstalls the GPIO ISR service, freeing related resources.
      *
@@ -472,9 +497,9 @@ public:
      * @brief Adds an ISR handler for this gpio.
      *
      * The handler will be called from an ISR context. ISR handlers do not need
-     * IRAM_ATTR unless ESP_INTR_FLAG_IRAM was passed to install_isr_service().
+     * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
      *
-     * @warning This overload cannot be used if ESP_INTR_FLAG_IRAM was passed to
+     * @warning This overload cannot be used if `intr_flag::iram` was passed to
      *          install_isr_service(), as std::move_only_function may allocate
      *          memory outside of IRAM. Registration will fail with not_supported.
      *          Use the raw function pointer overload instead.
@@ -484,7 +509,7 @@ public:
      * @return Handle for removing this specific handler.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including not_supported if the ISR
-     *         service was installed with ESP_INTR_FLAG_IRAM.
+     *         service was installed with `intr_flag::iram`.
      */
     isr_handle isr_handler_add(std::move_only_function<void() const> handler) {
         return unwrap(try_isr_handler_add(std::move(handler)));
@@ -493,7 +518,7 @@ public:
      * @brief Adds an ISR handler for this gpio.
      *
      * The handler will be called from an ISR context. ISR handlers do not need
-     * IRAM_ATTR unless ESP_INTR_FLAG_IRAM was passed to install_isr_service().
+     * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
      *
      * @pre install_isr_service() must have been called.
      * @param fn Function to call on interrupt.
@@ -520,9 +545,9 @@ public:
      * @brief Adds an ISR handler for this gpio.
      *
      * The handler will be called from an ISR context. ISR handlers do not need
-     * IRAM_ATTR unless ESP_INTR_FLAG_IRAM was passed to install_isr_service().
+     * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
      *
-     * @warning This overload cannot be used if ESP_INTR_FLAG_IRAM was passed to
+     * @warning This overload cannot be used if `intr_flag::iram` was passed to
      *          install_isr_service(), as std::move_only_function may allocate
      *          memory outside of IRAM. Registration will fail with not_supported.
      *          Use the raw function pointer overload instead.
@@ -530,14 +555,14 @@ public:
      * @pre install_isr_service() must have been called.
      * @param handler Function to call on interrupt.
      * @return Handle for removing this specific handler.
-     * @retval not_supported If the ISR service was installed with ESP_INTR_FLAG_IRAM.
+     * @retval not_supported If the ISR service was installed with `intr_flag::iram`.
      */
     result<isr_handle> try_isr_handler_add(std::move_only_function<void() const> handler);
     /**
      * @brief Adds an ISR handler for this gpio.
      *
      * The handler will be called from an ISR context. ISR handlers do not need
-     * IRAM_ATTR unless ESP_INTR_FLAG_IRAM was passed to install_isr_service().
+     * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
      *
      * @pre install_isr_service() must have been called.
      * @param fn Function to call on interrupt.
