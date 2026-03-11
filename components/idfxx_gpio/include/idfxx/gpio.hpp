@@ -61,14 +61,20 @@ class gpio {
     friend struct gpio_constant;
 
 public:
+    /** @brief GPIO output/input level. */
+    enum class level : int {
+        low = 0,  ///< Logic low (0)
+        high = 1, ///< Logic high (1)
+    };
+
     /** @brief GPIO direction mode. */
     enum class mode : int {
-        disable = GPIO_MODE_DISABLE,                 ///< GPIO mode : disable input and output
-        input = GPIO_MODE_INPUT,                     ///< GPIO mode : input only
-        output = GPIO_MODE_OUTPUT,                   ///< GPIO mode : output only mode
-        output_od = GPIO_MODE_OUTPUT_OD,             ///< GPIO mode : output only with open-drain mode
-        input_output_od = GPIO_MODE_INPUT_OUTPUT_OD, ///< GPIO mode : output and input with open-drain mode
-        input_output = GPIO_MODE_INPUT_OUTPUT,       ///< GPIO mode : output and input mode
+        disable = GPIO_MODE_DISABLE,                 ///< Disable input and output
+        input = GPIO_MODE_INPUT,                     ///< Input only
+        output = GPIO_MODE_OUTPUT,                   ///< Output only
+        output_od = GPIO_MODE_OUTPUT_OD,             ///< Output only with open-drain mode
+        input_output_od = GPIO_MODE_INPUT_OUTPUT_OD, ///< Input and output with open-drain mode
+        input_output = GPIO_MODE_INPUT_OUTPUT,       ///< Input and output
     };
 
     /** @brief Pull resistor configuration. */
@@ -81,28 +87,28 @@ public:
 
     /** @brief Pin drive capability (output strength). */
     enum class drive_cap : int {
-        cap_0 = GPIO_DRIVE_CAP_0,             ///< Pin drive capability: weak
-        cap_1 = GPIO_DRIVE_CAP_1,             ///< Pin drive capability: stronger
-        cap_2 = GPIO_DRIVE_CAP_2,             ///< Pin drive capability: medium
-        cap_default = GPIO_DRIVE_CAP_DEFAULT, ///< Pin drive capability: medium
-        cap_3 = GPIO_DRIVE_CAP_3,             ///< Pin drive capability: strongest
+        cap_0 = GPIO_DRIVE_CAP_0,             ///< Weak drive capability
+        cap_1 = GPIO_DRIVE_CAP_1,             ///< Stronger drive capability
+        cap_2 = GPIO_DRIVE_CAP_2,             ///< Medium drive capability
+        cap_default = GPIO_DRIVE_CAP_DEFAULT, ///< Medium drive capability
+        cap_3 = GPIO_DRIVE_CAP_3,             ///< Strongest drive capability
     };
 
     /** @brief Interrupt trigger type. */
     enum class intr_type : int {
         disable = GPIO_INTR_DISABLE,       ///< Disable GPIO interrupt
-        posedge = GPIO_INTR_POSEDGE,       ///< GPIO interrupt type : rising edge
-        negedge = GPIO_INTR_NEGEDGE,       ///< GPIO interrupt type : falling edge
-        anyedge = GPIO_INTR_ANYEDGE,       ///< GPIO interrupt type : both rising and falling edge
-        low_level = GPIO_INTR_LOW_LEVEL,   ///< GPIO interrupt type : input low level trigger
-        high_level = GPIO_INTR_HIGH_LEVEL, ///< GPIO interrupt type : input high level trigger
+        posedge = GPIO_INTR_POSEDGE,       ///< Rising edge
+        negedge = GPIO_INTR_NEGEDGE,       ///< Falling edge
+        anyedge = GPIO_INTR_ANYEDGE,       ///< Both rising and falling edge
+        low_level = GPIO_INTR_LOW_LEVEL,   ///< Input low level trigger
+        high_level = GPIO_INTR_HIGH_LEVEL, ///< Input high level trigger
     };
 
 #if SOC_GPIO_SUPPORT_PIN_HYS_FILTER
     /** @brief Hysteresis control mode. */
     enum class hys_ctrl_mode : int {
 #if SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
-        efuse = GPIO_HYS_CTRL_EFUSE, ///< Pin input hysteresis ctrl by efuse
+        efuse = GPIO_HYS_CTRL_EFUSE, ///< Pin input hysteresis control by efuse
 #endif
         soft_disable = GPIO_HYS_CTRL_SOFT_DISABLE, ///< Pin input hysteresis disable by software
         soft_enable = GPIO_HYS_CTRL_SOFT_ENABLE,   ///< Pin input hysteresis enable by software
@@ -389,15 +395,17 @@ public:
     // Level (input/output)
     /**
      * @brief Sets the output level.
+     * @param level The level to set (gpio::level::low or gpio::level::high).
      * @note Does nothing if the gpio is not configured for output.
      */
-    void set_level(bool level) { gpio_set_level(_num, level ? 1 : 0); }
+    void set_level(enum level level) { gpio_set_level(_num, std::to_underlying(level)); }
     /**
      * @brief Reads the current input level.
-     * @warning If the gpio is not configured for input, the returned value is always false.
-     * @note Returns false for gpio::nc().
+     * @return The current input level.
+     * @warning If the gpio is not configured for input, the returned value is always gpio::level::low.
+     * @note Returns gpio::level::low for gpio::nc().
      */
-    [[nodiscard]] bool get_level() const { return gpio_get_level(_num) != 0; }
+    [[nodiscard]] enum level get_level() const { return static_cast<enum level>(gpio_get_level(_num)); }
 
     // Drive capability
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1024,6 +1032,17 @@ inline constexpr gpio gpio_48 = gpio_constant<48>::value;
     return "GPIO_" + std::to_string(g.num());
 }
 
+/**
+ * @headerfile <idfxx/gpio>
+ * @brief Returns a string representation of a GPIO level.
+ *
+ * @param l The GPIO level to convert.
+ * @return "low" or "high".
+ */
+[[nodiscard]] inline std::string to_string(gpio::level l) {
+    return l == gpio::level::high ? "high" : "low";
+}
+
 /** @} */ // end of idfxx_gpio
 
 } // namespace idfxx
@@ -1041,6 +1060,16 @@ struct formatter<idfxx::gpio> {
     template<typename FormatContext>
     auto format(idfxx::gpio g, FormatContext& ctx) const {
         auto s = to_string(g);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::gpio::level> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::gpio::level l, FormatContext& ctx) const {
+        auto s = to_string(l);
         return std::copy(s.begin(), s.end(), ctx.out());
     }
 };

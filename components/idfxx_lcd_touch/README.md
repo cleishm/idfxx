@@ -49,8 +49,8 @@ idfxx::lcd::stmpe610 touch(
         .rst_gpio = idfxx::gpio_4,
         .int_gpio = idfxx::gpio::nc(),
         .levels{
-            .reset = 0,
-            .interrupt = 0,
+            .reset = idfxx::gpio::level::low,
+            .interrupt = idfxx::gpio::level::low,
         },
         .flags{
             .swap_xy = false,
@@ -96,8 +96,8 @@ idfxx::lcd::touch::config touch_config{
     .rst_gpio = idfxx::gpio_4,
     .int_gpio = idfxx::gpio::nc(),
     .levels{
-        .reset = 0,
-        .interrupt = 0,
+        .reset = idfxx::gpio::level::low,
+        .interrupt = idfxx::gpio::level::low,
     },
     .flags{
         .swap_xy = false,
@@ -167,7 +167,7 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 320,
     .int_gpio = idfxx::gpio_36,  // Interrupt pin
     .levels{
-        .interrupt = 0,  // Active low interrupt
+        .interrupt = idfxx::gpio::level::low,  // Active low interrupt
     },
 };
 
@@ -202,8 +202,8 @@ idfxx::lcd::touch::config touch_config{
 - `int_gpio` - Interrupt pin (default: `gpio::nc()`)
 
 **Signal Levels:**
-- `levels.reset` - Logic level during reset (0 or 1)
-- `levels.interrupt` - Active interrupt level (0 or 1)
+- `levels.reset` - Logic level during reset (`gpio::level::low` or `gpio::level::high`)
+- `levels.interrupt` - Active interrupt level (`gpio::level::low` or `gpio::level::high`)
 
 **Coordinate Transformation:**
 - `flags.swap_xy` - Swap X and Y coordinates after reading
@@ -222,7 +222,7 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 320,
     .rst_gpio = idfxx::gpio::nc(),
     .int_gpio = idfxx::gpio::nc(),
-    .levels{ .reset = 0, .interrupt = 0 },
+    .levels{ .reset = idfxx::gpio::level::low, .interrupt = idfxx::gpio::level::low },
     .flags{ .swap_xy = false, .mirror_x = false, .mirror_y = false },
 };
 ```
@@ -234,7 +234,7 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 480,
     .rst_gpio = idfxx::gpio_4,
     .int_gpio = idfxx::gpio_36,
-    .levels{ .reset = 0, .interrupt = 0 },
+    .levels{ .reset = idfxx::gpio::level::low, .interrupt = idfxx::gpio::level::low },
     .flags{ .swap_xy = true, .mirror_x = false, .mirror_y = true },
 };
 ```

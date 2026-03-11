@@ -53,8 +53,8 @@ public:
         gpio int_gpio = gpio::nc(); ///< GPIO number of interrupt pin
 
         struct {
-            unsigned int reset : 1 = 0;     ///< Level of reset pin in reset
-            unsigned int interrupt : 1 = 0; ///< Active Level of interrupt pin
+            gpio::level reset = gpio::level::low;     ///< Level of reset pin in reset
+            gpio::level interrupt = gpio::level::low; ///< Active level of interrupt pin
         } levels = {};
 
         struct {

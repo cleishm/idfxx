@@ -82,6 +82,9 @@ static_assert(std::to_underlying(gpio::intr_type::anyedge) == GPIO_INTR_ANYEDGE)
 static_assert(std::to_underlying(gpio::intr_type::low_level) == GPIO_INTR_LOW_LEVEL);
 static_assert(std::to_underlying(gpio::intr_type::high_level) == GPIO_INTR_HIGH_LEVEL);
 
+static_assert(std::to_underlying(gpio::level::low) == 0);
+static_assert(std::to_underlying(gpio::level::high) == 1);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
@@ -185,9 +188,9 @@ TEST_CASE("gpio operations on NC return error", "[idfxx][gpio]") {
     TEST_ASSERT_FALSE(nc.try_intr_disable().has_value());
 }
 
-TEST_CASE("gpio get_level on NC returns false", "[idfxx][gpio]") {
+TEST_CASE("gpio get_level on NC returns low", "[idfxx][gpio]") {
     gpio nc = gpio::nc();
-    TEST_ASSERT_FALSE(nc.get_level());
+    TEST_ASSERT_EQUAL(gpio::level::low, nc.get_level());
 }
 
 #if (SOC_GPIO_VALID_GPIO_MASK & (1ULL << 0))
@@ -233,15 +236,15 @@ TEST_CASE("gpio set_level and get_level", "[idfxx][gpio]") {
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::output).has_value());
 
     // Set high
-    g.set_level(true);
+    g.set_level(gpio::level::high);
 
     // Set low
-    g.set_level(false);
+    g.set_level(gpio::level::low);
 
     // Reset to input to allow reading (need input_output mode to read what we set)
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input_output).has_value());
 
-    g.set_level(true);
+    g.set_level(gpio::level::high);
     // Note: Reading back may not work without external pull-up/down
     // Just verify the operations don't fail
 }

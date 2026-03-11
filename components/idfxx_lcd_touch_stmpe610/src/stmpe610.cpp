@@ -57,8 +57,8 @@ result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, config config) {
         .int_gpio_num = config.int_gpio.idf_num(),
         .levels =
             {
-                .reset = config.levels.reset,
-                .interrupt = config.levels.interrupt,
+                .reset = static_cast<unsigned int>(std::to_underlying(config.levels.reset)),
+                .interrupt = static_cast<unsigned int>(std::to_underlying(config.levels.interrupt)),
             },
         .flags =
             {

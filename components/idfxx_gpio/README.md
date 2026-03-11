@@ -45,7 +45,7 @@ try {
 
     // Configure as output
     led.set_direction(idfxx::gpio::mode::output);
-    led.set_level(true);  // Set high
+    led.set_level(idfxx::gpio::level::high);
 
     // Configure as input with pull-up
     auto button = idfxx::gpio_0;
@@ -53,8 +53,8 @@ try {
     button.set_pull_mode(idfxx::gpio::pull_mode::pullup);
 
     // Read input level
-    bool pressed = button.get_level();
-    idfxx::log::info("GPIO", "Button pressed: {}", pressed);
+    auto state = button.get_level();
+    idfxx::log::info("GPIO", "Button level: {}", state);
 
 } catch (const std::system_error& e) {
     idfxx::log::error("GPIO", "Error: {}", e.what());
@@ -78,11 +78,8 @@ if (auto result = led.try_set_direction(idfxx::gpio::mode::output); !result) {
     return;
 }
 
-// Set high - result will be of type idfxx::result<void>
-if (auto result = led.try_set_level(true); !result) {
-    idfxx::log::error("GPIO", "Failed to set level: {}", result.error().message());
-    return;
-}
+// Set high
+led.set_level(idfxx::gpio::level::high);
 
 // Configure as input with pull-up
 auto button = idfxx::gpio_0;
@@ -96,9 +93,9 @@ if (auto result = button.try_set_pull_mode(idfxx::gpio::pull_mode::pullup); !res
     return;
 }
 
-// Read input level - will return `false` if the button GPIO is invalid.
-bool pressed = button.get_level();
-idfxx::log::info("GPIO", "Button pressed: {}", pressed);
+// Read input level - will return gpio::level::low if the button GPIO is invalid.
+auto state = button.get_level();
+idfxx::log::info("GPIO", "Button level: {}", state);
 ```
 
 ### Interrupt Handling

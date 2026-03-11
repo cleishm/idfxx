@@ -151,9 +151,9 @@ TEST_CASE("touch::config levels initialization", "[idfxx][lcd][stmpe610]") {
         .y_max = 320,
     };
 
-    // Verify default levels are zero
-    TEST_ASSERT_EQUAL(0, config.levels.reset);
-    TEST_ASSERT_EQUAL(0, config.levels.interrupt);
+    // Verify default levels are low
+    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.reset);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.interrupt);
 }
 
 TEST_CASE("touch::config with custom levels", "[idfxx][lcd][stmpe610]") {
@@ -163,13 +163,13 @@ TEST_CASE("touch::config with custom levels", "[idfxx][lcd][stmpe610]") {
         .x_max = 240,
         .y_max = 320,
         .levels{
-            .reset = 1,
-            .interrupt = 1,
+            .reset = gpio::level::high,
+            .interrupt = gpio::level::high,
         },
     };
 
-    TEST_ASSERT_EQUAL(1, config.levels.reset);
-    TEST_ASSERT_EQUAL(1, config.levels.interrupt);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.levels.reset);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.levels.interrupt);
 }
 
 TEST_CASE("touch::config process_coordinates defaults to nullptr", "[idfxx][lcd][stmpe610]") {

@@ -77,7 +77,7 @@ TEST_CASE("touch::config default flags are zero", "[idfxx][lcd][touch]") {
     TEST_ASSERT_EQUAL(0, config.flags.mirror_y);
 }
 
-TEST_CASE("touch::config default levels are zero", "[idfxx][lcd][touch]") {
+TEST_CASE("touch::config default levels are low", "[idfxx][lcd][touch]") {
     using namespace idfxx;
 
     touch::config config{
@@ -85,8 +85,8 @@ TEST_CASE("touch::config default levels are zero", "[idfxx][lcd][touch]") {
         .y_max = 320,
     };
 
-    TEST_ASSERT_EQUAL(0, config.levels.reset);
-    TEST_ASSERT_EQUAL(0, config.levels.interrupt);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.reset);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.interrupt);
 }
 
 TEST_CASE("touch::config process_coordinates defaults to nullptr", "[idfxx][lcd][touch]") {

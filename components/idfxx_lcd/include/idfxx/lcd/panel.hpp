@@ -39,8 +39,8 @@ public:
         rgb_data_endian data_endian = rgb_data_endian::big; ///< Set the data endian for color data larger than 1 byte
         uint32_t bits_per_pixel = 16;                       ///< Color depth, in bpp
         struct {
-            unsigned int reset_active_high : 1 = 0; ///< Setting this if the panel reset is high level active
-        } flags = {};                               ///< LCD panel config flags
+            gpio::level reset_active_level = gpio::level::low; ///< Active level for the panel reset signal
+        } flags = {};                                          ///< LCD panel config flags
         void* vendor_config = nullptr; ///< vendor specific configuration, optional, left as NULL if not used
     };
 
