@@ -85,6 +85,10 @@ static_assert(std::to_underlying(gpio::intr_type::high_level) == GPIO_INTR_HIGH_
 static_assert(std::to_underlying(gpio::level::low) == 0);
 static_assert(std::to_underlying(gpio::level::high) == 1);
 
+// operator~ inverts level
+static_assert(~gpio::level::high == gpio::level::low);
+static_assert(~gpio::level::low == gpio::level::high);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
@@ -247,6 +251,20 @@ TEST_CASE("gpio set_level and get_level", "[idfxx][gpio]") {
     g.set_level(gpio::level::high);
     // Note: Reading back may not work without external pull-up/down
     // Just verify the operations don't fail
+}
+
+TEST_CASE("gpio toggle_level", "[idfxx][gpio][hw]") {
+    gpio g = gpio::make(0).value();
+
+    // Configure as input_output so we can read back what we set
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input_output).has_value());
+
+    g.set_level(gpio::level::low);
+    g.toggle_level();
+    TEST_ASSERT_EQUAL(gpio::level::high, g.get_level());
+
+    g.toggle_level();
+    TEST_ASSERT_EQUAL(gpio::level::low, g.get_level());
 }
 
 TEST_CASE("gpio drive capability", "[idfxx][gpio]") {

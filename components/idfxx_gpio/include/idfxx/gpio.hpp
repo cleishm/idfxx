@@ -406,6 +406,16 @@ public:
      * @note Returns gpio::level::low for gpio::nc().
      */
     [[nodiscard]] enum level get_level() const { return static_cast<enum level>(gpio_get_level(_num)); }
+    /**
+     * @brief Toggles the output level.
+     *
+     * Reads the current level and sets the output to the opposite level.
+     *
+     * @note Does nothing if the gpio is not configured for output.
+     * @warning If the gpio is not configured for input, get_level() always returns
+     *          gpio::level::low, so the output will always be set to gpio::level::high.
+     */
+    void toggle_level() { set_level(get_level() == level::high ? level::low : level::high); }
 
     // Drive capability
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1041,6 +1051,17 @@ inline constexpr gpio gpio_48 = gpio_constant<48>::value;
  */
 [[nodiscard]] inline std::string to_string(gpio::level l) {
     return l == gpio::level::high ? "high" : "low";
+}
+
+/**
+ * @headerfile <idfxx/gpio>
+ * @brief Inverts a GPIO level.
+ *
+ * @param l The level to invert.
+ * @return gpio::level::low if @p l is gpio::level::high, and vice versa.
+ */
+[[nodiscard]] constexpr gpio::level operator~(gpio::level l) noexcept {
+    return l == gpio::level::high ? gpio::level::low : gpio::level::high;
 }
 
 /** @} */ // end of idfxx_gpio
