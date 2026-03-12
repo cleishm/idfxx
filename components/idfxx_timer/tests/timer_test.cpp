@@ -206,7 +206,7 @@ TEST_CASE("timer restart starts a non-running timer", "[idfxx][timer]") {
     (void)t.try_stop();
 }
 
-TEST_CASE("timer one-shot callback fires", "[idfxx][timer]") {
+TEST_CASE("timer one-shot callback fires", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto result = timer::make({.name = "callback_test"}, [&called]() { called.store(true); });
     TEST_ASSERT_TRUE(result.has_value());
@@ -223,7 +223,7 @@ TEST_CASE("timer one-shot callback fires", "[idfxx][timer]") {
     TEST_ASSERT_FALSE(t.is_active()); // One-shot timer stops after firing
 }
 
-TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
+TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer][hw]") {
     std::atomic<int> count{0};
     auto result = timer::make({.name = "periodic_callback_test"}, [&count]() { count.fetch_add(1); });
     TEST_ASSERT_TRUE(result.has_value());
@@ -242,7 +242,7 @@ TEST_CASE("timer periodic callback fires multiple times", "[idfxx][timer]") {
     (void)t.try_stop();
 }
 
-TEST_CASE("timer raw callback fires", "[idfxx][timer]") {
+TEST_CASE("timer raw callback fires", "[idfxx][timer][hw]") {
     static std::atomic<bool> called{false};
     called.store(false);
 
@@ -303,7 +303,7 @@ TEST_CASE("timer destructor stops running timer", "[idfxx][timer]") {
     // see issues in subsequent tests or memory leaks
 }
 
-TEST_CASE("timer next_alarm returns valid time", "[idfxx][timer]") {
+TEST_CASE("timer next_alarm returns valid time", "[idfxx][timer][hw]") {
     auto result = timer::make({.name = "next_alarm_test"}, []() {});
     TEST_ASSERT_TRUE(result.has_value());
     auto& t = *result;
@@ -468,7 +468,7 @@ TEST_CASE("timer name returns empty string when unnamed", "[idfxx][timer]") {
 // Static factory+start method tests
 // =============================================================================
 
-TEST_CASE("timer::try_start_once static with functional callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_once static with functional callback", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto result = timer::try_start_once({.name = "static_once"}, 10ms, [&called]() { called.store(true); });
 
@@ -483,7 +483,7 @@ TEST_CASE("timer::try_start_once static with functional callback", "[idfxx][time
     TEST_ASSERT_FALSE(result->is_active()); // One-shot timer stops after firing
 }
 
-TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer][hw]") {
     static std::atomic<bool> called{false};
     called.store(false);
 
@@ -502,7 +502,7 @@ TEST_CASE("timer::try_start_once static with raw callback", "[idfxx][timer]") {
     TEST_ASSERT_TRUE(called.load());
 }
 
-TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][timer][hw]") {
     std::atomic<int> count{0};
     auto result = timer::try_start_periodic({.name = "static_periodic"}, 20ms, [&count]() { count.fetch_add(1); });
 
@@ -522,7 +522,7 @@ TEST_CASE("timer::try_start_periodic static with functional callback", "[idfxx][
     (void)result->try_stop();
 }
 
-TEST_CASE("timer::try_start_periodic static with raw callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_periodic static with raw callback", "[idfxx][timer][hw]") {
     static std::atomic<int> count{0};
     count.store(0);
 
@@ -565,7 +565,7 @@ TEST_CASE("timer from static factory cleans up on destruction", "[idfxx][timer]"
 // Time_point overload tests
 // =============================================================================
 
-TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx][timer]") {
+TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto result = timer::make({.name = "tp_once"}, [&called]() { called.store(true); });
     TEST_ASSERT_TRUE(result.has_value());
@@ -587,7 +587,7 @@ TEST_CASE("timer try_start_once with time_point fires at correct time", "[idfxx]
     TEST_ASSERT_FALSE(t.is_active());
 }
 
-TEST_CASE("timer try_start_once with time_point in the past fires immediately", "[idfxx][timer]") {
+TEST_CASE("timer try_start_once with time_point in the past fires immediately", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto result = timer::make({.name = "tp_past"}, [&called]() { called.store(true); });
     TEST_ASSERT_TRUE(result.has_value());
@@ -603,7 +603,7 @@ TEST_CASE("timer try_start_once with time_point in the past fires immediately", 
     TEST_ASSERT_TRUE(called.load());
 }
 
-TEST_CASE("timer::try_start_once static with time_point and functional callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_once static with time_point and functional callback", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto target = timer::clock::now() + 10ms;
     auto result = timer::try_start_once({.name = "static_tp_func"}, target, [&called]() { called.store(true); });
@@ -619,7 +619,7 @@ TEST_CASE("timer::try_start_once static with time_point and functional callback"
     TEST_ASSERT_FALSE(result->is_active());
 }
 
-TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idfxx][timer]") {
+TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idfxx][timer][hw]") {
     static std::atomic<bool> called{false};
     called.store(false);
 
@@ -643,7 +643,7 @@ TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idf
 // Destruction race condition tests
 // =============================================================================
 
-TEST_CASE("timer destruction waits for one-shot callback to complete", "[idfxx][timer]") {
+TEST_CASE("timer destruction waits for one-shot callback to complete", "[idfxx][timer][hw]") {
     std::atomic<bool> callback_started{false};
     std::atomic<bool> callback_completed{false};
 
@@ -669,7 +669,7 @@ TEST_CASE("timer destruction waits for one-shot callback to complete", "[idfxx][
     TEST_ASSERT_TRUE(callback_completed.load());
 }
 
-TEST_CASE("timer destruction waits for periodic callback to complete", "[idfxx][timer]") {
+TEST_CASE("timer destruction waits for periodic callback to complete", "[idfxx][timer][hw]") {
     std::atomic<bool> callback_started{false};
     std::atomic<bool> callback_completed{false};
 
@@ -783,7 +783,7 @@ TEST_CASE("timer restart succeeds via exception API", "[idfxx][timer]") {
     t.stop();
 }
 
-TEST_CASE("timer::start_once static factory with exception API", "[idfxx][timer]") {
+TEST_CASE("timer::start_once static factory with exception API", "[idfxx][timer][hw]") {
     std::atomic<bool> called{false};
     auto t = timer::start_once({.name = "exc_static"}, 10ms, [&called]() { called.store(true); });
 
@@ -792,7 +792,7 @@ TEST_CASE("timer::start_once static factory with exception API", "[idfxx][timer]
     TEST_ASSERT_TRUE(called.load());
 }
 
-TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][timer]") {
+TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][timer][hw]") {
     std::atomic<int> count{0};
     auto t = timer::start_periodic({.name = "exc_periodic_static"}, 20ms, [&count]() { count.fetch_add(1); });
 
@@ -808,7 +808,7 @@ TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][ti
 // Multiple concurrent timer tests
 // =============================================================================
 
-TEST_CASE("multiple timers running concurrently", "[idfxx][timer]") {
+TEST_CASE("multiple timers running concurrently", "[idfxx][timer][hw]") {
     std::atomic<int> count_a{0};
     std::atomic<int> count_b{0};
     std::atomic<int> count_c{0};

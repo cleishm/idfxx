@@ -116,7 +116,7 @@ TEST_CASE("task priority can be changed", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(10, t->priority().value());
 }
 
-TEST_CASE("task suspend and resume", "[idfxx][task]") {
+TEST_CASE("task suspend and resume", "[idfxx][task][hw]") {
     std::atomic<int> counter{0};
     std::atomic<bool> running{true};
 
@@ -1146,7 +1146,7 @@ TEST_CASE("task kill succeeds via exception API", "[idfxx][task]") {
     // If we get here, kill succeeded. Task is now non-joinable.
 }
 
-TEST_CASE("task suspend and resume via exception API", "[idfxx][task]") {
+TEST_CASE("task suspend and resume via exception API", "[idfxx][task][hw]") {
     std::atomic<int> counter{0};
     auto t = std::make_unique<task>(task::config{.name = "exc_suspend"}, [&counter](task::self& self) {
         while (!self.stop_requested()) {
