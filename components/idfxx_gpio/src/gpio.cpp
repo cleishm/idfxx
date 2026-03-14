@@ -244,9 +244,9 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
     return {};
 }
 
-result<void> gpio::try_isr_handler_remove_all() {
+void gpio::isr_handler_remove_all() {
     if (!is_connected()) {
-        return error(errc::invalid_state);
+        return;
     }
     auto& gpio_handler = handlers[_num];
 
@@ -282,8 +282,6 @@ result<void> gpio::try_isr_handler_remove_all() {
             }
         }
     }
-
-    return {};
 }
 
 result<void> try_configure_gpios(const gpio::config& cfg, std::vector<gpio> pins) {
