@@ -187,9 +187,10 @@ TEST_CASE("gpio operations on NC return error", "[idfxx][gpio]") {
     TEST_ASSERT_FALSE(nc.try_set_pull_mode(gpio::pull_mode::floating).has_value());
     TEST_ASSERT_FALSE(nc.try_set_drive_capability(gpio::drive_cap::cap_default).has_value());
     TEST_ASSERT_FALSE(nc.try_get_drive_capability().has_value());
-    TEST_ASSERT_FALSE(nc.try_set_intr_type(gpio::intr_type::disable).has_value());
-    TEST_ASSERT_FALSE(nc.try_intr_enable().has_value());
-    TEST_ASSERT_FALSE(nc.try_intr_disable().has_value());
+    // These are now no-ops on NC (void methods)
+    nc.set_intr_type(gpio::intr_type::disable);
+    nc.intr_enable();
+    nc.intr_disable();
 }
 
 TEST_CASE("gpio get_level on NC returns low", "[idfxx][gpio]") {
@@ -301,10 +302,10 @@ TEST_CASE("gpio interrupt configuration", "[idfxx][gpio]") {
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
 
     // Set interrupt type
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::negedge).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::posedge).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::disable).has_value());
+    g.set_intr_type(gpio::intr_type::negedge);
+    g.set_intr_type(gpio::intr_type::posedge);
+    g.set_intr_type(gpio::intr_type::anyedge);
+    g.set_intr_type(gpio::intr_type::disable);
 }
 
 // =============================================================================
@@ -313,12 +314,12 @@ TEST_CASE("gpio interrupt configuration", "[idfxx][gpio]") {
 
 TEST_CASE("gpio input_enable on valid pin succeeds", "[idfxx][gpio]") {
     gpio g = gpio::make(0).value();
-    TEST_ASSERT_TRUE(g.try_input_enable().has_value());
+    g.input_enable();
 }
 
-TEST_CASE("gpio input_enable on NC returns error", "[idfxx][gpio]") {
+TEST_CASE("gpio input_enable on NC is a no-op", "[idfxx][gpio]") {
     gpio nc = gpio::nc();
-    TEST_ASSERT_FALSE(nc.try_input_enable().has_value());
+    nc.input_enable();
 }
 
 TEST_CASE("gpio is_digital_io_pin_capable", "[idfxx][gpio]") {
@@ -353,7 +354,7 @@ TEST_CASE("gpio ISR handler add and remove with raw callback", "[idfxx][gpio]") 
 
     // Configure as input with interrupt
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     // Add raw callback handler
     static bool handler_called = false;
@@ -375,7 +376,7 @@ TEST_CASE("gpio ISR handler add and remove with functional callback", "[idfxx][g
 
     gpio g = gpio::make(0).value();
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     // Add functional handler
     auto handle_result = g.try_isr_handler_add([]() {});
@@ -394,7 +395,7 @@ TEST_CASE("gpio ISR handler remove all", "[idfxx][gpio]") {
 
     gpio g = gpio::make(0).value();
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     // Add multiple handlers
     auto h1 = g.try_isr_handler_add([](void*) {}, nullptr);
@@ -403,8 +404,7 @@ TEST_CASE("gpio ISR handler remove all", "[idfxx][gpio]") {
     TEST_ASSERT_TRUE(h2.has_value());
 
     // Remove all
-    auto remove_result = g.try_isr_handler_remove_all();
-    TEST_ASSERT_TRUE(remove_result.has_value());
+    g.isr_handler_remove_all();
 
     gpio::uninstall_isr_service();
 }
@@ -415,7 +415,7 @@ TEST_CASE("unique_isr_handle RAII lifecycle", "[idfxx][gpio]") {
 
     gpio g = gpio::make(0).value();
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     // Add handler and wrap in unique_isr_handle
     auto handle_result = g.try_isr_handler_add([](void*) {}, nullptr);
@@ -440,7 +440,7 @@ TEST_CASE("unique_isr_handle release", "[idfxx][gpio]") {
 
     gpio g = gpio::make(0).value();
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     auto handle_result = g.try_isr_handler_add([](void*) {}, nullptr);
     TEST_ASSERT_TRUE(handle_result.has_value());
@@ -465,7 +465,7 @@ TEST_CASE("unique_isr_handle move assignment cleans up target", "[idfxx][gpio]")
 
     gpio g = gpio::make(0).value();
     TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
-    TEST_ASSERT_TRUE(g.try_set_intr_type(gpio::intr_type::anyedge).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
 
     auto h1_result = g.try_isr_handler_add([](void*) {}, nullptr);
     TEST_ASSERT_TRUE(h1_result.has_value());

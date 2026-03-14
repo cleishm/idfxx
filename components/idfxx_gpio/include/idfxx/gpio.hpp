@@ -286,12 +286,7 @@ public:
      *
      * @note Does nothing if called on an invalid gpio (e.g. gpio::nc()).
      */
-    void reset() {
-        if (!is_connected()) {
-            return;
-        }
-        gpio_reset_pin(_num);
-    }
+    void reset() { guarded_void(gpio_reset_pin, _num); }
 
     // Direction and pull configuration
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -302,13 +297,6 @@ public:
      * @throws std::system_error on failure.
      */
     void set_direction(enum mode mode) { unwrap(try_set_direction(mode)); }
-    /**
-     * @brief Enables input on this gpio.
-     * @note Only fails if called on gpio::nc().
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void input_enable() { unwrap(try_input_enable()); }
     /**
      * @brief Sets the pull resistor mode.
      * @note On ESP32, only GPIOs that support both input & output have integrated
@@ -353,10 +341,9 @@ public:
     }
     /**
      * @brief Enables input on this gpio.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
+     * @note Does nothing if called on gpio::nc().
      */
-    result<void> try_input_enable() { return guarded(gpio_input_enable, _num); }
+    void input_enable() { guarded_void(gpio_input_enable, _num); }
     /**
      * @brief Sets the pull resistor mode.
      * @note On ESP32, only GPIOs that support both input & output have integrated
@@ -552,12 +539,6 @@ public:
      * @throws std::system_error on failure.
      */
     void isr_handler_remove(isr_handle handle) { unwrap(try_isr_handler_remove(handle)); }
-    /**
-     * @brief Removes all ISR handlers for this gpio.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void isr_handler_remove_all() { unwrap(try_isr_handler_remove_all()); }
 #endif
     /**
      * @brief Adds an ISR handler for this gpio.
@@ -597,52 +578,28 @@ public:
     result<void> try_isr_handler_remove(isr_handle handle);
     /**
      * @brief Removes all ISR handlers for this gpio.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
+     * @note Does nothing if called on gpio::nc().
      */
-    result<void> try_isr_handler_remove_all();
+    void isr_handler_remove_all();
 
     // Interrupt configuration
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets the interrupt trigger type.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @note Does nothing if called on gpio::nc().
      */
-    void set_intr_type(enum intr_type intr_type) { unwrap(try_set_intr_type(intr_type)); }
-    /**
-     * @brief Enables interrupts for this gpio.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void intr_enable() { unwrap(try_intr_enable()); }
-    /**
-     * @brief Disables interrupts for this gpio.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void intr_disable() { unwrap(try_intr_disable()); }
-#endif
-    /**
-     * @brief Sets the interrupt trigger type.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
-     */
-    result<void> try_set_intr_type(enum intr_type intr_type) {
-        return guarded(gpio_set_intr_type, _num, static_cast<gpio_int_type_t>(intr_type));
+    void set_intr_type(enum intr_type intr_type) {
+        guarded_void(gpio_set_intr_type, _num, static_cast<gpio_int_type_t>(intr_type));
     }
     /**
      * @brief Enables interrupts for this gpio.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
+     * @note Does nothing if called on gpio::nc().
      */
-    result<void> try_intr_enable() { return guarded(gpio_intr_enable, _num); }
+    void intr_enable() { guarded_void(gpio_intr_enable, _num); }
     /**
      * @brief Disables interrupts for this gpio.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
+     * @note Does nothing if called on gpio::nc().
      */
-    result<void> try_intr_disable() { return guarded(gpio_intr_disable, _num); }
+    void intr_disable() { guarded_void(gpio_intr_disable, _num); }
 
     // Wakeup configuration
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -734,44 +691,24 @@ public:
     static void deep_sleep_hold_disable() { gpio_deep_sleep_hold_dis(); }
 
     // Sleep mode configuration
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Enables SLP_SEL to change GPIO status automatically in light sleep.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @note Does nothing if called on gpio::nc().
      */
-    void sleep_sel_enable() { unwrap(try_sleep_sel_enable()); }
+    void sleep_sel_enable() { guarded_void(gpio_sleep_sel_en, _num); }
     /**
      * @brief Disables SLP_SEL to change GPIO status automatically in light sleep.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @note Does nothing if called on gpio::nc().
      */
-    void sleep_sel_disable() { unwrap(try_sleep_sel_disable()); }
+    void sleep_sel_disable() { guarded_void(gpio_sleep_sel_dis, _num); }
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets GPIO direction at sleep.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
     void sleep_set_direction(enum mode mode) { unwrap(try_sleep_set_direction(mode)); }
-    /**
-     * @brief Sets pull resistor mode at sleep.
-     * @note On ESP32, only GPIOs that support both input & output have integrated
-     *       pull-up and pull-down resistors. Input-only GPIOs 34-39 do not.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void sleep_set_pull_mode(enum pull_mode pull) { unwrap(try_sleep_set_pull_mode(pull)); }
 #endif
-    /**
-     * @brief Enables SLP_SEL to change GPIO status automatically in light sleep.
-     * @note Only fails if called on gpio::nc().
-     */
-    result<void> try_sleep_sel_enable() { return guarded(gpio_sleep_sel_en, _num); }
-    /**
-     * @brief Disables SLP_SEL to change GPIO status automatically in light sleep.
-     * @note Only fails if called on gpio::nc().
-     */
-    result<void> try_sleep_sel_disable() { return guarded(gpio_sleep_sel_dis, _num); }
     /**
      * @brief Sets GPIO direction at sleep.
      * @retval invalid_state If called on gpio::nc().
@@ -784,11 +721,10 @@ public:
      * @brief Sets pull resistor mode at sleep.
      * @note On ESP32, only GPIOs that support both input & output have integrated
      *       pull-up and pull-down resistors. Input-only GPIOs 34-39 do not.
-     * @retval invalid_state If called on gpio::nc().
-     * @note Only fails if called on gpio::nc().
+     * @note Does nothing if called on gpio::nc().
      */
-    result<void> try_sleep_set_pull_mode(enum pull_mode pull) {
-        return guarded(gpio_sleep_set_pull_mode, _num, static_cast<gpio_pull_mode_t>(pull));
+    void sleep_set_pull_mode(enum pull_mode pull) {
+        guarded_void(gpio_sleep_set_pull_mode, _num, static_cast<gpio_pull_mode_t>(pull));
     }
 
 private:
@@ -801,6 +737,14 @@ private:
             return error(errc::invalid_state);
         }
         return wrap(std::invoke(std::forward<F>(f), std::forward<Args>(args)...));
+    }
+
+    template<typename F, typename... Args>
+    void guarded_void(F&& f, Args&&... args) const {
+        if (!is_connected()) {
+            return;
+        }
+        std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
     }
 
     gpio_num_t _num;
