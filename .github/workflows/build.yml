@@ -52,6 +52,46 @@ jobs:
           idf.py reconfigure
           idf.py build
 
+  discover-examples:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find examples
+        id: find
+        run: |
+          examples='[]'
+          for dir in components/*/examples/*/; do
+            [ -f "${dir}CMakeLists.txt" ] || continue
+            component=$(echo "$dir" | cut -d'/' -f2)
+            example=$(echo "$dir" | cut -d'/' -f4)
+            examples=$(echo "$examples" | jq -c --arg p "$dir" --arg c "$component" --arg e "$example" \
+              '. + [{"path": $p, "component": $c, "example": $e}]')
+          done
+          echo "matrix={\"include\":${examples}}" >> "$GITHUB_OUTPUT"
+
+  build-example:
+    needs: discover-examples
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover-examples.outputs.matrix) }}
+    name: example (${{ matrix.component }}/${{ matrix.example }})
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh
+          cd ${{ matrix.path }}
+          idf.py set-target esp32s3
+          idf.py build
+
   qemu-test:
     runs-on: ubuntu-latest
     container: espressif/idf:v5.5
