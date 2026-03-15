@@ -2,36 +2,84 @@
 // Copyright 2026 Chris Leishman
 
 #include <idfxx/rotary_encoder>
+#include <idfxx/timer>
 
-#include <encoder.h>
+#include <atomic>
 #include <esp_log.h>
+#include <optional>
 #include <utility>
 
 namespace idfxx {
 
 static const char* TAG = "idfxx_rotary_encoder";
 
-// Verify enum values match C library constants
-static_assert(std::to_underlying(rotary_encoder::event_type::changed) == RE_ET_CHANGED);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_released) == RE_ET_BTN_RELEASED);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_pressed) == RE_ET_BTN_PRESSED);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_long_pressed) == RE_ET_BTN_LONG_PRESSED);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_clicked) == RE_ET_BTN_CLICKED);
-
 namespace {
 
+// Gray code validation lookup table
+constexpr uint8_t valid_states[] = {0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0};
+
 struct encoder_context {
-    rotary_encoder_handle_t handle = nullptr;
-    std::move_only_function<void(const rotary_encoder::event&)> callback;
+    rotary_encoder::config cfg;
+
+    // Resources — destruction order matters (reverse of declaration)
+    std::optional<timer> tmr;
+
+    // Gray code decoder state
+    uint8_t code = 0;
+    uint16_t store = 0;
+
+    // Acceleration state
+    std::atomic<uint16_t> accel_coeff{0};
+    timer::clock::time_point last_motion_time{};
 };
 
-void trampoline(const rotary_encoder_event_t* c_event, void* arg) {
+void poll_encoder(encoder_context* ctx) {
+    // Read current pin states and build 4-bit gray code
+    ctx->code <<= 2;
+    if (ctx->cfg.pin_a.get_level() == gpio::level::high) {
+        ctx->code |= 0x02;
+    }
+    if (ctx->cfg.pin_b.get_level() == gpio::level::high) {
+        ctx->code |= 0x01;
+    }
+    ctx->code &= 0x0f;
+
+    // Validate state transition
+    if (!valid_states[ctx->code]) {
+        return;
+    }
+
+    // Build 16-bit pattern for direction detection
+    ctx->store = (ctx->store << 4) | ctx->code;
+
+    int32_t diff = 0;
+    if (ctx->store == 0xe817 || ctx->store == 0x17e8) {
+        diff = 1;
+    } else if (ctx->store == 0xd42b || ctx->store == 0x2bd4) {
+        diff = -1;
+    } else {
+        return;
+    }
+
+    // Apply acceleration if enabled
+    uint16_t coeff = ctx->accel_coeff.load(std::memory_order_relaxed);
+    if (coeff > 0) {
+        auto now = timer::clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - ctx->last_motion_time);
+        ctx->last_motion_time = now;
+
+        if (elapsed < ctx->cfg.acceleration_threshold) {
+            auto capped = std::max(elapsed, ctx->cfg.acceleration_cap);
+            diff *= static_cast<int32_t>(ctx->cfg.acceleration_threshold / capped * coeff);
+        }
+    }
+
+    ctx->cfg.callback(diff);
+}
+
+void timer_callback(void* arg) {
     auto* ctx = static_cast<encoder_context*>(arg);
-    rotary_encoder::event ev{
-        .type = static_cast<rotary_encoder::event_type>(c_event->type),
-        .diff = c_event->diff,
-    };
-    ctx->callback(ev);
+    poll_encoder(ctx);
 }
 
 } // namespace
@@ -50,46 +98,54 @@ result<rotary_encoder> rotary_encoder::make(config cfg) {
         return error(errc::invalid_arg);
     }
 
-    // Configure pull modes on encoder pins before creating the encoder
+    // Set pin direction to input
+    auto r = cfg.pin_a.try_set_direction(gpio::mode::input);
+    if (!r) {
+        auto msg = r.error().message();
+        ESP_LOGD(TAG, "Failed to set pin_a direction: %s", msg.c_str());
+        return error(r.error());
+    }
+    r = cfg.pin_b.try_set_direction(gpio::mode::input);
+    if (!r) {
+        auto msg = r.error().message();
+        ESP_LOGD(TAG, "Failed to set pin_b direction: %s", msg.c_str());
+        return error(r.error());
+    }
+
+    // Configure pull modes on encoder pins
     if (cfg.encoder_pins_pull_mode) {
-        auto r = cfg.pin_a.try_set_pull_mode(*cfg.encoder_pins_pull_mode);
+        r = cfg.pin_a.try_set_pull_mode(*cfg.encoder_pins_pull_mode);
         if (!r) {
+            auto msg = r.error().message();
+            ESP_LOGD(TAG, "Failed to set pin_a pull mode: %s", msg.c_str());
             return error(r.error());
         }
         r = cfg.pin_b.try_set_pull_mode(*cfg.encoder_pins_pull_mode);
         if (!r) {
-            return error(r.error());
-        }
-    }
-    if (cfg.pin_btn.is_connected() && cfg.btn_pin_pull_mode) {
-        auto r = cfg.pin_btn.try_set_pull_mode(*cfg.btn_pin_pull_mode);
-        if (!r) {
+            auto msg = r.error().message();
+            ESP_LOGD(TAG, "Failed to set pin_b pull mode: %s", msg.c_str());
             return error(r.error());
         }
     }
 
     auto* ctx = new encoder_context{};
-    ctx->callback = std::move(cfg.callback);
+    ctx->cfg = std::move(cfg);
 
-    rotary_encoder_config_t c_cfg{
-        .pin_a = cfg.pin_a.idf_num(),
-        .pin_b = cfg.pin_b.idf_num(),
-        .pin_btn = cfg.pin_btn.idf_num(),
-        .btn_pressed_level = static_cast<uint8_t>(std::to_underlying(cfg.btn_active_level)),
-        .enable_internal_pullup = false,
-        .btn_dead_time_us = static_cast<uint32_t>(cfg.btn_dead_time.count()),
-        .btn_long_press_time_us = static_cast<uint32_t>(cfg.btn_long_press_time.count()),
-        .acceleration_threshold_ms = static_cast<uint32_t>(cfg.acceleration_threshold.count()),
-        .acceleration_cap_ms = static_cast<uint32_t>(cfg.acceleration_cap.count()),
-        .polling_interval_us = static_cast<uint32_t>(cfg.polling_interval.count()),
-        .callback = &trampoline,
-        .callback_ctx = ctx,
-    };
-
-    auto err = rotary_encoder_create(&c_cfg, &ctx->handle);
-    if (err != ESP_OK) {
+    auto t = timer::make({.name = "rotary_encoder"}, &timer_callback, ctx);
+    if (!t) {
+        auto msg = t.error().message();
+        ESP_LOGD(TAG, "Failed to create timer: %s", msg.c_str());
         delete ctx;
-        return error(err);
+        return error(t.error());
+    }
+    ctx->tmr.emplace(std::move(*t));
+
+    auto sr = ctx->tmr->try_start_periodic(ctx->cfg.polling_interval);
+    if (!sr) {
+        auto msg = sr.error().message();
+        ESP_LOGD(TAG, "Failed to start timer: %s", msg.c_str());
+        delete ctx;
+        return error(sr.error());
     }
 
     return rotary_encoder(ctx);
@@ -121,7 +177,6 @@ rotary_encoder::~rotary_encoder() {
 void rotary_encoder::_delete() noexcept {
     auto* ctx = static_cast<encoder_context*>(_context);
     if (ctx) {
-        rotary_encoder_delete(ctx->handle);
         delete ctx;
     }
     _context = nullptr;
@@ -132,7 +187,8 @@ void rotary_encoder::enable_acceleration(uint16_t coeff) {
         return;
     }
     auto* ctx = static_cast<encoder_context*>(_context);
-    rotary_encoder_enable_acceleration(ctx->handle, coeff);
+    ctx->last_motion_time = timer::clock::now();
+    ctx->accel_coeff.store(coeff, std::memory_order_relaxed);
 }
 
 void rotary_encoder::disable_acceleration() {
@@ -140,7 +196,7 @@ void rotary_encoder::disable_acceleration() {
         return;
     }
     auto* ctx = static_cast<encoder_context*>(_context);
-    rotary_encoder_disable_acceleration(ctx->handle);
+    ctx->accel_coeff.store(0, std::memory_order_relaxed);
 }
 
 } // namespace idfxx

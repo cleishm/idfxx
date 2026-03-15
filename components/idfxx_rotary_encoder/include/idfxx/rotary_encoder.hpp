@@ -6,13 +6,14 @@
 /**
  * @headerfile <idfxx/rotary_encoder>
  * @file rotary_encoder.hpp
- * @brief Incremental rotary encoder driver with optional button support.
+ * @brief Incremental rotary encoder driver.
  *
  * @defgroup idfxx_rotary_encoder Rotary Encoder Component
  * @brief Incremental rotary encoder position tracking for ESP32.
  *
- * Provides rotary encoder position tracking with optional push-button support,
- * acceleration, and event-driven callbacks.
+ * Provides rotary encoder position tracking with acceleration and
+ * event-driven callbacks. For encoders with a built-in push-button,
+ * use @ref idfxx_button to handle button events separately.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin management.
  * @{
@@ -22,7 +23,6 @@
 #include <idfxx/gpio>
 
 #include <chrono>
-#include <cstdint>
 #include <functional>
 #include <optional>
 
@@ -30,11 +30,10 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/rotary_encoder>
- * @brief Incremental rotary encoder with optional push-button support.
+ * @brief Incremental rotary encoder driver.
  *
- * Tracks rotary encoder shaft rotation and optional button presses, delivering
- * events via a callback. Supports acceleration for faster turning and
- * configurable debounce for button presses.
+ * Tracks rotary encoder shaft rotation and delivers position change deltas
+ * via a callback. Supports acceleration for faster turning.
  *
  * This type is non-copyable and move-only.
  */
@@ -42,41 +41,20 @@ class rotary_encoder {
 public:
     /**
      * @headerfile <idfxx/rotary_encoder>
-     * @brief Rotary encoder event type.
-     */
-    enum class event_type : int {
-        changed = 0,          ///< Encoder shaft rotated
-        btn_released = 1,     ///< Button released
-        btn_pressed = 2,      ///< Button pressed
-        btn_long_pressed = 3, ///< Button held beyond long-press threshold
-        btn_clicked = 4,      ///< Short press completed (pressed then released)
-    };
-
-    /**
-     * @headerfile <idfxx/rotary_encoder>
-     * @brief Rotary encoder event data.
-     */
-    struct event {
-        event_type type; ///< Event type
-        int32_t diff;    ///< Position change delta (only meaningful for event_type::changed)
-    };
-
-    /**
-     * @headerfile <idfxx/rotary_encoder>
      * @brief Rotary encoder configuration.
      *
      * All fields have sensible defaults, but you must define pin_a, pin_b, and callback at minimum.
      *
-     * The pull mode fields default to pullup as a convenience, but external pull-up resistors are recommended.
-     * When using external pull-ups, set the pull mode fields to gpio::pull_mode::floating to disable internal
+     * The pull mode field defaults to pullup as a convenience, but external pull-up resistors are recommended.
+     * When using external pull-ups, set the pull mode field to gpio::pull_mode::floating to disable internal
      * pull resistors, or to std::nullopt if the pins have already been configured.
      *
      * @code
      * idfxx::rotary_encoder encoder({
      *     .pin_a = idfxx::gpio_4,
      *     .pin_b = idfxx::gpio_5,
-     *     .callback = [](const idfxx::rotary_encoder::event& ev) {
-     *         // handle event
+     *     .callback = [](int32_t diff) {
+     *         // handle rotation
      *     },
      * });
      * @endcode
@@ -86,23 +64,17 @@ public:
         idfxx::gpio pin_b = gpio::nc(); ///< Encoder pin B (required)
         /// Pull mode for encoder pins A and B, or std::nullopt to leave unchanged.
         std::optional<gpio::pull_mode> encoder_pins_pull_mode = gpio::pull_mode::pullup;
-        idfxx::gpio pin_btn = gpio::nc();                ///< Button pin, or gpio::nc() if unused
-        gpio::level btn_active_level = gpio::level::low; ///< GPIO level when button is pressed
-        /// Pull mode for button pin, or std::nullopt to leave unchanged.
-        std::optional<gpio::pull_mode> btn_pin_pull_mode = gpio::pull_mode::pullup;
-        std::chrono::microseconds btn_dead_time{std::chrono::milliseconds{10}};        ///< Button debounce time
-        std::chrono::microseconds btn_long_press_time{std::chrono::milliseconds{500}}; ///< Long press threshold
         std::chrono::milliseconds acceleration_threshold{200}; ///< Acceleration starts below this interval
         std::chrono::milliseconds acceleration_cap{4};         ///< Minimum interval (limits max acceleration)
         std::chrono::microseconds polling_interval{std::chrono::milliseconds{1}}; ///< GPIO polling interval
-        std::move_only_function<void(const event&)> callback;                     ///< Event callback (required)
+        std::move_only_function<void(int32_t)> callback;                          ///< Event callback (required)
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. pin_a, pin_b, and callback must be set. Pull mode fields default to
+     * @param cfg Encoder configuration. pin_a, pin_b, and callback must be set. The pull mode field defaults to
      *            pullup as a convenience; set to gpio::pull_mode::floating when using external pull-ups
      *            (recommended), or std::nullopt if the pins have already been configured.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -115,7 +87,7 @@ public:
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. pin_a, pin_b, and callback must be set. Pull mode fields default to
+     * @param cfg Encoder configuration. pin_a, pin_b, and callback must be set. The pull mode field defaults to
      *            pullup as a convenience; set to gpio::pull_mode::floating when using external pull-ups
      *            (recommended), or std::nullopt if the pins have already been configured.
      * @return The new rotary encoder, or an error.

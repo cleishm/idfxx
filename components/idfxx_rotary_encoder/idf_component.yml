@@ -1,5 +1,5 @@
 version: "0.9.0"
-description: "Rotary encoder driver with button support"
+description: "Incremental rotary encoder driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_rotary_encoder"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
@@ -13,8 +13,9 @@ dependencies:
     version: "^0.9.0"
     public: true
     override_path: ../idfxx_gpio
-  esp-idf-lib/encoder:
-    version: "^3.0.2"
+  cleishm/idfxx_timer:
+    version: "^0.9.0"
+    override_path: ../idfxx_timer
 targets:
   - esp32
   - esp32s2

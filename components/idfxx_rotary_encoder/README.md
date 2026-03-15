@@ -1,20 +1,17 @@
 # idfxx_rotary_encoder
 
-Incremental rotary encoder driver with optional button support for ESP32.
+Incremental rotary encoder driver for ESP32.
 
 ## Features
 
 - **Rotary encoder position tracking** with event-driven callbacks
-- **Optional push-button** with press, release, long-press, and click detection
 - **Acceleration support** for faster value changes when turning quickly
-- **Configurable debounce** for button inputs
 - **Type-safe configuration** with std::chrono durations and idfxx::gpio pins
 
 ## Requirements
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
-- `esp-idf-lib/encoder` v3.0.0 (automatically resolved via component manager)
 
 ## Installation
 
@@ -44,13 +41,8 @@ try {
     idfxx::rotary_encoder encoder({
         .pin_a = idfxx::gpio_4,
         .pin_b = idfxx::gpio_5,
-        .pin_btn = idfxx::gpio_6,
-        .callback = [](const idfxx::rotary_encoder::event& ev) {
-            if (ev.type == idfxx::rotary_encoder::event_type::changed) {
-                idfxx::log::info("encoder", "Rotated: {}", ev.diff);
-            } else if (ev.type == idfxx::rotary_encoder::event_type::btn_clicked) {
-                idfxx::log::info("encoder", "Button clicked!");
-            }
+        .callback = [](int32_t diff) {
+            idfxx::log::info("encoder", "Rotated: {}", diff);
         },
     });
 
@@ -73,13 +65,8 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
 auto encoder = idfxx::rotary_encoder::make({
     .pin_a = idfxx::gpio_4,
     .pin_b = idfxx::gpio_5,
-    .pin_btn = idfxx::gpio_6,
-    .callback = [](const idfxx::rotary_encoder::event& ev) {
-        if (ev.type == idfxx::rotary_encoder::event_type::changed) {
-            idfxx::log::info("encoder", "Rotated: {}", ev.diff);
-        } else if (ev.type == idfxx::rotary_encoder::event_type::btn_clicked) {
-            idfxx::log::info("encoder", "Button clicked!");
-        }
+    .callback = [](int32_t diff) {
+        idfxx::log::info("encoder", "Rotated: {}", diff);
     },
 });
 
@@ -107,24 +94,11 @@ encoder->enable_acceleration(10);
 - `enable_acceleration(coeff)` - Enable acceleration
 - `disable_acceleration()` - Disable acceleration
 
-### Event Types
-
-- `event_type::changed` - Encoder shaft rotated (check `event::diff` for delta)
-- `event_type::btn_pressed` - Button pressed
-- `event_type::btn_released` - Button released
-- `event_type::btn_long_pressed` - Button held beyond long-press threshold
-- `event_type::btn_clicked` - Short press completed (pressed then released)
-
 ### Configuration
 
 Key configuration options:
 - `pin_a`, `pin_b` - Encoder pins (required)
-- `pin_btn` - Optional button pin (default: not connected)
-- `btn_active_high` - Button active level (default: active low)
 - `encoder_pins_pull_mode` - Pull mode for encoder pins A and B (default: pullup, nullopt to leave unchanged)
-- `btn_pin_pull_mode` - Pull mode for button pin (default: pullup, nullopt to leave unchanged)
-- `btn_dead_time` - Button debounce time (default: 10ms)
-- `btn_long_press_time` - Long press threshold (default: 500ms)
 - `acceleration_threshold` - Acceleration trigger interval (default: 200ms)
 - `acceleration_cap` - Maximum acceleration limit (default: 4ms)
 - `polling_interval` - GPIO polling interval (default: 1ms)
@@ -142,7 +116,8 @@ Error codes from `idfxx::errc`:
 - **Non-copyable/move-only**: Encoder is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops tracking and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the encoder API.
-- **Pin requirements**: `pin_a` and `pin_b` must be connected GPIO pins. `pin_btn` is optional and defaults to not connected.
+- **Pin requirements**: `pin_a` and `pin_b` must be connected GPIO pins.
+- **Button support**: Many rotary encoders include a built-in push-button. Use [idfxx_button](../idfxx_button) to handle the button independently.
 
 ## License
 
