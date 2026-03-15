@@ -27,6 +27,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_spi](https://github.com/cleishm/idfxx/tree/main/components/idfxx_spi) | SPI master bus driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__spi.html) |
 | [idfxx_onewire](https://github.com/cleishm/idfxx/tree/main/components/idfxx_onewire) | 1-Wire bus protocol driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__onewire.html) |
 | [idfxx_rotary_encoder](https://github.com/cleishm/idfxx/tree/main/components/idfxx_rotary_encoder) | Incremental rotary encoder with optional button support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__rotary__encoder.html) |
+| [idfxx_button](https://github.com/cleishm/idfxx/tree/main/components/idfxx_button) | GPIO push-button with debounce, click, long press, and autorepeat | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__button.html) |
 | [idfxx_nvs](https://github.com/cleishm/idfxx/tree/main/components/idfxx_nvs) | Non-Volatile Storage (NVS) wrapper | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__nvs.html) |
 | [idfxx_ota](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ota) | OTA firmware update session management with rollback support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ota.html) |
 | [idfxx_partition](https://github.com/cleishm/idfxx/tree/main/components/idfxx_partition) | Flash partition discovery, reading, writing, and memory mapping | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__partition.html) |
