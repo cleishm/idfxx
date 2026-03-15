@@ -27,13 +27,6 @@ static_assert(!std::is_copy_assignable_v<rotary_encoder>);
 static_assert(std::is_move_constructible_v<rotary_encoder>);
 static_assert(std::is_move_assignable_v<rotary_encoder>);
 
-// Event type enum values
-static_assert(std::to_underlying(rotary_encoder::event_type::changed) == 0);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_released) == 1);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_pressed) == 2);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_long_pressed) == 3);
-static_assert(std::to_underlying(rotary_encoder::event_type::btn_clicked) == 4);
-
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // These require a real rotary encoder connected to GPIO pins.
@@ -44,14 +37,8 @@ TEST_CASE("rotary_encoder::config default values", "[idfxx][rotary_encoder]") {
 
     TEST_ASSERT_FALSE(cfg.pin_a.is_connected());
     TEST_ASSERT_FALSE(cfg.pin_b.is_connected());
-    TEST_ASSERT_FALSE(cfg.pin_btn.is_connected());
-    TEST_ASSERT_EQUAL(gpio::level::low, cfg.btn_active_level);
     TEST_ASSERT_TRUE(cfg.encoder_pins_pull_mode.has_value());
     TEST_ASSERT_EQUAL(gpio::pull_mode::pullup, *cfg.encoder_pins_pull_mode);
-    TEST_ASSERT_TRUE(cfg.btn_pin_pull_mode.has_value());
-    TEST_ASSERT_EQUAL(gpio::pull_mode::pullup, *cfg.btn_pin_pull_mode);
-    TEST_ASSERT_EQUAL(10'000, cfg.btn_dead_time.count());
-    TEST_ASSERT_EQUAL(500'000, cfg.btn_long_press_time.count());
     TEST_ASSERT_EQUAL(200, cfg.acceleration_threshold.count());
     TEST_ASSERT_EQUAL(4, cfg.acceleration_cap.count());
     TEST_ASSERT_EQUAL(1'000, cfg.polling_interval.count());
@@ -70,7 +57,7 @@ TEST_CASE("rotary_encoder::make with disconnected pin_a fails", "[idfxx][rotary_
     auto result = rotary_encoder::make({
         .pin_a = gpio::nc(),
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
@@ -80,7 +67,7 @@ TEST_CASE("rotary_encoder::make with disconnected pin_b fails", "[idfxx][rotary_
     auto result = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio::nc(),
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
@@ -90,7 +77,7 @@ TEST_CASE("rotary_encoder::make succeeds with valid config", "[idfxx][rotary_enc
     auto result = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_TRUE(result.has_value());
 }
@@ -99,7 +86,7 @@ TEST_CASE("rotary_encoder enable/disable acceleration", "[idfxx][rotary_encoder]
     auto result = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_TRUE(result.has_value());
 
@@ -111,7 +98,7 @@ TEST_CASE("rotary_encoder move construction transfers ownership", "[idfxx][rotar
     auto result = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_TRUE(result.has_value());
 
@@ -126,14 +113,14 @@ TEST_CASE("rotary_encoder move assignment transfers ownership", "[idfxx][rotary_
     auto r1 = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_TRUE(r1.has_value());
 
     auto r2 = rotary_encoder::make({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     TEST_ASSERT_TRUE(r2.has_value());
 
@@ -150,7 +137,7 @@ TEST_CASE("rotary_encoder destructor cleanup", "[idfxx][rotary_encoder][hw]") {
         auto result = rotary_encoder::make({
             .pin_a = gpio_4,
             .pin_b = gpio_5,
-            .callback = [](const rotary_encoder::event&) {},
+            .callback = [](int32_t) {},
         });
         TEST_ASSERT_TRUE(result.has_value());
         // Encoder goes out of scope here and should be cleaned up
@@ -164,7 +151,7 @@ TEST_CASE("rotary_encoder constructor succeeds with valid config", "[idfxx][rota
     rotary_encoder enc({
         .pin_a = gpio_4,
         .pin_b = gpio_5,
-        .callback = [](const rotary_encoder::event&) {},
+        .callback = [](int32_t) {},
     });
     // If we get here without an exception, construction succeeded
 }
