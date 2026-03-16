@@ -13,6 +13,7 @@ if(CLANG_FORMAT_EXECUTABLE)
         ${CMAKE_SOURCE_DIR}/components/*/include/*.h
         ${CMAKE_SOURCE_DIR}/components/*/include/*.hpp
         ${CMAKE_SOURCE_DIR}/components/*/src/*.cpp
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.cpp
     )
 
     add_custom_target(format-check
