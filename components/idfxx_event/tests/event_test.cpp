@@ -32,10 +32,6 @@ IDFXX_EVENT_DEFINE_BASE(test_events, test_event_id);
 
 struct test_event_data {
     int value;
-
-    static test_event_data from_opaque(const void* data) {
-        return *static_cast<const test_event_data*>(data);
-    }
 };
 
 inline constexpr event<test_event_id, test_event_data> test_data_event{test_event_id::event_a};
@@ -73,6 +69,14 @@ static_assert(event_base_lookup<test_event_id>().idf_base() == test_events.idf_b
 // event data concepts
 static_assert(receivable_event_data<test_event_data>);
 static_assert(event_data<test_event_data>);
+
+// A plain trivially copyable struct satisfies both concepts without from_opaque
+struct plain_data {
+    int x;
+    float y;
+};
+static_assert(receivable_event_data<plain_data>);
+static_assert(event_data<plain_data>);
 
 // listener_handle is default constructible
 static_assert(std::is_default_constructible_v<event_loop::listener_handle>);
