@@ -4,12 +4,11 @@ Type-safe event loop for asynchronous event handling.
 
 ## Features
 
-- **Type-safe event bases** with templated ID enum associations
+- **Type-safe event listeners** with `event` for compile-time data type safety
 - **Dual error handling** - exception-based and `result<T>` returning methods
 - **RAII listener handles** for automatic cleanup
 - **User event loops** with configurable task and queue settings
 - **System event loop** static interface for system events
-- **Raw function pointer support** for C interop and IRAM placement
 
 ## Requirements
 
@@ -32,35 +31,50 @@ Or add `idfxx_event` to the `REQUIRES` list in your component's `CMakeLists.txt`
 
 ## Usage
 
+### User-defined Events
+
+```cpp
+#include <idfxx/event>
+
+using namespace idfxx;
+
+// Define event IDs
+enum class my_event : int32_t { started, data_ready, stopped };
+
+// Create a typed event base
+IDFXX_EVENT_DEFINE_BASE(my_events, my_event);
+
+// Define event data type
+struct my_data {
+    int value;
+    static my_data from_opaque(const void* data) { return *static_cast<const my_data*>(data); }
+};
+
+// Define typed events
+inline constexpr event<my_event> started{my_event::started};
+inline constexpr event<my_event, my_data> data_ready{my_event::data_ready};
+```
+
 ### Basic Example (Exception-based)
 
 If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 ```cpp
-#include <idfxx/event>
-#include <esp_wifi.h>
-
-using namespace idfxx;
-
 // Create event loop with dedicated task
 auto loop = event_loop({.name = "events"}, 32);
 
-// Register typed listener for specific WiFi event
-auto handle = loop.listener_add(
-    event_base<wifi_event_t>{WIFI_EVENT},
-    WIFI_EVENT_STA_START,
-    [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
-        idfxx::log::info("app", "WiFi started!");
-    });
+// Register type-safe listeners
+loop.listener_add(started, []() {
+    log::info("app", "App started!");
+});
 
-// Or use system event loop for system events
-event_loop::create_system();
-event_loop::system().listener_add(
-    event_base<ip_event_t>{IP_EVENT},
-    IP_EVENT_STA_GOT_IP,
-    [](event_base<ip_event_t>, ip_event_t id, void* data) {
-        idfxx::log::info("app", "Got IP address!");
-    });
+loop.listener_add(data_ready, [](const my_data& data) {
+    log::info("app", "Data: {}", data.value);
+});
+
+// Post events (type-safe)
+loop.post(started);
+loop.post(data_ready, my_data{42});
 ```
 
 ### Result-based API
@@ -68,81 +82,33 @@ event_loop::system().listener_add(
 If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled:
 
 ```cpp
-#include <idfxx/event>
-#include <esp_wifi.h>
-
-using namespace idfxx;
-
 // Create event loop
 auto loop_result = event_loop::make({.name = "events"}, 32);
 if (!loop_result) {
-    idfxx::log::error("app", "Failed to create event loop: {}", loop_result.error().message());
+    log::error("app", "Failed to create event loop: {}", loop_result.error().message());
     return;
 }
 auto loop = std::move(*loop_result);
 
 // Register listener
-auto handle_result = loop.try_listener_add(
-    event_base<wifi_event_t>{WIFI_EVENT},
-    WIFI_EVENT_STA_START,
-    [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
-        idfxx::log::info("app", "WiFi started!");
-    });
+auto handle_result = loop.try_listener_add(started, []() {
+    log::info("app", "App started!");
+});
 
 if (!handle_result) {
-    idfxx::log::error("app", "Failed to register listener: {}", handle_result.error().message());
+    log::error("app", "Failed to register listener: {}", handle_result.error().message());
     return;
 }
 ```
 
-### User-defined Events
+### Listen for Any Event from a Base (Wildcard)
 
 ```cpp
-// Define your event ID enum
-enum class my_event : int32_t {
-    started = 0,
-    data_ready = 1,
-    stopped = 2
-};
-
-// Create a typed event base
-ESP_EVENT_DEFINE_BASE(MY_APP_EVENT);
-inline constexpr event_base<my_event> my_app{MY_APP_EVENT};
-
-// Register listener
-loop.listener_add(my_app, my_event::started,
+// Omit the event parameter to listen for any event (untyped callback)
+loop.listener_add(my_events,
     [](event_base<my_event>, my_event id, void* data) {
-        idfxx::log::info("app", "App started!");
+        log::info("app", "Event: {}", static_cast<int>(id));
     });
-
-// Post event with data
-struct my_data { int value; };
-my_data payload{42};
-loop.post(my_app, my_event::data_ready, &payload, sizeof(payload));
-```
-
-### Listen for Any Event from a Base
-
-```cpp
-// Omit the ID parameter to listen for any event
-loop.listener_add(event_base<wifi_event_t>{WIFI_EVENT},
-    [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
-        idfxx::log::info("app", "WiFi event: {}", static_cast<int>(id));
-    });
-```
-
-### Using event_type Syntax
-
-```cpp
-// Create event_type using operator()
-auto wifi_start = event_base<wifi_event_t>{WIFI_EVENT}(WIFI_EVENT_STA_START);
-
-loop.listener_add(wifi_start,
-    [](event_base<wifi_event_t>, wifi_event_t id, void* data) {
-        idfxx::log::info("app", "WiFi started!");
-    });
-
-loop.post(wifi_start);
 ```
 
 ### RAII Listener Handle
@@ -151,27 +117,12 @@ loop.post(wifi_start);
 {
     // Take ownership with unique_listener_handle
     event_loop::unique_listener_handle handle{
-        loop.listener_add(base, id, callback)
+        loop.listener_add(started, []() { ... })
     };
 
     // Listener is active while handle is in scope
 
 } // Listener automatically removed here
-```
-
-### Raw Function Pointer (for IRAM)
-
-```cpp
-// Use untyped event_base<void> for raw function pointers
-void IRAM_ATTR my_handler(void* arg, esp_event_base_t base, int32_t id, void* data) {
-    // IRAM-safe handler
-}
-
-loop.listener_add(
-    event_base<void>{WIFI_EVENT},
-    WIFI_EVENT_STA_START,
-    my_handler,
-    nullptr);
 ```
 
 ### Event Loop Without Dedicated Task
@@ -188,28 +139,29 @@ while (running) {
 }
 ```
 
+### System Event Loop
+
+```cpp
+event_loop::create_system();
+auto& sys = event_loop::system();
+
+sys.listener_add(started, []() {
+    log::info("app", "Got event on system loop");
+});
+
+sys.post(started);
+```
+
 ## API Overview
 
 ### event_base<IdEnum>
 
-- `event_base(std::string_view name)` - Construct from name string
 - `idf_base()` - Get underlying esp_event_base_t
-- `operator()(IdEnum id)` - Create event_type with specific ID
 
-### event_base<void>
+### event<IdEnum, DataType = void>
 
-- `any()` - Static method returning wildcard base (ESP_EVENT_ANY_BASE)
-- Accepts `int32_t` IDs instead of typed enum
-
-### event_type<IdEnum>
-
-- Combines `event_base<IdEnum>` + `IdEnum id`
-- `idf_base()` / `idf_id()` - Get underlying values
-
-### event_callback<IdEnum>
-
-- Type alias for `std::move_only_function<void(event_base<IdEnum>, IdEnum, void*) const>`
-- Callback type for typed event listeners
+- Pairs an event ID with its data type for type-safe listener registration and posting. The event base is looked up automatically from the enum type via ADL
+- `DataType` must satisfy `receivable_event_data` (provides `from_opaque`) for listening. Posting requires `event_data` (adds trivially copyable). Defaults to `void`
 
 ### event_loop
 
@@ -222,9 +174,11 @@ Factory for event loop with dedicated task:
 - `event_loop(task_config, queue_size)` / `make(task_config, queue_size)` - Create loop with task
 
 Instance methods:
-- `listener_add(...)` / `try_listener_add(...)` - Register listeners (multiple overloads)
+- `listener_add(event, callback)` / `try_listener_add(...)` - Register type-safe listener
+- `listener_add(base, callback)` / `try_listener_add(...)` - Register wildcard listener
 - `listener_remove(handle)` / `try_listener_remove(handle)` - Remove listener by handle
-- `post(...)` / `try_post(...)` - Post events
+- `post(event)` / `try_post(...)` - Post event without data
+- `post(event, data)` / `try_post(...)` - Post event with data
 - `idf_handle()` - Get underlying esp_event_loop_handle_t
 
 ### user_event_loop
@@ -257,10 +211,10 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods throw `st
 ## Important Notes
 
 - **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Type-safe listeners**: Use `event` constants for specific events; wildcard listeners still use untyped callbacks
 - Create the system event loop with `event_loop::create_system()` before registering system event listeners
 - Event callbacks may be invoked from different task contexts depending on loop configuration
 - Use `unique_listener_handle` for automatic cleanup; `listener_handle` requires manual removal
-- For IRAM-safe handlers, use the raw function pointer overload with `event_base<void>`
 
 ## License
 
