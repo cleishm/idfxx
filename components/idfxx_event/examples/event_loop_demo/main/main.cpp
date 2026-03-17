@@ -12,10 +12,10 @@ using namespace std::chrono_literals;
 static constexpr idfxx::log::logger logger{"example"};
 
 // Define event IDs
-enum class app_event : int32_t { started, data_received, stopped };
+enum class app_event_id { started, data_received, stopped };
 
 // Define the event base
-IDFXX_EVENT_DEFINE_BASE(app_events, app_event);
+IDFXX_EVENT_DEFINE_BASE(app_events, app_event_id);
 
 // Define event data type (trivially copyable types work automatically)
 struct app_data {
@@ -23,9 +23,9 @@ struct app_data {
 };
 
 // Define typed events
-inline constexpr idfxx::event<app_event> started{app_event::started};
-inline constexpr idfxx::event<app_event, app_data> data_received{app_event::data_received};
-inline constexpr idfxx::event<app_event> stopped{app_event::stopped};
+inline constexpr idfxx::event<app_event_id> started{app_event_id::started};
+inline constexpr idfxx::event<app_event_id, app_data> data_received{app_event_id::data_received};
+inline constexpr idfxx::event<app_event_id> stopped{app_event_id::stopped};
 
 extern "C" void app_main() {
     // --- Event loop with dedicated task ---
@@ -36,7 +36,7 @@ extern "C" void app_main() {
     auto handle = loop.listener_add(started, []() { logger.info("Listener: got 'started' event"); });
 
     // Register wildcard listener for any event from the base
-    auto any_handle = loop.listener_add(app_events, [](idfxx::event_base<app_event>, app_event id, void* data) {
+    auto any_handle = loop.listener_add(app_events, [](idfxx::event_base<app_event_id>, app_event_id id, void* data) {
         logger.info("Any-listener: got event id={}", static_cast<int32_t>(id));
         if (data) {
             int value = *static_cast<const int*>(data);

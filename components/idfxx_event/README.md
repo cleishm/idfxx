@@ -39,10 +39,10 @@ Or add `idfxx_event` to the `REQUIRES` list in your component's `CMakeLists.txt`
 using namespace idfxx;
 
 // Define event IDs
-enum class my_event : int32_t { started, data_ready, stopped };
+enum class my_event_id { started, data_ready, stopped };
 
 // Create a typed event base
-IDFXX_EVENT_DEFINE_BASE(my_events, my_event);
+IDFXX_EVENT_DEFINE_BASE(my_events, my_event_id);
 
 // Define event data type (trivially copyable types work automatically)
 struct my_data {
@@ -50,8 +50,8 @@ struct my_data {
 };
 
 // Define typed events
-inline constexpr event<my_event> started{my_event::started};
-inline constexpr event<my_event, my_data> data_ready{my_event::data_ready};
+inline constexpr event<my_event_id> started{my_event_id::started};
+inline constexpr event<my_event_id, my_data> data_ready{my_event_id::data_ready};
 ```
 
 ### Basic Example (Exception-based)
@@ -100,12 +100,12 @@ if (!handle_result) {
 }
 ```
 
-### Listen for Any Event from a Base (Wildcard)
+### Listen For Any Event From An Event Base (Wildcard)
 
 ```cpp
 // Omit the event parameter to listen for any event (untyped callback)
 loop.listener_add(my_events,
-    [](event_base<my_event>, my_event id, void* data) {
+    [](event_base<my_event_id>, my_event_id id, void* data) {
         log::info("app", "Event: {}", static_cast<int>(id));
     });
 ```
