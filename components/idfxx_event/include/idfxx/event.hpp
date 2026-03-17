@@ -43,13 +43,13 @@
  *
  * @code
  * // Define event IDs
- * enum class app_event : int32_t { started, stopped };
+ * enum class app_event_id { started, stopped };
  *
  * // Define the event base (typically in a header)
- * IDFXX_EVENT_DEFINE_BASE(app_events, app_event);
+ * IDFXX_EVENT_DEFINE_BASE(app_events, app_event_id);
  *
  * // Define typed events
- * inline constexpr idfxx::event<app_event> started{app_event::started};
+ * inline constexpr idfxx::event<app_event_id> started{app_event_id::started};
  *
  * // Use it
  * loop.post(started);
@@ -79,8 +79,8 @@ class event_base;
  *
  * @code
  * // Define a custom event category
- * enum class my_event : int32_t { started, stopped };
- * IDFXX_EVENT_DEFINE_BASE(my_events, my_event);
+ * enum class my_event_id { started, stopped };
+ * IDFXX_EVENT_DEFINE_BASE(my_events, my_event_id);
  *
  * // Use with ESP-IDF event categories
  * inline constexpr event_base<wifi_event_t> wifi{WIFI_EVENT};
@@ -110,7 +110,7 @@ public:
      * inline constexpr event_base<ip_event_t> ip{IP_EVENT};
      *
      * // Define custom event bases - use the macro instead
-     * enum class my_event_id : int32_t { started, stopped };
+     * enum class my_event_id { started, stopped };
      * IDFXX_EVENT_DEFINE_BASE(my_events, my_event_id);
      * @endcode
      */
@@ -193,6 +193,8 @@ concept event_data = receivable_event_data<T> && std::is_trivially_copyable_v<T>
 template<typename IdEnum, typename DataType = void>
     requires(std::is_void_v<DataType> || receivable_event_data<DataType>)
 struct event {
+    static_assert(sizeof(IdEnum) <= sizeof(int32_t), "event ID enum must fit in int32_t");
+
     /** @brief The event ID. */
     IdEnum id;
 };

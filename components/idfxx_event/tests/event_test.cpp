@@ -22,7 +22,7 @@ using namespace idfxx;
 // Test event definitions
 // =============================================================================
 
-enum class test_event_id : int32_t {
+enum class test_event_id {
     event_a = 0,
     event_b = 1,
     event_c = 2,
