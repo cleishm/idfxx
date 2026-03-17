@@ -17,18 +17,27 @@ enum class app_event : int32_t { started, data_received, stopped };
 // Define the event base
 IDFXX_EVENT_DEFINE_BASE(app_events, app_event);
 
+// Define event data type
+struct app_data {
+    int value;
+
+    static app_data from_opaque(const void* data) { return *static_cast<const app_data*>(data); }
+};
+
+// Define typed events
+inline constexpr idfxx::event<app_event> started{app_event::started};
+inline constexpr idfxx::event<app_event, app_data> data_received{app_event::data_received};
+inline constexpr idfxx::event<app_event> stopped{app_event::stopped};
+
 extern "C" void app_main() {
     // --- Event loop with dedicated task ---
     logger.info("=== Event Loop with Task ===");
     idfxx::event_loop loop({.name = "evt_task", .stack_size = 4096, .priority = 5});
 
-    // Register listener for a specific event
-    auto handle =
-        loop.listener_add(app_events, app_event::started, [](idfxx::event_base<app_event>, app_event id, void*) {
-            logger.info("Listener: got 'started' event (id={})", static_cast<int32_t>(id));
-        });
+    // Register listener for a specific event (type-safe, no void* casting needed)
+    auto handle = loop.listener_add(started, []() { logger.info("Listener: got 'started' event"); });
 
-    // Register listener for any event from the base
+    // Register wildcard listener for any event from the base
     auto any_handle = loop.listener_add(app_events, [](idfxx::event_base<app_event>, app_event id, void* data) {
         logger.info("Any-listener: got event id={}", static_cast<int32_t>(id));
         if (data) {
@@ -37,13 +46,10 @@ extern "C" void app_main() {
         }
     });
 
-    // Post events
-    loop.post(app_events, app_event::started);
-
-    int payload = 42;
-    loop.post(app_events, app_event::data_received, &payload, sizeof(payload));
-
-    loop.post(app_events, app_event::stopped);
+    // Post events (type-safe)
+    loop.post(started);
+    loop.post(data_received, app_data{42});
+    loop.post(stopped);
     idfxx::delay(200ms);
 
     // Remove listeners manually
@@ -53,12 +59,10 @@ extern "C" void app_main() {
     // --- RAII listener with unique_listener_handle ---
     logger.info("=== RAII Listener ===");
     {
-        idfxx::event_loop::unique_listener_handle raii_handle{loop.listener_add(
-            app_events,
-            app_event::started,
-            [](idfxx::event_base<app_event>, app_event, void*) { logger.info("RAII listener: got event"); }
-        )};
-        loop.post(app_events, app_event::started);
+        idfxx::event_loop::unique_listener_handle raii_handle{loop.listener_add(started, []() {
+            logger.info("RAII listener: got event");
+        })};
+        loop.post(started);
         idfxx::delay(100ms);
         logger.info("RAII handle valid: {}", static_cast<bool>(raii_handle));
     } // listener automatically removed here
@@ -68,14 +72,12 @@ extern "C" void app_main() {
     logger.info("=== User Event Loop (manual dispatch) ===");
     idfxx::user_event_loop user_loop(16);
 
-    user_loop
-        .listener_add(app_events, app_event::data_received, [](idfxx::event_base<app_event>, app_event, void* data) {
-            int value = *static_cast<const int*>(data);
-            logger.info("User loop listener: data={}", value);
-        });
+    // Event listener receives data directly
+    user_loop.listener_add(data_received, [](const app_data& data) {
+        logger.info("User loop listener: data={}", data.value);
+    });
 
-    int value = 99;
-    user_loop.post(app_events, app_event::data_received, &value, sizeof(value));
+    user_loop.post(data_received, app_data{99});
     user_loop.run(100ms);
 
     // --- System event loop ---
@@ -83,10 +85,8 @@ extern "C" void app_main() {
     idfxx::event_loop::create_system();
     auto& sys = idfxx::event_loop::system();
 
-    sys.listener_add(app_events, app_event::started, [](idfxx::event_base<app_event>, app_event, void*) {
-        logger.info("System loop listener: got event");
-    });
-    sys.post(app_events, app_event::started);
+    sys.listener_add(started, []() { logger.info("System loop listener: got event"); });
+    sys.post(started);
     idfxx::delay(100ms);
 
     idfxx::event_loop::destroy_system();
