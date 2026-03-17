@@ -131,14 +131,19 @@ private:
  * @headerfile <idfxx/event>
  * @brief Concept for types that can be received as event data.
  *
- * A type satisfies receivable_event_data if it provides a static
- * `from_opaque(const void*)` method that reconstructs the type from
- * a type-erased pointer.
+ * A type satisfies receivable_event_data if it is trivially copyable
+ * (allowing automatic reconstruction via static cast) or provides a
+ * static `from_opaque(const void*)` method for custom reconstruction.
+ *
+ * Trivially copyable types satisfy this concept automatically without
+ * needing to provide `from_opaque`. Types that require custom
+ * reconstruction (e.g., wrapping C structs into richer C++ types)
+ * can provide a static `from_opaque` method instead.
  *
  * @tparam T The type to check.
  */
 template<typename T>
-concept receivable_event_data = requires(const void* data) {
+concept receivable_event_data = std::is_trivially_copyable_v<T> || requires(const void* data) {
     { T::from_opaque(data) } -> std::same_as<T>;
 };
 
@@ -146,8 +151,9 @@ concept receivable_event_data = requires(const void* data) {
  * @headerfile <idfxx/event>
  * @brief Concept for types that can be both received and posted as event data.
  *
- * A type satisfies event_data if it can be received (provides `from_opaque`)
- * and is trivially copyable, allowing ESP-IDF to memcpy it into the event queue.
+ * A type satisfies event_data if it can be received and is trivially copyable,
+ * allowing ESP-IDF to memcpy it into the event queue. Trivially copyable types
+ * satisfy both this and receivable_event_data without needing `from_opaque`.
  *
  * Types that are only received (e.g., system event data from ESP-IDF that wraps
  * non-trivial C++ types) need only satisfy receivable_event_data.
@@ -202,6 +208,24 @@ struct event {
 template<typename IdEnum>
 constexpr event_base<IdEnum> event_base_lookup() {
     return idfxx_get_event_base(static_cast<IdEnum*>(nullptr));
+}
+
+/**
+ * @brief Reconstructs a value of type T from a type-erased pointer.
+ *
+ * If T provides a static `from_opaque(const void*)` method, it is used.
+ * Otherwise, the data is reconstructed via static_cast (valid for trivially
+ * copyable types).
+ */
+template<typename T>
+T from_opaque_data(const void* data) {
+    if constexpr (requires {
+                      { T::from_opaque(data) } -> std::same_as<T>;
+                  }) {
+        return T::from_opaque(data);
+    } else {
+        return *static_cast<const T*>(data);
+    }
 }
 
 /// @endcond
@@ -948,7 +972,7 @@ event_loop::try_listener_add(event<IdEnum, DataType> event, event_handler<DataTy
             _handle,
             event_base_lookup<IdEnum>().idf_base(),
             static_cast<int32_t>(event.id),
-            [cb = std::move(callback)](esp_event_base_t, int32_t, void* data) { cb(DataType::from_opaque(data)); }
+            [cb = std::move(callback)](esp_event_base_t, int32_t, void* data) { cb(from_opaque_data<DataType>(data)); }
         );
     }
 }

@@ -44,10 +44,9 @@ enum class my_event : int32_t { started, data_ready, stopped };
 // Create a typed event base
 IDFXX_EVENT_DEFINE_BASE(my_events, my_event);
 
-// Define event data type
+// Define event data type (trivially copyable types work automatically)
 struct my_data {
     int value;
-    static my_data from_opaque(const void* data) { return *static_cast<const my_data*>(data); }
 };
 
 // Define typed events
@@ -161,7 +160,7 @@ sys.post(started);
 ### event<IdEnum, DataType = void>
 
 - Pairs an event ID with its data type for type-safe listener registration and posting. The event base is looked up automatically from the enum type via ADL
-- `DataType` must satisfy `receivable_event_data` (provides `from_opaque`) for listening. Posting requires `event_data` (adds trivially copyable). Defaults to `void`
+- `DataType` must satisfy `receivable_event_data` (trivially copyable types work automatically; types needing custom reconstruction provide `from_opaque`). Posting requires `event_data` (type must be trivially copyable). Defaults to `void` (no data provided with the event)
 
 ### event_loop
 

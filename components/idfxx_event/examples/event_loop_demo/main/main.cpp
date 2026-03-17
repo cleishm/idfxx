@@ -17,11 +17,9 @@ enum class app_event : int32_t { started, data_received, stopped };
 // Define the event base
 IDFXX_EVENT_DEFINE_BASE(app_events, app_event);
 
-// Define event data type
+// Define event data type (trivially copyable types work automatically)
 struct app_data {
     int value;
-
-    static app_data from_opaque(const void* data) { return *static_cast<const app_data*>(data); }
 };
 
 // Define typed events
