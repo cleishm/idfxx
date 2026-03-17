@@ -78,6 +78,16 @@ struct plain_data {
 static_assert(receivable_event_data<plain_data>);
 static_assert(event_data<plain_data>);
 
+// from_opaque is preferred over static_cast for trivially copyable types
+struct trivially_copyable_with_from_opaque {
+    int value;
+    static trivially_copyable_with_from_opaque from_opaque(const void* data) {
+        return {*static_cast<const int*>(data) + 1};
+    }
+};
+static_assert(std::is_trivially_copyable_v<trivially_copyable_with_from_opaque>);
+static_assert(receivable_event_data<trivially_copyable_with_from_opaque>);
+
 // listener_handle is default constructible
 static_assert(std::is_default_constructible_v<event_loop::listener_handle>);
 
@@ -370,4 +380,12 @@ TEST_CASE("moved-from event_loop returns invalid_state", "[idfxx][event]") {
     auto moved = std::move(loop);
     auto result = loop.try_post(test_void_event_b);
     TEST_ASSERT_FALSE(result);
+}
+
+TEST_CASE("from_opaque_data prefers from_opaque over static_cast", "[idfxx][event]") {
+    // trivially_copyable_with_from_opaque::from_opaque adds 1 to the value,
+    // so if from_opaque is called the result differs from a plain static_cast
+    int source = 42;
+    auto result = from_opaque_data<trivially_copyable_with_from_opaque>(&source);
+    TEST_ASSERT_EQUAL(43, result.value);
 }
