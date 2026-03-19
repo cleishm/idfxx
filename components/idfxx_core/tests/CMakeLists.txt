@@ -13,6 +13,7 @@ set(IDFXX_CORE_TEST_SOURCES
     memory_heap_alloc_test.cpp
     memory_heap_test.cpp
     memory_spiram_allocator_test.cpp
+    net_test.cpp
     system_test.cpp
     app_test.cpp
     random_test.cpp
