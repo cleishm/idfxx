@@ -415,7 +415,7 @@ public:
      *
      * @code
      * loop.listener_add(wifi::sta_disconnected,
-     *     [](const wifi::disconnected_info& info) {
+     *     [](const wifi::disconnected_event_data& info) {
      *         log::warn("wifi", "Disconnected: {}", static_cast<int>(info.reason));
      *     });
      *

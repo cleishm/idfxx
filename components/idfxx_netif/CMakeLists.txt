@@ -1,8 +1,7 @@
 idf_component_register(
-    SRCS "src/error.cpp" "src/net.cpp" "src/sched.cpp" "src/system.cpp" "src/app.cpp"
+    SRCS "src/netif.cpp" "src/types.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES freertos esp_system esp_hw_support
-    PRIV_REQUIRES esp_app_format
+    PRIV_REQUIRES esp_netif esp_event
 )
 
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)
