@@ -1,0 +1,10 @@
+dependencies:
+  cleishm/idfxx_netif:
+    version: "^0.9.0"
+    override_path: ../../..
+  cleishm/idfxx_wifi:
+    version: "^0.9.0"
+    override_path: ../../../../idfxx_wifi
+  cleishm/idfxx_log:
+    version: "^0.9.0"
+    override_path: ../../../../idfxx_log

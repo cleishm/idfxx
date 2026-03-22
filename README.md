@@ -21,6 +21,8 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_queue](https://github.com/cleishm/idfxx/tree/main/components/idfxx_queue) | Type-safe FreeRTOS queue for inter-task communication | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__queue.html) |
 | [idfxx_task](https://github.com/cleishm/idfxx/tree/main/components/idfxx_task) | FreeRTOS task management with join, cooperative stop, and fire-and-forget support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__task.html) |
 | [idfxx_timer](https://github.com/cleishm/idfxx/tree/main/components/idfxx_timer) | High-resolution timer (esp_timer) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__timer.html) |
+| **Networking** | | |
+| [idfxx_wifi](https://github.com/cleishm/idfxx/tree/main/components/idfxx_wifi) | WiFi station and access point management | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) |
 | **Peripheral Drivers** | | |
 | [idfxx_gpio](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gpio) | GPIO pin management with ISR support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gpio.html) |
 | [idfxx_i2c](https://github.com/cleishm/idfxx/tree/main/components/idfxx_i2c) | I2C master bus and device driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__i2c.html) |
