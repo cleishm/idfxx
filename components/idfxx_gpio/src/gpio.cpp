@@ -5,6 +5,7 @@
 #include <idfxx/memory>
 
 #include <atomic>
+#include <driver/gpio.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 
@@ -112,8 +113,7 @@ result<gpio> gpio::make(int num) {
     if (num == GPIO_NUM_NC) {
         return gpio{GPIO_NUM_NC};
     }
-    // Add explicit range check before GPIO_IS_VALID_GPIO
-    if (num < 0 || num >= GPIO_NUM_MAX || !GPIO_IS_VALID_GPIO(num)) {
+    if (!_is_valid_gpio_num(num)) {
         return error(errc::invalid_arg);
     }
     return gpio{static_cast<gpio_num_t>(num)};
@@ -123,6 +123,167 @@ result<gpio> gpio::make(int num) {
 gpio::gpio(int num)
     : gpio(unwrap(make(num))) {}
 #endif
+
+void gpio::reset() {
+    if (is_connected()) {
+        gpio_reset_pin(_num);
+    }
+}
+
+result<void> gpio::try_set_direction(enum mode mode) {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_set_direction(_num, static_cast<gpio_mode_t>(mode)));
+}
+
+void gpio::input_enable() {
+    if (is_connected()) {
+        gpio_input_enable(_num);
+    }
+}
+
+result<void> gpio::try_set_pull_mode(enum pull_mode mode) {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_set_pull_mode(_num, static_cast<gpio_pull_mode_t>(mode)));
+}
+
+result<void> gpio::try_pullup_enable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_pullup_en(_num));
+}
+
+result<void> gpio::try_pullup_disable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_pullup_dis(_num));
+}
+
+result<void> gpio::try_pulldown_enable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_pulldown_en(_num));
+}
+
+result<void> gpio::try_pulldown_disable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_pulldown_dis(_num));
+}
+
+void gpio::set_level(enum level level) {
+    gpio_set_level(_num, std::to_underlying(level));
+}
+
+gpio::level gpio::get_level() const {
+    return static_cast<enum level>(gpio_get_level(_num));
+}
+
+void gpio::toggle_level() {
+    set_level(get_level() == level::high ? level::low : level::high);
+}
+
+result<void> gpio::try_set_drive_capability(enum drive_cap strength) {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_set_drive_capability(_num, static_cast<gpio_drive_cap_t>(strength)));
+}
+
+result<gpio::drive_cap> gpio::try_get_drive_capability() const {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    gpio_drive_cap_t cap;
+    auto err = gpio_get_drive_capability(_num, &cap);
+    return wrap(err).transform([cap]() { return static_cast<drive_cap>(cap); });
+}
+
+void gpio::set_intr_type(enum intr_type intr_type) {
+    if (is_connected()) {
+        gpio_set_intr_type(_num, static_cast<gpio_int_type_t>(intr_type));
+    }
+}
+
+void gpio::intr_enable() {
+    if (is_connected()) {
+        gpio_intr_enable(_num);
+    }
+}
+
+void gpio::intr_disable() {
+    if (is_connected()) {
+        gpio_intr_disable(_num);
+    }
+}
+
+result<void> gpio::try_wakeup_enable(enum intr_type intr_type) {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_wakeup_enable(_num, static_cast<gpio_int_type_t>(intr_type)));
+}
+
+result<void> gpio::try_wakeup_disable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_wakeup_disable(_num));
+}
+
+result<void> gpio::try_hold_enable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_hold_en(_num));
+}
+
+result<void> gpio::try_hold_disable() {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_hold_dis(_num));
+}
+
+void gpio::deep_sleep_hold_enable() {
+    gpio_deep_sleep_hold_en();
+}
+
+void gpio::deep_sleep_hold_disable() {
+    gpio_deep_sleep_hold_dis();
+}
+
+void gpio::sleep_sel_enable() {
+    if (is_connected()) {
+        gpio_sleep_sel_en(_num);
+    }
+}
+
+void gpio::sleep_sel_disable() {
+    if (is_connected()) {
+        gpio_sleep_sel_dis(_num);
+    }
+}
+
+result<void> gpio::try_sleep_set_direction(enum mode mode) {
+    if (!is_connected()) {
+        return error(errc::invalid_state);
+    }
+    return wrap(gpio_sleep_set_direction(_num, static_cast<gpio_mode_t>(mode)));
+}
+
+void gpio::sleep_set_pull_mode(enum pull_mode pull) {
+    if (is_connected()) {
+        gpio_sleep_set_pull_mode(_num, static_cast<gpio_pull_mode_t>(pull));
+    }
+}
 
 result<void> gpio::try_install_isr_service(intr_levels levels, flags<intr_flag> intr_flags) {
     int raw = to_underlying(levels) | to_underlying(intr_flags);

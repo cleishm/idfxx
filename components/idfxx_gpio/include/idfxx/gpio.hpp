@@ -22,8 +22,10 @@
 #include <idfxx/flags>
 #include <idfxx/intr_alloc>
 
-#include <driver/gpio.h>
 #include <functional>
+#include <hal/gpio_types.h>
+#include <soc/gpio_num.h>
+#include <soc/soc_caps.h>
 #include <string>
 #include <utility>
 
@@ -264,15 +266,13 @@ public:
     [[nodiscard]] constexpr bool operator==(const gpio&) const noexcept = default;
 
     /** @brief Returns true if this is a valid GPIO pin. */
-    [[nodiscard]] constexpr bool is_connected() const {
-        return _num != GPIO_NUM_NC && _num >= 0 && _num < GPIO_NUM_MAX && GPIO_IS_VALID_GPIO(_num);
-    }
+    [[nodiscard]] constexpr bool is_connected() const { return _num != GPIO_NUM_NC && _is_valid_gpio_num(_num); }
 
     /** @brief Returns true if this gpio supports output mode. */
-    [[nodiscard]] constexpr bool is_output_capable() const { return GPIO_IS_VALID_OUTPUT_GPIO(_num); }
+    [[nodiscard]] constexpr bool is_output_capable() const { return _is_valid_output_gpio_num(_num); }
 
     /** @brief Returns true if this gpio is a valid digital I/O pin. */
-    [[nodiscard]] constexpr bool is_digital_io_pin_capable() const { return GPIO_IS_VALID_DIGITAL_IO_PAD(_num); }
+    [[nodiscard]] constexpr bool is_digital_io_pin_capable() const { return _is_valid_digital_io_gpio_num(_num); }
 
     /** @brief Returns the underlying GPIO pin number. */
     [[nodiscard]] constexpr int num() const { return static_cast<int>(_num); }
@@ -287,7 +287,7 @@ public:
      *
      * @note Does nothing if called on an invalid gpio (e.g. gpio::nc()).
      */
-    void reset() { guarded_void(gpio_reset_pin, _num); }
+    void reset();
 
     // Direction and pull configuration
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -337,14 +337,12 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the gpio is input-only and an output mode is requested.
      */
-    result<void> try_set_direction(enum mode mode) {
-        return guarded(gpio_set_direction, _num, static_cast<gpio_mode_t>(mode));
-    }
+    result<void> try_set_direction(enum mode mode);
     /**
      * @brief Enables input on this gpio.
      * @note Does nothing if called on gpio::nc().
      */
-    void input_enable() { guarded_void(gpio_input_enable, _num); }
+    void input_enable();
     /**
      * @brief Sets the pull resistor mode.
      * @note On ESP32, only GPIOs that support both input & output have integrated
@@ -352,33 +350,31 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_set_pull_mode(enum pull_mode mode) {
-        return guarded(gpio_set_pull_mode, _num, static_cast<gpio_pull_mode_t>(mode));
-    }
+    result<void> try_set_pull_mode(enum pull_mode mode);
     /**
      * @brief Enables the internal pull-up resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pullup_enable() { return guarded(gpio_pullup_en, _num); }
+    result<void> try_pullup_enable();
     /**
      * @brief Disables the internal pull-up resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pullup_disable() { return guarded(gpio_pullup_dis, _num); }
+    result<void> try_pullup_disable();
     /**
      * @brief Enables the internal pull-down resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pulldown_enable() { return guarded(gpio_pulldown_en, _num); }
+    result<void> try_pulldown_enable();
     /**
      * @brief Disables the internal pull-down resistor.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support pull resistors.
      */
-    result<void> try_pulldown_disable() { return guarded(gpio_pulldown_dis, _num); }
+    result<void> try_pulldown_disable();
 
     // Level (input/output)
     /**
@@ -386,14 +382,14 @@ public:
      * @param level The level to set (gpio::level::low or gpio::level::high).
      * @note Does nothing if the gpio is not configured for output.
      */
-    void set_level(enum level level) { gpio_set_level(_num, std::to_underlying(level)); }
+    void set_level(enum level level);
     /**
      * @brief Reads the current input level.
      * @return The current input level.
      * @warning If the gpio is not configured for input, the returned value is always gpio::level::low.
      * @note Returns gpio::level::low for gpio::nc().
      */
-    [[nodiscard]] enum level get_level() const { return static_cast<enum level>(gpio_get_level(_num)); }
+    [[nodiscard]] enum level get_level() const;
     /**
      * @brief Toggles the output level.
      *
@@ -403,7 +399,7 @@ public:
      * @warning If the gpio is not configured for input, get_level() always returns
      *          gpio::level::low, so the output will always be set to gpio::level::high.
      */
-    void toggle_level() { set_level(get_level() == level::high ? level::low : level::high); }
+    void toggle_level();
 
     // Drive capability
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -425,22 +421,13 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If called on a gpio that is not output-capable.
      */
-    result<void> try_set_drive_capability(enum drive_cap strength) {
-        return guarded(gpio_set_drive_capability, _num, static_cast<gpio_drive_cap_t>(strength));
-    }
+    result<void> try_set_drive_capability(enum drive_cap strength);
     /**
      * @brief Gets the current drive capability.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If called on a gpio that is not output-capable.
      */
-    result<drive_cap> try_get_drive_capability() const {
-        if (!is_connected()) {
-            return error(errc::invalid_state);
-        }
-        gpio_drive_cap_t cap;
-        auto err = gpio_get_drive_capability(_num, &cap);
-        return wrap(err).transform([cap]() { return static_cast<drive_cap>(cap); });
-    }
+    result<drive_cap> try_get_drive_capability() const;
 
     // ISR service (must be installed before adding handlers)
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -588,19 +575,17 @@ public:
      * @brief Sets the interrupt trigger type.
      * @note Does nothing if called on gpio::nc().
      */
-    void set_intr_type(enum intr_type intr_type) {
-        guarded_void(gpio_set_intr_type, _num, static_cast<gpio_int_type_t>(intr_type));
-    }
+    void set_intr_type(enum intr_type intr_type);
     /**
      * @brief Enables interrupts for this gpio.
      * @note Does nothing if called on gpio::nc().
      */
-    void intr_enable() { guarded_void(gpio_intr_enable, _num); }
+    void intr_enable();
     /**
      * @brief Disables interrupts for this gpio.
      * @note Does nothing if called on gpio::nc().
      */
-    void intr_disable() { guarded_void(gpio_intr_disable, _num); }
+    void intr_disable();
 
     // Wakeup configuration
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -624,15 +609,13 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If intr_type is not low_level or high_level.
      */
-    result<void> try_wakeup_enable(enum intr_type intr_type) {
-        return guarded(gpio_wakeup_enable, _num, static_cast<gpio_int_type_t>(intr_type));
-    }
+    result<void> try_wakeup_enable(enum intr_type intr_type);
     /**
      * @brief Disables GPIO wake-up.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO is not an RTC GPIO.
      */
-    result<void> try_wakeup_disable() { return guarded(gpio_wakeup_disable, _num); }
+    result<void> try_wakeup_disable();
 
     // Hold configuration (maintains state during sleep/reset)
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -671,7 +654,7 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the GPIO doesn't support hold.
      */
-    result<void> try_hold_enable() { return guarded(gpio_hold_en, _num); }
+    result<void> try_hold_enable();
     /**
      * @brief Disables gpio hold function.
      *
@@ -680,28 +663,28 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval not_supported If the GPIO doesn't support hold.
      */
-    result<void> try_hold_disable() { return guarded(gpio_hold_dis, _num); }
+    result<void> try_hold_disable();
     /**
      * @brief Enables hold for all digital GPIOs during deep sleep.
      *
      * The hold only takes effect during deep sleep. In active mode, GPIO state can
      * still be changed. Each gpio must also have hold_enable() called for this to work.
      */
-    static void deep_sleep_hold_enable() { gpio_deep_sleep_hold_en(); }
+    static void deep_sleep_hold_enable();
     /** @brief Disables hold for all digital GPIOs during deep sleep. */
-    static void deep_sleep_hold_disable() { gpio_deep_sleep_hold_dis(); }
+    static void deep_sleep_hold_disable();
 
     // Sleep mode configuration
     /**
      * @brief Enables SLP_SEL to change GPIO status automatically in light sleep.
      * @note Does nothing if called on gpio::nc().
      */
-    void sleep_sel_enable() { guarded_void(gpio_sleep_sel_en, _num); }
+    void sleep_sel_enable();
     /**
      * @brief Disables SLP_SEL to change GPIO status automatically in light sleep.
      * @note Does nothing if called on gpio::nc().
      */
-    void sleep_sel_disable() { guarded_void(gpio_sleep_sel_dis, _num); }
+    void sleep_sel_disable();
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets GPIO direction at sleep.
@@ -715,37 +698,27 @@ public:
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the gpio is input-only and an output mode is requested.
      */
-    result<void> try_sleep_set_direction(enum mode mode) {
-        return guarded(gpio_sleep_set_direction, _num, static_cast<gpio_mode_t>(mode));
-    }
+    result<void> try_sleep_set_direction(enum mode mode);
     /**
      * @brief Sets pull resistor mode at sleep.
      * @note On ESP32, only GPIOs that support both input & output have integrated
      *       pull-up and pull-down resistors. Input-only GPIOs 34-39 do not.
      * @note Does nothing if called on gpio::nc().
      */
-    void sleep_set_pull_mode(enum pull_mode pull) {
-        guarded_void(gpio_sleep_set_pull_mode, _num, static_cast<gpio_pull_mode_t>(pull));
-    }
+    void sleep_set_pull_mode(enum pull_mode pull);
 
 private:
     constexpr gpio(gpio_num_t num)
         : _num(num) {}
 
-    template<typename F, typename... Args>
-    result<void> guarded(F&& f, Args&&... args) const {
-        if (!is_connected()) {
-            return error(errc::invalid_state);
-        }
-        return wrap(std::invoke(std::forward<F>(f), std::forward<Args>(args)...));
+    static constexpr bool _is_valid_gpio_num(int num) {
+        return num >= 0 && num < GPIO_NUM_MAX && (SOC_GPIO_VALID_GPIO_MASK & (1ULL << num));
     }
-
-    template<typename F, typename... Args>
-    void guarded_void(F&& f, Args&&... args) const {
-        if (!is_connected()) {
-            return;
-        }
-        std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+    static constexpr bool _is_valid_output_gpio_num(int num) {
+        return num >= 0 && num < GPIO_NUM_MAX && (SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << num));
+    }
+    static constexpr bool _is_valid_digital_io_gpio_num(int num) {
+        return num >= 0 && num < GPIO_NUM_MAX && (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK & (1ULL << num));
     }
 
     gpio_num_t _num;
@@ -808,7 +781,7 @@ void configure_gpios(const gpio::config& cfg, Gpios&&... gpios) {
  */
 template<int N>
 struct gpio_constant {
-    static_assert(N == GPIO_NUM_NC || (SOC_GPIO_VALID_GPIO_MASK & (1ULL << N)), "Invalid GPIO number");
+    static_assert(N == GPIO_NUM_NC || gpio::_is_valid_gpio_num(N), "Invalid GPIO number");
     static constexpr gpio value{static_cast<gpio_num_t>(N)};
 };
 /** @endcond */
