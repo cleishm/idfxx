@@ -104,7 +104,7 @@ public:
     [[nodiscard]] constexpr unsigned int value() const noexcept { return _value; }
 
     /** @brief Default three-way comparison. */
-    constexpr auto operator<=>(const task_priority&) const = default;
+    [[nodiscard]] constexpr auto operator<=>(const task_priority&) const noexcept = default;
 
 private:
     unsigned int _value;

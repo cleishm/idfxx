@@ -208,7 +208,7 @@ public:
     // =========================================================================
 
     /** @brief Compares two partitions for equality. */
-    [[nodiscard]] constexpr bool operator==(const partition& other) const { return _part == other._part; }
+    [[nodiscard]] constexpr bool operator==(const partition&) const noexcept = default;
 
     /** @brief Returns the partition type. */
     [[nodiscard]] enum type type() const { return static_cast<enum partition::type>(_part->type); }

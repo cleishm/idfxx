@@ -92,8 +92,11 @@ public:
      */
     [[nodiscard]] constexpr uint8_t family() const { return static_cast<uint8_t>(_raw & 0xFF); }
 
-    constexpr bool operator==(const address&) const = default;
-    constexpr auto operator<=>(const address&) const = default;
+    /** @brief Compares two addresses for equality. */
+    [[nodiscard]] constexpr bool operator==(const address&) const noexcept = default;
+
+    /** @brief Default three-way comparison for ordering. */
+    [[nodiscard]] constexpr auto operator<=>(const address&) const noexcept = default;
 
 private:
     uint64_t _raw = 0;
