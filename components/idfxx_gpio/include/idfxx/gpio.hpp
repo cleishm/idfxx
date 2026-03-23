@@ -260,7 +260,8 @@ public:
     gpio& operator=(const gpio&) = default;
     gpio& operator=(gpio&&) = default;
 
-    constexpr bool operator==(const gpio& other) const = default;
+    /** @brief Compares two GPIO pins for equality. */
+    [[nodiscard]] constexpr bool operator==(const gpio&) const noexcept = default;
 
     /** @brief Returns true if this is a valid GPIO pin. */
     [[nodiscard]] constexpr bool is_connected() const {

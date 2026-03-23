@@ -181,7 +181,8 @@ public:
     device& operator=(const device&) = default;
     device& operator=(device&&) = default;
 
-    constexpr bool operator==(const device&) const = default;
+    /** @brief Compares two devices for equality. */
+    [[nodiscard]] constexpr bool operator==(const device&) const noexcept = default;
 
     /** @brief Returns the GPIO pin. */
     [[nodiscard]] constexpr idfxx::gpio pin() const { return _pin; }

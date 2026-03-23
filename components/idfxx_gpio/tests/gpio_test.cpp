@@ -54,6 +54,8 @@ static_assert(gpio() == gpio::nc());
 #if (SOC_GPIO_VALID_GPIO_MASK & (1ULL << 0))
 static_assert(gpio_0 == gpio_0);
 static_assert(!(gpio_0 == gpio::nc()));
+static_assert(gpio_0 != gpio::nc());
+static_assert(!(gpio::nc() != gpio::nc()));
 #endif
 
 // Enum values match ESP-IDF values
