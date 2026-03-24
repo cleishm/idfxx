@@ -16,6 +16,10 @@ static_assert(std::to_underlying(idfxx::http::event_id::error) == HTTP_EVENT_ERR
 static_assert(std::to_underlying(idfxx::http::event_id::on_connected) == HTTP_EVENT_ON_CONNECTED);
 static_assert(std::to_underlying(idfxx::http::event_id::headers_sent) == HTTP_EVENT_HEADERS_SENT);
 static_assert(std::to_underlying(idfxx::http::event_id::on_header) == HTTP_EVENT_ON_HEADER);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(idfxx::http::event_id::on_headers_complete) == HTTP_EVENT_ON_HEADERS_COMPLETE);
+static_assert(std::to_underlying(idfxx::http::event_id::on_status_code) == HTTP_EVENT_ON_STATUS_CODE);
+#endif
 static_assert(std::to_underlying(idfxx::http::event_id::on_data) == HTTP_EVENT_ON_DATA);
 static_assert(std::to_underlying(idfxx::http::event_id::on_finish) == HTTP_EVENT_ON_FINISH);
 static_assert(std::to_underlying(idfxx::http::event_id::disconnected) == HTTP_EVENT_DISCONNECTED);
@@ -90,6 +94,12 @@ std::string to_string(http::event_id id) {
         return "HEADERS_SENT";
     case http::event_id::on_header:
         return "ON_HEADER";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case http::event_id::on_headers_complete:
+        return "ON_HEADERS_COMPLETE";
+    case http::event_id::on_status_code:
+        return "ON_STATUS_CODE";
+#endif
     case http::event_id::on_data:
         return "ON_DATA";
     case http::event_id::on_finish:

@@ -328,11 +328,13 @@ result<void> server::_try_register(unsigned httpd_method, std::string uri, handl
         return error(idfxx::errc::invalid_state);
     }
 
-    auto& record = _handlers.emplace_back(handler_record{
-        .uri = std::move(uri),
-        .httpd_method = httpd_method,
-        .handler = std::move(handler),
-    });
+    auto& record = _handlers.emplace_back(
+        handler_record{
+            .uri = std::move(uri),
+            .httpd_method = httpd_method,
+            .handler = std::move(handler),
+        }
+    );
 
     auto res = _register_handler(record);
     if (!res) {
@@ -373,14 +375,16 @@ result<void> server::try_on_ws(std::string uri, handler_type handler, ws_config 
         return error(idfxx::errc::invalid_state);
     }
 
-    auto& record = _handlers.emplace_back(handler_record{
-        .uri = std::move(uri),
-        .httpd_method = to_httpd_method(method::get),
-        .handler = std::move(handler),
-        .is_websocket = true,
-        .handle_ws_control_frames = ws_cfg.handle_control_frames,
-        .supported_subprotocol = std::move(ws_cfg.supported_subprotocol),
-    });
+    auto& record = _handlers.emplace_back(
+        handler_record{
+            .uri = std::move(uri),
+            .httpd_method = to_httpd_method(method::get),
+            .handler = std::move(handler),
+            .is_websocket = true,
+            .handle_ws_control_frames = ws_cfg.handle_control_frames,
+            .supported_subprotocol = std::move(ws_cfg.supported_subprotocol),
+        }
+    );
 
     auto res = _register_handler(record);
     if (!res) {

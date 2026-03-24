@@ -4,6 +4,7 @@
 #include <idfxx/wifi>
 
 #include <cstring>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <esp_netif.h>
 #include <esp_wifi.h>
@@ -1206,7 +1207,9 @@ result<void> try_ftm_initiate_session(const ftm_initiator_config& cfg) {
     idf_cfg.channel = cfg.channel;
     idf_cfg.frm_count = cfg.frame_count;
     idf_cfg.burst_period = cfg.burst_period;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
     idf_cfg.use_get_report_api = cfg.use_get_report_api;
+#endif
     auto err = esp_wifi_ftm_initiate_session(&idf_cfg);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to initiate FTM session: %s", esp_err_to_name(err));

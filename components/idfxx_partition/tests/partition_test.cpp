@@ -131,7 +131,7 @@ TEST_CASE("partition try_read with span", "[idfxx][partition]") {
     TEST_ASSERT_TRUE(read_result.has_value());
 }
 
-TEST_CASE("partition check_identity with same partition returns true", "[idfxx][partition]") {
+TEST_CASE("partition check_identity with same partition returns true", "[idfxx][partition][hw]") {
     auto result = partition::try_find(partition::type::app, partition::subtype::app_ota_0);
     TEST_ASSERT_TRUE(result.has_value());
 
@@ -145,7 +145,7 @@ TEST_CASE("partition mmap_handle default is invalid", "[idfxx][partition]") {
     TEST_ASSERT_EQUAL(0, handle.size());
 }
 
-TEST_CASE("partition try_sha256 on ota_0 app", "[idfxx][partition]") {
+TEST_CASE("partition try_sha256 on ota_0 app", "[idfxx][partition][hw]") {
     auto result = partition::try_find(partition::type::app, partition::subtype::app_ota_0);
     TEST_ASSERT_TRUE(result.has_value());
 

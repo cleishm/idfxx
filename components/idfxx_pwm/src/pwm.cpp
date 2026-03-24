@@ -4,6 +4,7 @@
 #include <idfxx/pwm>
 
 #include <driver/ledc.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <mutex>
 #include <utility>
@@ -234,12 +235,15 @@ static result<void> configure_channel(const timer& tmr, enum channel ch, idfxx::
         .gpio_num = gpio.num(),
         .speed_mode = to_idf(tmr.speed_mode()),
         .channel = static_cast<ledc_channel_t>(std::to_underlying(ch)),
-        .intr_type = LEDC_INTR_DISABLE,
+        .intr_type = {},
         .timer_sel = static_cast<ledc_timer_t>(tmr.idf_num()),
         .duty = static_cast<uint32_t>(std::clamp(cfg.duty, 0.0f, 1.0f) * static_cast<float>(tmr.ticks_max())),
         .hpoint = cfg.hpoint,
         .sleep_mode = static_cast<ledc_sleep_mode_t>(std::to_underlying(cfg.sleep_mode)),
         .flags = {.output_invert = cfg.output_invert ? 1u : 0u},
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        .deconfigure = false,
+#endif
     };
 
     if (auto err = ledc_channel_config(&ch_cfg); err != ESP_OK) {

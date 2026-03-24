@@ -3,6 +3,7 @@
 
 #include <idfxx/lcd/ili9341>
 
+#include <esp_idf_version.h>
 #include <esp_lcd_ili9341.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_log.h>
@@ -15,6 +16,16 @@ const char* TAG = "idfxx::lcd::ili9341";
 idfxx::result<esp_lcd_panel_handle_t>
 make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::panel::config& config) {
     esp_lcd_panel_dev_config_t panel_config{
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        .rgb_ele_order = static_cast<lcd_rgb_element_order_t>(config.rgb_element_order),
+        .data_endian = static_cast<lcd_rgb_data_endian_t>(config.data_endian),
+        .bits_per_pixel = config.bits_per_pixel,
+        .reset_gpio_num = config.reset_gpio.idf_num(),
+        .vendor_config = config.vendor_config,
+        .flags = {
+            .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.flags.reset_active_level)),
+        },
+#else
         .reset_gpio_num = config.reset_gpio.idf_num(),
         .rgb_ele_order = static_cast<lcd_rgb_element_order_t>(config.rgb_element_order),
         .data_endian = static_cast<lcd_rgb_data_endian_t>(config.data_endian),
@@ -24,6 +35,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::panel::config
                 .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.flags.reset_active_level)),
             },
         .vendor_config = config.vendor_config,
+#endif
     };
 
     esp_lcd_panel_handle_t handle = nullptr;
