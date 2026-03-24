@@ -94,7 +94,7 @@ extern "C" void app_main() {
         logger.info("Erased key 'to_erase'");
 
         try {
-            handle.get_value<uint32_t>("to_erase");
+            (void)handle.get_value<uint32_t>("to_erase");
         } catch (const std::system_error& e) {
             logger.info("Expected error reading erased key: {}", e.what());
         }
