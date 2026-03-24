@@ -378,7 +378,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::timeout if the queue remains empty.
      */
-    [[nodiscard]] T receive() { return unwrap(try_receive()); }
+    T receive() { return unwrap(try_receive()); }
 
     /**
      * @brief Receives an item from the queue with a timeout.
@@ -394,7 +394,7 @@ public:
      *         for the duration.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] T receive(const std::chrono::duration<Rep, Period>& timeout) {
+    T receive(const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_receive(timeout));
     }
 
@@ -412,7 +412,7 @@ public:
      *         until the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] T receive_until(const std::chrono::time_point<Clock, Duration>& deadline) {
+    T receive_until(const std::chrono::time_point<Clock, Duration>& deadline) {
         return unwrap(try_receive_until(deadline));
     }
 #endif
