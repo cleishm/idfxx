@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <esp_event.h>
+#include <esp_idf_version.h>
 #include <esp_netif.h>
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
@@ -44,8 +45,13 @@ static_assert(std::to_underlying(idfxx::wifi::power_save::min_modem) == WIFI_PS_
 static_assert(std::to_underlying(idfxx::wifi::power_save::max_modem) == WIFI_PS_MAX_MODEM);
 
 // bandwidth
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(idfxx::wifi::bandwidth::ht20) == WIFI_BW20);
+static_assert(std::to_underlying(idfxx::wifi::bandwidth::ht40) == WIFI_BW40);
+#else
 static_assert(std::to_underlying(idfxx::wifi::bandwidth::ht20) == WIFI_BW_HT20);
 static_assert(std::to_underlying(idfxx::wifi::bandwidth::ht40) == WIFI_BW_HT40);
+#endif
 static_assert(std::to_underlying(idfxx::wifi::bandwidth::bw80) == WIFI_BW80);
 static_assert(std::to_underlying(idfxx::wifi::bandwidth::bw160) == WIFI_BW160);
 static_assert(std::to_underlying(idfxx::wifi::bandwidth::bw80_80) == WIFI_BW80_BW80);
@@ -66,10 +72,23 @@ static_assert(std::to_underlying(idfxx::wifi::sort_method::by_security) == WIFI_
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::unspecified) == WIFI_REASON_UNSPECIFIED);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::auth_expire) == WIFI_REASON_AUTH_EXPIRE);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::auth_leave) == WIFI_REASON_AUTH_LEAVE);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) == WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY
+);
+static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) == WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) == WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA
+);
+#else
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) == WIFI_REASON_ASSOC_EXPIRE);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) == WIFI_REASON_NOT_AUTHED);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) == WIFI_REASON_NOT_ASSOCED);
+#endif
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_leave) == WIFI_REASON_ASSOC_LEAVE);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_not_authed) == WIFI_REASON_ASSOC_NOT_AUTHED);
 static_assert(
@@ -435,8 +454,13 @@ static_assert(std::to_underlying(idfxx::wifi::event_id::itwt_suspend) == WIFI_EV
 static_assert(std::to_underlying(idfxx::wifi::event_id::twt_wakeup) == WIFI_EVENT_TWT_WAKEUP);
 static_assert(std::to_underlying(idfxx::wifi::event_id::btwt_setup) == WIFI_EVENT_BTWT_SETUP);
 static_assert(std::to_underlying(idfxx::wifi::event_id::btwt_teardown) == WIFI_EVENT_BTWT_TEARDOWN);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(idfxx::wifi::event_id::nan_started) == WIFI_EVENT_NAN_SYNC_STARTED);
+static_assert(std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVENT_NAN_SYNC_STOPPED);
+#else
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_started) == WIFI_EVENT_NAN_STARTED);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVENT_NAN_STOPPED);
+#endif
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_svc_match) == WIFI_EVENT_NAN_SVC_MATCH);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_replied) == WIFI_EVENT_NAN_REPLIED);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_receive) == WIFI_EVENT_NAN_RECEIVE);
@@ -695,13 +719,25 @@ wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void*
     result.rtt_raw = info->rtt_raw;
     result.rtt_est = info->rtt_est;
     result.dist_est = info->dist_est;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    if (info->ftm_report_num_entries > 0) {
+        std::vector<wifi_ftm_report_entry_t> raw(info->ftm_report_num_entries);
+        if (esp_wifi_ftm_get_report(raw.data(), info->ftm_report_num_entries) == ESP_OK) {
+            result.entries.reserve(info->ftm_report_num_entries);
+            for (auto& e : raw) {
+                result.entries.push_back(ftm_report_entry{e.dlog_token, e.rssi, e.rtt, e.t1, e.t2, e.t3, e.t4});
+            }
+        }
+    }
+#else
     if (info->ftm_report_data && info->ftm_report_num_entries > 0) {
         result.entries.reserve(info->ftm_report_num_entries);
         for (uint8_t i = 0; i < info->ftm_report_num_entries; ++i) {
             auto& e = info->ftm_report_data[i];
-            result.entries.push_back({e.dlog_token, e.rssi, e.rtt, e.t1, e.t2, e.t3, e.t4});
+            result.entries.push_back(ftm_report_entry{e.dlog_token, e.rssi, e.rtt, e.t1, e.t2, e.t3, e.t4});
         }
     }
+#endif
     return result;
 }
 

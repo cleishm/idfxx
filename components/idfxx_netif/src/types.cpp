@@ -6,6 +6,7 @@
 #include <idfxx/netif>
 
 #include <cstring>
+#include <esp_idf_version.h>
 #include <esp_netif.h>
 #include <esp_netif_ip_addr.h>
 #include <esp_netif_types.h>
@@ -56,7 +57,11 @@ static_assert(
 // ip_event_id
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::sta_got_ip4) == IP_EVENT_STA_GOT_IP);
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::sta_lost_ip4) == IP_EVENT_STA_LOST_IP);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) == IP_EVENT_ASSIGNED_IP_TO_CLIENT);
+#else
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) == IP_EVENT_AP_STAIPASSIGNED);
+#endif
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::got_ip6) == IP_EVENT_GOT_IP6);
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::eth_got_ip4) == IP_EVENT_ETH_GOT_IP);
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::eth_lost_ip4) == IP_EVENT_ETH_LOST_IP);
@@ -195,7 +200,11 @@ ip6_event_data ip6_event_data::from_opaque(const void* event_data) {
 }
 
 ap_sta_ip4_assigned_event_data ap_sta_ip4_assigned_event_data::from_opaque(const void* event_data) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    auto* data = static_cast<const ip_event_assigned_ip_to_client_t*>(event_data);
+#else
     auto* data = static_cast<const ip_event_ap_staipassigned_t*>(event_data);
+#endif
     ap_sta_ip4_assigned_event_data result;
     result.ip = net::ip4_addr(data->ip.addr);
     std::memcpy(result.mac.data(), data->mac, 6);

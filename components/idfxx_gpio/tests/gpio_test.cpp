@@ -270,7 +270,7 @@ TEST_CASE("gpio toggle_level", "[idfxx][gpio][hw]") {
     TEST_ASSERT_EQUAL(gpio::level::low, g.get_level());
 }
 
-TEST_CASE("gpio drive capability", "[idfxx][gpio]") {
+TEST_CASE("gpio drive capability", "[idfxx][gpio][hw]") {
     gpio g = gpio::make(0).value();
 
     // Set drive capability

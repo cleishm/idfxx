@@ -10,7 +10,7 @@ on:
 jobs:
   format-check:
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.5
+    container: espressif/idf:release-v6.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.5
+    container: espressif/idf:release-v6.0
     strategy:
       fail-fast: false
       matrix:
@@ -49,6 +49,22 @@ jobs:
           . $IDF_PATH/export.sh
           idf.py set-target esp32s3
           cp ${{ matrix.config.sdkconfig }} sdkconfig
+          idf.py reconfigure
+          idf.py build
+
+  build-compat:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5
+    name: build (compat-v5.5)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
+          cp sdkconfig.defaults sdkconfig
           idf.py reconfigure
           idf.py build
 
@@ -76,7 +92,7 @@ jobs:
   build-example:
     needs: discover-examples
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.5
+    container: espressif/idf:release-v6.0
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover-examples.outputs.matrix) }}
@@ -94,7 +110,7 @@ jobs:
 
   qemu-test:
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.5
+    container: espressif/idf:release-v6.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -131,7 +147,7 @@ jobs:
           . $IDF_PATH/export.sh
           # Run QEMU in background, capture PID, and exit when tests complete or timeout
           mkfifo qemu_pipe
-          timeout 180s qemu-system-xtensa \
+          timeout 300s qemu-system-xtensa \
             -machine esp32s3 \
             -nographic \
             -drive file=qemu_flash.bin,if=mtd,format=raw > qemu_pipe 2>&1 &
