@@ -60,12 +60,14 @@ TEST_CASE("to_string(reset_reason) returns non-empty for all values", "[idfxx][s
 }
 
 TEST_CASE("to_string(reset_reason::power_on) returns POWER_ON", "[idfxx][system]") {
-    TEST_ASSERT_EQUAL_STRING("POWER_ON", to_string(reset_reason::power_on).c_str());
+    auto s = to_string(reset_reason::power_on);
+    TEST_ASSERT_EQUAL_STRING("POWER_ON", s.c_str());
 }
 
 TEST_CASE("to_string(reset_reason) handles unknown values", "[idfxx][system]") {
     auto unknown = static_cast<reset_reason>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // Heap info
@@ -108,11 +110,13 @@ TEST_CASE("unregister non-registered shutdown handler fails", "[idfxx][system]")
 static_assert(std::formattable<reset_reason, char>);
 
 TEST_CASE("reset_reason formatter outputs POWER_ON", "[idfxx][system]") {
-    TEST_ASSERT_EQUAL_STRING("POWER_ON", std::format("{}", reset_reason::power_on).c_str());
+    auto s = std::format("{}", reset_reason::power_on);
+    TEST_ASSERT_EQUAL_STRING("POWER_ON", s.c_str());
 }
 
 TEST_CASE("reset_reason formatter handles unknown values", "[idfxx][system]") {
     auto unknown = static_cast<reset_reason>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

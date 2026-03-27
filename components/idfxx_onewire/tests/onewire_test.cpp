@@ -232,10 +232,13 @@ TEST_CASE("check_crc16 validates correctly", "[idfxx][onewire]") {
 static_assert(std::formattable<address, char>);
 
 TEST_CASE("address formatter outputs correct string", "[idfxx][onewire]") {
-    TEST_ASSERT_EQUAL_STRING("ONEWIRE_ANY", std::format("{}", address::any()).c_str());
-    TEST_ASSERT_EQUAL_STRING("ONEWIRE_NONE", std::format("{}", address::none()).c_str());
+    auto s = std::format("{}", address::any());
+    TEST_ASSERT_EQUAL_STRING("ONEWIRE_ANY", s.c_str());
+    s = std::format("{}", address::none());
+    TEST_ASSERT_EQUAL_STRING("ONEWIRE_NONE", s.c_str());
 
     address addr{0xBC9A785634120028};
-    TEST_ASSERT_EQUAL_STRING("28:00:12:34:56:78:9A:BC", std::format("{}", addr).c_str());
+    s = std::format("{}", addr);
+    TEST_ASSERT_EQUAL_STRING("28:00:12:34:56:78:9A:BC", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

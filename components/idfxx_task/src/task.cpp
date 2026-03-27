@@ -142,6 +142,7 @@ void task::_stop_and_delete() noexcept {
             xTaskNotifyGive(_handle);
         } while (xSemaphoreTake(_context->join_sem, 1) != pdTRUE);
         vTaskDeleteWithCaps(_handle);
+        _handle = nullptr;
     }
     delete _context;
 }

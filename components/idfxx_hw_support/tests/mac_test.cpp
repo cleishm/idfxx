@@ -77,12 +77,14 @@ TEST_CASE("mac_address equality", "[idfxx][hw_support][mac]") {
 
 TEST_CASE("to_string(mac_address) formats correctly", "[idfxx][hw_support][mac]") {
     mac_address addr(0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF);
-    TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", to_string(addr).c_str());
+    auto s = to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", s.c_str());
 }
 
 TEST_CASE("to_string(mac_address) formats zeros", "[idfxx][hw_support][mac]") {
     mac_address addr;
-    TEST_ASSERT_EQUAL_STRING("00:00:00:00:00:00", to_string(addr).c_str());
+    auto s = to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("00:00:00:00:00:00", s.c_str());
 }
 
 // MAC reading
@@ -107,6 +109,7 @@ static_assert(std::formattable<mac_address, char>);
 
 TEST_CASE("mac_address formatter", "[idfxx][hw_support][mac]") {
     mac_address addr(0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF);
-    TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", std::format("{}", addr).c_str());
+    auto s = std::format("{}", addr);
+    TEST_ASSERT_EQUAL_STRING("AA:BB:CC:DD:EE:FF", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

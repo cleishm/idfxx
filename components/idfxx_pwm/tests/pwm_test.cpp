@@ -329,15 +329,20 @@ TEST_CASE("auto try_start cleanup releases channel for reuse", "[idfxx][pwm][aut
 // =============================================================================
 
 TEST_CASE("to_string(timer) returns expected values", "[idfxx][pwm][to_string]") {
-    TEST_ASSERT_EQUAL_STRING("PWM_TIMER_0", idfxx::to_string(timer_0).c_str());
-    TEST_ASSERT_EQUAL_STRING("PWM_TIMER_3", idfxx::to_string(timer_3).c_str());
+    auto s = idfxx::to_string(timer_0);
+    TEST_ASSERT_EQUAL_STRING("PWM_TIMER_0", s.c_str());
+    s = idfxx::to_string(timer_3);
+    TEST_ASSERT_EQUAL_STRING("PWM_TIMER_3", s.c_str());
 }
 
 TEST_CASE("to_string(channel) returns expected values", "[idfxx][pwm][to_string]") {
-    TEST_ASSERT_EQUAL_STRING("PWM_CH_0", idfxx::to_string(channel::ch_0).c_str());
-    TEST_ASSERT_EQUAL_STRING("PWM_CH_5", idfxx::to_string(channel::ch_5).c_str());
+    auto s = idfxx::to_string(channel::ch_0);
+    TEST_ASSERT_EQUAL_STRING("PWM_CH_0", s.c_str());
+    s = idfxx::to_string(channel::ch_5);
+    TEST_ASSERT_EQUAL_STRING("PWM_CH_5", s.c_str());
 }
 
 TEST_CASE("to_string(speed_mode) returns expected values", "[idfxx][pwm][to_string]") {
-    TEST_ASSERT_EQUAL_STRING("low_speed", idfxx::to_string(speed_mode::low_speed).c_str());
+    auto s = idfxx::to_string(speed_mode::low_speed);
+    TEST_ASSERT_EQUAL_STRING("low_speed", s.c_str());
 }

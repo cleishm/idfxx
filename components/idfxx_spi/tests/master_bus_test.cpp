@@ -190,16 +190,20 @@ TEST_CASE("master_bus constructor with invalid host throws", "[idfxx][spi]") {
 // =============================================================================
 
 TEST_CASE("to_string(host_device) outputs correct names", "[idfxx][spi]") {
-    TEST_ASSERT_EQUAL_STRING("SPI1", to_string(host_device::spi1).c_str());
-    TEST_ASSERT_EQUAL_STRING("SPI2", to_string(host_device::spi2).c_str());
+    auto s = to_string(host_device::spi1);
+    TEST_ASSERT_EQUAL_STRING("SPI1", s.c_str());
+    s = to_string(host_device::spi2);
+    TEST_ASSERT_EQUAL_STRING("SPI2", s.c_str());
 #if SOC_SPI_PERIPH_NUM > 2
-    TEST_ASSERT_EQUAL_STRING("SPI3", to_string(host_device::spi3).c_str());
+    s = to_string(host_device::spi3);
+    TEST_ASSERT_EQUAL_STRING("SPI3", s.c_str());
 #endif
 }
 
 TEST_CASE("to_string(host_device) handles unknown values", "[idfxx][spi]") {
     auto unknown = static_cast<host_device>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // =============================================================================
@@ -210,15 +214,19 @@ TEST_CASE("to_string(host_device) handles unknown values", "[idfxx][spi]") {
 static_assert(std::formattable<host_device, char>);
 
 TEST_CASE("host_device formatter outputs correct names", "[idfxx][spi]") {
-    TEST_ASSERT_EQUAL_STRING("SPI1", std::format("{}", host_device::spi1).c_str());
-    TEST_ASSERT_EQUAL_STRING("SPI2", std::format("{}", host_device::spi2).c_str());
+    auto s = std::format("{}", host_device::spi1);
+    TEST_ASSERT_EQUAL_STRING("SPI1", s.c_str());
+    s = std::format("{}", host_device::spi2);
+    TEST_ASSERT_EQUAL_STRING("SPI2", s.c_str());
 #if SOC_SPI_PERIPH_NUM > 2
-    TEST_ASSERT_EQUAL_STRING("SPI3", std::format("{}", host_device::spi3).c_str());
+    s = std::format("{}", host_device::spi3);
+    TEST_ASSERT_EQUAL_STRING("SPI3", s.c_str());
 #endif
 }
 
 TEST_CASE("host_device formatter handles unknown values", "[idfxx][spi]") {
     auto unknown = static_cast<host_device>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

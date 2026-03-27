@@ -89,7 +89,8 @@ TEST_CASE("make_error_code from errc", "[idfxx][error]") {
 
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), ec.value());
     TEST_ASSERT_EQUAL_STRING("idfxx::Error", ec.category().name());
-    TEST_ASSERT_EQUAL_STRING("Invalid argument", ec.message().c_str());
+    auto s = ec.message();
+    TEST_ASSERT_EQUAL_STRING("Invalid argument", s.c_str());
 }
 
 TEST_CASE("make_error_code from esp_err_t", "[idfxx][error]") {

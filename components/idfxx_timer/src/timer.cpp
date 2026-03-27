@@ -130,6 +130,7 @@ void timer::_stop_and_delete() noexcept {
             xSemaphoreGive(_context->mutex);
         }
         esp_timer_delete(_handle);
+        _handle = nullptr;
     }
     delete _context;
 }

@@ -78,10 +78,14 @@ TEST_CASE("ip4_addr equality", "[idfxx][net]") {
 }
 
 TEST_CASE("ip4_addr to_string edge cases", "[idfxx][net]") {
-    TEST_ASSERT_EQUAL_STRING("0.0.0.0", idfxx::to_string(idfxx::net::ip4_addr()).c_str());
-    TEST_ASSERT_EQUAL_STRING("255.255.255.255", idfxx::to_string(idfxx::net::ip4_addr(255, 255, 255, 255)).c_str());
-    TEST_ASSERT_EQUAL_STRING("1.0.0.0", idfxx::to_string(idfxx::net::ip4_addr(1, 0, 0, 0)).c_str());
-    TEST_ASSERT_EQUAL_STRING("0.0.0.1", idfxx::to_string(idfxx::net::ip4_addr(0, 0, 0, 1)).c_str());
+    auto s = idfxx::to_string(idfxx::net::ip4_addr());
+    TEST_ASSERT_EQUAL_STRING("0.0.0.0", s.c_str());
+    s = idfxx::to_string(idfxx::net::ip4_addr(255, 255, 255, 255));
+    TEST_ASSERT_EQUAL_STRING("255.255.255.255", s.c_str());
+    s = idfxx::to_string(idfxx::net::ip4_addr(1, 0, 0, 0));
+    TEST_ASSERT_EQUAL_STRING("1.0.0.0", s.c_str());
+    s = idfxx::to_string(idfxx::net::ip4_addr(0, 0, 0, 1));
+    TEST_ASSERT_EQUAL_STRING("0.0.0.1", s.c_str());
 }
 
 // =============================================================================
@@ -169,67 +173,78 @@ TEST_CASE("ip6 to_string all zeros", "[idfxx][net]") {
 
 TEST_CASE("ip6 to_string loopback", "[idfxx][net]") {
     auto addr = ip6_from_groups(0, 0, 0, 0, 0, 0, 0, 1);
-    TEST_ASSERT_EQUAL_STRING("::1", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("::1", s.c_str());
 }
 
 TEST_CASE("ip6 to_string full address no compression", "[idfxx][net]") {
     auto addr = ip6_from_groups(0x2001, 0x0db8, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006);
-    TEST_ASSERT_EQUAL_STRING("2001:db8:1:2:3:4:5:6", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("2001:db8:1:2:3:4:5:6", s.c_str());
 }
 
 TEST_CASE("ip6 to_string leading zeros compressed", "[idfxx][net]") {
     // ::1:2:3:4:5:6
     auto addr = ip6_from_groups(0, 0, 1, 2, 3, 4, 5, 6);
-    TEST_ASSERT_EQUAL_STRING("::1:2:3:4:5:6", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("::1:2:3:4:5:6", s.c_str());
 }
 
 TEST_CASE("ip6 to_string trailing zeros compressed", "[idfxx][net]") {
     // 2001:db8::
     auto addr = ip6_from_groups(0x2001, 0x0db8, 0, 0, 0, 0, 0, 0);
-    TEST_ASSERT_EQUAL_STRING("2001:db8::", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("2001:db8::", s.c_str());
 }
 
 TEST_CASE("ip6 to_string middle zeros compressed", "[idfxx][net]") {
     // 2001:db8::1
     auto addr = ip6_from_groups(0x2001, 0x0db8, 0, 0, 0, 0, 0, 1);
-    TEST_ASSERT_EQUAL_STRING("2001:db8::1", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("2001:db8::1", s.c_str());
 }
 
 TEST_CASE("ip6 to_string link-local", "[idfxx][net]") {
     // fe80::1
     auto addr = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 1);
-    TEST_ASSERT_EQUAL_STRING("fe80::1", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("fe80::1", s.c_str());
 }
 
 TEST_CASE("ip6 to_string single zero group not compressed", "[idfxx][net]") {
     // RFC 5952: a single zero group must NOT be compressed
     // 2001:db8:0:1:2:3:4:5
     auto addr = ip6_from_groups(0x2001, 0x0db8, 0, 1, 2, 3, 4, 5);
-    TEST_ASSERT_EQUAL_STRING("2001:db8:0:1:2:3:4:5", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("2001:db8:0:1:2:3:4:5", s.c_str());
 }
 
 TEST_CASE("ip6 to_string longest run wins", "[idfxx][net]") {
     // 1:0:0:2:0:0:0:3 — longest run is groups 4-6 (length 3), not groups 1-2 (length 2)
     auto addr = ip6_from_groups(1, 0, 0, 2, 0, 0, 0, 3);
-    TEST_ASSERT_EQUAL_STRING("1:0:0:2::3", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("1:0:0:2::3", s.c_str());
 }
 
 TEST_CASE("ip6 to_string first longest run wins tie", "[idfxx][net]") {
     // RFC 5952: when two runs are equal length, the first one is compressed
     // 1:0:0:2:3:0:0:4
     auto addr = ip6_from_groups(1, 0, 0, 2, 3, 0, 0, 4);
-    TEST_ASSERT_EQUAL_STRING("1::2:3:0:0:4", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("1::2:3:0:0:4", s.c_str());
 }
 
 TEST_CASE("ip6 to_string multicast", "[idfxx][net]") {
     // ff02::1
     auto addr = ip6_from_groups(0xff02, 0, 0, 0, 0, 0, 0, 1);
-    TEST_ASSERT_EQUAL_STRING("ff02::1", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("ff02::1", s.c_str());
 }
 
 TEST_CASE("ip6 to_string all ones", "[idfxx][net]") {
     auto addr = ip6_from_groups(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff);
-    TEST_ASSERT_EQUAL_STRING("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", s.c_str());
 }
 
 TEST_CASE("ip6 to_string zone appended", "[idfxx][net]") {
@@ -241,13 +256,15 @@ TEST_CASE("ip6 to_string zone appended", "[idfxx][net]") {
 TEST_CASE("ip6 to_string zeros at both ends prefer first", "[idfxx][net]") {
     // 0:0:1:2:3:4:0:0 — both runs are length 2, first wins
     auto addr = ip6_from_groups(0, 0, 1, 2, 3, 4, 0, 0);
-    TEST_ASSERT_EQUAL_STRING("::1:2:3:4:0:0", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("::1:2:3:4:0:0", s.c_str());
 }
 
 TEST_CASE("ip6 to_string groups after compression", "[idfxx][net]") {
     // ff02::1:2
     auto addr = ip6_from_groups(0xff02, 0, 0, 0, 0, 0, 1, 2);
-    TEST_ASSERT_EQUAL_STRING("ff02::1:2", idfxx::to_string(addr).c_str());
+    auto s = idfxx::to_string(addr);
+    TEST_ASSERT_EQUAL_STRING("ff02::1:2", s.c_str());
 }
 
 TEST_CASE("ip6 to_string lowercase hex", "[idfxx][net]") {

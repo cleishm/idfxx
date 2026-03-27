@@ -120,6 +120,7 @@ master_device::~master_device() {
 void master_device::_delete() noexcept {
     if (_handle != nullptr) {
         i2c_master_bus_rm_device(_handle);
+        _handle = nullptr;
     }
 }
 
@@ -127,16 +128,24 @@ result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
-    return map_xfer_error(i2c_master_transmit(_handle, buf, size, timeout.count()), "transmit", _address, _bus->port());
+    esp_err_t err;
+    {
+        std::scoped_lock lock(*_bus);
+        err = i2c_master_transmit(_handle, buf, size, timeout.count());
+    }
+    return map_xfer_error(err, "transmit", _address, _bus->port());
 }
 
 result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
-    return map_xfer_error(i2c_master_receive(_handle, buf, size, timeout.count()), "receive", _address, _bus->port());
+    esp_err_t err;
+    {
+        std::scoped_lock lock(*_bus);
+        err = i2c_master_receive(_handle, buf, size, timeout.count());
+    }
+    return map_xfer_error(err, "receive", _address, _bus->port());
 }
 
 result<void>
