@@ -78,7 +78,8 @@ TEST_CASE("to_string(chip_model) returns non-empty", "[idfxx][hw_support][chip]"
 
 TEST_CASE("to_string(chip_model) handles unknown values", "[idfxx][hw_support][chip]") {
     auto unknown = static_cast<chip_model>(999);
-    TEST_ASSERT_EQUAL_STRING("unknown(999)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(999)", s.c_str());
 }
 
 #ifdef CONFIG_IDFXX_STD_FORMAT

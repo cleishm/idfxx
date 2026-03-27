@@ -167,6 +167,7 @@ master_bus::~master_bus() {
 void master_bus::_delete() noexcept {
     if (_handle != nullptr) {
         i2c_del_master_bus(_handle);
+        _handle = nullptr;
     }
 }
 
@@ -187,7 +188,8 @@ std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout
             })
             .transform_error([&](auto ec) {
                 if (ec != errc::not_found) {
-                    ESP_LOGD(TAG, "  Error probing address 0x%02X: %s", addr, ec.message().c_str());
+                    auto msg = ec.message();
+                    ESP_LOGD(TAG, "  Error probing address 0x%02X: %s", addr, msg.c_str());
                 }
                 return ec;
             });

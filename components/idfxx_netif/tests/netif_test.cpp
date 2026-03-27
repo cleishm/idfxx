@@ -62,9 +62,12 @@ TEST_CASE("ip4_info to_string", "[netif]") {
 }
 
 TEST_CASE("dns_type to_string", "[netif]") {
-    TEST_ASSERT_EQUAL_STRING("main", idfxx::to_string(idfxx::netif::dns_type::main).c_str());
-    TEST_ASSERT_EQUAL_STRING("backup", idfxx::to_string(idfxx::netif::dns_type::backup).c_str());
-    TEST_ASSERT_EQUAL_STRING("fallback", idfxx::to_string(idfxx::netif::dns_type::fallback).c_str());
+    auto s = idfxx::to_string(idfxx::netif::dns_type::main);
+    TEST_ASSERT_EQUAL_STRING("main", s.c_str());
+    s = idfxx::to_string(idfxx::netif::dns_type::backup);
+    TEST_ASSERT_EQUAL_STRING("backup", s.c_str());
+    s = idfxx::to_string(idfxx::netif::dns_type::fallback);
+    TEST_ASSERT_EQUAL_STRING("fallback", s.c_str());
 }
 
 TEST_CASE("netif init is idempotent", "[netif]") {
@@ -80,7 +83,8 @@ TEST_CASE("netif error category name", "[netif]") {
 
 TEST_CASE("netif error category message", "[netif]") {
     auto ec = make_error_code(idfxx::netif::errc::invalid_params);
-    TEST_ASSERT_EQUAL_STRING("Invalid parameters", ec.message().c_str());
+    auto s = ec.message();
+    TEST_ASSERT_EQUAL_STRING("Invalid parameters", s.c_str());
 }
 
 TEST_CASE("flags bitwise operations", "[netif]") {

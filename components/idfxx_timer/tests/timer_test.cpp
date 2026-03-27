@@ -103,7 +103,8 @@ TEST_CASE("timer::clock::now returns monotonically increasing time", "[idfxx][ti
 
 TEST_CASE("timer::config default values", "[idfxx][timer]") {
     timer::config cfg{};
-    TEST_ASSERT_EQUAL_STRING("", std::string{cfg.name}.c_str());
+    auto s = std::string{cfg.name};
+    TEST_ASSERT_EQUAL_STRING("", s.c_str());
     TEST_ASSERT_EQUAL(timer::dispatch_method::task, cfg.dispatch);
     TEST_ASSERT_FALSE(cfg.skip_unhandled_events);
 }

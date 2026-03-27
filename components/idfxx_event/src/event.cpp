@@ -150,8 +150,10 @@ void event_loop::_delete() noexcept {
     if (_handle != nullptr) {
         esp_err_t err = esp_event_loop_delete(_handle);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to delete event loop: %s", make_error_code(err).message().c_str());
+            auto msg = make_error_code(err).message();
+            ESP_LOGE(TAG, "Failed to delete event loop: %s", msg.c_str());
         }
+        _handle = nullptr;
     }
 }
 
@@ -173,7 +175,8 @@ void event_loop::unique_listener_handle::reset() noexcept {
     if (_handle._instance != nullptr) {
         auto result = unregister_listener(_handle._loop, _handle._instance, _handle._base, _handle._id);
         if (!result) {
-            ESP_LOGE(TAG, "Failed to unregister event handler: %s", result.error().message().c_str());
+            auto msg = result.error().message();
+            ESP_LOGE(TAG, "Failed to unregister event handler: %s", msg.c_str());
         }
         _handle = listener_handle{};
     }

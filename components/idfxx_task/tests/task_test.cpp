@@ -71,7 +71,8 @@ TEST_CASE("task constructor with functional callback succeeds", "[idfxx][task]")
 
 TEST_CASE("task::config default values", "[idfxx][task]") {
     task::config cfg{};
-    TEST_ASSERT_EQUAL_STRING("task", std::string{cfg.name}.c_str());
+    auto s = std::string{cfg.name};
+    TEST_ASSERT_EQUAL_STRING("task", s.c_str());
     TEST_ASSERT_EQUAL(4096, cfg.stack_size);
     TEST_ASSERT_EQUAL(5, cfg.priority.value());
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());

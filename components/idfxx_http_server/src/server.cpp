@@ -178,7 +178,8 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
     request r{req};
     auto res = record->handler(r);
     if (!res) {
-        ESP_LOGD(TAG, "URI handler for %s returned error: %s", req->uri, res.error().message().c_str());
+        auto msg = res.error().message();
+        ESP_LOGD(TAG, "URI handler for %s returned error: %s", req->uri, msg.c_str());
         return ESP_FAIL;
     }
     return ESP_OK;

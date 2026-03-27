@@ -314,11 +314,13 @@ void repl::_stop_and_delete() noexcept {
     if (_handle != nullptr) {
         auto err = esp_console_stop_repl(_handle);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to stop REPL: %s", make_error_code(err).message().c_str());
+            auto msg = make_error_code(err).message();
+            ESP_LOGE(TAG, "Failed to stop REPL: %s", msg.c_str());
         }
         err = _handle->del(_handle);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to delete REPL: %s", make_error_code(err).message().c_str());
+            auto msg = make_error_code(err).message();
+            ESP_LOGE(TAG, "Failed to delete REPL: %s", msg.c_str());
         }
     }
 }

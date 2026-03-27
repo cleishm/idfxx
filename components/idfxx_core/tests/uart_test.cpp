@@ -41,22 +41,26 @@ static_assert(std::to_underlying(uart_port::lp_uart0) == LP_UART_NUM_0);
 // to_string
 
 TEST_CASE("to_string(uart_port) outputs UART0", "[idfxx][uart]") {
-    TEST_ASSERT_EQUAL_STRING("UART0", to_string(uart_port::uart0).c_str());
+    auto s = to_string(uart_port::uart0);
+    TEST_ASSERT_EQUAL_STRING("UART0", s.c_str());
 }
 
 TEST_CASE("to_string(uart_port) outputs UART1", "[idfxx][uart]") {
-    TEST_ASSERT_EQUAL_STRING("UART1", to_string(uart_port::uart1).c_str());
+    auto s = to_string(uart_port::uart1);
+    TEST_ASSERT_EQUAL_STRING("UART1", s.c_str());
 }
 
 #if SOC_UART_HP_NUM > 2
 TEST_CASE("to_string(uart_port) outputs UART2", "[idfxx][uart]") {
-    TEST_ASSERT_EQUAL_STRING("UART2", to_string(uart_port::uart2).c_str());
+    auto s = to_string(uart_port::uart2);
+    TEST_ASSERT_EQUAL_STRING("UART2", s.c_str());
 }
 #endif
 
 TEST_CASE("to_string(uart_port) handles unknown values", "[idfxx][uart]") {
     auto unknown = static_cast<uart_port>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
@@ -64,15 +68,18 @@ TEST_CASE("to_string(uart_port) handles unknown values", "[idfxx][uart]") {
 static_assert(std::formattable<uart_port, char>);
 
 TEST_CASE("uart_port formatter outputs UART0", "[idfxx][uart]") {
-    TEST_ASSERT_EQUAL_STRING("UART0", std::format("{}", uart_port::uart0).c_str());
+    auto s = std::format("{}", uart_port::uart0);
+    TEST_ASSERT_EQUAL_STRING("UART0", s.c_str());
 }
 
 TEST_CASE("uart_port formatter outputs UART1", "[idfxx][uart]") {
-    TEST_ASSERT_EQUAL_STRING("UART1", std::format("{}", uart_port::uart1).c_str());
+    auto s = std::format("{}", uart_port::uart1);
+    TEST_ASSERT_EQUAL_STRING("UART1", s.c_str());
 }
 
 TEST_CASE("uart_port formatter handles unknown values", "[idfxx][uart]") {
     auto unknown = static_cast<uart_port>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

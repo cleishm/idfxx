@@ -344,17 +344,20 @@ TEST_CASE("free operator ~E produces flags", "[idfxx][flags]") {
 
 TEST_CASE("to_string(flags) outputs hex for zero", "[idfxx][flags]") {
     flags<test_flag> f;
-    TEST_ASSERT_EQUAL_STRING("0x0", to_string(f).c_str());
+    auto s = to_string(f);
+    TEST_ASSERT_EQUAL_STRING("0x0", s.c_str());
 }
 
 TEST_CASE("to_string(flags) outputs hex for single flag", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a};
-    TEST_ASSERT_EQUAL_STRING("0x1", to_string(f).c_str());
+    auto s = to_string(f);
+    TEST_ASSERT_EQUAL_STRING("0x1", s.c_str());
 }
 
 TEST_CASE("to_string(flags) outputs hex for combined flags", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b | test_flag::flag_c;
-    TEST_ASSERT_EQUAL_STRING("0x7", to_string(f).c_str());
+    auto s = to_string(f);
+    TEST_ASSERT_EQUAL_STRING("0x7", s.c_str());
 }
 
 // =============================================================================
@@ -366,16 +369,19 @@ static_assert(std::formattable<flags<test_flag>, char>);
 
 TEST_CASE("flags formatter outputs hex for zero", "[idfxx][flags]") {
     flags<test_flag> f;
-    TEST_ASSERT_EQUAL_STRING("0x0", std::format("{}", f).c_str());
+    auto s = std::format("{}", f);
+    TEST_ASSERT_EQUAL_STRING("0x0", s.c_str());
 }
 
 TEST_CASE("flags formatter outputs hex for single flag", "[idfxx][flags]") {
     auto f = flags{test_flag::flag_a};
-    TEST_ASSERT_EQUAL_STRING("0x1", std::format("{}", f).c_str());
+    auto s = std::format("{}", f);
+    TEST_ASSERT_EQUAL_STRING("0x1", s.c_str());
 }
 
 TEST_CASE("flags formatter outputs hex for combined flags", "[idfxx][flags]") {
     auto f = test_flag::flag_a | test_flag::flag_b | test_flag::flag_c;
-    TEST_ASSERT_EQUAL_STRING("0x7", std::format("{}", f).c_str());
+    auto s = std::format("{}", f);
+    TEST_ASSERT_EQUAL_STRING("0x7", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

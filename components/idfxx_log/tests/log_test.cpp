@@ -214,17 +214,24 @@ TEST_CASE("logger::buffer_hex_dump logs without crashing", "[idfxx][log]") {
 // =============================================================================
 
 TEST_CASE("to_string(level) outputs correct names", "[idfxx][log]") {
-    TEST_ASSERT_EQUAL_STRING("NONE", idfxx::to_string(level::none).c_str());
-    TEST_ASSERT_EQUAL_STRING("ERROR", idfxx::to_string(level::error).c_str());
-    TEST_ASSERT_EQUAL_STRING("WARN", idfxx::to_string(level::warn).c_str());
-    TEST_ASSERT_EQUAL_STRING("INFO", idfxx::to_string(level::info).c_str());
-    TEST_ASSERT_EQUAL_STRING("DEBUG", idfxx::to_string(level::debug).c_str());
-    TEST_ASSERT_EQUAL_STRING("VERBOSE", idfxx::to_string(level::verbose).c_str());
+    auto s = idfxx::to_string(level::none);
+    TEST_ASSERT_EQUAL_STRING("NONE", s.c_str());
+    s = idfxx::to_string(level::error);
+    TEST_ASSERT_EQUAL_STRING("ERROR", s.c_str());
+    s = idfxx::to_string(level::warn);
+    TEST_ASSERT_EQUAL_STRING("WARN", s.c_str());
+    s = idfxx::to_string(level::info);
+    TEST_ASSERT_EQUAL_STRING("INFO", s.c_str());
+    s = idfxx::to_string(level::debug);
+    TEST_ASSERT_EQUAL_STRING("DEBUG", s.c_str());
+    s = idfxx::to_string(level::verbose);
+    TEST_ASSERT_EQUAL_STRING("VERBOSE", s.c_str());
 }
 
 TEST_CASE("to_string(level) handles unknown values", "[idfxx][log]") {
     auto unknown = static_cast<level>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(unknown).c_str());
+    auto s = idfxx::to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // =============================================================================
@@ -234,17 +241,24 @@ TEST_CASE("to_string(level) handles unknown values", "[idfxx][log]") {
 static_assert(std::formattable<level, char>);
 
 TEST_CASE("level formatter outputs correct names", "[idfxx][log]") {
-    TEST_ASSERT_EQUAL_STRING("NONE", std::format("{}", level::none).c_str());
-    TEST_ASSERT_EQUAL_STRING("ERROR", std::format("{}", level::error).c_str());
-    TEST_ASSERT_EQUAL_STRING("WARN", std::format("{}", level::warn).c_str());
-    TEST_ASSERT_EQUAL_STRING("INFO", std::format("{}", level::info).c_str());
-    TEST_ASSERT_EQUAL_STRING("DEBUG", std::format("{}", level::debug).c_str());
-    TEST_ASSERT_EQUAL_STRING("VERBOSE", std::format("{}", level::verbose).c_str());
+    auto s = std::format("{}", level::none);
+    TEST_ASSERT_EQUAL_STRING("NONE", s.c_str());
+    s = std::format("{}", level::error);
+    TEST_ASSERT_EQUAL_STRING("ERROR", s.c_str());
+    s = std::format("{}", level::warn);
+    TEST_ASSERT_EQUAL_STRING("WARN", s.c_str());
+    s = std::format("{}", level::info);
+    TEST_ASSERT_EQUAL_STRING("INFO", s.c_str());
+    s = std::format("{}", level::debug);
+    TEST_ASSERT_EQUAL_STRING("DEBUG", s.c_str());
+    s = std::format("{}", level::verbose);
+    TEST_ASSERT_EQUAL_STRING("VERBOSE", s.c_str());
 }
 
 TEST_CASE("level formatter handles unknown values", "[idfxx][log]") {
     auto unknown = static_cast<level>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // =============================================================================

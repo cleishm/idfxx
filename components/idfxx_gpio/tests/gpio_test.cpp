@@ -519,13 +519,17 @@ TEST_CASE("configure_gpios with NC returns error", "[idfxx][gpio]") {
 // =============================================================================
 
 TEST_CASE("to_string(gpio) outputs GPIO_NC for not connected", "[idfxx][gpio]") {
-    TEST_ASSERT_EQUAL_STRING("GPIO_NC", to_string(gpio::nc()).c_str());
-    TEST_ASSERT_EQUAL_STRING("GPIO_NC", to_string(gpio()).c_str());
+    auto s = to_string(gpio::nc());
+    TEST_ASSERT_EQUAL_STRING("GPIO_NC", s.c_str());
+    s = to_string(gpio());
+    TEST_ASSERT_EQUAL_STRING("GPIO_NC", s.c_str());
 }
 
 TEST_CASE("to_string(gpio) outputs GPIO_N for valid pins", "[idfxx][gpio]") {
-    TEST_ASSERT_EQUAL_STRING("GPIO_0", to_string(gpio_0).c_str());
-    TEST_ASSERT_EQUAL_STRING("GPIO_5", to_string(gpio_5).c_str());
+    auto s = to_string(gpio_0);
+    TEST_ASSERT_EQUAL_STRING("GPIO_0", s.c_str());
+    s = to_string(gpio_5);
+    TEST_ASSERT_EQUAL_STRING("GPIO_5", s.c_str());
 }
 
 // =============================================================================
@@ -536,12 +540,16 @@ TEST_CASE("to_string(gpio) outputs GPIO_N for valid pins", "[idfxx][gpio]") {
 static_assert(std::formattable<gpio, char>);
 
 TEST_CASE("gpio formatter outputs GPIO_NC for not connected", "[idfxx][gpio]") {
-    TEST_ASSERT_EQUAL_STRING("GPIO_NC", std::format("{}", gpio::nc()).c_str());
-    TEST_ASSERT_EQUAL_STRING("GPIO_NC", std::format("{}", gpio()).c_str());
+    auto s = std::format("{}", gpio::nc());
+    TEST_ASSERT_EQUAL_STRING("GPIO_NC", s.c_str());
+    s = std::format("{}", gpio());
+    TEST_ASSERT_EQUAL_STRING("GPIO_NC", s.c_str());
 }
 
 TEST_CASE("gpio formatter outputs GPIO_N for valid pins", "[idfxx][gpio]") {
-    TEST_ASSERT_EQUAL_STRING("GPIO_0", std::format("{}", gpio_0).c_str());
-    TEST_ASSERT_EQUAL_STRING("GPIO_5", std::format("{}", gpio_5).c_str());
+    auto s = std::format("{}", gpio_0);
+    TEST_ASSERT_EQUAL_STRING("GPIO_0", s.c_str());
+    s = std::format("{}", gpio_5);
+    TEST_ASSERT_EQUAL_STRING("GPIO_5", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

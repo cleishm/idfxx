@@ -30,18 +30,21 @@ static_assert(static_cast<unsigned int>(core_id::core_1) == 1);
 // to_string
 
 TEST_CASE("to_string(core_id) outputs CORE_0", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("CORE_0", to_string(core_id::core_0).c_str());
+    auto s = to_string(core_id::core_0);
+    TEST_ASSERT_EQUAL_STRING("CORE_0", s.c_str());
 }
 
 #if SOC_CPU_CORES_NUM > 1
 TEST_CASE("to_string(core_id) outputs CORE_1", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("CORE_1", to_string(core_id::core_1).c_str());
+    auto s = to_string(core_id::core_1);
+    TEST_ASSERT_EQUAL_STRING("CORE_1", s.c_str());
 }
 #endif
 
 TEST_CASE("to_string(core_id) handles unknown values", "[idfxx][cpu]") {
     auto unknown = static_cast<core_id>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // =============================================================================
@@ -67,9 +70,12 @@ static_assert(std::is_convertible_v<unsigned int, task_priority>);
 // =============================================================================
 
 TEST_CASE("to_string(task_priority) outputs value", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("0", to_string(task_priority{0}).c_str());
-    TEST_ASSERT_EQUAL_STRING("5", to_string(task_priority{5}).c_str());
-    TEST_ASSERT_EQUAL_STRING("24", to_string(task_priority{24}).c_str());
+    auto s = to_string(task_priority{0});
+    TEST_ASSERT_EQUAL_STRING("0", s.c_str());
+    s = to_string(task_priority{5});
+    TEST_ASSERT_EQUAL_STRING("5", s.c_str());
+    s = to_string(task_priority{24});
+    TEST_ASSERT_EQUAL_STRING("24", s.c_str());
 }
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
@@ -77,26 +83,32 @@ TEST_CASE("to_string(task_priority) outputs value", "[idfxx][cpu]") {
 static_assert(std::formattable<core_id, char>);
 
 TEST_CASE("core_id formatter outputs CORE_0", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("CORE_0", std::format("{}", core_id::core_0).c_str());
+    auto s = std::format("{}", core_id::core_0);
+    TEST_ASSERT_EQUAL_STRING("CORE_0", s.c_str());
 }
 
 #if SOC_CPU_CORES_NUM > 1
 TEST_CASE("core_id formatter outputs CORE_1", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("CORE_1", std::format("{}", core_id::core_1).c_str());
+    auto s = std::format("{}", core_id::core_1);
+    TEST_ASSERT_EQUAL_STRING("CORE_1", s.c_str());
 }
 #endif
 
 TEST_CASE("core_id formatter handles unknown values", "[idfxx][cpu]") {
     auto unknown = static_cast<core_id>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // task_priority formatter
 static_assert(std::formattable<task_priority, char>);
 
 TEST_CASE("task_priority formatter outputs value", "[idfxx][cpu]") {
-    TEST_ASSERT_EQUAL_STRING("0", std::format("{}", task_priority{0}).c_str());
-    TEST_ASSERT_EQUAL_STRING("5", std::format("{}", task_priority{5}).c_str());
-    TEST_ASSERT_EQUAL_STRING("24", std::format("{}", task_priority{24}).c_str());
+    auto s = std::format("{}", task_priority{0});
+    TEST_ASSERT_EQUAL_STRING("0", s.c_str());
+    s = std::format("{}", task_priority{5});
+    TEST_ASSERT_EQUAL_STRING("5", s.c_str());
+    s = std::format("{}", task_priority{24});
+    TEST_ASSERT_EQUAL_STRING("24", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

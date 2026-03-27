@@ -66,19 +66,28 @@ TEST_CASE("make_error_code creates correct error codes", "[idfxx][http]") {
 // -- to_string tests ---------------------------------------------------------
 
 TEST_CASE("to_string(event_id) outputs correct names", "[idfxx][http]") {
-    TEST_ASSERT_EQUAL_STRING("ERROR", to_string(event_id::error).c_str());
-    TEST_ASSERT_EQUAL_STRING("ON_CONNECTED", to_string(event_id::on_connected).c_str());
-    TEST_ASSERT_EQUAL_STRING("HEADERS_SENT", to_string(event_id::headers_sent).c_str());
-    TEST_ASSERT_EQUAL_STRING("ON_HEADER", to_string(event_id::on_header).c_str());
-    TEST_ASSERT_EQUAL_STRING("ON_DATA", to_string(event_id::on_data).c_str());
-    TEST_ASSERT_EQUAL_STRING("ON_FINISH", to_string(event_id::on_finish).c_str());
-    TEST_ASSERT_EQUAL_STRING("DISCONNECTED", to_string(event_id::disconnected).c_str());
-    TEST_ASSERT_EQUAL_STRING("REDIRECT", to_string(event_id::redirect).c_str());
+    auto s = to_string(event_id::error);
+    TEST_ASSERT_EQUAL_STRING("ERROR", s.c_str());
+    s = to_string(event_id::on_connected);
+    TEST_ASSERT_EQUAL_STRING("ON_CONNECTED", s.c_str());
+    s = to_string(event_id::headers_sent);
+    TEST_ASSERT_EQUAL_STRING("HEADERS_SENT", s.c_str());
+    s = to_string(event_id::on_header);
+    TEST_ASSERT_EQUAL_STRING("ON_HEADER", s.c_str());
+    s = to_string(event_id::on_data);
+    TEST_ASSERT_EQUAL_STRING("ON_DATA", s.c_str());
+    s = to_string(event_id::on_finish);
+    TEST_ASSERT_EQUAL_STRING("ON_FINISH", s.c_str());
+    s = to_string(event_id::disconnected);
+    TEST_ASSERT_EQUAL_STRING("DISCONNECTED", s.c_str());
+    s = to_string(event_id::redirect);
+    TEST_ASSERT_EQUAL_STRING("REDIRECT", s.c_str());
 }
 
 TEST_CASE("to_string(event_id) handles unknown values", "[idfxx][http]") {
     auto unknown = static_cast<event_id>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", to_string(unknown).c_str());
+    auto s = to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // -- Formatter tests ---------------------------------------------------------
@@ -87,8 +96,11 @@ TEST_CASE("to_string(event_id) handles unknown values", "[idfxx][http]") {
 static_assert(std::formattable<event_id, char>);
 
 TEST_CASE("event_id formatter outputs correct names", "[idfxx][http]") {
-    TEST_ASSERT_EQUAL_STRING("ERROR", std::format("{}", event_id::error).c_str());
-    TEST_ASSERT_EQUAL_STRING("ON_CONNECTED", std::format("{}", event_id::on_connected).c_str());
-    TEST_ASSERT_EQUAL_STRING("REDIRECT", std::format("{}", event_id::redirect).c_str());
+    auto s = std::format("{}", event_id::error);
+    TEST_ASSERT_EQUAL_STRING("ERROR", s.c_str());
+    s = std::format("{}", event_id::on_connected);
+    TEST_ASSERT_EQUAL_STRING("ON_CONNECTED", s.c_str());
+    s = std::format("{}", event_id::redirect);
+    TEST_ASSERT_EQUAL_STRING("REDIRECT", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

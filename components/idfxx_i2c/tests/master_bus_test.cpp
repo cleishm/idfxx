@@ -180,18 +180,22 @@ TEST_CASE("master_bus port accessor works", "[idfxx][i2c][master_bus]") {
 // =============================================================================
 
 TEST_CASE("to_string(port) outputs correct names", "[idfxx][i2c][master_bus]") {
-    TEST_ASSERT_EQUAL_STRING("I2C0", idfxx::to_string(port::i2c0).c_str());
+    auto s = idfxx::to_string(port::i2c0);
+    TEST_ASSERT_EQUAL_STRING("I2C0", s.c_str());
 #if SOC_HP_I2C_NUM >= 2
-    TEST_ASSERT_EQUAL_STRING("I2C1", idfxx::to_string(port::i2c1).c_str());
+    s = idfxx::to_string(port::i2c1);
+    TEST_ASSERT_EQUAL_STRING("I2C1", s.c_str());
 #endif
 #if SOC_LP_I2C_NUM >= 1
-    TEST_ASSERT_EQUAL_STRING("LP_I2C0", idfxx::to_string(port::lp_i2c0).c_str());
+    s = idfxx::to_string(port::lp_i2c0);
+    TEST_ASSERT_EQUAL_STRING("LP_I2C0", s.c_str());
 #endif
 }
 
 TEST_CASE("to_string(port) handles unknown values", "[idfxx][i2c][master_bus]") {
     auto unknown = static_cast<port>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(unknown).c_str());
+    auto s = idfxx::to_string(unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
 // =============================================================================
@@ -202,17 +206,21 @@ TEST_CASE("to_string(port) handles unknown values", "[idfxx][i2c][master_bus]") 
 static_assert(std::formattable<port, char>);
 
 TEST_CASE("i2c::port formatter outputs correct names", "[idfxx][i2c][master_bus]") {
-    TEST_ASSERT_EQUAL_STRING("I2C0", std::format("{}", port::i2c0).c_str());
+    auto s = std::format("{}", port::i2c0);
+    TEST_ASSERT_EQUAL_STRING("I2C0", s.c_str());
 #if SOC_HP_I2C_NUM >= 2
-    TEST_ASSERT_EQUAL_STRING("I2C1", std::format("{}", port::i2c1).c_str());
+    s = std::format("{}", port::i2c1);
+    TEST_ASSERT_EQUAL_STRING("I2C1", s.c_str());
 #endif
 #if SOC_LP_I2C_NUM >= 1
-    TEST_ASSERT_EQUAL_STRING("LP_I2C0", std::format("{}", port::lp_i2c0).c_str());
+    s = std::format("{}", port::lp_i2c0);
+    TEST_ASSERT_EQUAL_STRING("LP_I2C0", s.c_str());
 #endif
 }
 
 TEST_CASE("i2c::port formatter handles unknown values", "[idfxx][i2c][master_bus]") {
     auto unknown = static_cast<port>(99);
-    TEST_ASSERT_EQUAL_STRING("unknown(99)", std::format("{}", unknown).c_str());
+    auto s = std::format("{}", unknown);
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 #endif // CONFIG_IDFXX_STD_FORMAT

@@ -107,17 +107,25 @@ TEST_CASE("try_scan_devices with NC pin returns error", "[idfxx][ds18x20]") {
 }
 
 TEST_CASE("to_string for family enum", "[idfxx][ds18x20]") {
-    TEST_ASSERT_EQUAL_STRING("DS18S20", idfxx::to_string(family::ds18s20).c_str());
-    TEST_ASSERT_EQUAL_STRING("DS1822", idfxx::to_string(family::ds1822).c_str());
-    TEST_ASSERT_EQUAL_STRING("DS18B20", idfxx::to_string(family::ds18b20).c_str());
-    TEST_ASSERT_EQUAL_STRING("MAX31850", idfxx::to_string(family::max31850).c_str());
+    auto s = idfxx::to_string(family::ds18s20);
+    TEST_ASSERT_EQUAL_STRING("DS18S20", s.c_str());
+    s = idfxx::to_string(family::ds1822);
+    TEST_ASSERT_EQUAL_STRING("DS1822", s.c_str());
+    s = idfxx::to_string(family::ds18b20);
+    TEST_ASSERT_EQUAL_STRING("DS18B20", s.c_str());
+    s = idfxx::to_string(family::max31850);
+    TEST_ASSERT_EQUAL_STRING("MAX31850", s.c_str());
 }
 
 TEST_CASE("to_string for resolution enum", "[idfxx][ds18x20]") {
-    TEST_ASSERT_EQUAL_STRING("9-bit", idfxx::to_string(resolution::bits_9).c_str());
-    TEST_ASSERT_EQUAL_STRING("10-bit", idfxx::to_string(resolution::bits_10).c_str());
-    TEST_ASSERT_EQUAL_STRING("11-bit", idfxx::to_string(resolution::bits_11).c_str());
-    TEST_ASSERT_EQUAL_STRING("12-bit", idfxx::to_string(resolution::bits_12).c_str());
+    auto s = idfxx::to_string(resolution::bits_9);
+    TEST_ASSERT_EQUAL_STRING("9-bit", s.c_str());
+    s = idfxx::to_string(resolution::bits_10);
+    TEST_ASSERT_EQUAL_STRING("10-bit", s.c_str());
+    s = idfxx::to_string(resolution::bits_11);
+    TEST_ASSERT_EQUAL_STRING("11-bit", s.c_str());
+    s = idfxx::to_string(resolution::bits_12);
+    TEST_ASSERT_EQUAL_STRING("12-bit", s.c_str());
 }
 
 TEST_CASE("to_string for unknown family", "[idfxx][ds18x20]") {
@@ -139,17 +147,25 @@ static_assert(std::formattable<family, char>);
 static_assert(std::formattable<resolution, char>);
 
 TEST_CASE("family formatter outputs correct names", "[idfxx][ds18x20]") {
-    TEST_ASSERT_EQUAL_STRING("DS18S20", std::format("{}", family::ds18s20).c_str());
-    TEST_ASSERT_EQUAL_STRING("DS1822", std::format("{}", family::ds1822).c_str());
-    TEST_ASSERT_EQUAL_STRING("DS18B20", std::format("{}", family::ds18b20).c_str());
-    TEST_ASSERT_EQUAL_STRING("MAX31850", std::format("{}", family::max31850).c_str());
+    auto s = std::format("{}", family::ds18s20);
+    TEST_ASSERT_EQUAL_STRING("DS18S20", s.c_str());
+    s = std::format("{}", family::ds1822);
+    TEST_ASSERT_EQUAL_STRING("DS1822", s.c_str());
+    s = std::format("{}", family::ds18b20);
+    TEST_ASSERT_EQUAL_STRING("DS18B20", s.c_str());
+    s = std::format("{}", family::max31850);
+    TEST_ASSERT_EQUAL_STRING("MAX31850", s.c_str());
 }
 
 TEST_CASE("resolution formatter outputs correct names", "[idfxx][ds18x20]") {
-    TEST_ASSERT_EQUAL_STRING("9-bit", std::format("{}", resolution::bits_9).c_str());
-    TEST_ASSERT_EQUAL_STRING("10-bit", std::format("{}", resolution::bits_10).c_str());
-    TEST_ASSERT_EQUAL_STRING("11-bit", std::format("{}", resolution::bits_11).c_str());
-    TEST_ASSERT_EQUAL_STRING("12-bit", std::format("{}", resolution::bits_12).c_str());
+    auto s = std::format("{}", resolution::bits_9);
+    TEST_ASSERT_EQUAL_STRING("9-bit", s.c_str());
+    s = std::format("{}", resolution::bits_10);
+    TEST_ASSERT_EQUAL_STRING("10-bit", s.c_str());
+    s = std::format("{}", resolution::bits_11);
+    TEST_ASSERT_EQUAL_STRING("11-bit", s.c_str());
+    s = std::format("{}", resolution::bits_12);
+    TEST_ASSERT_EQUAL_STRING("12-bit", s.c_str());
 }
 
 TEST_CASE("family formatter handles unknown values", "[idfxx][ds18x20]") {
