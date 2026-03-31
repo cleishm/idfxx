@@ -37,7 +37,6 @@ const char* TAG = "idfxx::pwm";
 struct timer_state {
     std::mutex mutex;
     uint8_t resolution_bits = 0; // 0 = unconfigured
-    uint32_t frequency_hz = 0;
     int8_t clk_source = 0;
 };
 timer_state timers[LEDC_SPEED_MODE_MAX][SOC_LEDC_TIMER_NUM];
@@ -141,7 +140,6 @@ result<void> timer::try_configure(const struct config& cfg) {
     {
         auto& state = timers[to_ledc(_speed_mode)][_num];
         std::scoped_lock lock(state.mutex);
-        state.frequency_hz = static_cast<uint32_t>(cfg.frequency.count());
         state.clk_source = static_cast<int8_t>(std::to_underlying(cfg.clk_source));
         state.resolution_bits = cfg.resolution_bits;
     }
@@ -263,7 +261,7 @@ result<output> try_start(idfxx::gpio gpio, const timer::config& cfg, const outpu
             }
             continue;
         }
-        if (state.frequency_hz == static_cast<uint32_t>(cfg.frequency.count()) &&
+        if (ledc_get_freq(ledc_mode, static_cast<ledc_timer_t>(t)) == static_cast<uint32_t>(cfg.frequency.count()) &&
             state.resolution_bits == cfg.resolution_bits &&
             state.clk_source == static_cast<int8_t>(std::to_underlying(cfg.clk_source))) {
             matched_timer = t;
