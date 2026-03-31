@@ -77,11 +77,10 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         .intr_priority =
             config.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*config.intr_level))) : 0,
         .trans_queue_depth = config.trans_queue_depth,
-        .flags =
-            {
-                .enable_internal_pullup = config.enable_internal_pullup ? 1u : 0u,
-                .allow_pd = config.allow_pd ? 1u : 0u,
-            },
+        .flags = {
+            .enable_internal_pullup = config.enable_internal_pullup ? 1u : 0u,
+            .allow_pd = config.allow_pd ? 1u : 0u,
+        },
     };
 #if SOC_LP_I2C_SUPPORTED
     if (port == port::lp_i2c0) {

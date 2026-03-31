@@ -45,6 +45,9 @@ timer_state timers[LEDC_SPEED_MODE_MAX][SOC_LEDC_TIMER_NUM];
 // Tracks ownership (generation counter) and active status.
 struct channel_state {
     std::mutex mutex;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    bool configured = false; // true once ledc_channel_config has been called
+#endif
     uint32_t gen = 0;
     bool active = false;
     idfxx::gpio gpio;
@@ -319,7 +322,19 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
     auto ledc_ch = to_ledc(ch);
     auto duty = static_cast<uint32_t>(std::clamp(cfg.duty, 0.0f, 1.0f) * static_cast<float>(tmr.ticks_max()));
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    if (state.configured) {
+        // Deconfigure the old channel to release GPIO pins and reservations.
+        ledc_channel_config_t decfg{};
+        decfg.speed_mode = ledc_mode;
+        decfg.channel = ledc_ch;
+        decfg.deconfigure = true;
+        ledc_channel_config(&decfg);
+        state.configured = false;
+    }
+#else
     state.gpio.reset();
+#endif
 
     ledc_channel_config_t ch_cfg{
         .gpio_num = gpio.num(),
@@ -331,6 +346,9 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
         .hpoint = cfg.hpoint,
         .sleep_mode = static_cast<ledc_sleep_mode_t>(std::to_underlying(cfg.sleep_mode)),
         .flags = {.output_invert = cfg.output_invert ? 1u : 0u},
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        .deconfigure = false,
+#endif
     };
 
     if (auto err = ledc_channel_config(&ch_cfg); err != ESP_OK) {
@@ -344,6 +362,9 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
         );
         return error(err);
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    state.configured = true;
+#endif
 
     auto gen = ++state.gen;
     state.active = true;
@@ -364,7 +385,17 @@ static result<void> _deconfigure_channel(enum channel ch, enum speed_mode mode, 
     auto err = ledc_stop(ledc_mode, ledc_ch, static_cast<uint32_t>(idle_level));
 
     state.active = false;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    // On IDF 6.0+, properly deconfigure the channel to release GPIO pins and reservations.
+    ledc_channel_config_t decfg{};
+    decfg.speed_mode = ledc_mode;
+    decfg.channel = ledc_ch;
+    decfg.deconfigure = true;
+    ledc_channel_config(&decfg);
+    state.configured = false;
+#else
     state.gpio.reset();
+#endif
     state.gpio = idfxx::gpio_nc;
 
     if (err != ESP_OK) {

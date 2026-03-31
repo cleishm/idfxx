@@ -24,21 +24,20 @@ extern "C" void app_main() {
         .pin = idfxx::gpio_0,
         .pressed_level = idfxx::gpio::level::low,
         .enable_pull = true,
-        .callback =
-            [](idfxx::button::event_type event) {
-                switch (event) {
-                case idfxx::button::event_type::pressed:
-                    break;
-                case idfxx::button::event_type::released:
-                    break;
-                case idfxx::button::event_type::clicked:
-                    click_count.fetch_add(1, std::memory_order_relaxed);
-                    break;
-                case idfxx::button::event_type::long_press:
-                    long_press_count.fetch_add(1, std::memory_order_relaxed);
-                    break;
-                }
-            },
+        .callback = [](idfxx::button::event_type event) {
+            switch (event) {
+            case idfxx::button::event_type::pressed:
+                break;
+            case idfxx::button::event_type::released:
+                break;
+            case idfxx::button::event_type::clicked:
+                click_count.fetch_add(1, std::memory_order_relaxed);
+                break;
+            case idfxx::button::event_type::long_press:
+                long_press_count.fetch_add(1, std::memory_order_relaxed);
+                break;
+            }
+        },
     });
 
     logger.info("Button created with config:");

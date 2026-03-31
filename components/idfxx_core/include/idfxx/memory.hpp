@@ -46,7 +46,9 @@ namespace idfxx::memory {
  * @note `spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
  */
 enum class caps : uint32_t {
-    exec = MALLOC_CAP_EXEC,                   ///< Executable memory
+#ifdef CONFIG_HEAP_HAS_EXEC_HEAP
+    exec = MALLOC_CAP_EXEC, ///< Executable memory
+#endif
     access_32bit = MALLOC_CAP_32BIT,          ///< 32-bit aligned access
     access_8bit = MALLOC_CAP_8BIT,            ///< 8/16/32-bit access
     dma = MALLOC_CAP_DMA,                     ///< DMA-capable memory
