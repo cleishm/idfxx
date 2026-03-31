@@ -175,10 +175,8 @@ public:
 
     constexpr bool operator==(const timer& other) const = default;
 
-    /** @cond INTERNAL */
     /** @brief Returns the timer number (0-3). */
-    [[nodiscard]] constexpr int idf_num() const noexcept { return _num; }
-    /** @endcond */
+    [[nodiscard]] constexpr unsigned int num() const noexcept { return _num; }
 
     /** @brief Returns the speed mode. */
     [[nodiscard]] constexpr enum speed_mode speed_mode() const noexcept { return _speed_mode; }
@@ -425,11 +423,11 @@ public:
 private:
     friend result<output> try_start(idfxx::gpio, const config&, const output_config&);
 
-    constexpr timer(int num, enum speed_mode mode) noexcept
+    constexpr timer(unsigned int num, enum speed_mode mode) noexcept
         : _num(num)
         , _speed_mode(mode) {}
 
-    int _num;
+    unsigned int _num;
     enum speed_mode _speed_mode;
 };
 
@@ -709,11 +707,22 @@ public:
     output(output&& other) noexcept;
     output& operator=(output&& other) noexcept;
 
-    /** @brief Returns the channel slot used by this output. */
+    /**
+     * @brief Returns the timer that was bound to this output.
+     *
+     * @note This output may no longer be driving the channel.
+     */
+    [[nodiscard]] class timer timer() const noexcept { return _timer; }
+
+    /**
+     * @brief Returns the channel slot that was bound to this output.
+     *
+     * @note This output may no longer be driving the channel.
+     */
     [[nodiscard]] enum channel channel() const noexcept { return _channel; }
 
-    /** @brief Returns the GPIO pin used by this output. */
-    [[nodiscard]] idfxx::gpio gpio() const noexcept { return _gpio; }
+    /** @brief Returns true if the output is still actively driving the channel. */
+    [[nodiscard]] bool is_active() const noexcept;
 
     /** @brief Returns the maximum duty ticks for the configured resolution. */
     [[nodiscard]] uint32_t ticks_max() const noexcept;
@@ -1138,20 +1147,15 @@ public:
      */
     enum channel release() noexcept;
 
-    /** @cond INTERNAL */
-    [[nodiscard]] static result<output>
-    make(const timer& tmr, enum channel ch, idfxx::gpio gpio, const output_config& cfg);
-
-    [[nodiscard]] static result<output> make(const timer& tmr, enum channel ch, idfxx::gpio gpio);
-    /** @endcond */
-
 private:
+    friend result<output>
+    try_start(idfxx::gpio gpio, const class timer& tmr, enum channel ch, const output_config& cfg);
     friend result<output> try_start(idfxx::gpio, const timer::config&, const output_config&);
 
-    explicit output(class timer tmr, enum channel ch, idfxx::gpio gpio, uint32_t gen) noexcept;
-
     [[nodiscard]] static result<output>
-    _make(const timer& tmr, enum channel ch, idfxx::gpio gpio, const output_config& cfg);
+    _make(idfxx::gpio gpio, const class timer& tmr, enum channel ch, const output_config& cfg);
+
+    explicit output(class timer tmr, enum channel ch, uint32_t gen, uint32_t duty_ticks) noexcept;
 
     [[nodiscard]] result<void> _try_set_pulse_width(std::chrono::nanoseconds width);
 
@@ -1164,12 +1168,12 @@ private:
     [[nodiscard]] result<void>
     _try_fade_to_duty(uint32_t target_duty, std::chrono::milliseconds duration, enum fade_mode mode);
 
-    void _cleanup() noexcept;
+    void _delete() noexcept;
 
     class timer _timer;
     enum channel _channel;
-    idfxx::gpio _gpio;
     std::optional<uint32_t> _gen;
+    uint32_t _duty_ticks = 0;
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1214,7 +1218,7 @@ namespace idfxx {
 #else
     s = "PWM_TIMER_";
 #endif
-    s += std::to_string(t.idf_num());
+    s += std::to_string(t.num());
     return s;
 }
 

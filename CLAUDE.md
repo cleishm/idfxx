@@ -190,3 +190,4 @@ Exception-based methods should not have abbreviated documentation. Inline implem
 - Compile-time validation with `static_assert` for type properties and enum values
 - Runtime tests use ESP-IDF Unity framework: `TEST_CASE("name", "[tag]")`
 - Tests verify enum values match ESP-IDF constants
+- **Do not use GPIO 19 or GPIO 20 in tests** — these are the USB D-/D+ pins on ESP32-S3 and configuring them for peripheral output (e.g., LEDC) hangs when USB-JTAG/Serial is active

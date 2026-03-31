@@ -31,10 +31,10 @@ static_assert(std::is_aggregate_v<timer::config>);
 static_assert(std::is_default_constructible_v<timer::config>);
 
 // Predefined timer constants have correct numbers
-static_assert(timer_0.idf_num() == 0);
-static_assert(timer_1.idf_num() == 1);
-static_assert(timer_2.idf_num() == 2);
-static_assert(timer_3.idf_num() == 3);
+static_assert(timer_0.num() == 0);
+static_assert(timer_1.num() == 1);
+static_assert(timer_2.num() == 2);
+static_assert(timer_3.num() == 3);
 
 // Predefined timers default to low speed
 static_assert(timer_0.speed_mode() == speed_mode::low_speed);
@@ -42,9 +42,9 @@ static_assert(timer_3.speed_mode() == speed_mode::low_speed);
 
 #if SOC_LEDC_SUPPORT_HS_MODE
 // High-speed timer constants
-static_assert(hs_timer_0.idf_num() == 0);
+static_assert(hs_timer_0.num() == 0);
 static_assert(hs_timer_0.speed_mode() == speed_mode::high_speed);
-static_assert(hs_timer_3.idf_num() == 3);
+static_assert(hs_timer_3.num() == 3);
 static_assert(hs_timer_3.speed_mode() == speed_mode::high_speed);
 #endif
 
@@ -274,6 +274,67 @@ TEST_CASE("output release prevents cleanup on destruction", "[idfxx][pwm][output
     TEST_ASSERT_FALSE(is_active(ch));
 }
 
+TEST_CASE("output is_active returns true for active output", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+}
+
+TEST_CASE("output is_active returns false after release", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    result->release();
+    TEST_ASSERT_FALSE(result->is_active());
+
+    idfxx::pwm::try_stop(channel::ch_0);
+}
+
+TEST_CASE("output is_active returns false after move", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    output moved(std::move(*result));
+    TEST_ASSERT_FALSE(result->is_active());
+    TEST_ASSERT_TRUE(moved.is_active());
+}
+
+TEST_CASE("output is_active returns false after free function try_stop", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+
+    idfxx::pwm::try_stop(channel::ch_0);
+    TEST_ASSERT_FALSE(result->is_active());
+}
+
+TEST_CASE("output is_active returns false after channel reused", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result1 = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result1.has_value());
+    result1->release();
+
+    auto result2 = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result2.has_value());
+
+    TEST_ASSERT_FALSE(result1->is_active());
+    TEST_ASSERT_TRUE(result2->is_active());
+}
+
 // =============================================================================
 // Auto-allocating try_start tests
 // =============================================================================
@@ -298,7 +359,7 @@ TEST_CASE("auto try_start reuses matching timer", "[idfxx][pwm][auto]") {
     auto result1 = try_start(idfxx::gpio_18, {.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result1.has_value());
 
-    auto result2 = try_start(idfxx::gpio_19, {.frequency = 5000_Hz, .resolution_bits = 13});
+    auto result2 = try_start(idfxx::gpio_21, {.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result2.has_value());
 
     // Both should be on the same timer
