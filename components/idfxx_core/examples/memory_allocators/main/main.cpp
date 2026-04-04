@@ -8,6 +8,8 @@
 static constexpr idfxx::log::logger logger{"example"};
 
 extern "C" void app_main() {
+    namespace memory = idfxx::memory;
+
     // DRAM allocator with std::vector
     logger.info("=== DRAM Allocator ===");
     std::vector<uint32_t, idfxx::dram_allocator<uint32_t>> dram_vec;
@@ -23,34 +25,34 @@ extern "C" void app_main() {
 
     // Memory capability flags
     logger.info("=== Memory Capability Flags ===");
-    auto caps = idfxx::memory_caps::internal | idfxx::memory_caps::access_8bit;
+    auto caps = memory::caps::internal | memory::caps::access_8bit;
     logger.info("Combined caps: {}", caps);
-    logger.info("Contains internal? {}", caps.contains(idfxx::memory_caps::internal));
-    logger.info("Contains DMA?      {}", caps.contains(idfxx::memory_caps::dma));
+    logger.info("Contains internal? {}", caps.contains(memory::caps::internal));
+    logger.info("Contains DMA?      {}", caps.contains(memory::caps::dma));
     logger.info("Empty?             {}", caps.empty());
 
     // Set difference: remove a flag
-    auto without_8bit = caps - idfxx::memory_caps::access_8bit;
+    auto without_8bit = caps - memory::caps::access_8bit;
     logger.info("After removing access_8bit: {}", without_8bit);
 
     // Heap queries by capability
     logger.info("=== Heap Info by Capability ===");
-    auto dram_total = idfxx::heap_total_size(idfxx::memory_caps::dram);
-    auto dram_free = idfxx::heap_free_size(idfxx::memory_caps::dram);
+    auto dram_total = memory::total_size(memory::caps::dram);
+    auto dram_free = memory::free_size(memory::caps::dram);
     logger.info("DRAM total: {} bytes, free: {} bytes", dram_total, dram_free);
 
     // Detailed heap statistics
     logger.info("=== Detailed Heap Statistics ===");
-    auto info = idfxx::get_heap_info(idfxx::memory_caps::dram);
-    logger.info("Total free:      {} bytes", info.total_free_bytes);
-    logger.info("Total allocated: {} bytes", info.total_allocated_bytes);
-    logger.info("Largest block:   {} bytes", info.largest_free_block);
-    logger.info("Min free (hwm):  {} bytes", info.minimum_free_bytes);
-    logger.info("Allocated blocks: {}", info.allocated_blocks);
-    logger.info("Free blocks:      {}", info.free_blocks);
+    auto hi = memory::get_info(memory::caps::dram);
+    logger.info("Total free:      {} bytes", hi.total_free_bytes);
+    logger.info("Total allocated: {} bytes", hi.total_allocated_bytes);
+    logger.info("Largest block:   {} bytes", hi.largest_free_block);
+    logger.info("Min free (hwm):  {} bytes", hi.minimum_free_bytes);
+    logger.info("Allocated blocks: {}", hi.allocated_blocks);
+    logger.info("Free blocks:      {}", hi.free_blocks);
 
     // Heap integrity check
     logger.info("=== Heap Integrity ===");
-    bool ok = idfxx::heap_check_integrity_all();
+    bool ok = memory::check_integrity();
     logger.info("Heap integrity: {}", ok ? "OK" : "CORRUPT");
 }

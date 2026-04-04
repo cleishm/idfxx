@@ -70,24 +70,6 @@ TEST_CASE("to_string(reset_reason) handles unknown values", "[idfxx][system]") {
     TEST_ASSERT_EQUAL_STRING("unknown(99)", s.c_str());
 }
 
-// Heap info
-
-TEST_CASE("free_heap_size returns non-zero", "[idfxx][system]") {
-    TEST_ASSERT_GREATER_THAN(0, free_heap_size());
-}
-
-TEST_CASE("free_internal_heap_size returns non-zero", "[idfxx][system]") {
-    TEST_ASSERT_GREATER_THAN(0, free_internal_heap_size());
-}
-
-TEST_CASE("minimum_free_heap_size returns non-zero", "[idfxx][system]") {
-    TEST_ASSERT_GREATER_THAN(0, minimum_free_heap_size());
-}
-
-TEST_CASE("minimum_free_heap_size <= free_heap_size", "[idfxx][system]") {
-    TEST_ASSERT_LESS_OR_EQUAL(free_heap_size(), minimum_free_heap_size());
-}
-
 // Shutdown handlers
 
 static void test_shutdown_handler() {}

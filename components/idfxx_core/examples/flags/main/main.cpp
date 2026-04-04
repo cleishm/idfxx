@@ -17,12 +17,6 @@ enum class permissions : uint32_t {
 template<>
 inline constexpr bool idfxx::enable_flags_operators<permissions> = true;
 
-// Bring idfxx flag operators into scope for 'permissions'
-using idfxx::operator|;
-using idfxx::operator&;
-using idfxx::operator^;
-using idfxx::operator~;
-
 static constexpr idfxx::log::logger logger{"example"};
 
 extern "C" void app_main() {

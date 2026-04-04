@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// Unit tests for idfxx::dma_allocator
+// Unit tests for idfxx::memory::dma_allocator
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/memory"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// Unit tests for idfxx::dram_allocator
+// Unit tests for idfxx::memory::dram_allocator
 // Uses ESP-IDF Unity test framework
 
 #include "idfxx/memory"

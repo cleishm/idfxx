@@ -9,8 +9,8 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
 - **Chrono utilities** for FreeRTOS tick conversions
-- **Custom memory allocators** for DRAM, PSRAM, and DMA-capable memory
-- **System information** — reset reason, restart, shutdown handlers, heap monitoring
+- **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
+- **System information** — reset reason, restart, shutdown handlers
 - **Application metadata** — version, project name, build timestamps, ELF hash
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
@@ -94,14 +94,14 @@ std::vector<uint8_t, idfxx::aligned_dram_allocator<uint8_t, 32>> aligned_buffer;
 #include <idfxx/memory>
 
 // Allocate from internal DRAM
-void* buf = idfxx::heap_malloc(256, idfxx::memory_caps::dram);
+void* buf = idfxx::malloc(256, idfxx::memory::caps::dram);
 // ... use buf ...
-idfxx::heap_free(buf);
+idfxx::free(buf);
 
 // Aligned allocation for DMA buffers
-void* dma_buf = idfxx::heap_aligned_alloc(64, 1024, idfxx::memory_caps::dma);
+void* dma_buf = idfxx::aligned_alloc(64, 1024, idfxx::memory::caps::dma);
 // ... use dma_buf ...
-idfxx::heap_free(dma_buf);
+idfxx::free(dma_buf);
 ```
 
 ### Heap Walking and Integrity Checking
@@ -109,14 +109,16 @@ idfxx::heap_free(dma_buf);
 ```cpp
 #include <idfxx/memory>
 
+namespace memory = idfxx::memory;
+
 // Walk all blocks in default heap
-idfxx::heap_walk(idfxx::memory_caps::default_heap, [](idfxx::heap_region region, idfxx::heap_block block) {
+memory::walk(memory::caps::default_heap, [](memory::region rgn, memory::block blk) {
     // process each block...
     return true; // continue walking
 });
 
 // Check heap integrity
-bool ok = idfxx::heap_check_integrity_all();
+bool ok = memory::check_integrity();
 ```
 
 ## API Overview
@@ -136,30 +138,29 @@ bool ok = idfxx::heap_check_integrity_all();
 
 ### Memory (`<idfxx/memory>`)
 
-- `memory_caps` - Composable flags enum for heap capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
-- `heap_info` - Struct containing heap region statistics
-- `heap_total_size(caps)` - Total size of heap regions matching capabilities
-- `heap_free_size(caps)` - Current free size of matching heap regions
-- `heap_largest_free_block(caps)` - Largest contiguous free block in matching regions
-- `heap_minimum_free_size(caps)` - Minimum free size since boot (high-water mark)
-- `get_heap_info(caps)` - Detailed heap statistics for matching regions
-- `heap_malloc(size, caps)` - Allocate memory from matching heap regions
-- `heap_calloc(n, size, caps)` - Allocate zero-initialized memory from matching regions
-- `heap_realloc(ptr, size, caps)` - Reallocate memory from matching regions
-- `heap_free(ptr)` - Free memory allocated by heap allocation functions
-- `heap_aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
-- `heap_aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
+- `memory::caps` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
 - `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
 - `aligned_dram_allocator<T, Alignment>` - Aligned allocation from internal DRAM
 - `aligned_spiram_allocator<T, Alignment>` - Aligned allocation from external PSRAM
 - `aligned_dma_allocator<T, Alignment>` - Aligned DMA-capable allocation
-- `heap_walk(caps, walker)` - Walk heap blocks in matching regions
-- `heap_walk_all(walker)` - Walk all heap blocks
-- `heap_check_integrity(caps)` - Check heap integrity for matching regions
-- `heap_check_integrity_all()` - Check integrity of all heaps
-- `heap_dump(caps)` / `heap_dump_all()` - Dump heap structure to serial console
+- `malloc(size, caps)` - Allocate memory from matching heap regions
+- `calloc(n, size, caps)` - Allocate zero-initialized memory from matching regions
+- `realloc(ptr, size, caps)` - Reallocate memory from matching regions
+- `free(ptr)` - Free memory allocated by allocation functions
+- `aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
+- `aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
+- `memory::caps` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
+- `memory::info` - Struct containing heap region statistics
+- `memory::total_size(caps)` - Total size of heap regions matching capabilities
+- `memory::free_size(caps)` - Current free size of matching heap regions
+- `memory::largest_free_block(caps)` - Largest contiguous free block in matching regions
+- `memory::minimum_free_size(caps)` - Minimum free size since boot (high-water mark)
+- `memory::get_info(caps)` - Detailed heap statistics for matching regions
+- `memory::walk(caps, walker)` - Walk heap blocks in matching regions
+- `memory::check_integrity(caps)` / `memory::check_integrity()` - Check heap integrity
+- `memory::dump(caps)` / `memory::dump()` - Dump heap structure to serial console
 
 ### System (`<idfxx/system>`)
 
@@ -168,9 +169,6 @@ bool ok = idfxx::heap_check_integrity_all();
 - `restart()` - Restarts the chip
 - `register_shutdown_handler()` / `try_register_shutdown_handler()` - Register shutdown callbacks
 - `unregister_shutdown_handler()` / `try_unregister_shutdown_handler()` - Remove shutdown callbacks
-- `free_heap_size()` - Current free heap in bytes
-- `free_internal_heap_size()` - Current free internal heap in bytes
-- `minimum_free_heap_size()` - Minimum free heap since boot
 
 ### Application Info (`<idfxx/app>`)
 

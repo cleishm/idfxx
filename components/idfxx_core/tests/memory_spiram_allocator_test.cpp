@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// Unit tests for idfxx::spiram_allocator
+// Unit tests for idfxx::memory::spiram_allocator
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/memory"

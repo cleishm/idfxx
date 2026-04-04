@@ -9,7 +9,6 @@
 #include <cstdint>
 
 using namespace std::chrono_literals;
-using idfxx::operator|;
 
 static constexpr idfxx::log::logger logger{"example"};
 
