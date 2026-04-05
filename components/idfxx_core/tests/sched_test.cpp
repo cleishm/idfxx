@@ -18,14 +18,14 @@ using namespace std::chrono_literals;
 // Delay tests
 // =============================================================================
 
-TEST_CASE("delay() with zero duration returns immediately", "[idfxx][sched]") {
+TEST_CASE("delay() with zero duration returns immediately", "[idfxx][sched][hw]") {
     auto start = xTaskGetTickCount();
     idfxx::delay(0ms);
     auto elapsed = xTaskGetTickCount() - start;
     TEST_ASSERT_EQUAL(0, elapsed);
 }
 
-TEST_CASE("delay() with negative duration returns immediately", "[idfxx][sched]") {
+TEST_CASE("delay() with negative duration returns immediately", "[idfxx][sched][hw]") {
     auto start = xTaskGetTickCount();
     idfxx::delay(-100ms);
     auto elapsed = xTaskGetTickCount() - start;

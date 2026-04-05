@@ -23,6 +23,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <functional>
 #include <optional>
 #include <span>
@@ -42,14 +43,23 @@ namespace idfxx::http {
  */
 enum class event_id : int {
     // clang-format off
-    error        = 0, ///< An error occurred during the HTTP operation
-    on_connected = 1, ///< Connected to the server
-    headers_sent = 2, ///< All request headers have been sent
-    on_header    = 3, ///< Received a response header
-    on_data      = 4, ///< Received response body data
-    on_finish    = 5, ///< Finished a complete HTTP session
-    disconnected = 6, ///< Disconnected from the server
-    redirect     = 7, ///< Intercepting a redirect
+    error                = 0, ///< An error occurred during the HTTP operation
+    on_connected         = 1, ///< Connected to the server
+    headers_sent         = 2, ///< All request headers have been sent
+    on_header            = 3, ///< Received a response header
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    on_headers_complete  = 4, ///< All response headers have been received
+    on_status_code       = 5, ///< Received the HTTP status code from the server
+    on_data              = 6, ///< Received response body data
+    on_finish            = 7, ///< Finished a complete HTTP session
+    disconnected         = 8, ///< Disconnected from the server
+    redirect             = 9, ///< Intercepting a redirect
+#else
+    on_data              = 4, ///< Received response body data
+    on_finish            = 5, ///< Finished a complete HTTP session
+    disconnected         = 6, ///< Disconnected from the server
+    redirect             = 7, ///< Intercepting a redirect
+#endif
     // clang-format on
 };
 

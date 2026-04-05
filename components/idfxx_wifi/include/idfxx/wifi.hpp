@@ -28,6 +28,7 @@
 
 #include <array>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <optional>
 #include <soc/soc_caps.h>
 #include <span>
@@ -891,11 +892,13 @@ struct channel_info {
  * @brief FTM initiator session configuration.
  */
 struct ftm_initiator_config {
-    mac_address resp_mac;            /*!< Responder MAC address. */
-    uint8_t channel = 0;             /*!< Channel for FTM session. */
-    uint8_t frame_count = 0;         /*!< Number of FTM frames per burst. */
-    uint16_t burst_period = 0;       /*!< Burst period in 100ms units. */
+    mac_address resp_mac;      /*!< Responder MAC address. */
+    uint8_t channel = 0;       /*!< Channel for FTM session. */
+    uint8_t frame_count = 0;   /*!< Number of FTM frames per burst. */
+    uint16_t burst_period = 0; /*!< Burst period in 100ms units. */
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
     bool use_get_report_api = false; /*!< Use ftm_get_report() to retrieve results. */
+#endif
 };
 
 /**
@@ -2865,8 +2868,6 @@ void ftm_resp_set_offset(int16_t offset);
 /**
  * @brief Retrieves the FTM measurement report entries.
  *
- * Only valid when ftm_initiator_config::use_get_report_api is true.
- *
  * @param max_entries Maximum number of entries to retrieve.
  * @return A vector of FTM report entries.
  *
@@ -2901,8 +2902,6 @@ result<void> try_ftm_end_session();
 
 /**
  * @brief Retrieves the FTM measurement report entries.
- *
- * Only valid when ftm_initiator_config::use_get_report_api is true.
  *
  * @param max_entries Maximum number of entries to retrieve.
  * @return A vector of FTM report entries, or an error.

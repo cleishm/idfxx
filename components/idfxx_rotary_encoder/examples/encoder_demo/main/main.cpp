@@ -26,11 +26,10 @@ extern "C" void app_main() {
     idfxx::rotary_encoder encoder({
         .pin_a = pin_a,
         .pin_b = pin_b,
-        .callback =
-            [&position](int32_t diff) {
-                position += diff;
-                idfxx::log::info("encoder", "Position changed by {}, now {}", diff, position.load());
-            },
+        .callback = [&position](int32_t diff) {
+            position += diff;
+            idfxx::log::info("encoder", "Position changed by {}, now {}", diff, position.load());
+        },
     });
 
     // --- Monitor without acceleration ---

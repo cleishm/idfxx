@@ -87,7 +87,7 @@ TEST_CASE("timer try_configure convenience overload succeeds", "[idfxx][pwm][tim
     TEST_ASSERT_EQUAL(10, tmr.resolution_bits());
 }
 
-TEST_CASE("timer frequency reads back configured value", "[idfxx][pwm][timer]") {
+TEST_CASE("timer frequency reads back configured value", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_0;
     auto result = tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result.has_value());
@@ -97,12 +97,12 @@ TEST_CASE("timer frequency reads back configured value", "[idfxx][pwm][timer]") 
     TEST_ASSERT_INT_WITHIN(100, 5000, static_cast<int>(freq.count()));
 }
 
-TEST_CASE("timer unconfigured frequency returns zero", "[idfxx][pwm][timer]") {
+TEST_CASE("timer unconfigured frequency returns zero", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_2;
     TEST_ASSERT_EQUAL(0, tmr.frequency().count());
 }
 
-TEST_CASE("timer period returns expected value", "[idfxx][pwm][timer]") {
+TEST_CASE("timer period returns expected value", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_0;
     TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
 
@@ -111,7 +111,7 @@ TEST_CASE("timer period returns expected value", "[idfxx][pwm][timer]") {
     TEST_ASSERT_INT_WITHIN(5000, 200000, static_cast<int>(p.count()));
 }
 
-TEST_CASE("timer tick_period returns expected value", "[idfxx][pwm][timer]") {
+TEST_CASE("timer tick_period returns expected value", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_0;
     TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
 
@@ -120,7 +120,7 @@ TEST_CASE("timer tick_period returns expected value", "[idfxx][pwm][timer]") {
     TEST_ASSERT_INT_WITHIN(5, 24, static_cast<int>(tp.count()));
 }
 
-TEST_CASE("timer try_set_period changes frequency", "[idfxx][pwm][timer]") {
+TEST_CASE("timer try_set_period changes frequency", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_0;
     TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
 
@@ -132,7 +132,7 @@ TEST_CASE("timer try_set_period changes frequency", "[idfxx][pwm][timer]") {
     TEST_ASSERT_INT_WITHIN(50, 1000, static_cast<int>(freq.count()));
 }
 
-TEST_CASE("timer unconfigured period returns zero", "[idfxx][pwm][timer]") {
+TEST_CASE("timer unconfigured period returns zero", "[idfxx][pwm][timer][hw]") {
     auto tmr = timer_2;
     TEST_ASSERT_EQUAL(0, tmr.period().count());
     TEST_ASSERT_EQUAL(0, tmr.tick_period().count());
@@ -355,7 +355,7 @@ TEST_CASE("auto try_start with NC gpio returns error", "[idfxx][pwm][auto]") {
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
 }
 
-TEST_CASE("auto try_start reuses matching timer", "[idfxx][pwm][auto]") {
+TEST_CASE("auto try_start reuses matching timer", "[idfxx][pwm][auto][hw]") {
     auto result1 = try_start(idfxx::gpio_18, {.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result1.has_value());
 
@@ -373,7 +373,7 @@ TEST_CASE("auto try_start reuses matching timer", "[idfxx][pwm][auto]") {
     TEST_ASSERT_NOT_EQUAL(std::to_underlying(result1->channel()), std::to_underlying(result2->channel()));
 }
 
-TEST_CASE("auto try_start cleanup releases channel for reuse", "[idfxx][pwm][auto]") {
+TEST_CASE("auto try_start cleanup releases channel for reuse", "[idfxx][pwm][auto][hw]") {
     channel ch;
     {
         auto result = try_start(idfxx::gpio_18, {.frequency = 5000_Hz, .resolution_bits = 13});

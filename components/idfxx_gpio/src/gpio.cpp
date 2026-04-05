@@ -317,11 +317,13 @@ result<gpio::isr_handle> gpio::try_isr_handler_add(std::move_only_function<void(
 
         portENTER_CRITICAL(&active_mux);
         uint32_t id = next_id++;
-        gpio_handler.functional.push_back(functional_entry{
-            .id = id,
-            .fn = std::move(handler),
-            .active = true,
-        });
+        gpio_handler.functional.push_back(
+            functional_entry{
+                .id = id,
+                .fn = std::move(handler),
+                .active = true,
+            }
+        );
         portEXIT_CRITICAL(&active_mux);
 
         portEXIT_CRITICAL(&handlers_mux);
@@ -340,12 +342,14 @@ result<gpio::isr_handle> gpio::try_isr_handler_add(void (*fn)(void*), void* arg)
 
         portENTER_CRITICAL(&active_mux);
         uint32_t id = next_id++;
-        gpio_handler.raw.push_back(raw_entry{
-            .id = id,
-            .fn = fn,
-            .arg = arg,
-            .active = true,
-        });
+        gpio_handler.raw.push_back(
+            raw_entry{
+                .id = id,
+                .fn = fn,
+                .arg = arg,
+                .active = true,
+            }
+        );
         portEXIT_CRITICAL(&active_mux);
 
         portEXIT_CRITICAL(&handlers_mux);

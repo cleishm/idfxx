@@ -44,10 +44,9 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& conf
         .device_address = address,
         .scl_speed_hz = static_cast<uint32_t>(scl_speed.count()),
         .scl_wait_us = config.scl_wait_us,
-        .flags =
-            {
-                .disable_ack_check = config.disable_ack_check ? 1u : 0u,
-            },
+        .flags = {
+            .disable_ack_check = config.disable_ack_check ? 1u : 0u,
+        },
     };
 
     i2c_master_dev_handle_t handle;
