@@ -280,60 +280,6 @@ template<flag_enum E>
 flags(E) -> flags<E>;
 
 /**
- * @brief Combines two enum values into a flags object.
- *
- * Enables natural syntax for combining flag enum values without explicitly
- * constructing flags objects.
- *
- * @param a First flag value.
- * @param b Second flag value.
- *
- * @return A flags object containing both flags.
- */
-template<flag_enum E>
-[[nodiscard]] constexpr flags<E> operator|(E a, E b) noexcept {
-    return flags<E>{a} | flags<E>{b};
-}
-
-/**
- * @brief Intersects two enum values into a flags object.
- *
- * @param a First flag value.
- * @param b Second flag value.
- *
- * @return A flags object containing the intersection.
- */
-template<flag_enum E>
-[[nodiscard]] constexpr flags<E> operator&(E a, E b) noexcept {
-    return flags<E>{a} & flags<E>{b};
-}
-
-/**
- * @brief Toggles two enum values into a flags object.
- *
- * @param a First flag value.
- * @param b Second flag value.
- *
- * @return A flags object with toggled bits.
- */
-template<flag_enum E>
-[[nodiscard]] constexpr flags<E> operator^(E a, E b) noexcept {
-    return flags<E>{a} ^ flags<E>{b};
-}
-
-/**
- * @brief Computes the bitwise complement of an enum value.
- *
- * @param a The flag value to complement.
- *
- * @return A flags object with all bits inverted.
- */
-template<flag_enum E>
-[[nodiscard]] constexpr flags<E> operator~(E a) noexcept {
-    return ~flags<E>{a};
-}
-
-/**
  * @brief Returns the underlying integral value of a flags object.
  *
  * Free function equivalent of `flags<E>::value()`.
@@ -365,6 +311,64 @@ template<flag_enum E>
 }
 
 } // namespace idfxx
+
+// Free operators for flag enums, defined at global scope so that ADL finds them
+// regardless of which namespace the enum is declared in. They are constrained by
+// the flag_enum concept, so they only match opted-in enums.
+
+/**
+ * @brief Combines two enum values into a flags object.
+ *
+ * Enables natural syntax for combining flag enum values without explicitly
+ * constructing flags objects.
+ *
+ * @param a First flag value.
+ * @param b Second flag value.
+ *
+ * @return A flags object containing both flags.
+ */
+template<idfxx::flag_enum E>
+[[nodiscard]] constexpr idfxx::flags<E> operator|(E a, E b) noexcept {
+    return idfxx::flags<E>{a} | idfxx::flags<E>{b};
+}
+
+/**
+ * @brief Intersects two enum values into a flags object.
+ *
+ * @param a First flag value.
+ * @param b Second flag value.
+ *
+ * @return A flags object containing the intersection.
+ */
+template<idfxx::flag_enum E>
+[[nodiscard]] constexpr idfxx::flags<E> operator&(E a, E b) noexcept {
+    return idfxx::flags<E>{a} & idfxx::flags<E>{b};
+}
+
+/**
+ * @brief Toggles two enum values into a flags object.
+ *
+ * @param a First flag value.
+ * @param b Second flag value.
+ *
+ * @return A flags object with toggled bits.
+ */
+template<idfxx::flag_enum E>
+[[nodiscard]] constexpr idfxx::flags<E> operator^(E a, E b) noexcept {
+    return idfxx::flags<E>{a} ^ idfxx::flags<E>{b};
+}
+
+/**
+ * @brief Computes the bitwise complement of an enum value.
+ *
+ * @param a The flag value to complement.
+ *
+ * @return A flags object with all bits inverted.
+ */
+template<idfxx::flag_enum E>
+[[nodiscard]] constexpr idfxx::flags<E> operator~(E a) noexcept {
+    return ~idfxx::flags<E>{a};
+}
 
 #include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT

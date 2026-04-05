@@ -230,14 +230,14 @@ internal DRAM for DMA buffers and performance-critical data:
 #include <idfxx/task>
 
 idfxx::task worker(
-    {.name = "worker", .stack_size = 16384, .stack_mem = idfxx::memory_caps::spiram},
+    {.name = "worker", .stack_size = 16384, .stack_mem = idfxx::memory::caps::spiram},
     my_task_function
 );
 
-// Use memory_caps::dram (default) for internal DRAM
+// Use memory::caps::dram (default) for internal DRAM
 ```
 
-> **Note:** `memory_caps::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+> **Note:** `memory::caps::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
 
 ### Task Control from ISR
 
@@ -416,7 +416,7 @@ std::string name = idfxx::task::current_name();
 ### Configuration Types
 
 - `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem)
-- `idfxx::memory_caps` - Memory capability flags (`dram`, `spiram`, etc.) — defined in `<idfxx/memory>`
+- `idfxx::memory::caps` - Memory capability flags (`dram`, `spiram`, etc.) — defined in `<idfxx/memory>`
 
 ### Query Methods
 

@@ -3,6 +3,7 @@
 #include <idfxx/app>
 #include <idfxx/chrono>
 #include <idfxx/log>
+#include <idfxx/memory>
 #include <idfxx/random>
 #include <idfxx/system>
 
@@ -11,6 +12,8 @@
 static constexpr idfxx::log::logger logger{"example"};
 
 extern "C" void app_main() {
+    namespace memory = idfxx::memory;
+
     // Application metadata
     logger.info("=== Application Info ===");
     logger.info("Project:      {}", idfxx::app::project_name());
@@ -25,9 +28,9 @@ extern "C" void app_main() {
 
     // Heap information
     logger.info("=== Heap Info ===");
-    logger.info("Free heap:         {} bytes", idfxx::free_heap_size());
-    logger.info("Min free heap:     {} bytes", idfxx::minimum_free_heap_size());
-    logger.info("Free internal:     {} bytes", idfxx::free_internal_heap_size());
+    logger.info("Free heap:         {} bytes", memory::free_size(memory::caps::default_heap));
+    logger.info("Min free heap:     {} bytes", memory::minimum_free_size(memory::caps::default_heap));
+    logger.info("Free internal:     {} bytes", memory::free_size(memory::caps::internal));
 
     // Random number generation
     logger.info("=== Random Numbers ===");

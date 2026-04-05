@@ -12,7 +12,7 @@
  * @{
  * @defgroup idfxx_core_system System
  * @ingroup idfxx_core
- * @brief Reset reason, restart, shutdown handlers, and heap information.
+ * @brief Reset reason, restart, and shutdown handlers.
  * @{
  */
 
@@ -134,43 +134,6 @@ void unregister_shutdown_handler(void (*handler)());
  * @retval idfxx::errc::invalid_state if the handler was not registered.
  */
 [[nodiscard]] result<void> try_unregister_shutdown_handler(void (*handler)());
-
-// =============================================================================
-// Heap information
-// =============================================================================
-
-/**
- * @brief Returns the current free heap size in bytes.
- *
- * @return The number of bytes available in the heap.
- */
-[[nodiscard]] inline std::size_t free_heap_size() noexcept {
-    return esp_get_free_heap_size();
-}
-
-/**
- * @brief Returns the current free internal heap size in bytes.
- *
- * Internal memory is directly accessible by the CPU and is typically used
- * for performance-critical allocations.
- *
- * @return The number of bytes available in internal heap.
- */
-[[nodiscard]] inline std::size_t free_internal_heap_size() noexcept {
-    return esp_get_free_internal_heap_size();
-}
-
-/**
- * @brief Returns the minimum free heap size recorded since boot.
- *
- * This is the "high water mark" — the lowest free heap level reached
- * at any point during execution. Useful for diagnosing memory pressure.
- *
- * @return The minimum number of free bytes recorded since boot.
- */
-[[nodiscard]] inline std::size_t minimum_free_heap_size() noexcept {
-    return esp_get_minimum_free_heap_size();
-}
 
 /** @} */ // end of idfxx_core_system
 /** @} */ // end of idfxx_core
