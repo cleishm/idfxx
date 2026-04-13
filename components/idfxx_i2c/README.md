@@ -288,7 +288,7 @@ See the [Installation](#installation) section above for details on adding `idfxx
 
 ## Important Notes
 
-- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via `config.addr_10bit`
+- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via `config.addr_10bit` on targets with `SOC_I2C_SUPPORT_10BIT_ADDR` (e.g., esp32, esp32s3, esp32c3/c6, esp32h2, esp32p4). The field is not present on targets without this capability (e.g., esp32s2).
 - Register addresses for `write_register(uint16_t, ...)` are sent MSB first
 - The bus must remain alive while devices using it exist; the caller is responsible for ensuring this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)

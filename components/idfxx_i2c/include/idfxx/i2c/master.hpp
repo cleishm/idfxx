@@ -356,9 +356,11 @@ public:
      * @endcode
      */
     struct config {
-        freq::hertz scl_speed{0};       ///< Per-device SCL speed in Hz (0 = use bus frequency).
-        uint32_t scl_wait_us = 0;       ///< SCL wait time in microseconds (0 = default).
-        bool addr_10bit = false;        ///< Use 10-bit addressing mode instead of 7-bit.
+        freq::hertz scl_speed{0}; ///< Per-device SCL speed in Hz (0 = use bus frequency).
+        uint32_t scl_wait_us = 0; ///< SCL wait time in microseconds (0 = default).
+#if SOC_I2C_SUPPORT_10BIT_ADDR
+        bool addr_10bit = false; ///< Use 10-bit addressing mode instead of 7-bit.
+#endif
         bool disable_ack_check = false; ///< Disable ACK checking for this device.
     };
 
