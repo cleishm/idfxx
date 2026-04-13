@@ -40,7 +40,11 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& conf
     auto scl_speed = config.scl_speed.count() > 0 ? config.scl_speed : bus.frequency();
 
     i2c_device_config_t dev_config{
+#if SOC_I2C_SUPPORT_10BIT_ADDR
         .dev_addr_length = config.addr_10bit ? I2C_ADDR_BIT_LEN_10 : I2C_ADDR_BIT_LEN_7,
+#else
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+#endif
         .device_address = address,
         .scl_speed_hz = static_cast<uint32_t>(scl_speed.count()),
         .scl_wait_us = config.scl_wait_us,
