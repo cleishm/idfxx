@@ -3,16 +3,29 @@
 
 #include <idfxx/i2c/master>
 
+#include <array>
 #include <driver/i2c_master.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <utility>
+#include <vector>
 
 namespace {
 const char* TAG = "idfxx::i2c::master_device";
 }
 
 namespace idfxx::i2c {
+
+// Verify operation_command values match ESP-IDF constants
+static_assert(std::to_underlying(operation_command::start) == I2C_MASTER_CMD_START);
+static_assert(std::to_underlying(operation_command::write) == I2C_MASTER_CMD_WRITE);
+static_assert(std::to_underlying(operation_command::read) == I2C_MASTER_CMD_READ);
+static_assert(std::to_underlying(operation_command::stop) == I2C_MASTER_CMD_STOP);
+
+// Verify ack_value values match ESP-IDF constants
+static_assert(std::to_underlying(ack_value::ack) == I2C_ACK_VAL);
+static_assert(std::to_underlying(ack_value::nack) == I2C_NACK_VAL);
 
 static result<void> map_xfer_error(esp_err_t err, const char* op, uint16_t address, enum port port) {
     if (err == ESP_OK) {
@@ -104,7 +117,8 @@ master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, ui
 master_device::master_device(master_device&& other) noexcept
     : _bus(std::exchange(other._bus, nullptr))
     , _handle(std::exchange(other._handle, nullptr))
-    , _address(other._address) {}
+    , _address(other._address)
+    , _on_trans_done(std::move(other._on_trans_done)) {}
 
 master_device& master_device::operator=(master_device&& other) noexcept {
     if (this != &other) {
@@ -112,6 +126,7 @@ master_device& master_device::operator=(master_device&& other) noexcept {
         _bus = std::exchange(other._bus, nullptr);
         _handle = std::exchange(other._handle, nullptr);
         _address = other._address;
+        _on_trans_done = std::move(other._on_trans_done);
     }
     return *this;
 }
@@ -122,9 +137,14 @@ master_device::~master_device() {
 
 void master_device::_delete() noexcept {
     if (_handle != nullptr) {
+        if (_on_trans_done) {
+            i2c_master_event_callbacks_t cbs{.on_trans_done = nullptr};
+            (void)i2c_master_register_event_callbacks(_handle, &cbs, nullptr);
+        }
         i2c_master_bus_rm_device(_handle);
         _handle = nullptr;
     }
+    _on_trans_done.reset();
 }
 
 result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
@@ -137,6 +157,128 @@ result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::
         err = i2c_master_transmit(_handle, buf, size, timeout.count());
     }
     return map_xfer_error(err, "transmit", _address, _bus->port());
+}
+
+result<void> master_device::_try_multi_buffer_transmit(
+    std::span<const std::span<const uint8_t>> buffers,
+    std::chrono::milliseconds timeout
+) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::scoped_lock lock(*_bus);
+
+    constexpr size_t SBO_SIZE = 8;
+    std::array<i2c_master_transmit_multi_buffer_info_t, SBO_SIZE> stack_info;
+    std::vector<i2c_master_transmit_multi_buffer_info_t> heap_info;
+    i2c_master_transmit_multi_buffer_info_t* info;
+    if (buffers.size() <= SBO_SIZE) {
+        info = stack_info.data();
+    } else {
+        heap_info.resize(buffers.size());
+        info = heap_info.data();
+    }
+    for (size_t i = 0; i < buffers.size(); ++i) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        info[i].write_buffer = buffers[i].data();
+#else
+        info[i].write_buffer = const_cast<uint8_t*>(buffers[i].data());
+#endif
+        info[i].buffer_size = buffers[i].size();
+    }
+
+    return map_xfer_error(
+        i2c_master_multi_buffer_transmit(_handle, info, buffers.size(), timeout.count()),
+        "multi_buffer_transmit",
+        _address,
+        _bus->port()
+    );
+}
+
+result<void> master_device::_try_change_address(uint16_t new_address, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::scoped_lock lock(*_bus);
+    auto r = map_xfer_error(
+        i2c_master_device_change_address(_handle, new_address, timeout.count()),
+        "change_address",
+        _address,
+        _bus->port()
+    );
+    if (r) {
+        _address = new_address;
+    }
+    return r;
+}
+
+result<void> master_device::_try_execute_operations(std::span<const operation> ops, std::chrono::milliseconds timeout) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::scoped_lock lock(*_bus);
+
+    constexpr size_t SBO_SIZE = 8;
+    std::array<i2c_operation_job_t, SBO_SIZE> stack_jobs{};
+    std::vector<i2c_operation_job_t> heap_jobs;
+    i2c_operation_job_t* jobs;
+    if (ops.size() <= SBO_SIZE) {
+        jobs = stack_jobs.data();
+    } else {
+        heap_jobs.resize(ops.size());
+        jobs = heap_jobs.data();
+    }
+    for (size_t i = 0; i < ops.size(); ++i) {
+        auto& job = jobs[i];
+        job.command = static_cast<i2c_master_command_t>(std::to_underlying(ops[i].command));
+        switch (ops[i].command) {
+        case operation_command::write:
+            job.write.ack_check = ops[i].ack_check;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+            job.write.data = ops[i].write_data.data();
+#else
+            job.write.data = const_cast<uint8_t*>(ops[i].write_data.data());
+#endif
+            job.write.total_bytes = ops[i].write_data.size();
+            break;
+        case operation_command::read:
+            job.read.ack_value = static_cast<i2c_ack_value_t>(std::to_underlying(ops[i].ack_type));
+            job.read.data = ops[i].read_data.data();
+            job.read.total_bytes = ops[i].read_data.size();
+            break;
+        default:
+            break;
+        }
+    }
+
+    return map_xfer_error(
+        i2c_master_execute_defined_operations(_handle, jobs, ops.size(), timeout.count()),
+        "execute_operations",
+        _address,
+        _bus->port()
+    );
+}
+
+namespace {
+
+bool IRAM_ATTR trans_done_trampoline(i2c_master_dev_handle_t, const i2c_master_event_data_t*, void* user_arg) {
+    auto* cb = static_cast<const std::move_only_function<bool() const>*>(user_arg);
+    return (*cb)();
+}
+
+} // namespace
+
+result<void> master_device::try_register_event_callbacks(std::move_only_function<bool() const> on_trans_done) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    auto new_cb = std::make_unique<std::move_only_function<bool() const>>(std::move(on_trans_done));
+    i2c_master_event_callbacks_t cbs{.on_trans_done = trans_done_trampoline};
+    if (auto err = i2c_master_register_event_callbacks(_handle, &cbs, new_cb.get()); err != ESP_OK) {
+        return error(err);
+    }
+    _on_trans_done = std::move(new_cb);
+    return {};
 }
 
 result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {

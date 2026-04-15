@@ -515,6 +515,36 @@ public:
      */
     [[nodiscard]] int64_t content_length() const;
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Returns the length of the current chunk in a chunked response.
+     *
+     * Only valid when the response uses chunked transfer encoding.
+     *
+     * @return The chunk length in bytes.
+     * @throws std::system_error if the response is not chunked or the client is not initialized.
+     * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+     *
+     * @code
+     * if (client.is_chunked_response()) {
+     *     int len = client.chunk_length();
+     * }
+     * @endcode
+     */
+    [[nodiscard]] int chunk_length() const { return unwrap(try_chunk_length()); }
+#endif
+
+    /**
+     * @brief Returns the length of the current chunk in a chunked response.
+     *
+     * Only valid when the response uses chunked transfer encoding.
+     *
+     * @return The chunk length in bytes.
+     * @retval errc::invalid_state if the client is not initialized.
+     * @retval errc::not_supported if the response is not chunked.
+     */
+    [[nodiscard]] result<int> try_chunk_length() const;
+
     /**
      * @brief Checks whether the response uses chunked transfer encoding.
      * @return true if the response is chunked.
@@ -573,6 +603,66 @@ public:
      * Allows additional redirects up to max_redirection_count.
      */
     void reset_redirect_counter();
+
+    // =========================================================================
+    // Request Control
+    // =========================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Cancels an ongoing HTTP request.
+     *
+     * Closes the current connection and opens a new socket.
+     * Useful for aborting long-running or streaming requests.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    void cancel_request() { unwrap(try_cancel_request()); }
+#endif
+
+    /**
+     * @brief Cancels an ongoing HTTP request.
+     *
+     * Closes the current connection and opens a new socket.
+     * Useful for aborting long-running or streaming requests.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_cancel_request();
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    /**
+     * @headerfile <idfxx/http/client>
+     * @brief HTTP client lifecycle state.
+     *
+     * Covers the full lifecycle: initialization, connection establishment,
+     * request transmission, and response reception.
+     */
+    enum class state : int {
+        // clang-format off
+        uninit              = 0, ///< Client not yet initialized.
+        init                = 1, ///< Client initialized.
+        connecting          = 2, ///< Connecting to server.
+        connected           = 3, ///< Connected to server.
+        req_complete_header = 4, ///< Request headers sent.
+        req_complete_data   = 5, ///< Request data sent.
+        res_complete_header = 6, ///< Response headers received.
+        res_on_data_start   = 7, ///< Response data started.
+        res_complete_data   = 8, ///< Response data completed.
+        close               = 9, ///< Connection closed.
+        // clang-format on
+    };
+
+    /**
+     * @brief Returns the current lifecycle state of the client.
+     *
+     * Reports where the client is in the connect/request/response lifecycle.
+     *
+     * @return The client state.
+     */
+    [[nodiscard]] enum state get_state() const;
+#endif
 
     /**
      * @brief Returns the underlying ESP-IDF HTTP client handle.
@@ -653,6 +743,17 @@ namespace idfxx {
  */
 [[nodiscard]] std::string to_string(http::event_id id);
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+/**
+ * @headerfile <idfxx/http/client>
+ * @brief Returns a string representation of an HTTP client lifecycle state.
+ *
+ * @param s The client state to convert.
+ * @return "UNINIT", "INIT", "CONNECTING", etc., or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] std::string to_string(http::client::state s);
+#endif
+
 } // namespace idfxx
 
 /** @cond INTERNAL */
@@ -679,6 +780,19 @@ struct formatter<idfxx::http::event_id> {
         return std::copy(s.begin(), s.end(), ctx.out());
     }
 };
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+template<>
+struct formatter<idfxx::http::client::state> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::http::client::state s, FormatContext& ctx) const {
+        auto str = idfxx::to_string(s);
+        return std::copy(str.begin(), str.end(), ctx.out());
+    }
+};
+#endif
 
 } // namespace std
 /** @endcond */

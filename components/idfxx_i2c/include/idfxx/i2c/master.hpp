@@ -22,9 +22,12 @@
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
 
+#include <array>
 #include <cassert>
 #include <chrono>
+#include <concepts>
 #include <frequency/frequency>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <mutex>
@@ -94,6 +97,46 @@ enum class lp_clk_source : int {
     xtal_d2,            ///< XTAL_D2 clock source.
 };
 #endif
+
+/**
+ * @headerfile <idfxx/i2c/master>
+ * @brief I2C operation command type for custom transaction sequences.
+ */
+enum class operation_command : int {
+    start = 0, ///< Send START or repeated-START condition.
+    write = 1, ///< Write data to the bus.
+    read = 2,  ///< Read data from the bus.
+    stop = 3,  ///< Send STOP condition.
+};
+
+/**
+ * @headerfile <idfxx/i2c/master>
+ * @brief ACK value sent after a read operation.
+ */
+enum class ack_value : uint8_t {
+    ack = 0,  ///< Acknowledge — request more data.
+    nack = 1, ///< Not-acknowledge — signal end of read.
+};
+
+/**
+ * @headerfile <idfxx/i2c/master>
+ * @brief Describes a single operation in a custom I2C transaction sequence.
+ *
+ * Use with master_device::execute_operations() to perform arbitrary
+ * START / WRITE / READ / STOP sequences.
+ *
+ * For write operations, set command to operation_command::write and
+ * populate write_data. For read operations, set command to
+ * operation_command::read, populate read_data, and set ack_type
+ * (must be ack_value::nack if the next operation is a STOP).
+ */
+struct operation {
+    operation_command command;           ///< The operation to perform.
+    bool ack_check = true;               ///< (write) Whether to check for ACK.
+    std::span<const uint8_t> write_data; ///< (write) Data to send.
+    std::span<uint8_t> read_data;        ///< (read) Buffer to receive into.
+    ack_value ack_type = ack_value::ack; ///< (read) ACK value to send after reading.
+};
 
 /**
  * @headerfile <idfxx/i2c/master>
@@ -316,6 +359,39 @@ public:
         return _probe(address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Waits for all pending asynchronous operations on the bus to complete.
+     *
+     * Blocks until every queued transaction has finished or the timeout expires.
+     * Only useful when the bus was created with a non-zero trans_queue_depth.
+     *
+     * @param timeout Maximum time to wait.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on timeout or failure.
+     */
+    template<typename Rep, typename Period>
+    void wait_all_done(const std::chrono::duration<Rep, Period>& timeout) const {
+        unwrap(try_wait_all_done(timeout));
+    }
+#endif
+
+    /**
+     * @brief Waits for all pending asynchronous operations on the bus to complete.
+     *
+     * Blocks until every queued transaction has finished or the timeout expires.
+     * Only useful when the bus was created with a non-zero trans_queue_depth.
+     *
+     * @param timeout Maximum time to wait.
+     *
+     * @return Success, or an error (e.g. errc::timeout).
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_wait_all_done(const std::chrono::duration<Rep, Period>& timeout) const {
+        return _try_wait_all_done(std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
 private:
     explicit master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency);
 
@@ -323,6 +399,7 @@ private:
 
     [[nodiscard]] std::vector<uint8_t> _scan_devices(std::chrono::milliseconds timeout) const;
     [[nodiscard]] result<void> _probe(uint16_t address, std::chrono::milliseconds timeout) const;
+    [[nodiscard]] result<void> _try_wait_all_done(std::chrono::milliseconds timeout) const;
 
     mutable std::unique_ptr<std::recursive_mutex> _mux;
     i2c_master_bus_handle_t _handle = nullptr;
@@ -513,6 +590,42 @@ public:
     void transmit(std::span<const uint8_t> data) { unwrap(try_transmit(data)); }
 
     /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Convenience overload that accepts two or more buffers as separate arguments.
+     *
+     * @tparam Buffers Types convertible to std::span<const uint8_t>.
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     *
+     * @code
+     * std::array<uint8_t, 1> reg{0x10};
+     * std::array<uint8_t, 4> data{0x01, 0x02, 0x03, 0x04};
+     * device.transmit(std::span{reg}, std::span{data});
+     * @endcode
+     */
+    template<std::convertible_to<std::span<const uint8_t>>... Buffers>
+        requires(sizeof...(Buffers) > 1)
+    void transmit(Buffers... buffers) {
+        unwrap(try_transmit(buffers...));
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void transmit(std::span<const std::span<const uint8_t>> buffers) { unwrap(try_transmit(buffers)); }
+
+    /**
      * @brief Transmits data to the device.
      *
      * @param data Data to transmit.
@@ -524,6 +637,24 @@ public:
     template<typename Rep, typename Period>
     void transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<typename Rep, typename Period>
+    void
+    transmit(std::span<const std::span<const uint8_t>> buffers, const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_transmit(buffers, timeout));
     }
 
     /**
@@ -565,6 +696,37 @@ public:
     }
 
     /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Convenience overload that accepts two or more buffers as separate arguments.
+     *
+     * @tparam Buffers Types convertible to std::span<const uint8_t>.
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @return Success, or an error.
+     */
+    template<std::convertible_to<std::span<const uint8_t>>... Buffers>
+        requires(sizeof...(Buffers) > 1)
+    [[nodiscard]] result<void> try_transmit(Buffers... buffers) {
+        std::array<std::span<const uint8_t>, sizeof...(Buffers)> arr{buffers...};
+        return try_transmit(std::span<const std::span<const uint8_t>>{arr});
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_transmit(std::span<const std::span<const uint8_t>> buffers) {
+        return try_transmit(buffers, DEFAULT_TIMEOUT);
+    }
+
+    /**
      * @brief Transmits data to the device.
      *
      * @param data Data to transmit.
@@ -576,6 +738,23 @@ public:
     [[nodiscard]] result<void>
     try_transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         return try_transmit(data.data(), data.size(), timeout);
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_transmit(std::span<const std::span<const uint8_t>> buffers, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_multi_buffer_transmit(buffers, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
     /**
@@ -603,6 +782,172 @@ public:
     [[nodiscard]] result<void>
     try_transmit(const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
         return _try_transmit(buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Changes the I2C address used for subsequent operations.
+     *
+     * Useful for devices whose address can change at runtime, such as
+     * after configuring an I2C multiplexer.
+     *
+     * @param new_address The new device address.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    void change_address(uint16_t new_address) { unwrap(try_change_address(new_address)); }
+
+    /**
+     * @brief Changes the I2C address used for subsequent operations.
+     *
+     * Useful for devices whose address can change at runtime, such as
+     * after configuring an I2C multiplexer.
+     *
+     * @param new_address The new device address.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    void change_address(uint16_t new_address, const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_change_address(new_address, timeout));
+    }
+#endif
+
+    /**
+     * @brief Changes the I2C address used for subsequent operations.
+     *
+     * Useful for devices whose address can change at runtime, such as
+     * after configuring an I2C multiplexer.
+     *
+     * @param new_address The new device address.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_change_address(uint16_t new_address) {
+        return try_change_address(new_address, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Changes the I2C address used for subsequent operations.
+     *
+     * Useful for devices whose address can change at runtime, such as
+     * after configuring an I2C multiplexer.
+     *
+     * @param new_address The new device address.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_change_address(uint16_t new_address, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_change_address(new_address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Registers a callback for transaction-done events.
+     *
+     * The callback runs in ISR context when an asynchronous transaction
+     * completes. It should return true if a higher-priority task was woken.
+     * Only useful when the bus was created with a non-zero trans_queue_depth.
+     *
+     * @param on_trans_done Transaction-done callback.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    void register_event_callbacks(std::move_only_function<bool() const> on_trans_done) {
+        unwrap(try_register_event_callbacks(std::move(on_trans_done)));
+    }
+#endif
+
+    /**
+     * @brief Registers a callback for transaction-done events.
+     *
+     * The callback runs in ISR context when an asynchronous transaction
+     * completes. It should return true if a higher-priority task was woken.
+     * Only useful when the bus was created with a non-zero trans_queue_depth.
+     *
+     * @param on_trans_done Transaction-done callback.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_register_event_callbacks(std::move_only_function<bool() const> on_trans_done);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Executes a custom sequence of I2C operations.
+     *
+     * Performs the given sequence of START, WRITE, READ, and STOP
+     * operations. Useful for non-standard I2C protocols.
+     *
+     * @param ops Operations to execute.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * uint8_t reg = 0x10;
+     * uint8_t buf[4];
+     * device.execute_operations(std::array{
+     *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::start},
+     *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::write,
+     *                           .write_data = std::span{&reg, 1}},
+     *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::start},
+     *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::read,
+     *                           .read_data = std::span{buf},
+     *                           .ack_type = idfxx::i2c::ack_value::nack},
+     *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::stop},
+     * });
+     * @endcode
+     */
+    void execute_operations(std::span<const operation> ops) { unwrap(try_execute_operations(ops)); }
+
+    /**
+     * @brief Executes a custom sequence of I2C operations.
+     *
+     * @param ops Operations to execute.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    void execute_operations(std::span<const operation> ops, const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_execute_operations(ops, timeout));
+    }
+#endif
+
+    /**
+     * @brief Executes a custom sequence of I2C operations.
+     *
+     * Performs the given sequence of START, WRITE, READ, and STOP
+     * operations. Useful for non-standard I2C protocols.
+     *
+     * @param ops Operations to execute.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_execute_operations(std::span<const operation> ops) {
+        return try_execute_operations(ops, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Executes a custom sequence of I2C operations.
+     *
+     * @param ops Operations to execute.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_execute_operations(std::span<const operation> ops, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_execute_operations(ops, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1642,6 +1987,11 @@ private:
     void _delete() noexcept;
 
     [[nodiscard]] result<void> _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void>
+    _try_multi_buffer_transmit(std::span<const std::span<const uint8_t>> buffers, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void> _try_change_address(uint16_t new_address, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void>
+    _try_execute_operations(std::span<const operation> ops, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
 
     [[nodiscard]] result<void>
@@ -1662,6 +2012,7 @@ private:
     master_bus* _bus = nullptr;
     i2c_master_dev_handle_t _handle = nullptr;
     uint16_t _address = 0;
+    std::unique_ptr<std::move_only_function<bool() const>> _on_trans_done;
 };
 
 /** @} */ // end of idfxx_i2c

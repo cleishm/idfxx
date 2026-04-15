@@ -3,11 +3,14 @@
 
 #include <idfxx/pwm>
 
+#include <array>
 #include <driver/ledc.h>
 #include <esp_idf_version.h>
 #include <esp_log.h>
+#include <memory>
 #include <mutex>
 #include <utility>
+#include <vector>
 
 // Verify enum values match ESP-IDF constants
 using namespace idfxx::pwm;
@@ -453,7 +456,8 @@ output::output(output&& other) noexcept
     : _timer(other._timer)
     , _channel(other._channel)
     , _gen(std::exchange(other._gen, std::nullopt))
-    , _duty_ticks(other._duty_ticks) {}
+    , _duty_ticks(other._duty_ticks)
+    , _fade_cb(std::move(other._fade_cb)) {}
 
 output& output::operator=(output&& other) noexcept {
     if (this != &other) {
@@ -462,6 +466,7 @@ output& output::operator=(output&& other) noexcept {
         _channel = other._channel;
         _gen = std::exchange(other._gen, std::nullopt);
         _duty_ticks = other._duty_ticks;
+        _fade_cb = std::move(other._fade_cb);
     }
     return *this;
 }
@@ -475,10 +480,15 @@ void output::_delete() noexcept {
         auto& state = channels[to_ledc(_timer.speed_mode())][std::to_underlying(_channel)];
         std::scoped_lock lock(state.mutex);
         if (state.active && _gen == state.gen) {
+            if (_fade_cb) {
+                ledc_cbs_t cbs{.fade_cb = nullptr};
+                (void)ledc_cb_register(to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, nullptr);
+            }
             _deconfigure_channel(_channel, _timer.speed_mode(), idfxx::gpio::level::low);
         }
         _gen = std::nullopt;
     }
+    _fade_cb.reset();
 }
 
 bool output::is_active() const noexcept {
@@ -622,6 +632,119 @@ result<void> output::try_fade_with_step(uint32_t target_duty, uint32_t scale, ui
         _duty_ticks = target_duty;
     }
     return r;
+}
+
+#if SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
+result<void> output::try_multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode) {
+    if (!_gen) {
+        return error(errc::invalid_state);
+    }
+    if (steps.empty() || steps.size() > SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX) {
+        return error(errc::invalid_arg);
+    }
+
+    std::array<ledc_fade_param_config_t, SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX> params{};
+    for (size_t i = 0; i < steps.size(); ++i) {
+        params[i] = {
+            .dir = steps[i].increasing ? 1u : 0u,
+            .cycle_num = steps[i].cycle_num,
+            .scale = steps[i].scale,
+            .step_num = steps[i].step_num,
+        };
+    }
+
+    return wrap(ledc_set_multi_fade_and_start(
+        to_ledc(_timer.speed_mode()),
+        to_ledc(_channel),
+        start_duty,
+        params.data(),
+        steps.size(),
+        static_cast<ledc_fade_mode_t>(std::to_underlying(mode))
+    ));
+}
+
+result<fade_param> output::try_read_fade_param(uint32_t range) const {
+    if (!_gen) {
+        return error(errc::invalid_state);
+    }
+    uint32_t dir, cycle, scale, step;
+    auto err =
+        ledc_read_fade_param(to_ledc(_timer.speed_mode()), to_ledc(_channel), range, &dir, &cycle, &scale, &step);
+    if (err != ESP_OK) {
+        return error(err);
+    }
+    return fade_param{
+        .increasing = dir != 0,
+        .cycle_num = cycle,
+        .scale = scale,
+        .step_num = step,
+    };
+}
+
+result<std::vector<fade_param>> output::try_fill_multi_fade_params(
+    uint32_t start_duty,
+    uint32_t end_duty,
+    uint32_t linear_phases,
+    uint32_t max_fade_time_ms,
+    uint32_t (*gamma_correction)(uint32_t)
+) {
+    if (!_gen) {
+        return error(errc::invalid_state);
+    }
+
+    std::array<ledc_fade_param_config_t, SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX> params{};
+    uint32_t hw_fade_range_num = 0;
+    auto err = ledc_fill_multi_fade_param_list(
+        to_ledc(_timer.speed_mode()),
+        to_ledc(_channel),
+        start_duty,
+        end_duty,
+        linear_phases,
+        max_fade_time_ms,
+        gamma_correction,
+        params.size(),
+        params.data(),
+        &hw_fade_range_num
+    );
+    if (err != ESP_OK) {
+        return error(err);
+    }
+
+    std::vector<fade_param> result;
+    result.reserve(hw_fade_range_num);
+    for (uint32_t i = 0; i < hw_fade_range_num; ++i) {
+        result.push_back({
+            .increasing = params[i].dir != 0,
+            .cycle_num = params[i].cycle_num,
+            .scale = params[i].scale,
+            .step_num = params[i].step_num,
+        });
+    }
+    return result;
+}
+#endif // SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
+
+namespace {
+
+bool IRAM_ATTR fade_cb_trampoline(const ledc_cb_param_t*, void* user_arg) {
+    auto* cb = static_cast<const std::move_only_function<bool() const>*>(user_arg);
+    return (*cb)();
+}
+
+} // namespace
+
+result<void> output::try_register_fade_end_callback(std::move_only_function<bool() const> callback) {
+    if (!_gen) {
+        return error(errc::invalid_state);
+    }
+    auto new_cb = std::make_unique<std::move_only_function<bool() const>>(std::move(callback));
+    ledc_cbs_t cbs{.fade_cb = fade_cb_trampoline};
+    if (auto err = ledc_cb_register(to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, new_cb.get());
+        err != ESP_OK) {
+        return error(err);
+    }
+    _fade_cb = std::move(new_cb);
+    return {};
 }
 
 #if SOC_LEDC_SUPPORT_FADE_STOP
