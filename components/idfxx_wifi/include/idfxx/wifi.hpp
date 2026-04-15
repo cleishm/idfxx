@@ -904,7 +904,20 @@ struct ftm_initiator_config {
 /**
  * @headerfile <idfxx/wifi>
  * @brief CSI (Channel State Information) configuration.
+ *
+ * The fields of this struct differ by target, mirroring ESP-IDF's
+ * `wifi_csi_config_t`:
+ * - On Wi-Fi 4/5 targets (esp32, esp32s2, esp32s3, esp32c3), it exposes the
+ *   legacy LTF/channel-filter toggles.
+ * - On Wi-Fi 6 (HE) targets, it mirrors `wifi_csi_acquire_config_t`, which
+ *   itself has two variants selected by `SOC_WIFI_MAC_VERSION_NUM`. Users
+ *   writing HE-target CSI code should consult the ESP-IDF API reference for
+ *   the meaning of each `acquire_csi_*` field.
+ *
+ * @note Because the field set varies by target, source code that writes to
+ *       specific members is not portable across Wi-Fi 4/5 and Wi-Fi 6 targets.
  */
+#if !SOC_WIFI_HE_SUPPORT
 struct csi_config {
     bool lltf_en = true;           /*!< Enable receiving legacy long training field. */
     bool htltf_en = true;          /*!< Enable receiving HT long training field. */
@@ -915,6 +928,38 @@ struct csi_config {
     uint8_t shift = 0;             /*!< Manual scale shift value. */
     bool dump_ack_en = false;      /*!< Enable dumping ACK frames. */
 };
+#elif SOC_WIFI_MAC_VERSION_NUM == 3
+struct csi_config {
+    bool enable = false;                  /*!< Enable CSI acquisition. */
+    bool acquire_csi_legacy = false;      /*!< Acquire L-LTF. */
+    bool acquire_csi_force_lltf = false;  /*!< Force L-LTF acquisition. */
+    bool acquire_csi_ht20 = false;        /*!< Acquire HT-LTF on HT20 PPDU. */
+    bool acquire_csi_ht40 = false;        /*!< Acquire HT-LTF on HT40 PPDU. */
+    bool acquire_csi_vht = false;         /*!< Acquire VHT-LTF on VHT20 PPDU. */
+    bool acquire_csi_su = false;          /*!< Acquire HE-LTF on HE20 SU PPDU. */
+    bool acquire_csi_mu = false;          /*!< Acquire HE-LTF on HE20 MU PPDU. */
+    bool acquire_csi_dcm = false;         /*!< Acquire HE-LTF on HE20 DCM PPDU. */
+    bool acquire_csi_beamformed = false;  /*!< Acquire HE-LTF on beamformed PPDU. */
+    uint8_t acquire_csi_he_stbc_mode = 0; /*!< STBC HE-LTF capture mode (0..3). */
+    uint8_t val_scale_cfg = 0;            /*!< CSI value scale (0..8). */
+    bool dump_ack_en = false;             /*!< Enable dumping ACK frames. */
+    bool lltf_bit_mode = false;           /*!< L-LTF bit width: false = 12-bit, true = 8-bit. */
+};
+#else
+struct csi_config {
+    bool enable = false;                 /*!< Enable CSI acquisition. */
+    bool acquire_csi_legacy = false;     /*!< Acquire L-LTF. */
+    bool acquire_csi_ht20 = false;       /*!< Acquire HT-LTF on HT20 PPDU. */
+    bool acquire_csi_ht40 = false;       /*!< Acquire HT-LTF on HT40 PPDU. */
+    bool acquire_csi_su = false;         /*!< Acquire HE-LTF on HE20 SU PPDU. */
+    bool acquire_csi_mu = false;         /*!< Acquire HE-LTF on HE20 MU PPDU. */
+    bool acquire_csi_dcm = false;        /*!< Acquire HE-LTF on HE20 DCM PPDU. */
+    bool acquire_csi_beamformed = false; /*!< Acquire HE-LTF on beamformed PPDU. */
+    uint8_t acquire_csi_he_stbc = 0;     /*!< STBC HE-LTF capture mode (0..3). */
+    uint8_t val_scale_cfg = 0;           /*!< CSI value scale (0..3). */
+    bool dump_ack_en = false;            /*!< Enable dumping ACK frames. */
+};
+#endif
 
 // =============================================================================
 // WiFi events

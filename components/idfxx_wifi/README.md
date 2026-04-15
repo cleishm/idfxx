@@ -226,7 +226,7 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 ### Advanced Features
 
 - **Promiscuous mode**: `set_promiscuous(bool)`, `set_promiscuous_rx_cb(callback)`, `set_promiscuous_filter(flags)` / `set_promiscuous_ctrl_filter(flags)`
-- **CSI**: `set_csi(bool)`, `set_csi_config(csi_config)`, `set_csi_rx_cb(callback, ctx)`
+- **CSI**: `set_csi(bool)`, `set_csi_config(csi_config)`, `set_csi_rx_cb(callback, ctx)` (fields of `csi_config` vary by target: Wi-Fi 4/5 vs Wi-Fi 6 HE)
 - **FTM**: `ftm_initiate_session(config)`, `ftm_end_session()`, `ftm_resp_set_offset(int16_t)`, `ftm_get_report(max_entries)`
 - **Raw 802.11**: `tx_80211(role, span, en_sys_seq)`, `register_80211_tx_cb(callback)`
 - **Vendor IE**: `set_vendor_ie(enable, type, id, data)`, `set_vendor_ie_cb(callback, ctx)`
