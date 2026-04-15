@@ -34,12 +34,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        target: [esp32s3, esp32c6]
         config:
           - name: with-exceptions
-            sdkconfig: sdkconfig.defaults
+            defaults: sdkconfig.defaults
           - name: no-exceptions
-            sdkconfig: sdkconfig.no-exceptions
-    name: build (${{ matrix.config.name }})
+            defaults: "sdkconfig.defaults;sdkconfig.no-exceptions"
+    name: build (${{ matrix.target }}, ${{ matrix.config.name }})
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,9 +48,7 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh
-          idf.py set-target esp32s3
-          cp ${{ matrix.config.sdkconfig }} sdkconfig
-          idf.py reconfigure
+          idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.config.defaults }}" set-target ${{ matrix.target }}
           idf.py build
 
   build-compat:
