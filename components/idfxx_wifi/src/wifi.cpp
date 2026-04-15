@@ -114,6 +114,7 @@ static sta_info from_idf_sta_info(const wifi_sta_info_t& s) {
     return info;
 }
 
+#if !SOC_WIFI_HE_SUPPORT
 static wifi_csi_config_t to_idf_csi_config(const csi_config& cfg) {
     wifi_csi_config_t c{};
     c.lltf_en = cfg.lltf_en;
@@ -139,6 +140,77 @@ static csi_config from_idf_csi_config(const wifi_csi_config_t& c) {
     cfg.dump_ack_en = c.dump_ack_en;
     return cfg;
 }
+#elif SOC_WIFI_MAC_VERSION_NUM == 3
+static wifi_csi_config_t to_idf_csi_config(const csi_config& cfg) {
+    wifi_csi_config_t c{};
+    c.enable = cfg.enable;
+    c.acquire_csi_legacy = cfg.acquire_csi_legacy;
+    c.acquire_csi_force_lltf = cfg.acquire_csi_force_lltf;
+    c.acquire_csi_ht20 = cfg.acquire_csi_ht20;
+    c.acquire_csi_ht40 = cfg.acquire_csi_ht40;
+    c.acquire_csi_vht = cfg.acquire_csi_vht;
+    c.acquire_csi_su = cfg.acquire_csi_su;
+    c.acquire_csi_mu = cfg.acquire_csi_mu;
+    c.acquire_csi_dcm = cfg.acquire_csi_dcm;
+    c.acquire_csi_beamformed = cfg.acquire_csi_beamformed;
+    c.acquire_csi_he_stbc_mode = cfg.acquire_csi_he_stbc_mode;
+    c.val_scale_cfg = cfg.val_scale_cfg;
+    c.dump_ack_en = cfg.dump_ack_en;
+    c.lltf_bit_mode = cfg.lltf_bit_mode;
+    return c;
+}
+
+static csi_config from_idf_csi_config(const wifi_csi_config_t& c) {
+    csi_config cfg;
+    cfg.enable = c.enable;
+    cfg.acquire_csi_legacy = c.acquire_csi_legacy;
+    cfg.acquire_csi_force_lltf = c.acquire_csi_force_lltf;
+    cfg.acquire_csi_ht20 = c.acquire_csi_ht20;
+    cfg.acquire_csi_ht40 = c.acquire_csi_ht40;
+    cfg.acquire_csi_vht = c.acquire_csi_vht;
+    cfg.acquire_csi_su = c.acquire_csi_su;
+    cfg.acquire_csi_mu = c.acquire_csi_mu;
+    cfg.acquire_csi_dcm = c.acquire_csi_dcm;
+    cfg.acquire_csi_beamformed = c.acquire_csi_beamformed;
+    cfg.acquire_csi_he_stbc_mode = c.acquire_csi_he_stbc_mode;
+    cfg.val_scale_cfg = c.val_scale_cfg;
+    cfg.dump_ack_en = c.dump_ack_en;
+    cfg.lltf_bit_mode = c.lltf_bit_mode;
+    return cfg;
+}
+#else
+static wifi_csi_config_t to_idf_csi_config(const csi_config& cfg) {
+    wifi_csi_config_t c{};
+    c.enable = cfg.enable;
+    c.acquire_csi_legacy = cfg.acquire_csi_legacy;
+    c.acquire_csi_ht20 = cfg.acquire_csi_ht20;
+    c.acquire_csi_ht40 = cfg.acquire_csi_ht40;
+    c.acquire_csi_su = cfg.acquire_csi_su;
+    c.acquire_csi_mu = cfg.acquire_csi_mu;
+    c.acquire_csi_dcm = cfg.acquire_csi_dcm;
+    c.acquire_csi_beamformed = cfg.acquire_csi_beamformed;
+    c.acquire_csi_he_stbc = cfg.acquire_csi_he_stbc;
+    c.val_scale_cfg = cfg.val_scale_cfg;
+    c.dump_ack_en = cfg.dump_ack_en;
+    return c;
+}
+
+static csi_config from_idf_csi_config(const wifi_csi_config_t& c) {
+    csi_config cfg;
+    cfg.enable = c.enable;
+    cfg.acquire_csi_legacy = c.acquire_csi_legacy;
+    cfg.acquire_csi_ht20 = c.acquire_csi_ht20;
+    cfg.acquire_csi_ht40 = c.acquire_csi_ht40;
+    cfg.acquire_csi_su = c.acquire_csi_su;
+    cfg.acquire_csi_mu = c.acquire_csi_mu;
+    cfg.acquire_csi_dcm = c.acquire_csi_dcm;
+    cfg.acquire_csi_beamformed = c.acquire_csi_beamformed;
+    cfg.acquire_csi_he_stbc = c.acquire_csi_he_stbc;
+    cfg.val_scale_cfg = c.val_scale_cfg;
+    cfg.dump_ack_en = c.dump_ack_en;
+    return cfg;
+}
+#endif
 
 static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
     sta_config cfg;
