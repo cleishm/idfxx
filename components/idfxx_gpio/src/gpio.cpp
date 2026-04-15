@@ -252,6 +252,7 @@ result<void> gpio::try_hold_disable() {
     return wrap(gpio_hold_dis(_num));
 }
 
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
 void gpio::deep_sleep_hold_enable() {
     gpio_deep_sleep_hold_en();
 }
@@ -259,6 +260,7 @@ void gpio::deep_sleep_hold_enable() {
 void gpio::deep_sleep_hold_disable() {
     gpio_deep_sleep_hold_dis();
 }
+#endif
 
 void gpio::sleep_sel_enable() {
     if (is_connected()) {

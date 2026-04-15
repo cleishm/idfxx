@@ -664,15 +664,26 @@ public:
      * @retval not_supported If the GPIO doesn't support hold.
      */
     result<void> try_hold_disable();
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
     /**
      * @brief Enables hold for all digital GPIOs during deep sleep.
      *
      * The hold only takes effect during deep sleep. In active mode, GPIO state can
      * still be changed. Each gpio must also have hold_enable() called for this to work.
+     *
+     * @note Not available on targets where SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP is
+     *       set (e.g. esp32c6, esp32h2). On those targets, per-pin hold_enable() is
+     *       sufficient to retain GPIO state through deep sleep.
      */
     static void deep_sleep_hold_enable();
-    /** @brief Disables hold for all digital GPIOs during deep sleep. */
+    /**
+     * @brief Disables hold for all digital GPIOs during deep sleep.
+     *
+     * @note Not available on targets where SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP is
+     *       set (e.g. esp32c6, esp32h2).
+     */
     static void deep_sleep_hold_disable();
+#endif
 
     // Sleep mode configuration
     /**
