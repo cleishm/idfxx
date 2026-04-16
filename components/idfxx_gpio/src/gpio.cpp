@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <driver/gpio.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 
@@ -141,6 +142,50 @@ void gpio::input_enable() {
     if (is_connected()) {
         gpio_input_enable(_num);
     }
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+void gpio::output_enable() {
+    if (is_connected()) {
+        gpio_output_enable(_num);
+    }
+}
+
+void gpio::output_disable() {
+    if (is_connected()) {
+        gpio_output_disable(_num);
+    }
+}
+
+void gpio::od_enable() {
+    if (is_connected()) {
+        gpio_od_enable(_num);
+    }
+}
+
+void gpio::od_disable() {
+    if (is_connected()) {
+        gpio_od_disable(_num);
+    }
+}
+#endif
+
+gpio::state gpio::get_state() const {
+    if (!is_connected()) {
+        return {};
+    }
+    gpio_io_config_t idf_config{};
+    if (auto err = gpio_get_io_config(_num, &idf_config); err != ESP_OK) {
+        return {};
+    }
+    return state{
+        .input_enabled = idf_config.ie,
+        .output_enabled = idf_config.oe,
+        .open_drain = idf_config.od,
+        .pullup_enabled = idf_config.pu,
+        .pulldown_enabled = idf_config.pd,
+        .drive_strength = static_cast<drive_cap>(idf_config.drv),
+    };
 }
 
 result<void> gpio::try_set_pull_mode(enum pull_mode mode) {
@@ -476,5 +521,15 @@ result<void> try_configure_gpios(const gpio::config& cfg, std::vector<gpio> pins
     }
     return wrap(::gpio_config(&gpio_config));
 }
+
+#if SOC_GPIO_SUPPORT_FORCE_HOLD
+void force_hold_all_gpios() {
+    gpio_force_hold_all();
+}
+
+void force_unhold_all_gpios() {
+    gpio_force_unhold_all();
+}
+#endif
 
 } // namespace idfxx

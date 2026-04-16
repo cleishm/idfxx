@@ -227,4 +227,15 @@ result<void> master_bus::_probe(uint16_t address, std::chrono::milliseconds time
     return error(errc::invalid_arg);
 }
 
+result<void> master_bus::_try_wait_all_done(std::chrono::milliseconds timeout) const {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    auto err = i2c_master_bus_wait_all_done(_handle, timeout.count());
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "wait_all_done on bus %d failed: %s", std::to_underlying(_port), esp_err_to_name(err));
+    }
+    return wrap(err);
+}
+
 } // namespace idfxx::i2c

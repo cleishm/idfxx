@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <climits>
 #include <esp_http_client.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <optional>
 #include <utility>
@@ -24,6 +25,20 @@ static_assert(std::to_underlying(idfxx::http::event_id::on_data) == HTTP_EVENT_O
 static_assert(std::to_underlying(idfxx::http::event_id::on_finish) == HTTP_EVENT_ON_FINISH);
 static_assert(std::to_underlying(idfxx::http::event_id::disconnected) == HTTP_EVENT_DISCONNECTED);
 static_assert(std::to_underlying(idfxx::http::event_id::redirect) == HTTP_EVENT_REDIRECT);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// Verify client::state enum values match ESP-IDF constants
+static_assert(std::to_underlying(idfxx::http::client::state::uninit) == HTTP_STATE_UNINIT);
+static_assert(std::to_underlying(idfxx::http::client::state::init) == HTTP_STATE_INIT);
+static_assert(std::to_underlying(idfxx::http::client::state::connecting) == HTTP_STATE_CONNECTING);
+static_assert(std::to_underlying(idfxx::http::client::state::connected) == HTTP_STATE_CONNECTED);
+static_assert(std::to_underlying(idfxx::http::client::state::req_complete_header) == HTTP_STATE_REQ_COMPLETE_HEADER);
+static_assert(std::to_underlying(idfxx::http::client::state::req_complete_data) == HTTP_STATE_REQ_COMPLETE_DATA);
+static_assert(std::to_underlying(idfxx::http::client::state::res_complete_header) == HTTP_STATE_RES_COMPLETE_HEADER);
+static_assert(std::to_underlying(idfxx::http::client::state::res_on_data_start) == HTTP_STATE_RES_ON_DATA_START);
+static_assert(std::to_underlying(idfxx::http::client::state::res_complete_data) == HTTP_STATE_RES_COMPLETE_DATA);
+static_assert(std::to_underlying(idfxx::http::client::state::close) == HTTP_STATE_CLOSE);
+#endif
 
 // Verify errc enum values match ESP-IDF constants
 static_assert(std::to_underlying(idfxx::http::client::errc::max_redirect) == ESP_ERR_HTTP_MAX_REDIRECT);
@@ -112,6 +127,35 @@ std::string to_string(http::event_id id) {
         return "unknown(" + std::to_string(static_cast<int>(id)) + ")";
     }
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+std::string to_string(http::client::state s) {
+    switch (s) {
+    case http::client::state::uninit:
+        return "UNINIT";
+    case http::client::state::init:
+        return "INIT";
+    case http::client::state::connecting:
+        return "CONNECTING";
+    case http::client::state::connected:
+        return "CONNECTED";
+    case http::client::state::req_complete_header:
+        return "REQ_COMPLETE_HEADER";
+    case http::client::state::req_complete_data:
+        return "REQ_COMPLETE_DATA";
+    case http::client::state::res_complete_header:
+        return "RES_COMPLETE_HEADER";
+    case http::client::state::res_on_data_start:
+        return "RES_ON_DATA_START";
+    case http::client::state::res_complete_data:
+        return "RES_COMPLETE_DATA";
+    case http::client::state::close:
+        return "CLOSE";
+    default:
+        return "unknown(" + std::to_string(static_cast<int>(s)) + ")";
+    }
+}
+#endif
 
 } // namespace idfxx
 
@@ -564,6 +608,22 @@ int64_t client::content_length() const {
     return esp_http_client_get_content_length(_handle);
 }
 
+result<int> client::try_chunk_length() const {
+    if (!_handle) {
+        return error(idfxx::errc::invalid_state);
+    }
+    int len = 0;
+    auto err = esp_http_client_get_chunk_length(_handle, &len);
+    if (err == ESP_OK) {
+        return len;
+    }
+    if (err == ESP_FAIL) {
+        return error(idfxx::errc::not_supported);
+    }
+    ESP_LOGD(TAG, "chunk_length failed: %s", esp_err_to_name(err));
+    return http_client_error(err);
+}
+
 bool client::is_chunked_response() const {
     if (!_handle) {
         return false;
@@ -615,5 +675,30 @@ void client::reset_redirect_counter() {
     }
     esp_http_client_reset_redirect_counter(_handle);
 }
+
+// =========================================================================
+// Request Control
+// =========================================================================
+
+result<void> client::try_cancel_request() {
+    if (!_handle) {
+        return error(idfxx::errc::invalid_state);
+    }
+    esp_err_t err = esp_http_client_cancel_request(_handle);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "cancel_request failed: %s", esp_err_to_name(err));
+        return http_client_error(err);
+    }
+    return {};
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+client::state client::get_state() const {
+    if (!_handle) {
+        return state::uninit;
+    }
+    return static_cast<state>(esp_http_client_get_state(_handle));
+}
+#endif
 
 } // namespace idfxx::http

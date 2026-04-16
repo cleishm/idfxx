@@ -96,4 +96,17 @@ master_bus::~master_bus() {
     }
 }
 
+size_t master_bus::max_transaction_length() const {
+    if (!_initialized) {
+        return 0;
+    }
+    size_t max_bytes = 0;
+    auto err = spi_bus_get_max_transaction_len(static_cast<spi_host_device_t>(_host), &max_bytes);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "Failed to get max transaction length: %s", esp_err_to_name(err));
+        return 0;
+    }
+    return max_bytes;
+}
+
 } // namespace idfxx::spi

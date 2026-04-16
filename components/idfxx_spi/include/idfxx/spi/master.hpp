@@ -197,6 +197,16 @@ public:
     /** @brief Returns the host device ID the bus is using. */
     [[nodiscard]] enum host_device host() const { return _host; }
 
+    /**
+     * @brief Returns the maximum transaction length for this bus.
+     *
+     * The maximum length depends on the DMA configuration.
+     * Returns 0 if the bus has been moved from.
+     *
+     * @return Maximum transaction length in bytes.
+     */
+    [[nodiscard]] size_t max_transaction_length() const;
+
 private:
     explicit master_bus(enum host_device host);
 

@@ -28,7 +28,10 @@
 #include <algorithm>
 #include <chrono>
 #include <frequency/frequency>
+#include <functional>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -114,6 +117,17 @@ enum class sleep_mode : int {
     no_alive_no_pd = 0, ///< No output, keep power domain on (default)
     no_alive_allow_pd,  ///< No output, allow power domain off (saves power)
     keep_alive,         ///< Maintain PWM output during light sleep
+};
+
+/**
+ * @headerfile <idfxx/pwm>
+ * @brief Parameters for a single step in a multi-step hardware fade.
+ */
+struct fade_param {
+    bool increasing;    ///< Duty change direction: true = increase, false = decrease.
+    uint32_t cycle_num; ///< Number of PWM cycles per step.
+    uint32_t scale;     ///< Duty change per step.
+    uint32_t step_num;  ///< Total number of steps.
 };
 
 // ======================================================================
@@ -1054,6 +1068,156 @@ public:
         enum fade_mode mode = fade_mode::no_wait
     );
 
+#if SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Configures and starts a multi-step fade sequence.
+     *
+     * Each step in the sequence defines a direction, scale, cycle count, and
+     * step count for one hardware fade range. Requires the fade service to be
+     * installed via install_fade_service(). Thread-safe.
+     *
+     * @param start_duty Starting duty in ticks.
+     * @param steps Fade steps to execute.
+     * @param mode Whether to block until the entire sequence completes.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error on failure.
+     */
+    void multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode = fade_mode::no_wait) {
+        unwrap(try_multi_fade(start_duty, steps, mode));
+    }
+#endif
+
+    /**
+     * @brief Configures and starts a multi-step fade sequence.
+     *
+     * Each step in the sequence defines a direction, scale, cycle count, and
+     * step count for one hardware fade range. Requires the fade service to be
+     * installed via install_fade_service(). Thread-safe.
+     *
+     * @param start_duty Starting duty in ticks.
+     * @param steps Fade steps to execute.
+     * @param mode Whether to block until the entire sequence completes.
+     * @return Success, or an error.
+     *
+     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval invalid_arg Invalid parameters.
+     */
+    [[nodiscard]] result<void>
+    try_multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode = fade_mode::no_wait);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Reads the fade parameters for a specific range index.
+     *
+     * Returns the parameters stored in gamma RAM for the given range.
+     *
+     * @param range Range index (0 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX-1).
+     * @return The fade parameters for the range.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] fade_param read_fade_param(uint32_t range) const { return unwrap(try_read_fade_param(range)); }
+#endif
+
+    /**
+     * @brief Reads the fade parameters for a specific range index.
+     *
+     * Returns the parameters stored in gamma RAM for the given range.
+     *
+     * @param range Range index (0 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX-1).
+     * @return The fade parameters for the range, or an error.
+     */
+    [[nodiscard]] result<fade_param> try_read_fade_param(uint32_t range) const;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Fills a fade parameter list for a gamma-corrected multi-fade.
+     *
+     * Computes the fade parameters needed to transition from start_duty to
+     * end_duty using the given gamma correction function. The result can be
+     * passed to multi_fade().
+     *
+     * @param start_duty Starting duty (non-gamma-corrected) [0, 2^duty_resolution].
+     * @param end_duty Ending duty (non-gamma-corrected) [0, 2^duty_resolution].
+     * @param linear_phases Number of linear segments (1 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX).
+     * @param max_fade_time_ms Maximum fade duration in milliseconds.
+     * @param gamma_correction Gamma correction function mapping duty to corrected duty.
+     *
+     * @return Vector of fade parameters.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] std::vector<fade_param> fill_multi_fade_params(
+        uint32_t start_duty,
+        uint32_t end_duty,
+        uint32_t linear_phases,
+        uint32_t max_fade_time_ms,
+        uint32_t (*gamma_correction)(uint32_t)
+    ) {
+        return unwrap(
+            try_fill_multi_fade_params(start_duty, end_duty, linear_phases, max_fade_time_ms, gamma_correction)
+        );
+    }
+#endif
+
+    /**
+     * @brief Fills a fade parameter list for a gamma-corrected multi-fade.
+     *
+     * Computes the fade parameters needed to transition from start_duty to
+     * end_duty using the given gamma correction function. The result can be
+     * passed to multi_fade().
+     *
+     * @param start_duty Starting duty (non-gamma-corrected) [0, 2^duty_resolution].
+     * @param end_duty Ending duty (non-gamma-corrected) [0, 2^duty_resolution].
+     * @param linear_phases Number of linear segments (1 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX).
+     * @param max_fade_time_ms Maximum fade duration in milliseconds.
+     * @param gamma_correction Gamma correction function mapping duty to corrected duty.
+     *
+     * @return Vector of fade parameters, or an error.
+     */
+    [[nodiscard]] result<std::vector<fade_param>> try_fill_multi_fade_params(
+        uint32_t start_duty,
+        uint32_t end_duty,
+        uint32_t linear_phases,
+        uint32_t max_fade_time_ms,
+        uint32_t (*gamma_correction)(uint32_t)
+    );
+#endif // SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Registers a callback for fade-end events.
+     *
+     * The callback runs in ISR context and should return true if a
+     * higher-priority task was woken. Any previously registered callback on
+     * this output is replaced. The callback is automatically unregistered
+     * when the output is destroyed.
+     *
+     * @param callback Fade-end callback.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error on failure.
+     */
+    void register_fade_end_callback(std::move_only_function<bool() const> callback) {
+        unwrap(try_register_fade_end_callback(std::move(callback)));
+    }
+#endif
+
+    /**
+     * @brief Registers a callback for fade-end events.
+     *
+     * The callback runs in ISR context and should return true if a
+     * higher-priority task was woken. Any previously registered callback on
+     * this output is replaced. The callback is automatically unregistered
+     * when the output is destroyed.
+     *
+     * @param callback Fade-end callback.
+     * @return Success, or an error.
+     * @retval invalid_state Output moved from or fade service not installed.
+     */
+    [[nodiscard]] result<void> try_register_fade_end_callback(std::move_only_function<bool() const> callback);
+
 #if SOC_LEDC_SUPPORT_FADE_STOP
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -1174,6 +1338,7 @@ private:
     enum channel _channel;
     std::optional<uint32_t> _gen;
     uint32_t _duty_ticks = 0;
+    std::unique_ptr<std::move_only_function<bool() const>> _fade_cb;
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

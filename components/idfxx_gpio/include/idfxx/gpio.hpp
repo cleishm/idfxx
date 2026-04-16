@@ -22,6 +22,7 @@
 #include <idfxx/flags>
 #include <idfxx/intr_alloc>
 
+#include <esp_idf_version.h>
 #include <functional>
 #include <hal/gpio_types.h>
 #include <soc/gpio_num.h>
@@ -343,6 +344,52 @@ public:
      * @note Does nothing if called on gpio::nc().
      */
     void input_enable();
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    /**
+     * @brief Enables output on this gpio.
+     * @note Does nothing if called on gpio::nc().
+     */
+    void output_enable();
+
+    /**
+     * @brief Disables output on this gpio.
+     * @note Does nothing if called on gpio::nc().
+     */
+    void output_disable();
+
+    /**
+     * @brief Enables open-drain mode on this gpio.
+     * @note Does nothing if called on gpio::nc().
+     */
+    void od_enable();
+
+    /**
+     * @brief Disables open-drain mode on this gpio.
+     * @note Does nothing if called on gpio::nc().
+     */
+    void od_disable();
+#endif
+
+    /** @brief Current configuration state of a GPIO pin. */
+    struct state {
+        bool input_enabled;            ///< Input is enabled.
+        bool output_enabled;           ///< Output is enabled.
+        bool open_drain;               ///< Open-drain mode is enabled.
+        bool pullup_enabled;           ///< Internal pull-up is enabled.
+        bool pulldown_enabled;         ///< Internal pull-down is enabled.
+        enum drive_cap drive_strength; ///< Drive strength.
+    };
+
+    /**
+     * @brief Returns the current configuration state of this GPIO.
+     *
+     * Returns a zero-initialized state if called on gpio::nc().
+     *
+     * @return The current state.
+     */
+    [[nodiscard]] state get_state() const;
+
     /**
      * @brief Sets the pull resistor mode.
      * @note On ESP32, only GPIOs that support both input & output have integrated
@@ -785,6 +832,28 @@ void configure_gpios(const gpio::config& cfg, Gpios&&... gpios) {
     unwrap(try_configure_gpios(cfg, std::vector<gpio>{std::forward<Gpios>(gpios)...}));
 }
 #endif
+
+#if SOC_GPIO_SUPPORT_FORCE_HOLD
+/**
+ * @headerfile <idfxx/gpio>
+ * @brief Force-holds all digital and RTC GPIO pads immediately.
+ *
+ * Latches the current state (input/output enable, value, drive strength) of
+ * every pad regardless of active or sleep mode. The hold persists until
+ * force_unhold_all_gpios() is called.
+ *
+ * @warning This holds flash and UART pins too. All code between
+ * force_hold_all_gpios() and force_unhold_all_gpios() must reside in
+ * internal RAM.
+ */
+void force_hold_all_gpios();
+
+/**
+ * @headerfile <idfxx/gpio>
+ * @brief Releases the force-hold on all GPIO pads.
+ */
+void force_unhold_all_gpios();
+#endif // SOC_GPIO_SUPPORT_FORCE_HOLD
 
 /** @cond INTERNAL */
 /* Validates at compile time that the GPIO number is valid.
