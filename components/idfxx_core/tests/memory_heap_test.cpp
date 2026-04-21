@@ -8,7 +8,7 @@
 #include "unity.h"
 
 namespace memory = idfxx::memory;
-using enum memory::caps;
+using enum memory::capabilities;
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)

@@ -76,7 +76,7 @@ TEST_CASE("task::config default values", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(4096, cfg.stack_size);
     TEST_ASSERT_EQUAL(5, cfg.priority.value());
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
-    TEST_ASSERT_TRUE(cfg.stack_mem == memory::caps::dram);
+    TEST_ASSERT_TRUE(cfg.stack_mem == memory::capabilities::dram);
 }
 
 TEST_CASE("task name is stored correctly", "[idfxx][task]") {
@@ -618,7 +618,7 @@ TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
     auto t = std::make_unique<task>(
-        task::config{.name = "internal_stack", .stack_mem = memory::caps::dram},
+        task::config{.name = "internal_stack", .stack_mem = memory::capabilities::dram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);
@@ -634,7 +634,7 @@ TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
     auto t = std::make_unique<task>(
-        task::config{.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory::caps::spiram},
+        task::config{.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory::capabilities::spiram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);

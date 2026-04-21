@@ -94,12 +94,12 @@ std::vector<uint8_t, idfxx::aligned_dram_allocator<uint8_t, 32>> aligned_buffer;
 #include <idfxx/memory>
 
 // Allocate from internal DRAM
-void* buf = idfxx::malloc(256, idfxx::memory::caps::dram);
+void* buf = idfxx::malloc(256, idfxx::memory::capabilities::dram);
 // ... use buf ...
 idfxx::free(buf);
 
 // Aligned allocation for DMA buffers
-void* dma_buf = idfxx::aligned_alloc(64, 1024, idfxx::memory::caps::dma);
+void* dma_buf = idfxx::aligned_alloc(64, 1024, idfxx::memory::capabilities::dma);
 // ... use dma_buf ...
 idfxx::free(dma_buf);
 ```
@@ -112,7 +112,7 @@ idfxx::free(dma_buf);
 namespace memory = idfxx::memory;
 
 // Walk all blocks in default heap
-memory::walk(memory::caps::default_heap, [](memory::region rgn, memory::block blk) {
+memory::walk(memory::capabilities::default_heap, [](memory::region rgn, memory::block blk) {
     // process each block...
     return true; // continue walking
 });
@@ -138,7 +138,7 @@ bool ok = memory::check_integrity();
 
 ### Memory (`<idfxx/memory>`)
 
-- `memory::caps` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
 - `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
@@ -151,7 +151,7 @@ bool ok = memory::check_integrity();
 - `free(ptr)` - Free memory allocated by allocation functions
 - `aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
 - `aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
-- `memory::caps` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
 - `memory::info` - Struct containing heap region statistics
 - `memory::total_size(caps)` - Total size of heap regions matching capabilities
 - `memory::free_size(caps)` - Current free size of matching heap regions

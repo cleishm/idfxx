@@ -13,7 +13,7 @@
  * @defgroup idfxx_core_memory Memory
  * @brief Memory capability flags, heap queries, allocation, walking, integrity checking, and STL-compatible allocators.
  *
- * Provides composable memory capability flags via `memory::caps`, heap query
+ * Provides composable memory capability flags via `memory::capabilities`, heap query
  * functions, heap walking and integrity checking, and allocators (including
  * aligned variants) for internal DRAM, external PSRAM, and DMA-capable
  * memory that can be used with standard containers.
@@ -36,7 +36,7 @@ namespace idfxx::memory {
  * @brief Memory capability flags for heap allocations.
  *
  * Composable flags that describe properties of memory regions. Use the
- * bitwise operators provided by `idfxx::flags<memory::caps>` to combine
+ * bitwise operators provided by `idfxx::flags<memory::capabilities>` to combine
  * multiple capabilities.
  *
  * Used by components such as @ref idfxx_task (for stack allocation) and
@@ -45,7 +45,7 @@ namespace idfxx::memory {
  *
  * @note `spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
  */
-enum class caps : uint32_t {
+enum class capabilities : uint32_t {
 #ifdef CONFIG_HEAP_HAS_EXEC_HEAP
     exec = MALLOC_CAP_EXEC, ///< Executable memory
 #endif
@@ -68,7 +68,7 @@ enum class caps : uint32_t {
 } // namespace idfxx::memory
 
 template<>
-inline constexpr bool idfxx::enable_flags_operators<idfxx::memory::caps> = true;
+inline constexpr bool idfxx::enable_flags_operators<idfxx::memory::capabilities> = true;
 
 // ---- Heap info queries ------------------------------------------------------
 
@@ -98,7 +98,7 @@ struct info {
  * @param c Capability flags to filter heap regions.
  * @return Total size in bytes of all matching heap regions.
  */
-[[nodiscard]] inline size_t total_size(flags<caps> c) noexcept {
+[[nodiscard]] inline size_t total_size(flags<capabilities> c) noexcept {
     return heap_caps_get_total_size(to_underlying(c));
 }
 
@@ -109,7 +109,7 @@ struct info {
  * @param c Capability flags to filter heap regions.
  * @return Current free bytes across all matching heap regions.
  */
-[[nodiscard]] inline size_t free_size(flags<caps> c) noexcept {
+[[nodiscard]] inline size_t free_size(flags<capabilities> c) noexcept {
     return heap_caps_get_free_size(to_underlying(c));
 }
 
@@ -120,7 +120,7 @@ struct info {
  * @param c Capability flags to filter heap regions.
  * @return Size in bytes of the largest contiguous free block.
  */
-[[nodiscard]] inline size_t largest_free_block(flags<caps> c) noexcept {
+[[nodiscard]] inline size_t largest_free_block(flags<capabilities> c) noexcept {
     return heap_caps_get_largest_free_block(to_underlying(c));
 }
 
@@ -134,7 +134,7 @@ struct info {
  * @param c Capability flags to filter heap regions.
  * @return Minimum free bytes since boot across all matching heap regions.
  */
-[[nodiscard]] inline size_t minimum_free_size(flags<caps> c) noexcept {
+[[nodiscard]] inline size_t minimum_free_size(flags<capabilities> c) noexcept {
     return heap_caps_get_minimum_free_size(to_underlying(c));
 }
 
@@ -145,7 +145,7 @@ struct info {
  * @param c Capability flags to filter heap regions.
  * @return An info struct containing aggregated statistics.
  */
-[[nodiscard]] inline info get_info(flags<caps> c) noexcept {
+[[nodiscard]] inline info get_info(flags<capabilities> c) noexcept {
     multi_heap_info_t raw{};
     heap_caps_get_info(&raw, to_underlying(c));
     return {
@@ -193,7 +193,7 @@ struct block {
  * @param walker Callable invoked for each block. Return true to continue, false to stop.
  */
 template<typename F>
-void walk(flags<caps> c, F&& walker) {
+void walk(flags<capabilities> c, F&& walker) {
     auto cb = [](walker_heap_into_t heap_info, walker_block_info_t block_info, void* user_data) -> bool {
         auto& fn = *static_cast<std::remove_reference_t<F>*>(user_data);
         return fn(region{heap_info.start, heap_info.end}, block{block_info.ptr, block_info.size, block_info.used});
@@ -232,7 +232,7 @@ void walk(F&& walker) {
  * @param print_errors Print specific errors if heap corruption is found.
  * @return True if all matching heaps are valid, false if at least one is corrupt.
  */
-[[nodiscard]] inline bool check_integrity(flags<caps> c, bool print_errors = false) noexcept {
+[[nodiscard]] inline bool check_integrity(flags<capabilities> c, bool print_errors = false) noexcept {
     return heap_caps_check_integrity(to_underlying(c), print_errors);
 }
 
@@ -252,7 +252,7 @@ void walk(F&& walker) {
  *
  * @param c Capability flags to filter heap regions.
  */
-inline void dump(flags<caps> c) noexcept {
+inline void dump(flags<capabilities> c) noexcept {
     heap_caps_dump(to_underlying(c));
 }
 
@@ -275,7 +275,7 @@ namespace idfxx {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the allocated memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* malloc(size_t size, flags<memory::caps> c) noexcept {
+[[nodiscard]] inline void* malloc(size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_malloc(size, to_underlying(c));
 }
 
@@ -288,7 +288,7 @@ namespace idfxx {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the zero-initialized memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* calloc(size_t n, size_t size, flags<memory::caps> c) noexcept {
+[[nodiscard]] inline void* calloc(size_t n, size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_calloc(n, size, to_underlying(c));
 }
 
@@ -304,7 +304,7 @@ namespace idfxx {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the reallocated memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* realloc(void* ptr, size_t size, flags<memory::caps> c) noexcept {
+[[nodiscard]] inline void* realloc(void* ptr, size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_realloc(ptr, size, to_underlying(c));
 }
 
@@ -329,7 +329,7 @@ inline void free(void* ptr) noexcept {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the aligned memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* aligned_alloc(size_t alignment, size_t size, flags<memory::caps> c) noexcept {
+[[nodiscard]] inline void* aligned_alloc(size_t alignment, size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_aligned_alloc(alignment, size, to_underlying(c));
 }
 
@@ -343,7 +343,8 @@ inline void free(void* ptr) noexcept {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the aligned, zero-initialized memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* aligned_calloc(size_t alignment, size_t n, size_t size, flags<memory::caps> c) noexcept {
+[[nodiscard]] inline void*
+aligned_calloc(size_t alignment, size_t n, size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_aligned_calloc(alignment, n, size, to_underlying(c));
 }
 
@@ -360,11 +361,11 @@ inline void free(void* ptr) noexcept {
  * the specified byte boundary. The alignment must be a power of two.
  *
  * @tparam T The type of object to allocate.
- * @tparam Caps The memory capability flags (e.g., `memory::caps::dram`).
+ * @tparam Caps The memory capability flags (e.g., `memory::capabilities::dram`).
  * @tparam Alignment Allocation alignment in bytes (0 = default alignment, must be power of two when non-zero).
  */
-template<typename T, flags<memory::caps> Caps, size_t Alignment = 0>
-struct caps_allocator {
+template<typename T, flags<memory::capabilities> Caps, size_t Alignment = 0>
+struct allocator {
     using value_type = T; /**< The type of object to allocate. */
 
     /**
@@ -374,11 +375,11 @@ struct caps_allocator {
      */
     template<typename U>
     struct rebind {
-        using other = caps_allocator<U, Caps, Alignment>; /**< The rebound allocator type. */
+        using other = allocator<U, Caps, Alignment>; /**< The rebound allocator type. */
     };
 
     /** @brief Default constructor. */
-    caps_allocator() = default;
+    allocator() = default;
 
     /**
      * @brief Rebinding copy constructor.
@@ -386,7 +387,7 @@ struct caps_allocator {
      * @tparam U The source allocator's value type.
      */
     template<typename U>
-    constexpr caps_allocator(const caps_allocator<U, Caps, Alignment>&) noexcept {}
+    constexpr allocator(const allocator<U, Caps, Alignment>&) noexcept {}
 
     /**
      * @brief Allocates memory for n objects of type T.
@@ -428,15 +429,14 @@ struct caps_allocator {
 };
 
 /**
- * @brief Equality comparison for caps_allocator.
+ * @brief Equality comparison for allocator.
  *
- * All caps_allocator instances with the same capability flags and alignment are considered equal.
+ * All allocator instances with the same capability flags and alignment are considered equal.
  *
  * @return Always returns true.
  */
-template<typename T, typename U, flags<memory::caps> Caps, size_t Alignment>
-constexpr bool
-operator==(const caps_allocator<T, Caps, Alignment>&, const caps_allocator<U, Caps, Alignment>&) noexcept {
+template<typename T, typename U, flags<memory::capabilities> Caps, size_t Alignment>
+constexpr bool operator==(const allocator<T, Caps, Alignment>&, const allocator<U, Caps, Alignment>&) noexcept {
     return true;
 }
 
@@ -451,7 +451,7 @@ operator==(const caps_allocator<T, Caps, Alignment>&, const caps_allocator<U, Ca
  * @tparam T The type of object to allocate.
  */
 template<typename T>
-using dram_allocator = caps_allocator<T, memory::caps::dram>;
+using dram_allocator = allocator<T, memory::capabilities::dram>;
 
 /**
  * @headerfile <idfxx/memory>
@@ -466,7 +466,7 @@ using dram_allocator = caps_allocator<T, memory::caps::dram>;
  * @note Requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
  */
 template<typename T>
-using spiram_allocator = caps_allocator<T, memory::caps::spiram>;
+using spiram_allocator = allocator<T, memory::capabilities::spiram>;
 
 /**
  * @headerfile <idfxx/memory>
@@ -479,7 +479,7 @@ using spiram_allocator = caps_allocator<T, memory::caps::spiram>;
  * @tparam T The type of object to allocate.
  */
 template<typename T>
-using dma_allocator = caps_allocator<T, memory::caps::dma>;
+using dma_allocator = allocator<T, memory::capabilities::dma>;
 
 /**
  * @headerfile <idfxx/memory>
@@ -491,7 +491,7 @@ using dma_allocator = caps_allocator<T, memory::caps::dma>;
  * @tparam Alignment Alignment in bytes (must be a power of two).
  */
 template<typename T, size_t Alignment>
-using aligned_dram_allocator = caps_allocator<T, memory::caps::dram, Alignment>;
+using aligned_dram_allocator = allocator<T, memory::capabilities::dram, Alignment>;
 
 /**
  * @headerfile <idfxx/memory>
@@ -505,7 +505,7 @@ using aligned_dram_allocator = caps_allocator<T, memory::caps::dram, Alignment>;
  * @note Requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
  */
 template<typename T, size_t Alignment>
-using aligned_spiram_allocator = caps_allocator<T, memory::caps::spiram, Alignment>;
+using aligned_spiram_allocator = allocator<T, memory::capabilities::spiram, Alignment>;
 
 /**
  * @headerfile <idfxx/memory>
@@ -517,7 +517,7 @@ using aligned_spiram_allocator = caps_allocator<T, memory::caps::spiram, Alignme
  * @tparam Alignment Alignment in bytes (must be a power of two).
  */
 template<typename T, size_t Alignment>
-using aligned_dma_allocator = caps_allocator<T, memory::caps::dma, Alignment>;
+using aligned_dma_allocator = allocator<T, memory::capabilities::dma, Alignment>;
 
 /** @} */ // end of idfxx_core_memory
 /** @} */ // end of idfxx_core

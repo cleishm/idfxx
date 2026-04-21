@@ -76,7 +76,7 @@ public:
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    [[nodiscard]] explicit queue(size_t length, flags<memory::caps> mem_caps = memory::caps::dram)
+    [[nodiscard]] explicit queue(size_t length, flags<memory::capabilities> mem_caps = memory::capabilities::dram)
         : _handle(nullptr) {
         if (length == 0) {
             throw std::system_error(errc::invalid_arg);
@@ -96,7 +96,8 @@ public:
      * @return The new queue, or an error.
      * @retval invalid_arg length is 0.
      */
-    [[nodiscard]] static result<queue> make(size_t length, flags<memory::caps> mem_caps = memory::caps::dram) {
+    [[nodiscard]] static result<queue>
+    make(size_t length, flags<memory::capabilities> mem_caps = memory::capabilities::dram) {
         if (length == 0) {
             return error(errc::invalid_arg);
         }
