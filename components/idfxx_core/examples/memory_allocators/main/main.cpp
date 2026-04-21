@@ -25,25 +25,25 @@ extern "C" void app_main() {
 
     // Memory capability flags
     logger.info("=== Memory Capability Flags ===");
-    auto caps = memory::caps::internal | memory::caps::access_8bit;
-    logger.info("Combined caps: {}", caps);
-    logger.info("Contains internal? {}", caps.contains(memory::caps::internal));
-    logger.info("Contains DMA?      {}", caps.contains(memory::caps::dma));
-    logger.info("Empty?             {}", caps.empty());
+    auto caps_flags = memory::capabilities::internal | memory::capabilities::access_8bit;
+    logger.info("Combined caps: {}", caps_flags);
+    logger.info("Contains internal? {}", caps_flags.contains(memory::capabilities::internal));
+    logger.info("Contains DMA?      {}", caps_flags.contains(memory::capabilities::dma));
+    logger.info("Empty?             {}", caps_flags.empty());
 
     // Set difference: remove a flag
-    auto without_8bit = caps - memory::caps::access_8bit;
+    auto without_8bit = caps_flags - memory::capabilities::access_8bit;
     logger.info("After removing access_8bit: {}", without_8bit);
 
     // Heap queries by capability
     logger.info("=== Heap Info by Capability ===");
-    auto dram_total = memory::total_size(memory::caps::dram);
-    auto dram_free = memory::free_size(memory::caps::dram);
+    auto dram_total = memory::total_size(memory::capabilities::dram);
+    auto dram_free = memory::free_size(memory::capabilities::dram);
     logger.info("DRAM total: {} bytes, free: {} bytes", dram_total, dram_free);
 
     // Detailed heap statistics
     logger.info("=== Detailed Heap Statistics ===");
-    auto hi = memory::get_info(memory::caps::dram);
+    auto hi = memory::get_info(memory::capabilities::dram);
     logger.info("Total free:      {} bytes", hi.total_free_bytes);
     logger.info("Total allocated: {} bytes", hi.total_allocated_bytes);
     logger.info("Largest block:   {} bytes", hi.largest_free_block);

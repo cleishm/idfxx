@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <cstring>
 
-using enum idfxx::memory::caps;
+using enum idfxx::memory::capabilities;
 
 // =============================================================================
 // idfxx::malloc / idfxx::free
