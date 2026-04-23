@@ -4,6 +4,7 @@
 #include <idfxx/spi/master>
 
 #include <esp_log.h>
+#include <limits>
 #include <utility>
 
 namespace {
@@ -16,19 +17,22 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
     if (static_cast<spi_host_device_t>(host) >= SPI_HOST_MAX) {
         return error(errc::invalid_arg);
     }
+    if (config.max_transfer_sz > std::numeric_limits<int>::max()) {
+        return error(errc::invalid_arg);
+    }
 
     spi_bus_config_t spi_config{
-        .mosi_io_num = config.mosi_io_num.idf_num(),
-        .miso_io_num = config.miso_io_num.idf_num(),
-        .sclk_io_num = config.sclk_io_num.idf_num(),
-        .quadwp_io_num = config.quadwp_io_num.idf_num(),
-        .quadhd_io_num = config.quadhd_io_num.idf_num(),
-        .data4_io_num = config.data4_io_num.idf_num(),
-        .data5_io_num = config.data5_io_num.idf_num(),
-        .data6_io_num = config.data6_io_num.idf_num(),
-        .data7_io_num = config.data7_io_num.idf_num(),
-        .data_io_default_level = config.data_io_default_level,
-        .max_transfer_sz = config.max_transfer_sz,
+        .mosi_io_num = config.mosi.idf_num(),
+        .miso_io_num = config.miso.idf_num(),
+        .sclk_io_num = config.sclk.idf_num(),
+        .quadwp_io_num = config.quadwp.idf_num(),
+        .quadhd_io_num = config.quadhd.idf_num(),
+        .data4_io_num = config.data4.idf_num(),
+        .data5_io_num = config.data5.idf_num(),
+        .data6_io_num = config.data6.idf_num(),
+        .data7_io_num = config.data7.idf_num(),
+        .data_io_default_level = config.data_idle_level == gpio::level::high,
+        .max_transfer_sz = static_cast<int>(config.max_transfer_sz),
         .flags = to_underlying(config.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
         // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.

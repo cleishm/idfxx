@@ -60,9 +60,9 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 
 // Configure SPI bus
 idfxx::spi::bus_config config{
-    .mosi_io_num = idfxx::gpio_23,
-    .miso_io_num = idfxx::gpio_19,
-    .sclk_io_num = idfxx::gpio_18,
+    .mosi = idfxx::gpio_23,
+    .miso = idfxx::gpio_19,
+    .sclk = idfxx::gpio_18,
     .max_transfer_sz = 4096,
 };
 
@@ -90,9 +90,9 @@ idfxx::spi::master_bus bus(
     idfxx::spi::host_device::spi2,
     idfxx::spi::dma_chan::ch_auto,  // Automatic DMA channel selection
     idfxx::spi::bus_config{
-        .mosi_io_num = idfxx::gpio_23,
-        .miso_io_num = idfxx::gpio_19,
-        .sclk_io_num = idfxx::gpio_18,
+        .mosi = idfxx::gpio_23,
+        .miso = idfxx::gpio_19,
+        .sclk = idfxx::gpio_18,
         .max_transfer_sz = 32768,  // Larger transfers with DMA
     }
 );
