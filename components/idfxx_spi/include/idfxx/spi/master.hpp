@@ -29,6 +29,7 @@
 #include <chrono>
 #include <cstdint>
 #include <driver/spi_master.h>
+#include <esp_idf_version.h>
 #include <frequency/frequency>
 #include <memory>
 #include <optional>
@@ -136,7 +137,9 @@ enum class trans_flags : uint32_t {
     variable_dummy = SPI_TRANS_VARIABLE_DUMMY,                   ///< Use per-transaction dummy_bits length.
     cs_keep_active = SPI_TRANS_CS_KEEP_ACTIVE,                   ///< Keep CS active after data transfer.
     dma_buffer_align_manual = SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL, ///< Disable automatic DMA buffer re-alignment.
-    dma_use_psram = SPI_TRANS_DMA_USE_PSRAM,                     ///< Use PSRAM for DMA buffer directly.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    dma_use_psram = SPI_TRANS_DMA_USE_PSRAM, ///< Use PSRAM for DMA buffer directly. Requires ESP-IDF 6.0+.
+#endif
 };
 
 } // namespace idfxx::spi

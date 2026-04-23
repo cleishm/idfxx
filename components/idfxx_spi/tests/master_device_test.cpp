@@ -57,7 +57,9 @@ static_assert(std::to_underlying(trans_flags::variable_addr) == SPI_TRANS_VARIAB
 static_assert(std::to_underlying(trans_flags::variable_dummy) == SPI_TRANS_VARIABLE_DUMMY);
 static_assert(std::to_underlying(trans_flags::cs_keep_active) == SPI_TRANS_CS_KEEP_ACTIVE);
 static_assert(std::to_underlying(trans_flags::dma_buffer_align_manual) == SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static_assert(std::to_underlying(trans_flags::dma_use_psram) == SPI_TRANS_DMA_USE_PSRAM);
+#endif
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -159,7 +161,7 @@ TEST_CASE("master_device move semantics", "[idfxx][spi]") {
     TEST_ASSERT_NOT_NULL(moved.idf_handle());
 }
 
-TEST_CASE("master_device basic transmit", "[idfxx][spi]") {
+TEST_CASE("master_device basic transmit", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto device = master_device::make(bus, default_device_config());
     TEST_ASSERT_TRUE(device.has_value());
@@ -169,7 +171,7 @@ TEST_CASE("master_device basic transmit", "[idfxx][spi]") {
     TEST_ASSERT_TRUE(res.has_value());
 }
 
-TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][spi]") {
+TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto device = master_device::make(bus, default_device_config());
     TEST_ASSERT_TRUE(device.has_value());
@@ -183,7 +185,7 @@ TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][
     TEST_ASSERT_FALSE(res.has_value());
 }
 
-TEST_CASE("master_device queue_trans/wait per-transaction", "[idfxx][spi]") {
+TEST_CASE("master_device queue_trans/wait per-transaction", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto dev_cfg = default_device_config();
     dev_cfg.queue_size = 2;
@@ -228,7 +230,7 @@ TEST_CASE("master_device queue_trans/wait per-transaction", "[idfxx][spi]") {
     TEST_ASSERT_TRUE(f3->try_wait().has_value());
 }
 
-TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi]") {
+TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto dev_cfg = default_device_config();
     dev_cfg.queue_size = 4;
@@ -264,7 +266,7 @@ TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi]
     }
 }
 
-TEST_CASE("master_device future copy shares completion", "[idfxx][spi]") {
+TEST_CASE("master_device future copy shares completion", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto dev_cfg = default_device_config();
     dev_cfg.queue_size = 1;
@@ -290,7 +292,7 @@ TEST_CASE("master_device future copy shares completion", "[idfxx][spi]") {
     TEST_ASSERT_TRUE(f2.done());
 }
 
-TEST_CASE("master_device dropped future slot is eventually reclaimed", "[idfxx][spi]") {
+TEST_CASE("master_device dropped future slot is eventually reclaimed", "[idfxx][spi][hw]") {
     auto bus = make_test_bus();
     auto dev_cfg = default_device_config();
     dev_cfg.queue_size = 2;
