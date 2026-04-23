@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "src/master_bus.cpp"
+    SRCS "src/master_bus.cpp" "src/master_device.cpp"
     INCLUDE_DIRS "include"
     REQUIRES esp_driver_spi
 )

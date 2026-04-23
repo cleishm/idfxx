@@ -50,35 +50,35 @@ static_assert(static_cast<spi_common_dma_t>(dma_chan::ch_auto) == SPI_DMA_CH_AUT
 
 TEST_CASE("bus_config default initialization", "[idfxx][spi]") {
     bus_config cfg{};
-    TEST_ASSERT_FALSE(cfg.mosi_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.miso_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.sclk_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.quadwp_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.quadhd_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.data4_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.data5_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.data6_io_num.is_connected());
-    TEST_ASSERT_FALSE(cfg.data7_io_num.is_connected());
+    TEST_ASSERT_FALSE(cfg.mosi.is_connected());
+    TEST_ASSERT_FALSE(cfg.miso.is_connected());
+    TEST_ASSERT_FALSE(cfg.sclk.is_connected());
+    TEST_ASSERT_FALSE(cfg.quadwp.is_connected());
+    TEST_ASSERT_FALSE(cfg.quadhd.is_connected());
+    TEST_ASSERT_FALSE(cfg.data4.is_connected());
+    TEST_ASSERT_FALSE(cfg.data5.is_connected());
+    TEST_ASSERT_FALSE(cfg.data6.is_connected());
+    TEST_ASSERT_FALSE(cfg.data7.is_connected());
 }
 
 TEST_CASE("bus_config union aliasing", "[idfxx][spi]") {
     bus_config cfg{};
 
     // Test mosi/data0 union
-    cfg.mosi_io_num = gpio_0;
-    TEST_ASSERT_EQUAL(cfg.mosi_io_num.num(), cfg.data0_io_num.num());
+    cfg.mosi = gpio_0;
+    TEST_ASSERT_EQUAL(cfg.mosi.num(), cfg.data0.num());
 
     // Test miso/data1 union
-    cfg.miso_io_num = gpio_1;
-    TEST_ASSERT_EQUAL(cfg.miso_io_num.num(), cfg.data1_io_num.num());
+    cfg.miso = gpio_1;
+    TEST_ASSERT_EQUAL(cfg.miso.num(), cfg.data1.num());
 
     // Test quadwp/data2 union
-    cfg.quadwp_io_num = gpio_2;
-    TEST_ASSERT_EQUAL(cfg.quadwp_io_num.num(), cfg.data2_io_num.num());
+    cfg.quadwp = gpio_2;
+    TEST_ASSERT_EQUAL(cfg.quadwp.num(), cfg.data2.num());
 
     // Test quadhd/data3 union
-    cfg.quadhd_io_num = gpio_3;
-    TEST_ASSERT_EQUAL(cfg.quadhd_io_num.num(), cfg.data3_io_num.num());
+    cfg.quadhd = gpio_3;
+    TEST_ASSERT_EQUAL(cfg.quadhd.num(), cfg.data3.num());
 }
 
 // =============================================================================
@@ -88,9 +88,9 @@ TEST_CASE("bus_config union aliasing", "[idfxx][spi]") {
 
 TEST_CASE("master_bus::make with valid config succeeds", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.miso_io_num = gpio_13;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.miso = gpio_13;
+    cfg.sclk = gpio_12;
     cfg.max_transfer_sz = 4096;
 
     auto result = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
@@ -100,8 +100,8 @@ TEST_CASE("master_bus::make with valid config succeeds", "[idfxx][spi]") {
 
 TEST_CASE("master_bus::make with invalid GPIO fails", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio::make(999).value_or(gpio_nc); // Invalid GPIO
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio::make(999).value_or(gpio_nc); // Invalid GPIO
+    cfg.sclk = gpio_12;
 
     auto result = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
     // May succeed if mosi is NC, behavior depends on ESP-IDF validation
@@ -110,8 +110,8 @@ TEST_CASE("master_bus::make with invalid GPIO fails", "[idfxx][spi]") {
 
 TEST_CASE("master_bus host() returns correct host", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.sclk = gpio_12;
     cfg.max_transfer_sz = 4096;
 
     auto result = master_bus::make(host_device::spi2, dma_chan::disabled, cfg);
@@ -122,8 +122,8 @@ TEST_CASE("master_bus host() returns correct host", "[idfxx][spi]") {
 #if SOC_SPI_PERIPH_NUM > 2
 TEST_CASE("master_bus::make with SPI3 host succeeds", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.sclk = gpio_12;
     cfg.max_transfer_sz = 4096;
 
     auto result = master_bus::make(host_device::spi3, dma_chan::ch_auto, cfg);
@@ -134,8 +134,8 @@ TEST_CASE("master_bus::make with SPI3 host succeeds", "[idfxx][spi]") {
 
 TEST_CASE("master_bus::make with DMA disabled succeeds", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.sclk = gpio_12;
 
     auto result = master_bus::make(host_device::spi2, dma_chan::disabled, cfg);
     TEST_ASSERT_TRUE(result.has_value());
@@ -144,8 +144,8 @@ TEST_CASE("master_bus::make with DMA disabled succeeds", "[idfxx][spi]") {
 #if CONFIG_IDF_TARGET_ESP32
 TEST_CASE("master_bus::make with specific DMA channel succeeds", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.sclk = gpio_12;
     cfg.max_transfer_sz = 4096;
 
     auto result = master_bus::make(host_device::spi2, dma_chan::ch_1, cfg);
@@ -155,8 +155,8 @@ TEST_CASE("master_bus::make with specific DMA channel succeeds", "[idfxx][spi]")
 
 TEST_CASE("master_bus destructor frees bus", "[idfxx][spi]") {
     bus_config cfg{};
-    cfg.mosi_io_num = gpio_11;
-    cfg.sclk_io_num = gpio_12;
+    cfg.mosi = gpio_11;
+    cfg.sclk = gpio_12;
     cfg.max_transfer_sz = 4096;
 
     {
