@@ -68,7 +68,7 @@ TEST_CASE("master_bus::make with config and null GPIO returns error", "[idfxx][i
 TEST_CASE("master_bus::make with config succeeds", "[idfxx][i2c][master_bus]") {
     auto result = master_bus::make(port::i2c0, {
         .sda = idfxx::gpio_21,
-        .scl = idfxx::gpio_26,
+        .scl = idfxx::gpio_9,
         .frequency = 400_kHz,
     });
     if (!result.has_value()) {
@@ -82,7 +82,7 @@ TEST_CASE("master_bus::make with config succeeds", "[idfxx][i2c][master_bus]") {
 TEST_CASE("master_bus::make with config custom settings succeeds", "[idfxx][i2c][master_bus]") {
     auto result = master_bus::make(port::i2c0, {
         .sda = idfxx::gpio_21,
-        .scl = idfxx::gpio_26,
+        .scl = idfxx::gpio_9,
         .frequency = 100_kHz,
         .glitch_ignore_cnt = 5,
         .enable_internal_pullup = false,
@@ -97,7 +97,7 @@ TEST_CASE("master_bus::make with config custom settings succeeds", "[idfxx][i2c]
 
 TEST_CASE("master_bus scan_devices returns vector", "[idfxx][i2c][master_bus]") {
     // Create a bus with valid GPIO pins (adjust pins for your hardware)
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, 100_kHz);
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, 100_kHz);
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus - check GPIO pins are valid for your hardware");
     }
@@ -110,7 +110,7 @@ TEST_CASE("master_bus scan_devices returns vector", "[idfxx][i2c][master_bus]") 
 }
 
 TEST_CASE("master_bus try_probe with invalid address returns error", "[idfxx][i2c][master_bus]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, 100_kHz);
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, 100_kHz);
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -123,7 +123,7 @@ TEST_CASE("master_bus try_probe with invalid address returns error", "[idfxx][i2
 }
 
 TEST_CASE("master_bus is lockable", "[idfxx][i2c][master_bus]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, 100_kHz);
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, 100_kHz);
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -155,7 +155,7 @@ TEST_CASE("master_bus is lockable", "[idfxx][i2c][master_bus]") {
 }
 
 TEST_CASE("master_bus frequency accessor works", "[idfxx][i2c][master_bus]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, 400_kHz);
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, 400_kHz);
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -165,7 +165,7 @@ TEST_CASE("master_bus frequency accessor works", "[idfxx][i2c][master_bus]") {
 }
 
 TEST_CASE("master_bus port accessor works", "[idfxx][i2c][master_bus]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_26, 100_kHz);
+    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, 100_kHz);
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }

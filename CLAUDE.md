@@ -191,3 +191,4 @@ Exception-based methods should not have abbreviated documentation. Inline implem
 - Runtime tests use ESP-IDF Unity framework: `TEST_CASE("name", "[tag]")`
 - Tests verify enum values match ESP-IDF constants
 - **Do not use GPIO 19 or GPIO 20 in tests** — these are the USB D-/D+ pins on ESP32-S3 and configuring them for peripheral output (e.g., LEDC) hangs when USB-JTAG/Serial is active
+- **Do not use GPIO 26–32 in tests on ESP32-S3 modules with embedded flash/PSRAM** — these pins are connected to the SPI flash/PSRAM. Driving them from a peripheral hijacks the flash CS/CLK/data lines; the next IROM fetch then reads 0xFF from the disabled flash, poisoning ICache and causing IllegalInstruction crashes that look like cache-coherency bugs (see espressif/esp-idf#18518). GPIO 26 is the most commonly mistaken pin (it's the flash CS line)
