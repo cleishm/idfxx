@@ -1,10 +1,10 @@
 dependencies:
   cleishm/idfxx_event_group:
-    version: "^0.9.0"
+    version: "^1.0.0"
     override_path: ../../..
   cleishm/idfxx_task:
-    version: "^0.9.0"
+    version: "^1.0.0"
     override_path: ../../../../idfxx_task
   cleishm/idfxx_log:
-    version: "^0.9.0"
+    version: "^1.0.0"
     override_path: ../../../../idfxx_log

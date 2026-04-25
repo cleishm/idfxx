@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_console:
-    version: "^0.9.0"
+    version: "^1.0.0"
 ```
 
 Or add `idfxx_console` to the `REQUIRES` list in your component's `CMakeLists.txt`.
