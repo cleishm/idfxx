@@ -23,8 +23,7 @@ namespace {
 
 struct pool_slot {
     spi_transaction_ext_t idf_ext{};
-    std::atomic<bool> done{true};
-    std::atomic<uint16_t> refcount{0};
+    std::shared_ptr<std::atomic<bool>> done_flag;
 };
 
 } // namespace
@@ -120,11 +119,10 @@ void master_device::_delete() noexcept {
         // ESP-IDF rejects spi_bus_remove_device with ESP_ERR_INVALID_STATE if any
         // transaction is still in its internal queue — drain them first.
         if (_async) {
-            size_t pending = 0;
-            for (size_t i = 0; i < _async->queue_size; ++i) {
-                if (!_async->slots[i].done.load(std::memory_order_acquire)) {
-                    ++pending;
-                }
+            size_t pending;
+            {
+                std::lock_guard lk(_async->pool_mtx);
+                pending = _async->queue_size - _async->free_list.size();
             }
             while (pending > 0) {
                 spi_transaction_t* idf_trans = nullptr;
@@ -134,7 +132,10 @@ void master_device::_delete() noexcept {
                     break;
                 }
                 auto* drained = static_cast<pool_slot*>(idf_trans->user);
-                drained->done.store(true, std::memory_order_release);
+                auto drained_df = std::move(drained->done_flag);
+                if (drained_df) {
+                    drained_df->store(true, std::memory_order_release);
+                }
                 --pending;
             }
         }
@@ -330,19 +331,12 @@ result<uint16_t> master_device::_acquire_slot(std::optional<std::chrono::millise
     return idx;
 }
 
-void master_device::_release_slot_ref(uint16_t slot_idx) noexcept {
-    auto prev = _async->slots[slot_idx].refcount.fetch_sub(1, std::memory_order_acq_rel);
-    if (prev == 1) {
-        {
-            std::lock_guard lk(_async->pool_mtx);
-            _async->free_list.push_back(slot_idx);
-        }
-        _async->pool_cv.notify_one();
+void master_device::_release_slot(uint16_t slot_idx) noexcept {
+    {
+        std::lock_guard lk(_async->pool_mtx);
+        _async->free_list.push_back(slot_idx);
     }
-}
-
-bool master_device::_slot_done(uint16_t slot_idx) const noexcept {
-    return _async->slots[slot_idx].done.load(std::memory_order_acquire);
+    _async->pool_cv.notify_one();
 }
 
 result<idfxx::future<void>> master_device::try_queue_trans(const transaction& trans) {
@@ -364,63 +358,38 @@ master_device::_try_queue_trans(const transaction& trans, std::optional<std::chr
     }
     uint16_t slot_idx = *slot_idx_res;
 
+    auto df = std::make_shared<std::atomic<bool>>(false);
     auto& s = _async->slots[slot_idx];
     _prepare_idf_trans_ext(s.idf_ext, trans);
     s.idf_ext.base.user = &s;
-    s.done.store(false, std::memory_order_relaxed);
-    // +2 refs: one for ESP-IDF (released on drain), one for the future-side
-    // slot_guard captured below.
-    s.refcount.store(2, std::memory_order_release);
+    s.done_flag = df;
 
     auto err = spi_device_queue_trans(_handle, &s.idf_ext.base, portMAX_DELAY);
     if (err != ESP_OK) {
-        // ESP-IDF did not take the slot: collapse the two refs to zero so
-        // _release_slot_ref returns the slot to the free list.
-        s.done.store(true, std::memory_order_relaxed);
-        s.refcount.store(1, std::memory_order_release);
-        _release_slot_ref(slot_idx);
+        s.done_flag.reset();
+        _release_slot(slot_idx);
         return error(err);
     }
 
-    // RAII guard captured by value inside the waiter lambda — holds the
-    // future-side slot reference for the life of the underlying shared state.
-    struct slot_guard {
-        master_device* dev;
-        uint16_t idx;
-        slot_guard(master_device* d, uint16_t i) noexcept
-            : dev(d)
-            , idx(i) {}
-        slot_guard(slot_guard&& o) noexcept
-            : dev(o.dev)
-            , idx(o.idx) {
-            o.dev = nullptr;
-        }
-        slot_guard(const slot_guard&) = delete;
-        slot_guard& operator=(const slot_guard&) = delete;
-        slot_guard& operator=(slot_guard&&) = delete;
-        ~slot_guard() {
-            if (dev) {
-                dev->_release_slot_ref(idx);
-            }
-        }
-    };
-
     return idfxx::future<void>{
-        [dev = this, idx = slot_idx, g = slot_guard{this, slot_idx}](std::optional<std::chrono::milliseconds> t) mutable
-            -> result<void> { return dev->_try_wait_for(idx, t); },
-        [dev = this, idx = slot_idx]() noexcept -> bool { return dev->_slot_done(idx); }
+        [dev = this, df](std::optional<std::chrono::milliseconds> t) -> result<void> {
+            return dev->_try_wait_for(df, t);
+        },
+        [df]() noexcept -> bool { return df->load(std::memory_order_acquire); }
     };
 }
 
-result<void> master_device::_try_wait_for(uint16_t slot_idx, std::optional<std::chrono::milliseconds> timeout) {
+result<void> master_device::_try_wait_for(
+    const std::shared_ptr<std::atomic<bool>>& done_flag,
+    std::optional<std::chrono::milliseconds> timeout
+) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
     using clock = std::chrono::steady_clock;
     std::optional<clock::time_point> deadline = timeout.transform([](auto t) { return clock::now() + t; });
 
-    auto& target = _async->slots[slot_idx];
-    if (target.done.load(std::memory_order_acquire)) {
+    if (done_flag->load(std::memory_order_acquire)) {
         return {};
     }
 
@@ -432,10 +401,10 @@ result<void> master_device::_try_wait_for(uint16_t slot_idx, std::optional<std::
     if (!deadline) {
         lk.lock();
     } else if (!lk.try_lock_until(*deadline)) {
-        return target.done.load(std::memory_order_acquire) ? result<void>{} : error(errc::timeout);
+        return done_flag->load(std::memory_order_acquire) ? result<void>{} : error(errc::timeout);
     }
 
-    while (!target.done.load(std::memory_order_acquire)) {
+    while (!done_flag->load(std::memory_order_acquire)) {
         TickType_t ticks = portMAX_DELAY;
         if (deadline) {
             auto now = clock::now();
@@ -451,9 +420,15 @@ result<void> master_device::_try_wait_for(uint16_t slot_idx, std::optional<std::
             return error(err);
         }
         auto* completed_slot = static_cast<pool_slot*>(idf_trans->user);
-        completed_slot->done.store(true, std::memory_order_release);
+        // Move the done_flag out of the slot BEFORE releasing it: once the slot
+        // is on the free_list, a concurrent _try_queue_trans may write a new
+        // done_flag into it.
+        auto completed_df = std::move(completed_slot->done_flag);
         uint16_t completed_idx = static_cast<uint16_t>(completed_slot - _async->slots.get());
-        _release_slot_ref(completed_idx);
+        _release_slot(completed_idx);
+        if (completed_df) {
+            completed_df->store(true, std::memory_order_release);
+        }
     }
     return {};
 }
