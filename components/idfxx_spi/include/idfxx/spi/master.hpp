@@ -26,6 +26,7 @@
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <driver/spi_master.h>
@@ -813,11 +814,13 @@ private:
 
     [[nodiscard]] result<idfxx::future<void>>
     _try_queue_trans(const transaction& trans, std::optional<std::chrono::milliseconds> timeout);
-    [[nodiscard]] result<void> _try_wait_for(uint16_t slot_idx, std::optional<std::chrono::milliseconds> timeout);
+    [[nodiscard]] result<void> _try_wait_for(
+        const std::shared_ptr<std::atomic<bool>>& done_flag,
+        std::optional<std::chrono::milliseconds> timeout
+    );
 
     [[nodiscard]] result<uint16_t> _acquire_slot(std::optional<std::chrono::milliseconds> timeout);
-    void _release_slot_ref(uint16_t slot_idx) noexcept;
-    [[nodiscard]] bool _slot_done(uint16_t slot_idx) const noexcept;
+    void _release_slot(uint16_t slot_idx) noexcept;
 
     static void _prepare_idf_trans(spi_transaction_t& idf_trans, const transaction& trans);
     static void _prepare_idf_trans_ext(spi_transaction_ext_t& idf_ext, const transaction& trans);
