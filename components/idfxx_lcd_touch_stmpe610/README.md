@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_touch_stmpe610:
-    version: "^0.9.0"
+    version: "^1.0.0"
 ```
 
 Or add `idfxx_lcd_touch_stmpe610` to the `REQUIRES` list in your component's `CMakeLists.txt`.

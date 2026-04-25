@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_log:
-    version: "^0.9.0"
+    version: "^1.0.0"
 ```
 
 Or add `idfxx_log` to the `REQUIRES` list in your component's `CMakeLists.txt`.

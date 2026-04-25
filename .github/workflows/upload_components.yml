@@ -15,14 +15,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Discover components
+      - name: Discover components in topological order
         id: discover
         run: |
-          list=""
-          for yml in components/*/idf_component.yml; do
-            dir=$(dirname "$yml")
-            list="${list:+$list$'\n'}$dir"
-          done
+          list=$(python3 scripts/component-order.py --paths)
           echo "list<<EOF" >> "$GITHUB_OUTPUT"
           echo "$list" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"

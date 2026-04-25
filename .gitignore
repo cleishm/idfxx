@@ -10,6 +10,9 @@ dependencies.lock
 sdkconfig
 sdkconfig.old
 
+# Component registry uploads (compote pack/upload tarballs)
+components/*/dist/
+
 # Documentation
 docs/html/
 docs/xml/
