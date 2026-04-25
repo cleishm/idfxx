@@ -1,4 +1,4 @@
-version: "0.9.0"
+version: "1.0.0"
 description: "Type-safe GPIO pin management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_gpio"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -6,11 +6,11 @@ license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
   cleishm/idfxx_core:
-    version: "^0.9.0"
+    version: "^1.0.0"
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_hw_support:
-    version: "^0.9.0"
+    version: "^1.0.0"
     public: true
     override_path: ../idfxx_hw_support
 targets:

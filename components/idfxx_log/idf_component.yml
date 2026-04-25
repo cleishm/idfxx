@@ -1,4 +1,4 @@
-version: "0.9.0"
+version: "1.0.0"
 description: "Type-safe logging with std::format for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_log"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -6,7 +6,7 @@ license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
   cleishm/idfxx_core:
-    version: "^0.9.0"
+    version: "^1.0.0"
     override_path: ../idfxx_core
 targets:
   - esp32

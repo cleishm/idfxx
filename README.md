@@ -102,9 +102,9 @@ Add components to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   cleishm/idfxx_core:
-    version: "^0.9.0"
+    version: "^1.0.0"
   cleishm/idfxx_gpio:
-    version: "^0.9.0"
+    version: "^1.0.0"
   # Add other components as needed
 ```
 
@@ -112,7 +112,7 @@ dependencies:
 
 Repository releases use [calendar versioning](https://calver.org/) (e.g., `v2026.02.10`). Individual
 components follow [semantic versioning](https://semver.org/) independently — a component's version is
-only bumped when that component changes. Use caret constraints (e.g., `^0.9.0`) in your
+only bumped when that component changes. Use caret constraints (e.g., `^1.0.0`) in your
 `idf_component.yml` to receive compatible updates.
 
 ## Basic Examples
