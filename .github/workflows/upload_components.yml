@@ -3,6 +3,12 @@ name: Upload Components
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validate uploads without publishing (verifies OIDC + trusted uploader)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,3 +34,4 @@ jobs:
         with:
           namespace: cleishm
           components: ${{ steps.discover.outputs.list }}
+          dry_run: ${{ inputs.dry_run || '' }}
