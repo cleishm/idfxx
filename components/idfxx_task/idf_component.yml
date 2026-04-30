@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "FreeRTOS task management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_task"
 repository: "https://github.com/cleishm/idfxx.git"

@@ -3,6 +3,8 @@
 
 #include <idfxx/wifi>
 
+#include <limits>
+#include <system_error>
 #include <type_traits>
 #include <unity.h>
 #include <utility>
@@ -138,6 +140,26 @@ TEST_CASE("wifi error category covers new error codes", "[idfxx][wifi]") {
     TEST_ASSERT_FALSE(ec.message().empty());
     ec = make_error_code(errc::roc_in_progress);
     TEST_ASSERT_FALSE(ec.message().empty());
+}
+
+TEST_CASE("wifi value_too_large is equivalent to std::errc::value_too_large", "[idfxx][wifi]") {
+    auto ec = make_error_code(errc::value_too_large);
+    TEST_ASSERT_EQUAL_STRING("wifi::Error", ec.category().name());
+    TEST_ASSERT_FALSE(ec.message().empty());
+    TEST_ASSERT_TRUE(ec == std::errc::value_too_large);
+    TEST_ASSERT_TRUE(ec == errc::value_too_large);
+}
+
+TEST_CASE("wifi try_init rejects oversized buffer count", "[idfxx][wifi]") {
+    init_config cfg;
+    cfg.static_rx_buf_num =
+        static_cast<unsigned int>(std::numeric_limits<int>::max()) + 1u;
+
+    auto r = try_init(cfg);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::value_too_large);
+    TEST_ASSERT_TRUE(r.error() == std::errc::value_too_large);
+    TEST_ASSERT_EQUAL_STRING("wifi::Error", r.error().category().name());
 }
 
 TEST_CASE("wifi get and set country", "[idfxx][wifi][hw]") {

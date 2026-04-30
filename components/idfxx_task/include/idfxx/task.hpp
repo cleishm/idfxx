@@ -29,6 +29,9 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <type_traits>
+#include <utility>
 
 namespace idfxx {
 
@@ -48,6 +51,46 @@ class task {
     struct context;
 
 public:
+    /**
+     * @headerfile <idfxx/task>
+     * @brief Error codes for task operations.
+     *
+     * The category's `equivalent()` member recognises these codes as
+     * equivalent to the corresponding `std::errc` synonyms, so callers can
+     * compare against either the domain-specific `errc` value or the
+     * portable POSIX name. For example
+     * @code
+     * ec == idfxx::task::errc::would_deadlock
+     * ec == std::errc::resource_deadlock_would_occur
+     * @endcode
+     * are both true for the same underlying error.
+     */
+    enum class errc : esp_err_t {
+        would_deadlock = 1, /*!< Operation would cause the calling task to deadlock. */
+    };
+
+    /**
+     * @headerfile <idfxx/task>
+     * @brief Error category for task errors.
+     */
+    class error_category : public std::error_category {
+    public:
+        /** @brief Returns the name of the error category. */
+        [[nodiscard]] const char* name() const noexcept override final;
+
+        /** @brief Returns a human-readable message for the given error code. */
+        [[nodiscard]] std::string message(int ec) const override final;
+
+        /**
+         * @brief Tests whether an `errc` value is equivalent to a standard condition.
+         *
+         * @param code The `errc` value being compared.
+         * @param condition The condition being compared against.
+         * @return True if `code` is equivalent to `condition`.
+         */
+        [[nodiscard]] bool equivalent(int code, const std::error_condition& condition) const noexcept override final;
+    };
+
     /**
      * @headerfile <idfxx/task>
      * @brief Handle for task self-interaction.
@@ -589,7 +632,8 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error if the task has been detached or already joined
      *         (`idfxx::errc::invalid_state`), or if called from within the task
-     *         itself (`std::errc::resource_deadlock_would_occur`).
+     *         itself (`idfxx::task::errc::would_deadlock`, equivalent to
+     *         `std::errc::resource_deadlock_would_occur` for portable comparisons).
      */
     void join() { unwrap(try_join()); }
 
@@ -602,8 +646,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error if the task has been detached or already joined
      *         (`idfxx::errc::invalid_state`), if called from within the task
-     *         itself (`std::errc::resource_deadlock_would_occur`), or if the
-     *         timeout expires (`idfxx::errc::timeout`).
+     *         itself (`idfxx::task::errc::would_deadlock`, equivalent to
+     *         `std::errc::resource_deadlock_would_occur` for portable comparisons),
+     *         or if the timeout expires (`idfxx::errc::timeout`).
      */
     template<typename Rep, typename Period>
     void join(const std::chrono::duration<Rep, Period>& timeout) {
@@ -619,8 +664,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error if the task has been detached or already joined
      *         (`idfxx::errc::invalid_state`), if called from within the task
-     *         itself (`std::errc::resource_deadlock_would_occur`), or if the
-     *         deadline is reached (`idfxx::errc::timeout`).
+     *         itself (`idfxx::task::errc::would_deadlock`, equivalent to
+     *         `std::errc::resource_deadlock_would_occur` for portable comparisons),
+     *         or if the deadline is reached (`idfxx::errc::timeout`).
      */
     template<typename Clock, typename Duration>
     void join_until(const std::chrono::time_point<Clock, Duration>& deadline) {
@@ -637,7 +683,9 @@ public:
      *
      * @return Success, or an error.
      * @retval invalid_state The task has been detached or already joined.
-     * @retval std::errc::resource_deadlock_would_occur Called from within the task itself.
+     * @retval idfxx::task::errc::would_deadlock Called from within the task itself.
+     *         Equivalent to std::errc::resource_deadlock_would_occur via the category's
+     *         equivalent() member.
      */
     [[nodiscard]] result<void> try_join();
 
@@ -651,7 +699,9 @@ public:
      * @param timeout Maximum time to wait for the task to complete.
      * @return Success, or an error.
      * @retval invalid_state The task has been detached or already joined.
-     * @retval std::errc::resource_deadlock_would_occur Called from within the task itself.
+     * @retval idfxx::task::errc::would_deadlock Called from within the task itself.
+     *         Equivalent to std::errc::resource_deadlock_would_occur via the category's
+     *         equivalent() member.
      * @retval timeout The task did not complete within the specified duration.
      *         The task remains joinable and can be joined again.
      */
@@ -670,7 +720,9 @@ public:
      * @param deadline The time point at which to stop waiting.
      * @return Success, or an error.
      * @retval invalid_state The task has been detached or already joined.
-     * @retval std::errc::resource_deadlock_would_occur Called from within the task itself.
+     * @retval idfxx::task::errc::would_deadlock Called from within the task itself.
+     *         Equivalent to std::errc::resource_deadlock_would_occur via the category's
+     *         equivalent() member.
      * @retval timeout The task did not complete before the deadline.
      *         The task remains joinable and can be joined again.
      */
@@ -716,6 +768,31 @@ private:
     context* _context = nullptr;
 };
 
+/**
+ * @brief Returns a reference to the task error category singleton.
+ *
+ * @return Reference to the singleton task::error_category instance.
+ */
+[[nodiscard]] const task::error_category& task_category() noexcept;
+
+/**
+ * @headerfile <idfxx/task>
+ * @brief Creates an error code from an idfxx::task::errc value.
+ *
+ * @param e The error code enumerator.
+ * @return The corresponding std::error_code.
+ */
+[[nodiscard]] inline std::error_code make_error_code(task::errc e) noexcept {
+    return {std::to_underlying(e), task_category()};
+}
+
 /** @} */ // end of idfxx_task
 
 } // namespace idfxx
+
+/// @cond INTERNAL
+namespace std {
+template<>
+struct is_error_code_enum<idfxx::task::errc> : true_type {};
+} // namespace std
+/// @endcond
