@@ -6,9 +6,40 @@
 #include <atomic>
 #include <esp_attr.h>
 #include <freertos/semphr.h>
+#include <string>
+#include <system_error>
 #include <utility>
 
 namespace idfxx {
+
+const task::error_category& task_category() noexcept {
+    static const task::error_category instance{};
+    return instance;
+}
+
+const char* task::error_category::name() const noexcept {
+    return "task::Error";
+}
+
+std::string task::error_category::message(int ec) const {
+    switch (task::errc(ec)) {
+    case task::errc::would_deadlock:
+        return "Operation would cause the calling task to deadlock";
+    }
+    return "Unknown task error (" + std::to_string(ec) + ")";
+}
+
+bool task::error_category::equivalent(int code, const std::error_condition& condition) const noexcept {
+    if (condition.category() != std::generic_category()) {
+        return false;
+    }
+    auto target = std::errc(condition.value());
+    switch (task::errc(code)) {
+    case task::errc::would_deadlock:
+        return target == std::errc::resource_deadlock_would_occur;
+    }
+    return false;
+}
 
 struct task::context {
     std::move_only_function<void(task::self&)> func = nullptr;
@@ -185,7 +216,7 @@ bool task::stop_requested() const noexcept {
 
 result<void> task::try_suspend() {
     if (!_is_running()) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     vTaskSuspend(_handle);
     return {};
@@ -193,7 +224,7 @@ result<void> task::try_suspend() {
 
 result<void> task::try_resume() {
     if (!_is_running()) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     vTaskResume(_handle);
     return {};
@@ -201,7 +232,7 @@ result<void> task::try_resume() {
 
 result<void> task::try_set_priority(task_priority new_priority) {
     if (!_is_running()) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     vTaskPrioritySet(_handle, static_cast<UBaseType_t>(new_priority.value()));
     return {};
@@ -209,7 +240,7 @@ result<void> task::try_set_priority(task_priority new_priority) {
 
 result<void> task::try_detach() {
     if (_handle == nullptr) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     auto expected = context::state_t::running;
     if (!_context->state.compare_exchange_strong(
@@ -226,10 +257,10 @@ result<void> task::try_detach() {
 
 result<void> task::try_kill() {
     if (_handle == nullptr) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     if (xTaskGetCurrentTaskHandle() == _handle) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
 
     auto expected = context::state_t::running;
@@ -256,10 +287,10 @@ result<void> task::try_join() {
 
 result<void> task::_try_join(TickType_t ticks) {
     if (_handle == nullptr) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     if (xTaskGetCurrentTaskHandle() == _handle) {
-        return error(std::errc::resource_deadlock_would_occur);
+        return error(task::errc::would_deadlock);
     }
     if (_context->state.load(std::memory_order_acquire) == context::state_t::completed) {
         vTaskDeleteWithCaps(_handle);
@@ -269,7 +300,7 @@ result<void> task::_try_join(TickType_t ticks) {
         return {};
     }
     if (xSemaphoreTake(_context->join_sem, ticks) != pdTRUE) {
-        return error(errc::timeout);
+        return error(idfxx::errc::timeout);
     }
     vTaskDeleteWithCaps(_handle);
     _handle = nullptr;
@@ -287,7 +318,7 @@ bool IRAM_ATTR task::resume_from_isr() noexcept {
 
 result<void> task::try_notify() {
     if (!_is_running()) {
-        return error(errc::invalid_state);
+        return error(idfxx::errc::invalid_state);
     }
     xTaskNotifyGive(_handle);
     return {};

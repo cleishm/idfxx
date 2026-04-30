@@ -584,8 +584,23 @@ std::string wifi::error_category::message(int ec) const {
         return "Frame discarded";
     case wifi::errc::roc_in_progress:
         return "Remain-on-channel operation in progress";
+    case wifi::errc::value_too_large:
+        return "Configuration value exceeds the supported range";
     default:
         return esp_err_to_name(static_cast<esp_err_t>(ec));
+    }
+}
+
+bool wifi::error_category::equivalent(int code, const std::error_condition& condition) const noexcept {
+    if (condition.category() != std::generic_category()) {
+        return false;
+    }
+    auto target = std::errc(condition.value());
+    switch (wifi::errc(code)) {
+    case wifi::errc::value_too_large:
+        return target == std::errc::value_too_large;
+    default:
+        return false;
     }
 }
 

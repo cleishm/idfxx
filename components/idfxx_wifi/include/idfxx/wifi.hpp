@@ -613,9 +613,15 @@ namespace idfxx::wifi {
 /**
  * @headerfile <idfxx/wifi>
  * @brief Error codes for WiFi operations.
+ *
+ * The category's `equivalent()` member recognises codes that map to standard
+ * `std::errc` synonyms (e.g. `value_too_large`), so callers can compare error
+ * codes against either the domain-specific `errc` value or the portable POSIX
+ * name.
  */
 enum class errc : esp_err_t {
     // clang-format off
+    // ----- 0x3001..0x301C — ESP_ERR_WIFI_* aliases -----
     not_init            = 0x3001, /*!< WiFi driver was not initialized. */
     not_started         = 0x3002, /*!< WiFi driver was not started. */
     not_stopped         = 0x3003, /*!< WiFi driver was not stopped. */
@@ -642,6 +648,9 @@ enum class errc : esp_err_t {
     twt_setup_reject    = 0x301A, /*!< TWT setup request was rejected by AP. */
     discard             = 0x301B, /*!< Frame discarded. */
     roc_in_progress     = 0x301C, /*!< Remain-on-channel operation in progress. */
+
+    // ----- idfxx-only validation codes (no ESP-IDF counterpart) -----
+    value_too_large     = 1,      /*!< Configuration value exceeds the supported range. */
     // clang-format on
 };
 
@@ -656,6 +665,23 @@ public:
 
     /** @brief Returns a human-readable message for the given error code. */
     [[nodiscard]] std::string message(int ec) const override final;
+
+    /**
+     * @brief Tests whether an `errc` value is equivalent to a standard condition.
+     *
+     * Allows callers to compare a WiFi error code against either the
+     * domain-specific `errc` value or the portable `std::errc` synonym, e.g.
+     * @code
+     * ec == idfxx::wifi::errc::value_too_large
+     * ec == std::errc::value_too_large
+     * @endcode
+     * are both true for the same underlying error.
+     *
+     * @param code The `errc` value being compared.
+     * @param condition The condition being compared against.
+     * @return True if `code` is equivalent to `condition`.
+     */
+    [[nodiscard]] bool equivalent(int code, const std::error_condition& condition) const noexcept override final;
 };
 
 // =============================================================================

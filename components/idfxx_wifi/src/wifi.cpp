@@ -311,7 +311,7 @@ static result<std::vector<ap_record>> get_scan_results() {
 
 static result<void> apply_uint(int& dst, std::optional<unsigned int> src) {
     if (src && *src > static_cast<unsigned int>(std::numeric_limits<int>::max())) {
-        return error(std::errc::value_too_large);
+        return error(errc::value_too_large);
     }
     if (src) {
         dst = static_cast<int>(*src);
