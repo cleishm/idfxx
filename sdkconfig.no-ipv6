@@ -1,0 +1,5 @@
+# Build configuration with IPv6 disabled
+# This verifies that all components compile and behave correctly without
+# lwIP IPv6 support — IPv6-specific APIs return errc::not_supported at runtime.
+
+CONFIG_LWIP_IPV6=n

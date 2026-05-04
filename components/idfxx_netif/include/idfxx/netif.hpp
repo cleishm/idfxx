@@ -154,9 +154,14 @@ enum class errc : esp_err_t {
     init_failed           = 0x5009, /*!< Initialization failed. */
     dns_not_configured    = 0x500A, /*!< DNS not configured. */
     mld6_failed           = 0x500B, /*!< MLD6 operation failed. */
-    ip6_addr_failed       = 0x500C, /*!< IPv6 address operation failed. */
+    ipv6_addr_failed      = 0x500C, /*!< IPv6 address operation failed. */
     dhcps_start_failed    = 0x500D, /*!< DHCP server start failed. */
     tx_failed             = 0x500E, /*!< Transmit failed. */
+
+    /// @cond INTERNAL
+    // Backward-compatibility alias for the original spelling.
+    ip6_addr_failed [[deprecated("use ipv6_addr_failed")]] = ipv6_addr_failed,
+    /// @endcond
     // clang-format on
 };
 
@@ -253,8 +258,8 @@ inline event_base<ip_event_id> idfxx_get_event_base(ip_event_id*) {
  * Dispatched with the sta_got_ip4, eth_got_ip4, and ppp_got_ip4 events.
  */
 struct ip4_event_data {
-    net::ip4_info ip4; /*!< IPv4 address, netmask, and gateway. */
-    bool changed;      /*!< Whether the IP address changed from the previous value. */
+    net::ipv4_info ip4; /*!< IPv4 address, netmask, and gateway. */
+    bool changed;       /*!< Whether the IP address changed from the previous value. */
 
     /// @cond INTERNAL
     static ip4_event_data from_opaque(const void* event_data);
@@ -268,8 +273,8 @@ struct ip4_event_data {
  * Dispatched with the got_ip6 event.
  */
 struct ip6_event_data {
-    net::ip6_addr ip; /*!< IPv6 address. */
-    int index;        /*!< IPv6 address index on the interface. */
+    net::ipv6_addr ip; /*!< IPv6 address. */
+    int index;         /*!< IPv6 address index on the interface. */
 
     /// @cond INTERNAL
     static ip6_event_data from_opaque(const void* event_data);
@@ -283,8 +288,8 @@ struct ip6_event_data {
  * Dispatched with the ap_sta_ip4_assigned event.
  */
 struct ap_sta_ip4_assigned_event_data {
-    net::ip4_addr ip; /*!< IPv4 address assigned to the station. */
-    mac_address mac;  /*!< MAC address of the connected station. */
+    net::ipv4_addr ip; /*!< IPv4 address assigned to the station. */
+    mac_address mac;   /*!< MAC address of the connected station. */
 
     /// @cond INTERNAL
     static ap_sta_ip4_assigned_event_data from_opaque(const void* event_data);
@@ -325,7 +330,7 @@ inline constexpr idfxx::event<ip_event_id> ppp_lost_ip4{ip_event_id::ppp_lost_ip
  * Contains an IPv4 address for a DNS server. Used with get_dns() and set_dns().
  */
 struct dns_info {
-    net::ip4_addr ip; /*!< IPv4 address of the DNS server. */
+    net::ipv4_addr ip; /*!< IPv4 address of the DNS server. */
 };
 
 // =============================================================================
@@ -539,12 +544,12 @@ public:
      *
      * @return The IP info containing address, netmask, and gateway.
      */
-    [[nodiscard]] net::ip4_info get_ip4_info() const;
+    [[nodiscard]] net::ipv4_info get_ipv4_info() const;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /** @brief Sets the IPv4 information. Fails if DHCP is running.
      *  @throws std::system_error on failure. */
-    void set_ip4_info(const net::ip4_info& info) { unwrap(try_set_ip4_info(info)); }
+    void set_ipv4_info(const net::ipv4_info& info) { unwrap(try_set_ipv4_info(info)); }
 #endif
 
     /**
@@ -555,7 +560,18 @@ public:
      * @param info The IP info to set.
      * @return Result indicating success or an error code.
      */
-    result<void> try_set_ip4_info(const net::ip4_info& info);
+    result<void> try_set_ipv4_info(const net::ipv4_info& info);
+
+    /// @cond INTERNAL
+    // Backward-compatibility forwarders for the original spellings.
+    [[nodiscard, deprecated("use get_ipv4_info")]] net::ipv4_info get_ip4_info() const { return get_ipv4_info(); }
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    [[deprecated("use set_ipv4_info")]] void set_ip4_info(const net::ipv4_info& info) { set_ipv4_info(info); }
+#endif
+    [[deprecated("use try_set_ipv4_info")]] result<void> try_set_ip4_info(const net::ipv4_info& info) {
+        return try_set_ipv4_info(info);
+    }
+    /// @endcond
 
     // =========================================================================
     // IPv6
@@ -564,15 +580,15 @@ public:
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /** @brief Creates an IPv6 link-local address for this interface.
      *  @throws std::system_error on failure. */
-    void create_ip6_linklocal() { unwrap(try_create_ip6_linklocal()); }
+    void create_ipv6_linklocal() { unwrap(try_create_ipv6_linklocal()); }
 
     /** @brief Returns the IPv6 link-local address.
      *  @throws std::system_error on failure. */
-    [[nodiscard]] net::ip6_addr get_ip6_linklocal() const { return unwrap(try_get_ip6_linklocal()); }
+    [[nodiscard]] net::ipv6_addr get_ipv6_linklocal() const { return unwrap(try_get_ipv6_linklocal()); }
 
     /** @brief Returns the IPv6 global address.
      *  @throws std::system_error on failure. */
-    [[nodiscard]] net::ip6_addr get_ip6_global() const { return unwrap(try_get_ip6_global()); }
+    [[nodiscard]] net::ipv6_addr get_ipv6_global() const { return unwrap(try_get_ipv6_global()); }
 #endif
 
     /**
@@ -580,35 +596,61 @@ public:
      *
      * @return Result indicating success or an error code.
      */
-    result<void> try_create_ip6_linklocal();
+    result<void> try_create_ipv6_linklocal();
 
     /**
      * @brief Returns the IPv6 link-local address of this interface.
      *
      * @return Result containing the IPv6 link-local address, or an error code.
      */
-    [[nodiscard]] result<net::ip6_addr> try_get_ip6_linklocal() const;
+    [[nodiscard]] result<net::ipv6_addr> try_get_ipv6_linklocal() const;
 
     /**
      * @brief Returns the IPv6 global address of this interface.
      *
      * @return Result containing the IPv6 global address, or an error code.
      */
-    [[nodiscard]] result<net::ip6_addr> try_get_ip6_global() const;
+    [[nodiscard]] result<net::ipv6_addr> try_get_ipv6_global() const;
 
     /**
      * @brief Returns all IPv6 addresses of this interface.
      *
      * @return A vector of all IPv6 addresses.
      */
-    [[nodiscard]] std::vector<net::ip6_addr> get_all_ip6() const;
+    [[nodiscard]] std::vector<net::ipv6_addr> get_all_ipv6() const;
 
     /**
      * @brief Returns all preferred IPv6 addresses of this interface.
      *
      * @return A vector of preferred IPv6 addresses.
      */
-    [[nodiscard]] std::vector<net::ip6_addr> get_all_preferred_ip6() const;
+    [[nodiscard]] std::vector<net::ipv6_addr> get_all_preferred_ipv6() const;
+
+    /// @cond INTERNAL
+    // Backward-compatibility forwarders for the original spellings.
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    [[deprecated("use create_ipv6_linklocal")]] void create_ip6_linklocal() { create_ipv6_linklocal(); }
+    [[nodiscard, deprecated("use get_ipv6_linklocal")]] net::ipv6_addr get_ip6_linklocal() const {
+        return get_ipv6_linklocal();
+    }
+    [[nodiscard, deprecated("use get_ipv6_global")]] net::ipv6_addr get_ip6_global() const { return get_ipv6_global(); }
+#endif
+    [[deprecated("use try_create_ipv6_linklocal")]] result<void> try_create_ip6_linklocal() {
+        return try_create_ipv6_linklocal();
+    }
+    [[nodiscard, deprecated("use try_get_ipv6_linklocal")]] result<net::ipv6_addr> try_get_ip6_linklocal() const {
+        return try_get_ipv6_linklocal();
+    }
+    [[nodiscard, deprecated("use try_get_ipv6_global")]] result<net::ipv6_addr> try_get_ip6_global() const {
+        return try_get_ipv6_global();
+    }
+    [[nodiscard, deprecated("use get_all_ipv6")]] std::vector<net::ipv6_addr> get_all_ip6() const {
+        return get_all_ipv6();
+    }
+    [[nodiscard, deprecated("use get_all_preferred_ipv6")]] std::vector<net::ipv6_addr> get_all_preferred_ip6() const {
+        return get_all_preferred_ipv6();
+    }
+    /// @endcond
 
     // =========================================================================
     // DHCP client
