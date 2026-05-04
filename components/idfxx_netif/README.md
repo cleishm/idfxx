@@ -31,7 +31,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_netif:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_netif` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -110,11 +110,11 @@ The component provides two API styles:
 
 ### IP Address Types (from `idfxx::net` in `idfxx_core`)
 
-- `net::ip4_addr` — IPv4 address value type with construction from octets and string conversion
-- `net::ip6_addr` — IPv6 address value type with zone ID support
-- `net::ip4_info` — IPv4 address, netmask, and gateway aggregate
-- `net::ip6_info` — IPv6 address aggregate
-- `dns_info` — DNS server address (uses `net::ip4_addr`)
+- `net::ipv4_addr` — IPv4 address value type with construction from octets and string conversion
+- `net::ipv6_addr` — IPv6 address value type with zone ID support
+- `net::ipv4_info` — IPv4 address, netmask, and gateway aggregate
+- `net::ipv6_info` — IPv6 address aggregate
+- `dns_info` — DNS server address (uses `net::ipv4_addr`)
 
 ### Subsystem Lifecycle
 
@@ -130,9 +130,9 @@ The component provides two API styles:
 
 **Hostname**: `get_hostname()` / `set_hostname()`
 
-**IPv4**: `get_ip4_info()` / `set_ip4_info()`
+**IPv4**: `get_ipv4_info()` / `set_ipv4_info()`
 
-**IPv6**: `create_ip6_linklocal()`, `get_ip6_linklocal()`, `get_ip6_global()`, `get_all_ip6()`, `get_all_preferred_ip6()`
+**IPv6**: `create_ipv6_linklocal()`, `get_ipv6_linklocal()`, `get_ipv6_global()`, `get_all_ipv6()`, `get_all_preferred_ipv6()`
 
 **DHCP Client**: `dhcp_client_start()`, `dhcp_client_stop()`, `is_dhcp_client_running()`
 
@@ -193,7 +193,7 @@ Available events: `sta_got_ip4`, `sta_lost_ip4`, `ap_sta_ip4_assigned`, `got_ip6
 - **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs. Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 - **RAII Ownership**: The `interface` class owns its network interface handle. Move-only semantics prevent accidental copies.
 - **Prerequisites**: Create the system event loop before using netif functions. Call `init()` before creating any network interfaces.
-- **IP Address Byte Order**: `ip4_addr` stores addresses in network byte order.
+- **IP Address Byte Order**: `ipv4_addr` stores addresses in network byte order.
 
 ## License
 

@@ -39,7 +39,7 @@ extern "C" void app_main() {
             logger.info("Route priority: {}", sta_netif.get_route_priority());
 
             // Read back the IP info from the interface
-            auto ip = sta_netif.get_ip4_info();
+            auto ip = sta_netif.get_ipv4_info();
             logger.info("IP info from interface: {}", ip);
 
             // Query hostname

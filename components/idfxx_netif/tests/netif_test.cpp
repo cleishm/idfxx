@@ -10,11 +10,11 @@
 // Static assertions — type properties
 // =============================================================================
 
-static_assert(std::is_default_constructible_v<idfxx::net::ip4_addr>);
-static_assert(std::is_trivially_copyable_v<idfxx::net::ip4_addr>);
-static_assert(std::is_default_constructible_v<idfxx::net::ip6_addr>);
-static_assert(std::is_aggregate_v<idfxx::net::ip4_info>);
-static_assert(std::is_aggregate_v<idfxx::net::ip6_info>);
+static_assert(std::is_default_constructible_v<idfxx::net::ipv4_addr>);
+static_assert(std::is_trivially_copyable_v<idfxx::net::ipv4_addr>);
+static_assert(std::is_default_constructible_v<idfxx::net::ipv6_addr>);
+static_assert(std::is_aggregate_v<idfxx::net::ipv4_info>);
+static_assert(std::is_aggregate_v<idfxx::net::ipv6_info>);
 static_assert(std::is_aggregate_v<idfxx::netif::ip4_event_data>);
 static_assert(std::is_aggregate_v<idfxx::netif::ip6_event_data>);
 static_assert(std::is_aggregate_v<idfxx::netif::ap_sta_ip4_assigned_event_data>);
@@ -30,32 +30,32 @@ static_assert(std::is_move_assignable_v<idfxx::netif::interface>);
 // Runtime tests
 // =============================================================================
 
-TEST_CASE("ip4_addr default is zero", "[netif]") {
-    idfxx::net::ip4_addr addr;
+TEST_CASE("ipv4_addr default is zero", "[netif]") {
+    idfxx::net::ipv4_addr addr;
     TEST_ASSERT_EQUAL_UINT32(0, addr.addr());
     TEST_ASSERT_TRUE(addr.is_any());
 }
 
-TEST_CASE("ip4_addr from octets", "[netif]") {
-    idfxx::net::ip4_addr addr(192, 168, 1, 100);
+TEST_CASE("ipv4_addr from octets", "[netif]") {
+    idfxx::net::ipv4_addr addr(192, 168, 1, 100);
     TEST_ASSERT_FALSE(addr.is_any());
     auto s = idfxx::to_string(addr);
     TEST_ASSERT_EQUAL_STRING("192.168.1.100", s.c_str());
 }
 
-TEST_CASE("ip4_addr equality", "[netif]") {
-    idfxx::net::ip4_addr a(10, 0, 0, 1);
-    idfxx::net::ip4_addr b(10, 0, 0, 1);
-    idfxx::net::ip4_addr c(10, 0, 0, 2);
+TEST_CASE("ipv4_addr equality", "[netif]") {
+    idfxx::net::ipv4_addr a(10, 0, 0, 1);
+    idfxx::net::ipv4_addr b(10, 0, 0, 1);
+    idfxx::net::ipv4_addr c(10, 0, 0, 2);
     TEST_ASSERT_TRUE(a == b);
     TEST_ASSERT_FALSE(a == c);
 }
 
-TEST_CASE("ip4_info to_string", "[netif]") {
-    idfxx::net::ip4_info info{
-        .ip = idfxx::net::ip4_addr(192, 168, 1, 100),
-        .netmask = idfxx::net::ip4_addr(255, 255, 255, 0),
-        .gateway = idfxx::net::ip4_addr(192, 168, 1, 1),
+TEST_CASE("ipv4_info to_string", "[netif]") {
+    idfxx::net::ipv4_info info{
+        .ip = idfxx::net::ipv4_addr(192, 168, 1, 100),
+        .netmask = idfxx::net::ipv4_addr(255, 255, 255, 0),
+        .gateway = idfxx::net::ipv4_addr(192, 168, 1, 1),
     };
     auto s = idfxx::to_string(info);
     TEST_ASSERT_EQUAL_STRING("ip=192.168.1.100, netmask=255.255.255.0, gw=192.168.1.1", s.c_str());

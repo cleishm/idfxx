@@ -40,6 +40,8 @@ jobs:
             defaults: sdkconfig.defaults
           - name: no-exceptions
             defaults: "sdkconfig.defaults;sdkconfig.no-exceptions"
+          - name: no-ipv6
+            defaults: "sdkconfig.defaults;sdkconfig.no-ipv6"
     name: build (${{ matrix.target }}, ${{ matrix.config.name }})
     steps:
       - name: Checkout

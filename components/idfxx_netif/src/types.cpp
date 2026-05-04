@@ -80,7 +80,7 @@ static_assert(std::to_underlying(idfxx::netif::errc::driver_attach_failed) == ES
 static_assert(std::to_underlying(idfxx::netif::errc::init_failed) == ESP_ERR_ESP_NETIF_INIT_FAILED);
 static_assert(std::to_underlying(idfxx::netif::errc::dns_not_configured) == ESP_ERR_ESP_NETIF_DNS_NOT_CONFIGURED);
 static_assert(std::to_underlying(idfxx::netif::errc::mld6_failed) == ESP_ERR_ESP_NETIF_MLD6_FAILED);
-static_assert(std::to_underlying(idfxx::netif::errc::ip6_addr_failed) == ESP_ERR_ESP_NETIF_IP6_ADDR_FAILED);
+static_assert(std::to_underlying(idfxx::netif::errc::ipv6_addr_failed) == ESP_ERR_ESP_NETIF_IP6_ADDR_FAILED);
 static_assert(std::to_underlying(idfxx::netif::errc::dhcps_start_failed) == ESP_ERR_ESP_NETIF_DHCPS_START_FAILED);
 static_assert(std::to_underlying(idfxx::netif::errc::tx_failed) == ESP_ERR_ESP_NETIF_TX_FAILED);
 
@@ -133,7 +133,7 @@ std::string netif::error_category::message(int ec) const {
         return "DNS not configured";
     case netif::errc::mld6_failed:
         return "MLD6 operation failed";
-    case netif::errc::ip6_addr_failed:
+    case netif::errc::ipv6_addr_failed:
         return "IPv6 address operation failed";
     case netif::errc::dhcps_start_failed:
         return "DHCP server start failed";
@@ -206,7 +206,7 @@ ap_sta_ip4_assigned_event_data ap_sta_ip4_assigned_event_data::from_opaque(const
     auto* data = static_cast<const ip_event_ap_staipassigned_t*>(event_data);
 #endif
     ap_sta_ip4_assigned_event_data result;
-    result.ip = net::ip4_addr(data->ip.addr);
+    result.ip = net::ipv4_addr(data->ip.addr);
     std::memcpy(result.mac.data(), data->mac, 6);
     return result;
 }

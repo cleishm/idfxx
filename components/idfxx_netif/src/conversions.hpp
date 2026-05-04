@@ -11,7 +11,7 @@
 
 namespace idfxx::netif::detail {
 
-inline esp_netif_ip_info_t to_native(const net::ip4_info& info) {
+inline esp_netif_ip_info_t to_native(const net::ipv4_info& info) {
     return {
         .ip = {.addr = info.ip.addr()},
         .netmask = {.addr = info.netmask.addr()},
@@ -19,16 +19,16 @@ inline esp_netif_ip_info_t to_native(const net::ip4_info& info) {
     };
 }
 
-inline net::ip4_info ip4_from_native(const esp_netif_ip_info_t& native) {
+inline net::ipv4_info ip4_from_native(const esp_netif_ip_info_t& native) {
     return {
-        .ip = net::ip4_addr(native.ip.addr),
-        .netmask = net::ip4_addr(native.netmask.addr),
-        .gateway = net::ip4_addr(native.gw.addr),
+        .ip = net::ipv4_addr(native.ip.addr),
+        .netmask = net::ipv4_addr(native.netmask.addr),
+        .gateway = net::ipv4_addr(native.gw.addr),
     };
 }
 
-inline net::ip6_addr ip6_from_native(const esp_ip6_addr_t& native) {
-    return net::ip6_addr(
+inline net::ipv6_addr ip6_from_native(const esp_ip6_addr_t& native) {
+    return net::ipv6_addr(
         std::array<uint32_t, 4>{native.addr[0], native.addr[1], native.addr[2], native.addr[3]}, native.zone
     );
 }

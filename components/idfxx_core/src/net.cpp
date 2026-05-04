@@ -71,7 +71,7 @@ static int parse_hex_groups(std::string_view s, uint16_t* out, int max_groups) {
 // Parsing
 // =============================================================================
 
-std::optional<net::ip4_addr> net::ip4_addr::parse(std::string_view s) noexcept {
+std::optional<net::ipv4_addr> net::ipv4_addr::parse(std::string_view s) noexcept {
     uint8_t octets[4];
     size_t pos = 0;
     for (int i = 0; i < 4; ++i) {
@@ -102,10 +102,10 @@ std::optional<net::ip4_addr> net::ip4_addr::parse(std::string_view s) noexcept {
     if (pos != s.size()) {
         return std::nullopt;
     }
-    return ip4_addr(octets[0], octets[1], octets[2], octets[3]);
+    return ipv4_addr(octets[0], octets[1], octets[2], octets[3]);
 }
 
-std::optional<net::ip6_addr> net::ip6_addr::parse(std::string_view s) noexcept {
+std::optional<net::ipv6_addr> net::ipv6_addr::parse(std::string_view s) noexcept {
     if (s.empty()) {
         return std::nullopt;
     }
@@ -188,14 +188,14 @@ std::optional<net::ip6_addr> net::ip6_addr::parse(std::string_view s) noexcept {
     }
     std::array<uint32_t, 4> words;
     std::memcpy(words.data(), bytes, 16);
-    return ip6_addr(words, zone);
+    return ipv6_addr(words, zone);
 }
 
 // =============================================================================
 // String conversions
 // =============================================================================
 
-std::string to_string(net::ip4_addr addr) {
+std::string to_string(net::ipv4_addr addr) {
     uint32_t a = addr.addr();
     char buf[16];
     snprintf(
@@ -210,7 +210,7 @@ std::string to_string(net::ip4_addr addr) {
     return buf;
 }
 
-std::string to_string(net::ip6_addr addr) {
+std::string to_string(net::ipv6_addr addr) {
     // Extract 8 groups of 16 bits from raw address bytes (network byte order in memory)
     uint16_t groups[8];
     const auto* bytes = reinterpret_cast<const uint8_t*>(addr.addr().data());
@@ -261,7 +261,7 @@ std::string to_string(net::ip6_addr addr) {
     return result;
 }
 
-std::string to_string(net::ip4_info info) {
+std::string to_string(net::ipv4_info info) {
     return "ip=" + to_string(info.ip) + ", netmask=" + to_string(info.netmask) + ", gw=" + to_string(info.gateway);
 }
 

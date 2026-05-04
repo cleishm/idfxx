@@ -176,7 +176,7 @@ result<void> interface::try_set_hostname(std::string_view hostname) {
 // IPv4
 // =========================================================================
 
-net::ip4_info interface::get_ip4_info() const {
+net::ipv4_info interface::get_ipv4_info() const {
     if (_handle == nullptr) {
         return {};
     }
@@ -185,7 +185,7 @@ net::ip4_info interface::get_ip4_info() const {
     return ip4_from_native(native);
 }
 
-result<void> interface::try_set_ip4_info(const net::ip4_info& info) {
+result<void> interface::try_set_ipv4_info(const net::ipv4_info& info) {
     if (_handle == nullptr) {
         return error(idfxx::errc::invalid_state);
     }
@@ -201,67 +201,87 @@ result<void> interface::try_set_ip4_info(const net::ip4_info& info) {
 // IPv6
 // =========================================================================
 
-result<void> interface::try_create_ip6_linklocal() {
+result<void> interface::try_create_ipv6_linklocal() {
     if (_handle == nullptr) {
         return error(idfxx::errc::invalid_state);
     }
+#ifdef CONFIG_LWIP_IPV6
     auto err = esp_netif_create_ip6_linklocal(_handle);
     if (err != ESP_OK) {
         return netif_error(err);
     }
     return {};
+#else
+    return error(idfxx::errc::not_supported);
+#endif
 }
 
-result<net::ip6_addr> interface::try_get_ip6_linklocal() const {
+result<net::ipv6_addr> interface::try_get_ipv6_linklocal() const {
     if (_handle == nullptr) {
         return error(idfxx::errc::invalid_state);
     }
+#ifdef CONFIG_LWIP_IPV6
     esp_ip6_addr_t native;
     auto err = esp_netif_get_ip6_linklocal(_handle, &native);
     if (err != ESP_OK) {
         return netif_error(err);
     }
     return ip6_from_native(native);
+#else
+    return error(idfxx::errc::not_supported);
+#endif
 }
 
-result<net::ip6_addr> interface::try_get_ip6_global() const {
+result<net::ipv6_addr> interface::try_get_ipv6_global() const {
     if (_handle == nullptr) {
         return error(idfxx::errc::invalid_state);
     }
+#ifdef CONFIG_LWIP_IPV6
     esp_ip6_addr_t native;
     auto err = esp_netif_get_ip6_global(_handle, &native);
     if (err != ESP_OK) {
         return netif_error(err);
     }
     return ip6_from_native(native);
+#else
+    return error(idfxx::errc::not_supported);
+#endif
 }
 
-std::vector<net::ip6_addr> interface::get_all_ip6() const {
+std::vector<net::ipv6_addr> interface::get_all_ipv6() const {
     if (_handle == nullptr) {
         return {};
     }
+#ifdef CONFIG_LWIP_IPV6
     esp_ip6_addr_t addrs[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
     int count = esp_netif_get_all_ip6(_handle, addrs);
-    std::vector<net::ip6_addr> result;
+    std::vector<net::ipv6_addr> result;
     result.reserve(count);
     for (int i = 0; i < count; ++i) {
         result.push_back(ip6_from_native(addrs[i]));
     }
     return result;
+#else
+    return {};
+#endif
 }
 
-std::vector<net::ip6_addr> interface::get_all_preferred_ip6() const {
+std::vector<net::ipv6_addr> interface::get_all_preferred_ipv6() const {
     if (_handle == nullptr) {
         return {};
     }
+#ifdef CONFIG_LWIP_IPV6
     esp_ip6_addr_t addrs[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
     int count = esp_netif_get_all_preferred_ip6(_handle, addrs);
-    std::vector<net::ip6_addr> result;
+    std::vector<net::ipv6_addr> result;
     result.reserve(count);
     for (int i = 0; i < count; ++i) {
         result.push_back(ip6_from_native(addrs[i]));
     }
     return result;
+#else
+    return {};
+#endif
 }
 
 // =========================================================================
@@ -291,7 +311,7 @@ result<dns_info> interface::try_get_dns(dns_type type) const {
     if (err != ESP_OK) {
         return netif_error(err);
     }
-    return dns_info{.ip = net::ip4_addr(native.ip.u_addr.ip4.addr)};
+    return dns_info{.ip = net::ipv4_addr(native.ip.u_addr.ip4.addr)};
 }
 
 // =========================================================================
