@@ -64,7 +64,7 @@ extern "C" void app_main() {
         idfxx::wifi::connect();
 
         logger.info("Connecting to {}...", WIFI_SSID);
-        (void)network_ready.wait(sync_flag::got_ip, idfxx::wait_mode::any);
+        network_ready.wait(sync_flag::got_ip, idfxx::wait_mode::any);
 
         // --- Perform HTTPS GET ---
         std::string body;

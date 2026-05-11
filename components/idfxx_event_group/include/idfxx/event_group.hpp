@@ -197,7 +197,7 @@ public:
      * @throws std::system_error with idfxx::errc::timeout if the wait condition
      *         is not satisfied.
      */
-    [[nodiscard]] flags<E> wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
+    flags<E> wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
         return unwrap(try_wait(bits, mode, clear_on_exit));
     }
 
@@ -218,7 +218,7 @@ public:
      *         is not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] flags<E>
+    flags<E>
     wait(flags<E> bits, wait_mode mode, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
         return unwrap(try_wait(bits, mode, timeout, clear_on_exit));
     }
@@ -240,7 +240,7 @@ public:
      *         is not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] flags<E> wait_until(
+    flags<E> wait_until(
         flags<E> bits,
         wait_mode mode,
         const std::chrono::time_point<Clock, Duration>& deadline,
@@ -261,7 +261,7 @@ public:
      * @return The event group bits at the time the wait condition was satisfied, or an error.
      * @retval timeout The wait condition was not satisfied.
      */
-    [[nodiscard]] result<flags<E>> try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
+    result<flags<E>> try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
         return _try_wait(bits, mode, clear_on_exit, portMAX_DELAY);
     }
 
@@ -339,7 +339,7 @@ public:
      * @throws std::system_error with idfxx::errc::timeout if the wait condition
      *         is not satisfied.
      */
-    [[nodiscard]] flags<E> sync(flags<E> set_bits, flags<E> wait_bits) { return unwrap(try_sync(set_bits, wait_bits)); }
+    flags<E> sync(flags<E> set_bits, flags<E> wait_bits) { return unwrap(try_sync(set_bits, wait_bits)); }
 
     /**
      * @brief Atomically sets bits and waits for other bits, with a timeout.
@@ -357,8 +357,7 @@ public:
      *         is not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] flags<E>
-    sync(flags<E> set_bits, flags<E> wait_bits, const std::chrono::duration<Rep, Period>& timeout) {
+    flags<E> sync(flags<E> set_bits, flags<E> wait_bits, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_sync(set_bits, wait_bits, timeout));
     }
 
@@ -378,7 +377,7 @@ public:
      *         is not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] flags<E>
+    flags<E>
     sync_until(flags<E> set_bits, flags<E> wait_bits, const std::chrono::time_point<Clock, Duration>& deadline) {
         return unwrap(try_sync_until(set_bits, wait_bits, deadline));
     }
@@ -399,7 +398,7 @@ public:
      * @return The event group bits at the time all wait bits were set (before clearing), or an error.
      * @retval timeout The wait condition was not satisfied.
      */
-    [[nodiscard]] result<flags<E>> try_sync(flags<E> set_bits, flags<E> wait_bits) {
+    result<flags<E>> try_sync(flags<E> set_bits, flags<E> wait_bits) {
         return _try_sync(set_bits, wait_bits, portMAX_DELAY);
     }
 
