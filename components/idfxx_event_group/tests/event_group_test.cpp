@@ -372,7 +372,7 @@ TEST_CASE("event_group wait throws on timeout", "[idfxx][event_group]") {
 
     bool threw = false;
     try {
-        (void)eg.wait(test_event::event_a, wait_mode::any, 0ms);
+        eg.wait(test_event::event_a, wait_mode::any, 0ms);
     } catch (const std::system_error& e) {
         threw = true;
         TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
@@ -396,7 +396,7 @@ TEST_CASE("event_group wait_until throws on deadline", "[idfxx][event_group]") {
     bool threw = false;
     try {
         auto deadline = idfxx::chrono::tick_clock::now(); // already past
-        (void)eg.wait_until(test_event::event_a, wait_mode::any, deadline);
+        eg.wait_until(test_event::event_a, wait_mode::any, deadline);
     } catch (const std::system_error& e) {
         threw = true;
         TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
