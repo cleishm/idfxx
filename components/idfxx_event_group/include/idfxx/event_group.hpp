@@ -71,8 +71,11 @@ enum class wait_mode {
  * // Set bits from one task
  * eg.set(my_event::data_ready);
  *
- * // Wait for bits in another task
- * auto bits = eg.wait(my_event::data_ready, idfxx::wait_mode::any);
+ * // Wait for a single bit (mode defaults to wait_mode::all)
+ * auto bits = eg.wait(my_event::data_ready);
+ *
+ * // Wait for multiple bits — pass mode explicitly
+ * auto any_bits = eg.wait(my_event::data_ready | my_event::error, idfxx::wait_mode::any);
  * @endcode
  */
 template<flag_enum E>
@@ -190,14 +193,16 @@ public:
      * Blocks until the wait condition is satisfied.
      *
      * @param bits The bits to wait for.
-     * @param mode Whether to wait for any or all of the specified bits.
+     * @param mode Whether to wait for any or all of the specified bits. Defaults
+     *             to `wait_mode::all`; the parameter has no effect when `bits`
+     *             names a single bit.
      * @param clear_on_exit If true, the waited-for bits are cleared before returning.
      * @return The event group bits at the time the wait condition was satisfied.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error with idfxx::errc::timeout if the wait condition
      *         is not satisfied.
      */
-    flags<E> wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
+    flags<E> wait(flags<E> bits, wait_mode mode = wait_mode::all, bool clear_on_exit = true) {
         return unwrap(try_wait(bits, mode, clear_on_exit));
     }
 
@@ -221,6 +226,27 @@ public:
     flags<E>
     wait(flags<E> bits, wait_mode mode, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
         return unwrap(try_wait(bits, mode, timeout, clear_on_exit));
+    }
+
+    /**
+     * @brief Waits for event bits to be set, with a timeout (mode defaults to `all`).
+     *
+     * Equivalent to calling `wait(bits, wait_mode::all, timeout, clear_on_exit)`.
+     * Useful when waiting on a single bit, where `mode` has no effect.
+     *
+     * @tparam Rep The representation type of the duration.
+     * @tparam Period The period type of the duration.
+     * @param bits The bits to wait for.
+     * @param timeout Maximum time to wait.
+     * @param clear_on_exit If true, the waited-for bits are cleared before returning.
+     * @return The event group bits at the time the wait condition was satisfied.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error with idfxx::errc::timeout if the wait condition
+     *         is not satisfied within the timeout.
+     */
+    template<typename Rep, typename Period>
+    flags<E> wait(flags<E> bits, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
+        return unwrap(try_wait(bits, wait_mode::all, timeout, clear_on_exit));
     }
 
     /**
@@ -248,6 +274,28 @@ public:
     ) {
         return unwrap(try_wait_until(bits, mode, deadline, clear_on_exit));
     }
+
+    /**
+     * @brief Waits for event bits to be set, with a deadline (mode defaults to `all`).
+     *
+     * Equivalent to calling `wait_until(bits, wait_mode::all, deadline, clear_on_exit)`.
+     * Useful when waiting on a single bit, where `mode` has no effect.
+     *
+     * @tparam Clock The clock type.
+     * @tparam Duration The duration type of the time point.
+     * @param bits The bits to wait for.
+     * @param deadline The time point at which to stop waiting.
+     * @param clear_on_exit If true, the waited-for bits are cleared before returning.
+     * @return The event group bits at the time the wait condition was satisfied.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error with idfxx::errc::timeout if the wait condition
+     *         is not satisfied before the deadline.
+     */
+    template<typename Clock, typename Duration>
+    flags<E>
+    wait_until(flags<E> bits, const std::chrono::time_point<Clock, Duration>& deadline, bool clear_on_exit = true) {
+        return unwrap(try_wait_until(bits, wait_mode::all, deadline, clear_on_exit));
+    }
 #endif
 
     /**
@@ -256,12 +304,14 @@ public:
      * Blocks until the wait condition is satisfied.
      *
      * @param bits The bits to wait for.
-     * @param mode Whether to wait for any or all of the specified bits.
+     * @param mode Whether to wait for any or all of the specified bits. Defaults
+     *             to `wait_mode::all`; the parameter has no effect when `bits`
+     *             names a single bit.
      * @param clear_on_exit If true, the waited-for bits are cleared before returning.
      * @return The event group bits at the time the wait condition was satisfied, or an error.
      * @retval timeout The wait condition was not satisfied.
      */
-    result<flags<E>> try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit = true) {
+    result<flags<E>> try_wait(flags<E> bits, wait_mode mode = wait_mode::all, bool clear_on_exit = true) {
         return _try_wait(bits, mode, clear_on_exit, portMAX_DELAY);
     }
 
@@ -290,6 +340,26 @@ public:
     }
 
     /**
+     * @brief Waits for event bits to be set, with a timeout (mode defaults to `all`).
+     *
+     * Equivalent to calling `try_wait(bits, wait_mode::all, timeout, clear_on_exit)`.
+     * Useful when waiting on a single bit, where `mode` has no effect.
+     *
+     * @tparam Rep The representation type of the duration.
+     * @tparam Period The period type of the duration.
+     * @param bits The bits to wait for.
+     * @param timeout Maximum time to wait.
+     * @param clear_on_exit If true, the waited-for bits are cleared before returning.
+     * @return The event group bits at the time the wait condition was satisfied, or an error.
+     * @retval timeout The wait condition was not satisfied within the timeout.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<flags<E>>
+    try_wait(flags<E> bits, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
+        return _try_wait(bits, wait_mode::all, clear_on_exit, chrono::ticks(timeout));
+    }
+
+    /**
      * @brief Waits for event bits to be set, with a deadline.
      *
      * Blocks until the wait condition is satisfied or the deadline is reached.
@@ -315,6 +385,26 @@ public:
             return _try_wait(bits, mode, clear_on_exit, 0);
         }
         return _try_wait(bits, mode, clear_on_exit, chrono::ticks(remaining));
+    }
+
+    /**
+     * @brief Waits for event bits to be set, with a deadline (mode defaults to `all`).
+     *
+     * Equivalent to calling `try_wait_until(bits, wait_mode::all, deadline, clear_on_exit)`.
+     * Useful when waiting on a single bit, where `mode` has no effect.
+     *
+     * @tparam Clock The clock type.
+     * @tparam Duration The duration type of the time point.
+     * @param bits The bits to wait for.
+     * @param deadline The time point at which to stop waiting.
+     * @param clear_on_exit If true, the waited-for bits are cleared before returning.
+     * @return The event group bits at the time the wait condition was satisfied, or an error.
+     * @retval timeout The wait condition was not satisfied before the deadline.
+     */
+    template<typename Clock, typename Duration>
+    [[nodiscard]] result<flags<E>>
+    try_wait_until(flags<E> bits, const std::chrono::time_point<Clock, Duration>& deadline, bool clear_on_exit = true) {
+        return try_wait_until(bits, wait_mode::all, deadline, clear_on_exit);
     }
 
     // =========================================================================
