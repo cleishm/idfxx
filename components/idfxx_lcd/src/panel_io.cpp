@@ -63,17 +63,20 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
         .lcd_param_bits = config.lcd_param_bits,
         .cs_ena_pretrans = config.cs_enable_pretrans,
         .cs_ena_posttrans = config.cs_enable_posttrans,
-        .flags{
-            .dc_high_on_cmd = config.flags.dc_high_on_cmd,
-            .dc_low_on_data = config.flags.dc_low_on_data,
-            .dc_low_on_param = config.flags.dc_low_on_param,
-            .octal_mode = config.flags.octal_mode,
-            .quad_mode = config.flags.quad_mode,
-            .sio_mode = config.flags.sio_mode,
-            .lsb_first = config.flags.lsb_first,
-            .cs_high_active = config.flags.cs_high_active,
-        }
+        .flags{},
     };
+    // Assign the bitfield flags individually rather than via a designated
+    // initializer: value-initializing the struct above zeroes every flag bit,
+    // so this stays forward-compatible as ESP-IDF adds new flags (which would
+    // otherwise trip -Werror=missing-field-initializers).
+    lcd_config.flags.dc_high_on_cmd = config.flags.dc_high_on_cmd;
+    lcd_config.flags.dc_low_on_data = config.flags.dc_low_on_data;
+    lcd_config.flags.dc_low_on_param = config.flags.dc_low_on_param;
+    lcd_config.flags.octal_mode = config.flags.octal_mode;
+    lcd_config.flags.quad_mode = config.flags.quad_mode;
+    lcd_config.flags.sio_mode = config.flags.sio_mode;
+    lcd_config.flags.lsb_first = config.flags.lsb_first;
+    lcd_config.flags.cs_high_active = config.flags.cs_high_active;
 
     esp_lcd_panel_io_handle_t handle = nullptr;
     auto err = esp_lcd_new_panel_io_spi(static_cast<spi_host_device_t>(spi_bus.host()), &lcd_config, &handle);
