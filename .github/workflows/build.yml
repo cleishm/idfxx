@@ -10,7 +10,7 @@ on:
 jobs:
   format-check:
     runs-on: ubuntu-latest
-    container: espressif/idf:release-v6.0
+    container: espressif/idf:v6.0.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:release-v6.0
+    container: espressif/idf:v6.0.1
     strategy:
       fail-fast: false
       matrix:
@@ -51,6 +51,25 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.config.defaults }}" set-target ${{ matrix.target }}
+          idf.py build
+
+  # Early-warning canary: builds against the moving release/v6.0 branch tip to
+  # surface upstream ESP-IDF changes before they land in a tagged point release.
+  # Every other job pins to espressif/idf:v6.0.1; this one is allowed to fail so
+  # unreleased upstream regressions flag a warning without blocking PRs.
+  build-canary:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v6.0
+    continue-on-error: true
+    name: build (canary-release-v6.0)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py set-target esp32s3
           idf.py build
 
   build-compat:
@@ -93,7 +112,7 @@ jobs:
   build-example:
     needs: discover-examples
     runs-on: ubuntu-latest
-    container: espressif/idf:release-v6.0
+    container: espressif/idf:v6.0.1
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover-examples.outputs.matrix) }}
@@ -111,7 +130,7 @@ jobs:
 
   qemu-test:
     runs-on: ubuntu-latest
-    container: espressif/idf:release-v6.0
+    container: espressif/idf:v6.0.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
