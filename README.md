@@ -22,6 +22,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_task](https://github.com/cleishm/idfxx/tree/main/components/idfxx_task) | FreeRTOS task management with join, cooperative stop, and fire-and-forget support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__task.html) |
 | [idfxx_timer](https://github.com/cleishm/idfxx/tree/main/components/idfxx_timer) | High-resolution timer (esp_timer) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__timer.html) |
 | **Networking** | | |
+| [idfxx_net](https://github.com/cleishm/idfxx/tree/main/components/idfxx_net) | Type-safe IP transport: TCP/UDP/raw sockets, listeners, DNS resolver, and Netconn | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__net.html) |
 | [idfxx_netif](https://github.com/cleishm/idfxx/tree/main/components/idfxx_netif) | Network interface management, DHCP, DNS, and SNTP | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__netif.html) |
 | [idfxx_wifi](https://github.com/cleishm/idfxx/tree/main/components/idfxx_wifi) | WiFi station and access point management | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) |
 | **Peripheral Drivers** | | |
