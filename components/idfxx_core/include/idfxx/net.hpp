@@ -125,8 +125,8 @@ private:
  * Stores an IPv6 address as four 32-bit words plus an optional zone ID.
  *
  * @code
- * auto addr = idfxx::net::ipv6_addr({0xfe800000, 0, 0, 1});
- * auto s = idfxx::to_string(addr); // "fe80::1"
+ * auto addr = idfxx::net::ipv6_addr::parse("fe80::1");
+ * auto s = idfxx::to_string(*addr); // "fe80::1"
  * @endcode
  */
 class ipv6_addr {
@@ -169,7 +169,12 @@ public:
     /**
      * @brief Constructs an IPv6 address from four 32-bit words.
      *
-     * @param words The four 32-bit words of the IPv6 address.
+     * The words hold the 16 address bytes in network byte order as laid out in
+     * memory, matching the lwIP/ESP-IDF representation. A logical literal such as
+     * `{0xfe800000, 0, 0, 1}` is therefore not `fe80::1`; prefer parse() to build
+     * an address from text.
+     *
+     * @param words The four 32-bit words of the IPv6 address, in network byte order.
      * @param zone Optional zone ID (default 0).
      */
     constexpr explicit ipv6_addr(std::array<uint32_t, 4> words, uint8_t zone = 0) noexcept
@@ -243,14 +248,20 @@ struct ipv4_info {
  */
 struct ipv6_info {
     ipv6_addr ip; /*!< Interface IPv6 address. */
+
+    /**
+     * @brief Compares two ipv6_info structs for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const ipv6_info&) const noexcept = default;
 };
 
 /// @cond INTERNAL
 // ----- backward-compatibility aliases -----
 //
 // `ipv4_addr` / `ipv6_addr` / `ipv4_info` / `ipv6_info` were originally named
-// `ip4_addr` / `ip6_addr` / `ip4_info` / `ip6_info`. The aliases preserve the
-// old spelling for code written against earlier releases.
+// `ip4_addr` / `ip6_addr` / `ip4_info` / `ip6_info` (the public spelling shipped
+// in the released 1.0.0 line). The deprecated aliases preserve the old names so
+// code written against 1.0.0 keeps compiling; remove them only on a major bump.
 using ip4_addr [[deprecated("use ipv4_addr")]] = ipv4_addr;
 using ip6_addr [[deprecated("use ipv6_addr")]] = ipv6_addr;
 using ip4_info [[deprecated("use ipv4_info")]] = ipv4_info;
@@ -294,45 +305,74 @@ namespace idfxx {
  */
 [[nodiscard]] std::string to_string(net::ipv4_info info);
 
+/**
+ * @headerfile <idfxx/net>
+ * @brief Returns the string representation of IPv6 network information.
+ *
+ * @param info The IP info to convert.
+ * @return A string like "ip=fe80::1".
+ */
+[[nodiscard]] std::string to_string(net::ipv6_info info);
+
 } // namespace idfxx
 
 #include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /// @cond INTERNAL
-#include <algorithm>
 #include <format>
+#include <string_view>
 namespace std {
+
+// Each formatter composes std::formatter<std::string_view> so the standard
+// fill, align, width, and precision spec all work:
+//   std::format("{}",     addr) -> "192.168.1.1"
+//   std::format("{:>30}", addr) -> right-aligned to width 30
 
 template<>
 struct formatter<idfxx::net::ipv4_addr> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+    std::formatter<std::string_view> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
 
     template<typename FormatContext>
     auto format(idfxx::net::ipv4_addr addr, FormatContext& ctx) const {
-        auto s = idfxx::to_string(addr);
-        return std::copy(s.begin(), s.end(), ctx.out());
+        return _underlying.format(idfxx::to_string(addr), ctx);
     }
 };
 
 template<>
 struct formatter<idfxx::net::ipv6_addr> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+    std::formatter<std::string_view> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
 
     template<typename FormatContext>
     auto format(idfxx::net::ipv6_addr addr, FormatContext& ctx) const {
-        auto s = idfxx::to_string(addr);
-        return std::copy(s.begin(), s.end(), ctx.out());
+        return _underlying.format(idfxx::to_string(addr), ctx);
     }
 };
 
 template<>
 struct formatter<idfxx::net::ipv4_info> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+    std::formatter<std::string_view> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
 
     template<typename FormatContext>
     auto format(idfxx::net::ipv4_info info, FormatContext& ctx) const {
-        auto s = idfxx::to_string(info);
-        return std::copy(s.begin(), s.end(), ctx.out());
+        return _underlying.format(idfxx::to_string(info), ctx);
+    }
+};
+
+template<>
+struct formatter<idfxx::net::ipv6_info> {
+    std::formatter<std::string_view> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
+
+    template<typename FormatContext>
+    auto format(idfxx::net::ipv6_info info, FormatContext& ctx) const {
+        return _underlying.format(idfxx::to_string(info), ctx);
     }
 };
 
