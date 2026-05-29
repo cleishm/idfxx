@@ -7,6 +7,7 @@
 #include <idfxx/net>
 
 #include <cstring>
+#include <format>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -114,6 +115,47 @@ TEST_CASE("ipv4_info equality", "[idfxx][net]") {
     TEST_ASSERT_FALSE(a == b);
 }
 
+// Helper: build an ipv6_addr from 8 groups of 16-bit values (in host order).
+// The groups are stored into the 4 uint32_t words in network byte order in memory,
+// matching lwIP/ESP-IDF convention. Constructing an ipv6_addr from raw uint32_t
+// words directly would be endianness-dependent (the words are reinterpreted as
+// network-order bytes), so tests always build addresses through this helper.
+static idfxx::net::ipv6_addr ip6_from_groups(
+    uint16_t g0, uint16_t g1, uint16_t g2, uint16_t g3,
+    uint16_t g4, uint16_t g5, uint16_t g6, uint16_t g7, uint8_t zone = 0
+) {
+    // Pack groups into bytes in network order, then interpret as uint32_t words
+    uint8_t bytes[16];
+    auto put = [&](int i, uint16_t g) {
+        bytes[i * 2] = uint8_t(g >> 8);
+        bytes[i * 2 + 1] = uint8_t(g);
+    };
+    put(0, g0); put(1, g1); put(2, g2); put(3, g3);
+    put(4, g4); put(5, g5); put(6, g6); put(7, g7);
+
+    std::array<uint32_t, 4> words;
+    std::memcpy(words.data(), bytes, 16);
+    return idfxx::net::ipv6_addr(words, zone);
+}
+
+// =============================================================================
+// Runtime tests — ipv6_info
+// =============================================================================
+
+TEST_CASE("ipv6_info to_string", "[idfxx][net]") {
+    idfxx::net::ipv6_info info{.ip = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 1)};
+    auto s = idfxx::to_string(info);
+    TEST_ASSERT_EQUAL_STRING("ip=fe80::1", s.c_str());
+}
+
+TEST_CASE("ipv6_info equality", "[idfxx][net]") {
+    idfxx::net::ipv6_info a{.ip = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 1)};
+    idfxx::net::ipv6_info b = a;
+    TEST_ASSERT_TRUE(a == b);
+    b.ip = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 2);
+    TEST_ASSERT_FALSE(a == b);
+}
+
 // =============================================================================
 // Runtime tests — ipv6_addr
 // =============================================================================
@@ -144,27 +186,6 @@ TEST_CASE("ipv6_addr equality includes zone", "[idfxx][net]") {
 // =============================================================================
 // Runtime tests — ipv6_addr to_string (RFC 5952)
 // =============================================================================
-
-// Helper: build an ipv6_addr from 8 groups of 16-bit values (in host order).
-// The groups are stored into the 4 uint32_t words in network byte order in memory,
-// matching lwIP/ESP-IDF convention.
-static idfxx::net::ipv6_addr ip6_from_groups(
-    uint16_t g0, uint16_t g1, uint16_t g2, uint16_t g3,
-    uint16_t g4, uint16_t g5, uint16_t g6, uint16_t g7, uint8_t zone = 0
-) {
-    // Pack groups into bytes in network order, then interpret as uint32_t words
-    uint8_t bytes[16];
-    auto put = [&](int i, uint16_t g) {
-        bytes[i * 2] = uint8_t(g >> 8);
-        bytes[i * 2 + 1] = uint8_t(g);
-    };
-    put(0, g0); put(1, g1); put(2, g2); put(3, g3);
-    put(4, g4); put(5, g5); put(6, g6); put(7, g7);
-
-    std::array<uint32_t, 4> words;
-    std::memcpy(words.data(), bytes, 16);
-    return idfxx::net::ipv6_addr(words, zone);
-}
 
 TEST_CASE("ip6 to_string all zeros", "[idfxx][net]") {
     auto s = idfxx::to_string(idfxx::net::ipv6_addr());
@@ -508,3 +529,42 @@ TEST_CASE("ip6 parse too many groups with compression", "[idfxx][net]") {
     TEST_ASSERT_FALSE(idfxx::net::ipv6_addr::parse("1:2:3:4:5:6:7:8::").has_value());
     TEST_ASSERT_FALSE(idfxx::net::ipv6_addr::parse("1:2:3:4::5:6:7:8").has_value());
 }
+
+// =============================================================================
+// Runtime tests — std::format spec support (formatters compose string_view)
+// =============================================================================
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+
+TEST_CASE("ipv4_addr format honors fill/align/width spec", "[idfxx][net]") {
+    auto addr = idfxx::net::ipv4_addr(1, 2, 3, 4);
+    TEST_ASSERT_EQUAL_STRING("1.2.3.4", std::format("{}", addr).c_str());
+    // A non-trivial spec used to throw std::format_error because parse() did
+    // not consume it; it must now right-align within the requested width.
+    TEST_ASSERT_EQUAL_STRING("       1.2.3.4", std::format("{:>14}", addr).c_str());
+}
+
+TEST_CASE("ipv6_addr format honors fill/align/width spec", "[idfxx][net]") {
+    auto addr = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 1);
+    TEST_ASSERT_EQUAL_STRING("fe80::1", std::format("{}", addr).c_str());
+    TEST_ASSERT_EQUAL_STRING("**fe80::1", std::format("{:*>9}", addr).c_str());
+}
+
+TEST_CASE("ipv4_info format honors fill/align/width spec", "[idfxx][net]") {
+    idfxx::net::ipv4_info info{
+        .ip = idfxx::net::ipv4_addr(10, 0, 0, 1),
+        .netmask = idfxx::net::ipv4_addr(255, 0, 0, 0),
+        .gateway = idfxx::net::ipv4_addr(10, 0, 0, 254),
+    };
+    TEST_ASSERT_EQUAL_STRING(idfxx::to_string(info).c_str(), std::format("{}", info).c_str());
+    // Precision truncates the underlying string view.
+    TEST_ASSERT_EQUAL_STRING("ip=10", std::format("{:.5}", info).c_str());
+}
+
+TEST_CASE("ipv6_info format honors fill/align/width spec", "[idfxx][net]") {
+    idfxx::net::ipv6_info info{.ip = ip6_from_groups(0xfe80, 0, 0, 0, 0, 0, 0, 1)};
+    TEST_ASSERT_EQUAL_STRING("ip=fe80::1", std::format("{}", info).c_str());
+    TEST_ASSERT_EQUAL_STRING("ip=fe80::1   ", std::format("{:<13}", info).c_str());
+}
+
+#endif // CONFIG_IDFXX_STD_FORMAT
