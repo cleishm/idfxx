@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [esp32s3, esp32c6]
+        target: [esp32s3, esp32c6, esp32p4]
         config:
           - name: with-exceptions
             defaults: sdkconfig.defaults

@@ -1,0 +1,8 @@
+# Target-specific overrides for esp32c61.
+# The Wi-Fi 6 (HE) stack on esp32c61 pushes the test app over the 1.875MB OTA
+# slots used by partitions.csv, so switch to an 8MB flash layout with 3.875MB
+# OTA partitions. Matches the esp32c6 configuration; adjust if your module has 4MB flash.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=n
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions_8mb.csv"

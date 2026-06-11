@@ -13,6 +13,15 @@
 
 using namespace idfxx::i2c;
 
+// SDA/SCL pins used by the bus-creation tests. Any two free pins work; the
+// ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+inline constexpr auto TEST_SDA = idfxx::gpio_4;
+#else
+inline constexpr auto TEST_SDA = idfxx::gpio_21;
+#endif
+inline constexpr auto TEST_SCL = idfxx::gpio_9;
+
 // =============================================================================
 // Compile-time tests (static_assert)
 // These verify correctness at compile time - if this file compiles, they pass.
@@ -39,7 +48,7 @@ static_assert(std::is_default_constructible_v<master_device::config>);
 
 TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_device]") {
     // Create a bus first
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -54,7 +63,7 @@ TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_de
 }
 
 TEST_CASE("master_device::make with config succeeds", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -70,7 +79,7 @@ TEST_CASE("master_device::make with config succeeds", "[idfxx][i2c][master_devic
 }
 
 TEST_CASE("master_device::make with config default scl_speed uses bus frequency", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -88,7 +97,7 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
     // This test verifies that the transmit API exists at compile time
     // Actual transmission would require hardware device
 
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -107,7 +116,7 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
 }
 
 TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -126,7 +135,7 @@ TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
 }
 
 TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -149,7 +158,7 @@ TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_devi
 }
 
 TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -172,7 +181,7 @@ TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_devic
 }
 
 TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -192,7 +201,7 @@ TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_dev
 }
 
 TEST_CASE("master_device bus accessor works", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, idfxx::gpio_21, idfxx::gpio_9, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }

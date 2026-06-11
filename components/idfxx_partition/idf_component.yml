@@ -9,10 +9,3 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_core
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

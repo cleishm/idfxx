@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "ILI9341 LCD panel driver (240x320)"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ili9341"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -16,10 +16,3 @@ dependencies:
   espressif/esp_lcd_ili9341:
     version: "^2.0.2"
     public: false
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

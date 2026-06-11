@@ -5,10 +5,3 @@ repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

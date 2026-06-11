@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "DS18x20 1-Wire temperature sensor driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -22,10 +22,3 @@ dependencies:
     public: true
   esp-idf-lib/ds18x20:
     version: "^1.2.8"
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

@@ -356,10 +356,17 @@ TEST_CASE("auto try_start with NC gpio returns error", "[idfxx][pwm][auto]") {
 }
 
 TEST_CASE("auto try_start reuses matching timer", "[idfxx][pwm][auto][hw]") {
+    // Second output pin: the ESP32-C2 only has GPIO 0-20, so it uses a lower
+    // pin than the default 21.
+#ifdef CONFIG_IDF_TARGET_ESP32C2
+    constexpr auto second_pin = idfxx::gpio_4;
+#else
+    constexpr auto second_pin = idfxx::gpio_21;
+#endif
     auto result1 = try_start(idfxx::gpio_18, {.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result1.has_value());
 
-    auto result2 = try_start(idfxx::gpio_21, {.frequency = 5000_Hz, .resolution_bits = 13});
+    auto result2 = try_start(second_pin, {.frequency = 5000_Hz, .resolution_bits = 13});
     TEST_ASSERT_TRUE(result2.has_value());
 
     // Both should be on the same timer

@@ -1,10 +1,25 @@
 # Collect test sources registered by each component via the IDFXX_TEST_SOURCES property
 get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 
+set(IDFXX_TEST_REQUIRES
+    unity idfxx_core idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_lcd
+    idfxx_lcd_ili9341 idfxx_lcd_touch idfxx_lcd_touch_stmpe610 idfxx_onewire idfxx_ds18x20 idfxx_timer idfxx_event
+    idfxx_event_group idfxx_task idfxx_queue idfxx_log idfxx_http idfxx_http_client idfxx_http_server
+    idfxx_https_server idfxx_console idfxx_rotary_encoder idfxx_button idfxx_pwm idfxx_net idfxx_netif esp_netif
+)
+
+# idfxx_wifi is only available on Wi-Fi-capable targets (it is excluded from
+# the build on other targets; see the top-level CMakeLists.txt).
+idf_build_get_property(idfxx_test_target IDF_TARGET)
+set(IDFXX_WIFI_TARGETS esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32c61)
+if(idfxx_test_target IN_LIST IDFXX_WIFI_TARGETS)
+    list(APPEND IDFXX_TEST_REQUIRES idfxx_wifi)
+endif()
+
 idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
-    REQUIRES unity idfxx_core idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_lcd idfxx_lcd_ili9341 idfxx_lcd_touch idfxx_lcd_touch_stmpe610 idfxx_onewire idfxx_ds18x20 idfxx_timer idfxx_event idfxx_event_group idfxx_task idfxx_queue idfxx_log idfxx_http idfxx_http_client idfxx_http_server idfxx_https_server idfxx_console idfxx_rotary_encoder idfxx_button idfxx_wifi idfxx_pwm idfxx_net esp_netif
+    REQUIRES ${IDFXX_TEST_REQUIRES}
     WHOLE_ARCHIVE
 )
 

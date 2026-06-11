@@ -113,8 +113,8 @@ public:
 #if SOC_GPIO_SUPPORT_PIN_HYS_CTRL_BY_EFUSE
         efuse = GPIO_HYS_CTRL_EFUSE, ///< Pin input hysteresis control by efuse
 #endif
-        soft_disable = GPIO_HYS_CTRL_SOFT_DISABLE, ///< Pin input hysteresis disable by software
-        soft_enable = GPIO_HYS_CTRL_SOFT_ENABLE,   ///< Pin input hysteresis enable by software
+        soft_disable = GPIO_HYS_SOFT_DISABLE, ///< Pin input hysteresis disable by software
+        soft_enable = GPIO_HYS_SOFT_ENABLE,   ///< Pin input hysteresis enable by software
     };
 #endif
 

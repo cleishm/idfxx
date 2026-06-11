@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "STMPE610 resistive touch controller driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -20,10 +20,3 @@ dependencies:
   espressif/esp_lcd_touch_stmpe610:
     version: "^1.0.8"
     public: false
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

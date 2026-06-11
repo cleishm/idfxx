@@ -50,7 +50,7 @@ static ap_record from_idf_record(const wifi_ap_record_t& r) {
     record.country.policy = static_cast<country_policy>(r.country.policy);
     std::memcpy(record.country.cc.data(), r.country.cc, 3);
 #if SOC_WIFI_SUPPORT_5G
-    record.country.channels_5g = flags<channel_5g>(r.country.channels_5g);
+    record.country.channels_5g = flags<channel_5g>(r.country.wifi_5g_channel_mask);
 #endif
     record.he_ap.bss_color = r.he_ap.bss_color;
     record.he_ap.partial_bss_color = r.he_ap.partial_bss_color;
@@ -82,7 +82,7 @@ static country_config from_idf_country(const wifi_country_t& c) {
     cfg.max_tx_power = c.max_tx_power;
     cfg.policy = static_cast<country_policy>(c.policy);
 #if SOC_WIFI_SUPPORT_5G
-    cfg.channels_5g = flags<channel_5g>(c.channels_5g);
+    cfg.channels_5g = flags<channel_5g>(c.wifi_5g_channel_mask);
 #endif
     return cfg;
 }
@@ -95,7 +95,7 @@ static wifi_country_t to_idf_country(const country_config& cfg) {
     c.max_tx_power = cfg.max_tx_power;
     c.policy = static_cast<wifi_country_policy_t>(cfg.policy);
 #if SOC_WIFI_SUPPORT_5G
-    c.channels_5g = to_underlying(cfg.channels_5g);
+    c.wifi_5g_channel_mask = to_underlying(cfg.channels_5g);
 #endif
     return c;
 }

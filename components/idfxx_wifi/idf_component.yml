@@ -21,10 +21,13 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_netif
+# esp_wifi only exists on Wi-Fi-capable chips.
 targets:
   - esp32
   - esp32s2
   - esp32s3
+  - esp32c2
   - esp32c3
+  - esp32c5
   - esp32c6
-  - esp32h2
+  - esp32c61

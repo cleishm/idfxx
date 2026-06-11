@@ -16,10 +16,3 @@ dependencies:
   cleishm/idfxx_timer:
     version: "^1.0.0"
     override_path: ../idfxx_timer
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2
