@@ -226,6 +226,9 @@ PREDEFINED             = __cplusplus=202302L \
                          CONFIG_NVS_ENCRYPTION \
                          SOC_GPIO_VALID_GPIO_MASK=0xFFFFFFFFFFFFFFFF \
                          SOC_GPIO_SUPPORT_PIN_HYS_FILTER \
+                         SOC_PM_SUPPORT_EXT0_WAKEUP \
+                         SOC_PM_SUPPORT_EXT1_WAKEUP \
+                         SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP \
                          SOC_SPI_PERIPH_NUM=3
 EXPAND_AS_DEFINED      =
 SKIP_FUNCTION_MACROS   = YES

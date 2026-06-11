@@ -19,6 +19,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_event](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event) | Type-safe event loop for asynchronous events | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event.html) |
 | [idfxx_event_group](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event_group) | Type-safe FreeRTOS event group for inter-task synchronization | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event__group.html) |
 | [idfxx_queue](https://github.com/cleishm/idfxx/tree/main/components/idfxx_queue) | Type-safe FreeRTOS queue for inter-task communication | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__queue.html) |
+| [idfxx_sleep](https://github.com/cleishm/idfxx/tree/main/components/idfxx_sleep) | Light and deep sleep with type-safe wake-up source configuration | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__sleep.html) |
 | [idfxx_task](https://github.com/cleishm/idfxx/tree/main/components/idfxx_task) | FreeRTOS task management with join, cooperative stop, and fire-and-forget support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__task.html) |
 | [idfxx_timer](https://github.com/cleishm/idfxx/tree/main/components/idfxx_timer) | High-resolution timer (esp_timer) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__timer.html) |
 | **Networking** | | |
