@@ -154,10 +154,9 @@ check_crc16(std::span<const uint8_t> data, std::span<const uint8_t, 2> inverted_
  * transfer, parasitic power control, and device search. Satisfies the
  * Lockable named requirement for use with std::lock_guard and std::unique_lock.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values. The Lockable methods (lock/try_lock/unlock)
- * silently no-op on a moved-from object.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @code
  * auto bus = idfxx::onewire::bus(idfxx::gpio_4);

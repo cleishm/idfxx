@@ -22,7 +22,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_touch:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_lcd_touch` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -48,15 +48,11 @@ idfxx::lcd::stmpe610 touch(
         .y_max = 320,
         .rst_gpio = idfxx::gpio_4,
         .int_gpio = idfxx::gpio::nc(),
-        .levels{
-            .reset = idfxx::gpio::level::low,
-            .interrupt = idfxx::gpio::level::low,
-        },
-        .flags{
-            .swap_xy = false,
-            .mirror_x = false,
-            .mirror_y = false,
-        },
+        .reset_level = idfxx::gpio::level::low,
+        .interrupt_level = idfxx::gpio::level::low,
+        .swap_xy = false,
+        .mirror_x = false,
+        .mirror_y = false,
     }
 );
 
@@ -95,15 +91,11 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 320,
     .rst_gpio = idfxx::gpio_4,
     .int_gpio = idfxx::gpio::nc(),
-    .levels{
-        .reset = idfxx::gpio::level::low,
-        .interrupt = idfxx::gpio::level::low,
-    },
-    .flags{
-        .swap_xy = false,
-        .mirror_x = false,
-        .mirror_y = false,
-    },
+    .reset_level = idfxx::gpio::level::low,
+    .interrupt_level = idfxx::gpio::level::low,
+    .swap_xy = false,
+    .mirror_x = false,
+    .mirror_y = false,
 };
 
 // Must use std::move() when passing a named config variable
@@ -118,11 +110,9 @@ The base class supports automatic coordinate transformation:
 idfxx::lcd::touch::config touch_config{
     .x_max = 240,
     .y_max = 320,
-    .flags{
-        .swap_xy = true,    // Swap X and Y coordinates
-        .mirror_x = true,   // Mirror X coordinate (x_new = x_max - x)
-        .mirror_y = false,  // Don't mirror Y coordinate
-    },
+    .swap_xy = true,   // Swap X and Y coordinates
+    .mirror_x = true,  // Mirror X coordinate (x_new = x_max - x)
+    .mirror_y = false, // Don't mirror Y coordinate
 };
 ```
 
@@ -165,10 +155,8 @@ Configure interrupt-driven touch detection:
 idfxx::lcd::touch::config touch_config{
     .x_max = 240,
     .y_max = 320,
-    .int_gpio = idfxx::gpio_36,  // Interrupt pin
-    .levels{
-        .interrupt = idfxx::gpio::level::low,  // Active low interrupt
-    },
+    .int_gpio = idfxx::gpio_36,                  // Interrupt pin
+    .interrupt_level = idfxx::gpio::level::low,  // Active low interrupt
 };
 
 // The touch controller will trigger interrupts on touch events
@@ -179,8 +167,8 @@ idfxx::lcd::touch::config touch_config{
 
 ### `touch` (Abstract Base Class)
 
-**Pure Virtual Methods:**
-- `idf_handle()` - Get ESP-IDF touch handle
+**Methods:**
+- `idf_handle()` - Get ESP-IDF touch handle (non-virtual; implemented by the `do_idf_handle()` hook)
 
 **Configuration:**
 - `config` - Touch controller configuration structure
@@ -202,13 +190,13 @@ idfxx::lcd::touch::config touch_config{
 - `int_gpio` - Interrupt pin (default: `gpio::nc()`)
 
 **Signal Levels:**
-- `levels.reset` - Logic level during reset (`gpio::level::low` or `gpio::level::high`)
-- `levels.interrupt` - Active interrupt level (`gpio::level::low` or `gpio::level::high`)
+- `reset_level` - Logic level during reset (`gpio::level::low` or `gpio::level::high`)
+- `interrupt_level` - Active interrupt level (`gpio::level::low` or `gpio::level::high`)
 
 **Coordinate Transformation:**
-- `flags.swap_xy` - Swap X and Y coordinates after reading
-- `flags.mirror_x` - Mirror X coordinate (`x_new = x_max - x`)
-- `flags.mirror_y` - Mirror Y coordinate (`y_new = y_max - y`)
+- `swap_xy` - Swap X and Y coordinates after reading
+- `mirror_x` - Mirror X coordinate (`x_new = x_max - x`)
+- `mirror_y` - Mirror Y coordinate (`y_new = y_max - y`)
 
 **Custom Processing:**
 - `process_coordinates` - Optional callback for custom coordinate transformations
@@ -222,8 +210,11 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 320,
     .rst_gpio = idfxx::gpio::nc(),
     .int_gpio = idfxx::gpio::nc(),
-    .levels{ .reset = idfxx::gpio::level::low, .interrupt = idfxx::gpio::level::low },
-    .flags{ .swap_xy = false, .mirror_x = false, .mirror_y = false },
+    .reset_level = idfxx::gpio::level::low,
+    .interrupt_level = idfxx::gpio::level::low,
+    .swap_xy = false,
+    .mirror_x = false,
+    .mirror_y = false,
 };
 ```
 
@@ -234,8 +225,11 @@ idfxx::lcd::touch::config touch_config{
     .y_max = 480,
     .rst_gpio = idfxx::gpio_4,
     .int_gpio = idfxx::gpio_36,
-    .levels{ .reset = idfxx::gpio::level::low, .interrupt = idfxx::gpio::level::low },
-    .flags{ .swap_xy = true, .mirror_x = false, .mirror_y = true },
+    .reset_level = idfxx::gpio::level::low,
+    .interrupt_level = idfxx::gpio::level::low,
+    .swap_xy = true,
+    .mirror_x = false,
+    .mirror_y = true,
 };
 ```
 
@@ -250,11 +244,11 @@ public:
         idfxx::lcd::panel_io& panel_io,
         const config& cfg);
 
-    esp_lcd_touch_handle_t idf_handle() const override {
+private:
+    esp_lcd_touch_handle_t do_idf_handle() const override {
         return _handle;
     }
 
-private:
     esp_lcd_touch_handle_t _handle;
 };
 ```

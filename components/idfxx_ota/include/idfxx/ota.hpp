@@ -135,7 +135,9 @@ private:
  *
  * Manages an OTA update operation, including writing firmware data and
  * finalizing the update. The destructor aborts the update if end() has
- * not been called. Move-only.
+ * not been called. This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @code
  * auto part = idfxx::ota::next_update_partition();
@@ -499,7 +501,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_abort();
+    result<void> try_abort();
 
 private:
     explicit update(esp_ota_handle_t handle);

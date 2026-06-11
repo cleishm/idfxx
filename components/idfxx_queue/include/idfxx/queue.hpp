@@ -43,9 +43,9 @@ namespace idfxx {
  * between ISRs and tasks. Messages are copied into and out of the queue
  * by value.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @tparam T The message type. Must be trivially copyable.
  *

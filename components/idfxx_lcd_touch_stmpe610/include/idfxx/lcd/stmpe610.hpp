@@ -65,11 +65,11 @@ public:
     stmpe610(stmpe610&& other) noexcept;
     stmpe610& operator=(stmpe610&& other) noexcept;
 
-    /** @copydoc touch::idf_handle() */
-    [[nodiscard]] esp_lcd_touch_handle_t idf_handle() const override;
-
 private:
     stmpe610() = default;
+
+    // lcd::touch customization hooks.
+    [[nodiscard]] esp_lcd_touch_handle_t do_idf_handle() const override;
 
     struct callback_state {
         process_coordinates_callback process_coordinates;

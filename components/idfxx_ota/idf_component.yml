@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "OTA firmware update session management with rollback support"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_ota"
 repository: "https://github.com/cleishm/idfxx.git"

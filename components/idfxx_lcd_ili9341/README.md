@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ili9341:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_lcd_ili9341` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -242,7 +242,7 @@ Configuration structure defined in `idfxx_lcd`:
 - `rgb_element_order` - RGB element order (`idfxx::lcd::rgb_element_order::rgb` or `::bgr`)
 - `data_endian` - RGB data endian (`idfxx::lcd::rgb_data_endian::big` or `::little`)
 - `bits_per_pixel` - Color depth (typically 16 for RGB565)
-- `flags.reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
+- `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
 - `vendor_config` - Vendor-specific configuration (optional)
 
 ### Typical ILI9341 Configuration

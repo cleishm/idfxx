@@ -249,7 +249,9 @@ struct bus_config {
  * @brief A SPI master bus.
  *
  * Represents a SPI bus operating in master mode. This type is non-copyable
- * and move-only. The destructor is a no-op on a moved-from object.
+ * and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class master_bus {
 public:
@@ -327,7 +329,9 @@ private:
  * std::lock_guard and similar standard RAII wrappers.
  *
  * This type is non-copyable and move-only. The caller must ensure the parent
- * master_bus outlives this device.
+ * master_bus outlives this device. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class master_device {
 public:

@@ -28,6 +28,11 @@ namespace idfxx::lcd {
 /**
  * @headerfile <idfxx/lcd/touch>
  * @brief Abstract base class for touch controllers.
+ *
+ * The public interface is non-virtual; concrete drivers (e.g.
+ * `idfxx::lcd::stmpe610`) customize behaviour by overriding the protected
+ * `do_*` hooks, mirroring the standard library's non-virtual-interface
+ * pattern (cf. `std::pmr::memory_resource`).
  */
 class touch {
 public:
@@ -52,18 +57,14 @@ public:
         gpio rst_gpio = gpio::nc(); ///< GPIO number of reset pin
         gpio int_gpio = gpio::nc(); ///< GPIO number of interrupt pin
 
-        struct {
-            gpio::level reset = gpio::level::low;     ///< Level of reset pin in reset
-            gpio::level interrupt = gpio::level::low; ///< Active level of interrupt pin
-        } levels = {};
+        gpio::level reset_level = gpio::level::low;     ///< Level of reset pin in reset
+        gpio::level interrupt_level = gpio::level::low; ///< Active level of interrupt pin
 
-        struct {
-            unsigned int swap_xy : 1 = 0;  ///< Swap X and Y after read coordinates
-            unsigned int mirror_x : 1 = 0; ///< Mirror X after read coordinates
-            unsigned int mirror_y : 1 = 0; ///< Mirror Y after read coordinates
-        } flags = {};
+        bool swap_xy = false;  ///< Swap X and Y after read coordinates
+        bool mirror_x = false; ///< Mirror X after read coordinates
+        bool mirror_y = false; ///< Mirror Y after read coordinates
 
-        ///< Callback to apply user adjustments after reading coordinates from the touch controller
+        /// Callback to apply user adjustments after reading coordinates from the touch controller
         process_coordinates_callback process_coordinates = nullptr;
     };
 
@@ -72,11 +73,19 @@ public:
     touch(const touch&) = delete;
     touch& operator=(const touch&) = delete;
 
-    /** @brief Returns the underlying ESP-IDF handle. */
-    [[nodiscard]] virtual esp_lcd_touch_handle_t idf_handle() const = 0;
+    /**
+     * @brief Returns the underlying ESP-IDF handle.
+     * @return The ESP-IDF touch controller handle.
+     */
+    [[nodiscard]] esp_lcd_touch_handle_t idf_handle() const { return do_idf_handle(); }
 
 protected:
     touch() = default;
+    touch(touch&&) noexcept = default;
+    touch& operator=(touch&&) noexcept = default;
+
+    /// Hook for @ref idf_handle.
+    [[nodiscard]] virtual esp_lcd_touch_handle_t do_idf_handle() const = 0;
 };
 
 } // namespace idfxx::lcd

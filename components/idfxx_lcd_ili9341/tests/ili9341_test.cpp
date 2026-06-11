@@ -99,7 +99,7 @@ TEST_CASE("panel::config with different bits per pixel", "[idfxx][lcd][ili9341]"
     TEST_ASSERT_EQUAL(18, config_18.bits_per_pixel);
 }
 
-TEST_CASE("panel::config flags initialization", "[idfxx][lcd][ili9341]") {
+TEST_CASE("panel::config reset_active_level default", "[idfxx][lcd][ili9341]") {
     using namespace idfxx;
 
     panel::config config{
@@ -108,22 +108,19 @@ TEST_CASE("panel::config flags initialization", "[idfxx][lcd][ili9341]") {
         .bits_per_pixel = 16,
     };
 
-    // Verify default flags
-    TEST_ASSERT_EQUAL(gpio::level::low, config.flags.reset_active_level);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.reset_active_level);
 }
 
-TEST_CASE("panel::config with reset_active_level flag", "[idfxx][lcd][ili9341]") {
+TEST_CASE("panel::config with reset_active_level set", "[idfxx][lcd][ili9341]") {
     using namespace idfxx;
 
     panel::config config{
         .reset_gpio = gpio_4,
         .rgb_element_order = rgb_element_order::bgr,
         .bits_per_pixel = 16,
-        .flags{
-            .reset_active_level = gpio::level::high,
-        },
+        .reset_active_level = gpio::level::high,
     };
 
-    TEST_ASSERT_EQUAL(gpio::level::high, config.flags.reset_active_level);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.reset_active_level);
 }
 

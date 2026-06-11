@@ -72,9 +72,9 @@ TEST_CASE("touch::config default flags are zero", "[idfxx][lcd][touch]") {
         .y_max = 320,
     };
 
-    TEST_ASSERT_EQUAL(0, config.flags.swap_xy);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_x);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_y);
+    TEST_ASSERT_FALSE(config.swap_xy);
+    TEST_ASSERT_FALSE(config.mirror_x);
+    TEST_ASSERT_FALSE(config.mirror_y);
 }
 
 TEST_CASE("touch::config default levels are low", "[idfxx][lcd][touch]") {
@@ -85,8 +85,8 @@ TEST_CASE("touch::config default levels are low", "[idfxx][lcd][touch]") {
         .y_max = 320,
     };
 
-    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.reset);
-    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.interrupt);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.reset_level);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.interrupt_level);
 }
 
 TEST_CASE("touch::config process_coordinates defaults to nullptr", "[idfxx][lcd][touch]") {
@@ -106,16 +106,14 @@ TEST_CASE("touch::config with all flags set", "[idfxx][lcd][touch]") {
     touch::config config{
         .x_max = 320,
         .y_max = 240,
-        .flags{
-            .swap_xy = 1,
-            .mirror_x = 1,
-            .mirror_y = 1,
-        },
+        .swap_xy = true,
+        .mirror_x = true,
+        .mirror_y = true,
     };
 
-    TEST_ASSERT_EQUAL(1, config.flags.swap_xy);
-    TEST_ASSERT_EQUAL(1, config.flags.mirror_x);
-    TEST_ASSERT_EQUAL(1, config.flags.mirror_y);
+    TEST_ASSERT_TRUE(config.swap_xy);
+    TEST_ASSERT_TRUE(config.mirror_x);
+    TEST_ASSERT_TRUE(config.mirror_y);
 }
 
 TEST_CASE("touch::config with GPIO pins", "[idfxx][lcd][touch]") {

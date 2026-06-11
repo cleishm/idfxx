@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_touch_stmpe610:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_lcd_touch_stmpe610` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -254,11 +254,11 @@ Configuration structure defined in `idfxx_lcd`:
 - `y_max` - Maximum Y coordinate (display height)
 - `rst_gpio` - Reset pin GPIO (`idfxx::gpio::nc()` if not used)
 - `int_gpio` - Interrupt pin GPIO (`idfxx::gpio::nc()` if not used)
-- `levels.reset` - Active level for reset pin (`gpio::level::low` or `gpio::level::high`)
-- `levels.interrupt` - Active level for interrupt pin (`gpio::level::low` or `gpio::level::high`)
-- `flags.swap_xy` - Swap X and Y coordinates
-- `flags.mirror_x` - Mirror X axis
-- `flags.mirror_y` - Mirror Y axis
+- `reset_level` - Active level for reset pin (`gpio::level::low` or `gpio::level::high`)
+- `interrupt_level` - Active level for interrupt pin (`gpio::level::low` or `gpio::level::high`)
+- `swap_xy` - Swap X and Y coordinates
+- `mirror_x` - Mirror X axis
+- `mirror_y` - Mirror Y axis
 - `process_coordinates` - Optional callback for coordinate post-processing
 
 ### Typical STMPE610 Configuration
@@ -268,11 +268,9 @@ idfxx::lcd::touch::config touch_config{
     .x_max = 240,
     .y_max = 320,
     // rst_gpio and int_gpio default to gpio::nc()
-    .flags{
-        .swap_xy = 0,        // Adjust based on orientation
-        .mirror_x = 0,       // Adjust based on orientation
-        .mirror_y = 0,       // Adjust based on orientation
-    },
+    .swap_xy = false,  // Adjust based on orientation
+    .mirror_x = false, // Adjust based on orientation
+    .mirror_y = false, // Adjust based on orientation
 };
 ```
 
@@ -282,20 +280,16 @@ The `swap_xy`, `mirror_x`, and `mirror_y` flags should match your display orient
 
 **Portrait (240x320):**
 ```cpp
-.flags{
-    .swap_xy = 0,
-    .mirror_x = 0,
-    .mirror_y = 0,
-}
+.swap_xy = false,
+.mirror_x = false,
+.mirror_y = false,
 ```
 
 **Landscape (320x240):**
 ```cpp
-.flags{
-    .swap_xy = 1,
-    .mirror_x = 1,
-    .mirror_y = 0,
-}
+.swap_xy = true,
+.mirror_x = true,
+.mirror_y = false,
 ```
 
 Adjust these values to match your specific display module and mounting orientation.

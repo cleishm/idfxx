@@ -26,6 +26,11 @@ namespace idfxx::lcd {
 /**
  * @headerfile <idfxx/lcd/panel>
  * @brief Abstract base class for LCD panels.
+ *
+ * The public interface is non-virtual; concrete drivers (e.g.
+ * `idfxx::lcd::ili9341`) customize behaviour by overriding the protected
+ * `do_*` hooks, mirroring the standard library's non-virtual-interface
+ * pattern (cf. `std::pmr::memory_resource`).
  */
 class panel {
 public:
@@ -38,9 +43,7 @@ public:
         enum rgb_element_order rgb_element_order = rgb_element_order::rgb; ///< Set RGB element order, RGB or BGR
         rgb_data_endian data_endian = rgb_data_endian::big; ///< Set the data endian for color data larger than 1 byte
         uint32_t bits_per_pixel = 16;                       ///< Color depth, in bpp
-        struct {
-            gpio::level reset_active_level = gpio::level::low; ///< Active level for the panel reset signal
-        } flags = {};                                          ///< LCD panel config flags
+        gpio::level reset_active_level = gpio::level::low;  ///< Active level for the panel reset signal
         void* vendor_config = nullptr; ///< vendor specific configuration, optional, left as NULL if not used
     };
 
@@ -49,8 +52,11 @@ public:
     panel(const panel&) = delete;
     panel& operator=(const panel&) = delete;
 
-    /** @brief Returns the underlying ESP-IDF handle. */
-    [[nodiscard]] virtual esp_lcd_panel_handle_t idf_handle() const = 0;
+    /**
+     * @brief Returns the underlying ESP-IDF handle.
+     * @return The ESP-IDF LCD panel handle.
+     */
+    [[nodiscard]] esp_lcd_panel_handle_t idf_handle() const { return do_idf_handle(); }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -60,35 +66,16 @@ public:
      * @throws std::system_error on error.
      */
     void swap_xy(bool swap) { unwrap(try_swap_xy(swap)); }
-#endif
 
-    /**
-     * @brief Swaps the X and Y axes.
-     * @param swap true to swap, false for normal.
-     * @return Success, or an error.
-     */
-    [[nodiscard]] virtual result<void> try_swap_xy(bool swap) = 0;
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Mirrors the display.
-     * @param mirrorX true to mirror horizontally.
-     * @param mirrorY true to mirror vertically.
+     * @param mirror_x true to mirror horizontally.
+     * @param mirror_y true to mirror vertically.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void mirror(bool mirrorX, bool mirrorY) { unwrap(try_mirror(mirrorX, mirrorY)); }
-#endif
+    void mirror(bool mirror_x, bool mirror_y) { unwrap(try_mirror(mirror_x, mirror_y)); }
 
-    /**
-     * @brief Mirrors the display.
-     * @param mirrorX true to mirror horizontally.
-     * @param mirrorY true to mirror vertically.
-     * @return Success, or an error.
-     */
-    [[nodiscard]] virtual result<void> try_mirror(bool mirrorX, bool mirrorY) = 0;
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Turns the display on or off.
      * @param on true to turn on, false to turn off.
@@ -99,14 +86,47 @@ public:
 #endif
 
     /**
+     * @brief Swaps the X and Y axes.
+     * @param swap true to swap, false for normal.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_swap_xy(bool swap) { return do_swap_xy(swap); }
+
+    /**
+     * @brief Mirrors the display.
+     * @param mirror_x true to mirror horizontally.
+     * @param mirror_y true to mirror vertically.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_mirror(bool mirror_x, bool mirror_y) { return do_mirror(mirror_x, mirror_y); }
+
+    /**
      * @brief Turns the display on or off.
      * @param on true to turn on, false to turn off.
      * @return Success, or an error.
      */
-    [[nodiscard]] virtual result<void> try_display_on(bool on) = 0;
+    [[nodiscard]] result<void> try_display_on(bool on) { return do_display_on(on); }
 
 protected:
     panel() = default;
+    panel(panel&&) noexcept = default;
+    panel& operator=(panel&&) noexcept = default;
+
+    // =========================================================================
+    // Customization hooks
+    //
+    // Concrete drivers override these (typically privately). Each hook
+    // implements the correspondingly named public method.
+    // =========================================================================
+
+    /// Hook for @ref idf_handle.
+    [[nodiscard]] virtual esp_lcd_panel_handle_t do_idf_handle() const = 0;
+    /// Hook for @ref try_swap_xy.
+    [[nodiscard]] virtual result<void> do_swap_xy(bool swap) = 0;
+    /// Hook for @ref try_mirror.
+    [[nodiscard]] virtual result<void> do_mirror(bool mirror_x, bool mirror_y) = 0;
+    /// Hook for @ref try_display_on.
+    [[nodiscard]] virtual result<void> do_display_on(bool on) = 0;
 };
 
 } // namespace idfxx::lcd
