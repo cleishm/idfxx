@@ -50,9 +50,9 @@ enum class wait_mode {
  * tasks and ISRs. Event bits are represented as a `flags<E>` value, providing
  * full type safety.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @tparam E The flag enum type (must satisfy flag_enum concept). The underlying
  *           type must fit within EventBits_t.

@@ -127,7 +127,7 @@ led->try_set_duty(0.5f);
 Timer and output operations return `idfxx::result<T>` or throw `std::system_error`:
 
 - `invalid_arg` — Invalid frequency, duty resolution, GPIO, or duty value
-- `invalid_state` — Timer not configured, or output moved from
+- `invalid_state` — Timer not configured
 - `fail` — Requested frequency cannot be achieved
 
 ## Important Notes

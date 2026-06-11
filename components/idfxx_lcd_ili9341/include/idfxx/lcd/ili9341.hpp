@@ -63,19 +63,16 @@ public:
     ili9341(ili9341&& other) noexcept;
     ili9341& operator=(ili9341&& other) noexcept;
 
-    /** @copydoc panel::idf_handle() */
-    [[nodiscard]] esp_lcd_panel_handle_t idf_handle() const override;
-    /** @copydoc panel::try_swap_xy() */
-    [[nodiscard]] result<void> try_swap_xy(bool swap) override;
-    /** @copydoc panel::try_mirror() */
-    [[nodiscard]] result<void> try_mirror(bool mirrorX, bool mirrorY) override;
-    /** @copydoc panel::try_display_on() */
-    [[nodiscard]] result<void> try_display_on(bool on) override;
-
 private:
     ili9341() = default;
     explicit ili9341(esp_lcd_panel_handle_t handle)
         : _handle(handle) {}
+
+    // lcd::panel customization hooks.
+    [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override;
+    [[nodiscard]] result<void> do_swap_xy(bool swap) override;
+    [[nodiscard]] result<void> do_mirror(bool mirror_x, bool mirror_y) override;
+    [[nodiscard]] result<void> do_display_on(bool on) override;
 
     esp_lcd_panel_handle_t _handle = nullptr;
 };

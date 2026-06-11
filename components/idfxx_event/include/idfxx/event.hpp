@@ -498,7 +498,7 @@ public:
      * @param handle The listener handle to remove.
      * @return Success or an error.
      */
-    [[nodiscard]] result<void> try_listener_remove(listener_handle handle);
+    result<void> try_listener_remove(listener_handle handle);
 
     // =========================================================================
     // Event posting

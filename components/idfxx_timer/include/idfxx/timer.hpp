@@ -34,9 +34,9 @@ namespace idfxx {
  * Supports both one-shot and periodic timers with callbacks dispatched either
  * from a dedicated timer task or directly from ISR context.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class timer {
 public:

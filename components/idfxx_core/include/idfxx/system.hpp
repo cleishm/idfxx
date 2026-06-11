@@ -133,7 +133,7 @@ void unregister_shutdown_handler(void (*handler)());
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_state if the handler was not registered.
  */
-[[nodiscard]] result<void> try_unregister_shutdown_handler(void (*handler)());
+result<void> try_unregister_shutdown_handler(void (*handler)());
 
 /** @} */ // end of idfxx_core_system
 /** @} */ // end of idfxx_core

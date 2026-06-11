@@ -497,7 +497,7 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_close();
+    result<void> try_close();
 
     // =========================================================================
     // Response Accessors

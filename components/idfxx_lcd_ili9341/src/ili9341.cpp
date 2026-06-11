@@ -23,7 +23,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::panel::config
         .reset_gpio_num = config.reset_gpio.idf_num(),
         .vendor_config = config.vendor_config,
         .flags = {
-            .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.flags.reset_active_level)),
+            .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.reset_active_level)),
         },
 #else
         .reset_gpio_num = config.reset_gpio.idf_num(),
@@ -32,7 +32,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::panel::config
         .bits_per_pixel = config.bits_per_pixel,
         .flags =
             {
-                .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.flags.reset_active_level)),
+                .reset_active_high = static_cast<unsigned int>(std::to_underlying(config.reset_active_level)),
             },
         .vendor_config = config.vendor_config,
 #endif
@@ -92,25 +92,25 @@ ili9341::~ili9341() {
     }
 }
 
-esp_lcd_panel_handle_t ili9341::idf_handle() const {
+esp_lcd_panel_handle_t ili9341::do_idf_handle() const {
     return _handle;
 }
 
-result<void> ili9341::try_swap_xy(bool swap) {
+result<void> ili9341::do_swap_xy(bool swap) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
     return wrap(esp_lcd_panel_swap_xy(_handle, swap));
 }
 
-result<void> ili9341::try_mirror(bool mirror_x, bool mirror_y) {
+result<void> ili9341::do_mirror(bool mirror_x, bool mirror_y) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
     return wrap(esp_lcd_panel_mirror(_handle, mirror_x, mirror_y));
 }
 
-result<void> ili9341::try_display_on(bool on) {
+result<void> ili9341::do_display_on(bool on) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }

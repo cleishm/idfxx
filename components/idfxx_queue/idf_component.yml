@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "Type-safe FreeRTOS queue for inter-task communication"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_queue"
 repository: "https://github.com/cleishm/idfxx.git"

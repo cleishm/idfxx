@@ -57,14 +57,14 @@ result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, config config) {
         .int_gpio_num = config.int_gpio.idf_num(),
         .levels =
             {
-                .reset = static_cast<unsigned int>(std::to_underlying(config.levels.reset)),
-                .interrupt = static_cast<unsigned int>(std::to_underlying(config.levels.interrupt)),
+                .reset = static_cast<unsigned int>(std::to_underlying(config.reset_level)),
+                .interrupt = static_cast<unsigned int>(std::to_underlying(config.interrupt_level)),
             },
         .flags =
             {
-                .swap_xy = config.flags.swap_xy,
-                .mirror_x = config.flags.mirror_x,
-                .mirror_y = config.flags.mirror_y,
+                .swap_xy = config.swap_xy,
+                .mirror_x = config.mirror_x,
+                .mirror_y = config.mirror_y,
             },
         .process_coordinates = cbs ? process_coordinates : nullptr,
         .interrupt_callback = nullptr,
@@ -107,7 +107,7 @@ stmpe610::~stmpe610() {
     }
 }
 
-esp_lcd_touch_handle_t stmpe610::idf_handle() const {
+esp_lcd_touch_handle_t stmpe610::do_idf_handle() const {
     return _handle;
 }
 

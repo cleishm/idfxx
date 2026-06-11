@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "1-Wire bus protocol driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_onewire"
 repository: "https://github.com/cleishm/idfxx.git"

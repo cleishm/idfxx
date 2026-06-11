@@ -41,9 +41,9 @@ namespace idfxx {
  *
  * Manages a task with automatic cleanup on destruction.
  *
- * Tasks are non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values.
+ * Tasks are non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @note The task function runs in the created task's context, not the caller's context.
  */

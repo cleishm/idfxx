@@ -276,7 +276,7 @@ public:
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error with `errc::wrong_protocol_type` if the socket family is
-     *         not IPv4, or `errc::invalid_state` if the socket has been moved from.
+     *         not IPv4.
      */
     void set_multicast_interface_v4(ipv4_addr addr) { idfxx::unwrap(try_set_multicast_interface_v4(addr)); }
 #endif
@@ -292,7 +292,6 @@ public:
      * @param addr Local interface address.
      *
      * @retval errc::wrong_protocol_type the socket family is not IPv4
-     * @retval errc::invalid_state the socket has been moved from
      */
     [[nodiscard]] result<void> try_set_multicast_interface_v4(ipv4_addr addr);
 
@@ -371,7 +370,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` and `CONFIG_LWIP_IPV6`
      *       are enabled.
      * @throws std::system_error with `errc::wrong_protocol_type` if the socket family is
-     *         not IPv6, or `errc::invalid_state` if the socket has been moved from.
+     *         not IPv6.
      */
     void set_multicast_interface_v6(uint8_t if_index) { idfxx::unwrap(try_set_multicast_interface_v6(if_index)); }
 #endif
@@ -387,7 +386,6 @@ public:
      * @param if_index Interface index.
      *
      * @retval errc::wrong_protocol_type the socket family is not IPv6
-     * @retval errc::invalid_state the socket has been moved from
      */
     [[nodiscard]] result<void> try_set_multicast_interface_v6(uint8_t if_index);
 #endif

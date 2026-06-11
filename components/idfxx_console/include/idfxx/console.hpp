@@ -272,8 +272,9 @@ result<void> try_deinit();
  * USB Serial JTAG. The REPL runs in a background FreeRTOS task and processes
  * commands from the global command registry.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * @code
  * // Register commands

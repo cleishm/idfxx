@@ -49,9 +49,9 @@ concept sized_integral =
  * Provides persistent key-value storage in flash memory. Supports strings,
  * binary blobs, and integer types from 8 to 64 bits.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return nvs::errc::invalid_handle. Simple accessors
- * return default values.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  *
  * Changes are not persisted until commit() is called.
  */

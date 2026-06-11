@@ -145,10 +145,9 @@ struct operation {
  * Represents an I2C bus operating in master mode. Satisfies the Lockable
  * named requirement for use with std::lock_guard and std::unique_lock.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values. The Lockable methods (lock/try_lock/unlock)
- * silently no-op on a moved-from object.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class master_bus {
 public:
@@ -414,9 +413,9 @@ private:
  * Represents a specific device on an I2C bus. Provides methods for
  * raw data transfer and register-based read/write operations.
  *
- * This type is non-copyable and move-only. Result-returning methods on a
- * moved-from object return errc::invalid_state. Simple accessors return
- * default/null values.
+ * This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class master_device {
 public:

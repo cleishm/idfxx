@@ -1,4 +1,4 @@
-version: "1.0.1"
+version: "2.0.0"
 description: "STMPE610 resistive touch controller driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -10,11 +10,11 @@ dependencies:
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_lcd:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_lcd
   cleishm/idfxx_lcd_touch:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_lcd_touch
   espressif/esp_lcd_touch_stmpe610:

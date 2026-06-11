@@ -37,9 +37,9 @@ namespace idfxx::lcd {
  * @brief SPI-based panel I/O interface.
  *
  * Provides the communication layer for LCD panels and touch controllers
- * that use SPI. This type is non-copyable and move-only. Result-returning
- * methods on a moved-from object return errc::invalid_state. Simple
- * accessors return default/null values.
+ * that use SPI. This type is non-copyable and move-only. A moved-from
+ * object must not be used: any operation other than destruction or
+ * assignment is undefined behavior.
  */
 class panel_io {
 public:

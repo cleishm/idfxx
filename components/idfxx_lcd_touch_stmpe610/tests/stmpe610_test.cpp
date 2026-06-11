@@ -85,10 +85,10 @@ TEST_CASE("touch::config orientation flags initialization", "[idfxx][lcd][stmpe6
         .y_max = 320,
     };
 
-    // Verify default flags are zero
-    TEST_ASSERT_EQUAL(0, config.flags.swap_xy);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_x);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_y);
+    // Verify default flags are unset
+    TEST_ASSERT_FALSE(config.swap_xy);
+    TEST_ASSERT_FALSE(config.mirror_x);
+    TEST_ASSERT_FALSE(config.mirror_y);
 }
 
 TEST_CASE("touch::config with portrait orientation flags", "[idfxx][lcd][stmpe610]") {
@@ -97,16 +97,14 @@ TEST_CASE("touch::config with portrait orientation flags", "[idfxx][lcd][stmpe61
     touch::config config{
         .x_max = 240,
         .y_max = 320,
-        .flags{
-            .swap_xy = 0,
-            .mirror_x = 0,
-            .mirror_y = 0,
-        },
+        .swap_xy = false,
+        .mirror_x = false,
+        .mirror_y = false,
     };
 
-    TEST_ASSERT_EQUAL(0, config.flags.swap_xy);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_x);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_y);
+    TEST_ASSERT_FALSE(config.swap_xy);
+    TEST_ASSERT_FALSE(config.mirror_x);
+    TEST_ASSERT_FALSE(config.mirror_y);
 }
 
 TEST_CASE("touch::config with landscape orientation flags", "[idfxx][lcd][stmpe610]") {
@@ -115,16 +113,14 @@ TEST_CASE("touch::config with landscape orientation flags", "[idfxx][lcd][stmpe6
     touch::config config{
         .x_max = 320,
         .y_max = 240,
-        .flags{
-            .swap_xy = 1,
-            .mirror_x = 1,
-            .mirror_y = 0,
-        },
+        .swap_xy = true,
+        .mirror_x = true,
+        .mirror_y = false,
     };
 
-    TEST_ASSERT_EQUAL(1, config.flags.swap_xy);
-    TEST_ASSERT_EQUAL(1, config.flags.mirror_x);
-    TEST_ASSERT_EQUAL(0, config.flags.mirror_y);
+    TEST_ASSERT_TRUE(config.swap_xy);
+    TEST_ASSERT_TRUE(config.mirror_x);
+    TEST_ASSERT_FALSE(config.mirror_y);
 }
 
 TEST_CASE("touch::config with reset and interrupt GPIO pins", "[idfxx][lcd][stmpe610]") {
@@ -152,8 +148,8 @@ TEST_CASE("touch::config levels initialization", "[idfxx][lcd][stmpe610]") {
     };
 
     // Verify default levels are low
-    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.reset);
-    TEST_ASSERT_EQUAL(gpio::level::low, config.levels.interrupt);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.reset_level);
+    TEST_ASSERT_EQUAL(gpio::level::low, config.interrupt_level);
 }
 
 TEST_CASE("touch::config with custom levels", "[idfxx][lcd][stmpe610]") {
@@ -162,14 +158,12 @@ TEST_CASE("touch::config with custom levels", "[idfxx][lcd][stmpe610]") {
     touch::config config{
         .x_max = 240,
         .y_max = 320,
-        .levels{
-            .reset = gpio::level::high,
-            .interrupt = gpio::level::high,
-        },
+        .reset_level = gpio::level::high,
+        .interrupt_level = gpio::level::high,
     };
 
-    TEST_ASSERT_EQUAL(gpio::level::high, config.levels.reset);
-    TEST_ASSERT_EQUAL(gpio::level::high, config.levels.interrupt);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.reset_level);
+    TEST_ASSERT_EQUAL(gpio::level::high, config.interrupt_level);
 }
 
 TEST_CASE("touch::config process_coordinates defaults to nullptr", "[idfxx][lcd][stmpe610]") {

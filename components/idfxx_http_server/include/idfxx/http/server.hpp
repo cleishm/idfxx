@@ -799,7 +799,7 @@ public:
      * @param uri The URI of the handler to remove.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_unregister_handler(enum method m, std::string_view uri);
+    result<void> try_unregister_handler(enum method m, std::string_view uri);
 
     // =========================================================================
     // WebSocket
