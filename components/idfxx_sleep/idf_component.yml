@@ -1,0 +1,15 @@
+version: "1.0.0"
+description: "Light and deep sleep with type-safe wake-up source configuration for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_sleep"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
