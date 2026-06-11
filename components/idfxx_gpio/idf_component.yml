@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "Type-safe GPIO pin management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_gpio"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -13,10 +13,3 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_hw_support
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

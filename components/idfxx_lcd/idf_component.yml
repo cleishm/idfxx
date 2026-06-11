@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "LCD panel I/O interface for SPI-based displays"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -16,10 +16,3 @@ dependencies:
   cleishm/frequency:
     version: "^1.1.1"
     public: true
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

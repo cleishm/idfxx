@@ -15,10 +15,3 @@ dependencies:
     override_path: ../idfxx_gpio
   esp-idf-lib/onewire:
     version: "^1.1.0"
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2

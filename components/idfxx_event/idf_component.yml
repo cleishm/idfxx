@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "Type-safe event loop for asynchronous event handling"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_event"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -9,10 +9,3 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_core
-targets:
-  - esp32
-  - esp32s2
-  - esp32s3
-  - esp32c3
-  - esp32c6
-  - esp32h2
