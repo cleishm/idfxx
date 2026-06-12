@@ -24,6 +24,16 @@ enum class test_flag : uint32_t {
 template<>
 inline constexpr bool idfxx::enable_flags_operators<test_flag> = true;
 
+// Sub-int underlying type: the bitwise operators must not trip narrowing
+// diagnostics when the operands promote to int.
+enum class narrow_flag : uint16_t {
+    flag_a = 1u << 0,
+    flag_b = 1u << 1,
+};
+
+template<>
+inline constexpr bool idfxx::enable_flags_operators<narrow_flag> = true;
+
 // Non-opted enum for negative tests
 enum class non_opted_enum : int {
     value_a = 1,
@@ -62,6 +72,13 @@ static_assert(to_underlying(flags<test_flag>(5u)) == 5u);
 // Constexpr combine
 static_assert(to_underlying(flags{test_flag::flag_a} | flags{test_flag::flag_b}) == 3u);
 static_assert(to_underlying(test_flag::flag_a | test_flag::flag_b) == 3u);
+
+// Sub-int underlying types survive the int promotion of the bitwise operators.
+static_assert(to_underlying(narrow_flag::flag_a | narrow_flag::flag_b) == 3u);
+static_assert(to_underlying(flags{narrow_flag::flag_a} & flags{narrow_flag::flag_a}) == 1u);
+static_assert(to_underlying(flags{narrow_flag::flag_a} ^ flags{narrow_flag::flag_b}) == 3u);
+static_assert((flags{narrow_flag::flag_a} - flags{narrow_flag::flag_a}).empty());
+static_assert((~flags<narrow_flag>{}).contains(narrow_flag::flag_a | narrow_flag::flag_b));
 
 // Constexpr intersect
 static_assert(to_underlying(flags{test_flag::flag_a} & flags{test_flag::flag_a}) == 1u);
