@@ -105,22 +105,15 @@ public:
     ssd1306(ssd1306&& other) noexcept;
     ssd1306& operator=(ssd1306&& other) noexcept;
 
-    /** @brief Returns the display width in pixels (always 128). */
-    [[nodiscard]] size_t width() const noexcept { return 128; }
-
-    /** @brief Returns the display height in pixels (64 or 32, as configured). */
-    [[nodiscard]] size_t height() const noexcept { return _height; }
-
 private:
     explicit ssd1306(esp_lcd_panel_handle_t handle, size_t height)
-        : _handle(handle)
-        , _height(height) {}
+        : panel(128, height)
+        , _handle(handle) {}
 
     // lcd::panel customization hooks.
     [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override;
 
     esp_lcd_panel_handle_t _handle = nullptr;
-    size_t _height = 0;
 };
 
 } // namespace idfxx::lcd

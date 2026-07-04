@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include <idfxx/lcd/detail/panel_factory.hpp>
 #include <idfxx/lcd/ssd1306>
 
 #include <esp_lcd_panel_ops.h>
@@ -24,35 +25,16 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
         .height = static_cast<uint8_t>(config.height),
     };
 
-    // The field order of esp_lcd_panel_dev_config_t differs between IDF 5.5 and
-    // 6.0, so assign member-wise rather than using designated initializers.
-    esp_lcd_panel_dev_config_t panel_config{};
-    panel_config.reset_gpio_num = config.reset_gpio.idf_num();
-    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
-    panel_config.data_endian = LCD_RGB_DATA_ENDIAN_BIG;
-    panel_config.bits_per_pixel = 1;
-    panel_config.flags.reset_active_high = static_cast<unsigned int>(std::to_underlying(config.reset_active_level));
-    panel_config.vendor_config = &ssd1306_config;
-
-    esp_lcd_panel_handle_t handle = nullptr;
-    if (auto err = esp_lcd_new_panel_ssd1306(io_handle, &panel_config, &handle); err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to create ssd1306 panel: %s", esp_err_to_name(err));
-        return idfxx::error(err);
-    }
-
-    if (auto err = esp_lcd_panel_reset(handle); err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to reset panel: %s", esp_err_to_name(err));
-        esp_lcd_panel_del(handle);
-        return idfxx::error(err);
-    }
-
-    if (auto err = esp_lcd_panel_init(handle); err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to initialize panel: %s", esp_err_to_name(err));
-        esp_lcd_panel_del(handle);
-        return idfxx::error(err);
-    }
-
-    return handle;
+    return idfxx::lcd::detail::make_panel_handle(
+        esp_lcd_new_panel_ssd1306,
+        io_handle,
+        {
+            .reset_gpio = config.reset_gpio,
+            .bits_per_pixel = 1,
+            .reset_active_level = config.reset_active_level,
+            .vendor_config = &ssd1306_config,
+        }
+    );
 }
 
 } // namespace
@@ -71,8 +53,8 @@ ssd1306::ssd1306(idfxx::lcd::panel_io& panel_io, ssd1306::config config)
 #endif
 
 ssd1306::ssd1306(ssd1306&& other) noexcept
-    : _handle(std::exchange(other._handle, nullptr))
-    , _height(std::exchange(other._height, 0)) {}
+    : panel(std::move(other))
+    , _handle(std::exchange(other._handle, nullptr)) {}
 
 ssd1306& ssd1306::operator=(ssd1306&& other) noexcept {
     if (this != &other) {
@@ -80,8 +62,8 @@ ssd1306& ssd1306::operator=(ssd1306&& other) noexcept {
             esp_lcd_panel_del(_handle);
         }
 
+        panel::operator=(std::move(other));
         _handle = std::exchange(other._handle, nullptr);
-        _height = std::exchange(other._height, 0);
     }
     return *this;
 }

@@ -131,12 +131,14 @@ display.display_on(true);
 
 ### Partial Updates
 
-`mono_framebuffer::flush_rows` redraws only a horizontal band, which keeps I2C
-traffic low for small changes:
+`mono_framebuffer::flush_rows` redraws only a horizontal band, and
+`mono_framebuffer::flush_region` narrows the transfer further to a column
+range, which keeps I2C traffic low for small changes:
 
 ```cpp
 fb.set_pixel(64, 20, true);
-fb.flush_rows(display, 16, 24);  // only pages 2 (rows 16-23) are transferred
+fb.flush_rows(display, 16, 24);           // only page 2 (rows 16-23) is transferred
+fb.flush_region(display, 64, 20, 65, 21); // only one byte of page 2 is transferred
 ```
 
 ## API Overview
@@ -159,8 +161,8 @@ fb.flush_rows(display, 16, 24);  // only pages 2 (rows 16-23) are transferred
   Exception-based equivalents (if enabled)
 
 **Properties:**
-- `width()` - Display width in pixels (always 128)
-- `height()` - Display height in pixels (64 or 32, as configured)
+- `width()` - Display width in pixels, from the `panel` base class (always 128)
+- `height()` - Display height in pixels, from the `panel` base class (64 or 32, as configured)
 - `idf_handle()` - Get ESP-IDF panel handle
 
 **Lifetime:**

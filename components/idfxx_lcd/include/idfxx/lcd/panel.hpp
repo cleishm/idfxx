@@ -14,6 +14,8 @@
 #include <idfxx/gpio>
 #include <idfxx/lcd/color>
 
+#include <cstddef>
+
 struct esp_lcd_panel_t;
 typedef struct esp_lcd_panel_t* esp_lcd_panel_handle_t;
 
@@ -57,6 +59,26 @@ public:
      * @return The ESP-IDF LCD panel handle.
      */
     [[nodiscard]] esp_lcd_panel_handle_t idf_handle() const { return do_idf_handle(); }
+
+    /**
+     * @brief Returns the panel's native width in pixels.
+     *
+     * The native dimensions are fixed at construction and are not affected by
+     * @ref swap_xy or @ref mirror.
+     *
+     * @return The width in pixels, or 0 if the driver does not report dimensions.
+     */
+    [[nodiscard]] size_t width() const noexcept { return _width; }
+
+    /**
+     * @brief Returns the panel's native height in pixels.
+     *
+     * The native dimensions are fixed at construction and are not affected by
+     * @ref swap_xy or @ref mirror.
+     *
+     * @return The height in pixels, or 0 if the driver does not report dimensions.
+     */
+    [[nodiscard]] size_t height() const noexcept { return _height; }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -163,6 +185,10 @@ public:
 
 protected:
     panel() = default;
+    /// Constructs a panel reporting the given native dimensions.
+    panel(size_t width, size_t height) noexcept
+        : _width(width)
+        , _height(height) {}
     panel(panel&&) noexcept = default;
     panel& operator=(panel&&) noexcept = default;
 
@@ -191,6 +217,10 @@ protected:
     /// Hook for @ref try_display_on. The default implementation switches the
     /// display via the panel handle returned by do_idf_handle().
     [[nodiscard]] virtual result<void> do_display_on(bool on);
+
+private:
+    size_t _width = 0;
+    size_t _height = 0;
 };
 
 } // namespace idfxx::lcd
