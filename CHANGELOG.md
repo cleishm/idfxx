@@ -6,6 +6,29 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
+## Unreleased
+
+### New components
+
+- `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
+  over I2C
+
+### Enhancements
+
+- `idfxx_lcd` `2.1.0` — added I2C panel I/O (`panel_io::i2c_config` and construction from
+  an `idfxx::i2c::master_bus`), `draw_bitmap`/`invert_color` on the `panel` base class,
+  default implementations for every `panel` hook except `do_idf_handle()` (existing
+  drivers compile unchanged; new drivers need only supply their panel handle), and a
+  `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays
+- `idfxx_lcd_ili9341` `2.0.1` — example and documentation now draw via
+  `panel::draw_bitmap` instead of the raw ESP-IDF handle
+
+### Other changes
+
+- The test app partition layouts now use a single OTA slot: the suite only reads
+  `ota_0` (never writes a second image), and the full suite no longer fits the
+  two-slot 4MB layout on the IDF 5.5 toolchain.
+
 ## v2026.06.11
 
 Maintenance release: two new components, an LCD API alignment, and broader target

@@ -1,6 +1,6 @@
-version: "2.0.1"
-description: "ILI9341 LCD panel driver (240x320)"
-url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ili9341"
+version: "1.0.0"
+description: "SSD1306 monochrome OLED panel driver (128x64 / 128x32)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ssd1306"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
 dependencies:
@@ -13,6 +13,3 @@ dependencies:
     version: "^2.1.0"
     public: true
     override_path: ../idfxx_lcd
-  espressif/esp_lcd_ili9341:
-    version: "^2.0.2"
-    public: false

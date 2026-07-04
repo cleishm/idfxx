@@ -3,6 +3,7 @@
 
 #include <idfxx/lcd/panel_io>
 
+#include <esp_lcd_io_i2c.h>
 #include <esp_log.h>
 #include <utility>
 
@@ -90,6 +91,59 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config config)
     : panel_io(unwrap(make(spi_bus, std::move(config)))) {}
+#endif
+
+result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_config config) {
+    if (config.device_address == 0) {
+        ESP_LOGD(TAG, "Field 'device_address' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.scl_speed.count() == 0) {
+        ESP_LOGD(TAG, "Field 'scl_speed' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.lcd_cmd_bits == 0) {
+        ESP_LOGD(TAG, "Field 'lcd_cmd_bits' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (config.lcd_param_bits == 0) {
+        ESP_LOGD(TAG, "Field 'lcd_param_bits' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+
+    std::unique_ptr<callback_state> cbs;
+    if (config.on_color_transfer_done) {
+        cbs = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
+    }
+
+    // Assign members individually rather than via a designated initializer:
+    // the field order (and the type of dc_bit_offset) differs between ESP-IDF
+    // 5.5 and 6.0, and value-initializing the struct first zeroes every field
+    // including any flags ESP-IDF adds later.
+    esp_lcd_panel_io_i2c_config_t lcd_config{};
+    lcd_config.dev_addr = config.device_address;
+    lcd_config.scl_speed_hz = static_cast<uint32_t>(config.scl_speed.count());
+    lcd_config.control_phase_bytes = config.control_phase_bytes;
+    lcd_config.dc_bit_offset = config.dc_bit_offset;
+    lcd_config.lcd_cmd_bits = config.lcd_cmd_bits;
+    lcd_config.lcd_param_bits = config.lcd_param_bits;
+    lcd_config.on_color_trans_done = cbs ? on_color_transfer_done : nullptr;
+    lcd_config.user_ctx = cbs ? static_cast<void*>(cbs.get()) : nullptr;
+    lcd_config.flags.dc_low_on_data = config.flags.dc_low_on_data;
+    lcd_config.flags.disable_control_phase = config.flags.disable_control_phase;
+
+    esp_lcd_panel_io_handle_t handle = nullptr;
+    auto err = esp_lcd_new_panel_io_i2c(i2c_bus.handle(), &lcd_config, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
+        return error(err);
+    }
+    return panel_io{handle, std::move(cbs)};
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+panel_io::panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config)
+    : panel_io(unwrap(make(i2c_bus, std::move(config)))) {}
 #endif
 
 panel_io::panel_io(panel_io&& other) noexcept

@@ -1,9 +1,11 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 # 8MB flash layout. Used on targets whose default image is too large for the
-# 1.875MB OTA slots in partitions.csv (e.g. esp32c6 with its Wi-Fi 6 stack).
+# OTA slot in partitions.csv (e.g. esp32c6 with its Wi-Fi 6 stack).
+# Single OTA slot: the test suite needs an ota_0 app partition (the ota/partition
+# tests look it up), but nothing writes a second image, so ota_1 is omitted to
+# leave room for the test binary to grow.
 # Note: if you have increased the bootloader size, make sure to update the offsets to avoid overlap
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,
 phy_init, data, phy,     0x10000, 0x1000,
-ota_0,    app,  ota_0,   0x20000, 0x3E0000,
-ota_1,    app,  ota_1,   0x400000,0x3E0000,
+ota_0,    app,  ota_0,   0x20000, 0x7E0000,

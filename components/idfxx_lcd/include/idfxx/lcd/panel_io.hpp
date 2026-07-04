@@ -9,16 +9,18 @@
  * @brief LCD panel I/O class.
  *
  * @defgroup idfxx_lcd LCD Component
- * @brief LCD panel I/O interface for SPI-based displays.
+ * @brief LCD panel I/O interface for SPI- and I2C-based displays.
  *
- * Provides the communication layer for SPI-based LCD panels and touch
- * controllers.
+ * Provides the communication layer for SPI- and I2C-based LCD panels and
+ * touch controllers.
  *
  * Depends on @ref idfxx_core for error handling, @ref idfxx_gpio for pin
- * configuration, and @ref idfxx_spi for SPI bus integration.
+ * configuration, @ref idfxx_spi for SPI bus integration, and @ref idfxx_i2c
+ * for I2C bus integration.
  * @{
  */
 
+#include <idfxx/i2c/master>
 #include <idfxx/spi/master>
 
 #include <esp_lcd_panel_io.h>
@@ -34,10 +36,10 @@ namespace idfxx::lcd {
 
 /**
  * @headerfile <idfxx/lcd/panel_io>
- * @brief SPI-based panel I/O interface.
+ * @brief Panel I/O interface for SPI- and I2C-connected displays.
  *
  * Provides the communication layer for LCD panels and touch controllers
- * that use SPI. This type is non-copyable and move-only. A moved-from
+ * that use SPI or I2C. This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
  * assignment is undefined behavior.
  */
@@ -85,6 +87,31 @@ public:
         } flags = {};                            ///< Extra flags to fine-tune the SPI device
     };
 
+    /**
+     * @brief I2C-based panel I/O configuration.
+     *
+     * All fields have sensible defaults, but you must define device_address, scl_speed,
+     * lcd_cmd_bits, and lcd_param_bits at minimum. The control-phase framing is a property
+     * of the panel controller; panel driver components typically provide a pre-filled
+     * configuration (e.g. `ssd1306::i2c_io_config()`) or document the values they require.
+     */
+    struct i2c_config {
+        uint16_t device_address = 0; ///< 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
+        freq::hertz scl_speed{0};    ///< I2C SCL frequency
+        color_transfer_done_callback on_color_transfer_done =
+            nullptr;                    ///< Callback invoked when color data transfer has finished
+        size_t control_phase_bytes = 0; ///< Number of bytes the panel encodes control information (e.g. D/C
+                                        ///< selection) into during the control phase
+        unsigned int dc_bit_offset = 0; ///< Offset of the D/C selection bit in the control phase
+        int lcd_cmd_bits = 0;           ///< Bit-width of LCD command
+        int lcd_param_bits = 0;         ///< Bit-width of LCD parameter
+        struct {
+            unsigned int dc_low_on_data : 1 = 0; ///< If enabled, DC bit = 0 indicates data transfer and DC bit = 1
+                                                 ///< indicates command transfer; vice versa otherwise
+            unsigned int disable_control_phase : 1 = 0; ///< If enabled, the control phase isn't used
+        } flags = {};                                   ///< Extra flags to fine-tune the I2C device
+    };
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a new panel I/O interface.
@@ -113,6 +140,35 @@ public:
      * @return The new panel_io, or an error.
      */
     [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config config);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates a new panel I/O interface.
+     *
+     * Does not take ownership of @p i2c_bus. It is the caller's responsibility to ensure that
+     * this panel_io does not outlive the bus.
+     *
+     * @param i2c_bus The I2C bus.
+     * @param config  Panel I/O configuration.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] explicit panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
+#endif
+
+    /**
+     * @brief Creates a new panel I/O interface.
+     *
+     * Does not take ownership of @p i2c_bus. It is the caller's responsibility to ensure that
+     * this panel_io does not outlive the bus.
+     *
+     * @param i2c_bus The I2C bus.
+     * @param config  Panel I/O configuration.
+     *
+     * @return The new panel_io, or an error.
+     */
+    [[nodiscard]] static result<panel_io> make(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
 
     ~panel_io();
 
