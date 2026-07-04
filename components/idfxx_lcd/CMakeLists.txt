@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "src/panel.cpp" "src/panel_io.cpp"
+    SRCS "src/panel.cpp" "src/panel_factory.cpp" "src/panel_io.cpp"
     INCLUDE_DIRS "include"
     REQUIRES esp_lcd
 )

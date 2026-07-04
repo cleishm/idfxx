@@ -238,6 +238,8 @@ esp_lcd_panel_handle_t handle = panel.idf_handle();
 - `display_on(on)` - Turn display on/off (exception-based, if enabled)
 
 **Properties:**
+- `width()` - Native display width in pixels (240), from the `panel` base class
+- `height()` - Native display height in pixels (320), from the `panel` base class
 - `idf_handle()` - Get ESP-IDF panel handle
 
 **Lifetime:**

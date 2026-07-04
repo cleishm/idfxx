@@ -9,8 +9,37 @@
 
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using namespace idfxx::lcd;
+
+namespace {
+
+// Stub panel recording draw_bitmap calls, for verifying flush behaviour
+// without hardware.
+class recording_panel : public panel {
+public:
+    struct draw {
+        int x_start;
+        int y_start;
+        int x_end;
+        int y_end;
+        const void* data;
+    };
+
+    std::vector<draw> draws;
+
+private:
+    [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override { return nullptr; }
+
+    [[nodiscard]] idfxx::result<void>
+    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) override {
+        draws.push_back({x_start, y_start, x_end, y_end, color_data});
+        return {};
+    }
+};
+
+} // namespace
 
 // =============================================================================
 // Compile-time tests (static_assert)
@@ -127,4 +156,83 @@ TEST_CASE("mono_framebuffer fill and clear", "[idfxx][lcd]") {
         TEST_ASSERT_EQUAL(0x00, byte);
     }
     TEST_ASSERT_FALSE(fb->get_pixel(31, 7));
+}
+
+TEST_CASE("mono_framebuffer flush draws the full frame", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(128, 64);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display;
+    TEST_ASSERT_TRUE(fb->try_flush(display).has_value());
+
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(0, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(128, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(64, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+}
+
+TEST_CASE("mono_framebuffer flush_rows sends one page-aligned transfer", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(128, 64);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display;
+
+    // Rows [26, 30) round out to pages 3 (rows 24-31): one full-width draw.
+    TEST_ASSERT_TRUE(fb->try_flush_rows(display, 26, 30).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(24, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(128, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(32, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
+
+    // Invalid row ranges are rejected.
+    auto empty = fb->try_flush_rows(display, 30, 30);
+    TEST_ASSERT_FALSE(empty.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
+
+    auto overflow = fb->try_flush_rows(display, 0, 65);
+    TEST_ASSERT_FALSE(overflow.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
+}
+
+TEST_CASE("mono_framebuffer flush_region sends one transfer per page", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(128, 64);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display;
+
+    // Columns [3, 5) over rows [10, 26): pages 1-3 (rows 8-32), one draw each.
+    TEST_ASSERT_TRUE(fb->try_flush_region(display, 3, 10, 5, 26).has_value());
+    TEST_ASSERT_EQUAL(3, display.draws.size());
+    for (size_t i = 0; i < 3; ++i) {
+        size_t page = 1 + i;
+        TEST_ASSERT_EQUAL(3, display.draws[i].x_start);
+        TEST_ASSERT_EQUAL(page * 8, display.draws[i].y_start);
+        TEST_ASSERT_EQUAL(5, display.draws[i].x_end);
+        TEST_ASSERT_EQUAL((page + 1) * 8, display.draws[i].y_end);
+        TEST_ASSERT_EQUAL_PTR(fb->data().data() + page * 128 + 3, display.draws[i].data);
+    }
+
+    // A full-width region collapses to a single transfer.
+    display.draws.clear();
+    TEST_ASSERT_TRUE(fb->try_flush_region(display, 0, 0, 128, 64).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+
+    // Invalid column ranges are rejected.
+    auto empty = fb->try_flush_region(display, 5, 0, 5, 8);
+    TEST_ASSERT_FALSE(empty.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
+
+    auto overflow = fb->try_flush_region(display, 0, 0, 129, 8);
+    TEST_ASSERT_FALSE(overflow.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
+}
+
+TEST_CASE("panel reports native dimensions", "[idfxx][lcd]") {
+    recording_panel display;
+    TEST_ASSERT_EQUAL(0, display.width());
+    TEST_ASSERT_EQUAL(0, display.height());
 }

@@ -127,6 +127,9 @@ fb.flush(display);              // push the full frame to the panel
 
 fb.set_pixel(10, 20, false);
 fb.flush_rows(display, 16, 24); // partial update: only rows 16-23
+
+fb.set_pixel(10, 20, true);
+fb.flush_region(display, 10, 16, 11, 24); // partial update: one column of one page
 ```
 
 ### Result-based API
@@ -263,6 +266,12 @@ In-memory framebuffer for monochrome (1-bpp) displays, stored page-packed (each 
 - `flush(panel)` / `try_flush(panel)` - Draw the full frame to a panel
 - `flush_rows(panel, y_start, y_end)` / `try_flush_rows(...)` - Draw a horizontal band,
   expanded outward to page boundaries
+- `flush_region(panel, x_start, y_start, x_end, y_end)` / `try_flush_region(...)` - Draw a
+  rectangular region: full-width regions transfer in a single draw, narrower ones one
+  draw per page
+
+Panels report their native dimensions via `panel::width()` / `panel::height()`, so a
+matching framebuffer is simply `mono_framebuffer fb(display.width(), display.height())`.
 
 ## Configuration
 

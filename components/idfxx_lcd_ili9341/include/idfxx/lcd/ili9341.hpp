@@ -64,15 +64,12 @@ public:
     ili9341& operator=(ili9341&& other) noexcept;
 
 private:
-    ili9341() = default;
     explicit ili9341(esp_lcd_panel_handle_t handle)
-        : _handle(handle) {}
+        : panel(240, 320)
+        , _handle(handle) {}
 
     // lcd::panel customization hooks.
     [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override;
-    [[nodiscard]] result<void> do_swap_xy(bool swap) override;
-    [[nodiscard]] result<void> do_mirror(bool mirror_x, bool mirror_y) override;
-    [[nodiscard]] result<void> do_display_on(bool on) override;
 
     esp_lcd_panel_handle_t _handle = nullptr;
 };

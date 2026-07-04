@@ -80,9 +80,9 @@ extern "C" void app_main() {
             for (size_t y = 26; y < 30; ++y) {
                 fb.set_pixel(bar_x, y, true);
             }
-            // Only the affected row band is transferred (rounded out to page
-            // boundaries, i.e. rows 24-31).
-            fb.flush_rows(display, 26, 30);
+            // Only the affected column is transferred (rows rounded out to the
+            // containing page, i.e. rows 24-31): a single byte on the bus.
+            fb.flush_region(display, bar_x, 26, bar_x + 1, 30);
 
             if (++bar_x < fb.width() - 2) {
                 continue;

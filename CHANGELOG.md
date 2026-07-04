@@ -18,10 +18,13 @@ component's version only bumps when that component changes.
 - `idfxx_lcd` `2.1.0` — added I2C panel I/O (`panel_io::i2c_config` and construction from
   an `idfxx::i2c::master_bus`), `draw_bitmap`/`invert_color` on the `panel` base class,
   default implementations for every `panel` hook except `do_idf_handle()` (existing
-  drivers compile unchanged; new drivers need only supply their panel handle), and a
-  `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays
-- `idfxx_lcd_ili9341` `2.0.1` — example and documentation now draw via
-  `panel::draw_bitmap` instead of the raw ESP-IDF handle
+  drivers compile unchanged; new drivers need only supply their panel handle),
+  `width()`/`height()` on the `panel` base class reporting native dimensions, a
+  `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays with
+  full-frame, row-band, and rectangular-region flushes, and a shared internal
+  panel-creation helper for esp_lcd-based drivers
+- `idfxx_lcd_ili9341` `2.1.0` — panels now report `width()`/`height()`, and the example
+  and documentation draw via `panel::draw_bitmap` instead of the raw ESP-IDF handle
 
 ### Other changes
 
