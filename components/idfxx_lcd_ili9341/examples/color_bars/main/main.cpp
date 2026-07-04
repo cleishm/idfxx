@@ -11,7 +11,6 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <esp_lcd_panel_ops.h>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -91,11 +90,10 @@ extern "C" void app_main() {
         };
 
         std::vector<uint16_t> band(DISPLAY_W * BAND_H);
-        auto* handle = panel.idf_handle();
 
         for (size_t i = 0; i < colors.size(); ++i) {
             std::ranges::fill(band, colors[i]);
-            ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(handle, 0, i * BAND_H, DISPLAY_W, (i + 1) * BAND_H, band.data()));
+            panel.draw_bitmap(0, i * BAND_H, DISPLAY_W, (i + 1) * BAND_H, band.data());
         }
 
         logger.info("Drew {} color bands", colors.size());

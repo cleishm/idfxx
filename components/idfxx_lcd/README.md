@@ -1,14 +1,16 @@
 # idfxx_lcd
 
-LCD panel I/O interface for SPI-based displays.
+LCD panel I/O interface for SPI- and I2C-based displays.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__lcd.html)**
 
 ## Features
 
 - Panel I/O lifecycle management
-- SPI-based communication interface
-- Integration with `idfxx_spi` bus
+- SPI- and I2C-based communication interfaces
+- Integration with `idfxx_spi` and `idfxx_i2c` buses
+- Panel base class with drawing, orientation, and inversion controls
+- `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays
 - Foundation for LCD panel and touch controller drivers
 
 ## Requirements
@@ -25,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd:
-    version: "^2.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_lcd` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -73,6 +75,58 @@ try {
 } catch (const std::system_error& e) {
     idfxx::log::error("LCD", "Error: {}", e.what());
 }
+```
+
+### I2C Displays
+
+Monochrome OLEDs and other I2C-connected panels use the same `panel_io` class with an
+`i2c_config` and an `idfxx::i2c::master_bus`:
+
+```cpp
+#include <idfxx/i2c/master>
+#include <idfxx/lcd/panel_io>
+
+using namespace frequency_literals;
+
+idfxx::i2c::master_bus i2c_bus(idfxx::i2c::port::i2c0, {
+    .sda = idfxx::gpio_21,
+    .scl = idfxx::gpio_22,
+    .frequency = 400_kHz,
+});
+
+idfxx::lcd::panel_io panel_io(
+    i2c_bus,
+    idfxx::lcd::panel_io::i2c_config {
+        .device_address = 0x3C,     // typical SSD1306 address
+        .scl_speed = 400_kHz,
+        .control_phase_bytes = 1,   // controller-specific; these values suit an SSD1306
+        .dc_bit_offset = 6,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    }
+);
+```
+
+Panel driver components typically provide a pre-filled configuration for their
+controller (e.g. `idfxx_lcd_ssd1306`'s `ssd1306::i2c_io_config()`), so the raw
+struct is only needed for panels without one.
+
+### Monochrome Framebuffer
+
+For monochrome (1 bit per pixel) displays such as SSD1306 OLEDs, `mono_framebuffer`
+provides an in-memory drawing surface in the page-packed layout those controllers
+expect:
+
+```cpp
+#include <idfxx/lcd/mono_framebuffer>
+
+idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
+
+fb.set_pixel(10, 20, true);
+fb.flush(display);              // push the full frame to the panel
+
+fb.set_pixel(10, 20, false);
+fb.flush_rows(display, 16, 24); // partial update: only rows 16-23
 ```
 
 ### Result-based API
@@ -174,8 +228,8 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 ### `panel_io`
 
 **Creation:**
-- `make(spi_bus, config)` - Create panel I/O (result-based)
-- `panel_io(spi_bus, config)` - Constructor (exception-based, if enabled)
+- `make(spi_bus, config)` / `make(i2c_bus, config)` - Create panel I/O (result-based)
+- `panel_io(spi_bus, config)` / `panel_io(i2c_bus, config)` - Constructors (exception-based, if enabled)
 
 **Properties:**
 - `idf_handle()` - Get ESP-IDF panel I/O handle
@@ -183,7 +237,32 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 **Lifetime:**
 - Destructor automatically calls `esp_lcd_panel_io_del()`
 - Non-copyable and move-only
-- Takes SPI bus by reference; the caller must ensure the bus outlives the panel I/O
+- Takes the bus by reference; the caller must ensure the bus outlives the panel I/O
+
+### `panel` (abstract base class)
+
+Concrete drivers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) inherit from `panel`:
+
+- `draw_bitmap(x_start, y_start, x_end, y_end, data)` / `try_draw_bitmap(...)` - Draw pixel
+  data to an end-exclusive region (buffer layout is panel-specific)
+- `invert_color(invert)` / `try_invert_color(invert)` - Invert display colors
+- `swap_xy(swap)` / `try_swap_xy(swap)` - Swap X and Y axes
+- `mirror(mirror_x, mirror_y)` / `try_mirror(...)` - Mirror the display
+- `display_on(on)` / `try_display_on(on)` - Turn the display on or off
+- `idf_handle()` - Get ESP-IDF panel handle
+
+### `mono_framebuffer`
+
+In-memory framebuffer for monochrome (1-bpp) displays, stored page-packed (each byte is
+8 vertically adjacent pixels; the byte for pixel (x, y) is `(y / 8) * width + x`, bit `y % 8`):
+
+- `mono_framebuffer(width, height)` / `make(width, height)` - Create (height must be a multiple of 8)
+- `set_pixel(x, y, on)` / `get_pixel(x, y)` - Pixel access (out-of-range coordinates are ignored)
+- `fill(on)` / `clear()` - Fill or clear the whole framebuffer
+- `data()` - Raw page-packed bytes
+- `flush(panel)` / `try_flush(panel)` - Draw the full frame to a panel
+- `flush_rows(panel, y_start, y_end)` / `try_flush_rows(...)` - Draw a horizontal band,
+  expanded outward to page boundaries
 
 ## Configuration
 
@@ -209,6 +288,23 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
   - `lsb_first` - Transmit LSB bit first
   - `cs_high_active` - CS line is high active
 
+### `panel_io::i2c_config`
+
+- `device_address` - 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
+- `scl_speed` - I2C SCL frequency (`freq::hertz`)
+- `on_color_transfer_done` - Optional callback invoked when color data transfer completes
+- `control_phase_bytes` - Bytes used to encode control information (e.g. D/C selection)
+- `dc_bit_offset` - Offset of the D/C selection bit in the control phase
+- `lcd_cmd_bits` - Command bits (typically 8)
+- `lcd_param_bits` - Parameter bits (typically 8)
+- `flags` - Extra flags to fine-tune the I2C device:
+  - `dc_low_on_data` - DC bit = 0 indicates data transfer (vice versa otherwise)
+  - `disable_control_phase` - Don't use the control phase
+
+The control-phase framing is a property of the panel controller; panel driver
+components typically provide a pre-filled configuration (e.g. `ssd1306::i2c_io_config()`)
+or document the values they require.
+
 ### Typical Values
 
 For ILI9341 displays:
@@ -228,13 +324,16 @@ idfxx::lcd::panel_io::spi_config io_config{
 
 ## Important Notes
 
-- The SPI bus must be created before the panel I/O
-- The caller must ensure the SPI bus outlives the panel I/O
-- Multiple panel I/O instances can share the same SPI bus (with different CS pins)
-- The `dc_gpio` (Data/Command) is required for most LCD controllers
-- Clock frequency (`pclk_freq`) affects display performance
+- The bus (SPI or I2C) must be created before the panel I/O
+- The caller must ensure the bus outlives the panel I/O
+- Multiple panel I/O instances can share the same SPI bus (with different CS pins) or
+  I2C bus (with different device addresses)
+- For SPI, the `dc_gpio` (Data/Command) is required for most LCD controllers; for I2C,
+  the D/C selection is encoded in the control phase (`control_phase_bytes`/`dc_bit_offset`)
+- Clock frequency (`pclk_freq`/`scl_speed`) affects display performance
 - Transaction queue depth affects how many operations can be queued
-- This component provides the I/O layer; use `idfxx_lcd_panel` or `idfxx_lcd_touch` for actual device control
+- This component provides the I/O layer and panel base class; use a concrete driver
+  (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) or `idfxx_lcd_touch` for device control
 
 ## License
 

@@ -60,6 +60,34 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
+     * @brief Draws bitmap data to a region of the display.
+     *
+     * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
+     * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
+     * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
+     * monochrome OLEDs); consult the concrete driver's documentation.
+     *
+     * @param x_start    Start column, inclusive.
+     * @param y_start    Start row, inclusive.
+     * @param x_end      End column, exclusive.
+     * @param y_end      End row, exclusive.
+     * @param color_data Pixel data in the panel's native format.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+        unwrap(try_draw_bitmap(x_start, y_start, x_end, y_end, color_data));
+    }
+
+    /**
+     * @brief Inverts the color of the display.
+     * @param invert true to invert colors, false for normal.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void invert_color(bool invert) { unwrap(try_invert_color(invert)); }
+
+    /**
      * @brief Swaps the X and Y axes.
      * @param swap true to swap, false for normal.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -84,6 +112,32 @@ public:
      */
     void display_on(bool on) { unwrap(try_display_on(on)); }
 #endif
+
+    /**
+     * @brief Draws bitmap data to a region of the display.
+     *
+     * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
+     * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
+     * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
+     * monochrome OLEDs); consult the concrete driver's documentation.
+     *
+     * @param x_start    Start column, inclusive.
+     * @param y_start    Start row, inclusive.
+     * @param x_end      End column, exclusive.
+     * @param y_end      End row, exclusive.
+     * @param color_data Pixel data in the panel's native format.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+        return do_draw_bitmap(x_start, y_start, x_end, y_end, color_data);
+    }
+
+    /**
+     * @brief Inverts the color of the display.
+     * @param invert true to invert colors, false for normal.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_invert_color(bool invert) { return do_invert_color(invert); }
 
     /**
      * @brief Swaps the X and Y axes.
@@ -121,12 +175,22 @@ protected:
 
     /// Hook for @ref idf_handle.
     [[nodiscard]] virtual esp_lcd_panel_handle_t do_idf_handle() const = 0;
-    /// Hook for @ref try_swap_xy.
-    [[nodiscard]] virtual result<void> do_swap_xy(bool swap) = 0;
-    /// Hook for @ref try_mirror.
-    [[nodiscard]] virtual result<void> do_mirror(bool mirror_x, bool mirror_y) = 0;
-    /// Hook for @ref try_display_on.
-    [[nodiscard]] virtual result<void> do_display_on(bool on) = 0;
+    /// Hook for @ref try_draw_bitmap. The default implementation draws via the
+    /// panel handle returned by do_idf_handle().
+    [[nodiscard]] virtual result<void>
+    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data);
+    /// Hook for @ref try_invert_color. The default implementation inverts via
+    /// the panel handle returned by do_idf_handle().
+    [[nodiscard]] virtual result<void> do_invert_color(bool invert);
+    /// Hook for @ref try_swap_xy. The default implementation swaps via the
+    /// panel handle returned by do_idf_handle().
+    [[nodiscard]] virtual result<void> do_swap_xy(bool swap);
+    /// Hook for @ref try_mirror. The default implementation mirrors via the
+    /// panel handle returned by do_idf_handle().
+    [[nodiscard]] virtual result<void> do_mirror(bool mirror_x, bool mirror_y);
+    /// Hook for @ref try_display_on. The default implementation switches the
+    /// display via the panel handle returned by do_idf_handle().
+    [[nodiscard]] virtual result<void> do_display_on(bool on);
 };
 
 } // namespace idfxx::lcd

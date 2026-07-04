@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ili9341:
-    version: "^2.0.0"
+    version: "^2.0.1"
 ```
 
 Or add `idfxx_lcd_ili9341` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -164,8 +164,21 @@ panel.swap_xy(true);
 // Mirror display
 panel.mirror(true, false);  // Mirror X, don't mirror Y
 
+// Invert colors
+panel.invert_color(true);
+
 // Turn display on/off
 panel.display_on(true);
+```
+
+### Drawing
+
+`draw_bitmap` copies RGB565 pixel data to an end-exclusive region of the display:
+
+```cpp
+// Fill the top 40 rows with red (RGB565, byte-swapped for big-endian panel data)
+std::vector<uint16_t> band(240 * 40, 0x00F8);
+panel.draw_bitmap(0, 0, 240, 40, band.data());
 ```
 
 ### Display Orientation Examples
@@ -213,9 +226,13 @@ esp_lcd_panel_handle_t handle = panel.idf_handle();
 - `ili9341(panel_io, config)` - Constructor (exception-based, if enabled)
 
 **Display Control:** (inherited from `panel` base class in `idfxx_lcd`)
+- `try_draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data (result-based)
+- `try_invert_color(invert)` - Invert display colors (result-based)
 - `try_swap_xy(swap)` - Swap X and Y axes (result-based)
 - `try_mirror(mirrorX, mirrorY)` - Mirror display (result-based)
 - `try_display_on(on)` - Turn display on/off (result-based)
+- `draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data (exception-based, if enabled)
+- `invert_color(invert)` - Invert display colors (exception-based, if enabled)
 - `swap_xy(swap)` - Swap X and Y axes (exception-based, if enabled)
 - `mirror(mirrorX, mirrorY)` - Mirror display (exception-based, if enabled)
 - `display_on(on)` - Turn display on/off (exception-based, if enabled)
