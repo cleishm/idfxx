@@ -37,5 +37,18 @@ extern "C" void app_main()
     while (true) {
         vTaskDelay(portMAX_DELAY);
     }
+#else
+    // Light sleep during the suite drops USB-Serial-JTAG consoles (the chip
+    // disconnects from the USB bus while asleep), losing everything printed
+    // after that point - including the summary above. Re-print the result
+    // periodically so a monitor reconnecting after the drop still shows the
+    // outcome.
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        idfxx::log::info(
+            "test", "{} Tests {} Failures {} Ignored - {}", Unity.NumberOfTests, Unity.TestFailures,
+            Unity.TestIgnores, Unity.TestFailures == 0 ? "OK" : "FAIL"
+        );
+    }
 #endif
 }
