@@ -6,6 +6,8 @@
 #include "unity.h"
 
 #include <driver/spi_master.h>
+#include <mutex>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -350,4 +352,75 @@ TEST_CASE("master_device destructor releases device", "[idfxx][spi]") {
     // Should be able to create again after destruction
     auto device2 = master_device::make(bus, dev_cfg);
     TEST_ASSERT_TRUE(device2.has_value());
+}
+
+TEST_CASE("master_device try_lock succeeds when uncontended", "[idfxx][spi]") {
+    // Regression: try_lock previously passed a finite timeout to
+    // spi_device_acquire_bus, which ESP-IDF rejects — it always returned false.
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    TEST_ASSERT_TRUE(device->try_lock());
+    device->unlock();
+
+    // Re-acquirable after release.
+    device->lock();
+    device->unlock();
+}
+
+TEST_CASE("master_device lock is recursive", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    device->lock();
+    device->lock();
+    TEST_ASSERT_TRUE(device->try_lock());
+    device->unlock();
+    device->unlock();
+    device->unlock();
+
+    // Fully released: acquirable again from scratch.
+    TEST_ASSERT_TRUE(device->try_lock());
+    device->unlock();
+}
+
+TEST_CASE("master_device lock excludes other threads", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    device->lock();
+    bool acquired = true;
+    std::thread contender([&]() {
+        acquired = device->try_lock();
+        if (acquired) {
+            device->unlock();
+        }
+    });
+    contender.join();
+    TEST_ASSERT_FALSE(acquired);
+    device->unlock();
+
+    std::thread successor([&]() {
+        acquired = device->try_lock();
+        if (acquired) {
+            device->unlock();
+        }
+    });
+    successor.join();
+    TEST_ASSERT_TRUE(acquired);
+}
+
+TEST_CASE("master_device polling transactions while holding lock", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    std::lock_guard lk(*device);
+    uint8_t tx[] = {0x9F};
+    uint8_t rx[3] = {};
+    TEST_ASSERT_TRUE(device->try_polling_transmit(std::span<const uint8_t>(tx)).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_receive(std::span<uint8_t>(rx)).has_value());
 }
