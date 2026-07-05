@@ -6,10 +6,12 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <memory>
 #include <mutex>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -28,9 +30,11 @@ struct pool_slot {
 
 } // namespace
 
-// Per-device async state: owns the fixed-size pool of transaction slots, the
-// free-list that feeds queue_trans, and the mutex/cv coordination for both the
-// pool and the cooperative-drain wait path.
+// Per-device shared state: owns the fixed-size pool of transaction slots, the
+// free-list that feeds queue_trans, the mutex/cv coordination for both the
+// pool and the cooperative-drain wait path, and the device lock. Kept behind a
+// unique_ptr so the synchronization primitives have a stable address while the
+// device itself stays cheap to move.
 struct master_device::async_state {
     size_t queue_size;
     std::unique_ptr<pool_slot[]> slots;
@@ -38,6 +42,13 @@ struct master_device::async_state {
     std::mutex pool_mtx;
     std::condition_variable pool_cv;
     std::timed_mutex wait_mtx;
+    // Serializes polling transactions and lock()/unlock() between threads.
+    // Recursive so polling calls made while holding lock() don't self-deadlock.
+    std::recursive_mutex device_mtx;
+    // lock() nesting depth; guarded by device_mtx. The bus is acquired on the
+    // 0->1 transition and released on 1->0 only: ESP-IDF's acquire deadlocks
+    // if a device re-acquires a bus it already holds.
+    int lock_depth = 0;
 
     explicit async_state(size_t qs)
         : queue_size(qs)
@@ -289,10 +300,18 @@ result<void> master_device::try_transmit(const transaction& trans) {
 // =============================================================================
 
 result<void> master_device::try_polling_transmit(std::span<const uint8_t> tx_data) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::lock_guard lk(_async->device_mtx);
     return _simple_trans(tx_data, {}, spi_device_polling_transmit);
 }
 
 result<void> master_device::try_polling_receive(std::span<uint8_t> rx_data) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::lock_guard lk(_async->device_mtx);
     return _simple_trans({}, rx_data, spi_device_polling_transmit);
 }
 
@@ -305,10 +324,18 @@ result<std::vector<uint8_t>> master_device::try_polling_receive(size_t size) {
 }
 
 result<void> master_device::try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::lock_guard lk(_async->device_mtx);
     return _simple_trans(tx_data, rx_data, spi_device_polling_transmit);
 }
 
 result<void> master_device::try_polling_transmit(const transaction& trans) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    std::lock_guard lk(_async->device_mtx);
     return _full_trans(trans, spi_device_polling_transmit);
 }
 
@@ -441,21 +468,52 @@ void master_device::lock() const {
     if (_handle == nullptr) {
         return;
     }
-    spi_device_acquire_bus(_handle, portMAX_DELAY);
+    _async->device_mtx.lock();
+    if (_async->lock_depth == 0) {
+        auto err = spi_device_acquire_bus(_handle, portMAX_DELAY);
+        if (err != ESP_OK) {
+            // Unreachable unless a polling transaction was started through the
+            // raw idf_handle(), bypassing device_mtx. Proceeding unlocked would
+            // corrupt driver state, so fail loudly instead.
+            _async->device_mtx.unlock();
+            ESP_LOGE(TAG, "Failed to acquire SPI bus: %s", esp_err_to_name(err));
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+            throw std::system_error(make_error_code(err));
+#else
+            abort();
+#endif
+        }
+    }
+    ++_async->lock_depth;
 }
 
 bool master_device::try_lock() const noexcept {
     if (_handle == nullptr) {
         return false;
     }
-    return spi_device_acquire_bus(_handle, 0) == ESP_OK;
+    if (!_async->device_mtx.try_lock()) {
+        return false;
+    }
+    if (_async->lock_depth == 0) {
+        auto err = spi_device_acquire_bus(_handle, portMAX_DELAY);
+        if (err != ESP_OK) {
+            _async->device_mtx.unlock();
+            ESP_LOGE(TAG, "Failed to acquire SPI bus: %s", esp_err_to_name(err));
+            return false;
+        }
+    }
+    ++_async->lock_depth;
+    return true;
 }
 
 void master_device::unlock() const {
     if (_handle == nullptr) {
         return;
     }
-    spi_device_release_bus(_handle);
+    if (--_async->lock_depth == 0) {
+        spi_device_release_bus(_handle);
+    }
+    _async->device_mtx.unlock();
 }
 
 } // namespace idfxx::spi

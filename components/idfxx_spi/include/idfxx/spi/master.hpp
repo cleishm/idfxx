@@ -321,12 +321,16 @@ private:
  * (busy-wait) variant for low-latency transfers, and an asynchronous queue
  * API for overlapping transfers with other work.
  *
- * The blocking APIs are thread-safe and may be called concurrently from
- * multiple tasks. The polling APIs are NOT thread-safe — acquire exclusive
- * bus access via lock() (or a std::lock_guard) before calling them.
+ * All transaction APIs are thread-safe and may be called concurrently from
+ * multiple tasks; individual polling calls are serialized against each other
+ * and against lock(). To keep a multi-transaction sequence atomic, hold the
+ * device lock (e.g. via std::lock_guard) across the sequence.
  *
  * Satisfies the Lockable named requirement, so it can be used directly with
- * std::lock_guard and similar standard RAII wrappers.
+ * std::lock_guard and similar standard RAII wrappers. Locking provides mutual
+ * exclusion between threads sharing this device and holds exclusive access to
+ * the underlying bus for the duration. The lock is recursive: a thread may
+ * re-lock a device it already holds.
  *
  * This type is non-copyable and move-only. The caller must ensure the parent
  * master_bus outlives this device. A moved-from
@@ -571,7 +575,7 @@ public:
     [[nodiscard]] result<void> try_transmit(const transaction& trans);
 
     // =========================================================================
-    // Polling API (busy-wait; NOT thread-safe — lock() the device first)
+    // Polling API (busy-wait)
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -580,7 +584,8 @@ public:
      *
      * @param tx_data Data to transmit.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -591,7 +596,8 @@ public:
      *
      * @param rx_data Buffer to receive into.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -604,7 +610,8 @@ public:
      *
      * @return Received data.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -616,7 +623,8 @@ public:
      * @param tx_data Data to transmit.
      * @param rx_data Buffer for received data (must be same size as tx_data).
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -629,7 +637,8 @@ public:
      *
      * @param trans Transaction descriptor (lengths in bits).
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -641,7 +650,8 @@ public:
      *
      * @param tx_data Data to transmit.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Success, or an error.
      */
@@ -652,7 +662,8 @@ public:
      *
      * @param rx_data Buffer to receive into.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Success, or an error.
      */
@@ -663,7 +674,8 @@ public:
      *
      * @param size Number of bytes to receive.
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Received data, or an error.
      */
@@ -675,7 +687,8 @@ public:
      * @param tx_data Data to transmit.
      * @param rx_data Buffer for received data (must be same size as tx_data).
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Success, or an error.
      */
@@ -686,7 +699,8 @@ public:
      *
      * @param trans Transaction descriptor (lengths in bits).
      *
-     * @note Not thread-safe. Call lock() or use std::lock_guard first.
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Success, or an error.
      */
@@ -781,22 +795,44 @@ public:
     // =========================================================================
 
     /**
-     * @brief Acquires exclusive access to the SPI bus for this device.
+     * @brief Acquires exclusive access to this device and its bus.
      *
-     * While the bus is acquired, transactions to all other devices on the
-     * same bus are deferred. Blocks indefinitely.
+     * Provides mutual exclusion against other threads locking or issuing
+     * polling transactions on this device. While the lock is held,
+     * transactions to all other devices on the same bus are also deferred.
+     * Blocks indefinitely until the device and bus are available.
+     *
+     * The lock is recursive: a thread may lock a device it already holds.
+     * Each lock() must be balanced by a matching unlock().
+     *
+     * @throws std::system_error if the driver rejects bus acquisition (only
+     * possible when a polling transaction was started through the raw
+     * idf_handle(), bypassing this API). When
+     * CONFIG_COMPILER_CXX_EXCEPTIONS is disabled, this aborts instead.
+     *
+     * @code
+     * std::lock_guard lk(device);
+     * device.polling_transmit(cmd);
+     * device.polling_receive(response);
+     * @endcode
      */
     void lock() const;
 
     /**
-     * @brief Tries to acquire exclusive bus access without blocking.
+     * @brief Tries to acquire exclusive access without waiting for the device.
      *
-     * @return true if the bus was acquired, false otherwise.
+     * Returns false immediately if another thread holds the device lock. On
+     * success, exclusive bus access is also acquired, which may briefly block
+     * while in-flight transactions of other devices on the bus complete.
+     *
+     * @return true if the device and bus were acquired, false otherwise.
      */
     [[nodiscard]] bool try_lock() const noexcept;
 
     /**
-     * @brief Releases exclusive bus access.
+     * @brief Releases exclusive access acquired by lock() or try_lock().
+     *
+     * Bus access is released when the outermost recursive lock is unlocked.
      */
     void unlock() const;
 
