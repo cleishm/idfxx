@@ -4,6 +4,7 @@
 #include <idfxx/log>
 
 #include <cstdlib>
+#include <thermo/thermo>
 
 using idfxx::ds18x20::device;
 using idfxx::ds18x20::family;
@@ -37,14 +38,14 @@ extern "C" void app_main() {
     logger.info("=== Individual Readings ===");
     for (size_t i = 0; i < devices.size(); ++i) {
         auto temp = devices[i].measure_and_read();
-        logger.info("  Sensor [{}]: {}", i, temp);
+        logger.info("  Sensor [{}]: {:.1f}", i, thermo::temperature_cast<thermo::celsius_real>(temp));
     }
 
     // --- Batch read ---
     logger.info("=== Batch Reading ===");
     auto temps = idfxx::ds18x20::measure_and_read_multi(devices);
     for (size_t i = 0; i < temps.size(); ++i) {
-        logger.info("  Sensor [{}]: {}", i, temps[i]);
+        logger.info("  Sensor [{}]: {:.1f}", i, thermo::temperature_cast<thermo::celsius_real>(temps[i]));
     }
 
     // --- Change resolution (DS18B20 only) ---
@@ -63,7 +64,9 @@ extern "C" void app_main() {
         logger.info("  Sensor [{}]: changed to 10-bit resolution", i);
 
         auto temp = devices[i].measure_and_read();
-        logger.info("  Sensor [{}]: temperature at 10-bit: {}", i, temp);
+        logger.info(
+            "  Sensor [{}]: temperature at 10-bit: {:.1f}", i, thermo::temperature_cast<thermo::celsius_real>(temp)
+        );
 
         devices[i].set_resolution(resolution::bits_12);
         logger.info("  Sensor [{}]: restored to 12-bit resolution", i);
