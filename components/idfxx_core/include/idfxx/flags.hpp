@@ -123,7 +123,9 @@ public:
      *
      * @return A new flags object containing all set bits from both operands.
      */
-    [[nodiscard]] constexpr flags operator|(flags other) const noexcept { return flags{bits | other.bits}; }
+    [[nodiscard]] constexpr flags operator|(flags other) const noexcept {
+        return flags{static_cast<underlying>(bits | other.bits)};
+    }
 
     /**
      * @brief Combines flags in-place using bitwise OR.
@@ -144,7 +146,9 @@ public:
      *
      * @return A new flags object containing only bits set in both operands.
      */
-    [[nodiscard]] constexpr flags operator&(flags other) const noexcept { return flags{bits & other.bits}; }
+    [[nodiscard]] constexpr flags operator&(flags other) const noexcept {
+        return flags{static_cast<underlying>(bits & other.bits)};
+    }
 
     /**
      * @brief Intersects flags in-place using bitwise AND.
@@ -165,7 +169,9 @@ public:
      *
      * @return A new flags object with toggled bits.
      */
-    [[nodiscard]] constexpr flags operator^(flags other) const noexcept { return flags{bits ^ other.bits}; }
+    [[nodiscard]] constexpr flags operator^(flags other) const noexcept {
+        return flags{static_cast<underlying>(bits ^ other.bits)};
+    }
 
     /**
      * @brief Toggles flags in-place using bitwise XOR.
@@ -188,7 +194,9 @@ public:
      *
      * @return A new flags object with the specified flags cleared.
      */
-    [[nodiscard]] constexpr flags operator-(flags other) const noexcept { return flags{bits & ~other.bits}; }
+    [[nodiscard]] constexpr flags operator-(flags other) const noexcept {
+        return flags{static_cast<underlying>(bits & ~other.bits)};
+    }
 
     /**
      * @brief Clears specific flags in-place (set difference).
@@ -210,7 +218,7 @@ public:
      *
      * @return A new flags object with all bits inverted.
      */
-    [[nodiscard]] constexpr flags operator~() const noexcept { return flags{~bits}; }
+    [[nodiscard]] constexpr flags operator~() const noexcept { return flags{static_cast<underlying>(~bits)}; }
 
     /**
      * @brief Checks if all specified flags are set.
