@@ -10,6 +10,16 @@ set(IDFXX_TEST_REQUIRES
     esp_netif idfxx_dht esp_driver_rmt
 )
 
+# idfxx_adc pulls in esp_adc, whose boot-time analog calibration hangs under
+# QEMU (which does not emulate the ADC peripheral). Keep it out of the QEMU link;
+# its tests are also skipped there (see components/idfxx_adc/CMakeLists.txt).
+# QEMU is a build config rather than a target, so — unlike idfxx_wifi below — it
+# can't be excluded via a top-level EXCLUDE_COMPONENTS, which is resolved before
+# sdkconfig (and thus CONFIG_IDF_TARGET_QEMU) is known.
+if(NOT CONFIG_IDF_TARGET_QEMU)
+    list(APPEND IDFXX_TEST_REQUIRES idfxx_adc)
+endif()
+
 # idfxx_wifi is only available on Wi-Fi-capable targets (it is excluded from
 # the build on other targets; see the top-level CMakeLists.txt).
 idf_build_get_property(idfxx_test_target IDF_TARGET)
