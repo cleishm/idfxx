@@ -101,6 +101,8 @@ extern "C" void app_main() {
             fb.flush_rows(display, 26, 30);
             inverted = !inverted;
             display.invert_color(inverted);
+            // Alternate contrast with the inversion (power-on default is 0x7F).
+            display.set_contrast(inverted ? 0x20 : 0x7F);
             bar_x = 2;
         }
 

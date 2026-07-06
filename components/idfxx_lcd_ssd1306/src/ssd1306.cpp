@@ -4,6 +4,7 @@
 #include <idfxx/lcd/detail/panel_factory.hpp>
 #include <idfxx/lcd/ssd1306>
 
+#include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_ssd1306.h>
 #include <esp_log.h>
@@ -42,9 +43,16 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
 namespace idfxx::lcd {
 
 result<ssd1306> ssd1306::make(idfxx::lcd::panel_io& panel_io, ssd1306::config config) {
-    return make_handle(panel_io.idf_handle(), config).transform([&config](auto handle) {
-        return ssd1306{handle, config.height};
+    return make_handle(panel_io.idf_handle(), config).transform([&](auto handle) {
+        return ssd1306{panel_io.idf_handle(), handle, config.height};
     });
+}
+
+result<void> ssd1306::try_set_contrast(uint8_t level) {
+    if (_io_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, 0x81, &level, 1));
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -54,6 +62,7 @@ ssd1306::ssd1306(idfxx::lcd::panel_io& panel_io, ssd1306::config config)
 
 ssd1306::ssd1306(ssd1306&& other) noexcept
     : panel(std::move(other))
+    , _io_handle(std::exchange(other._io_handle, nullptr))
     , _handle(std::exchange(other._handle, nullptr)) {}
 
 ssd1306& ssd1306::operator=(ssd1306&& other) noexcept {
@@ -63,6 +72,7 @@ ssd1306& ssd1306::operator=(ssd1306&& other) noexcept {
         }
 
         panel::operator=(std::move(other));
+        _io_handle = std::exchange(other._io_handle, nullptr);
         _handle = std::exchange(other._handle, nullptr);
     }
     return *this;
