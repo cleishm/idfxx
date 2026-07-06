@@ -14,6 +14,7 @@
 #include <idfxx/lcd/panel_io>
 
 #include <cstddef>
+#include <cstdint>
 
 /**
  * @headerfile <idfxx/lcd/ssd1306>
@@ -98,6 +99,34 @@ public:
      */
     [[nodiscard]] static result<ssd1306> make(idfxx::lcd::panel_io& panel_io, config config);
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Sets the display contrast (SSD1306 "Set Contrast Control", command 0x81).
+     *
+     * The controller powers on with contrast 0x7F. Lower values dim the panel;
+     * dimming also slows OLED burn-in on mostly-static content.
+     *
+     * @param level Contrast level, 0x00 (dimmest) to 0xFF (brightest).
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    void set_contrast(uint8_t level) { unwrap(try_set_contrast(level)); }
+#endif
+
+    /**
+     * @brief Sets the display contrast (SSD1306 "Set Contrast Control", command 0x81).
+     *
+     * The controller powers on with contrast 0x7F. Lower values dim the panel;
+     * dimming also slows OLED burn-in on mostly-static content.
+     *
+     * @param level Contrast level, 0x00 (dimmest) to 0xFF (brightest).
+     *
+     * @return Nothing, or an error.
+     * @retval idfxx::errc::invalid_state if the panel has been moved from.
+     */
+    [[nodiscard]] result<void> try_set_contrast(uint8_t level);
+
     ~ssd1306();
 
     ssd1306(const ssd1306&) = delete;
@@ -106,13 +135,15 @@ public:
     ssd1306& operator=(ssd1306&& other) noexcept;
 
 private:
-    explicit ssd1306(esp_lcd_panel_handle_t handle, size_t height)
+    explicit ssd1306(esp_lcd_panel_io_handle_t io_handle, esp_lcd_panel_handle_t handle, size_t height)
         : panel(128, height)
+        , _io_handle(io_handle)
         , _handle(handle) {}
 
     // lcd::panel customization hooks.
     [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override;
 
+    esp_lcd_panel_io_handle_t _io_handle = nullptr;
     esp_lcd_panel_handle_t _handle = nullptr;
 };
 

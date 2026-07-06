@@ -41,6 +41,9 @@ static_assert(std::is_move_assignable_v<ssd1306>);
 // ssd1306 inherits from panel base class
 static_assert(std::is_base_of_v<panel, ssd1306>);
 
+// try_set_contrast follows the result-based API convention
+static_assert(std::is_same_v<decltype(std::declval<ssd1306&>().try_set_contrast(uint8_t{})), idfxx::result<void>>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================

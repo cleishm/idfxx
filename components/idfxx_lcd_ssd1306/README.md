@@ -8,7 +8,7 @@ SSD1306 monochrome OLED panel driver (128x64 / 128x32).
 
 - SSD1306 display controller driver (128x64 and 128x32 displays)
 - I2C connectivity via the shared `panel_io` class (SPI-capable modules work with an SPI `panel_io`)
-- Display orientation, mirroring, and color-inversion controls
+- Display orientation, mirroring, color-inversion, and contrast controls
 - Pairs with `idfxx::lcd::mono_framebuffer` for pixel-level drawing
 
 ## Requirements
@@ -127,6 +127,10 @@ display.swap_xy(true);
 
 // Turn display on/off
 display.display_on(true);
+
+// Set contrast (0x00 dimmest .. 0xFF brightest; the controller powers on at 0x7F).
+// Dimming also slows OLED burn-in on mostly-static content.
+display.set_contrast(0x20);
 ```
 
 ### Partial Updates
@@ -159,6 +163,10 @@ fb.flush_region(display, 64, 20, 65, 21); // only one byte of page 2 is transfer
 - `try_display_on(on)` - Turn display on/off (result-based)
 - `draw_bitmap(...)`, `invert_color(...)`, `swap_xy(...)`, `mirror(...)`, `display_on(...)` -
   Exception-based equivalents (if enabled)
+
+**Display Control:** (SSD1306-specific)
+- `try_set_contrast(level)` - Set contrast, 0x00-0xFF (result-based)
+- `set_contrast(level)` - Exception-based equivalent (if enabled)
 
 **Properties:**
 - `width()` - Display width in pixels, from the `panel` base class (always 128)
@@ -213,7 +221,8 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
   strapped to 0x3D
 - OLED panels **age with use**: pixels dim in proportion to their cumulative on-time, so
   static content shown for long periods leaves ghost images (burn-in). Blank the screen or
-  call `display_on(false)` when idle, and avoid keeping fixed content lit for days at a time
+  call `display_on(false)` when idle, lower `set_contrast()` for always-on status displays,
+  and avoid keeping fixed content lit for days at a time
 - Pixel data is **page-packed 1-bpp**: each byte holds 8 vertically adjacent pixels
   (bit 0 topmost) and pages span the full width — the same layout
   `idfxx::lcd::mono_framebuffer` produces
