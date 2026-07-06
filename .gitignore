@@ -36,3 +36,4 @@ docs/xml/
 *.lib
 *.so
 *.dylib
+build_qemu/
