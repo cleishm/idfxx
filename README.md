@@ -43,6 +43,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_lcd_ssd1306](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ssd1306) | SSD1306 monochrome OLED panel driver (128x64 / 128x32) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_touch](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch) | LCD touch controller interface | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
 | [idfxx_lcd_touch_stmpe610](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610) | STMPE610 resistive touch controller driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
+| [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Bitmap font rendering for monochrome framebuffers (Spleen 5x8 and 8x16 bundled) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
 | **Sensor Drivers** | | |
 | [idfxx_dht](https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht) | DHT11/DHT22 temperature and humidity sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__dht.html) |
 | [idfxx_ds18x20](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20) | DS18x20 1-Wire temperature sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ds18x20.html) |

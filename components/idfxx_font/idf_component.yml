@@ -1,0 +1,15 @@
+version: "1.0.0"
+description: "Bitmap font rendering for monochrome framebuffers (bundles Spleen 5x8 and 8x16)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_font"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_lcd:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_lcd
