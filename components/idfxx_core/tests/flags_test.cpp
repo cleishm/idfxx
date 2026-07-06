@@ -14,7 +14,7 @@
 // =============================================================================
 
 enum class test_flag : uint32_t {
-    none   = 0,
+    none = 0,
     flag_a = 1u << 0,
     flag_b = 1u << 1,
     flag_c = 1u << 2,
@@ -183,7 +183,10 @@ TEST_CASE("flags &= modifies in place", "[idfxx][flags]") {
 }
 
 TEST_CASE("flags toggle with ^", "[idfxx][flags]") {
+    // Keep the two flags{...} braced-inits symmetric; clang-format otherwise spaces only the second.
+    // clang-format off
     auto f = flags{test_flag::flag_a} ^ flags{test_flag::flag_b};
+    // clang-format on
 
     TEST_ASSERT_EQUAL_UINT32(3u, to_underlying(f));
 }
