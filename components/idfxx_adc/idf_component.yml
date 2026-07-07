@@ -1,0 +1,21 @@
+version: "1.0.0"
+description: "One-shot and continuous ADC reads with calibrated voltages"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_adc"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
+  cleishm/electro:
+    version: "^0.1.0"
+    public: true
+  cleishm/frequency:
+    version: "^1.1.2"
+    public: true

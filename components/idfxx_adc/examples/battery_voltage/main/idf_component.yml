@@ -1,0 +1,7 @@
+dependencies:
+  cleishm/idfxx_adc:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log

@@ -10,6 +10,8 @@ component's version only bumps when that component changes.
 
 ### New components
 
+- `idfxx_adc` `1.0.0` — one-shot and continuous ADC reads with calibrated
+  voltages
 - `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
   over I2C
 
