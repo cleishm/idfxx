@@ -10,6 +10,7 @@ managed_components/
 dependencies.lock
 sdkconfig
 sdkconfig.old
+qemu_output.log
 
 # Component registry uploads (compote pack/upload tarballs)
 components/*/dist/

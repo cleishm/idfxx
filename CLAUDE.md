@@ -10,36 +10,58 @@ idfxx is a modern C++23 component library for ESP-IDF development. It provides t
 
 This is an ESP-IDF project, requring ESP-IDF 5.5+.
 
+Common tasks are captured in the `Justfile` at the repo root (`just --list` to see all
+recipes). The recipes source the ESP-IDF environment automatically when `idf.py` is not
+already on PATH, so they work from a plain shell. The underlying commands are also shown
+below for reference / environments without `just`.
+
 ```bash
 # Full build
-idf.py build
+just build                                  # idf.py build
 
-# Flash and monitor
-idf.py -p /dev/ttyUSB0 flash monitor
+# Flash and monitor (port defaults to $ESPPORT or /dev/ttyUSB0)
+just flash [port]                           # idf.py -p <port> flash monitor
+just monitor [port]                         # idf.py -p <port> monitor
 
 # Format code
-cmake --build build --target format
+just format                                 # cmake --build build --target format
 
 # Check formatting
-cmake --build build --target format-check
+just format-check                           # cmake --build build --target format-check
 
 # Generate documentation
-cmake --build build --target docs
+just docs                                   # cmake --build build --target docs
+
+# Remove all build directories
+just clean
+```
+
+### Config Matrix Builds
+
+CI builds a matrix of configs. The no-exceptions config is the only one that exercises the
+`try_*`-only API surface. Each uses an isolated build dir with its own `SDKCONFIG` (a plain
+`-D SDKCONFIG_DEFAULTS` on the existing `build/` does not switch configs):
+
+```bash
+just build-noexc [target]                   # sdkconfig.defaults;sdkconfig.no-exceptions
+just build-noipv6 [target]                  # sdkconfig.defaults;sdkconfig.no-ipv6
 ```
 
 ### QEMU Testing
 
-For non-hardware tests, components can be tested in QEMU:
+For non-hardware tests, components can be tested in QEMU. `just qemu-test` replicates the CI
+qemu-test job locally (isolated `build-qemu/` from `sdkconfig.qemu`, merged 4MB flash image,
+runs the Unity suite watching for the `### TESTS COMPLETE ###` sentinel, then parses the summary):
 
 ```bash
-# Build for QEMU
-idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.qemu" build
+# Build the QEMU flash image
+just qemu-build
 
-# Run tests in QEMU
-idf.py qemu monitor
+# Build (if needed) and run the Unity suite in QEMU
+just qemu-test [timeout]
 ```
 
-CI runs a matrix of builds: with-exceptions, no-exceptions, and qemu-test configurations.
+CI runs a matrix of builds: with-exceptions, no-exceptions, no-ipv6, and qemu-test configurations.
 
 ## Architecture
 
