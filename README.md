@@ -280,7 +280,15 @@ idfxx includes comprehensive tests using the Unity test framework. Tests are cat
 
 ### Running Tests in QEMU
 
-Software tests can run in the QEMU ESP32-S3 emulator without physical hardware:
+Software tests can run in the QEMU ESP32-S3 emulator without physical hardware. The simplest
+way is the `just` recipe, which builds an isolated QEMU image, runs the Unity suite, and
+reports the pass/fail summary:
+
+```bash
+just qemu-test
+```
+
+The equivalent manual steps:
 
 ```bash
 # Set up ESP-IDF environment
@@ -345,7 +353,7 @@ See `.github/workflows/build.yml` for CI configuration.
 All components use the same clang-format configuration. Format code with:
 
 ```bash
-cmake --build build --target format
+just format          # or: cmake --build build --target format
 ```
 
 ## License
