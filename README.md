@@ -26,6 +26,9 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_net](https://github.com/cleishm/idfxx/tree/main/components/idfxx_net) | Type-safe IP transport: TCP/UDP/raw sockets, listeners, DNS resolver, and Netconn | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__net.html) |
 | [idfxx_netif](https://github.com/cleishm/idfxx/tree/main/components/idfxx_netif) | Network interface management, DHCP, DNS, and SNTP | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__netif.html) |
 | [idfxx_wifi](https://github.com/cleishm/idfxx/tree/main/components/idfxx_wifi) | WiFi station and access point management | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) |
+| **Radio** | | |
+| [idfxx_radio](https://github.com/cleishm/idfxx/tree/main/components/idfxx_radio) | Abstract radio transceiver interface and LoRa types | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__radio.html) |
+| [idfxx_radio_sx126x](https://github.com/cleishm/idfxx/tree/main/components/idfxx_radio_sx126x) | Semtech SX126x family LoRa radio driver (SX1261/SX1262/SX1268) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__radio.html) |
 | **Peripheral Drivers** | | |
 | [idfxx_gpio](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gpio) | GPIO pin management with ISR support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gpio.html) |
 | [idfxx_i2c](https://github.com/cleishm/idfxx/tree/main/components/idfxx_i2c) | I2C master bus and device driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__i2c.html) |

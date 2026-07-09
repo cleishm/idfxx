@@ -1,0 +1,34 @@
+version: "1.0.0"
+description: "Semtech SX126x family LoRa radio driver (SX1261/SX1262/SX1268)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_radio_sx126x"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.1.1"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_radio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_radio
+  cleishm/idfxx_spi:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_spi
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
+  cleishm/idfxx_task:
+    version: "^1.0.0"
+    public: false
+    override_path: ../idfxx_task
+  cleishm/idfxx_event_group:
+    version: "^1.0.0"
+    public: false
+    override_path: ../idfxx_event_group
+  cleishm/frequency:
+    version: "^1.1.1"
+    public: true
