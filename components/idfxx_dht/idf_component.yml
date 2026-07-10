@@ -14,5 +14,5 @@ dependencies:
     public: true
     override_path: ../idfxx_gpio
   cleishm/thermo:
-    version: "^1.3.0"
+    version: "^2.0.0"
     public: true
