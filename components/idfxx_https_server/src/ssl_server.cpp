@@ -47,7 +47,6 @@ result<ssl_server> ssl_server::make(config cfg) {
     ssl_cfg.use_ecdsa_peripheral = cfg.use_ecdsa_peripheral;
     ssl_cfg.ecdsa_key_efuse_blk = cfg.ecdsa_key_efuse_blk;
     ssl_cfg.session_tickets = cfg.session_tickets;
-    ssl_cfg.use_secure_element = cfg.use_secure_element;
 
     if (cfg.handshake_timeout.count() > 0) {
         ssl_cfg.tls_handshake_timeout_ms = static_cast<unsigned int>(cfg.handshake_timeout.count());
