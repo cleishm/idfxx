@@ -25,6 +25,12 @@
 
 namespace idfxx::radio {
 
+/// Default shortest sleep window worth duty-cycling for. Below this the radio
+/// spends the window transitioning in and out of sleep instead of saving
+/// power; chips that restart an oscillator on each wake add that start-up
+/// time (e.g. the TCXO delay on SX126x).
+inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
+
 /**
  * @brief Computes duty-cycle receive windows that cannot miss a packet.
  *
@@ -45,7 +51,7 @@ namespace idfxx::radio {
  * parameters — when the preamble is too short to sleep inside
  * (`2·min_symbols ≥ sender_preamble`) or the resulting sleep window is
  * shorter than @p min_sleep. The caller should then use continuous receive;
- * passing the result straight to `transceiver::start_receive` does exactly that.
+ * passing the result straight to `transceiver::start_listening` does exactly that.
  *
  * @param mod             Modulation parameters (spreading factor and
  *                        bandwidth are used).
@@ -68,14 +74,14 @@ namespace idfxx::radio {
  * constexpr idfxx::radio::lora_packet_params pkt{.preamble_length = 100};
  *
  * // Falls back to continuous receive automatically when nullopt.
- * radio.start_receive(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
+ * radio.start_listening(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
  * @endcode
  */
 [[nodiscard]] constexpr std::optional<rx_duty_cycle> rx_duty_cycle_for(
     const lora_modulation& mod,
     uint16_t sender_preamble,
     uint16_t min_symbols = 8,
-    std::chrono::microseconds min_sleep = std::chrono::microseconds{1016}
+    std::chrono::microseconds min_sleep = default_min_rx_sleep
 ) noexcept {
     if (min_symbols == 0 || 2 * static_cast<uint32_t>(min_symbols) >= sender_preamble) {
         return std::nullopt;

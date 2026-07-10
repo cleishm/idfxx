@@ -23,6 +23,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <electro/decibel>
+#include <electro/electro>
 #include <frequency/frequency>
 #include <memory>
 #include <optional>
@@ -136,8 +138,13 @@ public:
      * use the crystal oscillator.
      */
     struct tcxo_config {
-        uint16_t voltage_mv = 1700;               ///< TCXO supply voltage (1600–3300 mV).
+        electro::millivolts voltage{1700};        ///< TCXO supply voltage (1600–3300 mV).
         std::chrono::microseconds startup{5'000}; ///< TCXO startup time before the chip uses it.
+
+        /**
+         * @brief Compares two TCXO configurations for equality.
+         */
+        [[nodiscard]] constexpr bool operator==(const tcxo_config&) const noexcept = default;
     };
 
     /**
@@ -153,6 +160,11 @@ public:
         uint8_t symbol_num = 2; ///< Number of symbols on which CAD operates.
         uint8_t det_peak = 22;  ///< Detector peak threshold.
         uint8_t det_min = 10;   ///< Detector minimum threshold.
+
+        /**
+         * @brief Compares two CAD parameter sets for equality.
+         */
+        [[nodiscard]] constexpr bool operator==(const cad_params&) const noexcept = default;
     };
 
     /**
@@ -252,7 +264,7 @@ public:
     // =========================================================================
     // SX126x-specific mode control
     //
-    // The chip-agnostic mode-control methods (standby, sleep, start_receive,
+    // The chip-agnostic mode-control methods (standby, sleep, start_listening,
     // start_channel_scan, ...) are inherited from radio::transceiver. The overloads
     // here expose SX126x-specific refinements of the same operations.
     // =========================================================================
@@ -290,17 +302,6 @@ public:
      * @throws std::system_error on failure.
      */
     void sleep(sleep_mode mode) { unwrap(try_sleep(mode)); }
-
-    /**
-     * @brief Puts the radio in frequency-synthesis mode (PLL locked, transceiver idle).
-     *
-     * Primarily a diagnostic mode for verifying PLL lock; normal operation
-     * never needs it.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void set_fs() { unwrap(try_set_fs()); }
 #endif
 
     /**
@@ -317,17 +318,29 @@ public:
      */
     result<void> try_sleep(sleep_mode mode);
 
-    /**
-     * @brief Puts the radio in frequency-synthesis mode (PLL locked, transceiver idle).
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_set_fs();
-
     // =========================================================================
     // SX126x-specific surface
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    using transceiver::set_sync_word;
+#endif
+    using transceiver::try_set_sync_word;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Sets a raw 16-bit LoRa sync word.
+     *
+     * For interoperating with networks that use a non-standard sync word.
+     * The inherited @ref transceiver::set_sync_word overload selects the
+     * standard public/private network values.
+     *
+     * @param sync_word Raw sync-word register value (MSB first).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    void set_sync_word(uint16_t sync_word) { unwrap(try_set_sync_word(sync_word)); }
+
     /**
      * @brief Sets CAD detection parameters.
      *
@@ -374,7 +387,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] flags<irq_flag> get_irq_status() { return unwrap(try_get_irq_status()); }
+    [[nodiscard]] flags<irq_flag> irq_status() { return unwrap(try_irq_status()); }
 
     /**
      * @brief Clears the specified IRQ bits.
@@ -399,6 +412,18 @@ public:
     [[nodiscard]] result<std::optional<rx_info>> try_adopt_pending();
 
     /**
+     * @brief Sets a raw 16-bit LoRa sync word.
+     *
+     * For interoperating with networks that use a non-standard sync word.
+     * The inherited @ref transceiver::try_set_sync_word overload selects the
+     * standard public/private network values.
+     *
+     * @param sync_word Raw sync-word register value (MSB first).
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_set_sync_word(uint16_t sync_word);
+
+    /**
      * @brief Sets CAD detection parameters.
      * @param params CAD detection parameters.
      * @return Success, or an error.
@@ -409,7 +434,7 @@ public:
      * @brief Returns the current IRQ-register status.
      * @return Bitfield of pending IRQs, or an error.
      */
-    [[nodiscard]] result<flags<irq_flag>> try_get_irq_status();
+    [[nodiscard]] result<flags<irq_flag>> try_irq_status();
 
     /**
      * @brief Clears the specified IRQ bits.
@@ -502,20 +527,21 @@ private:
     [[nodiscard]] chip_mode do_current_mode() const noexcept override;
     [[nodiscard]] result<void> do_standby() override;
     [[nodiscard]] result<void> do_sleep() override;
-    [[nodiscard]] result<void> do_start_receive() override;
+    [[nodiscard]] result<void> do_start_listening() override;
     [[nodiscard]] result<void>
-    do_start_receive(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) override;
+    do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) override;
     [[nodiscard]] result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) override;
     [[nodiscard]] result<idfxx::future<cad_info>> do_start_channel_scan() override;
     [[nodiscard]] result<void> do_set_frequency(freq::hertz hz) override;
-    [[nodiscard]] result<void> do_set_output_power(int8_t dbm, ramp_time ramp) override;
+    [[nodiscard]] result<void> do_set_output_power(electro::dbm power, ramp_time ramp) override;
     [[nodiscard]] result<void> do_set_lora_modulation(lora_modulation mod) override;
     [[nodiscard]] result<void> do_set_lora_packet_params(lora_packet_params params) override;
-    [[nodiscard]] result<void> do_set_sync_word(uint16_t sync_word) override;
+    [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
     [[nodiscard]] result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) override;
     [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;
-    [[nodiscard]] result<packet_status> do_get_packet_status() override;
-    [[nodiscard]] result<int16_t> do_get_rssi_inst_dbm() override;
+    [[nodiscard]] result<packet_status> do_last_packet_status() override;
+    [[nodiscard]] result<electro::centi_dbm> do_current_rssi() override;
+    [[nodiscard]] std::chrono::microseconds do_rx_duty_cycle_min_sleep() const noexcept override;
 
     std::unique_ptr<state> _state;
 };

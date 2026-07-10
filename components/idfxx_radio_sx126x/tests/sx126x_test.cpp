@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <type_traits>
 
+using namespace electro_literals;
 using namespace idfxx::radio;
 namespace codec = idfxx::radio::sx126x_internal;
 
@@ -128,13 +129,13 @@ static_assert(codec::tcxo_voltage_byte(3000) == 6);
 static_assert(codec::tcxo_voltage_byte(3300) == 7);
 static_assert(codec::tcxo_voltage_byte(5000) == 7);
 
-// GetPacketStatus / GetRssiInst decoding: RSSI bytes are -raw/2 dBm, SNR is
-// a signed quarter-dB value passed through.
-static_assert(codec::decode_rssi_byte(160) == -80);
-static_assert(codec::decode_rssi_byte(0) == 0);
-static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).rssi_dbm == -80);
-static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).snr_db_q4 == 20);
-static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).signal_rssi_dbm == -90);
+// GetPacketStatus / GetRssiInst decoding: RSSI bytes are -raw/2 dBm, SNR
+// bytes are a signed quarter-dB value.
+static_assert(codec::decode_rssi_byte(160) == -80_dBm);
+static_assert(codec::decode_rssi_byte(161) == electro::centi_dbm(-8050));
+static_assert(codec::decode_rssi_byte(0) == 0_dBm);
+static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).rssi == -80_dBm);
+static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).snr == 5_dB);
 
 // SetRxDutyCycle step conversion: one step = 15.625 µs (= µs · 64 / 1000).
 static_assert(codec::duty_cycle_steps(std::chrono::microseconds{1000}) == 64);

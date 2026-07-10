@@ -13,6 +13,9 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_event
+  cleishm/electro:
+    version: "^0.3.0"
+    public: true
   cleishm/frequency:
     version: "^1.1.1"
     public: true

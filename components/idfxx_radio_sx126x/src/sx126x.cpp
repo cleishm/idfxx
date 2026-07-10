@@ -39,7 +39,9 @@ constexpr uint16_t default_irq_mask = idfxx::to_underlying(
     sx126x::irq_flag::crc_err | sx126x::irq_flag::cad_done | sx126x::irq_flag::cad_detected
 );
 
-constexpr uint16_t default_sync_word = 0x3444; // public LoRa network
+// SX126x sync-word register values for the standard LoRa networks.
+constexpr uint16_t sync_word_public = 0x3444;
+constexpr uint16_t sync_word_private = 0x1424;
 
 // Completes and detaches the in-flight async-op latch (if any) with `err`,
 // dropping the reference to the caller's receive buffer first so the worker
@@ -74,6 +76,49 @@ result<void> apply_rx_boost(sx126x::state& s) {
     return s.write_register(internal::reg_rx_gain, gain);
 }
 
+// Claims the data path for a new one-shot operation (idle -> `activity`) and
+// arms the operation latch — recording the caller's receive buffer on it when
+// one is supplied — in a single critical section, so the invariant tying
+// active_op, driver_state, and mode together holds at every observable point.
+result<std::shared_ptr<internal::op_latch>> claim_data_path(
+    sx126x::state& s,
+    internal::driver_activity activity,
+    chip_mode mode,
+    std::span<uint8_t> rx_target = {}
+) {
+    std::lock_guard g(s.mu);
+    if (s.driver_state != internal::driver_activity::idle) {
+        return error(errc::invalid_state);
+    }
+    auto latch = std::make_shared<internal::op_latch>();
+    latch->rx_target = rx_target;
+    s.active_op = latch;
+    s.driver_state = activity;
+    s.mode = mode;
+    return latch;
+}
+
+// Arms a stream receive (continuous or duty-cycled) with the given SetRx /
+// SetRxDutyCycle command: refreshes the boosted-RX gain (the chip drops it
+// across duty-cycle sleep windows, so refreshing before every arm dodges the
+// warm-start sensitivity loss), points the RF switch at the receiver, issues
+// the command, and records the rx bookkeeping. Duty-cycled receive shares
+// rx_continuous: the worker already posts rx_done and never completes a
+// blocking waiter for it, which is exactly the duty-cycle behaviour.
+result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<const uint8_t> params) {
+    if (auto e = apply_rx_boost(s); !e) {
+        return error(e.error());
+    }
+    sx126x_set_rf_switch(s, chip_mode::rx);
+    if (auto e = s.write_command(opcode, params); !e) {
+        return e;
+    }
+    std::lock_guard g(s.mu);
+    s.mode = chip_mode::rx;
+    s.driver_state = internal::driver_activity::rx_continuous;
+    return {};
+}
+
 // SetCadParams: 7 bytes. cad_symbol_num, det_peak, det_min, exit_mode
 // (CAD_ONLY), timeout (3 bytes, unused). Shared by the default-config path and
 // the public set_cad_params; the chip retains the values, so user tuning
@@ -100,15 +145,7 @@ result<void> apply_default_config(sx126x::state& s) {
     // Optional TCXO via DIO3, followed by a full calibration. Once the chip runs
     // from a TCXO it must be (re)calibrated before use (DS §9.2.1 / §13.1.12).
     if (s.cfg.tcxo) {
-        // Startup timeout in the chip's 15.625 us steps (the same step unit as
-        // SetRxDutyCycle).
-        const uint32_t timeout_units = internal::duty_cycle_steps(s.cfg.tcxo->startup);
-        std::array<uint8_t, 4> params{
-            internal::tcxo_voltage_byte(s.cfg.tcxo->voltage_mv),
-            static_cast<uint8_t>(timeout_units >> 16),
-            static_cast<uint8_t>(timeout_units >> 8),
-            static_cast<uint8_t>(timeout_units),
-        };
+        auto params = internal::pack_tcxo_params(s.cfg.tcxo->voltage, s.cfg.tcxo->startup);
         if (auto e = s.write_command(internal::op_set_dio3_as_tcxo_ctrl, params); !e) {
             return e;
         }
@@ -186,10 +223,7 @@ result<void> apply_default_config(sx126x::state& s) {
     }
 
     // Default LoRa sync word = public network (0x3444).
-    std::array<uint8_t, 2> sync{
-        static_cast<uint8_t>(default_sync_word >> 8),
-        static_cast<uint8_t>(default_sync_word),
-    };
+    auto sync = internal::pack_sync_word(sync_word_public);
     if (auto e = s.write_register(internal::reg_lora_sync_word_msb, sync); !e) {
         return e;
     }
@@ -267,18 +301,9 @@ result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std
     // The payload has already been validated (non-empty, <= 255 bytes) by the
     // transceiver base-class wrappers.
 
-    // Claim the data path (idle -> tx_in_flight) and arm the latch in a
-    // single critical section.
-    std::shared_ptr<internal::op_latch> latch;
-    {
-        std::lock_guard g(s.mu);
-        if (s.driver_state != internal::driver_activity::idle) {
-            return error(errc::invalid_state);
-        }
-        latch = std::make_shared<internal::op_latch>();
-        s.active_op = latch;
-        s.driver_state = internal::driver_activity::tx_in_flight;
-        s.mode = chip_mode::tx;
+    auto latch = claim_data_path(s, internal::driver_activity::tx_in_flight, chip_mode::tx);
+    if (!latch) {
+        return latch;
     }
 
     // Re-issue the cached packet params with this payload's length, preserving
@@ -306,7 +331,7 @@ result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std
         reset_idle(s);
         return error(e.error());
     }
-    return latch;
+    return *latch;
 }
 
 // Builds the caller-facing future for an armed operation latch. The waiter
@@ -357,7 +382,7 @@ void sx126x_set_rf_switch(sx126x::state& s, chip_mode mode) noexcept {
         rx_on = true;
         break;
     default:
-        break; // sleep / stdby / fs -> both low (antenna parked)
+        break; // sleep / stdby -> both low (antenna parked)
     }
     if (s.cfg.rxen.is_connected()) {
         s.cfg.rxen.set_level(rx_on ? gpio::level::high : gpio::level::low);
@@ -702,58 +727,32 @@ result<void> sx126x::try_sleep(sleep_mode mode) {
     return cmd;
 }
 
-result<void> sx126x::try_set_fs() {
+result<void> sx126x::do_start_listening() {
     if (!_state) {
         return error(errc::invalid_state);
     }
-    if (auto e = _state->command(internal::op_set_fs); !e) {
-        return e;
-    }
-    std::lock_guard g(_state->mu);
-    _state->mode = chip_mode::fs;
-    sx126x_set_rf_switch(*_state, chip_mode::fs);
-    return {};
-}
-
-result<void> sx126x::do_start_receive() {
-    if (!_state) {
-        return error(errc::invalid_state);
-    }
-    if (auto e = apply_rx_boost(*_state); !e) {
-        return error(e.error());
-    }
-    sx126x_set_rf_switch(*_state, chip_mode::rx);
     // SetRx with timeout = 0xFFFFFF = continuous mode.
     std::array<uint8_t, 3> params{0xFF, 0xFF, 0xFF};
-    if (auto e = _state->write_command(internal::op_set_rx, params); !e) {
-        return e;
-    }
-    std::lock_guard g(_state->mu);
-    _state->mode = chip_mode::rx;
-    _state->driver_state = internal::driver_activity::rx_continuous;
-    return {};
+    return arm_stream_receive(*_state, internal::op_set_rx, params);
 }
 
-result<void> sx126x::do_start_receive(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
+result<void> sx126x::do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
     if (!_state) {
         return error(errc::invalid_state);
     }
-    // Refresh the boosted-RX gain before each arm — the chip drops it across the
-    // sleep windows, so this dodges the warm-start sensitivity loss.
-    if (auto e = apply_rx_boost(*_state); !e) {
-        return error(e.error());
-    }
-    sx126x_set_rf_switch(*_state, chip_mode::rx);
     auto params = internal::pack_rx_duty_cycle(rx_period, sleep_period);
-    if (auto e = _state->write_command(internal::op_set_rx_duty_cycle, params); !e) {
-        return e;
+    return arm_stream_receive(*_state, internal::op_set_rx_duty_cycle, params);
+}
+
+std::chrono::microseconds sx126x::do_rx_duty_cycle_min_sleep() const noexcept {
+    // The chip restarts its TCXO (when configured) on every wake from a
+    // duty-cycle sleep window, so that start-up time is unavailable for
+    // saving power and raises the shortest worthwhile sleep.
+    auto min_sleep = default_min_rx_sleep;
+    if (_state && _state->cfg.tcxo) {
+        min_sleep += _state->cfg.tcxo->startup;
     }
-    // Reuse rx_continuous: the worker already posts rx_done and never completes a
-    // blocking waiter for it, which is exactly the duty-cycle behaviour.
-    std::lock_guard g(_state->mu);
-    _state->mode = chip_mode::rx;
-    _state->driver_state = internal::driver_activity::rx_continuous;
-    return {};
+    return min_sleep;
 }
 
 result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
@@ -764,16 +763,9 @@ result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
 
     // Claim the data path (idle -> cad_scan) and arm the latch so the worker
     // completes the future on cad_done alongside posting the event.
-    std::shared_ptr<internal::op_latch> latch;
-    {
-        std::lock_guard g(s.mu);
-        if (s.driver_state != internal::driver_activity::idle) {
-            return error(errc::invalid_state);
-        }
-        latch = std::make_shared<internal::op_latch>();
-        s.active_op = latch;
-        s.driver_state = internal::driver_activity::cad_scan;
-        s.mode = chip_mode::cad;
+    auto latch = claim_data_path(s, internal::driver_activity::cad_scan, chip_mode::cad);
+    if (!latch) {
+        return error(latch.error());
     }
 
     // Point the RF switch at the receiver and start CAD. The chip's CAD
@@ -785,7 +777,7 @@ result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
         return error(e.error());
     }
 
-    return make_op_future<cad_info>(std::move(latch), [](internal::op_latch& l) -> result<cad_info> {
+    return make_op_future<cad_info>(std::move(*latch), [](internal::op_latch& l) -> result<cad_info> {
         return cad_info{.detected = l.cad_detected};
     });
 }
@@ -820,18 +812,24 @@ result<void> sx126x::do_set_frequency(freq::hertz hz) {
     return _state->write_command(internal::op_set_rf_frequency, params);
 }
 
-result<void> sx126x::do_set_output_power(int8_t dbm, ramp_time ramp) {
+result<void> sx126x::do_set_output_power(electro::dbm power, ramp_time ramp) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     auto limits = internal::power_limits_for(_state->cfg.variant);
-    if (dbm < limits.min_dbm || dbm > limits.max_dbm) {
-        ESP_LOGW(TAG, "output power %d dBm outside variant range %d..%d dBm", dbm, limits.min_dbm, limits.max_dbm);
+    if (power.count() < limits.min_dbm || power.count() > limits.max_dbm) {
+        ESP_LOGW(
+            TAG,
+            "output power %d dBm outside variant range %d..%d dBm",
+            static_cast<int>(power.count()),
+            limits.min_dbm,
+            limits.max_dbm
+        );
         return error(errc::invalid_arg);
     }
     // SetPaConfig for the requested power (the SX1261's +15 dBm needs a
     // different PA duty cycle and a +14 SetTxParams byte), then SetTxParams.
-    auto txp = internal::tx_power_config_for(_state->cfg.variant, dbm);
+    auto txp = internal::tx_power_config_for(_state->cfg.variant, static_cast<int8_t>(power.count()));
     std::array<uint8_t, 4> pa_params{txp.pa.pa_duty_cycle, txp.pa.hp_max, txp.pa.device_sel, txp.pa.pa_lut};
     if (auto e = _state->write_command(internal::op_set_pa_config, pa_params); !e) {
         return e;
@@ -882,14 +880,15 @@ result<void> sx126x::do_set_lora_packet_params(lora_packet_params params) {
     return {};
 }
 
-result<void> sx126x::do_set_sync_word(uint16_t sync_word) {
+result<void> sx126x::do_set_sync_word(lora_network network) {
+    return try_set_sync_word(network == lora_network::public_network ? sync_word_public : sync_word_private);
+}
+
+result<void> sx126x::try_set_sync_word(uint16_t sync_word) {
     if (!_state) {
         return error(errc::invalid_state);
     }
-    std::array<uint8_t, 2> sync{
-        static_cast<uint8_t>(sync_word >> 8),
-        static_cast<uint8_t>(sync_word),
-    };
+    auto sync = internal::pack_sync_word(sync_word);
     return _state->write_register(internal::reg_lora_sync_word_msb, sync);
 }
 
@@ -921,17 +920,9 @@ result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffe
     // caller's buffer on it. The worker copies the payload there on rx_done;
     // cancellation paths clear the reference before completing the latch, so
     // the buffer is never written after the future completes.
-    std::shared_ptr<internal::op_latch> latch;
-    {
-        std::lock_guard g(s.mu);
-        if (s.driver_state != internal::driver_activity::idle) {
-            return error(errc::invalid_state);
-        }
-        latch = std::make_shared<internal::op_latch>();
-        latch->rx_target = buffer;
-        s.active_op = latch;
-        s.driver_state = internal::driver_activity::rx_single;
-        s.mode = chip_mode::rx;
+    auto latch = claim_data_path(s, internal::driver_activity::rx_single, chip_mode::rx, buffer);
+    if (!latch) {
+        return error(latch.error());
     }
 
     if (auto e = apply_rx_boost(s); !e) {
@@ -949,7 +940,7 @@ result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffe
         return error(e.error());
     }
 
-    return make_op_future<rx_info>(std::move(latch), [](internal::op_latch& l) -> result<rx_info> { return l.rx; });
+    return make_op_future<rx_info>(std::move(*latch), [](internal::op_latch& l) -> result<rx_info> { return l.rx; });
 }
 
 result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {
@@ -971,7 +962,7 @@ result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {
 // Status
 // =============================================================================
 
-result<packet_status> sx126x::do_get_packet_status() {
+result<packet_status> sx126x::do_last_packet_status() {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -982,7 +973,7 @@ result<packet_status> sx126x::do_get_packet_status() {
     return internal::decode_packet_status(r);
 }
 
-result<int16_t> sx126x::do_get_rssi_inst_dbm() {
+result<electro::centi_dbm> sx126x::do_current_rssi() {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -1050,7 +1041,7 @@ result<void> sx126x::try_set_cad_params(cad_params params) {
     return write_cad_params(*_state, params);
 }
 
-result<flags<sx126x::irq_flag>> sx126x::try_get_irq_status() {
+result<flags<sx126x::irq_flag>> sx126x::try_irq_status() {
     if (!_state) {
         return error(errc::invalid_state);
     }

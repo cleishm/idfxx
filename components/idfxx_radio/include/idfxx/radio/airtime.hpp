@@ -128,7 +128,7 @@ namespace airtime_detail {
  * idfxx::radio::lora_modulation mod{.sf = idfxx::radio::spreading_factor::sf9};
  * idfxx::radio::lora_packet_params pkt{};
  * auto airtime = idfxx::radio::time_on_air(mod, pkt, payload.size());
- * radio.transmit(payload, std::chrono::duration_cast<std::chrono::milliseconds>(airtime) + 200ms);
+ * radio.transmit(payload, airtime + 200ms);
  * @endcode
  */
 [[nodiscard]] constexpr std::chrono::microseconds

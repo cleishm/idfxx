@@ -20,7 +20,7 @@ Abstract radio transceiver interface and LoRa types.
 - One-shot async operations (`start_transmit`, single-shot
   `start_receive(buffer)`, `start_channel_scan`) return an `idfxx::future` —
   completion is awaitable without configuring an event loop.
-- Low-power operation: duty-cycled receive (`start_receive(rx, sleep)`) and
+- Low-power operation: duty-cycled listening (`start_listening(rx, sleep)`) and
   channel-activity detection (`scan_channel` / `start_channel_scan`) for
   listen-before-talk.
 - `constexpr` `time_on_air` helper (`<idfxx/radio/airtime>`) for sizing timeouts
@@ -72,7 +72,7 @@ void send_one(idfxx::radio::transceiver& radio) {
     });
 
     std::array<uint8_t, 4> payload = {'p', 'i', 'n', 'g'};
-    radio.transmit(payload, std::chrono::seconds{2});
+    radio.transmit(payload);  // timeout self-sized from the packet's air-time
 }
 ```
 
@@ -112,27 +112,26 @@ loop.listener_add(idfxx::radio::rx_done,
         // ... process rx.length bytes ...
     });
 
-radio.start_receive();
+radio.start_listening();
 ```
 
 ### Low-power duty-cycled receive
 
 Instead of listening continuously, the radio can alternate between short
 listen windows and sleep. `rx_duty_cycle_for` computes windows that cannot
-miss a packet, given the preamble length senders use; when the link's
-parameters make duty-cycling infeasible it returns `std::nullopt`, which
-`start_receive` accepts as "receive continuously":
+miss a packet for the configured link; when the link's parameters make
+duty-cycling infeasible it returns `std::nullopt`, which `start_listening`
+accepts as "listen continuously":
 
 ```cpp
-#include <idfxx/radio/duty_cycle>
-
-constexpr idfxx::radio::lora_modulation mod{.sf = idfxx::radio::spreading_factor::sf9};
-constexpr idfxx::radio::lora_packet_params pkt{.preamble_length = 100};
-
-radio.set_lora_modulation(mod);
-radio.set_lora_packet_params(pkt);
-radio.start_receive(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
+radio.set_lora_modulation({.sf = idfxx::radio::spreading_factor::sf9});
+radio.set_lora_packet_params({.preamble_length = 100});
+radio.start_listening(radio.rx_duty_cycle_for());
 ```
+
+A `constexpr` free-function form (`rx_duty_cycle_for(mod, sender_preamble,
+min_symbols, min_sleep)` in `<idfxx/radio/duty_cycle>`) computes the same
+windows at compile time for a fixed link configuration.
 
 ## API Overview
 
@@ -140,31 +139,39 @@ radio.start_receive(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
 
 **Mode control:** `standby`, `sleep`, `current_mode`.
 
-**Configuration:** `set_frequency`, `set_output_power`, `set_lora_modulation`,
-`set_lora_packet_params`, `set_sync_word`.
+**Configuration:** `configure(lora_link)` applies the frequency, output
+power, modulation, packet framing, and network in one call; `set_frequency`,
+`set_output_power`, `set_lora_modulation`, `set_lora_packet_params`, and
+`set_sync_word` change them individually. `modulation()` / `packet_params()`
+read back the configured link parameters.
 
-**Data path (blocking):** `transmit(span, timeout)`, `receive(span, timeout)`,
-`scan_channel()`.
+**Data path (blocking):** `transmit(span)` (timeout self-sized from the
+packet's air-time), `transmit(span, timeout)`, `receive(span, timeout)`,
+`scan_channel()`, `channel_busy()`.
 
 **Data path (async, future-based):** `start_transmit(span)` →
 `idfxx::future<void>`, `start_receive(buffer)` (single-shot) →
 `idfxx::future<rx_info>`, `start_channel_scan()` → `idfxx::future<cad_info>`.
 
-**Data path (event-loop streams):** `start_receive()` (continuous),
-`start_receive(rx, sleep)` / `start_receive(rx_duty_cycle)` (duty-cycled, also
+**Data path (event-loop streams):** `start_listening()` (continuous),
+`start_listening(rx, sleep)` / `start_listening(rx_duty_cycle)` (duty-cycled, also
 accepting `std::optional<rx_duty_cycle>` with continuous fallback), paired
 with `read_received`.
 
-**Status:** `get_packet_status`, `get_rssi_inst_dbm`.
+**Status:** `last_packet_status`, `current_rssi`.
 
-**Air-time:** `time_on_air(mod, pkt, payload_length)` (free function in
-`<idfxx/radio/airtime>`) — the packet's on-air duration as a `constexpr`
-`std::chrono::microseconds`.
+**Air-time:** `radio.time_on_air(payload_length)` — the packet's on-air
+duration under the configured link parameters — or the `constexpr` free
+function `time_on_air(mod, pkt, payload_length)` in `<idfxx/radio/airtime>`
+for compile-time use.
 
-**Duty-cycle windows:** `rx_duty_cycle_for(mod, sender_preamble, min_symbols,
-min_sleep)` (free function in `<idfxx/radio/duty_cycle>`) — `constexpr`
-listen/sleep windows as `std::optional<rx_duty_cycle>`, `std::nullopt` when
-continuous receive is required.
+**Duty-cycle windows:** `radio.rx_duty_cycle_for()` — listen/sleep windows
+for the configured link parameters, with the driver's per-wake oscillator
+cost (e.g. TCXO start-up) folded into the minimum worthwhile sleep — or the
+`constexpr` free function `rx_duty_cycle_for(mod, sender_preamble,
+min_symbols, min_sleep)` in `<idfxx/radio/duty_cycle>` for compile-time use.
+Both return `std::optional<rx_duty_cycle>`, `std::nullopt` when continuous
+receive is required.
 
 Every method has a result-returning `try_*` form; the exception-throwing forms
 above are inline wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
@@ -216,8 +223,10 @@ behavior.
 - The base interface intentionally omits chip-specific concerns such as TCXO
   configuration, IRQ-register bitfields, and CAD detection thresholds. Those
   live on concrete drivers like `idfxx::radio::sx126x`.
-- Sync word is `uint16_t`; chips that natively use 8-bit sync words use the
-  low byte.
+- The sync word is selected semantically (`lora_network::public_network` /
+  `lora_network::private_network`); each driver maps the selection to its
+  chip's native encoding. Raw chip-specific values are available through
+  driver-specific overloads (e.g. `sx126x::set_sync_word(uint16_t)`).
 
 ## License
 

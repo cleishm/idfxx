@@ -4,7 +4,7 @@
 //
 // Demonstrates the event-driven, asynchronous radio surface:
 //   * an event_loop receives rx_done / cad_done,
-//   * start_receive(rx_duty_cycle_for(...)) puts the radio in periodic
+//   * start_listening(radio.rx_duty_cycle_for()) puts the radio in periodic
 //     low-power listen with windows computed from the modulation,
 //   * scan_channel (blocking CAD) gates each transmit (listen-before-talk),
 //   * start_transmit fires a beacon without blocking and returns a future,
@@ -13,8 +13,6 @@
 #include <idfxx/event>
 #include <idfxx/gpio>
 #include <idfxx/log>
-#include <idfxx/radio/airtime>
-#include <idfxx/radio/duty_cycle>
 #include <idfxx/radio/sx126x>
 #include <idfxx/sched>
 #include <idfxx/spi/master>
@@ -26,6 +24,7 @@
 #include <span>
 #include <string_view>
 
+using namespace electro_literals;
 using namespace frequency_literals;
 using namespace std::chrono_literals;
 
@@ -54,12 +53,6 @@ static constexpr idfxx::radio::lora_modulation MODULATION{
     .cr = idfxx::radio::coding_rate::cr_4_5,
 };
 static constexpr idfxx::radio::lora_packet_params PACKET_PARAMS{.preamble_length = 64};
-
-// Listen/sleep windows guaranteed to catch any packet using the preamble
-// above (~37 ms listen / ~197 ms sleep at SF9/BW125). nullopt would mean
-// duty-cycling is infeasible, and start_receive falls back to continuous.
-static constexpr auto DUTY_CYCLE =
-    idfxx::radio::rx_duty_cycle_for(MODULATION, PACKET_PARAMS.preamble_length, 8, 1016us + TCXO_STARTUP);
 
 // How long to stay in duty-cycled listen between beacon attempts.
 static constexpr auto LISTEN_INTERVAL = 5s;
@@ -90,34 +83,43 @@ extern "C" void app_main() {
                 .nreset = PIN_NRESET,
                 // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
-                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage_mv = 1800, .startup = TCXO_STARTUP},
+                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = TCXO_STARTUP},
                 .loop = &loop,
             }
         );
 
-        radio.set_frequency(915_MHz);
-        radio.set_output_power(14);
-        radio.set_lora_modulation(MODULATION);
-        radio.set_lora_packet_params(PACKET_PARAMS);
+        radio.configure({
+            .frequency = 915_MHz,
+            .output_power = 14_dBm,
+            .modulation = MODULATION,
+            .packet_params = PACKET_PARAMS,
+        });
 
         // ---- Event listeners (dispatched on the loop's task) ----
         std::array<uint8_t, 256> rx_buf{};
-        auto rx_handle = loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info& info) {
-            auto r = radio.try_read_received(rx_buf);
-            if (r) {
+        auto rx_handle = loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info&) {
+            // Pair the read bytes with the rx_info read_received returns; the
+            // event's payload may describe an older packet than the cache.
+            if (auto r = radio.try_read_received(rx_buf)) {
                 std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
-                logger.info("rx [{}B rssi={}dBm snr_q4={}]: {}", r->length, info.rssi_dbm, info.snr_db_q4, sv);
+                logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
             }
         });
         auto cad_handle = loop.listener_add(idfxx::radio::cad_done, [](const idfxx::radio::cad_info& ci) {
             logger.info("cad_done: channel {}", ci.detected ? "busy" : "clear");
         });
 
-        if (DUTY_CYCLE) {
+        // Listen/sleep windows guaranteed to catch any packet using the
+        // configured preamble (~37 ms listen / ~197 ms sleep at SF9/BW125).
+        // The radio folds its TCXO start-up into the minimum worthwhile
+        // sleep; nullopt means duty-cycling is infeasible, and start_listening
+        // falls back to continuous.
+        const auto duty_cycle = radio.rx_duty_cycle_for();
+        if (duty_cycle) {
             logger.info(
                 "duty-cycle listener on 915 MHz: listen {}us / sleep {}us",
-                DUTY_CYCLE->rx_period.count(),
-                DUTY_CYCLE->sleep_period.count()
+                duty_cycle->rx_period.count(),
+                duty_cycle->sleep_period.count()
             );
         } else {
             logger.info("duty-cycling infeasible for this modulation — listening continuously on 915 MHz");
@@ -127,12 +129,12 @@ extern "C" void app_main() {
         std::array<char, 32> tx_buf{};
         while (true) {
             // Low-power periodic listen for a while; packets surface via rx_done.
-            radio.start_receive(DUTY_CYCLE);
+            radio.start_listening(duty_cycle);
             idfxx::delay(LISTEN_INTERVAL);
 
             // Stop listening and sound out the channel before talking (LBT).
             radio.standby();
-            if (radio.scan_channel().detected) {
+            if (radio.channel_busy()) {
                 logger.info("channel busy — deferring beacon");
                 continue;
             }
@@ -149,10 +151,7 @@ extern "C" void app_main() {
             auto tx = radio.start_transmit(tx_view);
             logger.info("beacon tx started: {}", std::string_view{tx_buf.data(), len});
 
-            const auto watchdog = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                      idfxx::radio::time_on_air(MODULATION, PACKET_PARAMS, len)
-                                  ) +
-                TX_WATCHDOG_SLACK;
+            const auto watchdog = radio.time_on_air(len) + TX_WATCHDOG_SLACK;
             if (!tx.try_wait_for(watchdog)) {
                 // The transmit never reported done — recover the driver from
                 // its "busy" state so the next cycle can proceed.

@@ -35,7 +35,6 @@ namespace idfxx::radio::sx126x_internal {
 inline constexpr uint8_t op_get_status = 0xC0;
 inline constexpr uint8_t op_set_sleep = 0x84;
 inline constexpr uint8_t op_set_standby = 0x80;
-inline constexpr uint8_t op_set_fs = 0xC1;
 inline constexpr uint8_t op_set_tx = 0x83;
 inline constexpr uint8_t op_set_rx = 0x82;
 inline constexpr uint8_t op_set_rx_duty_cycle = 0x94;

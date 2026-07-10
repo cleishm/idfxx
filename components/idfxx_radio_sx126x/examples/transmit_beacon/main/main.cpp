@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <cstdio>
 
+using namespace electro_literals;
 using namespace frequency_literals;
 using namespace std::chrono_literals;
 
@@ -48,18 +49,19 @@ extern "C" void app_main() {
                 .nreset = PIN_NRESET,
                 // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
-                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage_mv = 1800, .startup = 5ms},
+                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
-        radio.set_frequency(915_MHz);
-        radio.set_output_power(14);
-        radio.set_lora_modulation({
-            .sf = idfxx::radio::spreading_factor::sf9,
-            .bw = idfxx::radio::bandwidth::bw_125,
-            .cr = idfxx::radio::coding_rate::cr_4_5,
+        radio.configure({
+            .frequency = 915_MHz,
+            .output_power = 14_dBm,
+            .modulation = {
+                .sf = idfxx::radio::spreading_factor::sf9,
+                .bw = idfxx::radio::bandwidth::bw_125,
+                .cr = idfxx::radio::coding_rate::cr_4_5,
+            },
         });
-        radio.set_lora_packet_params({});
 
         logger.info("Beacon starting on 915 MHz, SF9, 125 kHz BW");
 
@@ -68,7 +70,8 @@ extern "C" void app_main() {
         while (true) {
             int n = std::snprintf(payload.data(), payload.size(), "beacon %04" PRIu32, counter++);
             if (n > 0) {
-                radio.transmit(std::span{reinterpret_cast<const uint8_t*>(payload.data()), static_cast<size_t>(n)}, 5s);
+                // transmit sizes its own timeout from the packet's air-time.
+                radio.transmit(std::span{reinterpret_cast<const uint8_t*>(payload.data()), static_cast<size_t>(n)});
                 logger.info("sent: {}", std::string_view{payload.data(), static_cast<size_t>(n)});
             }
             idfxx::delay(2s);

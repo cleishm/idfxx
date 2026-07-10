@@ -14,6 +14,8 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <electro/decibel>
+#include <electro/electro>
 #include <span>
 #include <utility>
 
@@ -115,21 +117,32 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
+// LoRa sync word (register 0x0740, 16-bit, MSB first)
+// =============================================================================
+
+/// Packs a 16-bit LoRa sync word into the two reg_lora_sync_word_msb bytes.
+[[nodiscard]] constexpr std::array<uint8_t, 2> pack_sync_word(uint16_t sync_word) noexcept {
+    return {
+        static_cast<uint8_t>(sync_word >> 8),
+        static_cast<uint8_t>(sync_word),
+    };
+}
+
+// =============================================================================
 // Packet-status decoding (DS GetPacketStatus / GetRssiInst)
 // =============================================================================
 
-/// Decodes a GetPacketStatus / GetRssiInst RSSI byte to dBm: -raw/2.
-[[nodiscard]] constexpr int16_t decode_rssi_byte(uint8_t raw) noexcept {
-    return static_cast<int16_t>(-static_cast<int16_t>(raw >> 1));
+/// Decodes a GetPacketStatus / GetRssiInst RSSI byte (half-dBm steps: -raw/2 dBm).
+[[nodiscard]] constexpr electro::centi_dbm decode_rssi_byte(uint8_t raw) noexcept {
+    return electro::centi_dbm(-static_cast<int64_t>(raw) * 50);
 }
 
-/// Decodes the three GetPacketStatus response bytes
-/// (rssi_pkt, snr_pkt, signal_rssi_pkt).
+/// Decodes the three GetPacketStatus response bytes (rssi_pkt, snr_pkt,
+/// signal_rssi_pkt; the chip-specific signal_rssi_pkt byte is not surfaced).
 [[nodiscard]] constexpr packet_status decode_packet_status(std::span<const uint8_t, 3> r) noexcept {
     return {
-        .rssi_dbm = static_cast<int8_t>(decode_rssi_byte(r[0])),
-        .snr_db_q4 = static_cast<int8_t>(r[1]),
-        .signal_rssi_dbm = static_cast<int8_t>(decode_rssi_byte(r[2])),
+        .rssi = decode_rssi_byte(r[0]),
+        .snr = electro::centidecibels(static_cast<int8_t>(r[1]) * 25),
     };
 }
 
@@ -162,6 +175,20 @@ pack_rx_duty_cycle(std::chrono::microseconds rx, std::chrono::microseconds sleep
         static_cast<uint8_t>(sleep_steps >> 16),
         static_cast<uint8_t>(sleep_steps >> 8),
         static_cast<uint8_t>(sleep_steps),
+    };
+}
+
+/// Packs the four SetDio3AsTcxoCtrl bytes: the voltage byte followed by the
+/// startup timeout as a 24-bit count of the same 15.625 µs steps SetRxDutyCycle
+/// uses (MSB..LSB).
+[[nodiscard]] constexpr std::array<uint8_t, 4>
+pack_tcxo_params(electro::millivolts voltage, std::chrono::microseconds startup) noexcept {
+    const uint32_t timeout_steps = duty_cycle_steps(startup);
+    return {
+        tcxo_voltage_byte(static_cast<uint16_t>(voltage.count())),
+        static_cast<uint8_t>(timeout_steps >> 16),
+        static_cast<uint8_t>(timeout_steps >> 8),
+        static_cast<uint8_t>(timeout_steps),
     };
 }
 

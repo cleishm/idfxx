@@ -13,6 +13,7 @@
 #include <span>
 #include <string_view>
 
+using namespace electro_literals;
 using namespace frequency_literals;
 using namespace std::chrono_literals;
 
@@ -47,18 +48,19 @@ extern "C" void app_main() {
                 .nreset = PIN_NRESET,
                 // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
-                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage_mv = 1800, .startup = 5ms},
+                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
-        radio.set_frequency(915_MHz);
-        radio.set_output_power(14);
-        radio.set_lora_modulation({
-            .sf = idfxx::radio::spreading_factor::sf9,
-            .bw = idfxx::radio::bandwidth::bw_125,
-            .cr = idfxx::radio::coding_rate::cr_4_5,
+        radio.configure({
+            .frequency = 915_MHz,
+            .output_power = 14_dBm,
+            .modulation = {
+                .sf = idfxx::radio::spreading_factor::sf9,
+                .bw = idfxx::radio::bandwidth::bw_125,
+                .cr = idfxx::radio::coding_rate::cr_4_5,
+            },
         });
-        radio.set_lora_packet_params({});
 
         // Loop with blocking single-shot receive — simplest pattern.
         logger.info("Listening on 915 MHz");
@@ -77,7 +79,7 @@ extern "C" void app_main() {
                 continue;
             }
             std::string_view sv{reinterpret_cast<const char*>(buf.data()), r->length};
-            logger.info("rx [{}B rssi={}dBm snr_q4={}]: {}", r->length, r->rssi_dbm, r->snr_db_q4, sv);
+            logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
         }
     } catch (const std::system_error& e) {
         logger.error("radio error: {}", e.what());

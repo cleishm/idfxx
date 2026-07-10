@@ -17,8 +17,8 @@ Semtech SX126x family LoRa radio driver — SX1261, SX1262, and SX1268.
   future-based one-shot async (`start_transmit`, single-shot
   `start_receive(buffer)`, and `start_channel_scan`, each returning an
   `idfxx::future` — no event loop required), and event-loop dispatch for
-  packet streams (continuous/duty-cycled `start_receive` + `read_received`).
-- Low-power operation: duty-cycled receive (`start_receive(rx, sleep)`) and
+  packet streams (continuous/duty-cycled `start_listening` + `read_received`).
+- Low-power operation: duty-cycled listening (`start_listening(rx, sleep)`) and
   channel-activity detection for listen-before-talk.
 - Optional TCXO control via DIO3, DIO2-as-RF-switch or external `rxen`/`txen`
   RF-switch GPIOs, configurable regulator (LDO / DC-DC), warm-start sleep, and
@@ -79,17 +79,18 @@ idfxx::radio::sx126x radio(bus, {
     .nreset  = idfxx::gpio_7,
 });
 
-radio.set_frequency(915_MHz);
-radio.set_output_power(14);
-radio.set_lora_modulation({
-    .sf = idfxx::radio::spreading_factor::sf9,
-    .bw = idfxx::radio::bandwidth::bw_125,
-    .cr = idfxx::radio::coding_rate::cr_4_5,
+radio.configure({
+    .frequency = 915_MHz,
+    .output_power = 14_dBm,
+    .modulation = {
+        .sf = idfxx::radio::spreading_factor::sf9,
+        .bw = idfxx::radio::bandwidth::bw_125,
+        .cr = idfxx::radio::coding_rate::cr_4_5,
+    },
 });
-radio.set_lora_packet_params({});
 
 std::array<uint8_t, 5> payload = {'h', 'e', 'l', 'l', 'o'};
-radio.transmit(payload, 2s);
+radio.transmit(payload);  // timeout self-sized from the packet's air-time
 ```
 
 ### Future-based async operations
@@ -145,7 +146,7 @@ loop.listener_add(idfxx::radio::rx_done,
         // ...
     });
 
-radio.start_receive();
+radio.start_listening();
 ```
 
 If `config::loop` is left null the radio still works in blocking mode; it simply
@@ -191,9 +192,10 @@ your module uses a plain crystal.
   (faster TX/RX transitions than the inherited RC-oscillator `standby()`).
 - `sleep(sleep_mode::cold)` — lowest-power sleep, losing all configuration
   (the inherited `sleep()` performs a warm, configuration-retaining sleep).
-- `set_fs()` — frequency-synthesis mode (PLL-lock diagnostic).
 - `set_cad_params(p)` — tune CAD detection thresholds.
-- `irq_flag`, `get_irq_status()`, `clear_irq_status(mask)` — chip-register
+- `set_sync_word(uint16_t)` — raw sync-word register value for non-standard
+  networks (the inherited overload selects `lora_network` semantically).
+- `irq_flag`, `irq_status()`, `clear_irq_status(mask)` — chip-register
   IRQ surface for advanced/diagnostic use.
 - `write_command` / `read_command` / `write_register` / `read_register` /
   `write_buffer` / `read_buffer` — six low-level opcode primitives.
@@ -246,7 +248,7 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 - Events are only posted if you supply `config::loop` (your own loop or
   `event_loop::system()`). With no loop, blocking `transmit`/`receive` still
   work; events are simply dropped.
-- `transmit`/`receive`/`start_transmit`/`start_receive`/`scan_channel`/
+- `transmit`/`receive`/`start_transmit`/`start_receive`/`start_listening`/`scan_channel`/
   `start_channel_scan` form the single data path of an instance and must not
   be called concurrently; a second data-path call before the first completes
   returns `errc::invalid_state`.
@@ -267,7 +269,7 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 - For the SX1268 (high-power PA, sub-GHz, 410–810 MHz band), set
   `variant = chip_variant::sx1268` and a band-appropriate `set_frequency`.
 - **Wake-on-radio across host deep sleep**: leave the chip duty-cycle
-  listening (`start_receive(rx_duty_cycle)`), route DIO1 to an RTC wake pin,
+  listening (`start_listening(rx_duty_cycle)`), route DIO1 to an RTC wake pin,
   and deep-sleep the host *without destroying the driver* (its destructor
   puts the chip to sleep). After the wake, reconstruct with
   `.nreset = gpio::nc(), .warm_start = true` and call `adopt_pending()` to

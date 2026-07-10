@@ -69,9 +69,9 @@ static_assert(std::is_same_v<
 static_assert(std::is_same_v<
               decltype(std::declval<transceiver&>().try_start_channel_scan()),
               idfxx::result<idfxx::future<cad_info>>>);
-static_assert(std::is_same_v<decltype(std::declval<transceiver&>().try_start_receive()), idfxx::result<void>>);
+static_assert(std::is_same_v<decltype(std::declval<transceiver&>().try_start_listening()), idfxx::result<void>>);
 static_assert(
-    std::is_same_v<decltype(std::declval<transceiver&>().try_start_receive(rx_duty_cycle{})), idfxx::result<void>>
+    std::is_same_v<decltype(std::declval<transceiver&>().try_start_listening(rx_duty_cycle{})), idfxx::result<void>>
 );
 
 // Blocking forms compose over the futures and keep their signatures.

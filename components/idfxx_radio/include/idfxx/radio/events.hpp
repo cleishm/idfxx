@@ -46,7 +46,15 @@ IDFXX_EVENT_DEFINE_BASE(radio_events, event_id);
 /** @brief Transmit-complete event. */
 inline constexpr event<event_id> tx_done{event_id::tx_done};
 
-/** @brief Receive-complete event, carrying @ref rx_info. */
+/**
+ * @brief Receive-complete event, carrying the packet's @ref rx_info.
+ *
+ * The payload describes the packet that raised the event, which suits
+ * metadata-only listeners (e.g. signal monitoring). To read the packet's
+ * bytes, call `transceiver::read_received` and pair the bytes with the
+ * @ref rx_info *it* returns — the receive cache holds only the most recent
+ * packet, which may already be newer than the one that raised this event.
+ */
 inline constexpr event<event_id, rx_info> rx_done{event_id::rx_done};
 
 /** @brief CRC-error event. */

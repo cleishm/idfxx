@@ -12,6 +12,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <electro/decibel>
+#include <frequency/frequency>
 
 /**
  * @headerfile <idfxx/radio/types>
@@ -30,7 +32,6 @@ namespace idfxx::radio {
 enum class chip_mode : uint8_t {
     sleep, ///< Sleep / low-power state.
     stdby, ///< Standby (radio off, registers active).
-    fs,    ///< Frequency synthesis (PLL locked, transceiver idle).
     tx,    ///< Transmitting.
     rx,    ///< Receiving.
     cad,   ///< Channel-activity detection.
@@ -91,6 +92,18 @@ enum class coding_rate : uint8_t {
 
 /**
  * @headerfile <idfxx/radio/types>
+ * @brief LoRa network selection.
+ *
+ * Selects the sync word senders and receivers must share to hear each other.
+ * Drivers map each value to their chip's native sync-word encoding.
+ */
+enum class lora_network : uint8_t {
+    private_network, ///< Private / ad-hoc point-to-point links.
+    public_network,  ///< Public LoRaWAN networks.
+};
+
+/**
+ * @headerfile <idfxx/radio/types>
  * @brief LoRa packet header mode.
  */
 enum class header_type : uint8_t {
@@ -122,6 +135,11 @@ struct lora_modulation {
     coding_rate cr = coding_rate::cr_4_5;        ///< Forward-error-correction coding rate.
     bool low_data_rate_optimize = false;         ///< Enable low-data-rate optimization (recommended at SF11/SF12 on
                                                  ///< narrow bandwidths).
+
+    /**
+     * @brief Compares two modulation-parameter sets for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const lora_modulation&) const noexcept = default;
 };
 
 /**
@@ -134,6 +152,33 @@ struct lora_packet_params {
     uint8_t payload_length = 0xFF;              ///< Payload length, used only in fixed-header mode.
     bool crc_on = true;                         ///< Enable CRC.
     bool invert_iq = false;                     ///< Invert I/Q (for downlink / gateway use).
+
+    /**
+     * @brief Compares two packet-framing-parameter sets for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const lora_packet_params&) const noexcept = default;
+};
+
+/**
+ * @headerfile <idfxx/radio/types>
+ * @brief Complete LoRa link configuration.
+ *
+ * Bundles the settings both ends of a link must agree on — frequency,
+ * modulation, packet framing, and network — plus this end's transmit power,
+ * so they can be applied with a single `transceiver::configure` call.
+ */
+struct lora_link {
+    freq::hertz frequency{0};                            ///< RF carrier frequency (required; no meaningful default).
+    electro::dbm output_power{14};                       ///< Transmit output power.
+    ramp_time ramp = ramp_time::us_200;                  ///< Output-power ramp-up time.
+    lora_modulation modulation{};                        ///< Modulation parameters.
+    lora_packet_params packet_params{};                  ///< Packet framing parameters.
+    lora_network network = lora_network::public_network; ///< Network (sync word) selection.
+
+    /**
+     * @brief Compares two link configurations for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const lora_link&) const noexcept = default;
 };
 
 /**
@@ -142,13 +187,18 @@ struct lora_packet_params {
  *
  * Describes one period of a duty-cycled receive: the radio listens for
  * @ref rx_period, sleeps for @ref sleep_period, and repeats until a packet
- * arrives or the mode is changed. Pass to `transceiver::start_receive`, either
+ * arrives or the mode is changed. Pass to `transceiver::start_listening`, either
  * built directly or computed from the modulation with @ref rx_duty_cycle_for
  * (`<idfxx/radio/duty_cycle>`).
  */
 struct rx_duty_cycle {
     std::chrono::microseconds rx_period;    ///< Time to listen in each cycle.
     std::chrono::microseconds sleep_period; ///< Time to sleep in each cycle.
+
+    /**
+     * @brief Compares two listen/sleep window pairs for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const rx_duty_cycle&) const noexcept = default;
 };
 
 /**
@@ -156,15 +206,14 @@ struct rx_duty_cycle {
  * @brief Information about a received packet.
  */
 struct rx_info {
-    uint8_t length = 0;   ///< Number of bytes received into the caller's buffer.
-    int8_t rssi_dbm = 0;  ///< Received-signal-strength indicator, in dBm.
-    int8_t snr_db_q4 = 0; ///< Signal-to-noise ratio in quarter-dB steps (signed; dB = value / 4).
+    uint8_t length = 0;           ///< Number of bytes received into the caller's buffer.
+    electro::centi_dbm rssi{};    ///< Received-signal-strength indicator.
+    electro::centidecibels snr{}; ///< Signal-to-noise ratio.
 
     /**
-     * @brief Returns the signal-to-noise ratio in dB.
-     * @return The SNR converted from quarter-dB steps to dB.
+     * @brief Compares two received-packet descriptions for equality.
      */
-    [[nodiscard]] constexpr float snr_db() const noexcept { return static_cast<float>(snr_db_q4) / 4.0f; }
+    [[nodiscard]] constexpr bool operator==(const rx_info&) const noexcept = default;
 };
 
 /**
@@ -173,6 +222,11 @@ struct rx_info {
  */
 struct cad_info {
     bool detected = false; ///< true if LoRa activity was detected on the channel.
+
+    /**
+     * @brief Compares two channel-scan results for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const cad_info&) const noexcept = default;
 };
 
 /**
@@ -180,15 +234,13 @@ struct cad_info {
  * @brief Detailed status for the most recent packet.
  */
 struct packet_status {
-    int8_t rssi_dbm = 0;        ///< RSSI of the received packet, in dBm.
-    int8_t snr_db_q4 = 0;       ///< SNR in quarter-dB steps (signed; dB = value / 4).
-    int8_t signal_rssi_dbm = 0; ///< RSSI of the LoRa signal only, in dBm (chip-dependent; may equal rssi_dbm).
+    electro::centi_dbm rssi{};    ///< RSSI of the received packet.
+    electro::centidecibels snr{}; ///< Signal-to-noise ratio.
 
     /**
-     * @brief Returns the signal-to-noise ratio in dB.
-     * @return The SNR converted from quarter-dB steps to dB.
+     * @brief Compares two packet-status records for equality.
      */
-    [[nodiscard]] constexpr float snr_db() const noexcept { return static_cast<float>(snr_db_q4) / 4.0f; }
+    [[nodiscard]] constexpr bool operator==(const packet_status&) const noexcept = default;
 };
 
 } // namespace idfxx::radio

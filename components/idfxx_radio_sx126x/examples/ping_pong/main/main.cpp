@@ -11,7 +11,6 @@
 
 #include <idfxx/gpio>
 #include <idfxx/log>
-#include <idfxx/radio/airtime>
 #include <idfxx/radio/sx126x>
 #include <idfxx/sched>
 #include <idfxx/spi/master>
@@ -24,6 +23,7 @@
 #include <span>
 #include <string_view>
 
+using namespace electro_literals;
 using namespace frequency_literals;
 using namespace std::chrono_literals;
 
@@ -48,17 +48,13 @@ static constexpr auto LISTEN_TIMEOUT = 5s;
 // reply by then, restart the election.
 static constexpr auto REPLY_TIMEOUT = 3s;
 
-// LoRa configuration. Kept as named constants so the transmit timeout can be
-// derived from the packet's time-on-air rather than a hand-tuned magic number.
+// LoRa configuration, identical on both ends of the link.
 static constexpr idfxx::radio::lora_modulation MODULATION{
     .sf = idfxx::radio::spreading_factor::sf9,
     .bw = idfxx::radio::bandwidth::bw_125,
     .cr = idfxx::radio::coding_rate::cr_4_5,
 };
 static constexpr idfxx::radio::lora_packet_params PACKET_PARAMS{};
-
-// Slack added to the computed time-on-air to cover SPI setup and chip ramp.
-static constexpr auto TX_TIMEOUT_SLACK = 200ms;
 
 // Try to parse "PING NNNN" or "PONG NNNN"; return the counter or -1.
 static int32_t parse_counter(std::string_view sv) {
@@ -101,14 +97,16 @@ extern "C" void app_main() {
                 .nreset = PIN_NRESET,
                 // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
-                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage_mv = 1800, .startup = 5ms},
+                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
-        radio.set_frequency(915_MHz);
-        radio.set_output_power(14);
-        radio.set_lora_modulation(MODULATION);
-        radio.set_lora_packet_params(PACKET_PARAMS);
+        radio.configure({
+            .frequency = 915_MHz,
+            .output_power = 14_dBm,
+            .modulation = MODULATION,
+            .packet_params = PACKET_PARAMS,
+        });
 
         std::array<uint8_t, 32> rx_buf{};
         std::array<char, 32> tx_buf{};
@@ -131,12 +129,7 @@ extern "C" void app_main() {
                 logger.warn("election rx: unparseable [{}B]: {}", first->length, sv);
                 counter = 0;
             } else {
-                logger.info(
-                    "election rx: {} (rssi={}dBm snr_q4={}) — we are the responder",
-                    sv,
-                    first->rssi_dbm,
-                    first->snr_db_q4
-                );
+                logger.info("election rx: {} (rssi={} snr={}) — we are the responder", sv, first->rssi, first->snr);
                 counter = static_cast<uint32_t>(parsed) + 1;
             }
         } else if (first.error() == idfxx::errc::timeout) {
@@ -158,13 +151,9 @@ extern "C" void app_main() {
             }
             auto tx_view = std::span{reinterpret_cast<const uint8_t*>(tx_buf.data()), n};
 
-            // Size the transmit timeout from the packet's air-time plus slack,
-            // instead of a hand-tuned constant.
-            auto tx_timeout = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  idfxx::radio::time_on_air(MODULATION, PACKET_PARAMS, n)
-                              ) +
-                TX_TIMEOUT_SLACK;
-            if (auto e = radio.try_transmit(tx_view, tx_timeout); !e) {
+            // try_transmit sizes its own timeout from the packet's air-time
+            // under the configured link parameters.
+            if (auto e = radio.try_transmit(tx_view); !e) {
                 logger.error("tx failed: {}", e.error().message());
                 idfxx::delay(500ms);
                 continue;
@@ -207,10 +196,10 @@ extern "C" void app_main() {
             std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
             int32_t parsed = parse_counter(sv);
             if (parsed < 0) {
-                logger.warn("rx: unparseable [{}B rssi={}dBm snr_q4={}]: {}", r->length, r->rssi_dbm, r->snr_db_q4, sv);
+                logger.warn("rx: unparseable [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
                 continue;
             }
-            logger.info("rx: {} (rssi={}dBm snr_q4={})", sv, r->rssi_dbm, r->snr_db_q4);
+            logger.info("rx: {} (rssi={} snr={})", sv, r->rssi, r->snr);
             counter = static_cast<uint32_t>(parsed) + 1;
         }
     } catch (const std::system_error& e) {

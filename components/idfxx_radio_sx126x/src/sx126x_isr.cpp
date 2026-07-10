@@ -22,6 +22,28 @@ namespace {
 
 constexpr const char* TAG = "idfxx::radio::sx126x::isr";
 
+// Parks the chip-mode bookkeeping (and RF switch) in standby and, when the
+// driver is still in `expected` activity — a cancellation may have detached
+// the latch already — returns it to idle and completes the in-flight latch,
+// with `fill` writing the operation's result fields first. Used by the
+// tx_done and cad_done paths; rx_done has its own variant because it must
+// park only when a single-shot receive was in flight (a continuous receive
+// stays in rx) and copies the payload out under the same lock.
+template<typename Fill>
+void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fill&& fill) {
+    std::lock_guard g(s.mu);
+    s.mode = chip_mode::stdby;
+    sx126x_set_rf_switch(s, chip_mode::stdby);
+    if (s.driver_state != expected) {
+        return;
+    }
+    s.driver_state = internal::driver_activity::idle;
+    if (auto latch = std::move(s.active_op)) {
+        fill(*latch);
+        latch->complete(0);
+    }
+}
+
 } // namespace
 
 // Reads chip RX buffer status + packet status + the payload into the state's
@@ -45,8 +67,8 @@ result<rx_info> sx126x_drain_received(sx126x::state& s) {
         return error(e.error());
     }
     auto ps = internal::decode_packet_status(pkt);
-    info.rssi_dbm = ps.rssi_dbm;
-    info.snr_db_q4 = ps.snr_db_q4;
+    info.rssi = ps.rssi;
+    info.snr = ps.snr;
 
     // Read the payload from the chip buffer straight into the last-packet
     // cache (full length; per-caller copies clamp). Holding `mu` across the
@@ -114,7 +136,7 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
         for (;;) {
             auto mask = s.read_irq_status();
             if (!mask) {
-                ESP_LOGW(TAG, "get_irq_status failed: %s", mask.error().message().c_str());
+                ESP_LOGW(TAG, "read_irq_status failed: %s", mask.error().message().c_str());
                 break;
             }
             if (*mask == 0) {
@@ -128,20 +150,9 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             const flags<sx126x::irq_flag> irqs{static_cast<sx126x::irq_flag>(*mask)};
 
             // TX done: complete the operation latch (waking any futures), post
-            // the event. The latch may already be detached if a cancellation
-            // (standby/sleep) won the race; then there is nothing to complete.
+            // the event.
             if (irqs.contains(sx126x::irq_flag::tx_done)) {
-                {
-                    std::lock_guard g(s.mu);
-                    s.mode = chip_mode::stdby;
-                    sx126x_set_rf_switch(s, chip_mode::stdby);
-                    if (s.driver_state == internal::driver_activity::tx_in_flight) {
-                        s.driver_state = internal::driver_activity::idle;
-                        if (auto latch = std::move(s.active_op)) {
-                            latch->complete(0);
-                        }
-                    }
-                }
+                park_and_complete(s, internal::driver_activity::tx_in_flight, [](internal::op_latch&) {});
                 if (loop) {
                     (void)loop->try_post(tx_done);
                 }
@@ -201,18 +212,9 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             // event.
             if (irqs.contains(sx126x::irq_flag::cad_done)) {
                 cad_info ci{.detected = irqs.contains(sx126x::irq_flag::cad_detected)};
-                {
-                    std::lock_guard g(s.mu);
-                    s.mode = chip_mode::stdby;
-                    sx126x_set_rf_switch(s, chip_mode::stdby);
-                    if (s.driver_state == internal::driver_activity::cad_scan) {
-                        s.driver_state = internal::driver_activity::idle;
-                        if (auto latch = std::move(s.active_op)) {
-                            latch->cad_detected = ci.detected;
-                            latch->complete(0);
-                        }
-                    }
-                }
+                park_and_complete(s, internal::driver_activity::cad_scan, [&](internal::op_latch& l) {
+                    l.cad_detected = ci.detected;
+                });
                 if (loop) {
                     (void)loop->try_post(cad_done, ci);
                 }
