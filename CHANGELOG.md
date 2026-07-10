@@ -23,8 +23,10 @@ component's version only bumps when that component changes.
   drivers compile unchanged; new drivers need only supply their panel handle),
   `width()`/`height()` on the `panel` base class reporting native dimensions, a
   `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays with
-  full-frame, row-band, and rectangular-region flushes, and a shared internal
-  panel-creation helper for esp_lcd-based drivers
+  full-frame, row-band, and rectangular-region flushes, an `rgb565` color value
+  type stored in panel byte order, an `rgb565_framebuffer` helper for 16-bpp
+  color displays with offset flushes for band-at-a-time rendering, and a shared
+  internal panel-creation helper for esp_lcd-based drivers
 - `idfxx_lcd_ili9341` `2.1.0` — panels now report `width()`/`height()`, and the example
   and documentation draw via `panel::draw_bitmap` instead of the raw ESP-IDF handle
 
