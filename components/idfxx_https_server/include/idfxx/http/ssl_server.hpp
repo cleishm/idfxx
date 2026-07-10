@@ -113,7 +113,6 @@ public:
         bool use_ecdsa_peripheral = false;              ///< Use ECDSA peripheral for key operations
         uint8_t ecdsa_key_efuse_blk = 0;                ///< eFuse block number for ECDSA key
         bool session_tickets = false;                   ///< Enable TLS session tickets
-        bool use_secure_element = false;                ///< Use secure element for key storage
         std::chrono::milliseconds handshake_timeout{0}; ///< TLS handshake timeout (0 = default 10s)
     };
 

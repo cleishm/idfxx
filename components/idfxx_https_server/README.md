@@ -10,7 +10,7 @@ Type-safe HTTPS server for ESP32 with TLS support.
 - RAII lifecycle management (start/stop) with TLS encryption
 - Server certificate and private key configuration (PEM format)
 - Optional client certificate verification (mutual TLS)
-- TLS session tickets and secure element support
+- TLS session tickets and ECDSA peripheral support
 - Chrono-typed timeouts and keep-alive intervals
 - Dual API: exception-based and result-based error handling
 
@@ -148,7 +148,6 @@ TLS-specific configuration fields:
 - `client_ca_cert` - CA certificate for client verification (mutual TLS)
 - `use_ecdsa_peripheral` - Use ECDSA peripheral for key operations
 - `session_tickets` - Enable TLS session tickets
-- `use_secure_element` - Use secure element for key storage
 - `handshake_timeout` - TLS handshake timeout
 
 Plus all standard HTTP server fields (task priority, ports, limits, timeouts, etc.)
