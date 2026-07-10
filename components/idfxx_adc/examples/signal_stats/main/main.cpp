@@ -57,9 +57,9 @@ extern "C" void app_main() {
                 min,
                 max,
                 mean,
-                sampler.to_voltage({.pin = signal_pin, .raw = min}),
-                sampler.to_voltage({.pin = signal_pin, .raw = max}),
-                sampler.to_voltage({.pin = signal_pin, .raw = mean}),
+                sampler.to_voltage(min),
+                sampler.to_voltage(max),
+                sampler.to_voltage(mean),
                 count,
                 sampler.overruns()
             );

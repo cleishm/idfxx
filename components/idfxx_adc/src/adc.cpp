@@ -11,7 +11,9 @@
 #include <esp_adc/adc_cali_scheme.h>
 #include <esp_adc/adc_continuous.h>
 #include <esp_adc/adc_oneshot.h>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <sdkconfig.h>
 #include <soc/soc_caps.h>
 #include <utility>
@@ -103,12 +105,15 @@ result<input> input::make(config cfg) {
     if (!cfg.pin.is_connected()) {
         return error(errc::invalid_arg);
     }
+    if (cfg.divider.num < 1 || cfg.divider.den < 1) {
+        return error(errc::invalid_arg);
+    }
 
     auto s = std::make_unique<state>();
     s->cfg = cfg;
 
     adc_unit_t unit = ADC_UNIT_1;
-    if (auto e = wrap(adc_oneshot_io_to_channel(cfg.pin.num(), &unit, &s->channel)); !e) {
+    if (adc_oneshot_io_to_channel(cfg.pin.num(), &unit, &s->channel) != ESP_OK) {
         return error(errc::invalid_arg);
     }
 
@@ -137,6 +142,14 @@ input& input::operator=(input&& other) noexcept = default;
 
 idfxx::gpio input::pin() const noexcept {
     return _state ? _state->cfg.pin : gpio::nc();
+}
+
+enum attenuation input::attenuation() const noexcept {
+    return _state ? _state->cfg.attenuation : attenuation::db_12;
+}
+
+divider_ratio input::divider() const noexcept {
+    return _state ? _state->cfg.divider : divider_ratio{};
 }
 
 bool input::calibrated() const noexcept {
@@ -169,7 +182,9 @@ result<electro::millivolts> input::try_read_voltage() {
     if (auto e = wrap(adc_cali_raw_to_voltage(_state->cali, *raw, &mv)); !e) {
         return error(e.error());
     }
-    return electro::millivolts{mv};
+    // Scale by the configured external divider to report the source voltage.
+    const auto& div = _state->cfg.divider;
+    return electro::millivolts{static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)};
 }
 
 struct sampler::state {
@@ -177,13 +192,12 @@ struct sampler::state {
     adc_continuous_handle_t handle = nullptr;
     bool running = false;
     size_t overruns = 0;
-    // Channels for cfg.pins, in the same order.
-    std::vector<adc_channel_t> channels{};
     // Reverse map used when parsing: channel number -> configured pin (nc = unconfigured).
     std::array<idfxx::gpio, SOC_ADC_MAX_CHANNEL_NUM> chan_pin{};
-    // Calibration handle per channel. With curve fitting each configured channel owns
-    // its own handle; with line fitting every configured channel aliases one per-unit handle.
-    std::array<adc_cali_handle_t, SOC_ADC_MAX_CHANNEL_NUM> chan_cali{};
+    // Calibration handle per configured pin, in cfg.pins order. With curve fitting
+    // each pin owns its own handle; with line fitting every pin aliases one
+    // per-unit handle.
+    std::vector<adc_cali_handle_t> calis{};
     // Staging buffer for driver reads, parsed into caller-provided samples.
     std::vector<uint8_t> staging{};
     // Reused scratch for the fused voltage read: holds raw samples between read and conversion.
@@ -193,18 +207,13 @@ struct sampler::state {
         if (handle && running) {
             (void)adc_continuous_stop(handle);
         }
-#if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-        // Curve fitting owns one handle per channel: delete each.
-        for (auto cali : chan_cali) {
-            delete_calibration(cali);
+        // Delete each distinct handle once — covers both the per-pin (curve
+        // fitting) and aliased per-unit (line fitting) ownership models.
+        for (auto it = calis.begin(); it != calis.end(); ++it) {
+            if (*it && std::find(calis.begin(), it, *it) == it) {
+                delete_calibration(*it);
+            }
         }
-#elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-        // Every configured channel aliases the same per-unit handle: delete it once.
-        auto it = std::ranges::find_if(chan_cali, [](auto cali) { return cali != nullptr; });
-        if (it != chan_cali.end()) {
-            delete_calibration(*it);
-        }
-#endif
         if (handle) {
             (void)adc_continuous_deinit(handle);
         }
@@ -240,6 +249,7 @@ result<sampler> sampler::make(config cfg) {
     s->chan_pin.fill(gpio::nc());
 
     // The digital (continuous) controller only serves ADC1 on the supported targets.
+    std::vector<adc_channel_t> channels;
     for (auto pin : s->cfg.pins) {
         adc_unit_t unit = ADC_UNIT_1;
         adc_channel_t channel = ADC_CHANNEL_0;
@@ -250,7 +260,7 @@ result<sampler> sampler::make(config cfg) {
         if (s->chan_pin[channel].is_connected()) {
             return error(errc::invalid_arg);
         }
-        s->channels.push_back(channel);
+        channels.push_back(channel);
         s->chan_pin[channel] = pin;
     }
 
@@ -268,15 +278,15 @@ result<sampler> sampler::make(config cfg) {
     }
 
     std::array<adc_digi_pattern_config_t, SOC_ADC_PATT_LEN_MAX> pattern{};
-    for (size_t i = 0; i < s->channels.size(); ++i) {
+    for (size_t i = 0; i < channels.size(); ++i) {
         pattern[i].atten = to_idf(s->cfg.attenuation);
-        pattern[i].channel = s->channels[i];
+        pattern[i].channel = channels[i];
         pattern[i].unit = ADC_UNIT_1;
         pattern[i].bit_width = SOC_ADC_DIGI_MAX_BITWIDTH;
     }
 
     adc_continuous_config_t dig_cfg{};
-    dig_cfg.pattern_num = s->channels.size();
+    dig_cfg.pattern_num = channels.size();
     dig_cfg.adc_pattern = pattern.data();
     dig_cfg.sample_freq_hz = static_cast<uint32_t>(s->cfg.sample_rate.count());
     dig_cfg.conv_mode = ADC_CONV_SINGLE_UNIT_1;
@@ -288,16 +298,15 @@ result<sampler> sampler::make(config cfg) {
     [[maybe_unused]] const auto atten = to_idf(s->cfg.attenuation);
     [[maybe_unused]] const auto bitwidth = static_cast<adc_bitwidth_t>(SOC_ADC_DIGI_MAX_BITWIDTH);
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
-    // Curve fitting calibrates per channel: one handle each.
-    for (auto channel : s->channels) {
-        s->chan_cali[channel] = create_calibration(ADC_UNIT_1, channel, atten, bitwidth);
+    // Curve fitting calibrates per channel: one handle per pin.
+    for (auto channel : channels) {
+        s->calis.push_back(create_calibration(ADC_UNIT_1, channel, atten, bitwidth));
     }
 #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    // Line fitting calibrates per unit: create one handle and alias it across channels.
-    adc_cali_handle_t cali = create_calibration(ADC_UNIT_1, s->channels.front(), atten, bitwidth);
-    for (auto channel : s->channels) {
-        s->chan_cali[channel] = cali;
-    }
+    // Line fitting calibrates per unit: create one handle and alias it across pins.
+    s->calis.assign(channels.size(), create_calibration(ADC_UNIT_1, channels.front(), atten, bitwidth));
+#else
+    s->calis.assign(channels.size(), nullptr);
 #endif
 
     return sampler{std::move(s)};
@@ -311,6 +320,10 @@ std::span<const idfxx::gpio> sampler::pins() const noexcept {
     return _state ? std::span<const idfxx::gpio>{_state->cfg.pins} : std::span<const idfxx::gpio>{};
 }
 
+enum attenuation sampler::attenuation() const noexcept {
+    return _state ? _state->cfg.attenuation : attenuation::db_12;
+}
+
 freq::hertz sampler::sample_rate() const noexcept {
     return _state ? _state->cfg.sample_rate : freq::hertz{0};
 }
@@ -320,7 +333,7 @@ bool sampler::running() const noexcept {
 }
 
 bool sampler::calibrated() const noexcept {
-    return _state && std::ranges::all_of(_state->channels, [this](auto channel) { return _state->chan_cali[channel]; });
+    return _state && std::ranges::all_of(_state->calis, [](auto cali) { return cali != nullptr; });
 }
 
 size_t sampler::overruns() const noexcept {
@@ -353,7 +366,7 @@ result<void> sampler::try_stop() {
     return {};
 }
 
-result<size_t> sampler::_try_read(std::span<sample> out, uint32_t timeout_ms) {
+result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout) {
     if (!_state || !_state->running) {
         return error(errc::invalid_state);
     }
@@ -361,14 +374,25 @@ result<size_t> sampler::_try_read(std::span<sample> out, uint32_t timeout_ms) {
         return error(errc::invalid_arg);
     }
 
-    const bool forever = timeout_ms == ADC_MAX_DELAY;
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{timeout_ms};
+    // The deadline only serves the retry loop below; skip the clock read on the
+    // wait-forever path (the common no-timeout read).
+    std::chrono::steady_clock::time_point deadline{};
+    if (timeout) {
+        deadline = std::chrono::steady_clock::now() + *timeout;
+    }
     const size_t want_bytes = std::min(out.size() * SOC_ADC_DIGI_RESULT_BYTES, _state->staging.size());
+
+    // Clamps a millisecond count to the driver-wait range, reserving
+    // ADC_MAX_DELAY for "wait forever".
+    const auto clamp_ms = [](int64_t ms) {
+        constexpr int64_t max_ms = ADC_MAX_DELAY - 1;
+        return static_cast<uint32_t>(ms < 0 ? 0 : (ms > max_ms ? max_ms : ms));
+    };
 
     // A driver read can return only arbiter garbage (entries for channels we never
     // configured), so loop against the deadline until at least one valid sample lands.
     size_t count = 0;
-    uint32_t remaining_ms = timeout_ms;
+    uint32_t remaining_ms = timeout ? clamp_ms(timeout->count()) : ADC_MAX_DELAY;
     while (count == 0) {
         uint32_t out_len = 0;
         esp_err_t err = adc_continuous_read(_state->handle, _state->staging.data(), want_bytes, &out_len, remaining_ms);
@@ -402,13 +426,12 @@ result<size_t> sampler::_try_read(std::span<sample> out, uint32_t timeout_ms) {
             out[count++] = {.pin = pin, .raw = raw};
         }
 
-        if (count == 0 && !forever) {
+        if (count == 0 && timeout) {
             auto now = std::chrono::steady_clock::now();
             if (now >= deadline) {
                 return error(errc::timeout);
             }
-            auto left = std::chrono::ceil<std::chrono::milliseconds>(deadline - now).count();
-            remaining_ms = left > ADC_MAX_DELAY - 1 ? ADC_MAX_DELAY - 1 : static_cast<uint32_t>(left);
+            remaining_ms = clamp_ms(std::chrono::ceil<std::chrono::milliseconds>(deadline - now).count());
         }
     }
     return count;
@@ -422,6 +445,13 @@ result<electro::millivolts> sampler::try_to_voltage(const sample& s) const {
     return mv;
 }
 
+result<electro::millivolts> sampler::try_to_voltage(int raw) const {
+    if (!_state || _state->cfg.pins.size() != 1) {
+        return error(errc::invalid_state);
+    }
+    return try_to_voltage(sample{.pin = _state->cfg.pins.front(), .raw = raw});
+}
+
 result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<electro::millivolts> out) const {
     if (!_state) {
         return error(errc::invalid_state);
@@ -430,8 +460,10 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<elect
         return error(errc::invalid_arg);
     }
 
-    // Samples arrive in pin-runs (a single pin, or round-robin), so cache the last pin's handle
-    // and re-resolve only when the pin changes.
+    // Resolve each sample's calibration handle by its pin, caching the last
+    // resolution: samples from a single-pin sampler are all one run, so the
+    // cache hits; alternating multi-pin data falls back to a search over the
+    // (small, ≤ SOC_ADC_PATT_LEN_MAX) pin list per sample.
     idfxx::gpio cached_pin = gpio::nc();
     adc_cali_handle_t cached_cali = nullptr;
     for (size_t i = 0; i < in.size(); ++i) {
@@ -440,7 +472,7 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<elect
             if (it == _state->cfg.pins.end()) {
                 return error(errc::invalid_arg);
             }
-            cached_cali = _state->chan_cali[_state->channels[static_cast<size_t>(it - _state->cfg.pins.begin())]];
+            cached_cali = _state->calis[static_cast<size_t>(it - _state->cfg.pins.begin())];
             cached_pin = in[i].pin;
         }
         if (!cached_cali) {
@@ -455,7 +487,8 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<elect
     return {};
 }
 
-result<size_t> sampler::_read_voltage(std::span<electro::millivolts> out, uint32_t timeout_ms) {
+result<size_t>
+sampler::_read_voltage(std::span<electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -464,7 +497,7 @@ result<size_t> sampler::_read_voltage(std::span<electro::millivolts> out, uint32
     }
     std::span<sample> scratch{_state->read_scratch.data(), out.size()};
 
-    auto n = _try_read(scratch, timeout_ms);
+    auto n = _try_read(scratch, timeout);
     if (!n) {
         return error(n.error());
     }
