@@ -681,11 +681,11 @@ result<fade_param> output::try_read_fade_param(uint32_t range) const {
     };
 }
 
-result<std::vector<fade_param>> output::try_fill_multi_fade_params(
+result<std::vector<fade_param>> output::_try_fill_multi_fade_params(
     uint32_t start_duty,
     uint32_t end_duty,
     uint32_t linear_phases,
-    uint32_t max_fade_time_ms,
+    std::chrono::milliseconds max_fade_time,
     uint32_t (*gamma_correction)(uint32_t)
 ) {
     if (!_gen) {
@@ -700,7 +700,7 @@ result<std::vector<fade_param>> output::try_fill_multi_fade_params(
         start_duty,
         end_duty,
         linear_phases,
-        max_fade_time_ms,
+        static_cast<uint32_t>(max_fade_time.count()),
         gamma_correction,
         params.size(),
         params.data(),

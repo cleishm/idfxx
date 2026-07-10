@@ -1141,7 +1141,7 @@ public:
      * @param start_duty Starting duty (non-gamma-corrected) [0, 2^duty_resolution].
      * @param end_duty Ending duty (non-gamma-corrected) [0, 2^duty_resolution].
      * @param linear_phases Number of linear segments (1 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX).
-     * @param max_fade_time_ms Maximum fade duration in milliseconds.
+     * @param max_fade_time Maximum fade duration (rounded up to whole milliseconds).
      * @param gamma_correction Gamma correction function mapping duty to corrected duty.
      *
      * @return Vector of fade parameters.
@@ -1149,16 +1149,15 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
+    template<typename Rep, typename Period>
     [[nodiscard]] std::vector<fade_param> fill_multi_fade_params(
         uint32_t start_duty,
         uint32_t end_duty,
         uint32_t linear_phases,
-        uint32_t max_fade_time_ms,
+        const std::chrono::duration<Rep, Period>& max_fade_time,
         uint32_t (*gamma_correction)(uint32_t)
     ) {
-        return unwrap(
-            try_fill_multi_fade_params(start_duty, end_duty, linear_phases, max_fade_time_ms, gamma_correction)
-        );
+        return unwrap(try_fill_multi_fade_params(start_duty, end_duty, linear_phases, max_fade_time, gamma_correction));
     }
 #endif
 
@@ -1172,18 +1171,27 @@ public:
      * @param start_duty Starting duty (non-gamma-corrected) [0, 2^duty_resolution].
      * @param end_duty Ending duty (non-gamma-corrected) [0, 2^duty_resolution].
      * @param linear_phases Number of linear segments (1 to SOC_LEDC_GAMMA_CURVE_FADE_RANGE_MAX).
-     * @param max_fade_time_ms Maximum fade duration in milliseconds.
+     * @param max_fade_time Maximum fade duration (rounded up to whole milliseconds).
      * @param gamma_correction Gamma correction function mapping duty to corrected duty.
      *
      * @return Vector of fade parameters, or an error.
      */
+    template<typename Rep, typename Period>
     [[nodiscard]] result<std::vector<fade_param>> try_fill_multi_fade_params(
         uint32_t start_duty,
         uint32_t end_duty,
         uint32_t linear_phases,
-        uint32_t max_fade_time_ms,
+        const std::chrono::duration<Rep, Period>& max_fade_time,
         uint32_t (*gamma_correction)(uint32_t)
-    );
+    ) {
+        return _try_fill_multi_fade_params(
+            start_duty,
+            end_duty,
+            linear_phases,
+            std::chrono::ceil<std::chrono::milliseconds>(max_fade_time),
+            gamma_correction
+        );
+    }
 #endif // SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1331,6 +1339,16 @@ private:
 
     [[nodiscard]] result<void>
     _try_fade_to_duty(uint32_t target_duty, std::chrono::milliseconds duration, enum fade_mode mode);
+
+#if SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
+    [[nodiscard]] result<std::vector<fade_param>> _try_fill_multi_fade_params(
+        uint32_t start_duty,
+        uint32_t end_duty,
+        uint32_t linear_phases,
+        std::chrono::milliseconds max_fade_time,
+        uint32_t (*gamma_correction)(uint32_t)
+    );
+#endif
 
     void _delete() noexcept;
 
