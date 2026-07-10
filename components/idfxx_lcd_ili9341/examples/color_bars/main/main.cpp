@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <idfxx/gpio>
+#include <idfxx/lcd/color>
 #include <idfxx/lcd/ili9341>
 #include <idfxx/lcd/panel_io>
 #include <idfxx/log>
@@ -10,7 +11,6 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cstdint>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -30,11 +30,7 @@ static constexpr size_t DISPLAY_W = 240;
 static constexpr size_t DISPLAY_H = 320;
 static constexpr size_t BAND_H = 40;
 
-// RGB565 packed and byte-swapped for big-endian panel data.
-static constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
-    uint16_t v = static_cast<uint16_t>(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
-    return static_cast<uint16_t>((v >> 8) | (v << 8));
-}
+using idfxx::lcd::rgb565;
 
 extern "C" void app_main() {
     try {
@@ -47,7 +43,7 @@ extern "C" void app_main() {
         idfxx::spi::bus_config bus_cfg{};
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
-        bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(uint16_t);
+        bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(rgb565);
         idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
 
         // --- Panel I/O ---
@@ -78,7 +74,7 @@ extern "C" void app_main() {
         logger.info("Display initialized ({}x{})", DISPLAY_W, DISPLAY_H);
 
         // --- Draw rainbow bands ---
-        constexpr std::array<uint16_t, DISPLAY_H / BAND_H> colors = {
+        constexpr std::array<rgb565, DISPLAY_H / BAND_H> colors = {
             rgb565(255, 0, 0),     // red
             rgb565(255, 127, 0),   // orange
             rgb565(255, 255, 0),   // yellow
@@ -89,7 +85,7 @@ extern "C" void app_main() {
             rgb565(255, 255, 255), // white
         };
 
-        std::vector<uint16_t> band(DISPLAY_W * BAND_H);
+        std::vector<rgb565> band(DISPLAY_W * BAND_H);
 
         for (size_t i = 0; i < colors.size(); ++i) {
             std::ranges::fill(band, colors[i]);
