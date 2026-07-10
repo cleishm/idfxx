@@ -1,0 +1,21 @@
+version: "1.0.0"
+description: "Abstract radio transceiver interface and LoRa types"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_radio"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_event:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_event
+  cleishm/electro:
+    version: "^0.3.0"
+    public: true
+  cleishm/frequency:
+    version: "^1.1.1"
+    public: true
