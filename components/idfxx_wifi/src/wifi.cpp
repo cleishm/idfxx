@@ -3,12 +3,16 @@
 
 #include <idfxx/wifi>
 
+#include <condition_variable>
 #include <cstring>
 #include <esp_idf_version.h>
 #include <esp_log.h>
 #include <esp_netif.h>
 #include <esp_wifi.h>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -23,11 +27,45 @@ namespace idfxx::wifi {
 // Internal helpers
 // =============================================================================
 
+static result<void> check(esp_err_t err, const char* what) {
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "%s: %s", what, esp_err_to_name(err));
+        return wifi_error(err);
+    }
+    return {};
+}
+
+// Trampolines bridging ESP-IDF callback signatures to the typed callbacks.
+// ESP-IDF holds a single global registration for each, so a single stored
+// user callback matches the underlying semantics.
+static promiscuous_rx_cb s_promiscuous_cb = nullptr;
+static void promiscuous_trampoline(void* buf, wifi_promiscuous_pkt_type_t type) {
+    s_promiscuous_cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
+}
+
+static vendor_ie_cb s_vendor_ie_cb = nullptr;
+static void vendor_ie_trampoline(
+    void* ctx,
+    wifi_vendor_ie_type_t type,
+    const uint8_t sa[6],
+    const vendor_ie_data_t* vnd_ie,
+    int rssi
+) {
+    mac_address mac;
+    std::memcpy(mac.data(), sa, 6);
+    s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, electro::dbm{rssi});
+}
+
+static csi_rx_cb s_csi_cb = nullptr;
+static void csi_trampoline(void* ctx, wifi_csi_info_t* info) {
+    s_csi_cb(ctx, info);
+}
+
 static ap_record from_idf_record(const wifi_ap_record_t& r) {
     ap_record record;
     std::memcpy(record.bssid.data(), r.bssid, 6);
     record.ssid = std::string(reinterpret_cast<const char*>(r.ssid));
-    record.rssi = r.rssi;
+    record.rssi = electro::dbm{r.rssi};
     record.primary_channel = r.primary;
     record.second =
         r.second == WIFI_SECOND_CHAN_NONE ? std::nullopt : std::optional(static_cast<second_channel>(r.second));
@@ -46,7 +84,7 @@ static ap_record from_idf_record(const wifi_ap_record_t& r) {
     record.ftm_initiator = r.ftm_initiator;
     record.country.start_channel = r.country.schan;
     record.country.num_channels = r.country.nchan;
-    record.country.max_tx_power = r.country.max_tx_power;
+    record.country.max_tx_power = electro::dbm{r.country.max_tx_power};
     record.country.policy = static_cast<country_policy>(r.country.policy);
     std::memcpy(record.country.cc.data(), r.country.cc, 3);
 #if SOC_WIFI_SUPPORT_5G
@@ -79,7 +117,7 @@ static country_config from_idf_country(const wifi_country_t& c) {
     std::memcpy(cfg.cc.data(), c.cc, 3);
     cfg.start_channel = c.schan;
     cfg.num_channels = c.nchan;
-    cfg.max_tx_power = c.max_tx_power;
+    cfg.max_tx_power = electro::dbm{c.max_tx_power};
     cfg.policy = static_cast<country_policy>(c.policy);
 #if SOC_WIFI_SUPPORT_5G
     cfg.channels_5g = flags<channel_5g>(c.wifi_5g_channel_mask);
@@ -92,7 +130,7 @@ static wifi_country_t to_idf_country(const country_config& cfg) {
     std::memcpy(c.cc, cfg.cc.data(), 3);
     c.schan = cfg.start_channel;
     c.nchan = cfg.num_channels;
-    c.max_tx_power = cfg.max_tx_power;
+    c.max_tx_power = static_cast<int8_t>(cfg.max_tx_power.count());
     c.policy = static_cast<wifi_country_policy_t>(cfg.policy);
 #if SOC_WIFI_SUPPORT_5G
     c.wifi_5g_channel_mask = to_underlying(cfg.channels_5g);
@@ -103,7 +141,7 @@ static wifi_country_t to_idf_country(const country_config& cfg) {
 static sta_info from_idf_sta_info(const wifi_sta_info_t& s) {
     sta_info info;
     std::memcpy(info.mac.data(), s.mac, 6);
-    info.rssi = s.rssi;
+    info.rssi = electro::dbm{s.rssi};
     info.phy_11b = s.phy_11b;
     info.phy_11g = s.phy_11g;
     info.phy_11n = s.phy_11n;
@@ -225,7 +263,7 @@ static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
     cfg.scan_method = static_cast<enum scan_method>(s.scan_method);
     cfg.sort_method = static_cast<enum sort_method>(s.sort_method);
     cfg.auth_threshold = static_cast<auth_mode>(s.threshold.authmode);
-    cfg.rssi_threshold = s.threshold.rssi;
+    cfg.rssi_threshold = electro::dbm{s.threshold.rssi};
     cfg.pmf.capable = s.pmf_cfg.capable;
     cfg.pmf.required = s.pmf_cfg.required;
     cfg.listen_interval = s.listen_interval;
@@ -324,27 +362,27 @@ result<void> try_init(const init_config& cfg) {
 
     auto r = apply_uint(init_cfg.static_rx_buf_num, cfg.static_rx_buf_num);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
     r = apply_uint(init_cfg.dynamic_rx_buf_num, cfg.dynamic_rx_buf_num);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
     r = apply_uint(init_cfg.static_tx_buf_num, cfg.static_tx_buf_num);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
     r = apply_uint(init_cfg.dynamic_tx_buf_num, cfg.dynamic_tx_buf_num);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
     r = apply_uint(init_cfg.cache_tx_buf_num, cfg.cache_tx_buf_num);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
     r = apply_uint(init_cfg.rx_ba_win, cfg.rx_ba_win);
     if (!r) {
-        return std::unexpected(r.error());
+        return error(r.error());
     }
 
     if (cfg.ampdu_rx_enable) {
@@ -371,39 +409,19 @@ result<void> try_init(const init_config& cfg) {
 }
 
 result<void> try_deinit() {
-    auto err = esp_wifi_deinit();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to deinitialize WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_deinit(), "Failed to deinitialize WiFi");
 }
 
 result<void> try_start() {
-    auto err = esp_wifi_start();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to start WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_start(), "Failed to start WiFi");
 }
 
 result<void> try_stop() {
-    auto err = esp_wifi_stop();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to stop WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_stop(), "Failed to stop WiFi");
 }
 
 result<void> try_restore() {
-    auto err = esp_wifi_restore();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to restore WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_restore(), "Failed to restore WiFi");
 }
 
 // =============================================================================
@@ -411,12 +429,7 @@ result<void> try_restore() {
 // =============================================================================
 
 result<void> try_set_roles(flags<role> roles) {
-    auto err = esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set WiFi roles: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set WiFi roles");
 }
 
 result<flags<role>> try_get_roles() {
@@ -470,7 +483,7 @@ result<void> try_set_sta_config(const sta_config& cfg) {
     wifi_cfg.sta.scan_method = static_cast<wifi_scan_method_t>(cfg.scan_method);
     wifi_cfg.sta.sort_method = static_cast<wifi_sort_method_t>(cfg.sort_method);
     wifi_cfg.sta.threshold.authmode = static_cast<wifi_auth_mode_t>(cfg.auth_threshold);
-    wifi_cfg.sta.threshold.rssi = cfg.rssi_threshold;
+    wifi_cfg.sta.threshold.rssi = static_cast<int8_t>(cfg.rssi_threshold.count());
     wifi_cfg.sta.pmf_cfg.capable = cfg.pmf.capable;
     wifi_cfg.sta.pmf_cfg.required = cfg.pmf.required;
     wifi_cfg.sta.listen_interval = cfg.listen_interval;
@@ -540,12 +553,7 @@ result<ap_config> try_get_ap_config() {
 }
 
 result<void> try_deauth_sta(uint16_t aid) {
-    auto err = esp_wifi_deauth_sta(aid);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to deauth station: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_deauth_sta(aid), "Failed to deauth station");
 }
 
 result<std::vector<sta_info>> try_get_sta_list() {
@@ -579,30 +587,80 @@ result<uint16_t> try_ap_get_sta_aid(mac_address mac) {
 // =============================================================================
 
 result<void> try_connect() {
-    auto err = esp_wifi_connect();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to connect WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
+    return check(esp_wifi_connect(), "Failed to connect WiFi");
+}
+
+result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
+    auto roles = try_get_roles();
+    if (!roles) {
+        return error(roles.error());
     }
-    return {};
+    if (auto r = try_set_roles(*roles | role::sta); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_set_sta_config(cfg); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_start(); !r) {
+        return error(r.error());
+    }
+
+    struct waiter {
+        std::mutex mutex;
+        std::condition_variable cv;
+        std::optional<net::ipv4_info> ip;
+        bool disconnected = false;
+    };
+    auto w = std::make_shared<waiter>();
+
+    auto& loop = event_loop::system();
+    auto got_ip = loop.try_listener_add(netif::sta_got_ip4, [w](const netif::ip4_event_data& data) {
+        {
+            std::lock_guard lock(w->mutex);
+            w->ip = data.ip4;
+        }
+        w->cv.notify_all();
+    });
+    if (!got_ip) {
+        return error(got_ip.error());
+    }
+    event_loop::unique_listener_handle got_ip_guard{*got_ip};
+
+    auto disconnect_listener = loop.try_listener_add(sta_disconnected, [w](const disconnected_event_data&) {
+        {
+            std::lock_guard lock(w->mutex);
+            w->disconnected = true;
+        }
+        w->cv.notify_all();
+    });
+    if (!disconnect_listener) {
+        return error(disconnect_listener.error());
+    }
+    event_loop::unique_listener_handle disconnect_guard{*disconnect_listener};
+
+    if (auto r = try_connect(); !r) {
+        return error(r.error());
+    }
+
+    std::unique_lock lock(w->mutex);
+    w->cv.wait_for(lock, timeout, [&] { return w->ip.has_value() || w->disconnected; });
+    if (w->ip) {
+        return *w->ip;
+    }
+    if (w->disconnected) {
+        ESP_LOGD(TAG, "Station disconnected while waiting for an address");
+        return wifi_error(ESP_ERR_WIFI_CONN);
+    }
+    ESP_LOGD(TAG, "Timed out waiting for an address");
+    return wifi_error(ESP_ERR_WIFI_TIMEOUT);
 }
 
 result<void> try_disconnect() {
-    auto err = esp_wifi_disconnect();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to disconnect WiFi: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_disconnect(), "Failed to disconnect WiFi");
 }
 
 result<void> try_clear_fast_connect() {
-    auto err = esp_wifi_clear_fast_connect();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to clear fast connect: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_clear_fast_connect(), "Failed to clear fast connect");
 }
 
 result<uint16_t> try_sta_get_aid() {
@@ -641,12 +699,7 @@ result<std::vector<ap_record>> try_scan(const scan_config& cfg) {
 
 result<void> try_scan_start(const scan_config& cfg) {
     auto idf_cfg = to_idf_scan_config(cfg);
-    auto err = esp_wifi_scan_start(&idf_cfg, false /* non-blocking */);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to start async scan: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_scan_start(&idf_cfg, false /* non-blocking */), "Failed to start async scan");
 }
 
 result<std::vector<ap_record>> try_scan_get_results() {
@@ -654,12 +707,7 @@ result<std::vector<ap_record>> try_scan_get_results() {
 }
 
 result<void> try_scan_stop() {
-    auto err = esp_wifi_scan_stop();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to stop scan: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_scan_stop(), "Failed to stop scan");
 }
 
 result<uint16_t> try_scan_get_ap_num() {
@@ -673,26 +721,21 @@ result<uint16_t> try_scan_get_ap_num() {
 }
 
 result<void> try_clear_ap_list() {
-    auto err = esp_wifi_clear_ap_list();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to clear AP list: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_clear_ap_list(), "Failed to clear AP list");
 }
 
 result<void> try_set_scan_parameters(const scan_default_params& params) {
     wifi_scan_default_params_t idf_params{};
-    idf_params.scan_time.active.min = params.active_scan_min_ms;
-    idf_params.scan_time.active.max = params.active_scan_max_ms;
-    idf_params.scan_time.passive = params.passive_scan_ms;
-    idf_params.home_chan_dwell_time = params.home_chan_dwell_time_ms;
-    auto err = esp_wifi_set_scan_parameters(&idf_params);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set scan parameters: %s", esp_err_to_name(err));
-        return wifi_error(err);
+    if (params.active_scan_min.count() < 0 || params.active_scan_max.count() < 0 || params.passive_scan.count() < 0 ||
+        params.home_chan_dwell_time.count() < 0 ||
+        params.home_chan_dwell_time.count() > std::numeric_limits<uint8_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
     }
-    return {};
+    idf_params.scan_time.active.min = static_cast<uint32_t>(params.active_scan_min.count());
+    idf_params.scan_time.active.max = static_cast<uint32_t>(params.active_scan_max.count());
+    idf_params.scan_time.passive = static_cast<uint32_t>(params.passive_scan.count());
+    idf_params.home_chan_dwell_time = static_cast<uint8_t>(params.home_chan_dwell_time.count());
+    return check(esp_wifi_set_scan_parameters(&idf_params), "Failed to set scan parameters");
 }
 
 result<scan_default_params> try_get_scan_parameters() {
@@ -703,10 +746,10 @@ result<scan_default_params> try_get_scan_parameters() {
         return wifi_error(err);
     }
     scan_default_params params;
-    params.active_scan_min_ms = idf_params.scan_time.active.min;
-    params.active_scan_max_ms = idf_params.scan_time.active.max;
-    params.passive_scan_ms = idf_params.scan_time.passive;
-    params.home_chan_dwell_time_ms = idf_params.home_chan_dwell_time;
+    params.active_scan_min = std::chrono::milliseconds{idf_params.scan_time.active.min};
+    params.active_scan_max = std::chrono::milliseconds{idf_params.scan_time.active.max};
+    params.passive_scan = std::chrono::milliseconds{idf_params.scan_time.passive};
+    params.home_chan_dwell_time = std::chrono::milliseconds{idf_params.home_chan_dwell_time};
     return params;
 }
 
@@ -715,12 +758,7 @@ result<scan_default_params> try_get_scan_parameters() {
 // =============================================================================
 
 result<void> try_set_power_save(enum power_save ps) {
-    auto err = esp_wifi_set_ps(static_cast<wifi_ps_type_t>(ps));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set power save mode: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_ps(static_cast<wifi_ps_type_t>(ps)), "Failed to set power save mode");
 }
 
 result<enum power_save> try_get_power_save() {
@@ -738,12 +776,9 @@ result<enum power_save> try_get_power_save() {
 // =============================================================================
 
 result<void> try_set_bandwidth(enum role iface, enum bandwidth bw) {
-    auto err = esp_wifi_set_bandwidth(to_wifi_if(iface), static_cast<wifi_bandwidth_t>(bw));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set bandwidth: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(
+        esp_wifi_set_bandwidth(to_wifi_if(iface), static_cast<wifi_bandwidth_t>(bw)), "Failed to set bandwidth"
+    );
 }
 
 result<enum bandwidth> try_get_bandwidth(enum role iface) {
@@ -760,12 +795,7 @@ result<void> try_set_bandwidths(enum role iface, const bandwidths_config& bw) {
     wifi_bandwidths_t idf_bw{};
     idf_bw.ghz_2g = static_cast<wifi_bandwidth_t>(bw.ghz_2g);
     idf_bw.ghz_5g = static_cast<wifi_bandwidth_t>(bw.ghz_5g);
-    auto err = esp_wifi_set_bandwidths(to_wifi_if(iface), &idf_bw);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set bandwidths: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_bandwidths(to_wifi_if(iface), &idf_bw), "Failed to set bandwidths");
 }
 
 result<bandwidths_config> try_get_bandwidths(enum role iface) {
@@ -786,12 +816,7 @@ result<bandwidths_config> try_get_bandwidths(enum role iface) {
 // =============================================================================
 
 result<void> try_set_mac(enum role iface, mac_address mac) {
-    auto err = esp_wifi_set_mac(to_wifi_if(iface), mac.data());
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set MAC address: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_mac(to_wifi_if(iface), mac.data()), "Failed to set MAC address");
 }
 
 result<mac_address> try_get_mac(enum role iface) {
@@ -824,12 +849,7 @@ result<ap_record> try_get_ap_info() {
 
 result<void> try_set_channel(uint8_t primary, std::optional<enum second_channel> second) {
     auto sc = second ? static_cast<wifi_second_chan_t>(*second) : WIFI_SECOND_CHAN_NONE;
-    auto err = esp_wifi_set_channel(primary, sc);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set channel: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_channel(primary, sc), "Failed to set channel");
 }
 
 result<channel_info> try_get_channel() {
@@ -852,12 +872,7 @@ result<channel_info> try_get_channel() {
 
 result<void> try_set_country(const country_config& cfg) {
     auto c = to_idf_country(cfg);
-    auto err = esp_wifi_set_country(&c);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set country: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_country(&c), "Failed to set country");
 }
 
 result<country_config> try_get_country() {
@@ -871,12 +886,7 @@ result<country_config> try_get_country() {
 }
 
 result<void> try_set_country_code(std::string_view cc, bool ieee80211d_enabled) {
-    auto err = esp_wifi_set_country_code(cc.data(), ieee80211d_enabled);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set country code: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_country_code(cc.data(), ieee80211d_enabled), "Failed to set country code");
 }
 
 result<std::string> try_get_country_code() {
@@ -893,46 +903,42 @@ result<std::string> try_get_country_code() {
 // TX power
 // =============================================================================
 
-result<void> try_set_max_tx_power(int8_t power) {
-    auto err = esp_wifi_set_max_tx_power(power);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set max TX power: %s", esp_err_to_name(err));
-        return wifi_error(err);
+result<void> try_set_max_tx_power(electro::centi_dbm power) {
+    // The hardware unit is 0.25 dBm (25 centi-dBm); round to the nearest step.
+    const int64_t cdbm = power.count();
+    const int64_t quarter_dbm = (cdbm >= 0 ? cdbm + 12 : cdbm - 12) / 25;
+    if (quarter_dbm < std::numeric_limits<int8_t>::min() || quarter_dbm > std::numeric_limits<int8_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
     }
-    return {};
+    return check(esp_wifi_set_max_tx_power(static_cast<int8_t>(quarter_dbm)), "Failed to set max TX power");
 }
 
-result<int8_t> try_get_max_tx_power() {
+result<electro::centi_dbm> try_get_max_tx_power() {
     int8_t power = 0;
     auto err = esp_wifi_get_max_tx_power(&power);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to get max TX power: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    return power;
+    return electro::centi_dbm(static_cast<int64_t>(power) * 25);
 }
 
 // =============================================================================
 // RSSI
 // =============================================================================
 
-result<void> try_set_rssi_threshold(int32_t rssi) {
-    auto err = esp_wifi_set_rssi_threshold(rssi);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set RSSI threshold: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+result<void> try_set_rssi_threshold(electro::dbm threshold) {
+    return check(esp_wifi_set_rssi_threshold(static_cast<int32_t>(threshold.count())), "Failed to set RSSI threshold");
 }
 
-result<int> try_get_rssi() {
+result<electro::dbm> try_get_rssi() {
     int rssi = 0;
     auto err = esp_wifi_sta_get_rssi(&rssi);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to get RSSI: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    return rssi;
+    return electro::dbm{rssi};
 }
 
 // =============================================================================
@@ -940,12 +946,7 @@ result<int> try_get_rssi() {
 // =============================================================================
 
 result<void> try_set_protocol(enum role iface, flags<protocol> protos) {
-    auto err = esp_wifi_set_protocol(to_wifi_if(iface), protos.bits);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set protocol: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_protocol(to_wifi_if(iface), protos.bits), "Failed to set protocol");
 }
 
 result<flags<protocol>> try_get_protocol(enum role iface) {
@@ -962,12 +963,7 @@ result<void> try_set_protocols(enum role iface, const protocols_config& cfg) {
     wifi_protocols_t idf_protos{};
     idf_protos.ghz_2g = cfg.ghz_2g.bits;
     idf_protos.ghz_5g = cfg.ghz_5g.bits;
-    auto err = esp_wifi_set_protocols(to_wifi_if(iface), &idf_protos);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set protocols: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_protocols(to_wifi_if(iface), &idf_protos), "Failed to set protocols");
 }
 
 result<protocols_config> try_get_protocols(enum role iface) {
@@ -988,12 +984,7 @@ result<protocols_config> try_get_protocols(enum role iface) {
 // =============================================================================
 
 result<void> try_set_band(enum band b) {
-    auto err = esp_wifi_set_band(static_cast<wifi_band_t>(b));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set band: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_band(static_cast<wifi_band_t>(b)), "Failed to set band");
 }
 
 result<enum band> try_get_band() {
@@ -1007,12 +998,7 @@ result<enum band> try_get_band() {
 }
 
 result<void> try_set_band_mode(enum band_mode m) {
-    auto err = esp_wifi_set_band_mode(static_cast<wifi_band_mode_t>(m));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set band mode: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_band_mode(static_cast<wifi_band_mode_t>(m)), "Failed to set band mode");
 }
 
 result<enum band_mode> try_get_band_mode() {
@@ -1030,35 +1016,31 @@ result<enum band_mode> try_get_band_mode() {
 // =============================================================================
 
 result<void> try_set_storage(enum storage s) {
-    auto err = esp_wifi_set_storage(static_cast<wifi_storage_t>(s));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set storage: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_storage(static_cast<wifi_storage_t>(s)), "Failed to set storage");
 }
 
 // =============================================================================
 // Inactive time
 // =============================================================================
 
-result<void> try_set_inactive_time(enum role iface, uint16_t sec) {
-    auto err = esp_wifi_set_inactive_time(to_wifi_if(iface), sec);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set inactive time: %s", esp_err_to_name(err));
-        return wifi_error(err);
+result<void> try_set_inactive_time(enum role iface, std::chrono::seconds timeout) {
+    if (timeout.count() < 0 || timeout.count() > std::numeric_limits<uint16_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
     }
-    return {};
+    return check(
+        esp_wifi_set_inactive_time(to_wifi_if(iface), static_cast<uint16_t>(timeout.count())),
+        "Failed to set inactive time"
+    );
 }
 
-result<uint16_t> try_get_inactive_time(enum role iface) {
+result<std::chrono::seconds> try_get_inactive_time(enum role iface) {
     uint16_t sec = 0;
     auto err = esp_wifi_get_inactive_time(to_wifi_if(iface), &sec);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to get inactive time: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    return sec;
+    return std::chrono::seconds{sec};
 }
 
 // =============================================================================
@@ -1066,12 +1048,7 @@ result<uint16_t> try_get_inactive_time(enum role iface) {
 // =============================================================================
 
 result<void> try_set_event_mask(flags<event_mask> mask) {
-    auto err = esp_wifi_set_event_mask(to_underlying(mask));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set event mask: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_event_mask(to_underlying(mask)), "Failed to set event mask");
 }
 
 result<flags<event_mask>> try_get_event_mask() {
@@ -1089,21 +1066,11 @@ result<flags<event_mask>> try_get_event_mask() {
 // =============================================================================
 
 result<void> try_force_wakeup_acquire() {
-    auto err = esp_wifi_force_wakeup_acquire();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to acquire force wakeup: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_force_wakeup_acquire(), "Failed to acquire force wakeup");
 }
 
 result<void> try_force_wakeup_release() {
-    auto err = esp_wifi_force_wakeup_release();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to release force wakeup: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_force_wakeup_release(), "Failed to release force wakeup");
 }
 
 // =============================================================================
@@ -1111,12 +1078,7 @@ result<void> try_force_wakeup_release() {
 // =============================================================================
 
 result<void> try_set_promiscuous(bool en) {
-    auto err = esp_wifi_set_promiscuous(en);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set promiscuous mode: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_promiscuous(en), "Failed to set promiscuous mode");
 }
 
 result<bool> try_get_promiscuous() {
@@ -1129,24 +1091,18 @@ result<bool> try_get_promiscuous() {
     return en;
 }
 
-result<void> try_set_promiscuous_rx_cb(void (*cb)(void*, int)) {
-    auto err = esp_wifi_set_promiscuous_rx_cb(reinterpret_cast<wifi_promiscuous_cb_t>(cb));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set promiscuous RX callback: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+result<void> try_set_promiscuous_rx_cb(promiscuous_rx_cb cb) {
+    s_promiscuous_cb = cb;
+    return check(
+        esp_wifi_set_promiscuous_rx_cb(cb != nullptr ? promiscuous_trampoline : nullptr),
+        "Failed to set promiscuous RX callback"
+    );
 }
 
 result<void> try_set_promiscuous_filter(flags<promiscuous_filter> filter) {
     wifi_promiscuous_filter_t f{};
     f.filter_mask = filter.bits;
-    auto err = esp_wifi_set_promiscuous_filter(&f);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set promiscuous filter: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_promiscuous_filter(&f), "Failed to set promiscuous filter");
 }
 
 result<flags<promiscuous_filter>> try_get_promiscuous_filter() {
@@ -1162,12 +1118,7 @@ result<flags<promiscuous_filter>> try_get_promiscuous_filter() {
 result<void> try_set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter) {
     wifi_promiscuous_filter_t f{};
     f.filter_mask = filter.bits;
-    auto err = esp_wifi_set_promiscuous_ctrl_filter(&f);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set promiscuous ctrl filter: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_promiscuous_ctrl_filter(&f), "Failed to set promiscuous ctrl filter");
 }
 
 result<flags<promiscuous_ctrl_filter>> try_get_promiscuous_ctrl_filter() {
@@ -1185,22 +1136,14 @@ result<flags<promiscuous_ctrl_filter>> try_get_promiscuous_ctrl_filter() {
 // =============================================================================
 
 result<void> try_tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq) {
-    auto err = esp_wifi_80211_tx(to_wifi_if(iface), buffer.data(), buffer.size(), en_sys_seq);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to transmit 802.11 frame: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(
+        esp_wifi_80211_tx(to_wifi_if(iface), buffer.data(), buffer.size(), en_sys_seq),
+        "Failed to transmit 802.11 frame"
+    );
 }
 
-result<void> try_register_80211_tx_cb(void (*cb)(const void*)) {
-    auto err = esp_wifi_config_80211_tx_rate(WIFI_IF_STA, static_cast<wifi_phy_rate_t>(0));
-    // This function registers a TX completion callback. The ESP-IDF may not provide
-    // a direct registration function in all versions. Use the available API.
-    (void)cb;
-    (void)err;
-    // Fallback: not all ESP-IDF versions support this. Return success as a no-op.
-    return {};
+result<void> try_register_80211_tx_cb(tx_80211_done_cb cb) {
+    return check(esp_wifi_register_80211_tx_cb(cb), "Failed to register 802.11 TX callback");
 }
 
 // =============================================================================
@@ -1208,23 +1151,20 @@ result<void> try_register_80211_tx_cb(void (*cb)(const void*)) {
 // =============================================================================
 
 result<void> try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
-    auto err = esp_wifi_set_vendor_ie(
-        enable, static_cast<wifi_vendor_ie_type_t>(type), static_cast<wifi_vendor_ie_id_t>(id), vnd_ie
+    return check(
+        esp_wifi_set_vendor_ie(
+            enable, static_cast<wifi_vendor_ie_type_t>(type), static_cast<wifi_vendor_ie_id_t>(id), vnd_ie
+        ),
+        "Failed to set vendor IE"
     );
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set vendor IE: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
 }
 
-result<void> try_set_vendor_ie_cb(void (*cb)(void*, int, const uint8_t*, const void*, int), void* ctx) {
-    auto err = esp_wifi_set_vendor_ie_cb(reinterpret_cast<esp_vendor_ie_cb_t>(cb), ctx);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set vendor IE callback: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+result<void> try_set_vendor_ie_cb(vendor_ie_cb cb, void* ctx) {
+    s_vendor_ie_cb = cb;
+    return check(
+        esp_wifi_set_vendor_ie_cb(cb != nullptr ? vendor_ie_trampoline : nullptr, ctx),
+        "Failed to set vendor IE callback"
+    );
 }
 
 // =============================================================================
@@ -1232,22 +1172,12 @@ result<void> try_set_vendor_ie_cb(void (*cb)(void*, int, const uint8_t*, const v
 // =============================================================================
 
 result<void> try_set_csi(bool en) {
-    auto err = esp_wifi_set_csi(en);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set CSI: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_csi(en), "Failed to set CSI");
 }
 
 result<void> try_set_csi_config(const csi_config& cfg) {
     auto c = to_idf_csi_config(cfg);
-    auto err = esp_wifi_set_csi_config(&c);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set CSI config: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_csi_config(&c), "Failed to set CSI config");
 }
 
 result<csi_config> try_get_csi_config() {
@@ -1260,13 +1190,11 @@ result<csi_config> try_get_csi_config() {
     return from_idf_csi_config(c);
 }
 
-result<void> try_set_csi_rx_cb(void (*cb)(void*, void*), void* ctx) {
-    auto err = esp_wifi_set_csi_rx_cb(reinterpret_cast<wifi_csi_cb_t>(cb), ctx);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set CSI RX callback: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+result<void> try_set_csi_rx_cb(csi_rx_cb cb, void* ctx) {
+    s_csi_cb = cb;
+    return check(
+        esp_wifi_set_csi_rx_cb(cb != nullptr ? csi_trampoline : nullptr, ctx), "Failed to set CSI RX callback"
+    );
 }
 
 // =============================================================================
@@ -1278,34 +1206,23 @@ result<void> try_ftm_initiate_session(const ftm_initiator_config& cfg) {
     std::memcpy(idf_cfg.resp_mac, cfg.resp_mac.data(), 6);
     idf_cfg.channel = cfg.channel;
     idf_cfg.frm_count = cfg.frame_count;
-    idf_cfg.burst_period = cfg.burst_period;
+    auto burst_units = (cfg.burst_period.count() + 99) / 100;
+    if (cfg.burst_period.count() < 0 || burst_units > std::numeric_limits<uint16_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
+    }
+    idf_cfg.burst_period = static_cast<uint16_t>(burst_units);
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
     idf_cfg.use_get_report_api = cfg.use_get_report_api;
 #endif
-    auto err = esp_wifi_ftm_initiate_session(&idf_cfg);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to initiate FTM session: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_ftm_initiate_session(&idf_cfg), "Failed to initiate FTM session");
 }
 
 result<void> try_ftm_end_session() {
-    auto err = esp_wifi_ftm_end_session();
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to end FTM session: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_ftm_end_session(), "Failed to end FTM session");
 }
 
 result<void> try_ftm_resp_set_offset(int16_t offset) {
-    auto err = esp_wifi_ftm_resp_set_offset(offset);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set FTM responder offset: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_ftm_resp_set_offset(offset), "Failed to set FTM responder offset");
 }
 
 result<std::vector<ftm_report_entry>> try_ftm_get_report(size_t max_entries) {
@@ -1322,7 +1239,7 @@ result<std::vector<ftm_report_entry>> try_ftm_get_report(size_t max_entries) {
     for (uint8_t i = 0; i < num_entries; ++i) {
         ftm_report_entry entry;
         entry.dlog_token = idf_entries[i].dlog_token;
-        entry.rssi = idf_entries[i].rssi;
+        entry.rssi = electro::dbm{idf_entries[i].rssi};
         entry.rtt = idf_entries[i].rtt;
         entry.t1 = idf_entries[i].t1;
         entry.t2 = idf_entries[i].t2;
@@ -1342,57 +1259,36 @@ int64_t get_tsf_time(enum role iface) {
 }
 
 result<void> try_statis_dump(flags<statis_module> modules) {
-    auto err = esp_wifi_statis_dump(idfxx::to_underlying(modules));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to dump statistics: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_statis_dump(idfxx::to_underlying(modules)), "Failed to dump statistics");
 }
 
 result<void> try_config_11b_rate(enum role iface, bool disable) {
-    auto err = esp_wifi_config_11b_rate(to_wifi_if(iface), disable);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to configure 11b rate: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_config_11b_rate(to_wifi_if(iface), disable), "Failed to configure 11b rate");
 }
 
 result<void> try_config_80211_tx_rate(enum role iface, enum phy_rate rate) {
-    auto err = esp_wifi_config_80211_tx_rate(to_wifi_if(iface), static_cast<wifi_phy_rate_t>(std::to_underlying(rate)));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to configure 802.11 TX rate: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(
+        esp_wifi_config_80211_tx_rate(to_wifi_if(iface), static_cast<wifi_phy_rate_t>(std::to_underlying(rate))),
+        "Failed to configure 802.11 TX rate"
+    );
 }
 
 result<void> try_disable_pmf_config(enum role iface) {
-    auto err = esp_wifi_disable_pmf_config(to_wifi_if(iface));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to disable PMF config: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_disable_pmf_config(to_wifi_if(iface)), "Failed to disable PMF config");
 }
 
 result<void> try_set_dynamic_cs(bool enabled) {
-    auto err = esp_wifi_set_dynamic_cs(enabled);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set dynamic CS: %s", esp_err_to_name(err));
-        return wifi_error(err);
-    }
-    return {};
+    return check(esp_wifi_set_dynamic_cs(enabled), "Failed to set dynamic CS");
 }
 
-result<void> try_connectionless_module_set_wake_interval(uint16_t interval) {
-    auto err = esp_wifi_connectionless_module_set_wake_interval(interval);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set connectionless module wake interval: %s", esp_err_to_name(err));
-        return wifi_error(err);
+result<void> try_connectionless_module_set_wake_interval(std::chrono::milliseconds interval) {
+    if (interval.count() < 0 || interval.count() > std::numeric_limits<uint16_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
     }
-    return {};
+    return check(
+        esp_wifi_connectionless_module_set_wake_interval(static_cast<uint16_t>(interval.count())),
+        "Failed to set connectionless module wake interval"
+    );
 }
 
 // =============================================================================
@@ -1400,16 +1296,16 @@ result<void> try_connectionless_module_set_wake_interval(uint16_t interval) {
 // =============================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-netif::interface create_default_sta_netif() {
-    return unwrap(try_create_default_sta_netif());
+netif::interface make_sta_netif() {
+    return unwrap(try_make_sta_netif());
 }
 
-netif::interface create_default_ap_netif() {
-    return unwrap(try_create_default_ap_netif());
+netif::interface make_ap_netif() {
+    return unwrap(try_make_ap_netif());
 }
 #endif
 
-result<netif::interface> try_create_default_sta_netif() {
+result<netif::interface> try_make_sta_netif() {
     auto* handle = esp_netif_create_default_wifi_sta();
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);
@@ -1417,7 +1313,7 @@ result<netif::interface> try_create_default_sta_netif() {
     return netif::interface::take(handle);
 }
 
-result<netif::interface> try_create_default_ap_netif() {
+result<netif::interface> try_make_ap_netif() {
     auto* handle = esp_netif_create_default_wifi_ap();
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);

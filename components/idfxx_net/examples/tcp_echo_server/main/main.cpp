@@ -75,7 +75,7 @@ namespace {
 idfxx::net::ipv4_addr connect_to_wifi() {
     idfxx::event_loop::create_system();
     idfxx::netif::init();
-    static auto sta_netif = idfxx::wifi::create_default_sta_netif();
+    static auto sta_netif = idfxx::wifi::make_sta_netif();
     static idfxx::event_group<sync_flag> network_ready;
     static idfxx::net::ipv4_addr my_ip{};
 

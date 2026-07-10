@@ -45,7 +45,7 @@ extern "C" void app_main() {
         // --- Prerequisites ---
         idfxx::event_loop::create_system();
         idfxx::netif::init();
-        auto sta_netif = idfxx::wifi::create_default_sta_netif();
+        auto sta_netif = idfxx::wifi::make_sta_netif();
 
         // --- Register event listeners ---
         auto& loop = idfxx::event_loop::system();
@@ -57,7 +57,9 @@ extern "C" void app_main() {
 
         loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            idfxx::wifi::try_connect();
+            if (auto r = idfxx::wifi::try_connect(); !r) {
+                logger.error("Reconnect failed: {}", r.error().message());
+            }
         });
 
         // --- Connect to WiFi ---

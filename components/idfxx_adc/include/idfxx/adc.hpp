@@ -36,8 +36,8 @@
 #include <cstdint>
 #include <electro/electro>
 #include <frequency/frequency>
-#include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -63,6 +63,24 @@ enum class attenuation : uint8_t {
 
 /**
  * @headerfile <idfxx/adc>
+ * @brief External voltage-divider ratio between a source and an ADC pin.
+ *
+ * Describes a resistive divider on the board: the source voltage is the pin
+ * voltage multiplied by `num / den`. The default 1:1 means the pin is
+ * connected directly to the source.
+ */
+struct divider_ratio {
+    int num = 1; ///< Ratio numerator (source = pin × num / den); must be positive.
+    int den = 1; ///< Ratio denominator; must be positive.
+
+    /**
+     * @brief Compares two divider ratios for equality.
+     */
+    [[nodiscard]] constexpr bool operator==(const divider_ratio&) const noexcept = default;
+};
+
+/**
+ * @headerfile <idfxx/adc>
  * @brief A one-shot analog input on a single pin.
  *
  * Claims the pin's ADC unit for the lifetime of the object. Move-only.
@@ -81,6 +99,15 @@ public:
     struct config {
         idfxx::gpio pin = gpio::nc();                      ///< ADC-capable GPIO (required).
         enum attenuation attenuation = attenuation::db_12; ///< Input range selection.
+        /// External voltage-divider ratio between the source and the pin.
+        /// @ref read_voltage scales by it to report the source voltage;
+        /// @ref read_raw is unaffected.
+        divider_ratio divider{};
+
+        /**
+         * @brief Compares two configurations for equality.
+         */
+        [[nodiscard]] constexpr bool operator==(const config&) const noexcept = default;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -107,7 +134,7 @@ public:
      * @param config Input configuration.
      * @return The input, or an error.
      * @retval idfxx::errc::invalid_arg The pin is not connected or not
-     *         ADC-capable.
+     *         ADC-capable, or the divider ratio is not positive.
      */
     [[nodiscard]] static result<input> make(config config);
 
@@ -120,6 +147,12 @@ public:
 
     /** @brief Returns the configured pin. */
     [[nodiscard]] idfxx::gpio pin() const noexcept;
+
+    /** @brief Returns the configured input-range attenuation. */
+    [[nodiscard]] enum attenuation attenuation() const noexcept;
+
+    /** @brief Returns the configured external voltage-divider ratio. */
+    [[nodiscard]] divider_ratio divider() const noexcept;
 
     /** @brief Returns true when factory calibration is active for this input. */
     [[nodiscard]] bool calibrated() const noexcept;
@@ -135,7 +168,11 @@ public:
 
     /**
      * @brief Reads the input voltage.
-     * @return The calibrated voltage at the pin.
+     *
+     * Returns the source voltage: the calibrated voltage at the pin, scaled
+     * by the configured @ref config::divider (1:1 by default).
+     *
+     * @return The calibrated, divider-scaled voltage.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including
      *         `idfxx::errc::not_supported` when the chip has no usable
@@ -152,7 +189,11 @@ public:
 
     /**
      * @brief Reads the input voltage.
-     * @return The calibrated voltage at the pin, or an error.
+     *
+     * Returns the source voltage: the calibrated voltage at the pin, scaled
+     * by the configured @ref config::divider (1:1 by default).
+     *
+     * @return The calibrated, divider-scaled voltage, or an error.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
      */
@@ -209,6 +250,11 @@ public:
         /// Internal pool capacity in samples (at least @ref frame_samples). Reads must
         /// drain the pool faster than it fills or data is dropped (see @ref overruns).
         size_t buffer_samples = 1024;
+
+        /**
+         * @brief Compares two configurations for equality.
+         */
+        [[nodiscard]] bool operator==(const config&) const noexcept = default;
     };
 
     /**
@@ -218,6 +264,11 @@ public:
     struct sample {
         idfxx::gpio pin = gpio::nc(); ///< The pin this conversion was taken from.
         int raw = 0;                  ///< Raw conversion value (chip bit-width dependent).
+
+        /**
+         * @brief Compares two conversion results for equality.
+         */
+        [[nodiscard]] constexpr bool operator==(const sample&) const noexcept = default;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -266,6 +317,9 @@ public:
 
     /** @brief Returns the configured pins in conversion order. */
     [[nodiscard]] std::span<const idfxx::gpio> pins() const noexcept;
+
+    /** @brief Returns the configured input-range attenuation (uniform across all pins). */
+    [[nodiscard]] enum attenuation attenuation() const noexcept;
 
     /** @brief Returns the configured total sample rate across all pins. */
     [[nodiscard]] freq::hertz sample_rate() const noexcept;
@@ -427,9 +481,7 @@ public:
      * @retval idfxx::errc::invalid_state The sampler is not running.
      * @retval idfxx::errc::invalid_arg `out` is empty.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<sample> out) {
-        return _try_read(out, std::numeric_limits<uint32_t>::max());
-    }
+    [[nodiscard]] result<size_t> try_read(std::span<sample> out) { return _try_read(out, std::nullopt); }
 
     /**
      * @brief Reads samples, blocking until at least one is available or the timeout expires.
@@ -450,7 +502,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<size_t> try_read(std::span<sample> out, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_read(out, _to_timeout_ms(timeout));
+        return _try_read(out, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
     /**
@@ -472,7 +524,7 @@ public:
      *         @ref calibrated).
      */
     [[nodiscard]] result<size_t> try_read(std::span<electro::millivolts> out) {
-        return _read_voltage(out, std::numeric_limits<uint32_t>::max());
+        return _read_voltage(out, std::nullopt);
     }
 
     /**
@@ -495,7 +547,7 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<size_t>
     try_read(std::span<electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
-        return _read_voltage(out, _to_timeout_ms(timeout));
+        return _read_voltage(out, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -511,6 +563,23 @@ public:
      *         calibration data (check @ref calibrated).
      */
     [[nodiscard]] electro::millivolts to_voltage(const sample& s) const { return unwrap(try_to_voltage(s)); }
+
+    /**
+     * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
+     *
+     * Convenience for samplers configured with exactly one pin, where the pin
+     * association is unambiguous — converts values computed from raw samples
+     * (a minimum, maximum, or mean) without fabricating a @ref sample.
+     *
+     * @param raw Raw conversion value (as in @ref sample::raw).
+     * @return The calibrated voltage at the sampler's pin.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_state if the sampler
+     *         is configured with more than one pin, or
+     *         idfxx::errc::not_supported if the chip has no usable calibration
+     *         data (check @ref calibrated).
+     */
+    [[nodiscard]] electro::millivolts to_voltage(int raw) const { return unwrap(try_to_voltage(raw)); }
 
     /**
      * @brief Converts a batch of samples to voltages using factory calibration.
@@ -545,6 +614,21 @@ public:
     [[nodiscard]] result<electro::millivolts> try_to_voltage(const sample& s) const;
 
     /**
+     * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
+     *
+     * Convenience for samplers configured with exactly one pin, where the pin
+     * association is unambiguous.
+     *
+     * @param raw Raw conversion value (as in @ref sample::raw).
+     * @return The calibrated voltage at the sampler's pin, or an error.
+     * @retval idfxx::errc::invalid_state The sampler is configured with more
+     *         than one pin.
+     * @retval idfxx::errc::not_supported The chip has no usable calibration
+     *         data (check @ref calibrated).
+     */
+    [[nodiscard]] result<electro::millivolts> try_to_voltage(int raw) const;
+
+    /**
      * @brief Converts a batch of samples to voltages using factory calibration.
      *
      * Writes `out[i]` as the calibrated voltage of `in[i]`, preserving order and pin association.
@@ -563,19 +647,10 @@ private:
     /// @cond INTERNAL
     struct state;
     explicit sampler(std::unique_ptr<state> s) noexcept;
-    [[nodiscard]] result<size_t> _try_read(std::span<sample> out, uint32_t timeout_ms);
-    [[nodiscard]] result<size_t> _read_voltage(std::span<electro::millivolts> out, uint32_t timeout_ms);
-
-    // Clamps a duration to a uint32_t millisecond count, reserving the maximum value for "forever".
-    template<typename Rep, typename Period>
-    static uint32_t _to_timeout_ms(const std::chrono::duration<Rep, Period>& timeout) {
-        auto ms = std::chrono::ceil<std::chrono::milliseconds>(timeout).count();
-        constexpr auto max_ms = std::numeric_limits<uint32_t>::max() - 1;
-        if (ms < 0) {
-            ms = 0;
-        }
-        return ms > max_ms ? max_ms : static_cast<uint32_t>(ms);
-    }
+    // A nullopt timeout means wait forever.
+    [[nodiscard]] result<size_t> _try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout);
+    [[nodiscard]] result<size_t>
+    _read_voltage(std::span<electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout);
     /// @endcond
 
     std::unique_ptr<state> _state;

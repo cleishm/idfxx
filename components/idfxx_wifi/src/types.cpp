@@ -702,14 +702,14 @@ wifi::ap_sta_disconnected_event_data wifi::ap_sta_disconnected_event_data::from_
 wifi::ap_probe_req_event_data wifi::ap_probe_req_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_ap_probe_req_rx_t*>(event_data);
     ap_probe_req_event_data result;
-    result.rssi = info->rssi;
+    result.rssi = electro::dbm{info->rssi};
     std::memcpy(result.mac.data(), info->mac, 6);
     return result;
 }
 
 wifi::bss_rssi_low_event_data wifi::bss_rssi_low_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_bss_rssi_low_t*>(event_data);
-    return {info->rssi};
+    return {electro::dbm{info->rssi}};
 }
 
 static std::optional<wifi::second_channel> from_idf_second_chan(wifi_second_chan_t sc) {
@@ -740,7 +740,9 @@ wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void*
         if (esp_wifi_ftm_get_report(raw.data(), info->ftm_report_num_entries) == ESP_OK) {
             result.entries.reserve(info->ftm_report_num_entries);
             for (auto& e : raw) {
-                result.entries.push_back(ftm_report_entry{e.dlog_token, e.rssi, e.rtt, e.t1, e.t2, e.t3, e.t4});
+                result.entries.push_back(
+                    ftm_report_entry{e.dlog_token, electro::dbm{e.rssi}, e.rtt, e.t1, e.t2, e.t3, e.t4}
+                );
             }
         }
     }
@@ -749,7 +751,9 @@ wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void*
         result.entries.reserve(info->ftm_report_num_entries);
         for (uint8_t i = 0; i < info->ftm_report_num_entries; ++i) {
             auto& e = info->ftm_report_data[i];
-            result.entries.push_back(ftm_report_entry{e.dlog_token, e.rssi, e.rtt, e.t1, e.t2, e.t3, e.t4});
+            result.entries.push_back(
+                ftm_report_entry{e.dlog_token, electro::dbm{e.rssi}, e.rtt, e.t1, e.t2, e.t3, e.t4}
+            );
         }
     }
 #endif

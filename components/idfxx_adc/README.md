@@ -41,9 +41,9 @@ dependencies:
 ```cpp
 #include <idfxx/adc>
 
-// One-shot: read a battery divider on demand.
-idfxx::adc::input battery({.pin = idfxx::gpio_3});
-electro::millivolts v = battery.read_voltage();
+// One-shot: read a battery behind a 2:1 divider on demand.
+idfxx::adc::input battery({.pin = idfxx::gpio_3, .divider = {2, 1}});
+electro::millivolts v = battery.read_voltage();  // battery-side voltage
 ```
 
 ```cpp
@@ -98,12 +98,13 @@ if (!n) { /* n.error() */ }
 | Method | Description |
 | ------ | ----------- |
 | `input(config)` / `make(config)` | Claim the pin's ADC unit and configure the channel. |
-| `read_voltage()` / `try_read_voltage()` | Calibrated voltage at the pin (`electro::millivolts`). |
+| `read_voltage()` / `try_read_voltage()` | Calibrated voltage, scaled by the configured divider (`electro::millivolts`). |
 | `read_raw()` / `try_read_raw()` | Raw conversion value. |
 | `calibrated()` | Whether factory calibration is active. |
 
 `config`: `pin` (required, ADC-capable), `attenuation` (default `db_12`,
-full range).
+full range), `divider` (external divider ratio, default 1:1 — `read_voltage`
+scales by it to report the source voltage).
 
 ### `idfxx::adc::sampler`
 
@@ -115,6 +116,7 @@ full range).
 | `read(out[, timeout])` / `try_read(out[, timeout])` | Block for at least one parsed sample (`out` a span of `sample`); returns the count written. |
 | `read(mv[, timeout])` / `try_read(mv[, timeout])` | Single-pin convenience: read and convert to voltages in one call (`out` a span of `electro::millivolts`). |
 | `to_voltage(sample)` / `try_to_voltage(sample)` | Calibrated voltage for one sample (`electro::millivolts`). |
+| `to_voltage(raw)` / `try_to_voltage(raw)` | Calibrated voltage for a raw value (single-pin samplers only). |
 | `to_voltage(in, out)` / `try_to_voltage(in, out)` | Convert a batch of samples to voltages, preserving pin association. |
 | `pins()` / `sample_rate()` / `running()` | Configuration and state accessors. |
 | `calibrated()` | Whether factory calibration is active for every pin. |
@@ -127,8 +129,8 @@ across pins), `frame_samples` (default 256, read granularity),
 
 ## Error Handling
 
-- `errc::invalid_arg` — pin not connected or not ADC-capable; for the
-  sampler also: empty/duplicate or non-ADC1 pins, bad frame/buffer sizes,
+- `errc::invalid_arg` — pin not connected or not ADC-capable, or a
+  non-positive divider ratio; for the sampler also: empty/duplicate or non-ADC1 pins, bad frame/buffer sizes,
   non-positive sample rate, empty read destination, a batch `try_to_voltage`
   output span smaller than its input, or `try_to_voltage` with a pin the
   sampler was not configured with.
@@ -164,7 +166,7 @@ across pins), `frame_samples` (default 256, read granularity),
 - ADC2 is shared with Wi-Fi on most chips — prefer ADC1 pins when Wi-Fi is
   active.
 - For battery sensing above the input range, use a resistor divider and
-  scale the reading in the application.
+  set `config::divider` so `read_voltage` reports the source voltage.
 
 ## License
 

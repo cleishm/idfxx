@@ -14,7 +14,7 @@ dependencies:
     public: true
     override_path: ../idfxx_gpio
   cleishm/electro:
-    version: "^0.1.0"
+    version: "^0.3.0"
     public: true
   cleishm/frequency:
     version: "^1.1.2"

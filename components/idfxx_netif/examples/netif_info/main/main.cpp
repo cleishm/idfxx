@@ -21,7 +21,7 @@ extern "C" void app_main() {
         // --- Prerequisites ---
         idfxx::event_loop::create_system();
         idfxx::netif::init();
-        auto sta_netif = idfxx::wifi::create_default_sta_netif();
+        auto sta_netif = idfxx::wifi::make_sta_netif();
 
         // --- Register event listeners ---
         auto& loop = idfxx::event_loop::system();

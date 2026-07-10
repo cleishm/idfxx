@@ -345,14 +345,14 @@ struct dns_info {
  * interface properties.
  *
  * An interface may be *owning* or *non-owning*. Owning interfaces (e.g.
- * from idfxx::wifi::create_default_sta_netif()) stop any running DHCP
+ * from idfxx::wifi::make_sta_netif()) stop any running DHCP
  * client/server and release the underlying resource on destruction.
  * Non-owning interfaces (e.g. from get_default() or find_by_key())
  * provide the same API but do not manage the lifetime — the caller
  * must ensure the underlying interface outlives the wrapper.
  *
  * @code
- * auto sta_netif = idfxx::wifi::create_default_sta_netif(); // owning
+ * auto sta_netif = idfxx::wifi::make_sta_netif(); // owning
  * auto hostname = sta_netif.get_hostname();
  * @endcode
  */

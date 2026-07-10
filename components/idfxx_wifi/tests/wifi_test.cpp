@@ -167,7 +167,7 @@ TEST_CASE("wifi get and set country", "[idfxx][wifi][hw]") {
     TEST_ASSERT_TRUE(init_result.has_value());
 
     auto set_result =
-        try_set_country({.cc = {'U', 'S', '\0'}, .start_channel = 1, .num_channels = 11, .max_tx_power = 20});
+        try_set_country({.cc = {'U', 'S', '\0'}, .start_channel = 1, .num_channels = 11, .max_tx_power = electro::dbm{20}});
     TEST_ASSERT_TRUE(set_result.has_value());
 
     auto get_result = try_get_country();
@@ -189,13 +189,13 @@ TEST_CASE("wifi get and set max tx power", "[idfxx][wifi][hw]") {
     auto start_result = try_start();
     TEST_ASSERT_TRUE(start_result.has_value());
 
-    auto set_result = try_set_max_tx_power(60);
+    auto set_result = try_set_max_tx_power(electro::dbm{15});
     TEST_ASSERT_TRUE(set_result.has_value());
 
     auto get_result = try_get_max_tx_power();
     TEST_ASSERT_TRUE(get_result.has_value());
     // TX power may be clamped by hardware, just check it's non-zero
-    TEST_ASSERT_TRUE(*get_result > 0);
+    TEST_ASSERT_TRUE(*get_result > electro::dbm{0});
 
     auto stop_result = try_stop();
     TEST_ASSERT_TRUE(stop_result.has_value());

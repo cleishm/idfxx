@@ -21,7 +21,7 @@ extern "C" void app_main() {
         // --- Prerequisites ---
         idfxx::event_loop::create_system();
         idfxx::netif::init();
-        auto sta_netif = idfxx::wifi::create_default_sta_netif();
+        auto sta_netif = idfxx::wifi::make_sta_netif();
 
         // --- Register event listeners ---
         auto& loop = idfxx::event_loop::system();
@@ -34,7 +34,9 @@ extern "C" void app_main() {
             logger.warn("Disconnected from {} (reason: {})", info.ssid, info.reason);
             // Attempt to reconnect
             logger.info("Reconnecting...");
-            idfxx::wifi::try_connect();
+            if (auto r = idfxx::wifi::try_connect(); !r) {
+                logger.error("Reconnect failed: {}", r.error().message());
+            }
         });
 
         loop.listener_add(idfxx::netif::sta_got_ip4, [](const idfxx::netif::ip4_event_data& info) {
