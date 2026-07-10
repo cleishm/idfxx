@@ -1,4 +1,4 @@
-version: "1.0.1"
+version: "2.0.0"
 description: "Type-safe WiFi station management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_wifi"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -21,6 +21,9 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_netif
+  cleishm/electro:
+    version: "^0.3.0"
+    public: true
 # esp_wifi only exists on Wi-Fi-capable chips.
 targets:
   - esp32

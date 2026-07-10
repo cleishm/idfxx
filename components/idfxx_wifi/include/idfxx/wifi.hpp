@@ -27,8 +27,11 @@
 #include <idfxx/netif>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <electro/decibel>
 #include <esp_idf_version.h>
+#include <esp_wifi_types.h>
 #include <optional>
 #include <soc/soc_caps.h>
 #include <span>
@@ -50,7 +53,7 @@ namespace idfxx::wifi {
  * (e.g. `set_roles(role::sta | role::ap)`), or passed individually to
  * functions that operate on one interface (e.g. `set_bandwidth(role::sta, …)`).
  */
-enum class role : int {
+enum class role : uint32_t {
     // clang-format off
     sta = 1, /*!< Station role. */
     ap  = 2, /*!< Access point role. */
@@ -699,6 +702,8 @@ struct he_ap_info {
     bool partial_bss_color;  /*!< AID assignment based on BSS color. */
     bool bss_color_disabled; /*!< BSS color usage disabled. */
     uint8_t bssid_index;     /*!< Non-transmitted BSSID index in M-BSSID set. */
+
+    [[nodiscard]] constexpr bool operator==(const he_ap_info&) const noexcept = default;
 };
 
 /**
@@ -709,11 +714,13 @@ struct country_config {
     std::array<char, 3> cc = {'0', '1', '\0'};                /*!< Country code string. */
     uint8_t start_channel = 1;                                /*!< Start channel. */
     uint8_t num_channels = 11;                                /*!< Number of channels. */
-    int8_t max_tx_power = 20;                                 /*!< Maximum TX power (dBm). */
+    electro::dbm max_tx_power{20};                            /*!< Maximum TX power. */
     enum country_policy policy = country_policy::auto_policy; /*!< Country policy. */
 #if SOC_WIFI_SUPPORT_5G
     flags<channel_5g> channels_5g{}; /*!< Allowed 5GHz channels (empty = use regulatory defaults). */
 #endif
+
+    [[nodiscard]] constexpr bool operator==(const country_config&) const noexcept = default;
 };
 
 /**
@@ -725,7 +732,7 @@ struct country_config {
 struct ap_record {
     mac_address bssid;                         /*!< MAC address of the access point. */
     std::string ssid;                          /*!< SSID (network name). */
-    int8_t rssi;                               /*!< Received signal strength indicator (dBm). */
+    electro::dbm rssi;                         /*!< Received signal strength. */
     uint8_t primary_channel;                   /*!< Primary channel number. */
     std::optional<enum second_channel> second; /*!< Secondary channel position, or nullopt for HT20. */
     enum auth_mode authmode;                   /*!< Authentication mode. */
@@ -746,6 +753,8 @@ struct ap_record {
     enum bandwidth bw;                         /*!< Channel bandwidth. */
     uint8_t vht_ch_freq1;                      /*!< VHT channel center frequency segment 1. */
     uint8_t vht_ch_freq2;                      /*!< VHT channel center frequency segment 2. */
+
+    [[nodiscard]] bool operator==(const ap_record&) const = default;
 };
 
 /**
@@ -753,15 +762,17 @@ struct ap_record {
  * @brief Information about a station connected to the soft-AP.
  */
 struct sta_info {
-    mac_address mac; /*!< MAC address. */
-    int8_t rssi;     /*!< RSSI value. */
-    bool phy_11b;    /*!< Station supports 802.11b. */
-    bool phy_11g;    /*!< Station supports 802.11g. */
-    bool phy_11n;    /*!< Station supports 802.11n. */
-    bool phy_lr;     /*!< Station supports Long Range mode. */
-    bool phy_11a;    /*!< Station supports 802.11a. */
-    bool phy_11ac;   /*!< Station supports 802.11ac. */
-    bool phy_11ax;   /*!< Station supports 802.11ax. */
+    mac_address mac;   /*!< MAC address. */
+    electro::dbm rssi; /*!< Received signal strength. */
+    bool phy_11b;      /*!< Station supports 802.11b. */
+    bool phy_11g;      /*!< Station supports 802.11g. */
+    bool phy_11n;      /*!< Station supports 802.11n. */
+    bool phy_lr;       /*!< Station supports Long Range mode. */
+    bool phy_11a;      /*!< Station supports 802.11a. */
+    bool phy_11ac;     /*!< Station supports 802.11ac. */
+    bool phy_11ax;     /*!< Station supports 802.11ax. */
+
+    [[nodiscard]] constexpr bool operator==(const sta_info&) const noexcept = default;
 };
 
 /**
@@ -770,12 +781,14 @@ struct sta_info {
  */
 struct ftm_report_entry {
     uint8_t dlog_token; /*!< Dialog token. */
-    int8_t rssi;        /*!< RSSI of the FTM frame. */
+    electro::dbm rssi;  /*!< RSSI of the FTM frame. */
     uint32_t rtt;       /*!< Round-trip time in picoseconds. */
     uint64_t t1;        /*!< Timestamp T1. */
     uint64_t t2;        /*!< Timestamp T2. */
     uint64_t t3;        /*!< Timestamp T3. */
     uint64_t t4;        /*!< Timestamp T4. */
+
+    [[nodiscard]] constexpr bool operator==(const ftm_report_entry&) const noexcept = default;
 };
 
 // =============================================================================
@@ -809,6 +822,8 @@ struct init_config {
     std::optional<bool> ampdu_tx_enable;            /*!< AMPDU TX feature enable. */
     std::optional<bool> nvs_enable;                 /*!< NVS flash for WiFi config persistence. */
     std::optional<core_id> wifi_task_core_id;       /*!< WiFi task core ID. */
+
+    [[nodiscard]] constexpr bool operator==(const init_config&) const noexcept = default;
 };
 
 /**
@@ -818,6 +833,8 @@ struct init_config {
 struct pmf_config {
     bool capable = false;  /*!< PMF capability advertised. */
     bool required = false; /*!< PMF required (reject non-PMF). */
+
+    [[nodiscard]] constexpr bool operator==(const pmf_config&) const noexcept = default;
 };
 
 /**
@@ -832,7 +849,7 @@ struct sta_config {
     enum scan_method scan_method = scan_method::fast;      /*!< Scan method when connecting. */
     enum sort_method sort_method = sort_method::by_rssi;   /*!< AP sort method when connecting. */
     enum auth_mode auth_threshold = auth_mode::open;       /*!< Minimum authentication mode to accept. */
-    int8_t rssi_threshold = -127;                          /*!< Minimum RSSI to accept. */
+    electro::dbm rssi_threshold{-127};                     /*!< Minimum RSSI to accept. */
     struct pmf_config pmf = {};                            /*!< PMF configuration. */
     uint16_t listen_interval = 0;                          /*!< Listen interval for power save (0 = default). */
     bool rm_enabled = false;                               /*!< Radio Measurement enabled. */
@@ -844,6 +861,8 @@ struct sta_config {
     flags<sae_pwe_method> sae_pwe_h2e = {};                /*!< SAE PWE derivation methods (empty = auto). */
     enum sae_pk_mode sae_pk_mode = sae_pk_mode::automatic; /*!< SAE-PK mode. */
     uint8_t failure_retry_cnt = 0;                         /*!< Connection failure retry count (0 = no retry). */
+
+    [[nodiscard]] bool operator==(const sta_config&) const = default;
 };
 
 /**
@@ -862,6 +881,8 @@ struct ap_config {
     bool ftm_responder = false;                                /*!< FTM responder mode enabled. */
     struct pmf_config pmf = {};                                /*!< PMF configuration. */
     flags<sae_pwe_method> sae_pwe_h2e = {};                    /*!< SAE PWE derivation methods (empty = auto). */
+
+    [[nodiscard]] bool operator==(const ap_config&) const = default;
 };
 
 /**
@@ -873,6 +894,8 @@ struct scan_config {
     uint8_t channel = 0;                          /*!< Channel to scan (0 = all). */
     bool show_hidden = false;                     /*!< Include hidden networks. */
     enum scan_type scan_type = scan_type::active; /*!< Active or passive scan. */
+
+    [[nodiscard]] bool operator==(const scan_config&) const = default;
 };
 
 /**
@@ -880,10 +903,12 @@ struct scan_config {
  * @brief Default scan timing parameters.
  */
 struct scan_default_params {
-    uint32_t active_scan_min_ms = 0;      /*!< Minimum active scan time per channel (ms). */
-    uint32_t active_scan_max_ms = 120;    /*!< Maximum active scan time per channel (ms). */
-    uint32_t passive_scan_ms = 360;       /*!< Passive scan time per channel (ms). */
-    uint8_t home_chan_dwell_time_ms = 30; /*!< Home channel dwell time (ms). */
+    std::chrono::milliseconds active_scan_min{0};       /*!< Minimum active scan time per channel. */
+    std::chrono::milliseconds active_scan_max{120};     /*!< Maximum active scan time per channel. */
+    std::chrono::milliseconds passive_scan{360};        /*!< Passive scan time per channel. */
+    std::chrono::milliseconds home_chan_dwell_time{30}; /*!< Home channel dwell time (max 255 ms). */
+
+    [[nodiscard]] constexpr bool operator==(const scan_default_params&) const noexcept = default;
 };
 
 /**
@@ -893,6 +918,8 @@ struct scan_default_params {
 struct protocols_config {
     flags<protocol> ghz_2g; /*!< 2.4 GHz protocols. */
     flags<protocol> ghz_5g; /*!< 5 GHz protocols. */
+
+    [[nodiscard]] constexpr bool operator==(const protocols_config&) const noexcept = default;
 };
 
 /**
@@ -900,8 +927,10 @@ struct protocols_config {
  * @brief Bandwidth configuration for dual-band operation.
  */
 struct bandwidths_config {
-    enum bandwidth ghz_2g; /*!< 2.4 GHz bandwidth. */
-    enum bandwidth ghz_5g; /*!< 5 GHz bandwidth. */
+    enum bandwidth ghz_2g = bandwidth::ht20; /*!< 2.4 GHz bandwidth. */
+    enum bandwidth ghz_5g = bandwidth::ht20; /*!< 5 GHz bandwidth. */
+
+    [[nodiscard]] constexpr bool operator==(const bandwidths_config&) const noexcept = default;
 };
 
 /**
@@ -911,6 +940,8 @@ struct bandwidths_config {
 struct channel_info {
     uint8_t primary;                           /*!< Primary channel number. */
     std::optional<enum second_channel> second; /*!< Secondary channel position, or nullopt for HT20. */
+
+    [[nodiscard]] constexpr bool operator==(const channel_info&) const noexcept = default;
 };
 
 /**
@@ -918,13 +949,17 @@ struct channel_info {
  * @brief FTM initiator session configuration.
  */
 struct ftm_initiator_config {
-    mac_address resp_mac;      /*!< Responder MAC address. */
-    uint8_t channel = 0;       /*!< Channel for FTM session. */
-    uint8_t frame_count = 0;   /*!< Number of FTM frames per burst. */
-    uint16_t burst_period = 0; /*!< Burst period in 100ms units. */
+    mac_address resp_mac;    /*!< Responder MAC address. */
+    uint8_t channel = 0;     /*!< Channel for FTM session. */
+    uint8_t frame_count = 0; /*!< Number of FTM frames per burst. */
+    std::chrono::milliseconds burst_period{
+        0
+    }; /*!< Time between bursts (rounded up to 100 ms units; 0 = no preference). */
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
     bool use_get_report_api = false; /*!< Use ftm_get_report() to retrieve results. */
 #endif
+
+    [[nodiscard]] constexpr bool operator==(const ftm_initiator_config&) const noexcept = default;
 };
 
 /**
@@ -953,6 +988,8 @@ struct csi_config {
     bool manu_scale = false;       /*!< Manually scale CSI data. */
     uint8_t shift = 0;             /*!< Manual scale shift value. */
     bool dump_ack_en = false;      /*!< Enable dumping ACK frames. */
+
+    [[nodiscard]] constexpr bool operator==(const csi_config&) const noexcept = default;
 };
 #elif SOC_WIFI_MAC_VERSION_NUM == 3
 struct csi_config {
@@ -970,6 +1007,8 @@ struct csi_config {
     uint8_t val_scale_cfg = 0;            /*!< CSI value scale (0..8). */
     bool dump_ack_en = false;             /*!< Enable dumping ACK frames. */
     bool lltf_bit_mode = false;           /*!< L-LTF bit width: false = 12-bit, true = 8-bit. */
+
+    [[nodiscard]] constexpr bool operator==(const csi_config&) const noexcept = default;
 };
 #else
 struct csi_config {
@@ -984,6 +1023,8 @@ struct csi_config {
     uint8_t acquire_csi_he_stbc = 0;     /*!< STBC HE-LTF capture mode (0..3). */
     uint8_t val_scale_cfg = 0;           /*!< CSI value scale (0..3). */
     bool dump_ack_en = false;            /*!< Enable dumping ACK frames. */
+
+    [[nodiscard]] constexpr bool operator==(const csi_config&) const noexcept = default;
 };
 #endif
 
@@ -1093,6 +1134,8 @@ struct connected_event_data {
     /// @cond INTERNAL
     static connected_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] bool operator==(const connected_event_data&) const = default;
 };
 
 /**
@@ -1109,6 +1152,8 @@ struct disconnected_event_data {
     /// @cond INTERNAL
     static disconnected_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] bool operator==(const disconnected_event_data&) const = default;
 };
 
 /**
@@ -1125,6 +1170,8 @@ struct scan_done_event_data {
     /// @cond INTERNAL
     static scan_done_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const scan_done_event_data&) const noexcept = default;
 };
 
 /**
@@ -1140,6 +1187,8 @@ struct authmode_change_event_data {
     /// @cond INTERNAL
     static authmode_change_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const authmode_change_event_data&) const noexcept = default;
 };
 
 /**
@@ -1155,6 +1204,8 @@ struct ap_sta_connected_event_data {
     /// @cond INTERNAL
     static ap_sta_connected_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const ap_sta_connected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1171,6 +1222,8 @@ struct ap_sta_disconnected_event_data {
     /// @cond INTERNAL
     static ap_sta_disconnected_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const ap_sta_disconnected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1180,12 +1233,14 @@ struct ap_sta_disconnected_event_data {
  * Dispatched with the wifi::event_id::ap_probe_req_received event.
  */
 struct ap_probe_req_event_data {
-    int rssi;        /*!< RSSI of the probe request. */
-    mac_address mac; /*!< MAC address of the requesting station. */
+    electro::dbm rssi; /*!< RSSI of the probe request. */
+    mac_address mac;   /*!< MAC address of the requesting station. */
 
     /// @cond INTERNAL
     static ap_probe_req_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const ap_probe_req_event_data&) const noexcept = default;
 };
 
 /**
@@ -1195,11 +1250,13 @@ struct ap_probe_req_event_data {
  * Dispatched with the wifi::event_id::sta_bss_rssi_low event.
  */
 struct bss_rssi_low_event_data {
-    int32_t rssi; /*!< Current RSSI value. */
+    electro::dbm rssi; /*!< Current RSSI. */
 
     /// @cond INTERNAL
     static bss_rssi_low_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const bss_rssi_low_event_data&) const noexcept = default;
 };
 
 /**
@@ -1217,6 +1274,8 @@ struct home_channel_change_event_data {
     /// @cond INTERNAL
     static home_channel_change_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] constexpr bool operator==(const home_channel_change_event_data&) const noexcept = default;
 };
 
 /**
@@ -1236,6 +1295,8 @@ struct ftm_report_event_data {
     /// @cond INTERNAL
     static ftm_report_event_data from_opaque(const void* event_data);
     /// @endcond
+
+    [[nodiscard]] bool operator==(const ftm_report_event_data&) const = default;
 };
 
 // =============================================================================
@@ -1484,7 +1545,7 @@ void set_roles(flags<role> roles);
  * @param roles The roles to activate (e.g. `role::sta`, `role::sta | role::ap`).
  * @return Success, or an error.
  */
-result<void> try_set_roles(flags<role> roles);
+[[nodiscard]] result<void> try_set_roles(flags<role> roles);
 
 /**
  * @brief Gets the currently active WiFi roles.
@@ -1612,7 +1673,7 @@ void deauth_sta(uint16_t aid);
  * @param aid Association ID of the station to deauthenticate (0 = all).
  * @return Success, or an error.
  */
-result<void> try_deauth_sta(uint16_t aid);
+[[nodiscard]] result<void> try_deauth_sta(uint16_t aid);
 
 /**
  * @brief Gets the list of stations connected to the soft-AP.
@@ -1644,6 +1705,36 @@ result<void> try_deauth_sta(uint16_t aid);
  * @throws std::system_error on failure.
  */
 void connect();
+
+/**
+ * @brief Connects to an access point as a station and waits for an IPv4 address.
+ *
+ * Composes the common station bring-up: enables the station role (preserving
+ * any other active roles), applies @p cfg, starts WiFi, initiates the
+ * connection, and blocks until the station acquires an IPv4 address or
+ * @p timeout elapses.
+ *
+ * Requires the system event loop (event_loop::create_system()), a station
+ * netif (make_sta_netif()), and an initialized WiFi subsystem
+ * (init()) before calling. The step-by-step API (set_roles, set_sta_config,
+ * start, connect) remains available for full control over the sequence.
+ *
+ * @code
+ * idfxx::event_loop::create_system();
+ * auto netif = idfxx::wifi::make_sta_netif();
+ * idfxx::wifi::init({});
+ * auto ip = idfxx::wifi::connect_sta({.ssid = "myssid", .password = "secret"}, 30s);
+ * @endcode
+ *
+ * @param cfg The station configuration (SSID, credentials, etc.).
+ * @param timeout Maximum time to wait for an IPv4 address.
+ * @return The acquired IPv4 address information.
+ *
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+ * @throws std::system_error on failure, disconnection during the attempt, or timeout.
+ */
+template<typename Rep, typename Period>
+[[nodiscard]] net::ipv4_info connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout);
 
 /**
  * @brief Disconnects from the current access point.
@@ -1690,7 +1781,38 @@ void clear_fast_connect();
  *
  * @return Success, or an error.
  */
-result<void> try_connect();
+[[nodiscard]] result<void> try_connect();
+
+/**
+ * @brief Connects to an access point as a station and waits for an IPv4 address.
+ *
+ * Composes the common station bring-up: enables the station role (preserving
+ * any other active roles), applies @p cfg, starts WiFi, initiates the
+ * connection, and blocks until the station acquires an IPv4 address or
+ * @p timeout elapses.
+ *
+ * Requires the system event loop (event_loop::try_create_system()), a station
+ * netif (try_make_sta_netif()), and an initialized WiFi subsystem
+ * (try_init()) before calling. The step-by-step API (try_set_roles,
+ * try_set_sta_config, try_start, try_connect) remains available for full
+ * control over the sequence.
+ *
+ * @param cfg The station configuration (SSID, credentials, etc.).
+ * @param timeout Maximum time to wait for an IPv4 address.
+ * @return The acquired IPv4 address information, or an error. Fails with
+ *         ESP_ERR_WIFI_CONN if the station is disconnected during the
+ *         attempt, or ESP_ERR_WIFI_TIMEOUT if @p timeout elapses.
+ */
+[[nodiscard]] result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout);
+
+/**
+ * @copydoc try_connect_sta(const sta_config&, std::chrono::milliseconds)
+ */
+template<typename Rep, typename Period>
+[[nodiscard]] result<net::ipv4_info>
+try_connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout) {
+    return try_connect_sta(cfg, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+}
 
 /**
  * @brief Disconnects from the current access point.
@@ -1910,7 +2032,7 @@ void set_power_save(enum power_save ps);
  * @param ps The power save mode.
  * @return Success, or an error.
  */
-result<void> try_set_power_save(enum power_save ps);
+[[nodiscard]] result<void> try_set_power_save(enum power_save ps);
 
 /**
  * @brief Gets the current power save mode.
@@ -1976,7 +2098,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
  * @param bw The bandwidth.
  * @return Success, or an error.
  */
-result<void> try_set_bandwidth(enum role iface, enum bandwidth bw);
+[[nodiscard]] result<void> try_set_bandwidth(enum role iface, enum bandwidth bw);
 
 /**
  * @brief Gets the current channel bandwidth for the specified interface.
@@ -2200,38 +2322,41 @@ void set_country_code(std::string_view cc, bool ieee80211d_enabled);
 /**
  * @brief Sets the maximum transmit power.
  *
- * @param power Maximum TX power in 0.25 dBm units (range: [8, 84]).
+ * @param power Maximum TX power (range: 2–20 dBm). The hardware applies the
+ *              power in 0.25 dBm steps; the value is rounded to the nearest step.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_max_tx_power(int8_t power);
+void set_max_tx_power(electro::centi_dbm power);
 
 /**
  * @brief Gets the current maximum transmit power.
  *
- * @return The maximum TX power in 0.25 dBm units.
+ * @return The maximum TX power, at the hardware's 0.25 dBm resolution.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] int8_t get_max_tx_power();
+[[nodiscard]] electro::centi_dbm get_max_tx_power();
 #endif
 
 /**
  * @brief Sets the maximum transmit power.
  *
- * @param power Maximum TX power in 0.25 dBm units (range: [8, 84]).
+ * @param power Maximum TX power (range: 2–20 dBm). The hardware applies the
+ *              power in 0.25 dBm steps; the value is rounded to the nearest step.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_max_tx_power(int8_t power);
+[[nodiscard]] result<void> try_set_max_tx_power(electro::centi_dbm power);
 
 /**
  * @brief Gets the current maximum transmit power.
  *
- * @return The maximum TX power in 0.25 dBm units, or an error.
+ * @return The maximum TX power, at the hardware's 0.25 dBm resolution, or
+ *         an error.
  */
-[[nodiscard]] result<int8_t> try_get_max_tx_power();
+[[nodiscard]] result<electro::centi_dbm> try_get_max_tx_power();
 
 // =============================================================================
 // Free function API — RSSI
@@ -2241,38 +2366,38 @@ void set_max_tx_power(int8_t power);
 /**
  * @brief Sets the RSSI threshold for the sta_bss_rssi_low event.
  *
- * @param rssi The RSSI threshold value (dBm).
+ * @param threshold The RSSI threshold.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_rssi_threshold(int32_t rssi);
+void set_rssi_threshold(electro::dbm threshold);
 
 /**
  * @brief Gets the current RSSI of the connected AP.
  *
- * @return The RSSI value (dBm).
+ * @return The RSSI.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] int get_rssi();
+[[nodiscard]] electro::dbm get_rssi();
 #endif
 
 /**
  * @brief Sets the RSSI threshold for the sta_bss_rssi_low event.
  *
- * @param rssi The RSSI threshold value (dBm).
+ * @param threshold The RSSI threshold.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_rssi_threshold(int32_t rssi);
+[[nodiscard]] result<void> try_set_rssi_threshold(electro::dbm threshold);
 
 /**
  * @brief Gets the current RSSI of the connected AP.
  *
- * @return The RSSI value (dBm), or an error.
+ * @return The RSSI, or an error.
  */
-[[nodiscard]] result<int> try_get_rssi();
+[[nodiscard]] result<electro::dbm> try_get_rssi();
 
 // =============================================================================
 // Free function API — Protocol
@@ -2410,7 +2535,7 @@ void set_band_mode(enum band_mode m);
  * @param b The frequency band.
  * @return Success, or an error.
  */
-result<void> try_set_band(enum band b);
+[[nodiscard]] result<void> try_set_band(enum band b);
 
 /**
  * @brief Gets the current WiFi band.
@@ -2425,7 +2550,7 @@ result<void> try_set_band(enum band b);
  * @param m The band mode.
  * @return Success, or an error.
  */
-result<void> try_set_band_mode(enum band_mode m);
+[[nodiscard]] result<void> try_set_band_mode(enum band_mode m);
 
 /**
  * @brief Gets the current WiFi band mode.
@@ -2456,7 +2581,7 @@ void set_storage(enum storage s);
  * @param s The storage location (flash or RAM).
  * @return Success, or an error.
  */
-result<void> try_set_storage(enum storage s);
+[[nodiscard]] result<void> try_set_storage(enum storage s);
 
 // =============================================================================
 // Free function API — Inactive time
@@ -2467,12 +2592,12 @@ result<void> try_set_storage(enum storage s);
  * @brief Sets the inactive time before a station is deauthenticated.
  *
  * @param iface The WiFi interface.
- * @param sec Inactive time in seconds.
+ * @param timeout Inactive time before deauthentication (whole seconds; max 65535 s).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_inactive_time(enum role iface, uint16_t sec);
+void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 
 /**
  * @brief Gets the inactive time before a station is deauthenticated.
@@ -2483,17 +2608,17 @@ void set_inactive_time(enum role iface, uint16_t sec);
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] uint16_t get_inactive_time(enum role iface);
+[[nodiscard]] std::chrono::seconds get_inactive_time(enum role iface);
 #endif
 
 /**
  * @brief Sets the inactive time before a station is deauthenticated.
  *
  * @param iface The WiFi interface.
- * @param sec Inactive time in seconds.
+ * @param timeout Inactive time before deauthentication (whole seconds; max 65535 s).
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_inactive_time(enum role iface, uint16_t sec);
+[[nodiscard]] result<void> try_set_inactive_time(enum role iface, std::chrono::seconds timeout);
 
 /**
  * @brief Gets the inactive time before a station is deauthenticated.
@@ -2501,7 +2626,7 @@ void set_inactive_time(enum role iface, uint16_t sec);
  * @param iface The WiFi interface.
  * @return The inactive time in seconds, or an error.
  */
-[[nodiscard]] result<uint16_t> try_get_inactive_time(enum role iface);
+[[nodiscard]] result<std::chrono::seconds> try_get_inactive_time(enum role iface);
 
 // =============================================================================
 // Free function API — Event mask
@@ -2539,7 +2664,7 @@ void set_event_mask(flags<event_mask> mask);
  * @param mask Event mask flags indicating which events to suppress.
  * @return Success, or an error.
  */
-result<void> try_set_event_mask(flags<event_mask> mask);
+[[nodiscard]] result<void> try_set_event_mask(flags<event_mask> mask);
 
 /**
  * @brief Gets the current WiFi event mask.
@@ -2579,7 +2704,7 @@ void force_wakeup_release();
  *
  * @return Success, or an error.
  */
-result<void> try_force_wakeup_acquire();
+[[nodiscard]] result<void> try_force_wakeup_acquire();
 
 /**
  * @brief Releases a WiFi wakeup lock.
@@ -2591,6 +2716,16 @@ result<void> try_force_wakeup_release();
 // =============================================================================
 // Free function API — Promiscuous mode
 // =============================================================================
+
+/**
+ * @brief Callback invoked for each packet received in promiscuous mode.
+ *
+ * @p pkt points to the received frame and its radio metadata; @p type
+ * identifies the packet category. For management and data packets the frame
+ * payload is present; for other categories it may be absent (see the
+ * ESP-IDF promiscuous-mode documentation).
+ */
+using promiscuous_rx_cb = void (*)(const wifi_promiscuous_pkt_t* pkt, promiscuous_pkt_type type);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
@@ -2616,15 +2751,16 @@ void set_promiscuous(bool en);
 /**
  * @brief Sets the promiscuous mode receive callback.
  *
- * The callback receives a buffer pointer and a packet type integer
- * (cast to promiscuous_pkt_type). See ESP-IDF documentation for buffer format.
+ * For management and data packets, @p pkt points to the received frame with
+ * metadata. For other packet types the payload may be absent; see the
+ * ESP-IDF promiscuous-mode documentation for details.
  *
  * @param cb Callback function pointer, or nullptr to clear.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_promiscuous_rx_cb(void (*cb)(void*, int));
+void set_promiscuous_rx_cb(promiscuous_rx_cb cb);
 
 /**
  * @brief Sets the promiscuous mode packet type filter.
@@ -2673,7 +2809,7 @@ void set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
  * @param en True to enable, false to disable.
  * @return Success, or an error.
  */
-result<void> try_set_promiscuous(bool en);
+[[nodiscard]] result<void> try_set_promiscuous(bool en);
 
 /**
  * @brief Gets whether promiscuous mode is enabled.
@@ -2685,13 +2821,14 @@ result<void> try_set_promiscuous(bool en);
 /**
  * @brief Sets the promiscuous mode receive callback.
  *
- * The callback receives a buffer pointer and a packet type integer
- * (cast to promiscuous_pkt_type). See ESP-IDF documentation for buffer format.
+ * For management and data packets, @p pkt points to the received frame with
+ * metadata. For other packet types the payload may be absent; see the
+ * ESP-IDF promiscuous-mode documentation for details.
  *
  * @param cb Callback function pointer, or nullptr to clear.
  * @return Success, or an error.
  */
-result<void> try_set_promiscuous_rx_cb(void (*cb)(void*, int));
+[[nodiscard]] result<void> try_set_promiscuous_rx_cb(promiscuous_rx_cb cb);
 
 /**
  * @brief Sets the promiscuous mode packet type filter.
@@ -2699,7 +2836,7 @@ result<void> try_set_promiscuous_rx_cb(void (*cb)(void*, int));
  * @param filter The filter flags to apply.
  * @return Success, or an error.
  */
-result<void> try_set_promiscuous_filter(flags<promiscuous_filter> filter);
+[[nodiscard]] result<void> try_set_promiscuous_filter(flags<promiscuous_filter> filter);
 
 /**
  * @brief Gets the current promiscuous mode packet type filter.
@@ -2714,7 +2851,7 @@ result<void> try_set_promiscuous_filter(flags<promiscuous_filter> filter);
  * @param filter The control frame filter flags to apply.
  * @return Success, or an error.
  */
-result<void> try_set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
+[[nodiscard]] result<void> try_set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
 
 /**
  * @brief Gets the current promiscuous mode control frame sub-type filter.
@@ -2726,6 +2863,13 @@ result<void> try_set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filt
 // =============================================================================
 // Free function API — Raw 802.11
 // =============================================================================
+
+/**
+ * @brief Callback invoked when a raw 802.11 frame transmission completes.
+ *
+ * Receives the transmission result and frame details for the completed send.
+ */
+using tx_80211_done_cb = void (*)(const esp_80211_tx_info_t* tx_info);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
@@ -2743,14 +2887,15 @@ void tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq)
 /**
  * @brief Registers a callback for 802.11 TX completion.
  *
- * The callback receives a pointer to TX info (cast from esp_wifi_80211_tx_info_t).
+ * The callback is invoked when a frame sent with @ref tx_80211 completes,
+ * with the transmission's result and frame details.
  *
- * @param cb Callback function pointer.
+ * @param cb Callback function pointer, or nullptr to unregister.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void register_80211_tx_cb(void (*cb)(const void*));
+void register_80211_tx_cb(tx_80211_done_cb cb);
 #endif
 
 /**
@@ -2766,16 +2911,26 @@ void register_80211_tx_cb(void (*cb)(const void*));
 /**
  * @brief Registers a callback for 802.11 TX completion.
  *
- * The callback receives a pointer to TX info (cast from esp_wifi_80211_tx_info_t).
+ * The callback is invoked when a frame sent with @ref try_tx_80211 completes,
+ * with the transmission's result and frame details.
  *
- * @param cb Callback function pointer.
+ * @param cb Callback function pointer, or nullptr to unregister.
  * @return Success, or an error.
  */
-result<void> try_register_80211_tx_cb(void (*cb)(const void*));
+[[nodiscard]] result<void> try_register_80211_tx_cb(tx_80211_done_cb cb);
 
 // =============================================================================
 // Free function API — Vendor IE
 // =============================================================================
+
+/**
+ * @brief Callback invoked when a matching vendor-specific IE is received.
+ *
+ * Receives the registered user context, the frame type carrying the IE, the
+ * sender's MAC address, the vendor IE payload, and the frame's RSSI.
+ */
+using vendor_ie_cb =
+    void (*)(void* ctx, enum vendor_ie_type type, mac_address sa, const vendor_ie_data_t* ie, electro::dbm rssi);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
@@ -2794,13 +2949,13 @@ void set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, 
 /**
  * @brief Registers a callback for received vendor-specific IEs.
  *
- * @param cb Callback function: (ctx, type, source_mac, vendor_ie_data, rssi).
+ * @param cb Callback function pointer, or nullptr to clear.
  * @param ctx User context pointer passed to the callback.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_vendor_ie_cb(void (*cb)(void*, int, const uint8_t*, const void*, int), void* ctx);
+void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx);
 #endif
 
 /**
@@ -2818,15 +2973,23 @@ try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, c
 /**
  * @brief Registers a callback for received vendor-specific IEs.
  *
- * @param cb Callback function: (ctx, type, source_mac, vendor_ie_data, rssi).
+ * @param cb Callback function pointer, or nullptr to clear.
  * @param ctx User context pointer passed to the callback.
  * @return Success, or an error.
  */
-result<void> try_set_vendor_ie_cb(void (*cb)(void*, int, const uint8_t*, const void*, int), void* ctx);
+[[nodiscard]] result<void> try_set_vendor_ie_cb(vendor_ie_cb cb, void* ctx);
 
 // =============================================================================
 // Free function API — CSI
 // =============================================================================
+
+/**
+ * @brief Callback invoked for each received CSI (Channel State Information) record.
+ *
+ * Receives the registered user context and the CSI record, valid only for
+ * the duration of the call.
+ */
+using csi_rx_cb = void (*)(void* ctx, const wifi_csi_info_t* info);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
@@ -2862,13 +3025,13 @@ void set_csi_config(const csi_config& cfg);
 /**
  * @brief Registers a callback for CSI data reception.
  *
- * @param cb Callback function: (ctx, csi_data).
+ * @param cb Callback function pointer, or nullptr to clear.
  * @param ctx User context pointer passed to the callback.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_csi_rx_cb(void (*cb)(void*, void*), void* ctx);
+void set_csi_rx_cb(csi_rx_cb cb, void* ctx);
 #endif
 
 /**
@@ -2877,7 +3040,7 @@ void set_csi_rx_cb(void (*cb)(void*, void*), void* ctx);
  * @param en True to enable, false to disable.
  * @return Success, or an error.
  */
-result<void> try_set_csi(bool en);
+[[nodiscard]] result<void> try_set_csi(bool en);
 
 /**
  * @brief Sets the CSI configuration.
@@ -2885,7 +3048,7 @@ result<void> try_set_csi(bool en);
  * @param cfg The CSI configuration.
  * @return Success, or an error.
  */
-result<void> try_set_csi_config(const csi_config& cfg);
+[[nodiscard]] result<void> try_set_csi_config(const csi_config& cfg);
 
 /**
  * @brief Gets the current CSI configuration.
@@ -2897,11 +3060,11 @@ result<void> try_set_csi_config(const csi_config& cfg);
 /**
  * @brief Registers a callback for CSI data reception.
  *
- * @param cb Callback function: (ctx, csi_data).
+ * @param cb Callback function pointer, or nullptr to clear.
  * @param ctx User context pointer passed to the callback.
  * @return Success, or an error.
  */
-result<void> try_set_csi_rx_cb(void (*cb)(void*, void*), void* ctx);
+[[nodiscard]] result<void> try_set_csi_rx_cb(csi_rx_cb cb, void* ctx);
 
 // =============================================================================
 // Free function API — FTM
@@ -3049,12 +3212,13 @@ void set_dynamic_cs(bool enabled);
 /**
  * @brief Sets the connectionless module wake interval.
  *
- * @param interval The wake interval value.
+ * @param interval The wake interval, 1 ms to 65535 ms (multiples of 100 ms
+ *                 recommended; 0 selects the default mode).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void connectionless_module_set_wake_interval(uint16_t interval);
+void connectionless_module_set_wake_interval(std::chrono::milliseconds interval);
 #endif
 
 /**
@@ -3102,10 +3266,11 @@ void connectionless_module_set_wake_interval(uint16_t interval);
 /**
  * @brief Sets the connectionless module wake interval.
  *
- * @param interval The wake interval value.
+ * @param interval The wake interval, 1 ms to 65535 ms (multiples of 100 ms
+ *                 recommended; 0 selects the default mode).
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_connectionless_module_set_wake_interval(uint16_t interval);
+[[nodiscard]] result<void> try_connectionless_module_set_wake_interval(std::chrono::milliseconds interval);
 
 // =============================================================================
 // Inline definitions — exception-based API
@@ -3166,6 +3331,10 @@ inline uint16_t ap_get_sta_aid(mac_address mac) {
 }
 
 // Connect / disconnect
+template<typename Rep, typename Period>
+[[nodiscard]] net::ipv4_info connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout) {
+    return unwrap(try_connect_sta(cfg, std::chrono::ceil<std::chrono::milliseconds>(timeout)));
+}
 inline void connect() {
     unwrap(try_connect());
 }
@@ -3266,18 +3435,18 @@ inline std::string get_country_code() {
 }
 
 // TX power
-inline void set_max_tx_power(int8_t power) {
+inline void set_max_tx_power(electro::centi_dbm power) {
     unwrap(try_set_max_tx_power(power));
 }
-inline int8_t get_max_tx_power() {
+inline electro::centi_dbm get_max_tx_power() {
     return unwrap(try_get_max_tx_power());
 }
 
 // RSSI
-inline void set_rssi_threshold(int32_t rssi) {
-    unwrap(try_set_rssi_threshold(rssi));
+inline void set_rssi_threshold(electro::dbm threshold) {
+    unwrap(try_set_rssi_threshold(threshold));
 }
-inline int get_rssi() {
+inline electro::dbm get_rssi() {
     return unwrap(try_get_rssi());
 }
 
@@ -3315,10 +3484,10 @@ inline void set_storage(enum storage s) {
 }
 
 // Inactive time
-inline void set_inactive_time(enum role iface, uint16_t sec) {
-    unwrap(try_set_inactive_time(iface, sec));
+inline void set_inactive_time(enum role iface, std::chrono::seconds timeout) {
+    unwrap(try_set_inactive_time(iface, timeout));
 }
-inline uint16_t get_inactive_time(enum role iface) {
+inline std::chrono::seconds get_inactive_time(enum role iface) {
     return unwrap(try_get_inactive_time(iface));
 }
 
@@ -3345,7 +3514,7 @@ inline void set_promiscuous(bool en) {
 inline bool get_promiscuous() {
     return unwrap(try_get_promiscuous());
 }
-inline void set_promiscuous_rx_cb(void (*cb)(void*, int)) {
+inline void set_promiscuous_rx_cb(promiscuous_rx_cb cb) {
     unwrap(try_set_promiscuous_rx_cb(cb));
 }
 inline void set_promiscuous_filter(flags<promiscuous_filter> filter) {
@@ -3365,7 +3534,7 @@ inline flags<promiscuous_ctrl_filter> get_promiscuous_ctrl_filter() {
 inline void tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq) {
     unwrap(try_tx_80211(iface, buffer, en_sys_seq));
 }
-inline void register_80211_tx_cb(void (*cb)(const void*)) {
+inline void register_80211_tx_cb(tx_80211_done_cb cb) {
     unwrap(try_register_80211_tx_cb(cb));
 }
 
@@ -3373,7 +3542,7 @@ inline void register_80211_tx_cb(void (*cb)(const void*)) {
 inline void set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
     unwrap(try_set_vendor_ie(enable, type, id, vnd_ie));
 }
-inline void set_vendor_ie_cb(void (*cb)(void*, int, const uint8_t*, const void*, int), void* ctx) {
+inline void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx) {
     unwrap(try_set_vendor_ie_cb(cb, ctx));
 }
 
@@ -3387,7 +3556,7 @@ inline void set_csi_config(const csi_config& cfg) {
 inline csi_config get_csi_config() {
     return unwrap(try_get_csi_config());
 }
-inline void set_csi_rx_cb(void (*cb)(void*, void*), void* ctx) {
+inline void set_csi_rx_cb(csi_rx_cb cb, void* ctx) {
     unwrap(try_set_csi_rx_cb(cb, ctx));
 }
 
@@ -3421,7 +3590,7 @@ inline void disable_pmf_config(enum role iface) {
 inline void set_dynamic_cs(bool enabled) {
     unwrap(try_set_dynamic_cs(enabled));
 }
-inline void connectionless_module_set_wake_interval(uint16_t interval) {
+inline void connectionless_module_set_wake_interval(std::chrono::milliseconds interval) {
     unwrap(try_connectionless_module_set_wake_interval(interval));
 }
 
@@ -3445,7 +3614,7 @@ inline void connectionless_module_set_wake_interval(uint16_t interval) {
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error if the interface could not be created.
  */
-netif::interface create_default_sta_netif();
+netif::interface make_sta_netif();
 
 /**
  * @brief Creates a default WiFi access point network interface.
@@ -3458,7 +3627,7 @@ netif::interface create_default_sta_netif();
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error if the interface could not be created.
  */
-netif::interface create_default_ap_netif();
+netif::interface make_ap_netif();
 #endif
 
 /**
@@ -3469,7 +3638,7 @@ netif::interface create_default_ap_netif();
  *
  * @return Result containing the network interface, or an error code.
  */
-[[nodiscard]] result<netif::interface> try_create_default_sta_netif();
+[[nodiscard]] result<netif::interface> try_make_sta_netif();
 
 /**
  * @brief Creates a default WiFi access point network interface.
@@ -3479,7 +3648,7 @@ netif::interface create_default_ap_netif();
  *
  * @return Result containing the network interface, or an error code.
  */
-[[nodiscard]] result<netif::interface> try_create_default_ap_netif();
+[[nodiscard]] result<netif::interface> try_make_ap_netif();
 
 } // namespace idfxx::wifi
 

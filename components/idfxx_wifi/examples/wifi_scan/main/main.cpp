@@ -11,7 +11,7 @@ extern "C" void app_main() {
         // --- Prerequisites ---
         idfxx::event_loop::create_system();
         idfxx::netif::init();
-        auto sta_netif = idfxx::wifi::create_default_sta_netif();
+        auto sta_netif = idfxx::wifi::make_sta_netif();
 
         // --- Initialize and start WiFi in STA mode ---
         idfxx::wifi::init();
@@ -25,7 +25,7 @@ extern "C" void app_main() {
 
         // --- Display results ---
         for (const auto& ap : results) {
-            logger.info("  {:32s}  ch:{:2d}  rssi:{:4d}  {}", ap.ssid, ap.primary_channel, ap.rssi, ap.authmode);
+            logger.info("  {:32s}  ch:{:2d}  rssi:{:4.0f}  {}", ap.ssid, ap.primary_channel, ap.rssi, ap.authmode);
         }
 
         // --- Cleanup ---

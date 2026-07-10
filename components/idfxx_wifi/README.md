@@ -37,9 +37,34 @@ Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ## Usage
 
+### Quick Station Connect
+
+`connect_sta` composes the common station bring-up — it enables the station
+role, applies the configuration, starts WiFi, connects, and blocks until an
+IPv4 address is acquired (or the timeout elapses):
+
+```cpp
+#include <idfxx/wifi>
+#include <idfxx/netif>
+#include <idfxx/event>
+
+using namespace std::chrono_literals;
+
+idfxx::event_loop::create_system();
+idfxx::netif::init();
+auto sta_netif = idfxx::wifi::make_sta_netif();
+idfxx::wifi::init();
+
+auto ip = idfxx::wifi::connect_sta({
+    .ssid = "MyNetwork",
+    .password = "secret123",
+}, 30s);
+```
+
 ### Basic Station Example
 
-If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
+For full control over the sequence, use the step-by-step API. If
+`CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 ```cpp
 #include <idfxx/wifi>
@@ -50,7 +75,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 // Initialize prerequisites (call once at startup)
 idfxx::event_loop::create_system();
 idfxx::netif::init();
-auto sta_netif = idfxx::wifi::create_default_sta_netif();
+auto sta_netif = idfxx::wifi::make_sta_netif();
 
 // Register event handlers
 auto& loop = idfxx::event_loop::system();
@@ -97,7 +122,7 @@ try {
 // Initialize prerequisites (call once at startup)
 idfxx::event_loop::create_system();
 idfxx::netif::init();
-auto ap_netif = idfxx::wifi::create_default_ap_netif();
+auto ap_netif = idfxx::wifi::make_ap_netif();
 
 // Register AP event handlers
 auto& loop = idfxx::event_loop::system();
@@ -145,7 +170,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 // Initialize prerequisites
 idfxx::event_loop::try_create_system();
 idfxx::netif::try_init();
-auto netif = idfxx::wifi::try_create_default_sta_netif();
+auto netif = idfxx::wifi::try_make_sta_netif();
 
 // Initialize and configure
 if (auto r = idfxx::wifi::try_init(); !r) {
@@ -213,7 +238,7 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 
 ### Connection
 
-`connect()`, `disconnect()`, `deauth_sta(aid)`, `get_sta_list()`, `ap_get_sta_aid(mac)`, `sta_get_aid()`, `get_negotiated_phymode()`, `get_ap_info()`
+`connect()`, `connect_sta(sta_config, timeout)` (composed bring-up, returns the acquired IPv4 info), `disconnect()`, `deauth_sta(aid)`, `get_sta_list()`, `ap_get_sta_aid(mac)`, `sta_get_aid()`, `get_negotiated_phymode()`, `get_ap_info()`
 
 ### Scanning
 
@@ -221,7 +246,7 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 
 ### Network Configuration
 
-`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` / `get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` / `get_channel()`, `set_max_tx_power(int8_t)` / `get_max_tx_power()`, `set_rssi_threshold(int32_t)` / `get_rssi()`, `set_country(country_config)` / `get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`, `set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`, `set_storage(storage)`
+`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` / `get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` / `get_channel()`, `set_max_tx_power(electro::centi_dbm)` / `get_max_tx_power()`, `set_rssi_threshold(electro::dbm)` / `get_rssi()`, `set_country(country_config)` / `get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`, `set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`, `set_storage(storage)`
 
 ### Advanced Features
 
@@ -290,9 +315,9 @@ loop.listener_add(netif::sta_got_ip4,
 
 - **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs. Exception-based functions require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 - **Procedural API**: WiFi is managed through namespace-level free functions rather than class instances, reflecting the global nature of the WiFi subsystem.
-- **Prerequisites**: Create the system event loop before using WiFi functions. Most applications will also need to initialize `idfxx::netif::init()` and create the appropriate default netif (`idfxx::wifi::create_default_sta_netif()` for STA, `idfxx::wifi::create_default_ap_netif()` for AP).
+- **Prerequisites**: Create the system event loop before using WiFi functions. Most applications will also need to initialize `idfxx::netif::init()` and create the appropriate default netif (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
-- **TX power units**: TX power values are in 0.25 dBm units (e.g., 60 = 15 dBm). Hardware may clamp the value to its supported range.
+- **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `electro` levels (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power in 0.25 dBm steps (`electro::centi_dbm` carries the exact value), and may clamp to a lower supported level, so the value read back can differ from the value set.
 - **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep processing minimal or defer work to another task.
 - **FTM support**: Requires both initiator and responder to support FTM. Check `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.
 
