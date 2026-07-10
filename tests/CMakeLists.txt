@@ -7,7 +7,7 @@ set(IDFXX_TEST_REQUIRES
     idfxx_timer idfxx_event
     idfxx_event_group idfxx_task idfxx_queue idfxx_log idfxx_http idfxx_http_client idfxx_http_server
     idfxx_https_server idfxx_console idfxx_rotary_encoder idfxx_button idfxx_pwm idfxx_net idfxx_netif idfxx_sleep
-    esp_netif idfxx_dht esp_driver_rmt idfxx_radio idfxx_radio_sx126x idfxx_font
+    esp_netif idfxx_dht esp_driver_rmt idfxx_radio idfxx_radio_sx126x idfxx_font idfxx_font_spleen
 )
 
 # idfxx_adc pulls in esp_adc, whose boot-time analog calibration hangs under

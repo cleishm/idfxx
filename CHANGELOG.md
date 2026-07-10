@@ -16,6 +16,9 @@ component's version only bumps when that component changes.
   over I2C
 - `idfxx_font` `1.0.0` — fixed-cell bitmap font model and constexpr text metrics,
   with a BDF-to-C converter script for adding fonts
+- `idfxx_font_spleen` `1.0.0` — the Spleen 5x8 and 8x16 bitmap fonts (BSD-2-Clause)
+  as idfxx font data, one translation unit per font so unused fonts are dropped at
+  link time
 
 ### Enhancements
 
