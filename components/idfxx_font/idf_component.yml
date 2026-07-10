@@ -1,0 +1,7 @@
+version: "1.0.0"
+description: "Fixed-cell bitmap font model and text metrics"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_font"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"

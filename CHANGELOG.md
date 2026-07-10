@@ -14,6 +14,8 @@ component's version only bumps when that component changes.
   voltages
 - `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
   over I2C
+- `idfxx_font` `1.0.0` — fixed-cell bitmap font model and constexpr text metrics,
+  with a BDF-to-C converter script for adding fonts
 
 ### Enhancements
 
