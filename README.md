@@ -47,6 +47,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_lcd_ssd1306](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ssd1306) | SSD1306 monochrome OLED panel driver (128x64 / 128x32) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_touch](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch) | LCD touch controller interface | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
 | [idfxx_lcd_touch_stmpe610](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch_stmpe610) | STMPE610 resistive touch controller driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
+| [idfxx_gfx](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gfx) | Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gfx.html) |
 | [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Fixed-cell bitmap font model and text metrics | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
 | [idfxx_font_spleen](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_spleen) | The Spleen bitmap fonts (5x8 and 8x16) as idfxx font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__spleen.html) |
 | **Sensor Drivers** | | |

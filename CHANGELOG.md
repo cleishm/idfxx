@@ -14,6 +14,9 @@ component's version only bumps when that component changes.
   voltages
 - `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
   over I2C
+- `idfxx_gfx` `1.0.0` — drawing primitives for pixel surfaces: filled and outlined
+  rectangles, lines, and bitmap-font text with integer scaling, over a structural
+  `pixel_surface` concept satisfied by both `idfxx_lcd` framebuffers
 - `idfxx_font` `1.0.0` — fixed-cell bitmap font model and constexpr text metrics,
   with a BDF-to-C converter script for adding fonts
 - `idfxx_font_spleen` `1.0.0` — the Spleen 5x8 and 8x16 bitmap fonts (BSD-2-Clause)
