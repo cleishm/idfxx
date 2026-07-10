@@ -8,7 +8,6 @@
 #include <idfxx/sched>
 
 #include <chrono>
-#include <thermo/thermo>
 
 using namespace std::chrono_literals;
 
@@ -36,10 +35,6 @@ extern "C" void app_main() {
             logger.warn("read failed: {}", r.error().message());
             continue;
         }
-        logger.info(
-            "temperature {:.1f}, humidity {:.1f} %",
-            thermo::temperature_cast<thermo::celsius_real>(r->temperature),
-            r->humidity_pct
-        );
+        logger.info("temperature {:.1f}, humidity {:.1f} %", r->temperature, r->humidity_pct);
     }
 }
