@@ -41,7 +41,9 @@ extern "C" void app_main() {
 
         loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            idfxx::wifi::try_connect();
+            if (auto r = idfxx::wifi::try_connect(); !r) {
+                logger.error("Reconnect failed: {}", r.error().message());
+            }
         });
 
         // --- Connect to WiFi ---

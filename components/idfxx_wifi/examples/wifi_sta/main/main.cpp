@@ -34,7 +34,9 @@ extern "C" void app_main() {
             logger.warn("Disconnected from {} (reason: {})", info.ssid, info.reason);
             // Attempt to reconnect
             logger.info("Reconnecting...");
-            idfxx::wifi::try_connect();
+            if (auto r = idfxx::wifi::try_connect(); !r) {
+                logger.error("Reconnect failed: {}", r.error().message());
+            }
         });
 
         loop.listener_add(idfxx::netif::sta_got_ip4, [](const idfxx::netif::ip4_event_data& info) {
