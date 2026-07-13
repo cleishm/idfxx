@@ -36,7 +36,8 @@ constexpr const char* TAG = "idfxx::radio::sx126x";
 // always issued with no chip timeout), so it never fires.
 constexpr uint16_t default_irq_mask = idfxx::to_underlying(
     sx126x::irq_flag::tx_done | sx126x::irq_flag::rx_done | sx126x::irq_flag::preamble_detected |
-    sx126x::irq_flag::crc_err | sx126x::irq_flag::cad_done | sx126x::irq_flag::cad_detected
+    sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err | sx126x::irq_flag::cad_done |
+    sx126x::irq_flag::cad_detected
 );
 
 // SX126x sync-word register values for the standard LoRa networks.
@@ -108,6 +109,24 @@ result<std::shared_ptr<internal::op_latch>> claim_data_path(
 result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<const uint8_t> params) {
     if (auto e = apply_rx_boost(s); !e) {
         return error(e.error());
+    }
+    // Restore the caller's packet params: transmit re-issues them with
+    // payload_length set to that packet's size, so without this the chip
+    // enters RX with whatever length the last transmit happened to have —
+    // and the datasheet describes payload_length as the maximum the receiver
+    // accepts. Arm RX with the caller's intent, not a transmit leftover.
+    if (auto e = s.write_command(internal::op_set_packet_params, internal::pack_packet_params(s.last_packet_params));
+        !e) {
+        return e;
+    }
+    // Reset the receive write pointer. It is NOT reset by SetRx: it advances
+    // with every packet received in continuous mode, and once it has crept
+    // past 256 - payload_len an incoming packet crosses the buffer boundary
+    // and is silently lost (preamble fires; no rx_done and no error). The
+    // worker re-resets it after draining each packet for the same reason.
+    std::array<uint8_t, 2> bases{0x00, 0x00};
+    if (auto e = s.write_command(internal::op_set_buffer_base_addr, bases); !e) {
+        return e;
     }
     sx126x_set_rf_switch(s, chip_mode::rx);
     if (auto e = s.write_command(opcode, params); !e) {

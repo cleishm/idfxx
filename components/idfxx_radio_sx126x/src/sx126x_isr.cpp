@@ -203,8 +203,10 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
                         (void)loop->try_post(rx_done, info);
                     }
                 }
-            } else if (irqs.contains(sx126x::irq_flag::crc_err) && loop) {
-                // CRC error without rx_done — surface as event.
+            } else if (irqs.contains_any(sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err) && loop) {
+                // CRC or header error without rx_done — surface as event. A
+                // header error also fires when an explicit-header packet's
+                // received length exceeds the programmed payload_length.
                 (void)loop->try_post(crc_error);
             }
 
