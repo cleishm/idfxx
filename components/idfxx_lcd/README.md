@@ -11,6 +11,8 @@ LCD panel I/O interface for SPI- and I2C-based displays.
 - Integration with `idfxx_spi` and `idfxx_i2c` buses
 - Panel base class with drawing, orientation, and inversion controls
 - `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays
+- `rgb565` color type and `rgb565_framebuffer` helper for 16-bpp color
+  displays, with offset flushes for band-at-a-time rendering
 - Foundation for LCD panel and touch controller drivers
 
 ## Requirements
@@ -130,6 +132,27 @@ fb.flush_rows(display, 16, 24); // partial update: only rows 16-23
 
 fb.set_pixel(10, 20, true);
 fb.flush_region(display, 10, 16, 11, 24); // partial update: one column of one page
+```
+
+### Color Framebuffer
+
+For RGB565 (16 bits per pixel) displays such as ILI9341 panels,
+`rgb565_framebuffer` provides a row-major drawing surface of `rgb565` colors,
+stored in panel byte order so flushes pass the buffer straight through. A full
+frame at 16 bpp is large (a 240x320 panel needs 150 KB), so the framebuffer can
+also be sized as a horizontal band and flushed at a destination offset,
+rendering the frame in slices:
+
+```cpp
+#include <idfxx/lcd/rgb565_framebuffer>
+
+idfxx::lcd::rgb565_framebuffer band(display.width(), 40);
+
+for (size_t y = 0; y < display.height(); y += band.height()) {
+    band.fill({0, 0, 0});
+    // ... draw the slice covering rows [y, y + band.height()) ...
+    band.flush(display, 0, y);
+}
 ```
 
 ### Result-based API
@@ -269,6 +292,29 @@ In-memory framebuffer for monochrome (1-bpp) displays, stored page-packed (each 
 - `flush_region(panel, x_start, y_start, x_end, y_end)` / `try_flush_region(...)` - Draw a
   rectangular region: full-width regions transfer in a single draw, narrower ones one
   draw per page
+
+### `rgb565` / `rgb565_framebuffer`
+
+`rgb565` is a 16-bit color value stored in panel byte order (big-endian data,
+the panel default), so arrays of it pass directly to `draw_bitmap`:
+
+- `rgb565(r, g, b)` - Pack 8-bit components into the 5-6-5 layout (constexpr)
+- `rgb565::from_value(v)` / `value()` - Packed RGB565 round trip
+
+`rgb565_framebuffer` is the row-major color counterpart of `mono_framebuffer`
+(the pixel (x, y) is at index `y * width + x`):
+
+- `rgb565_framebuffer(width, height)` / `make(width, height)` - Create (any non-zero size)
+- `set_pixel(x, y, color)` / `get_pixel(x, y)` - Pixel access (out-of-range coordinates are ignored)
+- `fill(color)` / `clear()` - Fill with a color, or set all pixels black
+- `data()` - Raw pixels, panel byte order
+- `flush(panel, x = 0, y = 0)` / `try_flush(...)` - Draw the full framebuffer with its
+  top-left corner at (x, y), so a band-sized framebuffer can render a taller frame in slices
+- `flush_rows(panel, y_start, y_end)` / `try_flush_rows(...)` - Draw a horizontal band to
+  the same rows on the panel
+- `flush_region(panel, x_start, y_start, x_end, y_end)` / `try_flush_region(...)` - Draw a
+  rectangular region: full-width regions transfer in a single draw, narrower ones one
+  draw per row
 
 Panels report their native dimensions via `panel::width()` / `panel::height()`, so a
 matching framebuffer is simply `mono_framebuffer fb(display.width(), display.height())`.

@@ -5,41 +5,14 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/lcd/mono_framebuffer"
+#include "recording_panel.hpp"
 #include "unity.h"
 
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 using namespace idfxx::lcd;
-
-namespace {
-
-// Stub panel recording draw_bitmap calls, for verifying flush behaviour
-// without hardware.
-class recording_panel : public panel {
-public:
-    struct draw {
-        int x_start;
-        int y_start;
-        int x_end;
-        int y_end;
-        const void* data;
-    };
-
-    std::vector<draw> draws;
-
-private:
-    [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override { return nullptr; }
-
-    [[nodiscard]] idfxx::result<void>
-    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) override {
-        draws.push_back({x_start, y_start, x_end, y_end, color_data});
-        return {};
-    }
-};
-
-} // namespace
+using idfxx_lcd_test::recording_panel;
 
 // =============================================================================
 // Compile-time tests (static_assert)

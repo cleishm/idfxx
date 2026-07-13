@@ -1,0 +1,16 @@
+dependencies:
+  cleishm/idfxx_gfx:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_font_spleen:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_font_spleen
+  cleishm/idfxx_lcd_ssd1306:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_lcd_ssd1306
+  cleishm/idfxx_i2c:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_i2c
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log

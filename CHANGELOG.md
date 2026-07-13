@@ -14,6 +14,14 @@ component's version only bumps when that component changes.
   voltages
 - `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
   over I2C
+- `idfxx_gfx` `1.0.0` — drawing primitives for pixel surfaces: filled and outlined
+  rectangles, lines, and bitmap-font text with integer scaling, over a structural
+  `pixel_surface` concept satisfied by both `idfxx_lcd` framebuffers
+- `idfxx_font` `1.0.0` — fixed-cell bitmap font model and constexpr text metrics,
+  with a BDF-to-C converter script for adding fonts
+- `idfxx_font_spleen` `1.0.0` — the Spleen 5x8 and 8x16 bitmap fonts (BSD-2-Clause)
+  as idfxx font data, one translation unit per font so unused fonts are dropped at
+  link time
 
 ### Enhancements
 
@@ -23,8 +31,10 @@ component's version only bumps when that component changes.
   drivers compile unchanged; new drivers need only supply their panel handle),
   `width()`/`height()` on the `panel` base class reporting native dimensions, a
   `mono_framebuffer` helper for monochrome (1-bpp, page-packed) displays with
-  full-frame, row-band, and rectangular-region flushes, and a shared internal
-  panel-creation helper for esp_lcd-based drivers
+  full-frame, row-band, and rectangular-region flushes, an `rgb565` color value
+  type stored in panel byte order, an `rgb565_framebuffer` helper for 16-bpp
+  color displays with offset flushes for band-at-a-time rendering, and a shared
+  internal panel-creation helper for esp_lcd-based drivers
 - `idfxx_lcd_ili9341` `2.1.0` — panels now report `width()`/`height()`, and the example
   and documentation draw via `panel::draw_bitmap` instead of the raw ESP-IDF handle
 

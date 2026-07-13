@@ -1,0 +1,19 @@
+dependencies:
+  cleishm/idfxx_gfx:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_font_spleen:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_font_spleen
+  cleishm/idfxx_lcd_ili9341:
+    version: "^2.1.0"
+    override_path: ../../../../idfxx_lcd_ili9341
+  cleishm/idfxx_spi:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_spi
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_gpio
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log

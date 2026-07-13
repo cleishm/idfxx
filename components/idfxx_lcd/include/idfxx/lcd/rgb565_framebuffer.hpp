@@ -4,81 +4,85 @@
 #pragma once
 
 /**
- * @headerfile <idfxx/lcd/mono_framebuffer>
- * @file mono_framebuffer.hpp
- * @brief Framebuffer for monochrome (1-bpp) displays.
+ * @headerfile <idfxx/lcd/rgb565_framebuffer>
+ * @file rgb565_framebuffer.hpp
+ * @brief Framebuffer for RGB565 color displays.
  * @ingroup idfxx_lcd
  */
 
 #include <idfxx/error>
+#include <idfxx/lcd/color>
 #include <idfxx/lcd/panel>
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <span>
 #include <vector>
 
 /**
- * @headerfile <idfxx/lcd/mono_framebuffer>
+ * @headerfile <idfxx/lcd/rgb565_framebuffer>
  * @brief LCD driver classes.
  */
 namespace idfxx::lcd {
 
 /**
- * @headerfile <idfxx/lcd/mono_framebuffer>
- * @brief In-memory framebuffer for monochrome (1 bit per pixel) displays.
+ * @headerfile <idfxx/lcd/rgb565_framebuffer>
+ * @brief In-memory framebuffer for RGB565 (16 bits per pixel) color displays.
  *
- * Pixels are stored page-packed, the native format of SSD1306-style
- * monochrome OLED controllers: each byte holds 8 vertically adjacent pixels
- * (bit 0 is the topmost), and pages (rows of 8 pixels) are laid out
- * top-to-bottom, each page spanning the full display width. The byte for
- * pixel (x, y) is at index `(y / 8) * width() + x`, bit `y % 8`.
+ * Pixels are stored row-major as @ref rgb565 values (panel byte order), so
+ * the buffer can be passed directly to a color panel's draw_bitmap. The
+ * pixel (x, y) is at index `y * width() + x`.
  *
  * Draw into the framebuffer with @ref set_pixel and friends, then push it to
- * a panel with @ref flush (full frame) or @ref flush_rows (a horizontal
- * band). This is a plain value type: copyable, movable, and independent of
- * any panel.
+ * a panel with @ref flush. A full frame at 16 bpp is large (a 240x320 panel
+ * needs 150 KB), so the framebuffer may also be sized as a horizontal band
+ * and flushed at a destination offset, rendering the frame in slices:
  *
  * @code
- * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
- * fb.set_pixel(10, 20, true);
- * fb.flush(display);
+ * idfxx::lcd::rgb565_framebuffer band(display.width(), 40);
+ * for (size_t y = 0; y < display.height(); y += band.height()) {
+ *     band.fill({0, 0, 0});
+ *     // ... draw the slice covering rows [y, y + band.height()) ...
+ *     band.flush(display, 0, y);
+ * }
  * @endcode
+ *
+ * This is a plain value type: copyable, movable, and independent of any
+ * panel.
  */
-class mono_framebuffer {
+class rgb565_framebuffer {
 public:
     /** @brief The value type written by @ref set_pixel. */
-    using pixel_type = bool;
+    using pixel_type = rgb565;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Creates a framebuffer of the given dimensions, with all pixels off.
+     * @brief Creates a framebuffer of the given dimensions, with all pixels black.
      *
      * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero and a multiple of 8.
+     * @param height Height in pixels; must be non-zero.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
      */
-    [[nodiscard]] mono_framebuffer(size_t width, size_t height)
-        : mono_framebuffer(unwrap(make(width, height))) {}
+    [[nodiscard]] rgb565_framebuffer(size_t width, size_t height)
+        : rgb565_framebuffer(unwrap(make(width, height))) {}
 #endif
 
     /**
-     * @brief Creates a framebuffer of the given dimensions, with all pixels off.
+     * @brief Creates a framebuffer of the given dimensions, with all pixels black.
      *
      * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero and a multiple of 8.
+     * @param height Height in pixels; must be non-zero.
      *
-     * @return The new mono_framebuffer, or an error.
-     * @retval idfxx::errc::invalid_arg if @p width is zero, or @p height is zero or not a multiple of 8.
+     * @return The new rgb565_framebuffer, or an error.
+     * @retval idfxx::errc::invalid_arg if @p width or @p height is zero.
      */
-    [[nodiscard]] static result<mono_framebuffer> make(size_t width, size_t height) {
-        if (width == 0 || height == 0 || height % 8 != 0) {
+    [[nodiscard]] static result<rgb565_framebuffer> make(size_t width, size_t height) {
+        if (width == 0 || height == 0) {
             return error(errc::invalid_arg);
         }
-        return mono_framebuffer{width, height, std::vector<uint8_t>(width * height / 8)};
+        return rgb565_framebuffer{width, height, std::vector<rgb565>(width * height)};
     }
 
     /** @brief Returns the width in pixels. */
@@ -88,81 +92,77 @@ public:
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
     /**
-     * @brief Sets or clears a single pixel.
+     * @brief Sets a single pixel to the given color.
      *
      * Out-of-range coordinates are ignored.
      *
-     * @param x  Column, in `[0, width())`.
-     * @param y  Row, in `[0, height())`.
-     * @param on true to set the pixel, false to clear it.
+     * @param x     Column, in `[0, width())`.
+     * @param y     Row, in `[0, height())`.
+     * @param color The color to write.
      */
-    void set_pixel(size_t x, size_t y, bool on) noexcept {
+    void set_pixel(size_t x, size_t y, rgb565 color) noexcept {
         if (x >= _width || y >= _height) {
             return;
         }
-        uint8_t& byte = _data[(y / 8) * _width + x];
-        uint8_t mask = static_cast<uint8_t>(1u << (y % 8));
-        if (on) {
-            byte |= mask;
-        } else {
-            byte &= static_cast<uint8_t>(~mask);
-        }
+        _data[y * _width + x] = color;
     }
 
     /**
-     * @brief Returns the state of a single pixel.
+     * @brief Returns the color of a single pixel.
      *
      * @param x Column, in `[0, width())`.
      * @param y Row, in `[0, height())`.
-     * @return true if the pixel is set; false if it is clear or the coordinates are out of range.
+     * @return The pixel's color, or black if the coordinates are out of range.
      */
-    [[nodiscard]] bool get_pixel(size_t x, size_t y) const noexcept {
+    [[nodiscard]] rgb565 get_pixel(size_t x, size_t y) const noexcept {
         if (x >= _width || y >= _height) {
-            return false;
+            return {};
         }
-        return (_data[(y / 8) * _width + x] & (1u << (y % 8))) != 0;
+        return _data[y * _width + x];
     }
 
     /**
-     * @brief Sets every pixel to the given state.
-     * @param on true to set all pixels, false to clear them.
+     * @brief Sets every pixel to the given color.
+     * @param color The color to fill with.
      */
-    void fill(bool on) noexcept { std::ranges::fill(_data, on ? uint8_t{0xFF} : uint8_t{0x00}); }
+    void fill(rgb565 color) noexcept { std::ranges::fill(_data, color); }
 
-    /** @brief Clears every pixel (equivalent to `fill(false)`). */
-    void clear() noexcept { fill(false); }
+    /** @brief Sets every pixel to black (equivalent to `fill({})`). */
+    void clear() noexcept { fill({}); }
 
     /**
-     * @brief Returns the raw page-packed pixel data.
+     * @brief Returns the raw pixel data.
      *
-     * The span holds `width() * height() / 8` bytes in the layout described in
-     * the class documentation, suitable for passing directly to a monochrome
-     * panel's draw_bitmap.
+     * The span holds `width() * height()` values in the row-major layout
+     * described in the class documentation, suitable for passing directly to
+     * a color panel's draw_bitmap.
      *
      * @return A read-only view of the pixel data.
      */
-    [[nodiscard]] std::span<const uint8_t> data() const noexcept { return _data; }
+    [[nodiscard]] std::span<const rgb565> data() const noexcept { return _data; }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Draws the full framebuffer to a panel.
      *
-     * The panel must use the page-packed 1-bpp format (e.g. an SSD1306) and
-     * should match the framebuffer's dimensions.
+     * The framebuffer's top-left corner lands at (@p x, @p y) on the panel,
+     * so a band-sized framebuffer can render a taller frame in slices. The
+     * panel must use the RGB565 format.
      *
      * @param panel The panel to draw to.
+     * @param x     Destination column of the framebuffer's left edge.
+     * @param y     Destination row of the framebuffer's top edge.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void flush(panel& panel) const { unwrap(try_flush(panel)); }
+    void flush(panel& panel, size_t x = 0, size_t y = 0) const { unwrap(try_flush(panel, x, y)); }
 
     /**
      * @brief Draws a horizontal band of the framebuffer to a panel.
      *
      * The band spans rows `[y_start, y_end)` across the full width, and is
-     * expanded outward to page boundaries (multiples of 8 rows) to match the
-     * page-packed layout. The panel must use the page-packed 1-bpp format
-     * (e.g. an SSD1306) and should match the framebuffer's dimensions.
+     * drawn to the same rows on the panel. The panel must use the RGB565
+     * format and should match the framebuffer's dimensions.
      *
      * @param panel   The panel to draw to.
      * @param y_start First row of the band, inclusive.
@@ -176,10 +176,9 @@ public:
      * @brief Draws a rectangular region of the framebuffer to a panel.
      *
      * The region spans columns `[x_start, x_end)` and rows `[y_start, y_end)`,
-     * with the rows expanded outward to page boundaries (multiples of 8) to
-     * match the page-packed layout. Full-width regions transfer in a single
-     * draw; narrower regions transfer one draw per page. The panel must use
-     * the page-packed 1-bpp format (e.g. an SSD1306) and should match the
+     * and is drawn to the same coordinates on the panel. Full-width regions
+     * transfer in a single draw; narrower regions transfer one draw per row.
+     * The panel must use the RGB565 format and should match the
      * framebuffer's dimensions.
      *
      * @param panel   The panel to draw to.
@@ -198,23 +197,31 @@ public:
     /**
      * @brief Draws the full framebuffer to a panel.
      *
-     * The panel must use the page-packed 1-bpp format (e.g. an SSD1306) and
-     * should match the framebuffer's dimensions.
+     * The framebuffer's top-left corner lands at (@p x, @p y) on the panel,
+     * so a band-sized framebuffer can render a taller frame in slices. The
+     * panel must use the RGB565 format.
      *
      * @param panel The panel to draw to.
+     * @param x     Destination column of the framebuffer's left edge.
+     * @param y     Destination row of the framebuffer's top edge.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_flush(panel& panel) const {
-        return panel.try_draw_bitmap(0, 0, static_cast<int>(_width), static_cast<int>(_height), _data.data());
+    [[nodiscard]] result<void> try_flush(panel& panel, size_t x = 0, size_t y = 0) const {
+        return panel.try_draw_bitmap(
+            static_cast<int>(x),
+            static_cast<int>(y),
+            static_cast<int>(x + _width),
+            static_cast<int>(y + _height),
+            _data.data()
+        );
     }
 
     /**
      * @brief Draws a horizontal band of the framebuffer to a panel.
      *
      * The band spans rows `[y_start, y_end)` across the full width, and is
-     * expanded outward to page boundaries (multiples of 8 rows) to match the
-     * page-packed layout. The panel must use the page-packed 1-bpp format
-     * (e.g. an SSD1306) and should match the framebuffer's dimensions.
+     * drawn to the same rows on the panel. The panel must use the RGB565
+     * format and should match the framebuffer's dimensions.
      *
      * @param panel   The panel to draw to.
      * @param y_start First row of the band, inclusive.
@@ -230,10 +237,9 @@ public:
      * @brief Draws a rectangular region of the framebuffer to a panel.
      *
      * The region spans columns `[x_start, x_end)` and rows `[y_start, y_end)`,
-     * with the rows expanded outward to page boundaries (multiples of 8) to
-     * match the page-packed layout. Full-width regions transfer in a single
-     * draw; narrower regions transfer one draw per page. The panel must use
-     * the page-packed 1-bpp format (e.g. an SSD1306) and should match the
+     * and is drawn to the same coordinates on the panel. Full-width regions
+     * transfer in a single draw; narrower regions transfer one draw per row.
+     * The panel must use the RGB565 format and should match the
      * framebuffer's dimensions.
      *
      * @param panel   The panel to draw to.
@@ -249,26 +255,24 @@ public:
         if (x_start >= x_end || x_end > _width || y_start >= y_end || y_end > _height) {
             return error(errc::invalid_arg);
         }
-        size_t first_page = y_start / 8;
-        size_t end_page = (y_end + 7) / 8;
         if (x_start == 0 && x_end == _width) {
-            // In the page-major layout a full-width band is contiguous, so a
-            // single transfer covers all its pages.
+            // In the row-major layout a full-width band is contiguous, so a
+            // single transfer covers all its rows.
             return panel.try_draw_bitmap(
                 0,
-                static_cast<int>(first_page * 8),
+                static_cast<int>(y_start),
                 static_cast<int>(_width),
-                static_cast<int>(end_page * 8),
-                _data.data() + first_page * _width
+                static_cast<int>(y_end),
+                _data.data() + y_start * _width
             );
         }
-        for (size_t page = first_page; page < end_page; ++page) {
+        for (size_t row = y_start; row < y_end; ++row) {
             auto drawn = panel.try_draw_bitmap(
                 static_cast<int>(x_start),
-                static_cast<int>(page * 8),
+                static_cast<int>(row),
                 static_cast<int>(x_end),
-                static_cast<int>((page + 1) * 8),
-                _data.data() + page * _width + x_start
+                static_cast<int>(row + 1),
+                _data.data() + row * _width + x_start
             );
             if (!drawn) {
                 return drawn;
@@ -278,14 +282,14 @@ public:
     }
 
 private:
-    mono_framebuffer(size_t width, size_t height, std::vector<uint8_t> data)
+    rgb565_framebuffer(size_t width, size_t height, std::vector<rgb565> data)
         : _width(width)
         , _height(height)
         , _data(std::move(data)) {}
 
     size_t _width;
     size_t _height;
-    std::vector<uint8_t> _data;
+    std::vector<rgb565> _data;
 };
 
 } // namespace idfxx::lcd
