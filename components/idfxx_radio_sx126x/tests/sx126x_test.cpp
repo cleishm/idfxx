@@ -57,24 +57,33 @@ static_assert(std::to_underlying(sx126x::irq_flag::timeout) == (1 << 9));
 // Pure register-encoder tests (src/sx126x_codec.hpp)
 // =============================================================================
 
-// Bandwidth bytes (DS table 13-47).
+// Bandwidth bytes (DS table 13-48).
 static_assert(codec::bandwidth_byte(bandwidth::bw_7_8) == 0x00);
 static_assert(codec::bandwidth_byte(bandwidth::bw_125) == 0x04);
 static_assert(codec::bandwidth_byte(bandwidth::bw_250) == 0x05);
 static_assert(codec::bandwidth_byte(bandwidth::bw_500) == 0x06);
 
-// Spreading factor: the chip encoding is the SF number itself.
+// Spreading factor (DS table 13-47): the chip encoding is the SF number itself.
 static_assert(codec::spreading_factor_byte(spreading_factor::sf7) == 7);
 static_assert(codec::spreading_factor_byte(spreading_factor::sf12) == 12);
 
-// Coding rate: 1..4 for cr_4_5..cr_4_8.
+// Coding rate (DS table 13-49): 1..4 for cr_4_5..cr_4_8.
 static_assert(codec::coding_rate_byte(coding_rate::cr_4_5) == 1);
 static_assert(codec::coding_rate_byte(coding_rate::cr_4_8) == 4);
 
-// Ramp-time buckets.
+// Ramp-time buckets (DS table 13-41).
 static_assert(codec::ramp_time_byte(ramp_time::us_10) == 0x00);
+static_assert(codec::ramp_time_byte(ramp_time::us_40) == 0x02);
 static_assert(codec::ramp_time_byte(ramp_time::us_200) == 0x04);
+static_assert(codec::ramp_time_byte(ramp_time::us_800) == 0x05); // 0x06 is 1700 µs
 static_assert(codec::ramp_time_byte(ramp_time::us_3400) == 0x07);
+
+// CAD symbol enum values are the cadSymbolNum register bytes (DS table 13-72).
+static_assert(std::to_underlying(sx126x::cad_symbols::sym_1) == 0x00);
+static_assert(std::to_underlying(sx126x::cad_symbols::sym_2) == 0x01);
+static_assert(std::to_underlying(sx126x::cad_symbols::sym_4) == 0x02);
+static_assert(std::to_underlying(sx126x::cad_symbols::sym_8) == 0x03);
+static_assert(std::to_underlying(sx126x::cad_symbols::sym_16) == 0x04);
 
 // SetRfFrequency register value: reg = hz * 2^25 / 32 MHz.
 // 915 MHz -> 0x39300000 (915.2 MHz would be 0x39333000; this is exactly 915.0).
@@ -82,7 +91,7 @@ static_assert(codec::freq_to_register(915'000'000) == 0x39300000u);
 static_assert(codec::freq_to_register(868'000'000) == 0x36400000u);
 static_assert(codec::freq_to_register(433'000'000) == 0x1B100000u);
 
-// SetPacketParams packing: preamble MSB/LSB, header, payload len, CRC, IQ.
+// SetPacketParams packing (DS §13.4.6): preamble MSB/LSB, header, payload len, CRC, IQ.
 static_assert(
     codec::pack_packet_params(
         lora_packet_params{
@@ -106,7 +115,7 @@ static_assert(
     ) == std::array<uint8_t, 6>{0x12, 0x34, 0x01, 255, 0x00, 0x01}
 );
 
-// CalibrateImage band table (DS §9.2.1).
+// CalibrateImage band table (DS §9.2.1, table 9-2).
 static_assert(codec::calibrate_image_bytes(915'000'000).f1 == 0xE1);
 static_assert(codec::calibrate_image_bytes(915'000'000).f2 == 0xE9);
 static_assert(codec::calibrate_image_bytes(868'000'000).f1 == 0xD7);
@@ -115,8 +124,9 @@ static_assert(codec::calibrate_image_bytes(780'000'000).f1 == 0xC1);
 static_assert(codec::calibrate_image_bytes(490'000'000).f1 == 0x75);
 static_assert(codec::calibrate_image_bytes(434'000'000).f1 == 0x6B);
 
-// SetDio3AsTcxoCtrl voltage byte: index of the highest supported voltage not
-// above the supplied mV (0=1.6V … 7=3.3V); below 1.6 V clamps to 0.
+// SetDIO3AsTCXOCtrl voltage byte (DS §13.3.6, table 13-35): index of the
+// highest supported voltage not above the supplied mV (0=1.6V … 7=3.3V); below
+// 1.6 V clamps to 0.
 static_assert(codec::tcxo_voltage_byte(1500) == 0);
 static_assert(codec::tcxo_voltage_byte(1600) == 0);
 static_assert(codec::tcxo_voltage_byte(1700) == 1);
@@ -129,15 +139,15 @@ static_assert(codec::tcxo_voltage_byte(3000) == 6);
 static_assert(codec::tcxo_voltage_byte(3300) == 7);
 static_assert(codec::tcxo_voltage_byte(5000) == 7);
 
-// GetPacketStatus / GetRssiInst decoding: RSSI bytes are -raw/2 dBm, SNR
-// bytes are a signed quarter-dB value.
+// GetPacketStatus (§13.5.3) / GetRssiInst (§13.5.4) decoding: RSSI bytes are
+// -raw/2 dBm, SNR bytes are a signed quarter-dB value.
 static_assert(codec::decode_rssi_byte(160) == -80_dBm);
 static_assert(codec::decode_rssi_byte(161) == electro::centi_dbm(-8050));
 static_assert(codec::decode_rssi_byte(0) == 0_dBm);
 static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).rssi == -80_dBm);
 static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).snr == 5_dB);
 
-// SetRxDutyCycle step conversion: one step = 15.625 µs (= µs · 64 / 1000).
+// SetRxDutyCycle (§13.1.7) step conversion: one step = 15.625 µs (= µs · 64 / 1000).
 static_assert(codec::duty_cycle_steps(std::chrono::microseconds{1000}) == 64);
 static_assert(codec::duty_cycle_steps(std::chrono::microseconds{15625}) == 1000);
 static_assert(codec::duty_cycle_steps(std::chrono::microseconds{0}) == 0);
@@ -152,7 +162,7 @@ static_assert(
     std::array<uint8_t, 6>{0x00, 0x00, 0x40, 0x00, 0x03, 0xE8}
 );
 
-// Per-variant output-power limits (DS chapter 13.4.4, SetTxParams).
+// Per-variant output-power limits (DS §13.4.4 SetTxParams, table 13-21).
 static_assert(codec::power_limits_for(sx126x::chip_variant::sx1261).min_dbm == -17);
 static_assert(codec::power_limits_for(sx126x::chip_variant::sx1261).max_dbm == 15);
 static_assert(codec::power_limits_for(sx126x::chip_variant::sx1262).min_dbm == -9);
@@ -191,7 +201,9 @@ TEST_CASE("sx126x config defaults", "[idfxx][radio][sx126x]") {
 
 TEST_CASE("cad_params defaults match SX126x datasheet recommendations", "[idfxx][radio][sx126x]") {
     sx126x::cad_params p{};
-    TEST_ASSERT_EQUAL(2, p.symbol_num);
+    // Default is 2 symbols = CAD_ON_2_SYMB (0x01), the recommended value.
+    TEST_ASSERT_TRUE(p.symbols == sx126x::cad_symbols::sym_2);
+    TEST_ASSERT_EQUAL_HEX8(0x01, std::to_underlying(p.symbols));
     TEST_ASSERT_EQUAL(22, p.det_peak);
     TEST_ASSERT_EQUAL(10, p.det_min);
 }

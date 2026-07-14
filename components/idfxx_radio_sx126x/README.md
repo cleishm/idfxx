@@ -268,6 +268,10 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
   consumes DIO1 notifications. Increase stack only if you observe overflow.
 - For the SX1268 (high-power PA, sub-GHz, 410–810 MHz band), set
   `variant = chip_variant::sx1268` and a band-appropriate `set_frequency`.
+- Register, opcode, and errata references throughout the source cite the
+  Semtech SX1261/2 datasheet **DS_SX1261-2 rev. 2.2**; the low-level escape
+  hatch (`write_command`/`write_register`/`write_buffer` and their `read`
+  counterparts) is intended for use alongside that document.
 - **Wake-on-radio across host deep sleep**: leave the chip duty-cycle
   listening (`start_listening(rx_duty_cycle)`), route DIO1 to an RTC wake pin,
   and deep-sleep the host *without destroying the driver* (its destructor
