@@ -253,7 +253,7 @@ struct sx126x::state {
     std::atomic<chip_mode> mode{chip_mode::stdby};
     sx126x_internal::driver_activity driver_state = sx126x_internal::driver_activity::idle;
 
-    // Most-recent packet params written via set_lora_packet_params; transmit
+    // Most-recent packet params written via set_packet_params; transmit
     // re-issues these with an updated payload length so it never clobbers the
     // caller's header/CRC/IQ choices.
     lora_packet_params last_packet_params{};

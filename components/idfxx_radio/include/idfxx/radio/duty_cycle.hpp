@@ -51,7 +51,7 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  * parameters — when the preamble is too short to sleep inside
  * (`2·min_symbols ≥ sender_preamble`) or the resulting sleep window is
  * shorter than @p min_sleep. The caller should then use continuous receive;
- * passing the result straight to `transceiver::start_listening` does exactly that.
+ * passing the result straight to `lora_transceiver::start_listening` does exactly that.
  *
  * @param mod             Modulation parameters (spreading factor and
  *                        bandwidth are used).

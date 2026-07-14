@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-#include <idfxx/radio/transceiver>
+#include <idfxx/radio/lora_transceiver>
 
 // Out-of-line anchor for the abstract base's vtable. Keeps the vtable and
 // type-info in a single translation unit so concrete drivers don't each emit

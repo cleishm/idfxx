@@ -51,7 +51,7 @@ inline constexpr event<event_id> tx_done{event_id::tx_done};
  *
  * The payload describes the packet that raised the event, which suits
  * metadata-only listeners (e.g. signal monitoring). To read the packet's
- * bytes, call `transceiver::read_received` and pair the bytes with the
+ * bytes, call `lora_transceiver::read_received` and pair the bytes with the
  * @ref rx_info *it* returns — the receive cache holds only the most recent
  * packet, which may already be newer than the one that raised this event.
  */

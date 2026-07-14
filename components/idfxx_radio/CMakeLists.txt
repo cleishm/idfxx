@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "src/transceiver.cpp"
+    SRCS "src/lora_transceiver.cpp"
     INCLUDE_DIRS "include"
 )
 
