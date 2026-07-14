@@ -919,6 +919,21 @@ result<void> sx126x::do_set_lora_packet_params(lora_packet_params params) {
     if (auto e = _state->write_command(internal::op_set_packet_params, packed); !e) {
         return e;
     }
+    // Errata §15.4: bit 2 of reg_iq_polarity must be cleared for inverted IQ
+    // and set for standard IQ, or longer inverted-IQ packets suffer losses.
+    // (The chip's reset value has it set, so standard IQ is correct by default.)
+    std::array<uint8_t, 1> iq{};
+    if (auto e = _state->read_register(internal::reg_iq_polarity, iq); !e) {
+        return e;
+    }
+    if (params.invert_iq) {
+        iq[0] &= static_cast<uint8_t>(~internal::iq_polarity_bit);
+    } else {
+        iq[0] |= internal::iq_polarity_bit;
+    }
+    if (auto e = _state->write_register(internal::reg_iq_polarity, iq); !e) {
+        return e;
+    }
     // Cache so transmit can re-issue with an updated payload length without
     // clobbering the caller's header/CRC/IQ choices.
     _state->last_packet_params = params;

@@ -98,10 +98,12 @@ inline constexpr uint16_t reg_lora_sync_word_msb = 0x0740;
 
 // Errata / tuning registers (addresses from table 12-1; the errata bit
 // definitions are in §15).
+inline constexpr uint16_t reg_iq_polarity = 0x0736;     // §15.4 inverted-IQ optimization
 inline constexpr uint16_t reg_tx_modulation = 0x0889;   // §15.1 BW500 modulation quality
 inline constexpr uint16_t reg_rx_gain = 0x08AC;         // Rx gain (§9.6, table 9-3)
 inline constexpr uint16_t reg_tx_clamp_config = 0x08D8; // §15.2 antenna-mismatch Tx clamp
 
+inline constexpr uint8_t iq_polarity_bit = 0x04;         // §15.4: bit 2 of reg_iq_polarity
 inline constexpr uint8_t tx_modulation_bw500_bit = 0x04; // §15.1: bit 2 of reg_tx_modulation
 inline constexpr uint8_t rx_gain_boosted = 0x96;         // table 9-3: Rx boosted gain (best sensitivity)
 inline constexpr uint8_t tx_clamp_bits = 0x1E;           // §15.2: bits 4..1 of reg_tx_clamp_config
