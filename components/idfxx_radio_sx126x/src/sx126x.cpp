@@ -66,9 +66,10 @@ void reset_idle(sx126x::state& s, chip_mode parked = chip_mode::stdby) {
     sx126x_set_rf_switch(s, parked);
 }
 
-// Writes the boosted-RX gain register before a receive, if requested. Refreshing
-// it before every SetRx also sidesteps the warm-start gain loss noted in the
-// datasheet. (Register value re-verify against DS_SX1261-2 before shipping.)
+// Writes the boosted-RX gain register (reg_rx_gain, table 9-3) before a
+// receive, if requested. DS §9.6 notes the Rx-gain register is not part of the
+// warm-start retention memory, so refreshing it before every SetRx sidesteps
+// the warm-start gain (sensitivity) loss.
 result<void> apply_rx_boost(sx126x::state& s) {
     if (!s.cfg.rx_boost) {
         return {};
@@ -110,20 +111,22 @@ result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<cons
     if (auto e = apply_rx_boost(s); !e) {
         return error(e.error());
     }
-    // Restore the caller's packet params: transmit re-issues them with
-    // payload_length set to that packet's size, so without this the chip
-    // enters RX with whatever length the last transmit happened to have —
-    // and the datasheet describes payload_length as the maximum the receiver
-    // accepts. Arm RX with the caller's intent, not a transmit leftover.
+    // Restore the caller's packet params (SetPacketParams, §13.4.6): transmit
+    // re-issues them with payload_length set to that packet's size, so without
+    // this the chip enters RX with whatever length the last transmit happened
+    // to have — and §13.4.6 (table 13-68) defines payload_length as the maximum
+    // the receiver accepts. Arm RX with the caller's intent, not a transmit
+    // leftover.
     if (auto e = s.write_command(internal::op_set_packet_params, internal::pack_packet_params(s.last_packet_params));
         !e) {
         return e;
     }
-    // Reset the receive write pointer. It is NOT reset by SetRx: it advances
-    // with every packet received in continuous mode, and once it has crept
-    // past 256 - payload_len an incoming packet crosses the buffer boundary
-    // and is silently lost (preamble fires; no rx_done and no error). The
-    // worker re-resets it after draining each packet for the same reason.
+    // Reset the receive write pointer (SetBufferBaseAddress, §13.4.8). It is
+    // NOT reset by SetRx: it advances with every packet received in continuous
+    // mode, and once it has crept past 256 - payload_len an incoming packet
+    // crosses the buffer boundary and is silently lost (preamble fires; no
+    // rx_done and no error). The worker re-resets it after draining each packet
+    // for the same reason.
     std::array<uint8_t, 2> bases{0x00, 0x00};
     if (auto e = s.write_command(internal::op_set_buffer_base_addr, bases); !e) {
         return e;
@@ -138,13 +141,14 @@ result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<cons
     return {};
 }
 
-// SetCadParams: 7 bytes. cad_symbol_num, det_peak, det_min, exit_mode
-// (CAD_ONLY), timeout (3 bytes, unused). Shared by the default-config path and
-// the public set_cad_params; the chip retains the values, so user tuning
-// persists across scans.
+// SetCadParams (§13.4.7, table 13-71): 7 bytes — cadSymbolNum (table 13-72),
+// cadDetPeak, cadDetMin, cadExitMode (0x00 = CAD_ONLY, table 13-73), and a
+// 3-byte cadTimeout (unused). Shared by the default-config path and the public
+// set_cad_params; the chip retains the values, so user tuning persists across
+// scans.
 result<void> write_cad_params(sx126x::state& s, sx126x::cad_params params) {
     std::array<uint8_t, 7> p{
-        params.symbol_num,
+        std::to_underlying(params.symbols), // cadSymbolNum (table 13-72)
         params.det_peak,
         params.det_min,
         0x00, // CAD_ONLY exit mode
@@ -156,19 +160,20 @@ result<void> write_cad_params(sx126x::state& s, sx126x::cad_params params) {
 }
 
 result<void> apply_default_config(sx126x::state& s) {
-    // Standby (RC clock).
+    // Standby, RC clock (SetStandby, §13.1.2).
     if (auto e = s.command1(internal::op_set_standby, internal::stdby_rc); !e) {
         return e;
     }
 
-    // Optional TCXO via DIO3, followed by a full calibration. Once the chip runs
-    // from a TCXO it must be (re)calibrated before use (DS §9.2.1 / §13.1.12).
+    // Optional TCXO via DIO3 (SetDIO3AsTCXOCtrl, §13.3.6), followed by a full
+    // calibration. Once the chip runs from a TCXO it must be (re)calibrated
+    // before use (DS §9.2.1 / §13.1.12).
     if (s.cfg.tcxo) {
         auto params = internal::pack_tcxo_params(s.cfg.tcxo->voltage, s.cfg.tcxo->startup);
         if (auto e = s.write_command(internal::op_set_dio3_as_tcxo_ctrl, params); !e) {
             return e;
         }
-        // Calibrate all blocks; calibration holds BUSY high (~3.5 ms).
+        // Calibrate all blocks (§13.1.12); calibration holds BUSY high (~3.5 ms).
         if (auto e = s.command1(internal::op_calibrate, internal::calibrate_all); !e) {
             return e;
         }
@@ -177,25 +182,25 @@ result<void> apply_default_config(sx126x::state& s) {
         }
     }
 
-    // Regulator.
+    // Regulator (SetRegulatorMode, §13.1.11).
     if (auto e = s.command1(internal::op_set_regulator_mode, std::to_underlying(s.cfg.regulator)); !e) {
         return e;
     }
 
-    // DIO2 as RF switch.
+    // DIO2 as RF switch (SetDIO2AsRfSwitchCtrl, §13.3.5).
     if (s.cfg.dio2_as_rf_switch) {
         if (auto e = s.command1(internal::op_set_dio2_as_rf_switch, 0x01); !e) {
             return e;
         }
     }
 
-    // Packet type = LoRa.
+    // Packet type = LoRa (SetPacketType, §13.4.2).
     if (auto e = s.command1(internal::op_set_packet_type, internal::packet_type_lora); !e) {
         return e;
     }
 
-    // PA config from the variant's maximum-power row; set_output_power
-    // re-issues it alongside SetTxParams for the requested power.
+    // PA config (SetPaConfig, §13.1.14) from the variant's maximum-power row;
+    // set_output_power re-issues it alongside SetTxParams for the requested power.
     auto limits = internal::power_limits_for(s.cfg.variant);
     auto pa = internal::tx_power_config_for(s.cfg.variant, limits.max_dbm).pa;
     std::array<uint8_t, 4> pa_params{pa.pa_duty_cycle, pa.hp_max, pa.device_sel, pa.pa_lut};
@@ -204,8 +209,8 @@ result<void> apply_default_config(sx126x::state& s) {
     }
 
     // Errata §15.2: for the high-power PA (SX1262/SX1268), set the Tx-clamp bits
-    // to improve resistance to antenna mismatch. (Re-verify register/mask
-    // against DS_SX1261-2 before shipping.)
+    // (reg_tx_clamp_config bits 4..1 = 1111) to improve resistance to antenna
+    // mismatch.
     if (internal::is_high_power(s.cfg.variant)) {
         std::array<uint8_t, 1> clamp{};
         if (auto e = s.read_register(internal::reg_tx_clamp_config, clamp); !e) {
@@ -217,9 +222,9 @@ result<void> apply_default_config(sx126x::state& s) {
         }
     }
 
-    // SetDioIrqParams: 8 bytes. (irq_mask, dio1_mask, dio2_mask, dio3_mask) MSB/LSB each.
-    // The same mask is used for latching and DIO1 routing; config::dio1_mask
-    // overrides the driver default.
+    // SetDioIrqParams (§13.3.1): 8 bytes — (irq_mask, dio1_mask, dio2_mask,
+    // dio3_mask) MSB/LSB each. The same mask is used for latching and DIO1
+    // routing; config::dio1_mask overrides the driver default.
     const uint16_t irq_mask = s.cfg.dio1_mask ? idfxx::to_underlying(*s.cfg.dio1_mask) : default_irq_mask;
     std::array<uint8_t, 8> irq_params{
         static_cast<uint8_t>(irq_mask >> 8),
@@ -235,13 +240,13 @@ result<void> apply_default_config(sx126x::state& s) {
         return e;
     }
 
-    // Buffer base addresses (TX=0, RX=0).
+    // Buffer base addresses TX=0, RX=0 (SetBufferBaseAddress, §13.4.8).
     std::array<uint8_t, 2> bases{0x00, 0x00};
     if (auto e = s.write_command(internal::op_set_buffer_base_addr, bases); !e) {
         return e;
     }
 
-    // Default LoRa sync word = public network (0x3444).
+    // Default LoRa sync word = public network (0x3444; reg 0x0740, table 12-1).
     auto sync = internal::pack_sync_word(sync_word_public);
     if (auto e = s.write_register(internal::reg_lora_sync_word_msb, sync); !e) {
         return e;
@@ -255,6 +260,8 @@ result<void> apply_default_config(sx126x::state& s) {
     return {};
 }
 
+// Hardware reset via the active-low NRESET pin (DS §8.1 Reset): drive it low
+// briefly, release, then wait for the chip to finish booting (BUSY low).
 result<void> reset_chip(sx126x::state& s) {
     if (!s.cfg.nreset.is_connected()) {
         return {};
@@ -325,8 +332,9 @@ result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std
         return latch;
     }
 
-    // Re-issue the cached packet params with this payload's length, preserving
-    // the caller's header/CRC/IQ; write directly so the cache itself is unchanged.
+    // Re-issue the cached packet params (SetPacketParams, §13.4.6) with this
+    // payload's length, preserving the caller's header/CRC/IQ; write directly
+    // so the cache itself is unchanged.
     lora_packet_params params = s.last_packet_params;
     params.payload_length = static_cast<uint8_t>(data.size());
     auto packed = internal::pack_packet_params(params);
@@ -335,15 +343,16 @@ result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std
         return error(e.error());
     }
 
-    // Stage the payload directly from the caller's span (the write completes
-    // before this returns, so no internal copy is needed).
+    // Stage the payload directly from the caller's span into the chip data
+    // buffer (WriteBuffer, §13.2.3; the write completes before this returns, so
+    // no internal copy is needed).
     if (auto e = s.write_buffer(0, data); !e) {
         reset_idle(s);
         return error(e.error());
     }
 
-    // Point the RF switch at the PA and start the transmission (no chip
-    // timeout — software-managed).
+    // Point the RF switch at the PA and start the transmission (SetTx, §13.1.4;
+    // no chip timeout — software-managed).
     sx126x_set_rf_switch(s, chip_mode::tx);
     std::array<uint8_t, 3> tx_params{0x00, 0x00, 0x00};
     if (auto e = s.write_command(internal::op_set_tx, tx_params); !e) {
@@ -413,12 +422,18 @@ void sx126x_set_rf_switch(sx126x::state& s, chip_mode mode) noexcept {
 
 // =============================================================================
 // SPI I/O (shared by the public API and the worker task)
+//
+// Command framing follows the SPI command sequence in DS §10 (table 10-1).
+// The register/buffer-access helpers implement WriteRegister/ReadRegister/
+// WriteBuffer/ReadBuffer (§13.2.1..13.2.4).
 // =============================================================================
 
 result<void> sx126x::state::wait_busy() {
     if (!cfg.busy.is_connected()) {
         return {};
     }
+    // BUSY high means the chip is still processing a command (DS §8.3.1 BUSY
+    // Control Line).
     const auto start = std::chrono::steady_clock::now();
     const auto deadline = start + cfg.busy_timeout;
     // Normal command turnaround is ~1 us, so spin-yield first; back off to a
@@ -447,7 +462,9 @@ result<void> sx126x::state::wait_busy_waking() {
     if (!e && e.error() == errc::timeout) {
         // BUSY held high through the whole window: no command processing
         // lasts that long, so the chip is asleep (e.g. the sleep phase of a
-        // duty-cycled receive) and needs an NSS edge before it can respond.
+        // duty-cycled receive) and needs an NSS edge before it can respond
+        // (DS §9.3: in Sleep BUSY is held high and an NSS falling edge wakes
+        // the chip; §8.2.2 SPI timing when leaving Sleep).
         ESP_LOGD(TAG, "BUSY held high — waking chip with an NSS edge");
         const std::array<uint8_t, 2> get_status{internal::op_get_status, 0x00};
         (void)device.try_polling_transmit(get_status);
@@ -558,6 +575,7 @@ result<void> sx126x::state::read_buffer(uint8_t offset, std::span<uint8_t> data)
 }
 
 result<uint16_t> sx126x::state::read_irq_status() {
+    // GetIrqStatus (§13.3.3): the 16-bit IRQ register (table 13-29).
     std::array<uint8_t, 2> r{};
     if (auto e = read_command(internal::op_get_irq_status, r); !e) {
         return error(e.error());
@@ -566,6 +584,7 @@ result<uint16_t> sx126x::state::read_irq_status() {
 }
 
 result<void> sx126x::state::clear_irq_status(uint16_t mask) {
+    // ClearIrqStatus (§13.3.4).
     std::array<uint8_t, 2> p{static_cast<uint8_t>(mask >> 8), static_cast<uint8_t>(mask)};
     return write_command(internal::op_clear_irq_status, p);
 }
@@ -588,7 +607,7 @@ sx126x::state::~state() {
         std::lock_guard g(mu);
         cancel_active_op(*this, errc::not_finished);
     }
-    (void)command1(internal::op_set_sleep, internal::sleep_warm_start);
+    (void)command1(internal::op_set_sleep, internal::sleep_warm_start); // SetSleep, §13.1.1
 }
 
 // =============================================================================
@@ -710,10 +729,11 @@ result<void> sx126x::try_standby(standby_clock clock) {
         return error(errc::invalid_state);
     }
     uint8_t cfg = clock == standby_clock::xosc ? internal::stdby_xosc : internal::stdby_rc;
-    auto cmd = _state->command1(internal::op_set_standby, cfg);
+    auto cmd = _state->command1(internal::op_set_standby, cfg); // SetStandby, §13.1.2
     if (cmd) {
-        // Clear all chip IRQs so an operation cancelled mid-flight can't leave
-        // a stale DIO1 edge behind for the next operation to misread.
+        // Clear all chip IRQs (ClearIrqStatus, §13.3.4) so an operation
+        // cancelled mid-flight can't leave a stale DIO1 edge behind for the
+        // next operation to misread.
         (void)_state->clear_irq_status(0xFFFF);
     }
     // Reset the driver-side state and cancel any in-flight async operation
@@ -733,7 +753,7 @@ result<void> sx126x::try_sleep(sleep_mode mode) {
         return error(errc::invalid_state);
     }
     uint8_t cfg = mode == sleep_mode::warm ? internal::sleep_warm_start : 0x00;
-    auto cmd = _state->command1(internal::op_set_sleep, cfg);
+    auto cmd = _state->command1(internal::op_set_sleep, cfg); // SetSleep, §13.1.1
     if (mode == sleep_mode::cold) {
         // Cold sleep loses the chip's calibration along with the rest of its
         // configuration; the next set_frequency must recalibrate.
@@ -750,7 +770,7 @@ result<void> sx126x::do_start_listening() {
     if (!_state) {
         return error(errc::invalid_state);
     }
-    // SetRx with timeout = 0xFFFFFF = continuous mode.
+    // SetRx (§13.1.5) with timeout = 0xFFFFFF = continuous mode (table 13-9).
     std::array<uint8_t, 3> params{0xFF, 0xFF, 0xFF};
     return arm_stream_receive(*_state, internal::op_set_rx, params);
 }
@@ -759,6 +779,7 @@ result<void> sx126x::do_start_listening(std::chrono::microseconds rx_period, std
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // SetRxDutyCycle (§13.1.7): the chip alternates receive and sleep windows.
     auto params = internal::pack_rx_duty_cycle(rx_period, sleep_period);
     return arm_stream_receive(*_state, internal::op_set_rx_duty_cycle, params);
 }
@@ -787,8 +808,8 @@ result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
         return error(latch.error());
     }
 
-    // Point the RF switch at the receiver and start CAD. The chip's CAD
-    // parameters were set at construction (and possibly tuned via
+    // Point the RF switch at the receiver and start CAD (SetCad, §13.1.8). The
+    // chip's CAD parameters were set at construction (and possibly tuned via
     // set_cad_params); they persist across scans.
     sx126x_set_rf_switch(s, chip_mode::cad);
     if (auto e = s.command(internal::op_set_cad); !e) {
@@ -810,9 +831,9 @@ result<void> sx126x::do_set_frequency(freq::hertz hz) {
         return error(errc::invalid_state);
     }
     // Calibrate the image rejection for this frequency's band before tuning
-    // (DS §9.2.1), unless the band is already calibrated — frequency hops
-    // within one band then skip straight to SetRfFrequency. Band bytes
-    // re-verify against DS_SX1261-2 before shipping.
+    // (CalibrateImage, §13.1.13 / §9.2.1, band bytes from table 9-2), unless the
+    // band is already calibrated — frequency hops within one band then skip
+    // straight to SetRfFrequency.
     auto band = internal::calibrate_image_bytes(static_cast<uint64_t>(hz.count()));
     if (_state->cal_band != band) {
         std::array<uint8_t, 2> img{band.f1, band.f2};
@@ -821,6 +842,7 @@ result<void> sx126x::do_set_frequency(freq::hertz hz) {
         }
         _state->cal_band = band;
     }
+    // SetRfFrequency (§13.4.1): the 32-bit PLL word, MSB first.
     uint32_t reg = internal::freq_to_register(static_cast<uint64_t>(hz.count()));
     std::array<uint8_t, 4> params{
         static_cast<uint8_t>(reg >> 24),
@@ -846,8 +868,9 @@ result<void> sx126x::do_set_output_power(electro::dbm power, ramp_time ramp) {
         );
         return error(errc::invalid_arg);
     }
-    // SetPaConfig for the requested power (the SX1261's +15 dBm needs a
-    // different PA duty cycle and a +14 SetTxParams byte), then SetTxParams.
+    // SetPaConfig (§13.1.14) for the requested power (the SX1261's +15 dBm needs
+    // a different PA duty cycle and a +14 SetTxParams byte), then SetTxParams
+    // (§13.4.4).
     auto txp = internal::tx_power_config_for(_state->cfg.variant, static_cast<int8_t>(power.count()));
     std::array<uint8_t, 4> pa_params{txp.pa.pa_duty_cycle, txp.pa.hp_max, txp.pa.device_sel, txp.pa.pa_lut};
     if (auto e = _state->write_command(internal::op_set_pa_config, pa_params); !e) {
@@ -861,6 +884,8 @@ result<void> sx126x::do_set_lora_modulation(lora_modulation mod) {
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // SetModulationParams (§13.4.5): SF (table 13-47), BW (table 13-48), CR
+    // (table 13-49), LowDataRateOptimize (table 13-50).
     std::array<uint8_t, 4> params{
         internal::spreading_factor_byte(mod.sf),
         internal::bandwidth_byte(mod.bw),
@@ -872,7 +897,7 @@ result<void> sx126x::do_set_lora_modulation(lora_modulation mod) {
     }
     // Errata §15.1: bit 2 of reg_tx_modulation must be cleared for 500 kHz LoRa
     // bandwidth and set for every other bandwidth to meet the modulation-quality
-    // spec. Applies to all SX126x variants. (Re-verify register/bit vs datasheet.)
+    // spec. Applies to all SX126x variants.
     std::array<uint8_t, 1> tm{};
     if (auto e = _state->read_register(internal::reg_tx_modulation, tm); !e) {
         return e;
@@ -889,6 +914,7 @@ result<void> sx126x::do_set_lora_packet_params(lora_packet_params params) {
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // SetPacketParams (§13.4.6).
     auto packed = internal::pack_packet_params(params);
     if (auto e = _state->write_command(internal::op_set_packet_params, packed); !e) {
         return e;
@@ -907,6 +933,7 @@ result<void> sx126x::try_set_sync_word(uint16_t sync_word) {
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // LoRa sync-word register 0x0740/0x0741 (table 12-1).
     auto sync = internal::pack_sync_word(sync_word);
     return _state->write_register(internal::reg_lora_sync_word_msb, sync);
 }
@@ -949,9 +976,9 @@ result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffe
         return error(e.error());
     }
 
-    // Start a single-shot receive with no chip timeout (the chip's SetRx
-    // timeout has an RTC-counter errata; timeouts are managed in software by
-    // waiting on the future).
+    // Start a single-shot receive (SetRx, §13.1.5) with no chip timeout (the
+    // chip's RX timeout carries an RTC-counter errata, §15.3; timeouts are
+    // managed in software by waiting on the future).
     sx126x_set_rf_switch(s, chip_mode::rx);
     std::array<uint8_t, 3> rx_params{0x00, 0x00, 0x00};
     if (auto e = s.write_command(internal::op_set_rx, rx_params); !e) {
@@ -985,6 +1012,7 @@ result<packet_status> sx126x::do_last_packet_status() {
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // GetPacketStatus (§13.5.3): rssi_pkt, snr_pkt, signal_rssi_pkt.
     std::array<uint8_t, 3> r{};
     if (auto e = _state->read_command(internal::op_get_packet_status, r); !e) {
         return error(e.error());
@@ -996,6 +1024,7 @@ result<electro::centi_dbm> sx126x::do_current_rssi() {
     if (!_state) {
         return error(errc::invalid_state);
     }
+    // GetRssiInst (§13.5.4): instantaneous RSSI of the current channel.
     std::array<uint8_t, 1> r{};
     if (auto e = _state->read_command(internal::op_get_rssi_inst, r); !e) {
         return error(e.error());

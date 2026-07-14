@@ -53,7 +53,7 @@ void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fil
 result<rx_info> sx126x_drain_received(sx126x::state& s) {
     rx_info info{};
 
-    // GetRxBufferStatus -> [payload_len, rx_start_buffer_ptr].
+    // GetRxBufferStatus (§13.5.2) -> [payload_len, rx_start_buffer_ptr].
     std::array<uint8_t, 2> rxs{};
     if (auto e = s.read_command(internal::op_get_rx_buffer_status, rxs); !e) {
         return error(e.error());
@@ -61,7 +61,7 @@ result<rx_info> sx126x_drain_received(sx126x::state& s) {
     info.length = rxs[0];
     uint8_t rx_offset = rxs[1];
 
-    // GetPacketStatus -> [rssi_pkt, snr_pkt, signal_rssi_pkt].
+    // GetPacketStatus (§13.5.3) -> [rssi_pkt, snr_pkt, signal_rssi_pkt].
     std::array<uint8_t, 3> pkt{};
     if (auto e = s.read_command(internal::op_get_packet_status, pkt); !e) {
         return error(e.error());
@@ -70,9 +70,10 @@ result<rx_info> sx126x_drain_received(sx126x::state& s) {
     info.rssi = ps.rssi;
     info.snr = ps.snr;
 
-    // Read the payload from the chip buffer straight into the last-packet
-    // cache (full length; per-caller copies clamp). Holding `mu` across the
-    // read keeps the cache coherent for concurrent read_received callers.
+    // Read the payload from the chip buffer (ReadBuffer, §13.2.4) straight into
+    // the last-packet cache (full length; per-caller copies clamp). Holding
+    // `mu` across the read keeps the cache coherent for concurrent
+    // read_received callers.
     std::lock_guard g(s.mu);
     if (info.length > 0) {
         if (auto e = s.read_buffer(rx_offset, {s.last_rx_buf.data(), info.length}); !e) {

@@ -29,75 +29,88 @@
 namespace idfxx::radio::sx126x_internal {
 
 // =============================================================================
-// Opcodes (Semtech DS_SX1261-2_V2.1, table 11-1)
+// Opcodes
+//
+// Opcodes are listed in the DS_SX1261-2_V2.2 command tables (§11, tables
+// 11-1..11-5) and each command is detailed in §13. The trailing reference on
+// each line points at the command's subsection in §13.
 // =============================================================================
 
-inline constexpr uint8_t op_get_status = 0xC0;
-inline constexpr uint8_t op_set_sleep = 0x84;
-inline constexpr uint8_t op_set_standby = 0x80;
-inline constexpr uint8_t op_set_tx = 0x83;
-inline constexpr uint8_t op_set_rx = 0x82;
-inline constexpr uint8_t op_set_rx_duty_cycle = 0x94;
-inline constexpr uint8_t op_set_cad = 0xC5;
-inline constexpr uint8_t op_set_packet_type = 0x8A;
-inline constexpr uint8_t op_set_rf_frequency = 0x86;
-inline constexpr uint8_t op_set_pa_config = 0x95;
-inline constexpr uint8_t op_set_tx_params = 0x8E;
-inline constexpr uint8_t op_set_buffer_base_addr = 0x8F;
-inline constexpr uint8_t op_set_mod_params = 0x8B;
-inline constexpr uint8_t op_set_packet_params = 0x8C;
-inline constexpr uint8_t op_set_cad_params = 0x88;
-inline constexpr uint8_t op_set_dio_irq_params = 0x08;
-inline constexpr uint8_t op_get_irq_status = 0x12;
-inline constexpr uint8_t op_clear_irq_status = 0x02;
-inline constexpr uint8_t op_set_dio2_as_rf_switch = 0x9D;
-inline constexpr uint8_t op_set_dio3_as_tcxo_ctrl = 0x97;
-inline constexpr uint8_t op_set_regulator_mode = 0x96;
-inline constexpr uint8_t op_calibrate = 0x89;
-inline constexpr uint8_t op_calibrate_image = 0x98;
-inline constexpr uint8_t op_get_rx_buffer_status = 0x13;
-inline constexpr uint8_t op_get_packet_status = 0x14;
-inline constexpr uint8_t op_get_rssi_inst = 0x15;
-inline constexpr uint8_t op_write_register = 0x0D;
-inline constexpr uint8_t op_read_register = 0x1D;
-inline constexpr uint8_t op_write_buffer = 0x0E;
-inline constexpr uint8_t op_read_buffer = 0x1E;
+// §13.1 Operational-mode commands.
+inline constexpr uint8_t op_get_status = 0xC0;         // §13.5.1 GetStatus
+inline constexpr uint8_t op_set_sleep = 0x84;          // §13.1.1 SetSleep
+inline constexpr uint8_t op_set_standby = 0x80;        // §13.1.2 SetStandby
+inline constexpr uint8_t op_set_tx = 0x83;             // §13.1.4 SetTx
+inline constexpr uint8_t op_set_rx = 0x82;             // §13.1.5 SetRx
+inline constexpr uint8_t op_set_rx_duty_cycle = 0x94;  // §13.1.7 SetRxDutyCycle
+inline constexpr uint8_t op_set_cad = 0xC5;            // §13.1.8 SetCAD
+inline constexpr uint8_t op_set_regulator_mode = 0x96; // §13.1.11 SetRegulatorMode
+inline constexpr uint8_t op_calibrate = 0x89;          // §13.1.12 Calibrate
+inline constexpr uint8_t op_calibrate_image = 0x98;    // §13.1.13 CalibrateImage
+inline constexpr uint8_t op_set_pa_config = 0x95;      // §13.1.14 SetPaConfig
 
-// Packet type
+// §13.2 Register and buffer access.
+inline constexpr uint8_t op_write_register = 0x0D; // §13.2.1 WriteRegister
+inline constexpr uint8_t op_read_register = 0x1D;  // §13.2.2 ReadRegister
+inline constexpr uint8_t op_write_buffer = 0x0E;   // §13.2.3 WriteBuffer
+inline constexpr uint8_t op_read_buffer = 0x1E;    // §13.2.4 ReadBuffer
+
+// §13.3 DIO and IRQ control.
+inline constexpr uint8_t op_set_dio_irq_params = 0x08;    // §13.3.1 SetDioIrqParams
+inline constexpr uint8_t op_get_irq_status = 0x12;        // §13.3.3 GetIrqStatus
+inline constexpr uint8_t op_clear_irq_status = 0x02;      // §13.3.4 ClearIrqStatus
+inline constexpr uint8_t op_set_dio2_as_rf_switch = 0x9D; // §13.3.5 SetDIO2AsRfSwitchCtrl
+inline constexpr uint8_t op_set_dio3_as_tcxo_ctrl = 0x97; // §13.3.6 SetDIO3AsTCXOCtrl
+
+// §13.4 RF, modulation and packet commands.
+inline constexpr uint8_t op_set_rf_frequency = 0x86;     // §13.4.1 SetRfFrequency
+inline constexpr uint8_t op_set_packet_type = 0x8A;      // §13.4.2 SetPacketType
+inline constexpr uint8_t op_set_tx_params = 0x8E;        // §13.4.4 SetTxParams
+inline constexpr uint8_t op_set_mod_params = 0x8B;       // §13.4.5 SetModulationParams
+inline constexpr uint8_t op_set_packet_params = 0x8C;    // §13.4.6 SetPacketParams
+inline constexpr uint8_t op_set_cad_params = 0x88;       // §13.4.7 SetCadParams
+inline constexpr uint8_t op_set_buffer_base_addr = 0x8F; // §13.4.8 SetBufferBaseAddress
+
+// §13.5 Communication status.
+inline constexpr uint8_t op_get_rx_buffer_status = 0x13; // §13.5.2 GetRxBufferStatus
+inline constexpr uint8_t op_get_packet_status = 0x14;    // §13.5.3 GetPacketStatus
+inline constexpr uint8_t op_get_rssi_inst = 0x15;        // §13.5.4 GetRssiInst
+
+// Packet type (§13.4.2 SetPacketType, table 13-38).
 inline constexpr uint8_t packet_type_lora = 0x01;
 
-// Standby clock source
+// Standby clock source (§13.1.2 SetStandby, table 13-4).
 inline constexpr uint8_t stdby_rc = 0x00;
 inline constexpr uint8_t stdby_xosc = 0x01;
 
-// Sleep config bits
+// Sleep config bits (§13.1.1 SetSleep, table 13-2).
 inline constexpr uint8_t sleep_warm_start = 0b0000'0100; // bit 2: retain config
 
-// Calibrate(0x7F): calibrate all blocks (RC64k, RC13M, PLL, ADC ×3, image).
+// Calibrate all blocks: RC64k, RC13M, PLL, ADC ×3, image (§13.1.12, table 13-18).
 inline constexpr uint8_t calibrate_all = 0x7F;
 
 // =============================================================================
-// Register addresses (DS_SX1261-2_V2.1, table 12-1; errata chapter 15)
+// Register addresses (DS_SX1261-2_V2.2, §12 table 12-1; errata §15)
 // =============================================================================
 
-// LoRa sync-word register address (16-bit value, MSB first).
+// LoRa sync-word register address (16-bit value, MSB first; table 12-1).
 inline constexpr uint16_t reg_lora_sync_word_msb = 0x0740;
 
-// Errata / tuning registers. NOTE: these hex constants follow the Semtech
-// datasheet errata chapter and reference driver; re-verify against the
-// DS_SX1261-2 datasheet before shipping (wrong values degrade RF performance).
+// Errata / tuning registers (addresses from table 12-1; the errata bit
+// definitions are in §15).
 inline constexpr uint16_t reg_tx_modulation = 0x0889;   // §15.1 BW500 modulation quality
-inline constexpr uint16_t reg_rx_gain = 0x08AC;         // boosted-RX gain
+inline constexpr uint16_t reg_rx_gain = 0x08AC;         // Rx gain (§9.6, table 9-3)
 inline constexpr uint16_t reg_tx_clamp_config = 0x08D8; // §15.2 antenna-mismatch Tx clamp
 
-inline constexpr uint8_t tx_modulation_bw500_bit = 0x04; // bit 2 of reg_tx_modulation
-inline constexpr uint8_t rx_gain_boosted = 0x96;         // boosted (best sensitivity)
-inline constexpr uint8_t tx_clamp_bits = 0x1E;           // bits 1..4 of reg_tx_clamp_config
+inline constexpr uint8_t tx_modulation_bw500_bit = 0x04; // §15.1: bit 2 of reg_tx_modulation
+inline constexpr uint8_t rx_gain_boosted = 0x96;         // table 9-3: Rx boosted gain (best sensitivity)
+inline constexpr uint8_t tx_clamp_bits = 0x1E;           // §15.2: bits 4..1 of reg_tx_clamp_config
 
 // =============================================================================
 // PA-config table (one row per chip variant)
 // =============================================================================
 
+// The four SetPaConfig parameter bytes (DS §13.1.14, table 13-20).
 struct pa_config_row {
     uint8_t pa_duty_cycle;
     uint8_t hp_max;
@@ -105,7 +118,9 @@ struct pa_config_row {
     uint8_t pa_lut;     // reserved, always 0x01
 };
 
-/// Output-power limits for a chip variant (DS chapter 13.4.4, SetTxParams).
+/// Output-power limits for a chip variant (DS §13.4.4 SetTxParams; the
+/// SX1261's +15 dBm is reached via the table 13-21 PA row, not a SetTxParams
+/// byte — see tx_power_config_for).
 struct power_limits {
     int8_t min_dbm;
     int8_t max_dbm;
@@ -126,10 +141,10 @@ struct tx_power_config {
 };
 
 /// Returns the PA configuration and SetTxParams power byte for a requested
-/// output power (DS table 13-21 optimal settings). The SX1262/SX1268
-/// high-power PA uses its maximum-power row and trims via SetTxParams. The
-/// SX1261's SetTxParams accepts only -17..+14; +15 dBm requires the
-/// high-duty-cycle PA row with a +14 power byte.
+/// output power (DS §13.1.14.1, table 13-21 "PA Operating Modes with Optimal
+/// Settings"). The SX1262/SX1268 high-power PA uses its maximum-power row and
+/// trims via SetTxParams. The SX1261's SetTxParams accepts only -17..+14
+/// (§13.4.4); +15 dBm requires the high-duty-cycle PA row with a +14 power byte.
 [[nodiscard]] constexpr tx_power_config tx_power_config_for(sx126x::chip_variant v, int8_t dbm) noexcept {
     if (v == sx126x::chip_variant::sx1261) {
         if (dbm >= 15) {
@@ -143,8 +158,8 @@ struct tx_power_config {
     return {.pa = {.pa_duty_cycle = 0x04, .hp_max = 0x07, .device_sel = 0x00, .pa_lut = 0x01}, .power_byte = dbm};
 }
 
-/// True for the high-power PA variants (SX1262/SX1268) that the datasheet
-/// errata fixes (Tx clamp) target.
+/// True for the high-power PA variants (SX1262/SX1268) that the §15.2 Tx-clamp
+/// errata workaround targets.
 [[nodiscard]] constexpr bool is_high_power(sx126x::chip_variant v) noexcept {
     return v != sx126x::chip_variant::sx1261;
 }

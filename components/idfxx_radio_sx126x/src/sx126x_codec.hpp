@@ -7,7 +7,8 @@
 // depends only on the chip-agnostic LoRa types — no SPI, task, or chip state —
 // so the encodings can be unit-tested in isolation (the test #includes this
 // header by relative path). All register encodings are taken from the Semtech
-// DS_SX1261-2 datasheet.
+// SX1261/2 datasheet (DS_SX1261-2_V2.2); section and table references below
+// are to that revision.
 
 #include <idfxx/radio/types.hpp>
 
@@ -22,10 +23,10 @@
 namespace idfxx::radio::sx126x_internal {
 
 // =============================================================================
-// LoRa modulation register-byte encodings (DS table 13-47)
+// LoRa modulation register-byte encodings (SetModulationParams, DS §13.4.5)
 // =============================================================================
 
-/// Bandwidth byte values written to SetModulationParams (param 2).
+/// Bandwidth byte values written to SetModulationParams (ModParam2; table 13-48).
 [[nodiscard]] constexpr uint8_t bandwidth_byte(bandwidth bw) noexcept {
     switch (bw) {
     case bandwidth::bw_7_8:
@@ -52,19 +53,20 @@ namespace idfxx::radio::sx126x_internal {
     return 0x04; // safe default = 125 kHz
 }
 
-/// Spreading-factor byte values (the LoRa SF number itself, which happens to
-/// match the chip's register encoding for SX126x: 0x05–0x0C).
+/// Spreading-factor byte values (ModParam1; table 13-47). The LoRa SF number
+/// itself matches the chip's register encoding for the SX126x: 0x05–0x0C.
 [[nodiscard]] constexpr uint8_t spreading_factor_byte(spreading_factor sf) noexcept {
     return static_cast<uint8_t>(sf);
 }
 
-/// Coding-rate byte values (1..4 corresponds to cr_4_5..cr_4_8).
+/// Coding-rate byte values (ModParam3; table 13-49): 1..4 corresponds to
+/// cr_4_5..cr_4_8.
 [[nodiscard]] constexpr uint8_t coding_rate_byte(coding_rate cr) noexcept {
     return static_cast<uint8_t>(std::to_underlying(cr) - 4);
 }
 
-/// Ramp-time byte values. Drivers round semantic buckets to the closest
-/// supported value.
+/// Ramp-time byte values for SetTxParams (table 13-41). Drivers round the
+/// semantic ramp_time buckets to the closest supported value.
 [[nodiscard]] constexpr uint8_t ramp_time_byte(ramp_time r) noexcept {
     switch (r) {
     case ramp_time::us_10:
@@ -74,7 +76,7 @@ namespace idfxx::radio::sx126x_internal {
     case ramp_time::us_200:
         return 0x04;
     case ramp_time::us_800:
-        return 0x06;
+        return 0x05;
     case ramp_time::us_3400:
         return 0x07;
     }
@@ -82,11 +84,12 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
-// LoRa packet-parameter packing (DS SetPacketParams, opcode 0x8C)
+// LoRa packet-parameter packing (SetPacketParams, DS §13.4.6, opcode 0x8C)
 // =============================================================================
 
-/// Packs LoRa packet framing into the six SetPacketParams bytes:
-/// preamble MSB/LSB, header type, payload length, CRC on, IQ inverted.
+/// Packs LoRa packet framing into the six SetPacketParams bytes (tables
+/// 13-66..13-70): preamble MSB/LSB, header type, payload length, CRC on, IQ
+/// inverted.
 [[nodiscard]] constexpr std::array<uint8_t, 6> pack_packet_params(const lora_packet_params& p) noexcept {
     return {
         static_cast<uint8_t>(p.preamble_length >> 8),
@@ -99,12 +102,13 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
-// TCXO control (DS SetDio3AsTcxoCtrl, opcode 0x97)
+// TCXO control (SetDIO3AsTCXOCtrl, DS §13.3.6, opcode 0x97)
 // =============================================================================
 
-/// SetDio3AsTcxoCtrl voltage byte for a TCXO supply voltage in mV: the index
-/// of the highest supported voltage (1.6/1.7/1.8/2.2/2.4/2.7/3.0/3.3 V) not
-/// above @p mv. Voltages below 1.6 V clamp to the 1.6 V byte.
+/// SetDIO3AsTCXOCtrl voltage byte (table 13-35) for a TCXO supply voltage in
+/// mV: the index of the highest supported voltage
+/// (1.6/1.7/1.8/2.2/2.4/2.7/3.0/3.3 V) not above @p mv. Voltages below 1.6 V
+/// clamp to the 1.6 V byte.
 [[nodiscard]] constexpr uint8_t tcxo_voltage_byte(uint16_t mv) noexcept {
     constexpr std::array<uint16_t, 8> supported_mv{1600, 1700, 1800, 2200, 2400, 2700, 3000, 3300};
     uint8_t byte = 0;
@@ -117,7 +121,7 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
-// LoRa sync word (register 0x0740, 16-bit, MSB first)
+// LoRa sync word (register 0x0740, 16-bit, MSB first; DS §12 table 12-1)
 // =============================================================================
 
 /// Packs a 16-bit LoRa sync word into the two reg_lora_sync_word_msb bytes.
@@ -129,7 +133,7 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
-// Packet-status decoding (DS GetPacketStatus / GetRssiInst)
+// Packet-status decoding (GetPacketStatus §13.5.3 / GetRssiInst §13.5.4)
 // =============================================================================
 
 /// Decodes a GetPacketStatus / GetRssiInst RSSI byte (half-dBm steps: -raw/2 dBm).
@@ -137,8 +141,9 @@ namespace idfxx::radio::sx126x_internal {
     return electro::centi_dbm(-static_cast<int64_t>(raw) * 50);
 }
 
-/// Decodes the three GetPacketStatus response bytes (rssi_pkt, snr_pkt,
-/// signal_rssi_pkt; the chip-specific signal_rssi_pkt byte is not surfaced).
+/// Decodes the three GetPacketStatus response bytes (table 13-80: rssi_pkt,
+/// snr_pkt, signal_rssi_pkt; the chip-specific signal_rssi_pkt byte is not
+/// surfaced).
 [[nodiscard]] constexpr packet_status decode_packet_status(std::span<const uint8_t, 3> r) noexcept {
     return {
         .rssi = decode_rssi_byte(r[0]),
@@ -147,7 +152,7 @@ namespace idfxx::radio::sx126x_internal {
 }
 
 // =============================================================================
-// Duty-cycled receive (DS SetRxDutyCycle, opcode 0x94)
+// Duty-cycled receive (SetRxDutyCycle, DS §13.1.7, opcode 0x94, table 13-12)
 // =============================================================================
 
 /// Converts a duration to SetRxDutyCycle 15.625 µs steps, saturating at the
@@ -178,9 +183,9 @@ pack_rx_duty_cycle(std::chrono::microseconds rx, std::chrono::microseconds sleep
     };
 }
 
-/// Packs the four SetDio3AsTcxoCtrl bytes: the voltage byte followed by the
-/// startup timeout as a 24-bit count of the same 15.625 µs steps SetRxDutyCycle
-/// uses (MSB..LSB).
+/// Packs the four SetDIO3AsTCXOCtrl bytes (§13.3.6, table 13-34): the voltage
+/// byte followed by the startup timeout as a 24-bit count of the same 15.625 µs
+/// steps SetRxDutyCycle uses (MSB..LSB).
 [[nodiscard]] constexpr std::array<uint8_t, 4>
 pack_tcxo_params(electro::millivolts voltage, std::chrono::microseconds startup) noexcept {
     const uint32_t timeout_steps = duty_cycle_steps(startup);
@@ -193,7 +198,7 @@ pack_tcxo_params(electro::millivolts voltage, std::chrono::microseconds startup)
 }
 
 // =============================================================================
-// Frequency math
+// Frequency math (SetRfFrequency, DS §13.4.1, table 13-36)
 // =============================================================================
 
 /// SX126x XTAL frequency.
@@ -208,7 +213,7 @@ inline constexpr uint64_t freq_divisor = 1ULL << 25;
 }
 
 // =============================================================================
-// Image calibration band table (DS_SX1261-2 §9.2.1, CalibrateImage)
+// Image calibration band table (CalibrateImage, DS §9.2.1 / §13.1.13, table 9-2)
 // =============================================================================
 
 /// The two frequency-band bytes passed to CalibrateImage (opcode 0x98).
@@ -219,10 +224,10 @@ struct image_cal_band {
     [[nodiscard]] constexpr bool operator==(const image_cal_band&) const noexcept = default;
 };
 
-/// Returns the CalibrateImage band bytes for a carrier frequency. The datasheet
-/// tabulates exact bytes per ISM band; frequencies outside a named band snap to
-/// the nearest documented band (CalibrateImage only needs to bracket the
-/// carrier). Bytes are from DS_SX1261-2 §9.2.1.
+/// Returns the CalibrateImage band bytes for a carrier frequency. Table 9-2
+/// "Image Calibration Over the ISM Bands" tabulates exact bytes per ISM band;
+/// frequencies outside a named band snap to the nearest documented band
+/// (CalibrateImage only needs to bracket the carrier). Bytes are from table 9-2.
 [[nodiscard]] constexpr image_cal_band calibrate_image_bytes(uint64_t hz) noexcept {
     const uint64_t mhz = hz / 1'000'000;
     if (mhz < 446) {

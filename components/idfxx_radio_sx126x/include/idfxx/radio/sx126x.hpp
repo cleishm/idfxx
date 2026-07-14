@@ -37,7 +37,8 @@ namespace idfxx::radio {
  * @brief SX126x IRQ-register bitfield.
  *
  * The chip's IRQ register is 16 bits wide; each bit reflects an
- * underlying chip event. The driver normally translates these into
+ * underlying chip event (Semtech DS_SX1261-2_V2.2 §13.3, table 13-29
+ * "IRQ Registers"). The driver normally translates these into
  * chip-agnostic events from `<idfxx/radio/events>` — only reach for
  * this surface when you need direct register-level access. Accessible
  * as `sx126x::irq_flag` after the class definition.
@@ -149,17 +150,32 @@ public:
 
     /**
      * @headerfile <idfxx/radio/sx126x>
+     * @brief Number of symbols a CAD (channel activity detection) operates on.
+     *
+     * The chip supports only these five values (DS_SX1261-2 §13.4.7,
+     * table 13-72). The enumerator value is the `cadSymbolNum` register byte.
+     */
+    enum class cad_symbols : uint8_t {
+        sym_1 = 0x00,  ///< CAD over 1 symbol (CAD_ON_1_SYMB).
+        sym_2 = 0x01,  ///< CAD over 2 symbols (CAD_ON_2_SYMB).
+        sym_4 = 0x02,  ///< CAD over 4 symbols (CAD_ON_4_SYMB).
+        sym_8 = 0x03,  ///< CAD over 8 symbols (CAD_ON_8_SYMB).
+        sym_16 = 0x04, ///< CAD over 16 symbols (CAD_ON_16_SYMB).
+    };
+
+    /**
+     * @headerfile <idfxx/radio/sx126x>
      * @brief SX126x-specific channel-activity-detection parameters.
      *
      * @ref transceiver::try_start_channel_scan and @ref transceiver::try_scan_channel
-     * scan with driver defaults (`symbol_num = 2`, `det_peak = 22`,
+     * scan with driver defaults (`symbols = cad_symbols::sym_2`, `det_peak = 22`,
      * `det_min = 10`). Use @ref try_set_cad_params or @ref set_cad_params to
      * tune.
      */
     struct cad_params {
-        uint8_t symbol_num = 2; ///< Number of symbols on which CAD operates.
-        uint8_t det_peak = 22;  ///< Detector peak threshold.
-        uint8_t det_min = 10;   ///< Detector minimum threshold.
+        cad_symbols symbols = cad_symbols::sym_2; ///< Number of symbols CAD listens on.
+        uint8_t det_peak = 22;                    ///< Detector peak threshold.
+        uint8_t det_min = 10;                     ///< Detector minimum threshold.
 
         /**
          * @brief Compares two CAD parameter sets for equality.
