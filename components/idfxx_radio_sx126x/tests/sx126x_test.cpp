@@ -22,12 +22,12 @@ namespace codec = idfxx::radio::sx126x_internal;
 // Compile-time tests (static_assert)
 // =============================================================================
 
-// sx126x is a concrete subclass of the abstract transceiver base. This doubles as a
-// regression guard: every pure-virtual do_* hook on transceiver — including the
+// sx126x is a concrete subclass of the abstract lora_transceiver base. This doubles as a
+// regression guard: every pure-virtual do_* hook on lora_transceiver — including the
 // future-returning do_start_transmit, do_start_receive, and
 // do_start_channel_scan — must be overridden with a matching signature, or
 // sx126x would remain abstract and this would fail.
-static_assert(std::is_base_of_v<transceiver, sx126x>);
+static_assert(std::is_base_of_v<lora_transceiver, sx126x>);
 static_assert(!std::is_abstract_v<sx126x>);
 
 // sx126x is move-only.

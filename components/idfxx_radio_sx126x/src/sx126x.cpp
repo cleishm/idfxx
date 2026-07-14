@@ -325,7 +325,7 @@ result<gpio::unique_isr_handle> setup_dio1_isr(sx126x::state& s) {
 // posts the event.
 result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std::span<const uint8_t> data) {
     // The payload has already been validated (non-empty, <= 255 bytes) by the
-    // transceiver base-class wrappers.
+    // lora_transceiver base-class wrappers.
 
     auto latch = claim_data_path(s, internal::driver_activity::tx_in_flight, chip_mode::tx);
     if (!latch) {
@@ -880,7 +880,7 @@ result<void> sx126x::do_set_output_power(electro::dbm power, ramp_time ramp) {
     return _state->write_command(internal::op_set_tx_params, params);
 }
 
-result<void> sx126x::do_set_lora_modulation(lora_modulation mod) {
+result<void> sx126x::do_set_modulation(lora_modulation mod) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -910,7 +910,7 @@ result<void> sx126x::do_set_lora_modulation(lora_modulation mod) {
     return _state->write_register(internal::reg_tx_modulation, tm);
 }
 
-result<void> sx126x::do_set_lora_packet_params(lora_packet_params params) {
+result<void> sx126x::do_set_packet_params(lora_packet_params params) {
     if (!_state) {
         return error(errc::invalid_state);
     }

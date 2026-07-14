@@ -17,7 +17,7 @@
 #include <idfxx/future>
 #include <idfxx/gpio>
 #include <idfxx/radio/events.hpp>
-#include <idfxx/radio/transceiver.hpp>
+#include <idfxx/radio/lora_transceiver.hpp>
 #include <idfxx/radio/types.hpp>
 #include <idfxx/spi/master>
 
@@ -76,7 +76,7 @@ namespace idfxx::radio {
  * tears down the worker task, removes the DIO1 ISR, and puts the chip in
  * sleep mode.
  */
-class sx126x final : public transceiver {
+class sx126x final : public lora_transceiver {
 public:
     /// IRQ-register bitfield enumeration. See @ref sx126x_irq_flag.
     using irq_flag = sx126x_irq_flag;
@@ -107,7 +107,7 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief Clock source kept running in standby mode.
      *
-     * The chip-agnostic @ref transceiver::standby uses the low-power RC oscillator;
+     * The chip-agnostic @ref lora_transceiver::standby uses the low-power RC oscillator;
      * the SX126x-specific @ref standby(standby_clock) overload selects the
      * crystal oscillator for a faster transition into transmit or receive.
      */
@@ -120,7 +120,7 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief Sleep-mode configuration retention.
      *
-     * The chip-agnostic @ref transceiver::sleep performs a warm sleep; the
+     * The chip-agnostic @ref lora_transceiver::sleep performs a warm sleep; the
      * SX126x-specific @ref sleep(sleep_mode) overload can request a cold
      * sleep, which loses all configuration and requires the driver's defaults
      * and the caller's settings to be reapplied on wake.
@@ -167,7 +167,7 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief SX126x-specific channel-activity-detection parameters.
      *
-     * @ref transceiver::try_start_channel_scan and @ref transceiver::try_scan_channel
+     * @ref lora_transceiver::try_start_channel_scan and @ref lora_transceiver::try_scan_channel
      * scan with driver defaults (`symbols = cad_symbols::sym_2`, `det_peak = 22`,
      * `det_min = 10`). Use @ref try_set_cad_params or @ref set_cad_params to
      * tune.
@@ -281,22 +281,22 @@ public:
     // SX126x-specific mode control
     //
     // The chip-agnostic mode-control methods (standby, sleep, start_listening,
-    // start_channel_scan, ...) are inherited from radio::transceiver. The overloads
+    // start_channel_scan, ...) are inherited from radio::lora_transceiver. The overloads
     // here expose SX126x-specific refinements of the same operations.
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    using transceiver::sleep;
-    using transceiver::standby;
+    using lora_transceiver::sleep;
+    using lora_transceiver::standby;
 #endif
-    using transceiver::try_sleep;
-    using transceiver::try_standby;
+    using lora_transceiver::try_sleep;
+    using lora_transceiver::try_standby;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Puts the radio in standby mode with the selected clock source.
      *
-     * The inherited @ref transceiver::standby uses the low-power RC oscillator;
+     * The inherited @ref lora_transceiver::standby uses the low-power RC oscillator;
      * select @ref standby_clock::xosc to keep the crystal oscillator running
      * for faster transitions into transmit or receive.
      *
@@ -309,7 +309,7 @@ public:
     /**
      * @brief Puts the radio in sleep mode with the selected retention.
      *
-     * The inherited @ref transceiver::sleep performs a warm sleep (configuration
+     * The inherited @ref lora_transceiver::sleep performs a warm sleep (configuration
      * retained). Select @ref sleep_mode::cold for the lowest-power sleep, in
      * which all configuration is lost and must be reapplied on wake.
      *
@@ -339,16 +339,16 @@ public:
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    using transceiver::set_sync_word;
+    using lora_transceiver::set_sync_word;
 #endif
-    using transceiver::try_set_sync_word;
+    using lora_transceiver::try_set_sync_word;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets a raw 16-bit LoRa sync word.
      *
      * For interoperating with networks that use a non-standard sync word.
-     * The inherited @ref transceiver::set_sync_word overload selects the
+     * The inherited @ref lora_transceiver::set_sync_word overload selects the
      * standard public/private network values.
      *
      * @param sync_word Raw sync-word register value (MSB first).
@@ -361,7 +361,7 @@ public:
      * @brief Sets CAD detection parameters.
      *
      * Tunes the chip's CAD detection thresholds. The chip-agnostic
-     * @ref transceiver::try_start_channel_scan uses driver defaults.
+     * @ref lora_transceiver::try_start_channel_scan uses driver defaults.
      *
      * @param params CAD detection parameters.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -377,7 +377,7 @@ public:
      * leaves `rx_done` latched and DIO1 high, but the driver's interrupt
      * handler never saw the edge. This reads and clears the pending IRQ
      * status and, for a latched `rx_done`, reads the packet out of the chip
-     * into the receive cache, where @ref transceiver::read_received picks it up.
+     * into the receive cache, where @ref lora_transceiver::read_received picks it up.
      *
      * @return The received packet's info if one was adopted, or `std::nullopt`
      *         if no packet was pending.
@@ -431,7 +431,7 @@ public:
      * @brief Sets a raw 16-bit LoRa sync word.
      *
      * For interoperating with networks that use a non-standard sync word.
-     * The inherited @ref transceiver::try_set_sync_word overload selects the
+     * The inherited @ref lora_transceiver::try_set_sync_word overload selects the
      * standard public/private network values.
      *
      * @param sync_word Raw sync-word register value (MSB first).
@@ -539,7 +539,7 @@ public:
 private:
     explicit sx126x(std::unique_ptr<state> s) noexcept;
 
-    // radio::transceiver customization hooks.
+    // radio::lora_transceiver customization hooks.
     [[nodiscard]] chip_mode do_current_mode() const noexcept override;
     [[nodiscard]] result<void> do_standby() override;
     [[nodiscard]] result<void> do_sleep() override;
@@ -550,8 +550,8 @@ private:
     [[nodiscard]] result<idfxx::future<cad_info>> do_start_channel_scan() override;
     [[nodiscard]] result<void> do_set_frequency(freq::hertz hz) override;
     [[nodiscard]] result<void> do_set_output_power(electro::dbm power, ramp_time ramp) override;
-    [[nodiscard]] result<void> do_set_lora_modulation(lora_modulation mod) override;
-    [[nodiscard]] result<void> do_set_lora_packet_params(lora_packet_params params) override;
+    [[nodiscard]] result<void> do_set_modulation(lora_modulation mod) override;
+    [[nodiscard]] result<void> do_set_packet_params(lora_packet_params params) override;
     [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
     [[nodiscard]] result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) override;
     [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;

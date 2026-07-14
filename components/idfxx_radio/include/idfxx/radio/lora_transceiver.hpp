@@ -4,21 +4,21 @@
 #pragma once
 
 /**
- * @headerfile <idfxx/radio/transceiver>
- * @file transceiver.hpp
- * @brief Abstract radio transceiver interface.
+ * @headerfile <idfxx/radio/lora_transceiver>
+ * @file lora_transceiver.hpp
+ * @brief Abstract LoRa transceiver interface.
  *
  * @defgroup idfxx_radio Radio Component
- * @brief Abstract radio transceiver interface and shared types.
+ * @brief Abstract LoRa radio transceiver interface and shared types.
  *
- * Provides a chip-agnostic abstract base class (`idfxx::radio::transceiver`) that
+ * Provides a chip-agnostic abstract base class (`idfxx::radio::lora_transceiver`) that
  * concrete drivers — `idfxx::radio::sx126x` and future siblings — implement.
  * Application code, higher-layer protocols (LoRaWAN, mesh), and event-loop
  * listeners bind to this interface rather than to any specific chip.
  *
  * Frequency, output power, sync word, and the transmit/receive operations are
  * modulation-agnostic; the LoRa modulation and packet parameters are configured
- * through `set_lora_modulation` and `set_lora_packet_params`.
+ * through `set_modulation` and `set_packet_params`.
  *
  * Depends on @ref idfxx_core for error handling; the typed events drivers
  * post are declared in `<idfxx/radio/events>`.
@@ -41,8 +41,8 @@
 namespace idfxx::radio {
 
 /**
- * @headerfile <idfxx/radio/transceiver>
- * @brief Abstract base class for radio transceivers.
+ * @headerfile <idfxx/radio/lora_transceiver>
+ * @brief Abstract base class for LoRa radio transceivers.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
  * `idfxx::radio::sx126x`) customize behaviour by overriding the protected
@@ -58,12 +58,12 @@ namespace idfxx::radio {
  * `read_received`). Futures and events coexist: one-shot operations also post
  * their completion event when an event loop is configured.
  */
-class transceiver {
+class lora_transceiver {
 public:
-    virtual ~transceiver() = default;
+    virtual ~lora_transceiver() = default;
 
-    transceiver(const transceiver&) = delete;
-    transceiver& operator=(const transceiver&) = delete;
+    lora_transceiver(const lora_transceiver&) = delete;
+    lora_transceiver& operator=(const lora_transceiver&) = delete;
 
     // =========================================================================
     // Accessors
@@ -79,8 +79,8 @@ public:
     /**
      * @brief Returns the configured LoRa modulation parameters.
      *
-     * Reflects the most recent successful @ref try_set_lora_modulation /
-     * @ref set_lora_modulation, or the defaults (`lora_modulation{}`) before
+     * Reflects the most recent successful @ref try_set_modulation /
+     * @ref set_modulation, or the defaults (`lora_modulation{}`) before
      * any call. Used by @ref time_on_air and @ref rx_duty_cycle_for so
      * callers need not keep their own copy of the link configuration.
      *
@@ -91,8 +91,8 @@ public:
     /**
      * @brief Returns the configured LoRa packet framing parameters.
      *
-     * Reflects the most recent successful @ref try_set_lora_packet_params /
-     * @ref set_lora_packet_params, or the defaults (`lora_packet_params{}`)
+     * Reflects the most recent successful @ref try_set_packet_params /
+     * @ref set_packet_params, or the defaults (`lora_packet_params{}`)
      * before any call.
      *
      * @return The configured packet framing parameters.
@@ -478,7 +478,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void set_lora_modulation(lora_modulation mod) { unwrap(try_set_lora_modulation(mod)); }
+    void set_modulation(lora_modulation mod) { unwrap(try_set_modulation(mod)); }
 
     /**
      * @brief Configures the LoRa packet framing.
@@ -486,7 +486,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void set_lora_packet_params(lora_packet_params params) { unwrap(try_set_lora_packet_params(params)); }
+    void set_packet_params(lora_packet_params params) { unwrap(try_set_packet_params(params)); }
 
     /**
      * @brief Selects the LoRa network by setting the sync word.
@@ -526,10 +526,10 @@ public:
         if (auto r = try_set_output_power(link.output_power, link.ramp); !r) {
             return r;
         }
-        if (auto r = try_set_lora_modulation(link.modulation); !r) {
+        if (auto r = try_set_modulation(link.modulation); !r) {
             return r;
         }
-        if (auto r = try_set_lora_packet_params(link.packet_params); !r) {
+        if (auto r = try_set_packet_params(link.packet_params); !r) {
             return r;
         }
         return try_set_sync_word(link.network);
@@ -558,8 +558,8 @@ public:
      * @param mod Spreading factor, bandwidth, coding rate.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_lora_modulation(lora_modulation mod) {
-        if (auto r = do_set_lora_modulation(mod); !r) {
+    [[nodiscard]] result<void> try_set_modulation(lora_modulation mod) {
+        if (auto r = do_set_modulation(mod); !r) {
             return r;
         }
         _modulation = mod;
@@ -571,8 +571,8 @@ public:
      * @param params Preamble, header type, CRC, IQ inversion, etc.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_lora_packet_params(lora_packet_params params) {
-        if (auto r = do_set_lora_packet_params(params); !r) {
+    [[nodiscard]] result<void> try_set_packet_params(lora_packet_params params) {
+        if (auto r = do_set_packet_params(params); !r) {
             return r;
         }
         _packet_params = params;
@@ -890,9 +890,9 @@ public:
     static constexpr std::chrono::milliseconds scan_guard_window{1000};
 
 protected:
-    transceiver() = default;
-    transceiver(transceiver&&) noexcept = default;
-    transceiver& operator=(transceiver&&) noexcept = default;
+    lora_transceiver() = default;
+    lora_transceiver(lora_transceiver&&) noexcept = default;
+    lora_transceiver& operator=(lora_transceiver&&) noexcept = default;
 
     // =========================================================================
     // Customization hooks
@@ -931,10 +931,10 @@ protected:
     [[nodiscard]] virtual result<void> do_set_frequency(freq::hertz hz) = 0;
     /// Hook for @ref try_set_output_power.
     [[nodiscard]] virtual result<void> do_set_output_power(electro::dbm power, ramp_time ramp) = 0;
-    /// Hook for @ref try_set_lora_modulation.
-    [[nodiscard]] virtual result<void> do_set_lora_modulation(lora_modulation mod) = 0;
-    /// Hook for @ref try_set_lora_packet_params.
-    [[nodiscard]] virtual result<void> do_set_lora_packet_params(lora_packet_params params) = 0;
+    /// Hook for @ref try_set_modulation.
+    [[nodiscard]] virtual result<void> do_set_modulation(lora_modulation mod) = 0;
+    /// Hook for @ref try_set_packet_params.
+    [[nodiscard]] virtual result<void> do_set_packet_params(lora_packet_params params) = 0;
     /// Hook for @ref try_set_sync_word.
     [[nodiscard]] virtual result<void> do_set_sync_word(lora_network network) = 0;
 
@@ -969,8 +969,8 @@ protected:
     }
 
 private:
-    // Link parameters applied by the last successful try_set_lora_modulation /
-    // try_set_lora_packet_params; served back by modulation()/packet_params()
+    // Link parameters applied by the last successful try_set_modulation /
+    // try_set_packet_params; served back by modulation()/packet_params()
     // and consumed by the time_on_air/rx_duty_cycle_for members.
     lora_modulation _modulation{};
     lora_packet_params _packet_params{};

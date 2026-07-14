@@ -165,7 +165,7 @@ struct lora_packet_params {
  *
  * Bundles the settings both ends of a link must agree on — frequency,
  * modulation, packet framing, and network — plus this end's transmit power,
- * so they can be applied with a single `transceiver::configure` call.
+ * so they can be applied with a single `lora_transceiver::configure` call.
  */
 struct lora_link {
     freq::hertz frequency{0};                            ///< RF carrier frequency (required; no meaningful default).
@@ -187,7 +187,7 @@ struct lora_link {
  *
  * Describes one period of a duty-cycled receive: the radio listens for
  * @ref rx_period, sleeps for @ref sleep_period, and repeats until a packet
- * arrives or the mode is changed. Pass to `transceiver::start_listening`, either
+ * arrives or the mode is changed. Pass to `lora_transceiver::start_listening`, either
  * built directly or computed from the modulation with @ref rx_duty_cycle_for
  * (`<idfxx/radio/duty_cycle>`).
  */

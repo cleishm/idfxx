@@ -8,7 +8,7 @@
 #include "idfxx/radio/airtime"
 #include "idfxx/radio/duty_cycle"
 #include "idfxx/radio/events"
-#include "idfxx/radio/transceiver"
+#include "idfxx/radio/lora_transceiver"
 #include "idfxx/radio/types"
 #include "unity.h"
 
@@ -25,12 +25,12 @@ using namespace idfxx::radio;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// The transceiver base is abstract — no concrete chip details leak in.
-static_assert(std::is_abstract_v<transceiver>);
+// The lora_transceiver base is abstract — no concrete chip details leak in.
+static_assert(std::is_abstract_v<lora_transceiver>);
 
 // The base is non-copyable so concrete drivers inherit that property.
-static_assert(!std::is_copy_constructible_v<transceiver>);
-static_assert(!std::is_copy_assignable_v<transceiver>);
+static_assert(!std::is_copy_constructible_v<lora_transceiver>);
+static_assert(!std::is_copy_assignable_v<lora_transceiver>);
 
 // LoRa-spec semantics for spreading factor — drivers map to chip-specific
 // register encodings internally, but the public values are the LoRa spec
@@ -61,29 +61,29 @@ static_assert(static_cast<int>(bandwidth::bw_500) > static_cast<int>(bandwidth::
 // One-shot async data-path operations return futures; packet streams
 // (continuous / duty-cycled receive) stay event-based and return void.
 static_assert(std::is_same_v<
-              decltype(std::declval<transceiver&>().try_start_transmit(std::declval<std::span<const uint8_t>>())),
+              decltype(std::declval<lora_transceiver&>().try_start_transmit(std::declval<std::span<const uint8_t>>())),
               idfxx::result<idfxx::future<void>>>);
 static_assert(std::is_same_v<
-              decltype(std::declval<transceiver&>().try_start_receive(std::declval<std::span<uint8_t>>())),
+              decltype(std::declval<lora_transceiver&>().try_start_receive(std::declval<std::span<uint8_t>>())),
               idfxx::result<idfxx::future<rx_info>>>);
 static_assert(std::is_same_v<
-              decltype(std::declval<transceiver&>().try_start_channel_scan()),
+              decltype(std::declval<lora_transceiver&>().try_start_channel_scan()),
               idfxx::result<idfxx::future<cad_info>>>);
-static_assert(std::is_same_v<decltype(std::declval<transceiver&>().try_start_listening()), idfxx::result<void>>);
+static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_start_listening()), idfxx::result<void>>);
 static_assert(
-    std::is_same_v<decltype(std::declval<transceiver&>().try_start_listening(rx_duty_cycle{})), idfxx::result<void>>
+    std::is_same_v<decltype(std::declval<lora_transceiver&>().try_start_listening(rx_duty_cycle{})), idfxx::result<void>>
 );
 
 // Blocking forms compose over the futures and keep their signatures.
 static_assert(std::is_same_v<
-              decltype(std::declval<transceiver&>()
+              decltype(std::declval<lora_transceiver&>()
                            .try_transmit(std::declval<std::span<const uint8_t>>(), std::chrono::milliseconds{1})),
               idfxx::result<void>>);
 static_assert(std::is_same_v<
-              decltype(std::declval<transceiver&>()
+              decltype(std::declval<lora_transceiver&>()
                            .try_receive(std::declval<std::span<uint8_t>>(), std::chrono::milliseconds{1})),
               idfxx::result<rx_info>>);
-static_assert(std::is_same_v<decltype(std::declval<transceiver&>().try_scan_channel()), idfxx::result<cad_info>>);
+static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_scan_channel()), idfxx::result<cad_info>>);
 
 // =============================================================================
 // Time-on-air (airtime.hpp)

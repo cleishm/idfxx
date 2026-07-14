@@ -10,7 +10,7 @@ Semtech SX126x family LoRa radio driver — SX1261, SX1262, and SX1268.
   configuration is selected via a `chip_variant` enum and output power is
   validated against the variant's supported range (including the SX1261's
   special +15 dBm PA setting).
-- Implements the chip-agnostic `idfxx::radio::transceiver` interface from
+- Implements the chip-agnostic `idfxx::radio::lora_transceiver` interface from
   `idfxx_radio`, so application code, higher-layer protocols, and event
   listeners can target any LoRa chip.
 - Three coordinated API styles: blocking (`transmit`/`receive`/`scan_channel`),
@@ -31,7 +31,7 @@ Semtech SX126x family LoRa radio driver — SX1261, SX1262, and SX1268.
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
-- `idfxx_radio` (provides the `radio::transceiver` base class)
+- `idfxx_radio` (provides the `radio::lora_transceiver` base class)
 - `idfxx_spi` (SPI master bus driver)
 - `idfxx_gpio` (BUSY / DIO1 / NRESET / CS pins)
 
@@ -174,7 +174,7 @@ your module uses a plain crystal.
 
 ## API Overview
 
-### `idfxx::radio::sx126x` (inherits `idfxx::radio::transceiver`)
+### `idfxx::radio::sx126x` (inherits `idfxx::radio::lora_transceiver`)
 
 **Construction:**
 - `make(bus, config)` — result-based.

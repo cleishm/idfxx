@@ -1,15 +1,15 @@
 # idfxx_radio
 
-Abstract radio transceiver interface and LoRa types.
+Abstract LoRa radio transceiver interface and shared types.
 
 ## Features
 
-- Abstract `idfxx::radio::transceiver` base class — drivers for any LoRa chip (SX126x,
+- Abstract `idfxx::radio::lora_transceiver` base class — drivers for any LoRa chip (SX126x,
   SX127x, LR1110, ...) implement this single interface so application code can
   target any of them.
 - Modulation-agnostic core: frequency, output power, sync word, transmit,
   receive, and RSSI are set through the base class; LoRa modulation and packet
-  framing arrive via `set_lora_modulation` and `set_lora_packet_params`.
+  framing arrive via `set_modulation` and `set_packet_params`.
 - Semantic LoRa types (spreading factor, bandwidth, coding rate, ramp time,
   packet parameters) that map to each chip's own register encoding.
 - Chip-agnostic event base for `tx_done`, `rx_done`, `crc_error`,
@@ -58,14 +58,14 @@ This component is rarely used on its own — depend on a concrete driver such as
 ## Usage
 
 `idfxx_radio` defines no concrete radio; it's an interface. Application code
-that talks to *any* LoRa radio receives an `idfxx::radio::transceiver&`:
+that talks to *any* LoRa radio receives an `idfxx::radio::lora_transceiver&`:
 
 ```cpp
-#include <idfxx/radio/transceiver>
+#include <idfxx/radio/lora_transceiver>
 #include <idfxx/radio/events>
 
-void send_one(idfxx::radio::transceiver& radio) {
-    radio.set_lora_modulation({
+void send_one(idfxx::radio::lora_transceiver& radio) {
+    radio.set_modulation({
         .sf = idfxx::radio::spreading_factor::sf9,
         .bw = idfxx::radio::bandwidth::bw_125,
         .cr = idfxx::radio::coding_rate::cr_4_5,
@@ -77,7 +77,7 @@ void send_one(idfxx::radio::transceiver& radio) {
 ```
 
 Construct a concrete driver (e.g. `idfxx::radio::sx126x`) and pass it where a
-`transceiver&` is expected. See `idfxx_radio_sx126x` for a working example.
+`lora_transceiver&` is expected. See `idfxx_radio_sx126x` for a working example.
 
 ### Future-based async operations
 
@@ -124,8 +124,8 @@ duty-cycling infeasible it returns `std::nullopt`, which `start_listening`
 accepts as "listen continuously":
 
 ```cpp
-radio.set_lora_modulation({.sf = idfxx::radio::spreading_factor::sf9});
-radio.set_lora_packet_params({.preamble_length = 100});
+radio.set_modulation({.sf = idfxx::radio::spreading_factor::sf9});
+radio.set_packet_params({.preamble_length = 100});
 radio.start_listening(radio.rx_duty_cycle_for());
 ```
 
@@ -135,13 +135,13 @@ windows at compile time for a fixed link configuration.
 
 ## API Overview
 
-### `idfxx::radio::transceiver` (abstract)
+### `idfxx::radio::lora_transceiver` (abstract)
 
 **Mode control:** `standby`, `sleep`, `current_mode`.
 
 **Configuration:** `configure(lora_link)` applies the frequency, output
 power, modulation, packet framing, and network in one call; `set_frequency`,
-`set_output_power`, `set_lora_modulation`, `set_lora_packet_params`, and
+`set_output_power`, `set_modulation`, `set_packet_params`, and
 `set_sync_word` change them individually. `modulation()` / `packet_params()`
 read back the configured link parameters.
 
