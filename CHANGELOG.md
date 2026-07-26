@@ -6,14 +6,38 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
-## Unreleased
+## v2026.07.26
+
+Eight new components — LoRa radio support, ADC acquisition, a DHT sensor driver,
+an SSD1306 OLED driver, and a bitmap graphics/font stack — plus breaking
+refinements to the WiFi, PWM, HTTPS server, and DS18x20 APIs. Only components
+that changed since v2026.06.11 are listed, each with its new version.
 
 ### New components
 
+- `idfxx_radio` `1.0.0` — abstract LoRa transceiver interface
+  (`idfxx::radio::lora_transceiver`) with shared LoRa types, constexpr
+  time-on-air and duty-cycle helpers, and a typed event base. A link is
+  configured in one call with `configure(lora_link)`, covering frequency, output
+  power, modulation, packet framing, and network; the transceiver caches the
+  applied modulation and framing and exposes them through `modulation()` and
+  `packet_params()`. Power and signal quantities use electro decibel types
+- `idfxx_radio_sx126x` `1.0.0` — Semtech SX126x family driver (SX1261/SX1262/SX1268)
+  selecting PA configuration and output-power limits per chip variant, with
+  blocking, future-based, and event-loop APIs, duty-cycled receive, and
+  channel-activity detection
 - `idfxx_adc` `1.0.0` — one-shot and continuous ADC reads with calibrated
-  voltages
+  voltages: `adc::input` reads a single analog input on demand (with optional
+  external voltage-divider scaling), and `adc::sampler` converts one or more pins
+  round-robin at a fixed rate on ADC1's digital controller with blocking or timed
+  reads and an overrun counter
+- `idfxx_dht` `1.0.0` — DHT11/DHT22 temperature and humidity driver using RMT
+  capture, with a pure hardware-free decoder that locates the response preamble
+  at any phase and verifies the frame checksum, and enforcement of the sensor's
+  minimum sampling period
 - `idfxx_lcd_ssd1306` `1.0.0` — SSD1306 monochrome OLED panel driver (128x64 / 128x32)
-  over I2C
+  over I2C, including `set_contrast()`/`try_set_contrast()` across the full
+  0x00–0xFF range
 - `idfxx_gfx` `1.0.0` — drawing primitives for pixel surfaces: filled and outlined
   rectangles, lines, and bitmap-font text with integer scaling, over a structural
   `pixel_surface` concept satisfied by both `idfxx_lcd` framebuffers
@@ -22,6 +46,30 @@ component's version only bumps when that component changes.
 - `idfxx_font_spleen` `1.0.0` — the Spleen 5x8 and 8x16 bitmap fonts (BSD-2-Clause)
   as idfxx font data, one translation unit per font so unused fonts are dropped at
   link time
+
+### Breaking changes
+
+- `idfxx_wifi` `2.0.0` — renamed the netif factories `create_default_sta_netif()` /
+  `create_default_ap_netif()` to `make_sta_netif()` / `make_ap_netif()`, and moved
+  signal quantities onto electro decibel types (RSSI fields and the scan threshold
+  are `electro::dbm`; the max-TX-power accessors take and return
+  `electro::centi_dbm`, matching the hardware's 0.25 dBm resolution). Adds
+  `connect_sta()`, which configures, connects, and waits for an IPv4 address in one
+  call with a caller-supplied timeout, plus equality operators on the config,
+  record, and event-data structs and `[[nodiscard]]` on result-returning functions
+- `idfxx_pwm` `2.0.0` — `fill_multi_fade_params()` now takes the maximum fade
+  duration as any chrono duration instead of a raw millisecond count, rounding up
+  to whole milliseconds
+- `idfxx_https_server` `2.0.0` — removed the `ssl_server` secure-element config
+  field. ESP-IDF dropped `use_secure_element` from `httpd_ssl_config_t` in v6.0.2,
+  and the field only ever functioned with the external esp-cryptoauthlib component
+  and dedicated hardware
+- `idfxx_ds18x20` `2.0.0` — raised the public `thermo` dependency to `^2.0.0`.
+  thermo 2.0.0 removes the `celsius_real` / `kelvin_real` / `fahrenheit_real`
+  typedefs and changes `millifahrenheit` counts by 10×; because `thermo::millicelsius`
+  appears in this component's public API, callers rendering temperatures via
+  `temperature_cast<thermo::celsius_real>` must switch to applying a floating-point
+  format spec directly (`std::format("{:.1f}", temp)`)
 
 ### Enhancements
 
@@ -38,11 +86,31 @@ component's version only bumps when that component changes.
 - `idfxx_lcd_ili9341` `2.1.0` — panels now report `width()`/`height()`, and the example
   and documentation draw via `panel::draw_bitmap` instead of the raw ESP-IDF handle
 
+### Fixes
+
+- `idfxx_spi` `1.1.0` — `master_device` locking is now real mutual exclusion. The
+  Lockable implementation previously mapped straight onto `spi_device_acquire_bus`,
+  which arbitrates between devices rather than between threads sharing one device:
+  `lock()` discarded acquisition failures so a `std::lock_guard` could silently
+  proceed unserialized, and `try_lock()` passed a finite timeout the driver rejects
+  outright, so it always returned false. Locking is now composed from a per-device
+  recursive mutex plus bus acquisition on the outermost lock, polling transactions
+  take the same mutex internally, and a failed acquisition fails loudly instead of
+  continuing unlocked
+- `idfxx_core` `1.1.1` — fixed the `flags<E>` bitwise operators (`|`, `&`, `^`, `-`,
+  `~`) for enums with an underlying type smaller than `int` (e.g. `uint16_t`), where
+  integer promotion made the result a narrowing error and combining such flags
+  failed to compile
+- `idfxx_netif` `1.1.1` — updated documentation references to the renamed
+  `idfxx::wifi::make_sta_netif()` factory
+
 ### Other changes
 
 - The test app partition layouts now use a single OTA slot: the suite only reads
   `ota_0` (never writes a second image), and the full suite no longer fits the
   two-slot 4MB layout on the IDF 5.5 toolchain.
+- Added a `Justfile` capturing the common build, flash, monitor, format, docs,
+  config-matrix, and QEMU test tasks.
 
 ## v2026.06.11
 
