@@ -29,9 +29,23 @@ jobs:
           echo "$list" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      # The registry processes uploads asynchronously and the upload tool gives up
+      # polling early under load, reporting "an unknown error happened during
+      # processing" for uploads that in fact succeed moments later. On a real
+      # upload the verify step below is the authority on whether the job passed,
+      # so a false failure here is tolerated. In dry-run mode nothing is published
+      # and there is nothing to verify, so this step stays fatal.
       - name: Upload components to ESP Component Registry
+        id: upload
+        continue-on-error: ${{ !inputs.dry_run }}
         uses: espressif/upload-components-ci-action@v2
         with:
           namespace: cleishm
           components: ${{ steps.discover.outputs.list }}
           dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Verify components reached the registry
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "Upload step outcome: ${{ steps.upload.outcome }}"
+          python3 scripts/verify-registry.py --namespace cleishm
