@@ -10,7 +10,7 @@ on:
 jobs:
   format-check:
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.1
+    container: espressif/idf:v6.0.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.1
+    container: espressif/idf:v6.0.2
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +55,7 @@ jobs:
 
   # Early-warning canary: builds against the moving release/v6.0 branch tip to
   # surface upstream ESP-IDF changes before they land in a tagged point release.
-  # Every other job pins to espressif/idf:v6.0.1; this one is allowed to fail so
+  # Every other job pins to espressif/idf:v6.0.2; this one is allowed to fail so
   # unreleased upstream regressions flag a warning without blocking PRs.
   build-canary:
     runs-on: ubuntu-latest
@@ -112,7 +112,7 @@ jobs:
   build-example:
     needs: discover-examples
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.1
+    container: espressif/idf:v6.0.2
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover-examples.outputs.matrix) }}
@@ -130,7 +130,7 @@ jobs:
 
   qemu-test:
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.0.1
+    container: espressif/idf:v6.0.2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -156,10 +156,9 @@ jobs:
       - name: Create Flash Image for QEMU
         run: |
           . $IDF_PATH/export.sh
-          cd build
-          # Create 4MB flash image using ESP-IDF's flash_args
-          esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB -o qemu_flash.bin @flash_args
-          mv qemu_flash.bin ../qemu_flash.bin
+          # Create 4MB flash image from the project's flash_args. A relative -o
+          # is resolved against the build directory, so name the target in full.
+          idf.py merge-bin --format raw --fill-flash-size 4MB -o "$PWD/qemu_flash.bin"
 
       - name: Run Tests in QEMU
         shell: bash
