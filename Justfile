@@ -1,13 +1,13 @@
 # Common tasks for idfxx. Requires ESP-IDF 5.5+ and `just`.
 #
-# Recipes source the ESP-IDF environment automatically when idf.py is not
-# already on PATH. Override IDF_EXPORT (or set IDF_PATH) to select an
-# installation; defaults to ~/.espressif/v6.0/esp-idf/export.sh.
+# Recipes activate ESP-IDF automatically when idf.py is not already on PATH,
+# searching $IDF_EXPORT, $IDF_PATH, the ESP-IDF Installation Manager (eim), and
+# then the usual checkout locations. See scripts/idf-env.sh for the full order
+# and for how to point the recipes at a specific installation.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-idf_export := env("IDF_EXPORT", env("IDF_PATH", home_directory() / ".espressif/v6.0/esp-idf") / "export.sh")
-env_setup := 'command -v idf.py >/dev/null 2>&1 || source "' + idf_export + '" >/dev/null;'
+env_setup := 'source "' + justfile_directory() / "scripts/idf-env.sh" + '";'
 port := env("ESPPORT", "/dev/ttyUSB0")
 
 # List available recipes
@@ -78,8 +78,9 @@ qemu-build:
         cp sdkconfig.qemu build-qemu/sdkconfig
     fi
     idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" -D IDF_TARGET=esp32s3 build
-    cd build-qemu
-    esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB -o qemu_flash.bin @flash_args
+    idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" \
+        merge-bin --format raw --fill-flash-size 4MB \
+        -o "{{justfile_directory()}}/build-qemu/qemu_flash.bin"
 
 # Run the Unity test suite in QEMU (builds first; log in qemu_output.log)
 qemu-test timeout="300": qemu-build
