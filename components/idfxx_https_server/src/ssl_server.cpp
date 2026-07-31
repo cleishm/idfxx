@@ -17,7 +17,15 @@ const char* TAG = "idfxx::httpd_ssl";
 namespace idfxx::http {
 
 result<ssl_server> ssl_server::make(config cfg) {
+    // HTTPD_SSL_CONFIG_DEFAULT() does not initialize every member of httpd_ssl_config: after
+    // v6.0.2 the deprecated use_secure_element member was kept in the struct but dropped from the
+    // macro. Members the macro omits are value-initialized, which is what we want — the deprecated
+    // ones are non-functional and make httpd_ssl_start() fail if set. C ignores the gap, but C++
+    // warns, and -Werror turns that warning into a build failure.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     httpd_ssl_config_t ssl_cfg = HTTPD_SSL_CONFIG_DEFAULT();
+#pragma GCC diagnostic pop
 
     auto ctx = std::make_unique<server_ctx>();
     bool has_session_open = static_cast<bool>(cfg.on_session_open);
