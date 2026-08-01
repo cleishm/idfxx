@@ -12,29 +12,7 @@ This is an ESP-IDF project, requring ESP-IDF 5.5+.
 
 Common tasks are captured in the `Justfile` at the repo root (`just --list` to see all
 recipes). The recipes source the ESP-IDF environment automatically when `idf.py` is not
-already on PATH, so they work from a plain shell. The underlying commands are also shown
-below for reference / environments without `just`.
-
-```bash
-# Full build
-just build                                  # idf.py build
-
-# Flash and monitor (port defaults to $ESPPORT or /dev/ttyUSB0)
-just flash [port]                           # idf.py -p <port> flash monitor
-just monitor [port]                         # idf.py -p <port> monitor
-
-# Format code
-just format                                 # cmake --build build --target format
-
-# Check formatting
-just format-check                           # cmake --build build --target format-check
-
-# Generate documentation
-just docs                                   # cmake --build build --target docs
-
-# Remove all build directories
-just clean
-```
+already on PATH, so they work from a plain shell.
 
 ### Config Matrix Builds
 
@@ -66,13 +44,6 @@ CI runs a matrix of builds: with-exceptions, no-exceptions, no-ipv6, and qemu-te
 ## Architecture
 
 ### Component Structure
-
-All components live in `components/` with a consistent layout:
-- `include/idfxx/<component>.hpp` - Public headers (may include sub-directories, e.g., `include/idfxx/spi/master.hpp`)
-- `src/` - Implementation files
-- `tests/` - Unity test files (run on hardware via ESP-IDF test framework)
-- `idf_component.yml` - Component metadata and dependencies
-- `README.md` - Component documentation following standard structure
 
 Supported targets: esp32, esp32s2, esp32s3, esp32c3, esp32c6, esp32h2
 
@@ -112,48 +83,6 @@ struct config {
 **Lockable Interface**: Bus classes (I2C, SPI) implement C++ Lockable (`lock()`, `try_lock()`, `unlock()`) for use with `std::lock_guard`.
 
 **Conditional Compilation**: Throwing methods are guarded by `#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS`. SOC-specific features use `#if SOC_*` guards.
-
-### Components
-
-Components are organized in dependency layers. Check `components/` for the current list. Key components include:
-
-**Base Layer:**
-- `idfxx_core` - Base utilities (error handling, memory allocators, chrono, flags)
-
-**Level 1 (depend on core):**
-- `idfxx_gpio` - GPIO pin management with ISR support
-- `idfxx_hw_support` - Hardware interrupt allocation
-- `idfxx_timer` - High-resolution timer (esp_timer) wrapper
-
-**Level 2 (depend on core + gpio):**
-- `idfxx_spi` - SPI master bus driver
-- `idfxx_i2c` - I2C master bus and device driver
-- `idfxx_nvs` - Non-Volatile Storage wrapper
-
-**Level 3 (depend on core + gpio + spi):**
-- `idfxx_lcd` - LCD panel I/O interface
-
-**Level 4 (depend on lcd):**
-- `idfxx_lcd_ili9341` - ILI9341 LCD controller (240x320)
-- `idfxx_lcd_touch` - LCD touch controller interface
-- `idfxx_lcd_touch_stmpe610` - STMPE610 resistive touch driver
-
-New components follow these patterns. Run `ls components/` to see all available components.
-
-### ESP-IDF Integration
-
-- Components register via `idf_component_register()` in CMakeLists.txt
-- All components require C++23: `target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_23)`
-- Default sdkconfig enables exceptions, RTTI, and C++23
-
-## Code Style
-
-Uses clang-format with LLVM base style:
-- 4-space indentation, no tabs
-- 120 character line limit
-- K&R braces (attached)
-- Left-aligned pointers/references (`int* ptr`)
-- Include order: idfxx headers, C++ standard library, ESP-IDF headers
 
 ## Code Requirements
 
