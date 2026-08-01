@@ -14,9 +14,9 @@
 #include <idfxx/gfx>
 #include <idfxx/gpio>
 #include <idfxx/lcd/ili9341>
-#include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/rgb565_framebuffer>
 #include <idfxx/log>
+#include <idfxx/panel_io>
 #include <idfxx/sched>
 #include <idfxx/spi/master>
 
@@ -104,7 +104,7 @@ extern "C" void app_main() {
         idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
 
         // --- Panel I/O ---
-        idfxx::lcd::panel_io io(
+        idfxx::panel_io io(
             bus,
             {
                 .cs_gpio = PIN_CS,

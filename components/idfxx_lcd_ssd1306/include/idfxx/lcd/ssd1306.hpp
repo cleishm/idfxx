@@ -11,7 +11,7 @@
  */
 
 #include <idfxx/lcd/panel>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 
 #include <cstddef>
 #include <cstdint>
@@ -62,7 +62,7 @@ public:
      * @return A panel_io::i2c_config ready to construct a panel_io.
      *
      * @code
-     * idfxx::lcd::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
+     * idfxx::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
      * idfxx::lcd::ssd1306 display(io, {.height = 64});
      * @endcode
      */
@@ -82,7 +82,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit ssd1306(idfxx::lcd::panel_io& panel_io, config config);
+    [[nodiscard]] explicit ssd1306(idfxx::panel_io& panel_io, config config);
 #endif
 
     /**
@@ -97,7 +97,7 @@ public:
      * @return The new ssd1306, or an error.
      * @retval idfxx::errc::invalid_arg if the configured height is not 64 or 32.
      */
-    [[nodiscard]] static result<ssd1306> make(idfxx::lcd::panel_io& panel_io, config config);
+    [[nodiscard]] static result<ssd1306> make(idfxx::panel_io& panel_io, config config);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

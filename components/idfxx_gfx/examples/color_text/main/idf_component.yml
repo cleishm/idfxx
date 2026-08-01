@@ -6,7 +6,7 @@ dependencies:
     version: "^1.0.0"
     override_path: ../../../../idfxx_font_spleen
   cleishm/idfxx_lcd_ili9341:
-    version: "^2.1.0"
+    version: "^2.2.0"
     override_path: ../../../../idfxx_lcd_ili9341
   cleishm/idfxx_spi:
     version: "^1.0.0"
@@ -17,3 +17,6 @@ dependencies:
   cleishm/idfxx_log:
     version: "^1.0.0"
     override_path: ../../../../idfxx_log
+  cleishm/idfxx_panel_io:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_panel_io

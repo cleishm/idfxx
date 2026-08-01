@@ -42,7 +42,8 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_pwm](https://github.com/cleishm/idfxx/tree/main/components/idfxx_pwm) | PWM output with automatic or explicit timer and channel allocation | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__pwm.html) |
 | [idfxx_adc](https://github.com/cleishm/idfxx/tree/main/components/idfxx_adc) | One-shot and continuous ADC reads with calibrated voltages | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__adc.html) |
 | **Display Drivers** | | |
-| [idfxx_lcd](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd) | LCD panel I/O interface for SPI-based displays | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
+| [idfxx_panel_io](https://github.com/cleishm/idfxx/tree/main/components/idfxx_panel_io) | Panel I/O interface for SPI- and I2C-connected displays | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__panel__io.html) |
+| [idfxx_lcd](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd) | LCD panel interface, color types, and framebuffers | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_ili9341](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ili9341) | ILI9341 LCD controller driver (240x320) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_ssd1306](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_ssd1306) | SSD1306 monochrome OLED panel driver (128x64 / 128x32) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd.html) |
 | [idfxx_lcd_touch](https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_touch) | LCD touch controller interface | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__lcd__touch.html) |
@@ -133,7 +134,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 ```cpp
 #include <idfxx/gpio>
 #include <idfxx/lcd/ili9341>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 #include <idfxx/lcd/stmpe610>
 #include <idfxx/spi/master>
 
@@ -156,9 +157,9 @@ extern "C" void app_main() {
         );
 
         // Create panel I/O for LCD
-        lcd::panel_io panel_io(
+        panel_io panel_io(
             spi_bus,
-            lcd::panel_io::spi_config{
+            panel_io::spi_config{
                 .cs_gpio = gpio_14,
                 .dc_gpio = gpio_27,
                 .spi_mode = 0,
@@ -202,7 +203,7 @@ Using `try_*` methods with `std::expected` for explicit error handling:
 ```cpp
 #include <idfxx/gpio>
 #include <idfxx/lcd/ili9341>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 #include <idfxx/lcd/stmpe610>
 #include <idfxx/spi/master>
 
@@ -229,9 +230,9 @@ extern "C" void app_main() {
     auto spi_bus = std::move(*spi_bus_res);
 
     // Create panel I/O for LCD
-    auto panel_io_res = lcd::panel_io::make(
+    auto panel_io_res = panel_io::make(
         spi_bus,
-        lcd::panel_io::spi_config{
+        panel_io::spi_config{
             .cs_gpio = gpio_14,
             .dc_gpio = gpio_27,
             .spi_mode = 0,

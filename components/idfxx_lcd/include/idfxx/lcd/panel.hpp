@@ -7,7 +7,17 @@
  * @headerfile <idfxx/lcd/panel>
  * @file panel.hpp
  * @brief Abstract LCD panel interface.
- * @ingroup idfxx_lcd
+ *
+ * @defgroup idfxx_lcd LCD Component
+ * @brief LCD panel interface, color types, and framebuffers.
+ *
+ * Provides the abstract panel base class, color types, and framebuffer
+ * helpers for LCD and OLED displays. The I/O layer for SPI- and
+ * I2C-connected panels is provided by @ref idfxx_panel_io.
+ *
+ * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin
+ * configuration.
+ * @{
  */
 
 #include <idfxx/error>
@@ -222,5 +232,7 @@ private:
     size_t _width = 0;
     size_t _height = 0;
 };
+
+/** @} */ // end of idfxx_lcd
 
 } // namespace idfxx::lcd

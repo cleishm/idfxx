@@ -42,7 +42,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
 
 namespace idfxx::lcd {
 
-result<ssd1306> ssd1306::make(idfxx::lcd::panel_io& panel_io, ssd1306::config config) {
+result<ssd1306> ssd1306::make(idfxx::panel_io& panel_io, ssd1306::config config) {
     return make_handle(panel_io.idf_handle(), config).transform([&](auto handle) {
         return ssd1306{panel_io.idf_handle(), handle, config.height};
     });
@@ -56,7 +56,7 @@ result<void> ssd1306::try_set_contrast(uint8_t level) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-ssd1306::ssd1306(idfxx::lcd::panel_io& panel_io, ssd1306::config config)
+ssd1306::ssd1306(idfxx::panel_io& panel_io, ssd1306::config config)
     : ssd1306(unwrap(make(panel_io, std::move(config)))) {}
 #endif
 

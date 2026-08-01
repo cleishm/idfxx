@@ -92,7 +92,7 @@ TEST_CASE("ssd1306::make rejects invalid height", "[idfxx][lcd][ssd1306]") {
     auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 400_kHz);
     TEST_ASSERT_TRUE(bus.has_value());
 
-    auto io = panel_io::make(*bus, ssd1306::i2c_io_config());
+    auto io = idfxx::panel_io::make(*bus, ssd1306::i2c_io_config());
     TEST_ASSERT_TRUE(io.has_value());
 
     // Height validation fails before any bus traffic, so no device needs to be attached.

@@ -11,8 +11,8 @@
  */
 
 #include <idfxx/error>
-#include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/touch>
+#include <idfxx/panel_io>
 
 /**
  * @headerfile <idfxx/lcd/stmpe610>
@@ -42,7 +42,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit stmpe610(idfxx::lcd::panel_io& panel_io, config config);
+    [[nodiscard]] explicit stmpe610(idfxx::panel_io& panel_io, config config);
 #endif
 
     /**
@@ -56,7 +56,7 @@ public:
      *
      * @return The new stmpe610, or an error.
      */
-    [[nodiscard]] static result<stmpe610> make(idfxx::lcd::panel_io& panel_io, config config);
+    [[nodiscard]] static result<stmpe610> make(idfxx::panel_io& panel_io, config config);
 
     ~stmpe610();
 

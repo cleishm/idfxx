@@ -6,6 +6,30 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
+## Unreleased
+
+### New components
+
+- `idfxx_panel_io` `1.0.0` — panel I/O interface for SPI- and I2C-connected
+  displays (`idfxx::panel_io`), moved out of `idfxx_lcd` so display drivers can
+  depend on the I/O transport without the LCD panel, color, and framebuffer
+  APIs
+
+### Enhancements
+
+- `idfxx_lcd` `2.2.0` — the panel I/O class moved to the new `idfxx_panel_io`
+  component as `idfxx::panel_io`; `<idfxx/lcd/panel_io>` remains as a
+  compatibility header providing the deprecated `idfxx::lcd::panel_io` alias,
+  so existing code compiles unchanged
+- `idfxx_lcd_ili9341` `2.2.0` — constructs from `idfxx::panel_io` (the new home
+  of the panel I/O class; the deprecated alias names the same type, so existing
+  code compiles unchanged)
+- `idfxx_lcd_ssd1306` `1.1.0` — constructs from `idfxx::panel_io` (the new home
+  of the panel I/O class; the deprecated alias names the same type, so existing
+  code compiles unchanged)
+- `idfxx_lcd_touch_stmpe610` `2.1.0` — constructs from `idfxx::panel_io`, and
+  the `idfxx_lcd` dependency is replaced by `idfxx_panel_io`
+
 ## v2026.07.26
 
 Eight new components — LoRa radio support, ADC acquisition, a DHT sensor driver,

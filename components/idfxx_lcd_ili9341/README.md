@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ili9341:
-    version: "^2.0.1"
+    version: "^2.2.0"
 ```
 
 Or add `idfxx_lcd_ili9341` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -38,7 +38,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 ```cpp
 #include <idfxx/spi/master>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 #include <idfxx/lcd/ili9341>
 #include <idfxx/log>
 
@@ -58,9 +58,9 @@ try {
     );
 
     // Create panel I/O
-    idfxx::lcd::panel_io panel_io(
+    idfxx::panel_io panel_io(
         spi_bus,
-        idfxx::lcd::panel_io::spi_config {
+        idfxx::panel_io::spi_config {
             .cs_gpio = idfxx::gpio_5,
             .dc_gpio = idfxx::gpio_2,
             .spi_mode = 0,
@@ -109,7 +109,7 @@ if (!spi_bus_result) {
 auto spi_bus = std::move(*spi_bus_result);
 
 // Create panel I/O
-auto panel_io_result = idfxx::lcd::panel_io::make(
+auto panel_io_result = idfxx::panel_io::make(
     spi_bus,
     { /* ... */ }
 );
