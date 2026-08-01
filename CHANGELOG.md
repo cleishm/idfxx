@@ -14,6 +14,20 @@ component's version only bumps when that component changes.
   displays (`idfxx::panel_io`), moved out of `idfxx_lcd` so display drivers can
   depend on the I/O transport without the LCD panel, color, and framebuffer
   APIs
+- `idfxx_epaper` `1.0.0` — abstract ePaper panel interface
+  (`idfxx::epaper::panel`) with ePaper-native vocabulary: framebuffer writes to
+  controller RAM, explicit full/fast/partial refreshes, BUSY waiting, deep
+  sleep, and wake. Includes a 1-bpp `mono_framebuffer` and a two-plane
+  `gray4_framebuffer` for 4-level grayscale, both satisfying the
+  `idfxx::gfx::pixel_surface` concept for use with gfx canvases and banded
+  rendering
+- `idfxx_epaper_ssd1680` `1.0.0` — SSD1680 ePaper panel driver (up to 176x296,
+  e.g. the 2.13" 122x250 panel), supporting full, fast, and partial refreshes
+  and 4-level grayscale via a register-written waveform
+- `idfxx_epaper_uc8179` `1.0.0` — UC8179 ePaper panel driver (up to 800x600,
+  e.g. the 7.5" 800x480 panel), supporting full, fast, and partial refreshes
+  and 4-level grayscale; the controller maintains the previous frame itself, so
+  the driver keeps no host-side shadow copy
 
 ### Enhancements
 

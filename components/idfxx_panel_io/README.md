@@ -11,7 +11,7 @@ Panel I/O interface for SPI- and I2C-connected displays.
 - Integration with `idfxx_spi` and `idfxx_i2c` buses
 - Communication layer for LCD, OLED, and ePaper panel drivers and touch
   controllers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`,
-  `idfxx_lcd_touch_stmpe610`)
+  `idfxx_epaper_ssd1680`, `idfxx_lcd_touch_stmpe610`)
 
 ## Requirements
 
@@ -292,7 +292,7 @@ idfxx::panel_io::spi_config io_config{
 - The `lcd_cmd_bits`/`lcd_param_bits` field names follow the underlying ESP-IDF
   configuration and apply equally to non-LCD panels
 - This component provides only the I/O layer; use a concrete driver
-  (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) for panel control
+  (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`) for panel control
 - Prior to its extraction into this component, this class was available as
   `idfxx::lcd::panel_io` in `idfxx_lcd` 2.x; that name remains as a deprecated alias
 
