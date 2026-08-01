@@ -212,3 +212,28 @@ jobs:
         with:
           name: qemu-test-output
           path: qemu_output.log
+
+  # Single check to require in branch protection. The example jobs come from a
+  # matrix computed at run time, so their check names change whenever examples
+  # are added or renamed and cannot be required by name; this job gives every
+  # job above one stable name to gate on. build-canary is deliberately absent —
+  # it tracks an unreleased branch and is allowed to fail.
+  all-checks:
+    if: always()
+    needs: [format-check, build, build-compat, discover-examples, build-example, qemu-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that every required job succeeded
+        env:
+          # always() means this job runs even when a dependency fails, so the
+          # results have to be inspected rather than inferred from getting here.
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::a required job did not succeed"
+              exit 1
+            fi
+          done
+          echo "all required jobs succeeded"
