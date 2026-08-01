@@ -1,0 +1,150 @@
+name: ESP-IDF pin
+
+# Keeps the pinned ESP-IDF container image on the newest point release of the
+# series it is already on, opening a PR and queueing it to merge once the
+# required checks pass.
+#
+# Letting the merge happen unattended is only safe because the bump is judged
+# by CI before it lands, which takes two pieces of repository configuration:
+#
+#   - IDF_PIN_TOKEN, a secret holding a token with contents, pull-requests and
+#     workflow write access. A PR raised with GITHUB_TOKEN does not trigger
+#     other workflows, so the build matrix never runs against the proposed
+#     image and there is nothing to judge the bump by. Workflow permission is
+#     needed because the bump edits files under .github/workflows, and pushes
+#     that do are refused without it; GITHUB_TOKEN cannot be granted it, so
+#     there is no falling back to it. The token expires, and the first step
+#     fails loudly when it has.
+#   - Branch protection with required status checks, and "Allow auto-merge"
+#     enabled. With no required checks there is nothing for --auto to wait on,
+#     and it merges an untested toolchain bump immediately.
+#
+# GitHub also disables scheduled workflows in a repository with no commits for
+# 60 days, so a long quiet period stops the check silently.
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC. ESP-IDF point releases land roughly monthly, so a
+    # weekly check finds them promptly without churning.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the push token
+        env:
+          TOKEN: ${{ secrets.IDF_PIN_TOKEN }}
+        run: |
+          # Checked up front because the failure it prevents lands three steps
+          # later as a git error about workflow files, which reads like a bug
+          # in this workflow rather than a missing or expired secret.
+          if [ -z "$TOKEN" ]; then
+            echo "::error::IDF_PIN_TOKEN is unset or expired — see the comment at the top of this workflow"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # git push uses the credentials checkout persists, not GH_TOKEN, and
+          # a push that touches .github/workflows is refused unless the token
+          # carries workflow permission — which GITHUB_TOKEN cannot be granted.
+          token: ${{ secrets.IDF_PIN_TOKEN }}
+
+      - name: Find the current pin
+        id: current
+        run: |
+          # Only a `container:` key holding a three-component version counts as
+          # the pin. This deliberately does not match build-compat, whose
+          # espressif/idf:v5.5 is the documented floor and has to keep testing
+          # the oldest supported release, nor build-canary, whose
+          # espressif/idf:release-v6.0 is a moving tag by design.
+          pins=$(grep -hoE 'container: *espressif/idf:v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/*.yml |
+              grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -u)
+          if [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then
+            echo "::error::expected exactly one pinned ESP-IDF version, found: ${pins:-none}"
+            exit 1
+          fi
+          echo "version=$pins" >> "$GITHUB_OUTPUT"
+          echo "series=${pins%.*}" >> "$GITHUB_OUTPUT"
+          echo "Currently pinned to $pins"
+
+      - name: Find the newest release in the series
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.current.outputs.version }}
+          SERIES: ${{ steps.current.outputs.series }}
+        run: |
+          # Stay inside the pinned minor series. Moving to a new minor or major
+          # is a migration, staged through build-canary and build-compat, and
+          # not something to apply unattended.
+          latest=$(gh api "repos/espressif/esp-idf/releases?per_page=100" \
+              --jq '.[] | select(.prerelease == false) | .tag_name' |
+              grep -E "^${SERIES//./\\.}\.[0-9]+$" | sort -V | tail -1)
+          if [ -z "$latest" ]; then
+            echo "::error::no $SERIES point release found"
+            exit 1
+          fi
+          if [ "$latest" = "$CURRENT" ]; then
+            echo "Already on the newest $SERIES release ($CURRENT)"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The container image is published separately from the GitHub release
+          # and can lag it by days. Pinning to a tag that does not exist yet
+          # fails every job that runs in the image.
+          if ! curl -fsS -o /dev/null "https://hub.docker.com/v2/repositories/espressif/idf/tags/$latest"; then
+            echo "$latest is released but espressif/idf:$latest is not published yet"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$CURRENT -> $latest"
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          echo "bump=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open the bump PR
+        if: steps.latest.outputs.bump == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.IDF_PIN_TOKEN }}
+          CURRENT: ${{ steps.current.outputs.version }}
+          SERIES: ${{ steps.current.outputs.series }}
+          LATEST: ${{ steps.latest.outputs.version }}
+          BRANCH: ci/idf-pin
+        run: |
+          # One substitution covers every container: key and the pinned version
+          # named in prose in the build-canary comment.
+          sed -i "s|espressif/idf:${CURRENT//./\\.}|espressif/idf:$LATEST|g" .github/workflows/*.yml
+          git diff --stat
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$BRANCH"
+          git commit -am "ci: pin to ESP-IDF $LATEST
+
+          $LATEST is the current $SERIES point release."
+          # Force-push a fixed branch so a series of releases updates one PR
+          # rather than accumulating a new one every week.
+          git push -f origin "$BRANCH"
+
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            echo "Updated the open PR for $BRANCH"
+          else
+            gh pr create --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+              --title "ci: pin to ESP-IDF $LATEST" \
+              --body "Bumps the pinned ESP-IDF container image from \`$CURRENT\` to \`$LATEST\`, the newest \`$SERIES\` point release.
+
+          Opened by \`.github/workflows/idf-pin.yml\`."
+          fi
+
+          # Queue the merge behind the required checks. Re-setting it on an
+          # already-queued PR is harmless, so this runs on updates too.
+          if ! gh pr merge --auto --squash "$BRANCH"; then
+            echo "::warning::could not queue auto-merge for $BRANCH; merge it by hand"
+          fi
