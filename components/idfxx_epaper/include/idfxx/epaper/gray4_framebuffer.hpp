@@ -21,6 +21,10 @@
 #include <utility>
 #include <vector>
 
+/**
+ * @headerfile <idfxx/epaper/gray4_framebuffer>
+ * @brief ePaper display driver classes.
+ */
 namespace idfxx::epaper {
 
 /**

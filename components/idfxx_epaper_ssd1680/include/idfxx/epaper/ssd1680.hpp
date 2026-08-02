@@ -24,6 +24,10 @@
 #include <span>
 #include <vector>
 
+/**
+ * @headerfile <idfxx/epaper/ssd1680>
+ * @brief ePaper display driver classes.
+ */
 namespace idfxx::epaper {
 
 /**

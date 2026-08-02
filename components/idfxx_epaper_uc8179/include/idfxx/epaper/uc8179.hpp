@@ -22,6 +22,10 @@
 #include <initializer_list>
 #include <span>
 
+/**
+ * @headerfile <idfxx/epaper/uc8179>
+ * @brief ePaper display driver classes.
+ */
 namespace idfxx::epaper {
 
 /**

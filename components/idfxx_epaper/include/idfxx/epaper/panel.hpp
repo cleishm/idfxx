@@ -421,12 +421,17 @@ public:
      *
      * Blocks while the controller reports it is busy, up to @p timeout.
      *
+     * @tparam Rep     Duration arithmetic type.
+     * @tparam Period  Duration period type.
      * @param timeout Maximum time to wait.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::timeout` if
      *         the BUSY line does not release in time.
      */
-    void wait_for(std::chrono::milliseconds timeout) { unwrap(try_wait_for(timeout)); }
+    template<typename Rep, typename Period>
+    void wait_for(const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_wait_for(timeout));
+    }
 #endif
 
     /**
@@ -482,11 +487,16 @@ public:
      *
      * Blocks while the controller reports it is busy, up to @p timeout.
      *
+     * @tparam Rep     Duration arithmetic type.
+     * @tparam Period  Duration period type.
      * @param timeout Maximum time to wait.
      * @return Success, or an error.
      * @retval timeout The BUSY line did not release within @p timeout.
      */
-    [[nodiscard]] result<void> try_wait_for(std::chrono::milliseconds timeout) { return do_wait(timeout); }
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_wait_for(const std::chrono::duration<Rep, Period>& timeout) {
+        return do_wait(std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
 
     // =========================================================================
     // Color mode

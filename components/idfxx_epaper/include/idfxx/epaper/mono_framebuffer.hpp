@@ -19,6 +19,10 @@
 #include <span>
 #include <vector>
 
+/**
+ * @headerfile <idfxx/epaper/mono_framebuffer>
+ * @brief ePaper display driver classes.
+ */
 namespace idfxx::epaper {
 
 /**
