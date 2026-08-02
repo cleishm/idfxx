@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// Unit tests for idfxx lcd
+// Unit tests for idfxx panel_io
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
-#include "idfxx/lcd/color"
-#include "idfxx/lcd/panel_io"
+#include "idfxx/panel_io"
 #include "unity.h"
 
 #include <esp_lcd_panel_io.h>
 #include <type_traits>
 
-using namespace idfxx::lcd;
+using idfxx::panel_io;
 using namespace frequency_literals;
 
 // SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work; the
@@ -42,18 +41,11 @@ static_assert(!std::is_copy_assignable_v<panel_io>);
 static_assert(std::is_move_constructible_v<panel_io>);
 static_assert(std::is_move_assignable_v<panel_io>);
 
-// Enum values match ESP-IDF constants
-static_assert(std::to_underlying(rgb_element_order::rgb) == LCD_RGB_ELEMENT_ORDER_RGB);
-static_assert(std::to_underlying(rgb_element_order::bgr) == LCD_RGB_ELEMENT_ORDER_BGR);
-
-static_assert(std::to_underlying(rgb_data_endian::big) == LCD_RGB_DATA_ENDIAN_BIG);
-static_assert(std::to_underlying(rgb_data_endian::little) == LCD_RGB_DATA_ENDIAN_LITTLE);
-
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
-TEST_CASE("spi_config struct initialization", "[idfxx][lcd]") {
+TEST_CASE("spi_config struct initialization", "[idfxx][panel_io]") {
     using namespace idfxx;
 
     panel_io::spi_config config{
@@ -75,7 +67,7 @@ TEST_CASE("spi_config struct initialization", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(8, config.lcd_param_bits);
 }
 
-TEST_CASE("spi_config flags initialization", "[idfxx][lcd]") {
+TEST_CASE("spi_config flags initialization", "[idfxx][panel_io]") {
     panel_io::spi_config config{
         .cs_gpio = idfxx::gpio_5,
         .dc_gpio = idfxx::gpio_2,
@@ -97,18 +89,7 @@ TEST_CASE("spi_config flags initialization", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(0, config.flags.cs_high_active);
 }
 
-
-TEST_CASE("rgb_element_order enum values", "[idfxx][lcd]") {
-    TEST_ASSERT_EQUAL(LCD_RGB_ELEMENT_ORDER_RGB, std::to_underlying(rgb_element_order::rgb));
-    TEST_ASSERT_EQUAL(LCD_RGB_ELEMENT_ORDER_BGR, std::to_underlying(rgb_element_order::bgr));
-}
-
-TEST_CASE("rgb_data_endian enum values", "[idfxx][lcd]") {
-    TEST_ASSERT_EQUAL(LCD_RGB_DATA_ENDIAN_BIG, std::to_underlying(rgb_data_endian::big));
-    TEST_ASSERT_EQUAL(LCD_RGB_DATA_ENDIAN_LITTLE, static_cast<int>(rgb_data_endian::little));
-}
-
-TEST_CASE("spi_config with custom flags", "[idfxx][lcd]") {
+TEST_CASE("spi_config with custom flags", "[idfxx][panel_io]") {
     using namespace idfxx;
 
     panel_io::spi_config config{
@@ -130,7 +111,7 @@ TEST_CASE("spi_config with custom flags", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(0, config.flags.dc_high_on_cmd);
 }
 
-TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][lcd]") {
+TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][panel_io]") {
     using namespace idfxx;
 
     panel_io::spi_config config{
@@ -149,7 +130,7 @@ TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(8, config.cs_enable_posttrans);
 }
 
-TEST_CASE("i2c_config default initialization", "[idfxx][lcd]") {
+TEST_CASE("i2c_config default initialization", "[idfxx][panel_io]") {
     panel_io::i2c_config config{};
 
     TEST_ASSERT_EQUAL(0, config.device_address);
@@ -162,7 +143,7 @@ TEST_CASE("i2c_config default initialization", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(0, config.flags.disable_control_phase);
 }
 
-TEST_CASE("i2c_config struct initialization", "[idfxx][lcd]") {
+TEST_CASE("i2c_config struct initialization", "[idfxx][panel_io]") {
     panel_io::i2c_config config{
         .device_address = 0x3C,
         .scl_speed = 400_kHz,
@@ -180,7 +161,7 @@ TEST_CASE("i2c_config struct initialization", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(8, config.lcd_param_bits);
 }
 
-TEST_CASE("i2c panel_io make rejects invalid config", "[idfxx][lcd]") {
+TEST_CASE("i2c panel_io make rejects invalid config", "[idfxx][panel_io]") {
     auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 400_kHz);
     TEST_ASSERT_TRUE(bus.has_value());
 
@@ -199,4 +180,3 @@ TEST_CASE("i2c panel_io make rejects invalid config", "[idfxx][lcd]") {
     TEST_ASSERT_FALSE(io.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 }
-

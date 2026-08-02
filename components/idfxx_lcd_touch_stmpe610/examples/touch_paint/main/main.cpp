@@ -2,9 +2,9 @@
 
 #include <idfxx/gpio>
 #include <idfxx/lcd/ili9341>
-#include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/stmpe610>
 #include <idfxx/log>
+#include <idfxx/panel_io>
 #include <idfxx/sched>
 #include <idfxx/spi/master>
 
@@ -76,7 +76,7 @@ extern "C" void app_main() {
         idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
 
         // --- Display (ILI9341) on LCD_CS, 40 MHz ---
-        idfxx::lcd::panel_io lcd_io(
+        idfxx::panel_io lcd_io(
             bus,
             {
                 .cs_gpio = PIN_LCD_CS,
@@ -99,7 +99,7 @@ extern "C" void app_main() {
         panel.display_on(true);
 
         // --- Touch (STMPE610) on TOUCH_CS, 1 MHz ---
-        idfxx::lcd::panel_io touch_io(
+        idfxx::panel_io touch_io(
             bus,
             {
                 .cs_gpio = PIN_TOUCH_CS,

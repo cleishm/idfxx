@@ -10,9 +10,9 @@
 #include <idfxx/gfx>
 #include <idfxx/i2c/master>
 #include <idfxx/lcd/mono_framebuffer>
-#include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/ssd1306>
 #include <idfxx/log>
+#include <idfxx/panel_io>
 #include <idfxx/sched>
 
 #include <algorithm>
@@ -66,7 +66,7 @@ extern "C" void app_main() {
                 .frequency = 400_kHz,
             }
         );
-        idfxx::lcd::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
+        idfxx::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
         idfxx::lcd::ssd1306 display(io, {.height = 64});
         display.display_on(true);
 

@@ -10,13 +10,13 @@
 
 namespace idfxx::lcd {
 
-result<ili9341> ili9341::make(idfxx::lcd::panel_io& panel_io, panel::config config) {
+result<ili9341> ili9341::make(idfxx::panel_io& panel_io, panel::config config) {
     return detail::make_panel_handle(esp_lcd_new_panel_ili9341, panel_io.idf_handle(), config)
         .transform([](auto handle) { return ili9341{handle}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-ili9341::ili9341(idfxx::lcd::panel_io& panel_io, panel::config config)
+ili9341::ili9341(idfxx::panel_io& panel_io, panel::config config)
     : ili9341(unwrap(make(panel_io, std::move(config)))) {}
 #endif
 

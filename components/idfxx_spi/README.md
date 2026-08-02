@@ -114,7 +114,7 @@ The SPI bus is commonly used with LCD panels.
 
 ```cpp
 #include <idfxx/spi/master>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 
 // Create SPI bus
 idfxx::spi::master_bus spi_bus(
@@ -124,9 +124,9 @@ idfxx::spi::master_bus spi_bus(
 );
 
 // Create panel I/O using the bus
-idfxx::lcd::panel_io panel_io(
+idfxx::panel_io panel_io(
     spi_bus,              // Reference to bus
-    idfxx::lcd::panel_io::spi_config{ /* ... */ }
+    idfxx::panel_io::spi_config{ /* ... */ }
 );
 
 // Caller must ensure spi_bus outlives panel_io

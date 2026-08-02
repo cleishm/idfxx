@@ -241,7 +241,7 @@ Extend the `touch` base class to create custom implementations:
 class my_touch_controller : public idfxx::lcd::touch {
 public:
     static result<my_touch_controller> make(
-        idfxx::lcd::panel_io& panel_io,
+        idfxx::panel_io& panel_io,
         const config& cfg);
 
 private:

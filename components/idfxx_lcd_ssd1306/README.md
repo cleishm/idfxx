@@ -26,7 +26,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ssd1306:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_lcd_ssd1306` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -40,7 +40,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 ```cpp
 #include <idfxx/i2c/master>
 #include <idfxx/lcd/mono_framebuffer>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 #include <idfxx/lcd/ssd1306>
 #include <idfxx/log>
 
@@ -55,7 +55,7 @@ try {
     });
 
     // Create panel I/O (i2c_io_config() pre-fills the SSD1306 I2C framing)
-    idfxx::lcd::panel_io panel_io(i2c_bus, idfxx::lcd::ssd1306::i2c_io_config());
+    idfxx::panel_io panel_io(i2c_bus, idfxx::lcd::ssd1306::i2c_io_config());
 
     // Create SSD1306 panel
     idfxx::lcd::ssd1306 display(
@@ -92,7 +92,7 @@ if (!i2c_bus_result) {
 auto i2c_bus = std::move(*i2c_bus_result);
 
 // Create panel I/O
-auto panel_io_result = idfxx::lcd::panel_io::make(i2c_bus, idfxx::lcd::ssd1306::i2c_io_config());
+auto panel_io_result = idfxx::panel_io::make(i2c_bus, idfxx::lcd::ssd1306::i2c_io_config());
 if (!panel_io_result) {
     idfxx::log::error("OLED", "Failed to create panel I/O: {}", panel_io_result.error().message());
     return;

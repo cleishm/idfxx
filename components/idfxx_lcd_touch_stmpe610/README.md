@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_touch_stmpe610:
-    version: "^2.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_lcd_touch_stmpe610` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -38,7 +38,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 ```cpp
 #include <idfxx/spi/master>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 #include <idfxx/lcd/stmpe610>
 #include <idfxx/log>
 
@@ -56,9 +56,9 @@ try {
         }
     );
 
-    idfxx::lcd::panel_io touch_panel_io(
+    idfxx::panel_io touch_panel_io(
         spi_bus,
-        idfxx::lcd::panel_io::spi_config {
+        idfxx::panel_io::spi_config {
             .cs_gpio = idfxx::gpio_15,  // Touch CS pin
             .dc_gpio = idfxx::gpio_2,
             .spi_mode = 0,
@@ -102,7 +102,7 @@ if (!spi_bus_result) {
 auto spi_bus = std::move(*spi_bus_result);
 
 // Create panel I/O for touch controller
-auto touch_panel_io_result = idfxx::lcd::panel_io::make(
+auto touch_panel_io_result = idfxx::panel_io::make(
     spi_bus,
     { /* ... */ }
 );
@@ -154,24 +154,24 @@ idfxx::spi::master_bus spi_bus(
 );
 
 // Create panel I/O for display
-idfxx::lcd::panel_io::spi_config display_io_config{
+idfxx::panel_io::spi_config display_io_config{
     .cs_gpio = idfxx::gpio_5,   // Display CS
     .dc_gpio = idfxx::gpio_2,
     .pclk_freq = 40_MHz,
     // ... other config
 };
-idfxx::lcd::panel_io display_panel_io(
+idfxx::panel_io display_panel_io(
     spi_bus, std::move(display_io_config)
 );
 
 // Create panel I/O for touch
-idfxx::lcd::panel_io::spi_config touch_io_config{
+idfxx::panel_io::spi_config touch_io_config{
     .cs_gpio = idfxx::gpio_15,  // Touch CS (different)
     .dc_gpio = idfxx::gpio_2,
     .pclk_freq = 1_MHz,
     // ... other config
 };
-idfxx::lcd::panel_io touch_panel_io(
+idfxx::panel_io touch_panel_io(
     spi_bus, std::move(touch_io_config)
 );
 
@@ -206,7 +206,7 @@ esp_lcd_touch_handle_t handle = touch.idf_handle();
 
 ### Using the Abstract Base Class
 
-The `stmpe610` class inherits from `touch` base class (defined in `idfxx_lcd`):
+The `stmpe610` class inherits from `touch` base class (defined in `idfxx_lcd_touch`):
 
 ```cpp
 void initialize_touch(idfxx::lcd::touch& touch) {
@@ -230,7 +230,7 @@ initialize_touch(stmpe610);
 - `make(panel_io, config)` - Create STMPE610 controller (result-based)
 - `stmpe610(panel_io, config)` - Constructor (exception-based, if enabled)
 
-**Properties:** (inherited from `touch` base class in `idfxx_lcd`)
+**Properties:** (inherited from `touch` base class in `idfxx_lcd_touch`)
 - `idf_handle()` - Get ESP-IDF touch handle
 
 **Lifetime:**
@@ -248,7 +248,7 @@ initialize_touch(stmpe610);
 
 ### `touch::config`
 
-Configuration structure defined in `idfxx_lcd`:
+Configuration structure defined in `idfxx_lcd_touch`:
 
 - `x_max` - Maximum X coordinate (display width)
 - `y_max` - Maximum Y coordinate (display height)
@@ -306,7 +306,7 @@ Adjust these values to match your specific display module and mounting orientati
 - Reset and interrupt pins are optional (default to `idfxx::gpio::nc()`)
 - Orientation flags should match your display orientation
 - The touch handle can be used with LVGL or other touch input libraries
-- The `stmpe610` class inherits from the `touch` base class provided by `idfxx_lcd`
+- The `stmpe610` class inherits from the `touch` base class provided by `idfxx_lcd_touch`
 - Polling mode (no interrupt) is simpler but uses more CPU
 - Interrupt mode requires wiring and configuration but is more efficient
 

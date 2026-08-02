@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 
 #include <esp_lcd_io_i2c.h>
 #include <esp_log.h>
 #include <utility>
 
 namespace {
-const char* TAG = "idfxx::lcd::panel_io";
+const char* TAG = "idfxx::panel_io";
 }
 
-namespace idfxx::lcd {
+namespace idfxx {
 
 bool panel_io::on_color_transfer_done(
     esp_lcd_panel_io_handle_t handle,
@@ -167,4 +167,4 @@ panel_io::~panel_io() {
     }
 }
 
-} // namespace idfxx::lcd
+} // namespace idfxx

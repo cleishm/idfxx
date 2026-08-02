@@ -11,7 +11,7 @@
  */
 
 #include <idfxx/lcd/panel>
-#include <idfxx/lcd/panel_io>
+#include <idfxx/panel_io>
 
 /**
  * @headerfile <idfxx/lcd/ili9341>
@@ -40,7 +40,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit ili9341(idfxx::lcd::panel_io& panel_io, panel::config config);
+    [[nodiscard]] explicit ili9341(idfxx::panel_io& panel_io, panel::config config);
 #endif
 
     /**
@@ -54,7 +54,7 @@ public:
      *
      * @return The new ili9341, or an error.
      */
-    [[nodiscard]] static result<ili9341> make(idfxx::lcd::panel_io& panel_io, panel::config config);
+    [[nodiscard]] static result<ili9341> make(idfxx::panel_io& panel_io, panel::config config);
 
     ~ili9341();
 

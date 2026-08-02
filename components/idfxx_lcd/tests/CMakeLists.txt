@@ -3,7 +3,9 @@
 
 # Test source files
 set(IDFXX_LCD_TEST_SOURCES
-    panel_io_test.cpp
+    color_test.cpp
+    mono_framebuffer_test.cpp
+    rgb565_framebuffer_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,

@@ -1,0 +1,15 @@
+version: "1.0.0"
+description: "Abstract ePaper panel interface, framebuffers, and shared types"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio

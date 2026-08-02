@@ -2,9 +2,9 @@
 
 #include <idfxx/i2c/master>
 #include <idfxx/lcd/mono_framebuffer>
-#include <idfxx/lcd/panel_io>
 #include <idfxx/lcd/ssd1306>
 #include <idfxx/log>
+#include <idfxx/panel_io>
 #include <idfxx/sched>
 
 #include <chrono>
@@ -33,7 +33,7 @@ extern "C" void app_main() {
 
         // --- Panel I/O (i2c_io_config supplies the SSD1306 framing; some
         // modules use address 0x3D) ---
-        idfxx::lcd::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
+        idfxx::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
 
         // --- SSD1306 panel ---
         idfxx::lcd::ssd1306 display(io, {.height = 64}); // use 32 for 128x32 modules

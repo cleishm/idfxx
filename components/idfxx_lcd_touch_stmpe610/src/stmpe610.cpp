@@ -35,7 +35,7 @@ stmpe610::stmpe610(esp_lcd_touch_handle_t handle, std::unique_ptr<callback_state
     : _handle(handle)
     , _callbacks(std::move(callbacks)) {}
 
-result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, config config) {
+result<stmpe610> stmpe610::make(idfxx::panel_io& panel_io, config config) {
     if (config.x_max == 0) {
         ESP_LOGD(TAG, "Field 'x_max' has an invalid value");
         return error(errc::invalid_arg);
@@ -82,7 +82,7 @@ result<stmpe610> stmpe610::make(idfxx::lcd::panel_io& panel_io, config config) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-stmpe610::stmpe610(idfxx::lcd::panel_io& panel_io, config config)
+stmpe610::stmpe610(idfxx::panel_io& panel_io, config config)
     : stmpe610(unwrap(make(panel_io, std::move(config)))) {}
 #endif
 

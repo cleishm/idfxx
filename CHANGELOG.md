@@ -6,6 +6,44 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
+## Unreleased
+
+### New components
+
+- `idfxx_panel_io` `1.0.0` — panel I/O interface for SPI- and I2C-connected
+  displays (`idfxx::panel_io`), moved out of `idfxx_lcd` so display drivers can
+  depend on the I/O transport without the LCD panel, color, and framebuffer
+  APIs
+- `idfxx_epaper` `1.0.0` — abstract ePaper panel interface
+  (`idfxx::epaper::panel`) with ePaper-native vocabulary: framebuffer writes to
+  controller RAM, explicit full/fast/partial refreshes, BUSY waiting, deep
+  sleep, and wake. Includes a 1-bpp `mono_framebuffer` and a two-plane
+  `gray4_framebuffer` for 4-level grayscale, both satisfying the
+  `idfxx::gfx::pixel_surface` concept for use with gfx canvases and banded
+  rendering
+- `idfxx_epaper_ssd1680` `1.0.0` — SSD1680 ePaper panel driver (up to 176x296,
+  e.g. the 2.13" 122x250 panel), supporting full, fast, and partial refreshes
+  and 4-level grayscale via a register-written waveform
+- `idfxx_epaper_uc8179` `1.0.0` — UC8179 ePaper panel driver (up to 800x600,
+  e.g. the 7.5" 800x480 panel), supporting full, fast, and partial refreshes
+  and 4-level grayscale; the controller maintains the previous frame itself, so
+  the driver keeps no host-side shadow copy
+
+### Enhancements
+
+- `idfxx_lcd` `2.2.0` — the panel I/O class moved to the new `idfxx_panel_io`
+  component as `idfxx::panel_io`; `<idfxx/lcd/panel_io>` remains as a
+  compatibility header providing the deprecated `idfxx::lcd::panel_io` alias,
+  so existing code compiles unchanged
+- `idfxx_lcd_ili9341` `2.2.0` — constructs from `idfxx::panel_io` (the new home
+  of the panel I/O class; the deprecated alias names the same type, so existing
+  code compiles unchanged)
+- `idfxx_lcd_ssd1306` `1.1.0` — constructs from `idfxx::panel_io` (the new home
+  of the panel I/O class; the deprecated alias names the same type, so existing
+  code compiles unchanged)
+- `idfxx_lcd_touch_stmpe610` `2.1.0` — constructs from `idfxx::panel_io`, and
+  the `idfxx_lcd` dependency is replaced by `idfxx_panel_io`
+
 ## v2026.07.26
 
 Eight new components — LoRa radio support, ADC acquisition, a DHT sensor driver,
