@@ -6,7 +6,13 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
-## Unreleased
+## v2026.08.07
+
+Four new components: the panel I/O transport is now a component of its own, and a
+new ePaper stack builds on it with an abstract panel interface and SSD1680 and
+UC8179 drivers. The LCD drivers move onto the extracted transport, keeping a
+deprecated alias so existing code compiles unchanged. Only components that
+changed since v2026.07.26 are listed, each with its new version.
 
 ### New components
 
@@ -43,6 +49,35 @@ component's version only bumps when that component changes.
   code compiles unchanged)
 - `idfxx_lcd_touch_stmpe610` `2.1.0` — constructs from `idfxx::panel_io`, and
   the `idfxx_lcd` dependency is replaced by `idfxx_panel_io`
+
+### Fixes
+
+- `idfxx_https_server` `2.0.1` — `ssl_server::make()` no longer fails to compile
+  against ESP-IDF releases after v6.0.2, where `HTTPD_SSL_CONFIG_DEFAULT()`
+  stopped initializing the deprecated `use_secure_element` member that remains in
+  `httpd_ssl_config_t`. Leaving it value-initialized is correct — setting the
+  deprecated members makes `httpd_ssl_start()` fail — but the resulting
+  missing-field-initializer warning was fatal under `-Werror` in C++
+- `idfxx_gfx` `1.0.1` — the examples construct `idfxx::panel_io` from the new
+  `idfxx_panel_io` component
+- `idfxx_lcd_touch` `2.0.1` — updated documentation references to
+  `idfxx::panel_io`, the new home of the panel I/O class
+- `idfxx_spi` `1.1.1` — updated documentation references to `idfxx::panel_io`,
+  the new home of the panel I/O class
+
+### Other changes
+
+- CI pins ESP-IDF to a specific point release (v6.0.2) and a weekly workflow
+  opens a pull request when a newer one appears, so toolchain updates land
+  deliberately instead of silently changing every build.
+- Component uploads are verified against the registry after publishing, rather
+  than trusting the upload tool's exit status — it reports failure for uploads
+  that in fact succeed moments later.
+- Branch protection gates on a single required check that aggregates the build
+  matrix, so adding a matrix entry no longer requires updating the protection
+  rule.
+- The build discovers the local ESP-IDF installation instead of hardcoding a
+  path.
 
 ## v2026.07.26
 
