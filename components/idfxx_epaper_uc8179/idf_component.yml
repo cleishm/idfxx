@@ -22,5 +22,5 @@ dependencies:
     public: true
     override_path: ../idfxx_panel_io
   cleishm/frequency:
-    version: "^1.1.1"
+    version: "^1.2.1"
     public: true
