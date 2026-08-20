@@ -348,10 +348,10 @@ namespace {
 // crossing the y=16 band boundary.
 template<typename Canvas>
 void draw_band_test_scene(Canvas& c) {
-    c.draw_text(spleen_8x16, 2, 8, "AB");  // glyph rows straddle y=16
-    c.fill_rect(20, 10, 8, 12, true);      // rectangle straddles y=16
-    c.draw_line(0, 31, 31, 0, true);       // diagonal crosses both bands
-    c.draw_rect(1, 1, 30, 30, true);       // frame with edges in both bands
+    c.draw_text(spleen_8x16, 2, 8, "AB"); // glyph rows straddle y=16
+    c.fill_rect(20, 10, 8, 12, true);     // rectangle straddles y=16
+    c.draw_line(0, 31, 31, 0, true);      // diagonal crosses both bands
+    c.draw_rect(1, 1, 30, 30, true);      // frame with edges in both bands
 }
 
 } // namespace
@@ -465,6 +465,133 @@ TEST_CASE("gfx canvas window composes and clamps", "[idfxx][gfx]") {
     TEST_ASSERT_EQUAL(0, empty.width());
     empty.fill(true);
     TEST_ASSERT_EQUAL(1, count_set_pixels(fb)); // only the pixel set above
+}
+
+// =============================================================================
+// Runtime tests: rotated
+// =============================================================================
+
+// A rotated view is itself a pixel surface, and a canvas can wrap one.
+static_assert(pixel_surface<rotated<mono_framebuffer>>);
+static_assert(pixel_surface<canvas<rotated<mono_framebuffer>>>);
+static_assert(pixel_surface<rotated<counting_surface>>);
+
+// The flush forwarders exist on a rotated view exactly when they do on its
+// surface, and a canvas over the view sees them too.
+static_assert(has_try_flush<rotated<mono_framebuffer>, idfxx::lcd::panel&>);
+static_assert(has_try_flush<canvas<rotated<mono_framebuffer>>, idfxx::lcd::panel&>);
+static_assert(has_flush<rotated<flushable_surface>, int>);
+static_assert(has_flush<canvas<rotated<flushable_surface>>, int>);
+static_assert(!has_flush<rotated<counting_surface>>);
+static_assert(!has_try_flush<rotated<counting_surface>>);
+static_assert(!has_try_flush<rotated<flushable_surface>, int>);
+
+TEST_CASE("gfx rotated view swaps the reported dimensions", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 16);
+    rotated view(fb, rotation::cw90);
+    TEST_ASSERT_EQUAL(16, view.width());
+    TEST_ASSERT_EQUAL(8, view.height());
+    TEST_ASSERT_EQUAL_PTR(&fb, &view.surface());
+}
+
+TEST_CASE("gfx rotated cw90 maps viewer corners onto the turned surface", "[idfxx][gfx]") {
+    // An 8x16 portrait surface mounted turned clockwise: its native
+    // top-left sits at the viewer's top-right, its native bottom-left at
+    // the viewer's top-left.
+    auto fb = make_fb(8, 16);
+    rotated view(fb, rotation::cw90);
+
+    view.set_pixel(0, 0, true);  // viewer top-left -> native bottom-left
+    view.set_pixel(15, 0, true); // viewer top-right -> native top-left
+    view.set_pixel(0, 7, true);  // viewer bottom-left -> native bottom-right
+    view.set_pixel(15, 7, true); // viewer bottom-right -> native top-right
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 15));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(7, 15));
+    TEST_ASSERT_TRUE(fb.get_pixel(7, 0));
+    TEST_ASSERT_EQUAL(4, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx rotated ccw90 maps viewer corners onto the turned surface", "[idfxx][gfx]") {
+    // The same surface mounted turned counter-clockwise: its native
+    // top-right sits at the viewer's top-left.
+    auto fb = make_fb(8, 16);
+    rotated view(fb, rotation::ccw90);
+
+    view.set_pixel(0, 0, true);  // viewer top-left -> native top-right
+    view.set_pixel(15, 0, true); // viewer top-right -> native bottom-right
+    view.set_pixel(0, 7, true);  // viewer bottom-left -> native top-left
+    view.set_pixel(15, 7, true); // viewer bottom-right -> native bottom-left
+    TEST_ASSERT_TRUE(fb.get_pixel(7, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(7, 15));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 15));
+    TEST_ASSERT_EQUAL(4, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx rotated view clips writes outside its swapped bounds", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 16);
+    rotated view(fb, rotation::cw90);
+    view.set_pixel(16, 0, true); // beyond the view's width (the surface's height)
+    view.set_pixel(0, 8, true);  // beyond the view's height (the surface's width)
+    view.set_pixel(SIZE_MAX, SIZE_MAX, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    rotated ccw(fb, rotation::ccw90);
+    ccw.set_pixel(16, 0, true);
+    ccw.set_pixel(0, 8, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx rotated canvas renders the quarter-turned scene", "[idfxx][gfx]") {
+    // Draw a glyph through a rotated canvas and check it against the same
+    // glyph drawn natively and rotated by hand — the two mappings must
+    // agree for every pixel of the frame.
+    auto fb = make_fb(16, 32);
+    rotated view(fb, rotation::cw90);
+    canvas c(view);
+    TEST_ASSERT_EQUAL(32, c.width());
+    TEST_ASSERT_EQUAL(16, c.height());
+    c.draw_text(spleen_8x16, 3, 1, "R");
+    c.draw_hline(0, 0, 5, true);
+
+    auto reference = make_fb(32, 16);
+    draw_text(reference, spleen_8x16, 3, 1, "R");
+    draw_hline(reference, 0, 0, 5, true);
+    for (size_t y = 0; y < reference.height(); ++y) {
+        for (size_t x = 0; x < reference.width(); ++x) {
+            // Viewer (x, y) sits at native (y, height-1-x) under cw90.
+            TEST_ASSERT_EQUAL(reference.get_pixel(x, y), fb.get_pixel(y, fb.height() - 1 - x));
+        }
+    }
+}
+
+TEST_CASE("gfx rotated fill and clear forward to the surface", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 16);
+    rotated view(fb, rotation::ccw90);
+
+    view.fill(true);
+    TEST_ASSERT_EQUAL(8 * 16, count_set_pixels(fb));
+    view.clear();
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    // Through a canvas too: full coverage takes the surface's native path.
+    canvas c(view);
+    c.fill(true);
+    TEST_ASSERT_EQUAL(8 * 16, count_set_pixels(fb));
+    c.clear();
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx rotated flush forwards arguments and return value", "[idfxx][gfx]") {
+    flushable_surface surface;
+    rotated view(surface, rotation::cw90);
+    TEST_ASSERT_EQUAL(43, view.flush(42));
+    TEST_ASSERT_EQUAL(42, surface.flushed);
+
+    canvas c(view);
+    TEST_ASSERT_EQUAL(8, c.flush(7));
+    TEST_ASSERT_EQUAL(7, surface.flushed);
 }
 
 // =============================================================================
