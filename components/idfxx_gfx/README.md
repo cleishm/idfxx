@@ -17,6 +17,9 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
   clipping on all four sides; translated canvases underneath it support
   custom render loops, and `window()` gives a clipped sub-region canvas
   with widget-local coordinates
+- `rotated`: a quarter-turn view for a surface mounted sideways (a
+  portrait-native ePaper panel used landscape) — draw in viewer coordinates,
+  the framebuffer keeps its native layout and flushes natively
 - Filled and outlined rectangles, horizontal/vertical/arbitrary lines
 - Bitmap-font text rendering with integer scaling (`scale = 2` turns an 8x16
   font into 16x32 glyphs)
@@ -117,6 +120,27 @@ viewports, partial updates). The inverse mapping is
 `canvas.window(x, y, w, h)`: a sub-region canvas with its own local
 coordinates and clipping, e.g. for widget-local drawing.
 
+### Rotated surfaces
+
+A panel mounted a quarter turn from the drawing layout — typically a
+portrait-native ePaper panel used landscape — is drawn through a `rotated`
+view. The view swaps the reported dimensions and remaps `set_pixel`, so
+drawing happens in viewer coordinates while the framebuffer keeps its native
+layout and flushes to the panel as usual:
+
+```cpp
+idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait
+idfxx::gfx::rotated view(fb, idfxx::gfx::rotation::cw90);              // 250x122 landscape
+idfxx::gfx::canvas canvas(view);
+canvas.draw_text(idfxx::font::spleen_8x16, 8, 8, "landscape");
+canvas.flush(display);
+```
+
+`rotation::cw90` means the panel is mounted turned clockwise (its native top
+edge at the viewer's right); `rotation::ccw90` the opposite. A rotated view
+is itself a `pixel_surface`, so it composes with everything else here —
+canvases, windows, and the free functions.
+
 ### Free functions
 
 Every `canvas` drawing member is also available as a free function taking
@@ -136,6 +160,7 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | `canvas(surface)` | Drawing view: the operations below as members, plus `fill(ink)` / `clear()` (using the surface's own fill/clear when present) and `flush(...)` / `try_flush(...)` (forwarding to the surface's, when it has them). |
 | `canvas(surface, x, y)` | Translated canvas: the surface holds the region of a larger drawing space whose top-left corner is (x, y) — see Band rendering above. |
 | `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping; `fill`/`clear` affect only the sub-region. |
+| `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear`/`flush`/`try_flush` forward to the surface's. |
 | `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and flushes each slice (also `try_render_banded`). |
 | `fill_rect(s, x, y, w, h, ink)` | Fill a rectangle. |
 | `draw_rect(s, x, y, w, h, ink)` | Outline a rectangle (one-pixel border). |
@@ -164,6 +189,9 @@ band height.
 - A `canvas` is a non-owning view: the surface must outlive it. It itself
   satisfies `pixel_surface`, so it can be passed anywhere a surface is
   expected. Its coordinate bounds are captured at construction.
+- A `rotated` view is likewise non-owning and itself a `pixel_surface`. Its
+  `flush`/`try_flush` forward unchanged, so any position arguments are in the
+  underlying surface's native coordinates.
 - The `pixel_surface` concept is structural: any user-defined type with a
   matching `set_pixel`/`width`/`height` shape works, no inheritance needed.
 - This component is deliberately small: integer coordinates, one-pixel

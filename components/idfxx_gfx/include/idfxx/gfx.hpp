@@ -21,7 +21,8 @@
  * The primitives are available two ways: as members of @ref
  * idfxx::gfx::canvas, a lightweight view bundling a surface with the drawing
  * operations, and as free functions taking the surface as their first
- * argument.
+ * argument. @ref idfxx::gfx::rotated adapts a surface mounted a quarter turn
+ * from the drawing layout (a portrait panel used landscape).
  *
  * @code
  * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
@@ -747,6 +748,171 @@ private:
     ptrdiff_t _dy;
     size_t _width; // canvas-coordinate clip bounds
     size_t _height;
+};
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Mounting direction for @ref rotated.
+ *
+ * Quarter turns only: the two directions a portrait panel can be mounted
+ * to serve a landscape layout (and vice versa). Each value names the turn
+ * applied to the surface at mounting, so the adapter's remapping undoes it.
+ */
+enum class rotation : uint8_t {
+    /// The surface is mounted turned a quarter turn clockwise (its native
+    /// top edge at the viewer's right).
+    cw90,
+    /// The surface is mounted turned a quarter turn counter-clockwise (its
+    /// native top edge at the viewer's left).
+    ccw90,
+};
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief A pixel-surface view presenting another surface turned a quarter turn.
+ *
+ * Adapts a surface whose native orientation differs from the drawing layout
+ * by a quarter turn — the common ePaper case of a portrait-native panel
+ * mounted landscape. The view swaps the reported dimensions and remaps
+ * @ref set_pixel so drawing happens in viewer coordinates while the
+ * underlying surface keeps its native layout; a framebuffer behind the view
+ * still flushes to its panel natively.
+ *
+ * @code
+ * idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait
+ * idfxx::gfx::rotated view(fb, idfxx::gfx::rotation::cw90);              // 250x122 landscape
+ * idfxx::gfx::canvas canvas(view);
+ * canvas.draw_text(idfxx::font::spleen_8x16, 8, 8, "landscape");
+ * canvas.flush(display);                                                 // native, as always
+ * @endcode
+ *
+ * Like a canvas, a rotated view is a cheap, copyable view: it does not own
+ * the surface, and the caller must ensure the surface outlives it. It
+ * satisfies @ref pixel_surface itself, with the same clipping contract —
+ * writes outside its (swapped) bounds are ignored. @ref fill and @ref clear
+ * forward to the surface's own when it provides them, and @ref flush /
+ * @ref try_flush forward to the surface's when it has them, so a canvas
+ * over a rotated view completes the draw-then-transfer cycle the same way
+ * as one over the surface directly.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ */
+template<pixel_surface Surface>
+class rotated {
+public:
+    /** @brief The pixel value type of the underlying surface. */
+    using pixel_type = typename Surface::pixel_type;
+
+    /**
+     * @brief Creates a view of @p surface turned by @p direction.
+     *
+     * @param surface   The surface to draw on; must outlive the view.
+     * @param direction How the surface is mounted relative to the viewer.
+     */
+    rotated(Surface& surface, rotation direction) noexcept
+        : _surface(&surface)
+        , _direction(direction) {}
+
+    /** @brief Returns the underlying surface. */
+    [[nodiscard]] Surface& surface() const noexcept { return *_surface; }
+
+    /** @brief Returns the view's width — the surface's height. */
+    [[nodiscard]] size_t width() const noexcept { return _surface->height(); }
+
+    /** @brief Returns the view's height — the surface's width. */
+    [[nodiscard]] size_t height() const noexcept { return _surface->width(); }
+
+    /**
+     * @brief Sets a single pixel to the given ink, in viewer coordinates.
+     *
+     * Coordinates outside the view's bounds are ignored.
+     *
+     * @param x   Column, in `[0, width())`.
+     * @param y   Row, in `[0, height())`.
+     * @param ink The pixel value to write.
+     */
+    void set_pixel(size_t x, size_t y, pixel_type ink) noexcept {
+        // Out-of-range viewer coordinates wrap to huge surface coordinates
+        // and are ignored by the surface's own bounds check.
+        if (_direction == rotation::cw90) {
+            _surface->set_pixel(y, _surface->height() - 1 - x, ink);
+        } else {
+            _surface->set_pixel(_surface->width() - 1 - y, x, ink);
+        }
+    }
+
+    /**
+     * @brief Sets every pixel to the given ink, on surfaces with their own `fill`.
+     *
+     * A quarter turn covers the whole surface either way, so this forwards
+     * to the surface's native fill.
+     *
+     * @param ink The pixel value to fill with.
+     */
+    void fill(pixel_type ink) noexcept
+        requires requires(Surface& s, pixel_type i) {
+            { s.fill(i) } noexcept;
+        }
+    {
+        _surface->fill(ink);
+    }
+
+    /**
+     * @brief Sets every pixel to the default value, on surfaces with their own `clear`.
+     */
+    void clear() noexcept
+        requires requires(Surface& s) {
+            { s.clear() } noexcept;
+        }
+    {
+        _surface->clear();
+    }
+
+    /**
+     * @brief Pushes the surface's content onward, on surfaces that support it.
+     *
+     * Forwards to the underlying surface's `flush` unchanged — the surface
+     * transfers in its native orientation, and any position arguments are
+     * in the surface's (native) coordinates.
+     *
+     * @tparam Args Argument types accepted by the surface's `flush`.
+     * @param args Arguments forwarded to the surface's `flush`.
+     * @return Whatever the surface's `flush` returns.
+     * @note Only declared when the surface provides a matching `flush`
+     *       overload (for the idfxx framebuffers, only when
+     *       CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig).
+     * @throws Whatever the surface's `flush` throws (std::system_error for
+     *         the idfxx framebuffers).
+     */
+    template<typename... Args>
+        requires requires(Surface& s) { s.flush(std::declval<Args>()...); }
+    decltype(auto) flush(Args&&... args) const {
+        return _surface->flush(std::forward<Args>(args)...);
+    }
+
+    /**
+     * @brief Pushes the surface's content onward, on surfaces that support it.
+     *
+     * Forwards to the underlying surface's `try_flush` unchanged — the
+     * surface transfers in its native orientation, and any position
+     * arguments are in the surface's (native) coordinates.
+     *
+     * @tparam Args Argument types accepted by the surface's `try_flush`.
+     * @param args Arguments forwarded to the surface's `try_flush`.
+     * @return Whatever the surface's `try_flush` returns (success or an
+     *         error for the idfxx framebuffers).
+     * @note Only declared when the surface provides a matching `try_flush`
+     *       overload.
+     */
+    template<typename... Args>
+        requires requires(Surface& s) { s.try_flush(std::declval<Args>()...); }
+    [[nodiscard]] decltype(auto) try_flush(Args&&... args) const {
+        return _surface->try_flush(std::forward<Args>(args)...);
+    }
+
+private:
+    Surface* _surface;
+    rotation _direction;
 };
 
 /**
