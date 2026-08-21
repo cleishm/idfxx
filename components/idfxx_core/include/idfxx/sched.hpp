@@ -15,6 +15,7 @@
  *
  * Provides scheduling primitives for the current task context:
  * - delay() and delay_until() for time-based suspension
+ * - delay(next_tick) for the shortest blocking delay, as the back-off in polling loops
  * - yield() and yield_from_isr() for cooperative scheduling
  * @{
  */
@@ -26,15 +27,27 @@
 namespace idfxx {
 
 /**
- * @brief Delay for the specified duration.
+ * @brief Delays the calling task for at least the specified duration.
  *
- * Automatically selects the appropriate delay method:
- * - For durations < 10ms: uses `ets_delay_us` (busy-wait, microsecond precision)
- * - For durations >= 10ms: uses `vTaskDelay` (yields to scheduler, tick-based)
+ * How the delay is carried out depends on its length relative to the scheduler
+ * tick period (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz):
+ *
+ * - Durations of one tick or more block the task, so other tasks run in the
+ *   meantime. The task wakes on a tick boundary, so the delay is never shorter
+ *   than requested but may overshoot by up to one tick.
+ * - Durations shorter than one tick cannot be scheduled, so they are busy-waited
+ *   with microsecond precision. The CPU spins for the whole duration: no task of
+ *   equal or lower priority runs, and the delay is accurate to within a few
+ *   microseconds.
+ *
+ * @warning Sub-tick delays are busy-waits. Do not use a short delay() as the
+ *   back-off in a polling loop: it burns the CPU and starves lower-priority
+ *   tasks, including the idle task that feeds the task watchdog. Use
+ *   `delay(next_tick)` instead, which always blocks until the next tick.
  *
  * @tparam Rep The representation type of the duration.
  * @tparam Period The period type of the duration.
- * @param duration The duration to delay for.
+ * @param duration The minimum duration to delay for.
  *
  * @note Must not be called from ISR context. Debug builds will assert on ISR context.
  * @note Zero or negative durations return immediately.
@@ -53,8 +66,9 @@ void delay(const std::chrono::microseconds& duration);
  * @brief Delays until the specified time point.
  *
  * Computes the remaining time from `Clock::now()` to the target time point
- * and delays for that duration. If the target time has already passed,
- * returns immediately without delaying.
+ * and delays for that duration (see delay() for how sub-tick and longer
+ * remainders are handled). If the target time has already passed, returns
+ * immediately without delaying.
  *
  * This is useful for periodic timing loops where execution time between
  * iterations should not cause drift:
@@ -82,7 +96,53 @@ void delay_until(const std::chrono::time_point<Clock, Duration>& target) {
 }
 
 /**
+ * @headerfile <idfxx/sched>
+ * @brief Tag type selecting the delay-until-next-tick overload of delay().
+ *
+ * Use the `next_tick` constant rather than constructing this directly.
+ */
+struct next_tick_t {
+    explicit next_tick_t() = default;
+};
+
+/**
+ * @brief Tag requesting a delay until the next scheduler tick: `idfxx::delay(idfxx::next_tick)`.
+ */
+inline constexpr next_tick_t next_tick{};
+
+/**
+ * @brief Blocks the calling task until the next scheduler tick.
+ *
+ * The shortest delay that gives up the CPU. The task is suspended until the
+ * next tick interrupt — anywhere from a moment to one full tick period
+ * (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz) — and every other
+ * ready task, whatever its priority, may run in the meantime. Use it as the
+ * back-off in polling loops:
+ *
+ * @code
+ * while (busy_pin.get_level() == idfxx::gpio::level::high) {
+ *     idfxx::delay(idfxx::next_tick);
+ * }
+ * @endcode
+ *
+ * Unlike yield(), which hands the CPU only to ready tasks of equal priority
+ * and returns at once when there are none, `delay(next_tick)` always blocks,
+ * so a loop built on it cannot starve lower-priority tasks or the idle task.
+ * Unlike a short duration-based delay(), it never busy-waits.
+ *
+ * @param tag The `next_tick` tag.
+ *
+ * @note Must not be called from ISR context. Debug builds will assert on ISR context.
+ */
+void delay(next_tick_t tag) noexcept;
+
+/**
  * @brief Yields execution to other ready tasks of equal priority.
+ *
+ * Requests an immediate context switch without blocking. If no task of equal
+ * or higher priority is ready, the calling task simply continues; lower-priority
+ * tasks never run as a result of a yield. For a scheduler-friendly back-off in
+ * a polling loop, use `delay(next_tick)` instead.
  */
 inline void yield() noexcept {
     taskYIELD();

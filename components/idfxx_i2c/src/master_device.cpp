@@ -2,12 +2,13 @@
 // Copyright 2026 Chris Leishman
 
 #include <idfxx/i2c/master>
+#include <idfxx/sched>
 
 #include <array>
+#include <chrono>
 #include <driver/i2c_master.h>
 #include <esp_idf_version.h>
 #include <esp_log.h>
-#include <freertos/FreeRTOS.h>
 #include <utility>
 #include <vector>
 
@@ -16,6 +17,8 @@ const char* TAG = "idfxx::i2c::master_device";
 }
 
 namespace idfxx::i2c {
+
+using namespace std::chrono_literals;
 
 // Verify operation_command values match ESP-IDF constants
 static_assert(std::to_underlying(operation_command::start) == I2C_MASTER_CMD_START);
@@ -338,7 +341,7 @@ result<void> master_device::_try_write_registers(
         if (!result.has_value()) {
             return result;
         }
-        vTaskDelay(pdMS_TO_TICKS(4)); // Small delay between writes
+        delay(4ms); // Small delay between writes
     }
     return {};
 }
@@ -364,7 +367,7 @@ result<void> master_device::_try_read_register(
 
     uint8_t buffer[2]{high, low};
     return _try_transmit(buffer, 2, timeout).and_then([&]() {
-        vTaskDelay(pdMS_TO_TICKS(20)); // Delay between write and read for device processing
+        delay(20ms); // Delay between write and read for device processing
         return _try_receive(buf, size, timeout);
     });
 }

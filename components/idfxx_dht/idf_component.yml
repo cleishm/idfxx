@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "DHT11/DHT22 temperature and humidity sensor driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -6,7 +6,7 @@ license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
   cleishm/idfxx_core:
-    version: "^1.0.0"
+    version: "^1.2.0"
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_gpio:
