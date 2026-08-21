@@ -7,8 +7,6 @@
 #include <idfxx/sched>
 
 #include <chrono>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 using namespace std::chrono_literals;
 
@@ -77,7 +75,7 @@ result<void> panel::wait_busy(std::optional<std::chrono::milliseconds> timeout) 
         if (std::chrono::steady_clock::now() > deadline) {
             return error(errc::timeout);
         }
-        vTaskDelay(1);
+        delay(next_tick);
     }
     return {};
 }
