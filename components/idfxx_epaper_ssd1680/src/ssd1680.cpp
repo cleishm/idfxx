@@ -145,17 +145,20 @@ ssd1680::ssd1680(ssd1680&& other) noexcept
     , _io(std::exchange(other._io, nullptr))
     , _mirror_x(other._mirror_x)
     , _mirror_y(other._mirror_y)
+    , _pending(std::exchange(other._pending, pending::none))
     , _shadow(std::move(other._shadow)) {}
 
 ssd1680& ssd1680::operator=(ssd1680&& other) noexcept {
     if (this != &other) {
         if (_io != nullptr && !asleep()) {
+            (void)_settle();
             (void)_cmd(cmd_deep_sleep, {0x01});
         }
         panel::operator=(std::move(other));
         _io = std::exchange(other._io, nullptr);
         _mirror_x = other._mirror_x;
         _mirror_y = other._mirror_y;
+        _pending = std::exchange(other._pending, pending::none);
         _shadow = std::move(other._shadow);
     }
     return *this;
@@ -163,8 +166,10 @@ ssd1680& ssd1680::operator=(ssd1680&& other) noexcept {
 
 ssd1680::~ssd1680() {
     // Leaving the controller active degrades the glass; park it in deep
-    // sleep unless the caller already did.
+    // sleep unless the caller already did. A refresh still driving finishes
+    // first — deep sleep mid-waveform also stresses the glass.
     if (_io != nullptr && !asleep()) {
+        (void)_settle();
         (void)_cmd(cmd_deep_sleep, {0x01});
     }
 }
@@ -247,7 +252,8 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         if (auto r = _cmd(cmd_master_activate); !r) {
             return r;
         }
-        return wait_busy();
+        _pending = pending::wait;
+        return {};
     }
 
     // Differential (mode-2) updates ping-pong the controller's two RAM
@@ -309,10 +315,10 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
     if (auto r = _cmd(cmd_master_activate); !r) {
         return r;
     }
-    if (auto r = wait_busy(); !r) {
-        return r;
-    }
-    return _sync_old_plane();
+    // Return with the glass still driving: the wait plus old-plane re-arm
+    // happen in _settle (via do_wait) before the next controller command.
+    _pending = pending::wait_sync;
+    return {};
 }
 
 result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
@@ -357,6 +363,8 @@ result<void> ssd1680::do_wake() {
     if (_io == nullptr) {
         return error(errc::invalid_state);
     }
+    // The reset discards any update do_refresh left running.
+    _pending = pending::none;
     if (auto r = hardware_reset(); !r) {
         return r;
     }
@@ -364,6 +372,16 @@ result<void> ssd1680::do_wake() {
         return _init_gray();
     }
     return _init();
+}
+
+result<void> ssd1680::do_wait(std::optional<std::chrono::milliseconds> timeout) {
+    if (_io == nullptr) {
+        return error(errc::invalid_state);
+    }
+    if (_pending == pending::none) {
+        return wait_busy(timeout);
+    }
+    return _settle(timeout);
 }
 
 // =============================================================================
@@ -538,6 +556,29 @@ result<void> ssd1680::_sync_old_plane() {
         return r;
     }
     return _drain();
+}
+
+result<void> ssd1680::_settle(std::optional<std::chrono::milliseconds> timeout) {
+    // Completes the update do_refresh left running: wait out BUSY, then (for
+    // differential modes) re-arm the old-image plane. The base class calls
+    // this (via do_wait) before every controller hook, so a running refresh
+    // delays the *next* operation rather than blocking refresh's caller; the
+    // destructor and move-assignment call it directly. On failure the work
+    // stays pending for the next attempt — after a timeout the wait repeats,
+    // and after a failed re-arm only the (now idle) re-arm repeats.
+    if (_pending == pending::none) {
+        return {};
+    }
+    if (auto r = wait_busy(timeout); !r) {
+        return r;
+    }
+    if (_pending == pending::wait_sync) {
+        if (auto r = _sync_old_plane(); !r) {
+            return r;
+        }
+    }
+    _pending = pending::none;
+    return {};
 }
 
 } // namespace idfxx::epaper

@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "2.0.0"
 description: "SSD1680 ePaper panel driver (up to 176x296, e.g. 2.13\" 122x250)"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_ssd1680"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -10,7 +10,7 @@ dependencies:
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_epaper:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_epaper
   cleishm/idfxx_gpio:
