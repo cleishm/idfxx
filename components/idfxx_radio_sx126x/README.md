@@ -233,6 +233,8 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
   supported range, or a configuration value is out of range.
 - `errc::invalid_state` — operation called in an incompatible state.
 - `errc::invalid_crc` — received packet failed its CRC check.
+- `errc::invalid_size` — received packet was larger than the buffer supplied
+  to `receive`/`start_receive`/`read_received`; it is discarded, not truncated.
 - `errc::not_finished` — the future's operation was cancelled by
   `standby()`/`sleep()` (or driver teardown) before it completed.
 
@@ -278,7 +280,7 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
   puts the chip to sleep). After the wake, reconstruct with
   `.nreset = gpio::nc(), .warm_start = true` and call `adopt_pending()` to
   pull the packet the chip caught while the host slept into the receive
-  cache (`read_received`). Set `config::dio1_mask` without
+  FIFO (`read_received`). Set `config::dio1_mask` without
   `preamble_detected` in this design, or the host wakes on every preamble
   symbol instead of once per completed packet. Call `standby()` (after
   `adopt_pending` — standby clears latched IRQs) before reconfiguring or

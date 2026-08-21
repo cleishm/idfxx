@@ -377,7 +377,7 @@ public:
      * leaves `rx_done` latched and DIO1 high, but the driver's interrupt
      * handler never saw the edge. This reads and clears the pending IRQ
      * status and, for a latched `rx_done`, reads the packet out of the chip
-     * into the receive cache, where @ref lora_transceiver::read_received picks it up.
+     * into the receive FIFO, where @ref lora_transceiver::read_received picks it up.
      *
      * @return The received packet's info if one was adopted, or `std::nullopt`
      *         if no packet was pending.

@@ -263,10 +263,26 @@ struct sx126x::state {
     // cold sleep, which loses the chip's calibration.
     std::optional<sx126x_internal::image_cal_band> cal_band;
 
-    // RX cache populated by the worker on rx_done so the event-loop client can
-    // read out the most recent packet.
-    rx_info last_rx{};
-    std::array<uint8_t, 256> last_rx_buf{};
+    // Received-packet FIFO populated by the worker on rx_done and drained by
+    // read_received, oldest first. It holds only packets that arrive while
+    // listening (or that the chip caught on its own — adopt_pending): a
+    // single-shot receive delivers straight into the caller's buffer and never
+    // queues, and CRC-failed packets are discarded. A small ring rather than a
+    // single cache: the consumer runs on the event loop, and a slow handler
+    // elsewhere on that loop must delay delivery, not lose packets. Arrivals
+    // are bounded by LoRa airtime, so a few slots absorb a consumer stall of
+    // several packet times. On overflow the oldest packet is dropped (the
+    // newest is the one still worth acting on). Only the worker writes the
+    // ring; pops advance the head only, so the tail slot is stable until the
+    // worker commits it.
+    struct rx_slot {
+        rx_info info{};
+        std::array<uint8_t, 256> buf{};
+    };
+    static constexpr size_t rx_ring_slots = 4;
+    std::array<rx_slot, rx_ring_slots> rx_ring{};
+    size_t rx_ring_head = 0;  ///< Oldest undelivered slot.
+    size_t rx_ring_count = 0; ///< Filled slots.
 
     // Latch for the in-flight async data-path operation (transmit, single-shot
     // receive, or channel scan); null when none is in flight. Guarded by `mu`
