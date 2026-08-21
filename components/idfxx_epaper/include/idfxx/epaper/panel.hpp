@@ -22,9 +22,10 @@
  * RAM with @ref idfxx::epaper::panel::write (nothing changes on the glass),
  * then made visible with @ref idfxx::epaper::panel::refresh, which drives
  * the physical ink update and blocks until the controller's BUSY line
- * releases. Panels support full refreshes, faster reduced-quality full
- * refreshes, flicker-free partial refreshes, and 4-level grayscale,
- * subject to each driver's capabilities.
+ * releases (or @ref idfxx::epaper::panel::start_refresh, which returns an
+ * `idfxx::future` to await instead). Panels support full refreshes, faster
+ * reduced-quality full refreshes, flicker-free partial refreshes, and
+ * 4-level grayscale, subject to each driver's capabilities.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for the
  * BUSY and reset lines.
@@ -32,6 +33,7 @@
  */
 
 #include <idfxx/error>
+#include <idfxx/future>
 #include <idfxx/gpio>
 
 #include <chrono>
@@ -100,7 +102,9 @@ enum class color_mode : uint8_t {
  *    retain a reference to the framebuffer: it may be redrawn immediately
  *    after the call returns.
  * 2. @ref refresh drives the physical ink update from the controller's RAM
- *    and blocks until the panel's BUSY line reports completion.
+ *    and blocks until the panel's BUSY line reports completion;
+ *    @ref start_refresh instead returns an `idfxx::future` to await, poll,
+ *    or drop while the glass updates.
  * 3. @ref sleep puts the controller into deep sleep between updates —
  *    essential for ePaper longevity and power; @ref wake restores it.
  *
@@ -368,6 +372,9 @@ public:
         if (_asleep) {
             return error(errc::invalid_state);
         }
+        if (auto r = do_wait(std::nullopt); !r) {
+            return r;
+        }
         if (auto r = do_clear(); !r) {
             return r;
         }
@@ -386,7 +393,8 @@ public:
      * Drives the physical ink update, making previously written pixel data
      * visible, and blocks until the controller's BUSY line reports
      * completion. Full refreshes take on the order of seconds; partial
-     * refreshes well under a second, depending on the panel.
+     * refreshes well under a second, depending on the panel. Use
+     * @ref start_refresh to do other work while the glass updates.
      *
      * A @ref refresh_mode::partial refresh needs a baseline image from a
      * previous refresh to diff against; the first refresh after
@@ -403,12 +411,55 @@ public:
     void refresh(refresh_mode mode = refresh_mode::full) { unwrap(try_refresh(mode)); }
 
     /**
-     * @brief Waits for the controller's BUSY line to release.
+     * @brief Starts a refresh from the controller's RAM and returns a future.
+     *
+     * Starts the physical ink update and returns immediately with an
+     * `idfxx::future` that completes when the controller's BUSY line
+     * releases — wait on it, poll it with `done()`, or drop it. The panel
+     * must not be commanded while the glass is updating, so the next panel
+     * operation (a write, clear, refresh, color-mode change, or sleep), and
+     * @ref wait, first complete the outstanding update; a caller that only
+     * refreshes periodically therefore never sits through the update.
+     *
+     * Dropping the future is safe: the update continues and is completed
+     * by the next operation. A future that outlives the panel simply
+     * observes the BUSY line.
+     *
+     * Baseline handling matches @ref refresh: a @ref refresh_mode::partial
+     * request without a baseline is silently promoted to
+     * @ref refresh_mode::full.
+     *
+     * @code
+     * fb.flush(display);
+     * auto done = display.start_refresh();
+     * do_other_work();              // the glass updates meanwhile
+     * done.wait();                  // or: if (done.done()) ...
+     * display.sleep();
+     * @endcode
+     *
+     * @param mode The refresh style to use.
+     * @return A future that completes when the update finishes. Waiting on
+     *         it fails with `errc::timeout` if the BUSY line does not
+     *         release within the driver's configured timeout (or the
+     *         timeout given to `wait_for`).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure to start the update, including
+     *         `errc::invalid_state` if the panel is asleep, and
+     *         `errc::not_supported` if the driver does not support @p mode
+     *         in the current color mode.
+     */
+    [[nodiscard]] idfxx::future<void> start_refresh(refresh_mode mode = refresh_mode::full) {
+        return unwrap(try_start_refresh(mode));
+    }
+
+    /**
+     * @brief Completes any outstanding refresh and waits for BUSY to release.
      *
      * Blocks while the controller reports it is busy, up to the driver's
-     * configured default timeout. @ref refresh already waits for
-     * completion; this is useful before driver-specific raw operations or
-     * after recovering from an error.
+     * configured default timeout, and finishes any work the driver deferred
+     * from a preceding @ref start_refresh. Useful after dropping a
+     * refresh's future, before driver-specific raw operations, or after
+     * recovering from an error; @ref refresh already waits for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::timeout` if
@@ -417,9 +468,11 @@ public:
     void wait() { unwrap(try_wait()); }
 
     /**
-     * @brief Waits for the controller's BUSY line to release, with a timeout.
+     * @brief Completes any outstanding refresh and waits for BUSY to
+     *        release, with a timeout.
      *
-     * Blocks while the controller reports it is busy, up to @p timeout.
+     * As @ref wait, but blocks at most @p timeout. On timeout the deferred
+     * work remains outstanding and is retried by the next operation.
      *
      * @tparam Rep     Duration arithmetic type.
      * @tparam Period  Duration period type.
@@ -440,7 +493,8 @@ public:
      * Drives the physical ink update, making previously written pixel data
      * visible, and blocks until the controller's BUSY line reports
      * completion. Full refreshes take on the order of seconds; partial
-     * refreshes well under a second, depending on the panel.
+     * refreshes well under a second, depending on the panel. Use
+     * @ref try_start_refresh to do other work while the glass updates.
      *
      * A @ref refresh_mode::partial refresh needs a baseline image from a
      * previous refresh to diff against; the first refresh after
@@ -456,26 +510,46 @@ public:
      *         @ref color_mode::gray4 on current drivers).
      */
     [[nodiscard]] result<void> try_refresh(refresh_mode mode = refresh_mode::full) {
-        if (_asleep) {
-            return error(errc::invalid_state);
-        }
-        if (mode == refresh_mode::partial && !_has_baseline) {
-            mode = refresh_mode::full;
-        }
-        if (auto r = do_refresh(mode); !r) {
+        if (auto r = _start_refresh(mode); !r) {
             return r;
         }
-        _has_baseline = true;
-        return {};
+        return do_wait(std::nullopt);
     }
 
     /**
-     * @brief Waits for the controller's BUSY line to release.
+     * @brief Starts a refresh from the controller's RAM and returns a future.
+     *
+     * Starts the physical ink update and returns immediately with an
+     * `idfxx::future` that completes when the controller's BUSY line
+     * releases (see @ref start_refresh). The next panel operation, and
+     * @ref try_wait, first complete the outstanding update. Dropping the
+     * future is safe.
+     *
+     * @param mode The refresh style to use.
+     * @return A future that completes when the update finishes, or an error
+     *         if the update could not be started. Waiting on the future
+     *         fails with `errc::timeout` if the BUSY line does not release
+     *         in time.
+     * @retval invalid_state The panel is asleep.
+     * @retval not_supported The driver does not support @p mode in the
+     *         current color mode.
+     */
+    [[nodiscard]] result<idfxx::future<void>> try_start_refresh(refresh_mode mode = refresh_mode::full) {
+        if (auto r = _start_refresh(mode); !r) {
+            return error(r.error());
+        }
+        return _busy_future();
+    }
+
+    /**
+     * @brief Completes any outstanding refresh and waits for BUSY to release.
      *
      * Blocks while the controller reports it is busy, up to the driver's
-     * configured default timeout. @ref try_refresh already waits for
-     * completion; this is useful before driver-specific raw operations or
-     * after recovering from an error.
+     * configured default timeout, and finishes any work the driver deferred
+     * from a preceding @ref try_start_refresh. Useful after dropping a
+     * refresh's future, before driver-specific raw operations, or after
+     * recovering from an error; @ref try_refresh already waits for
+     * completion.
      *
      * @return Success, or an error.
      * @retval timeout The BUSY line did not release in time.
@@ -483,9 +557,12 @@ public:
     [[nodiscard]] result<void> try_wait() { return do_wait(std::nullopt); }
 
     /**
-     * @brief Waits for the controller's BUSY line to release, with a timeout.
+     * @brief Completes any outstanding refresh and waits for BUSY to
+     *        release, with a timeout.
      *
-     * Blocks while the controller reports it is busy, up to @p timeout.
+     * As @ref try_wait, but blocks at most @p timeout. On timeout the
+     * deferred work remains outstanding and is retried by the next
+     * operation.
      *
      * @tparam Rep     Duration arithmetic type.
      * @tparam Period  Duration period type.
@@ -539,6 +616,9 @@ public:
         }
         if (mode == _color_mode) {
             return {};
+        }
+        if (auto r = do_wait(std::nullopt); !r) {
+            return r;
         }
         if (auto r = do_set_color_mode(mode); !r) {
             return r;
@@ -599,6 +679,11 @@ public:
     result<void> try_sleep() {
         if (_asleep) {
             return {};
+        }
+        // Cutting power mid-waveform stresses the glass: let a running
+        // update finish first.
+        if (auto r = do_wait(std::nullopt); !r) {
+            return r;
         }
         if (auto r = do_sleep(); !r) {
             return r;
@@ -693,7 +778,10 @@ protected:
     // implements the correspondingly named public method; validation common
     // to all controllers (alignment, bounds, sleep state, color-mode match,
     // partial-refresh baseline promotion) has already been performed by the
-    // public wrappers.
+    // public wrappers, and every hook that commands the controller
+    // (do_write, do_clear, do_refresh, do_set_color_mode, do_sleep) is
+    // preceded by a do_wait() that completes any update a previous
+    // do_refresh left running.
     // =========================================================================
 
     /// Hook for @ref try_write / @ref try_write_rows (monochrome). Uploads
@@ -728,11 +816,18 @@ protected:
     /// invalidates the partial-refresh baseline after a successful clear.
     [[nodiscard]] virtual result<void> do_clear() = 0;
 
-    /// Hook for @ref try_refresh. The panel is awake, and a `partial`
-    /// request has already been promoted to `full` when no baseline exists.
-    /// Must block until the update completes (or times out), and must
-    /// return `errc::not_supported` for a mode the driver cannot perform
-    /// in the current color mode.
+    /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
+    /// awake, and a `partial` request has already been promoted to `full`
+    /// when no baseline exists. Must return `errc::not_supported` for a mode
+    /// the driver cannot perform in the current color mode.
+    ///
+    /// May return as soon as the update is started, while the glass is
+    /// still driving: the base class waits via @ref do_wait before the next
+    /// controller hook (and in @ref try_refresh), and the BUSY line must
+    /// already be asserted on return so a @ref try_start_refresh future
+    /// cannot observe a stale idle level. A driver with post-update work
+    /// (for example re-arming a previous-image plane) defers it to its
+    /// @ref do_wait override.
     [[nodiscard]] virtual result<void> do_refresh(refresh_mode mode) = 0;
 
     /// Hook for @ref try_set_color_mode. Called only for an actual mode
@@ -749,9 +844,14 @@ protected:
     /// re-initialize it, and restore the current color mode.
     [[nodiscard]] virtual result<void> do_wake() = 0;
 
-    /// Hook for @ref try_wait / @ref try_wait_for. A `std::nullopt` timeout
-    /// selects the driver's configured default. The default implementation
-    /// polls the BUSY line configured at construction (see @ref wait_busy).
+    /// Hook for @ref try_wait / @ref try_wait_for, for the completion of
+    /// @ref try_refresh, and for the settle the base performs before every
+    /// controller hook. A `std::nullopt` timeout selects the driver's
+    /// configured default. The default implementation polls the BUSY line
+    /// configured at construction (see @ref wait_busy); a driver that
+    /// defers post-update work from @ref do_refresh overrides this to wait
+    /// for BUSY and then finish that work, leaving it outstanding (to be
+    /// retried) if the wait times out.
     [[nodiscard]] virtual result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) {
         return wait_busy(timeout);
     }
@@ -801,6 +901,15 @@ private:
     template<typename FB>
     [[nodiscard]] result<void>
     _try_write_rows(const FB& fb, enum color_mode expected, size_t row_start, size_t row_end, size_t x, size_t y);
+
+    // Shared body of try_refresh / try_start_refresh: validates, settles the
+    // previous update, starts this one, and records the baseline.
+    [[nodiscard]] result<void> _start_refresh(refresh_mode mode);
+
+    // A future completing when the BUSY line releases. Captures the line by
+    // value (never `this`), so it stays valid if the panel is moved or
+    // destroyed; immediately done when no BUSY line is configured.
+    [[nodiscard]] idfxx::future<void> _busy_future() const;
 
     size_t _width;
     size_t _height;

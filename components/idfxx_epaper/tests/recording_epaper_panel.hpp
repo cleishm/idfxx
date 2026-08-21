@@ -31,6 +31,15 @@ public:
     size_t clears = 0;
     size_t sleeps = 0;
     size_t wakes = 0;
+    // do_wait invocations (the base settles before every controller hook
+    // and at the end of a blocking refresh), plus the hook count at the
+    // time of the last one, for ordering assertions.
+    size_t waits = 0;
+    size_t hooks_before_last_wait = 0;
+
+    [[nodiscard]] size_t hooks() const noexcept {
+        return mono_writes.size() + gray_writes.size() + refreshes.size() + clears + sleeps + wakes;
+    }
 
 private:
     [[nodiscard]] idfxx::result<void>
@@ -67,8 +76,13 @@ private:
         return {};
     }
 
-    // do_wait is inherited: with no BUSY line configured, the base default
-    // returns success immediately.
+    // With no BUSY line configured the base default returns success
+    // immediately; record the call and defer to it.
+    [[nodiscard]] idfxx::result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) override {
+        ++waits;
+        hooks_before_last_wait = hooks();
+        return idfxx::epaper::panel::do_wait(timeout);
+    }
 };
 
 } // namespace idfxx_epaper_test
