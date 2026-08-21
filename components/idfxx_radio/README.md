@@ -202,8 +202,10 @@ Defined in `<idfxx/radio/events>`:
 ## Error Handling
 
 The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`. CRC
-errors surface as `errc::invalid_crc`; timed-out blocking operations return
-`errc::timeout`. Out-of-range parameters (e.g. an unsupported output power for
+errors surface as `errc::invalid_crc`; a received packet larger than the buffer
+supplied to `receive`/`start_receive`/`read_received` is discarded, never
+truncated, and reported as `errc::invalid_size`; timed-out blocking operations
+return `errc::timeout`. Out-of-range parameters (e.g. an unsupported output power for
 a particular chip variant) return `errc::invalid_arg`. A future whose
 operation is cancelled by a mode change (`standby`/`sleep`) before completing
 reports `errc::not_finished`. Using a moved-from driver object is undefined

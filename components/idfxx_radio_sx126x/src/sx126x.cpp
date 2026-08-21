@@ -26,7 +26,7 @@ namespace internal = sx126x_internal;
 // helpers within the idfxx::radio namespace shared between the two TU's.
 void sx126x_worker_fn(task::self& self, sx126x::state* state);
 void sx126x_dio1_isr_thunk(void* arg);
-result<rx_info> sx126x_drain_received(sx126x::state& s);
+result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed);
 
 namespace {
 
@@ -1014,14 +1014,22 @@ result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {
         return error(errc::invalid_state);
     }
     std::lock_guard g(_state->mu);
-    if (_state->last_rx.length == 0) {
+    if (_state->rx_ring_count == 0) {
         return error(errc::not_found);
     }
-    size_t n = std::min<size_t>(_state->last_rx.length, buffer.size());
-    std::copy_n(_state->last_rx_buf.data(), n, buffer.data());
-    rx_info info = _state->last_rx;
-    info.length = static_cast<uint8_t>(n);
-    return info;
+    // Pop the oldest undelivered packet: rx_done events and payloads pair up
+    // in order even when the consumer falls behind the worker. A packet that
+    // does not fit the caller's buffer is popped and discarded rather than
+    // truncated — leaving it queued would put every later pop one packet
+    // behind its event.
+    auto& slot = _state->rx_ring[_state->rx_ring_head];
+    _state->rx_ring_head = (_state->rx_ring_head + 1) % state::rx_ring_slots;
+    --_state->rx_ring_count;
+    if (slot.info.length > buffer.size()) {
+        return error(errc::invalid_size);
+    }
+    std::copy_n(slot.buf.data(), slot.info.length, buffer.data());
+    return slot.info;
 }
 
 // =============================================================================
@@ -1084,11 +1092,12 @@ result<std::optional<rx_info>> sx126x::try_adopt_pending() {
             s.mode = chip_mode::stdby;
             sx126x_set_rf_switch(s, chip_mode::stdby);
         }
-        auto drained = sx126x_drain_received(s);
+        const bool crc_failed = irqs.contains(irq_flag::crc_err);
+        auto drained = sx126x_drain_received(s, crc_failed);
         if (!drained) {
             return error(drained.error());
         }
-        if (irqs.contains(irq_flag::crc_err)) {
+        if (crc_failed) {
             return error(errc::invalid_crc);
         }
         return std::optional<rx_info>{*drained};

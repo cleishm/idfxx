@@ -626,7 +626,9 @@ public:
      * @param timeout Maximum time to wait for a packet.
      * @return Information about the received packet (length, RSSI, SNR).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, including `errc::timeout` and `errc::invalid_crc`.
+     * @throws std::system_error on failure, including `errc::timeout`,
+     *         `errc::invalid_crc`, and `errc::invalid_size` (packet larger
+     *         than @p buffer; nothing is written).
      */
     template<typename Rep, typename Period>
     [[nodiscard]] rx_info receive(std::span<uint8_t> buffer, const std::chrono::duration<Rep, Period>& timeout) {
@@ -681,11 +683,14 @@ public:
      * wait on the returned future. If no packet arrives within @p timeout the
      * radio is returned to standby and `errc::timeout` is reported.
      *
-     * @param buffer  Buffer to receive into.
+     * @param buffer  Buffer to receive into; size it for the largest packet
+     *                expected (at most @ref max_payload_length bytes).
      * @param timeout Maximum time to wait for a packet.
      * @return Information about the received packet, or an error.
      * @retval timeout No packet arrived within the timeout.
      * @retval invalid_crc The received packet failed its CRC check.
+     * @retval invalid_size The packet was larger than @p buffer; nothing was
+     *         written and the packet is discarded.
      * @retval invalid_state Another transmit, receive, or scan is already in flight.
      */
     template<typename Rep, typename Period>
@@ -736,17 +741,21 @@ public:
      * @brief Starts a single-shot receive into the caller's buffer.
      *
      * Receives exactly one packet: the radio listens until a packet arrives,
-     * copies the payload into @p buffer (clamped to its size), completes the
-     * returned future with the packet's @ref rx_info, and returns to standby.
-     * For a packet stream, use the continuous or duty-cycled
-     * @ref start_listening overloads instead.
+     * copies the payload into @p buffer, completes the returned future with
+     * the packet's @ref rx_info, and returns to standby. A packet larger than
+     * @p buffer is never truncated: nothing is written and the future fails
+     * with `errc::invalid_size`, so size the buffer for the largest packet
+     * expected (at most @ref max_payload_length bytes). For a packet stream,
+     * use the continuous or duty-cycled @ref start_listening overloads
+     * instead.
      *
      * @p buffer must remain valid until the future completes or the
      * operation is cancelled by a mode change (@ref standby or @ref sleep).
      *
-     * Dropping the future without waiting is safe: the receive continues and
-     * the packet remains observable through the `rx_done` event and
-     * @ref read_received.
+     * The packet is delivered exactly once, into @p buffer: it is not queued
+     * for @ref read_received. Dropping the future without waiting is safe: the
+     * receive continues, the payload is still written to @p buffer, and
+     * completion remains observable through the `rx_done` event.
      *
      * @param buffer Buffer to receive the payload into.
      * @return A future completing with information about the received packet.
@@ -758,18 +767,29 @@ public:
     }
 
     /**
-     * @brief Reads the most recently received packet into the caller's buffer.
+     * @brief Pops the oldest undelivered packet into the caller's buffer.
      *
-     * Typically called from a `rx_done` event handler. The radio's internal
-     * cache holds only the most recent packet; calling this after a second
-     * `rx_done` returns that newer packet. Always pair the copied bytes with
-     * the @ref rx_info this call returns — the `rx_done` event's payload may
-     * describe an older packet than the cache.
+     * Typically called from a `rx_done` event handler while listening
+     * (@ref start_listening). Packets that arrive while listening queue in a
+     * small driver-internal FIFO, so a handler that runs after a delay still
+     * collects every packet in arrival order — one pop per `rx_done` event.
+     * Only listening packets are queued: a single-shot @ref receive or
+     * @ref start_receive delivers its packet into the caller's buffer instead,
+     * and packets that fail their CRC check (reported as `crc_error`) are
+     * discarded. When the FIFO overflows, the oldest packet is dropped. Always
+     * pair the copied bytes with the @ref rx_info this call returns — after
+     * an overflow the `rx_done` event may describe a dropped packet.
+     *
+     * A packet larger than @p buffer is never truncated: it is popped and
+     * discarded and `errc::invalid_size` is reported, so size the buffer for
+     * the largest packet expected (at most @ref max_payload_length bytes).
      *
      * @param buffer Buffer to copy the payload into.
      * @return Information about the packet (length, RSSI, SNR).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::not_found` when
+     *         nothing is queued and `errc::invalid_size` when the packet did
+     *         not fit.
      */
     [[nodiscard]] rx_info read_received(std::span<uint8_t> buffer) { return unwrap(try_read_received(buffer)); }
 #endif
@@ -805,18 +825,22 @@ public:
      * @brief Starts a single-shot receive into the caller's buffer.
      *
      * Receives exactly one packet: the radio listens until a packet arrives,
-     * copies the payload into @p buffer (clamped to its size), completes the
-     * returned future with the packet's @ref rx_info, and returns to standby.
-     * The future completes with `errc::invalid_crc` if the packet failed its
-     * CRC check, and with `errc::not_finished` if the operation is cancelled
-     * by a mode change (@ref try_standby or @ref try_sleep).
+     * copies the payload into @p buffer, completes the returned future with
+     * the packet's @ref rx_info, and returns to standby. The future completes
+     * with `errc::invalid_crc` if the packet failed its CRC check, with
+     * `errc::invalid_size` if the packet was larger than @p buffer (nothing is
+     * written and the packet is discarded — size the buffer for the largest
+     * packet expected, at most @ref max_payload_length bytes), and with
+     * `errc::not_finished` if the operation is cancelled by a mode change
+     * (@ref try_standby or @ref try_sleep).
      *
      * @p buffer must remain valid until the future completes or the
      * operation is cancelled.
      *
-     * Dropping the future without waiting is safe: the receive continues and
-     * the packet remains observable through the `rx_done` event and
-     * @ref try_read_received.
+     * The packet is delivered exactly once, into @p buffer: it is not queued
+     * for @ref try_read_received. Dropping the future without waiting is safe:
+     * the receive continues, the payload is still written to @p buffer, and
+     * completion remains observable through the `rx_done` event.
      *
      * @param buffer Buffer to receive the payload into.
      * @return A future completing with information about the received packet,
@@ -828,15 +852,20 @@ public:
     }
 
     /**
-     * @brief Reads the most recently received packet into the caller's buffer.
+     * @brief Pops the oldest undelivered packet into the caller's buffer.
      *
-     * Always pair the copied bytes with the @ref rx_info this call returns —
-     * the `rx_done` event's payload may describe an older packet than the
-     * cache.
+     * Packets that arrive while listening queue in a small driver-internal
+     * FIFO (see @ref read_received); single-shot receives deliver into the
+     * caller's buffer and are not queued. Always pair the copied bytes with
+     * the @ref rx_info this call returns — after an overflow the `rx_done`
+     * event may describe a dropped packet.
      *
-     * @param buffer Buffer to copy the payload into.
+     * @param buffer Buffer to copy the payload into; size it for the largest
+     *               packet expected (at most @ref max_payload_length bytes).
      * @return Information about the packet, or an error.
-     * @retval not_found No packet has been received yet.
+     * @retval not_found No undelivered packet is queued.
+     * @retval invalid_size The packet was larger than @p buffer; it was popped
+     *         and discarded, nothing written.
      */
     [[nodiscard]] result<rx_info> try_read_received(std::span<uint8_t> buffer) { return do_read_received(buffer); }
 
@@ -947,12 +976,15 @@ protected:
     [[nodiscard]] virtual result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) = 0;
     /// Hook for @ref try_start_receive(std::span<uint8_t>) (single-shot
     /// receive). The returned future must complete with the received packet's
-    /// info (`errc::invalid_crc` on CRC failure), or with
+    /// info (`errc::invalid_crc` on CRC failure, `errc::invalid_size` if the
+    /// packet is larger than the buffer — never truncate), or with
     /// `errc::not_finished` if the operation is cancelled (standby, sleep, or
     /// driver teardown); the buffer must never be written after the future
     /// completes.
     [[nodiscard]] virtual result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) = 0;
-    /// Hook for @ref try_read_received.
+    /// Hook for @ref try_read_received. Must pop the oldest queued packet;
+    /// `errc::not_found` when none is queued, `errc::invalid_size` (packet
+    /// popped and discarded) if it is larger than the buffer — never truncate.
     [[nodiscard]] virtual result<rx_info> do_read_received(std::span<uint8_t> buffer) = 0;
 
     /// Hook for @ref try_last_packet_status.

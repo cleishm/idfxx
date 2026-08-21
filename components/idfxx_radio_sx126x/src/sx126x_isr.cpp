@@ -11,6 +11,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <memory>
 #include <mutex>
 #include <utility>
 
@@ -26,9 +27,9 @@ constexpr const char* TAG = "idfxx::radio::sx126x::isr";
 // driver is still in `expected` activity — a cancellation may have detached
 // the latch already — returns it to idle and completes the in-flight latch,
 // with `fill` writing the operation's result fields first. Used by the
-// tx_done and cad_done paths; rx_done has its own variant because it must
-// park only when a single-shot receive was in flight (a continuous receive
-// stays in rx) and copies the payload out under the same lock.
+// tx_done and cad_done paths; rx_done is handled by sx126x_drain_received,
+// which must park only when a single-shot receive was in flight (a continuous
+// receive stays in rx) and copies the payload out under the same lock.
 template<typename Fill>
 void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fill&& fill) {
     std::lock_guard g(s.mu);
@@ -46,44 +47,114 @@ void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fil
 
 } // namespace
 
-// Reads chip RX buffer status + packet status + the payload into the state's
-// last_rx cache. The single-RX caller's buffer (if any) is filled from that
-// cache by the rx_done path, under the same lock that completes the latch.
-// External linkage: also the recovery path of sx126x::try_adopt_pending().
-result<rx_info> sx126x_drain_received(sx126x::state& s) {
+// Drains one received packet out of the chip: reads GetRxBufferStatus and
+// GetPacketStatus, then — under `mu` — delivers the payload exactly once. A
+// pending single-shot receive owns the packet: it is read straight into the
+// caller's buffer and the latch completed under the same lock, so a
+// cancellation can never interleave between the copy and the completion.
+// Otherwise (listening, or a packet the chip caught on its own) the payload is
+// committed to the receive FIFO for read_received. A CRC-failed packet is
+// discarded without touching either: the single-shot latch completes with
+// invalid_crc, the worker posts crc_error rather than rx_done, and committing
+// it would leave every later pop one packet behind its event. External
+// linkage: also the recovery path of sx126x::try_adopt_pending().
+result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed) {
     rx_info info{};
+    uint8_t rx_offset = 0;
 
-    // GetRxBufferStatus (§13.5.2) -> [payload_len, rx_start_buffer_ptr].
-    std::array<uint8_t, 2> rxs{};
-    if (auto e = s.read_command(internal::op_get_rx_buffer_status, rxs); !e) {
-        return error(e.error());
-    }
-    info.length = rxs[0];
-    uint8_t rx_offset = rxs[1];
+    auto status = [&]() -> result<void> {
+        // GetRxBufferStatus (§13.5.2) -> [payload_len, rx_start_buffer_ptr].
+        std::array<uint8_t, 2> rxs{};
+        if (auto e = s.read_command(internal::op_get_rx_buffer_status, rxs); !e) {
+            return e;
+        }
+        info.length = rxs[0];
+        rx_offset = rxs[1];
 
-    // GetPacketStatus (§13.5.3) -> [rssi_pkt, snr_pkt, signal_rssi_pkt].
-    std::array<uint8_t, 3> pkt{};
-    if (auto e = s.read_command(internal::op_get_packet_status, pkt); !e) {
-        return error(e.error());
-    }
-    auto ps = internal::decode_packet_status(pkt);
-    info.rssi = ps.rssi;
-    info.snr = ps.snr;
+        // GetPacketStatus (§13.5.3) -> [rssi_pkt, snr_pkt, signal_rssi_pkt].
+        std::array<uint8_t, 3> pkt{};
+        if (auto e = s.read_command(internal::op_get_packet_status, pkt); !e) {
+            return e;
+        }
+        auto ps = internal::decode_packet_status(pkt);
+        info.rssi = ps.rssi;
+        info.snr = ps.snr;
+        return {};
+    }();
 
-    // Read the payload from the chip buffer (ReadBuffer, §13.2.4) straight into
-    // the last-packet cache (full length; per-caller copies clamp). Holding
-    // `mu` across the read keeps the cache coherent for concurrent
-    // read_received callers.
     std::lock_guard g(s.mu);
+
+    // A single-shot receive ends here whatever happens next: the chip has
+    // already fallen back to standby on its own, so park the bookkeeping and
+    // detach the latch (a cancellation may have done so already) — it is
+    // completed below with the payload, or with an error.
+    std::shared_ptr<internal::op_latch> single;
+    if (s.driver_state == internal::driver_activity::rx_single) {
+        s.mode = chip_mode::stdby;
+        sx126x_set_rf_switch(s, chip_mode::stdby);
+        s.driver_state = internal::driver_activity::idle;
+        single = std::move(s.active_op);
+    }
+    auto fail_single = [&](errc code) {
+        if (single) {
+            single->rx_target = {};
+            single->complete(static_cast<int32_t>(std::to_underlying(code)));
+        }
+    };
+
+    if (!status) {
+        fail_single(errc::fail);
+        return error(status.error());
+    }
+    if (crc_failed) {
+        fail_single(errc::invalid_crc);
+        return info;
+    }
+
+    // A single-shot receive owns this packet: read the payload (ReadBuffer,
+    // §13.2.4) straight into the caller's buffer and complete the latch. It
+    // never enters the FIFO — the caller already has the bytes, and queuing a
+    // copy would either double-deliver to a mixed-mode rx_done handler or
+    // silently fill the ring for a futures-only one. A packet that does not
+    // fit is not truncated: nothing is written and the future fails with
+    // invalid_size (the rx_done event still carries the full rx_info).
+    if (single) {
+        if (info.length > single->rx_target.size()) {
+            fail_single(errc::invalid_size);
+            return info;
+        }
+        if (info.length > 0) {
+            if (auto e = s.read_buffer(rx_offset, single->rx_target.first(info.length)); !e) {
+                fail_single(errc::fail);
+                return error(e.error());
+            }
+        }
+        single->rx = info;
+        single->rx_target = {};
+        single->complete(0);
+        return info;
+    }
+
+    // Otherwise the packet belongs to the FIFO: read the full payload into the
+    // tail slot. Only the worker writes the ring, and pops leave the tail index
+    // unchanged, so the slot is ours; it is committed only after a successful
+    // read.
+    if (s.rx_ring_count == sx126x::state::rx_ring_slots) {
+        // Full: the consumer has fallen more than a ring's worth of packets
+        // behind. Drop the oldest — the newest packet is the one still worth
+        // acting on.
+        ESP_LOGW(TAG, "rx ring full — dropping the oldest unread packet");
+        s.rx_ring_head = (s.rx_ring_head + 1) % sx126x::state::rx_ring_slots;
+        --s.rx_ring_count;
+    }
+    auto& slot = s.rx_ring[(s.rx_ring_head + s.rx_ring_count) % sx126x::state::rx_ring_slots];
     if (info.length > 0) {
-        if (auto e = s.read_buffer(rx_offset, {s.last_rx_buf.data(), info.length}); !e) {
-            // The cache bytes may be partially overwritten; invalidate it.
-            s.last_rx = {};
+        if (auto e = s.read_buffer(rx_offset, {slot.buf.data(), info.length}); !e) {
             return error(e.error());
         }
     }
-    s.last_rx = info;
-
+    slot.info = info;
+    ++s.rx_ring_count;
     return info;
 }
 
@@ -159,49 +230,16 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
                 }
             }
 
-            // RX done: drain payload, complete a pending single-RX and/or post.
+            // RX done: drain the payload (completing a pending single-RX on
+            // the way), then post the event.
             if (irqs.contains(sx126x::irq_flag::rx_done)) {
                 bool crc_failed = irqs.contains(sx126x::irq_flag::crc_err);
-                auto drained = sx126x_drain_received(s);
-                rx_info info{};
-                int32_t err_code = 0;
-                if (!drained) {
-                    err_code = static_cast<int32_t>(std::to_underlying(errc::fail));
-                } else {
-                    info = *drained;
-                    if (crc_failed) {
-                        err_code = static_cast<int32_t>(std::to_underlying(errc::invalid_crc));
-                    }
-                }
-
-                // Complete the single-RX (if any): copy the payload into the
-                // caller's buffer (clamped to its size, with the reported
-                // length matching the clamp) and finish the latch, all under
-                // one lock so cancellation can't interleave.
-                {
-                    std::lock_guard g(s.mu);
-                    if (s.driver_state == internal::driver_activity::rx_single) {
-                        s.mode = chip_mode::stdby;
-                        sx126x_set_rf_switch(s, chip_mode::stdby);
-                        s.driver_state = internal::driver_activity::idle;
-                        if (auto latch = std::move(s.active_op)) {
-                            size_t n = std::min<size_t>(info.length, latch->rx_target.size());
-                            if (drained && n > 0) {
-                                std::copy_n(s.last_rx_buf.data(), n, latch->rx_target.data());
-                            }
-                            latch->rx = info;
-                            latch->rx.length = static_cast<uint8_t>(n);
-                            latch->rx_target = {};
-                            latch->complete(err_code);
-                        }
-                    }
-                }
-
+                auto drained = sx126x_drain_received(s, crc_failed);
                 if (loop) {
                     if (crc_failed) {
                         (void)loop->try_post(crc_error);
                     } else if (drained) {
-                        (void)loop->try_post(rx_done, info);
+                        (void)loop->try_post(rx_done, *drained);
                     }
                 }
             } else if (irqs.contains_any(sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err) && loop) {
