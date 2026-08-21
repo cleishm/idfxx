@@ -9,6 +9,7 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
 - **Chrono utilities** for FreeRTOS tick conversions
+- **Scheduling utilities** — `delay()`, `delay_until()`, `delay(next_tick)`, `yield()`
 - **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
 - **System information** — reset reason, restart, shutdown handlers
 - **Application metadata** — version, project name, build timestamps, ELF hash
@@ -29,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_core:
-    version: "^1.1.0"
+    version: "^1.2.0"
 ```
 
 Or add `idfxx_core` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -65,8 +66,33 @@ if (result) {
 
 using namespace std::chrono_literals;
 
-TickType_t delay = idfxx::chrono::to_ticks(100ms);
-vTaskDelay(delay);
+TickType_t timeout = idfxx::chrono::ticks(100ms);
+xQueueReceive(queue, &item, timeout);
+```
+
+### Scheduling
+
+```cpp
+#include <idfxx/sched>
+#include <chrono>
+
+using namespace std::chrono_literals;
+
+idfxx::delay(100ms);   // block for at least 100ms (other tasks run)
+idfxx::delay(500us);   // shorter than a tick: busy-waits with microsecond precision
+
+// Polling back-off: block until the next tick so every other task gets to run
+while (busy_pin.get_level() == idfxx::gpio::level::high) {
+    idfxx::delay(idfxx::next_tick);
+}
+
+// Drift-free periodic loop
+auto next = idfxx::chrono::tick_clock::now();
+while (true) {
+    do_work();
+    next += 100ms;
+    idfxx::delay_until(next);
+}
 ```
 
 ### Memory Allocators
@@ -134,7 +160,16 @@ bool ok = memory::check_integrity();
 
 ### Chrono Utilities (`<idfxx/chrono>`)
 
-- `to_ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
+- `ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
+- `tick_clock` - `std::chrono` clock over the FreeRTOS tick count
+
+### Scheduling (`<idfxx/sched>`)
+
+- `delay(duration)` - Delay for at least `duration`; sub-tick durations busy-wait, longer ones block
+- `delay_until(time_point)` - Delay until a time point (drift-free periodic loops)
+- `delay(next_tick)` - Block until the next scheduler tick; the back-off for polling loops
+- `yield()` - Hand the CPU to ready tasks of equal priority without blocking
+- `yield_from_isr(woken)` - Request a context switch at the end of an ISR
 
 ### Memory (`<idfxx/memory>`)
 
@@ -203,6 +238,11 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
 - `result<T>` is the standard return type for fallible operations across idfxx
 - Memory allocators are stateless and can be used with standard containers
 - Chrono conversions handle overflow by clamping to `portMAX_DELAY`
+- **`delay()` busy-waits below one tick**: durations shorter than the scheduler tick
+  (`1 / CONFIG_FREERTOS_HZ`, 10 ms by default) spin the CPU for precision instead of blocking.
+  Never use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which
+  always blocks until the next tick. Longer delays block and never return early, but may
+  overshoot by up to one tick
 - **Out-of-memory is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
   `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. OOM is never
   returned as a recoverable error in `result<T>`. Use the ESP-IDF and FreeRTOS APIs directly
