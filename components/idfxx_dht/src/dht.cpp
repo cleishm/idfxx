@@ -38,12 +38,13 @@ constexpr uint32_t signal_range_max_ns = 1'000'000; // 1 ms idle terminates
 // a model means editing one place.
 //
 // Start pulse — how long the host holds the line low to request a reading:
-//   - DHT11 wants >=18 ms. A task delay yields the CPU; nudged up a tick so it
-//     clears the floor at any FreeRTOS tick rate. The DHT11 has no tight upper
-//     bound, so the tick-rounding overshoot is harmless.
-//   - DHT22 wants ~1 ms and specifies a 20 ms ceiling. idfxx::delay busy-waits
-//     precisely for a sub-10 ms duration, staying clear of that ceiling where
-//     a coarse task delay (stretched by the +1 tick) could overrun it.
+//   - DHT11 wants >=18 ms. idfxx::delay never returns early, so 20 ms clears
+//     the floor at any FreeRTOS tick rate; the DHT11 has no tight upper bound,
+//     so the up-to-one-tick overshoot of a task delay is harmless.
+//   - DHT22 wants ~1 ms and specifies a 20 ms ceiling. 2 ms is below a tick at
+//     the default 100 Hz, so idfxx::delay busy-waits it precisely; at faster
+//     tick rates it blocks for 2 ms plus at most one (short) tick, still well
+//     clear of the ceiling.
 constexpr auto dht11_start_pulse = 20ms;
 constexpr auto dht22_start_pulse = 2ms;
 
@@ -180,7 +181,7 @@ result<reading> sensor::try_read() {
     // (which starts 20–40 us later) can never race the arm.
     pin.set_level(gpio::level::low);
     if (s.cfg.model == model::dht11) {
-        vTaskDelay(chrono::ticks(dht11_start_pulse) + 1);
+        delay(dht11_start_pulse);
     } else {
         delay(dht22_start_pulse);
     }
