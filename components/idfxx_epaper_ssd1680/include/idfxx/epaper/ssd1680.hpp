@@ -200,6 +200,7 @@ private:
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_wake() override;
+    [[nodiscard]] result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) override;
 
     // Command sequencing helpers (see src/ssd1680.cpp).
     [[nodiscard]] result<void> _cmd(uint8_t cmd);
@@ -214,11 +215,22 @@ private:
     [[nodiscard]] result<void>
     _write_planes(region window, std::span<const uint8_t> new_plane, std::span<const uint8_t> old_plane);
     [[nodiscard]] result<void> _sync_old_plane();
+    [[nodiscard]] result<void> _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
     [[nodiscard]] size_t _stride() const noexcept { return (width() + 7) / 8; }
 
     idfxx::panel_io* _io = nullptr; // nullptr after move
     bool _mirror_x = false;
     bool _mirror_y = false;
+
+    /// Work do_refresh leaves running so it can return while the glass
+    /// updates; _settle (reached through do_wait) completes it before the
+    /// next controller command.
+    enum class pending : uint8_t {
+        none,      ///< Controller idle; nothing deferred.
+        wait,      ///< An update is (or may be) driving; wait for BUSY.
+        wait_sync, ///< As `wait`, then re-arm the old-image plane for partial diffs.
+    };
+    pending _pending = pending::none;
     // Shadow of the last-written new-plane RAM bytes; re-sent to the
     // controller's old-image plane after each refresh so partial updates
     // diff against the frame actually on the glass.

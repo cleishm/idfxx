@@ -11,6 +11,7 @@
 #include <idfxx/epaper/mono_framebuffer>
 #include <idfxx/epaper/ssd1680>
 #include <idfxx/font/spleen>
+#include <idfxx/future>
 #include <idfxx/gfx>
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -133,16 +134,22 @@ extern "C" void app_main() {
         // under partial refreshes, so start the sequence from a full
         // refresh, which drives pixels to their stable extremes.
         display.refresh();
+        // Each frame is drawn while the previous one is still updating on
+        // the glass: start_refresh returns at once with a future, and the
+        // next flush waits out the outstanding update before writing to the
+        // controller. Only the last future needs an explicit wait.
         constexpr size_t counter_y = 110;
         constexpr size_t counter_h = 32;
+        idfxx::future<void> update;
         for (int i = 0; i <= 20; ++i) {
             canvas.fill_rect(0, counter_y, canvas.width(), counter_h, false);
             canvas.draw_text(idfxx::font::spleen_8x16, 8, counter_y, std::format("{:02}", i), true, 2);
             fb.flush_rows(display, counter_y, counter_y + counter_h);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
-            display.refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
+            update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
         }
+        update.wait();
         logger.info("stage 5: partial refresh loop done");
         idfxx::delay(5s);
 

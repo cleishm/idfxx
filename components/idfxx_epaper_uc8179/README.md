@@ -39,7 +39,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   cleishm/idfxx_epaper_uc8179:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_epaper_uc8179` to the `REQUIRES` list in your component's
@@ -69,7 +69,7 @@ idfxx::epaper::uc8179 display(io, {
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
 fb.set_pixel(10, 20, true); // black ink
 fb.flush(display);          // upload to controller RAM (48 KB, streamed by DMA)
-display.refresh();          // make it visible (blocks until done)
+display.refresh();          // make it visible (blocks until done; start_refresh() returns a future)
 display.sleep();            // deep sleep between updates
 ```
 
@@ -118,9 +118,10 @@ modes on the EE05 board.
 
 ## API Overview
 
-The panel API (`write`, `write_rows`, `clear`, `refresh`, `wait`,
-`wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is
-inherited from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
+The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
+`wait`, `wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*`
+forms) is inherited from `idfxx::epaper::panel` — see the `idfxx_epaper`
+documentation.
 
 Driver-specific surface:
 
@@ -151,7 +152,9 @@ Using a moved-from driver object is undefined behavior.
 
 - **BUSY is required.** The UC8179 holds BUSY low (active low, unlike the
   SSD1680) for several seconds during full refreshes of the 7.5" glass;
-  the driver blocks on it (with a tick-sleep poll, not a busy-spin).
+  `refresh` blocks on it (with a tick-sleep poll, not a busy-spin).
+  `start_refresh` returns while the glass is still driving: the driver
+  then waits for BUSY before the next controller command (or in `wait`).
 - **Memory**: a full-frame `mono_framebuffer` at 800x480 is 48 KB and a
   `gray4_framebuffer` is 96 KB, all DRAM. Grayscale writes additionally
   stage each plane through a transient buffer of up to 48 KB (the

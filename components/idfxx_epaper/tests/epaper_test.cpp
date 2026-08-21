@@ -12,6 +12,7 @@
 #include "recording_epaper_panel.hpp"
 #include "unity.h"
 
+#include <chrono>
 #include <type_traits>
 #include <utility>
 
@@ -335,4 +336,88 @@ TEST_CASE("epaper panel sleep blocks writes and refreshes until wake", "[idfxx][
     // Wake invalidated the baseline: the next partial promotes to full.
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));
+}
+
+TEST_CASE("epaper panel start_refresh returns a completion future", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+
+    // Starts the refresh and hands back a future; with no BUSY line it is
+    // already complete.
+    auto started = display.try_start_refresh();
+    TEST_ASSERT_TRUE(started.has_value());
+    TEST_ASSERT_TRUE(started->valid());
+    TEST_ASSERT_TRUE(started->done());
+    TEST_ASSERT_TRUE(started->try_wait().has_value());
+    TEST_ASSERT_EQUAL(1, display.refreshes.size());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes[0]));
+
+    // Baseline handling matches refresh: a partial now stays partial, and
+    // the first one after a clear is promoted.
+    TEST_ASSERT_TRUE(display.try_start_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
+    TEST_ASSERT_TRUE(display.try_clear().has_value());
+    TEST_ASSERT_TRUE(display.try_start_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));
+
+    // A sleeping panel cannot start a refresh.
+    TEST_ASSERT_TRUE(display.try_sleep().has_value());
+    auto asleep = display.try_start_refresh();
+    TEST_ASSERT_FALSE(asleep.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), asleep.error().value());
+    TEST_ASSERT_EQUAL(3, display.refreshes.size());
+}
+
+TEST_CASE("epaper panel refresh blocks and start_refresh does not", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+
+    // A blocking refresh settles before the driver hook and waits after it.
+    TEST_ASSERT_TRUE(display.try_refresh().has_value());
+    TEST_ASSERT_EQUAL(2, display.waits);
+    TEST_ASSERT_EQUAL(1, display.hooks_before_last_wait);
+
+    // start_refresh only settles beforehand: completion is the future's.
+    TEST_ASSERT_TRUE(display.try_start_refresh().has_value());
+    TEST_ASSERT_EQUAL(3, display.waits);
+    TEST_ASSERT_EQUAL(1, display.hooks_before_last_wait);
+    TEST_ASSERT_EQUAL(2, display.refreshes.size());
+}
+
+TEST_CASE("epaper panel settles an outstanding refresh before every controller hook", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+    auto fb = mono_framebuffer::make(122, 250).value();
+
+    // Each command-issuing operation waits first, with the wait landing
+    // before the hook runs.
+    TEST_ASSERT_TRUE(display.try_write(fb).has_value());
+    TEST_ASSERT_EQUAL(1, display.waits);
+    TEST_ASSERT_EQUAL(0, display.hooks_before_last_wait);
+
+    TEST_ASSERT_TRUE(display.try_write_rows(fb, 0, 8).has_value());
+    TEST_ASSERT_EQUAL(2, display.waits);
+    TEST_ASSERT_EQUAL(1, display.hooks_before_last_wait);
+
+    TEST_ASSERT_TRUE(display.try_clear().has_value());
+    TEST_ASSERT_EQUAL(3, display.waits);
+    TEST_ASSERT_EQUAL(2, display.hooks_before_last_wait);
+
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::gray4).has_value());
+    TEST_ASSERT_EQUAL(4, display.waits);
+    // Setting the same mode again is a no-op and does not wait.
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::gray4).has_value());
+    TEST_ASSERT_EQUAL(4, display.waits);
+
+    TEST_ASSERT_TRUE(display.try_sleep().has_value());
+    TEST_ASSERT_EQUAL(5, display.waits);
+    TEST_ASSERT_EQUAL(3, display.hooks_before_last_wait);
+
+    // Validation failures and wake do not wait.
+    auto asleep = display.try_clear();
+    TEST_ASSERT_FALSE(asleep.has_value());
+    TEST_ASSERT_TRUE(display.try_wake().has_value());
+    TEST_ASSERT_EQUAL(5, display.waits);
+
+    // Explicit waits reach the hook too.
+    TEST_ASSERT_TRUE(display.try_wait().has_value());
+    TEST_ASSERT_TRUE(display.try_wait_for(std::chrono::milliseconds{0}).has_value());
+    TEST_ASSERT_EQUAL(7, display.waits);
 }

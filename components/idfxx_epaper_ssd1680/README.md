@@ -39,7 +39,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   cleishm/idfxx_epaper_ssd1680:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_epaper_ssd1680` to the `REQUIRES` list in your component's
@@ -69,7 +69,7 @@ idfxx::epaper::ssd1680 display(io, {
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
 fb.set_pixel(10, 20, true); // black ink
 fb.flush(display);          // upload to controller RAM
-display.refresh();          // make it visible (blocks until done)
+display.refresh();          // make it visible (blocks until done; start_refresh() returns a future)
 display.sleep();            // deep sleep between updates
 ```
 
@@ -118,9 +118,10 @@ modes on the EE05 board.
 
 ## API Overview
 
-The panel API (`write`, `write_rows`, `clear`, `refresh`, `wait`,
-`wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is
-inherited from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
+The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
+`wait`, `wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*`
+forms) is inherited from `idfxx::epaper::panel` — see the `idfxx_epaper`
+documentation.
 
 Driver-specific surface:
 
@@ -148,8 +149,10 @@ Using a moved-from driver object is undefined behavior.
 ## Important Notes
 
 - **BUSY is required.** The SSD1680 holds BUSY high for hundreds of
-  milliseconds to seconds during refreshes; the driver blocks on it (with
-  a tick-sleep poll, not a busy-spin).
+  milliseconds to seconds during refreshes; `refresh` blocks on it (with a
+  tick-sleep poll, not a busy-spin). `start_refresh` returns while the glass
+  is still driving: the driver then waits for BUSY and re-arms the
+  previous-image plane before the next controller command (or in `wait`).
 - **Shadow frame memory**: the driver keeps `(width + 7) / 8 * height`
   bytes of DRAM (~4 KB at 122x250) mirroring the last-written frame, used
   to refresh the controller's previous-image plane after each update.

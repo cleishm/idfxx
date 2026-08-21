@@ -12,6 +12,7 @@
 #include <idfxx/epaper/mono_framebuffer>
 #include <idfxx/epaper/uc8179>
 #include <idfxx/font/spleen>
+#include <idfxx/future>
 #include <idfxx/gfx>
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -141,16 +142,22 @@ extern "C" void app_main() {
         display.refresh();
         // A small framebuffer flushed at a pixel offset updates just the
         // counter area; the differential refresh flips only changed pixels.
+        // Each frame is drawn while the previous one is still updating on
+        // the glass: start_refresh returns at once with a future, and the
+        // next flush waits out the outstanding update before writing to the
+        // controller. Only the last future needs an explicit wait.
         idfxx::epaper::mono_framebuffer counter_fb(160, 64);
         idfxx::gfx::canvas counter_canvas(counter_fb);
+        idfxx::future<void> update;
         for (int i = 0; i <= 20; ++i) {
             counter_canvas.clear();
             counter_canvas.draw_text(idfxx::font::spleen_8x16, 0, 0, std::format("{:02}", i), true, 4);
             counter_fb.flush(display, 16, 360);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
-            display.refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
+            update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
         }
+        update.wait();
         logger.info("stage 5: partial refresh loop done");
         idfxx::delay(5s);
 

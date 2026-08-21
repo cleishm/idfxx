@@ -11,7 +11,8 @@ Abstract ePaper panel interface, framebuffers, and shared types.
   application code can target any of them.
 - ePaper-native vocabulary: `write` uploads pixels to the controller's RAM
   (invisible), `refresh` drives the physical ink update and blocks until the
-  panel's BUSY line releases.
+  panel's BUSY line releases — or `start_refresh` returns an `idfxx::future`
+  so the calling task can do other work while the glass updates.
 - Three refresh styles: `full` (highest quality, clears ghosting), `fast`
   (shortened full-screen waveform), and `partial` (flicker-free differential
   update of changed pixels only).
@@ -46,7 +47,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   cleishm/idfxx_epaper:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_epaper` to the `REQUIRES` list in your component's
@@ -114,6 +115,28 @@ Partial updates accumulate ghosting; issue a `full` refresh periodically
 refresh after construction, `wake`, or a color-mode change has no baseline
 image to diff against and is silently promoted to `full`.
 
+### Refreshing without blocking
+
+`refresh` blocks for the duration of the update — seconds for a full
+refresh. `start_refresh` starts the same update and returns an
+`idfxx::future<void>` instead, so the calling task can do other work
+meanwhile and wait, poll, or simply drop the handle:
+
+```cpp
+fb.flush(display);
+auto done = display.start_refresh();
+read_sensors();                 // the glass updates meanwhile
+done.wait();                    // or: if (done.done()) { ... }
+display.sleep();
+```
+
+The panel cannot be commanded while the glass is updating, so the next
+panel operation (`write`, `clear`, `refresh`, `set_color_mode`, `sleep`) and
+`wait()` first complete an outstanding update. A task that refreshes once a
+minute and then sleeps the panel therefore only ever blocks in `sleep()`,
+for whatever part of the update is still running; dropping the future is
+safe.
+
 ### Grayscale
 
 ```cpp
@@ -153,7 +176,10 @@ byte-packed along the row). `clear()` fills the RAM with white without
 needing a framebuffer, and promotes the next partial refresh to full.
 
 **Refresh:** `refresh(mode = refresh_mode::full)` blocks until the update
-completes; `wait()` / `wait_for(timeout)` explicitly wait on the BUSY line.
+completes; `start_refresh(mode = refresh_mode::full)` returns an
+`idfxx::future<void>` that completes when it does. `wait()` /
+`wait_for(timeout)` complete any outstanding update and wait on the BUSY
+line.
 
 **Color mode:** `set_color_mode(color_mode)` switches between `mono` and
 `gray4` operation.
@@ -204,9 +230,11 @@ Using a moved-from driver object is undefined behavior.
 - **Write, then refresh.** `write` only stages pixels in the controller's
   RAM; nothing changes on the glass until `refresh`. This is inherent to
   ePaper, not a quirk of the API.
-- **Refresh blocks.** A full refresh takes on the order of seconds
-  (waveform-dependent); the calling task sleeps in a poll loop on the BUSY
-  line rather than busy-spinning.
+- **Refresh blocks; start_refresh doesn't.** A full refresh takes on the
+  order of seconds (waveform-dependent). `refresh` sleeps the calling task
+  in a poll loop on the BUSY line (once per RTOS tick, not busy-spinning);
+  `start_refresh` returns immediately and the next panel operation absorbs
+  whatever remains of the update.
 - **Partial refreshes are full-scan differentials**: `write` places data
   anywhere in RAM, and `refresh(partial)` updates whatever changed across
   the whole panel without flashing. There is no region-limited refresh in

@@ -141,6 +141,7 @@ uc8179::uc8179(uc8179&& other) noexcept
 uc8179& uc8179::operator=(uc8179&& other) noexcept {
     if (this != &other) {
         if (_io != nullptr && !asleep()) {
+            (void)wait_busy();
             (void)_enter_deep_sleep();
         }
         panel::operator=(std::move(other));
@@ -152,8 +153,11 @@ uc8179& uc8179::operator=(uc8179&& other) noexcept {
 
 uc8179::~uc8179() {
     // Leaving the controller powered degrades the glass; power off and park
-    // it in deep sleep unless the caller already did.
+    // it in deep sleep unless the caller already did. A refresh still
+    // driving finishes first — powering off mid-waveform also stresses the
+    // glass.
     if (_io != nullptr && !asleep()) {
+        (void)wait_busy();
         (void)_enter_deep_sleep();
     }
 }
@@ -568,12 +572,14 @@ result<void> uc8179::_update() {
     if (auto r = _cmd(cmd_refresh); !r) {
         return r;
     }
-    // Give the controller time to assert BUSY before polling it.
-    idfxx::delay(10ms);
-    return wait_busy();
-    // No old-plane bookkeeping: the N2OCP bit set in the VCOM/data-interval
+    // Give the controller time to assert BUSY before anyone polls it, then
+    // return with the glass still driving: the base class waits for BUSY
+    // (default do_wait) before the next controller command. No old-plane
+    // bookkeeping to defer: the N2OCP bit set in the VCOM/data-interval
     // register makes the controller copy the new-image RAM to the
     // previous-image RAM when the refresh completes.
+    idfxx::delay(10ms);
+    return {};
 }
 
 result<void> uc8179::_enter_deep_sleep() {
