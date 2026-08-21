@@ -5,17 +5,18 @@
 
 #include <idfxx/future>
 #include <idfxx/radio/sx126x>
+#include <idfxx/sched>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <esp_log.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <utility>
+
+using namespace std::chrono_literals;
 
 namespace idfxx::radio {
 
@@ -271,9 +272,9 @@ result<void> reset_chip(sx126x::state& s) {
         return e;
     }
     reset_pin.set_level(gpio::level::low);
-    vTaskDelay(pdMS_TO_TICKS(2));
+    idfxx::delay(2ms);
     reset_pin.set_level(gpio::level::high);
-    vTaskDelay(pdMS_TO_TICKS(5));
+    idfxx::delay(5ms);
     return s.wait_busy();
 }
 
@@ -446,7 +447,11 @@ result<void> sx126x::state::wait_busy() {
             ESP_LOGW(TAG, "BUSY timeout");
             return error(errc::timeout);
         }
-        vTaskDelay(now - start < spin_limit ? 0 : 1);
+        if (now - start < spin_limit) {
+            idfxx::yield();
+        } else {
+            idfxx::delay(idfxx::next_tick);
+        }
     }
     return {};
 }
