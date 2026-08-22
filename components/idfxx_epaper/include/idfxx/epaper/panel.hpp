@@ -417,13 +417,13 @@ public:
      * `idfxx::future` that completes when the controller's BUSY line
      * releases — wait on it, poll it with `done()`, or drop it. The panel
      * must not be commanded while the glass is updating, so the next panel
-     * operation (a write, clear, refresh, color-mode change, or sleep), and
-     * @ref wait, first complete the outstanding update; a caller that only
-     * refreshes periodically therefore never sits through the update.
+     * operation (a write, clear, refresh, color-mode change, or sleep) first
+     * completes the outstanding update; a caller that only refreshes
+     * periodically therefore never sits through the update.
      *
      * Dropping the future is safe: the update continues and is completed
-     * by the next operation. A future that outlives the panel simply
-     * observes the BUSY line.
+     * by the next operation. To ask "done yet?" later, keep the future. A
+     * future that outlives the panel simply observes the BUSY line.
      *
      * Baseline handling matches @ref refresh: a @ref refresh_mode::partial
      * request without a baseline is silently promoted to
@@ -441,7 +441,7 @@ public:
      * @return A future that completes when the update finishes. Waiting on
      *         it fails with `errc::timeout` if the BUSY line does not
      *         release within the driver's configured timeout (or the
-     *         timeout given to `wait_for`).
+     *         timeout given to the future's `wait_for`).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure to start the update, including
      *         `errc::invalid_state` if the panel is asleep, and
@@ -450,40 +450,6 @@ public:
      */
     [[nodiscard]] idfxx::future<void> start_refresh(refresh_mode mode = refresh_mode::full) {
         return unwrap(try_start_refresh(mode));
-    }
-
-    /**
-     * @brief Completes any outstanding refresh and waits for BUSY to release.
-     *
-     * Blocks while the controller reports it is busy, up to the driver's
-     * configured default timeout, and finishes any work the driver deferred
-     * from a preceding @ref start_refresh. Useful after dropping a
-     * refresh's future, before driver-specific raw operations, or after
-     * recovering from an error; @ref refresh already waits for completion.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, including `errc::timeout` if
-     *         the BUSY line does not release in time.
-     */
-    void wait() { unwrap(try_wait()); }
-
-    /**
-     * @brief Completes any outstanding refresh and waits for BUSY to
-     *        release, with a timeout.
-     *
-     * As @ref wait, but blocks at most @p timeout. On timeout the deferred
-     * work remains outstanding and is retried by the next operation.
-     *
-     * @tparam Rep     Duration arithmetic type.
-     * @tparam Period  Duration period type.
-     * @param timeout Maximum time to wait.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, including `errc::timeout` if
-     *         the BUSY line does not release in time.
-     */
-    template<typename Rep, typename Period>
-    void wait_for(const std::chrono::duration<Rep, Period>& timeout) {
-        unwrap(try_wait_for(timeout));
     }
 #endif
 
@@ -503,7 +469,9 @@ public:
      *
      * @param mode The refresh style to use.
      * @return Success, or an error.
-     * @retval timeout The BUSY line did not release in time.
+     * @retval timeout The BUSY line did not release in time. The update
+     *         keeps running; the next panel operation waits for it to
+     *         complete before proceeding.
      * @retval invalid_state The panel is asleep.
      * @retval not_supported The driver does not support @p mode in the
      *         current color mode (e.g. `fast`/`partial` in
@@ -521,9 +489,8 @@ public:
      *
      * Starts the physical ink update and returns immediately with an
      * `idfxx::future` that completes when the controller's BUSY line
-     * releases (see @ref start_refresh). The next panel operation, and
-     * @ref try_wait, first complete the outstanding update. Dropping the
-     * future is safe.
+     * releases (see @ref start_refresh). The next panel operation first
+     * completes the outstanding update; dropping the future is safe.
      *
      * @param mode The refresh style to use.
      * @return A future that completes when the update finishes, or an error
@@ -539,40 +506,6 @@ public:
             return error(r.error());
         }
         return _busy_future();
-    }
-
-    /**
-     * @brief Completes any outstanding refresh and waits for BUSY to release.
-     *
-     * Blocks while the controller reports it is busy, up to the driver's
-     * configured default timeout, and finishes any work the driver deferred
-     * from a preceding @ref try_start_refresh. Useful after dropping a
-     * refresh's future, before driver-specific raw operations, or after
-     * recovering from an error; @ref try_refresh already waits for
-     * completion.
-     *
-     * @return Success, or an error.
-     * @retval timeout The BUSY line did not release in time.
-     */
-    [[nodiscard]] result<void> try_wait() { return do_wait(std::nullopt); }
-
-    /**
-     * @brief Completes any outstanding refresh and waits for BUSY to
-     *        release, with a timeout.
-     *
-     * As @ref try_wait, but blocks at most @p timeout. On timeout the
-     * deferred work remains outstanding and is retried by the next
-     * operation.
-     *
-     * @tparam Rep     Duration arithmetic type.
-     * @tparam Period  Duration period type.
-     * @param timeout Maximum time to wait.
-     * @return Success, or an error.
-     * @retval timeout The BUSY line did not release within @p timeout.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_wait_for(const std::chrono::duration<Rep, Period>& timeout) {
-        return do_wait(std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
     // =========================================================================
@@ -844,14 +777,13 @@ protected:
     /// re-initialize it, and restore the current color mode.
     [[nodiscard]] virtual result<void> do_wake() = 0;
 
-    /// Hook for @ref try_wait / @ref try_wait_for, for the completion of
-    /// @ref try_refresh, and for the settle the base performs before every
-    /// controller hook. A `std::nullopt` timeout selects the driver's
-    /// configured default. The default implementation polls the BUSY line
-    /// configured at construction (see @ref wait_busy); a driver that
-    /// defers post-update work from @ref do_refresh overrides this to wait
-    /// for BUSY and then finish that work, leaving it outstanding (to be
-    /// retried) if the wait times out.
+    /// Hook for the settle the base performs before every controller hook,
+    /// and for the completion of @ref try_refresh. A `std::nullopt` timeout
+    /// selects the driver's configured default. The default implementation
+    /// polls the BUSY line configured at construction (see @ref wait_busy);
+    /// a driver that defers post-update work from @ref do_refresh overrides
+    /// this to wait for BUSY and then finish that work, leaving it
+    /// outstanding (to be retried) if the wait times out.
     [[nodiscard]] virtual result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) {
         return wait_busy(timeout);
     }
