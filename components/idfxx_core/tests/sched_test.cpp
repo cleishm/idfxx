@@ -31,6 +31,23 @@ auto measure(Fn&& fn) {
     return std::pair{elapsed, elapsed_ticks};
 }
 
+// Whether `fn` ever completes without the tick count advancing.
+//
+// A tick interrupt can land inside the measurement window whatever `fn` does, so a single
+// zero-tick measurement is not guaranteed even for a call that never blocks. This is common
+// under QEMU, where guest timers follow the host clock and a stalled host shows up in the
+// guest as elapsed ticks. Retry rather than tolerate a tick: a call that returns immediately
+// sees a zero-tick window within a few attempts, while one that blocks never does.
+template<typename Fn>
+bool returns_without_blocking(Fn&& fn) {
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        if (measure(fn).second == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 // =============================================================================
@@ -38,13 +55,11 @@ auto measure(Fn&& fn) {
 // =============================================================================
 
 TEST_CASE("delay() with zero duration returns immediately", "[idfxx][sched]") {
-    auto [elapsed, ticks] = measure([] { idfxx::delay(0ms); });
-    TEST_ASSERT_EQUAL(0, ticks);
+    TEST_ASSERT_TRUE(returns_without_blocking([] { idfxx::delay(0ms); }));
 }
 
 TEST_CASE("delay() with negative duration returns immediately", "[idfxx][sched]") {
-    auto [elapsed, ticks] = measure([] { idfxx::delay(-100ms); });
-    TEST_ASSERT_EQUAL(0, ticks);
+    TEST_ASSERT_TRUE(returns_without_blocking([] { idfxx::delay(-100ms); }));
 }
 
 TEST_CASE("delay() busy-waits sub-tick durations", "[idfxx][sched][hw]") {
@@ -129,8 +144,7 @@ TEST_CASE("delay() works with duration arithmetic", "[idfxx][sched]") {
 TEST_CASE("delay_until() with past time point returns immediately", "[idfxx][sched]") {
     // A time point in the past should not delay at all
     auto past = idfxx::chrono::tick_clock::now() - std::chrono::milliseconds(100);
-    auto [elapsed, ticks] = measure([&] { idfxx::delay_until(past); });
-    TEST_ASSERT_EQUAL(0, ticks);
+    TEST_ASSERT_TRUE(returns_without_blocking([&] { idfxx::delay_until(past); }));
 }
 
 TEST_CASE("delay_until() with future time point delays", "[idfxx][sched]") {
@@ -145,8 +159,7 @@ TEST_CASE("delay_until() with future time point delays", "[idfxx][sched]") {
 
 TEST_CASE("delay_until() with current time returns immediately", "[idfxx][sched]") {
     auto now = idfxx::chrono::tick_clock::now();
-    auto [elapsed, ticks] = measure([&] { idfxx::delay_until(now); });
-    TEST_ASSERT_LESS_OR_EQUAL(1, ticks);
+    TEST_ASSERT_TRUE(returns_without_blocking([&] { idfxx::delay_until(now); }));
 }
 
 // =============================================================================
