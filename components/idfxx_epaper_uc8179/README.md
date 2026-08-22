@@ -119,9 +119,8 @@ modes on the EE05 board.
 ## API Overview
 
 The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
-`wait`, `wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*`
-forms) is inherited from `idfxx::epaper::panel` — see the `idfxx_epaper`
-documentation.
+`set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is inherited
+from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
 
 Driver-specific surface:
 
@@ -154,7 +153,7 @@ Using a moved-from driver object is undefined behavior.
   SSD1680) for several seconds during full refreshes of the 7.5" glass;
   `refresh` blocks on it (with a tick-sleep poll, not a busy-spin).
   `start_refresh` returns while the glass is still driving: the driver
-  then waits for BUSY before the next controller command (or in `wait`).
+  then waits for BUSY before the next controller command.
 - **Memory**: a full-frame `mono_framebuffer` at 800x480 is 48 KB and a
   `gray4_framebuffer` is 96 KB, all DRAM. Grayscale writes additionally
   stage each plane through a transient buffer of up to 48 KB (the

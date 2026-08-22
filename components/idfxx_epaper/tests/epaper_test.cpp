@@ -415,9 +415,4 @@ TEST_CASE("epaper panel settles an outstanding refresh before every controller h
     TEST_ASSERT_FALSE(asleep.has_value());
     TEST_ASSERT_TRUE(display.try_wake().has_value());
     TEST_ASSERT_EQUAL(5, display.waits);
-
-    // Explicit waits reach the hook too.
-    TEST_ASSERT_TRUE(display.try_wait().has_value());
-    TEST_ASSERT_TRUE(display.try_wait_for(std::chrono::milliseconds{0}).has_value());
-    TEST_ASSERT_EQUAL(7, display.waits);
 }

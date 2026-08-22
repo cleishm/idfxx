@@ -131,11 +131,11 @@ display.sleep();
 ```
 
 The panel cannot be commanded while the glass is updating, so the next
-panel operation (`write`, `clear`, `refresh`, `set_color_mode`, `sleep`) and
-`wait()` first complete an outstanding update. A task that refreshes once a
-minute and then sleeps the panel therefore only ever blocks in `sleep()`,
-for whatever part of the update is still running; dropping the future is
-safe.
+panel operation (`write`, `clear`, `refresh`, `set_color_mode`, `sleep`)
+first completes an outstanding update. A task that refreshes once a minute
+and then sleeps the panel therefore only ever blocks in `sleep()`, for
+whatever part of the update is still running; dropping the future is safe.
+To ask "done yet?" later, keep the future.
 
 ### Grayscale
 
@@ -177,9 +177,7 @@ needing a framebuffer, and promotes the next partial refresh to full.
 
 **Refresh:** `refresh(mode = refresh_mode::full)` blocks until the update
 completes; `start_refresh(mode = refresh_mode::full)` returns an
-`idfxx::future<void>` that completes when it does. `wait()` /
-`wait_for(timeout)` complete any outstanding update and wait on the BUSY
-line.
+`idfxx::future<void>` that completes when it does.
 
 **Color mode:** `set_color_mode(color_mode)` switches between `mono` and
 `gray4` operation.

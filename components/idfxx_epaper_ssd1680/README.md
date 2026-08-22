@@ -119,9 +119,8 @@ modes on the EE05 board.
 ## API Overview
 
 The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
-`wait`, `wait_for`, `set_color_mode`, `sleep`, `wake`, and their `try_*`
-forms) is inherited from `idfxx::epaper::panel` — see the `idfxx_epaper`
-documentation.
+`set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is inherited
+from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
 
 Driver-specific surface:
 
@@ -152,7 +151,7 @@ Using a moved-from driver object is undefined behavior.
   milliseconds to seconds during refreshes; `refresh` blocks on it (with a
   tick-sleep poll, not a busy-spin). `start_refresh` returns while the glass
   is still driving: the driver then waits for BUSY and re-arms the
-  previous-image plane before the next controller command (or in `wait`).
+  previous-image plane before the next controller command.
 - **Shadow frame memory**: the driver keeps `(width + 7) / 8 * height`
   bytes of DRAM (~4 KB at 122x250) mirroring the last-written frame, used
   to refresh the controller's previous-image plane after each update.
