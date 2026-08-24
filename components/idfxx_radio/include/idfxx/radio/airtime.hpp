@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <frequency/frequency>
 #include <utility>
 
 namespace idfxx::radio {
@@ -28,33 +29,33 @@ namespace idfxx::radio {
 /// @cond INTERNAL
 namespace airtime_detail {
 
-/// Channel bandwidth in Hz. The two fractional bandwidths return their exact
-/// LoRa values — 15.625 kHz and 31.25 kHz — rather than the rounded kHz that
-/// name the enumerators.
-[[nodiscard]] constexpr uint32_t bandwidth_hz(bandwidth bw) noexcept {
+/// Channel bandwidth. The two fractional bandwidths return their exact LoRa
+/// values — 15.625 kHz and 31.25 kHz — rather than the rounded kHz that name
+/// the enumerators.
+[[nodiscard]] constexpr freq::hertz channel_bandwidth(bandwidth bw) noexcept {
     switch (bw) {
     case bandwidth::bw_7_8:
-        return 7'800;
+        return freq::hertz{7'800};
     case bandwidth::bw_10_4:
-        return 10'400;
+        return freq::hertz{10'400};
     case bandwidth::bw_15_6:
-        return 15'625;
+        return freq::hertz{15'625};
     case bandwidth::bw_20_8:
-        return 20'800;
+        return freq::hertz{20'800};
     case bandwidth::bw_31_25:
-        return 31'250;
+        return freq::hertz{31'250};
     case bandwidth::bw_41_7:
-        return 41'700;
+        return freq::hertz{41'700};
     case bandwidth::bw_62_5:
-        return 62'500;
+        return freq::hertz{62'500};
     case bandwidth::bw_125:
-        return 125'000;
+        return freq::hertz{125'000};
     case bandwidth::bw_250:
-        return 250'000;
+        return freq::hertz{250'000};
     case bandwidth::bw_500:
-        return 500'000;
+        return freq::hertz{500'000};
     }
-    return 125'000; // safe default = 125 kHz
+    return freq::hertz{125'000}; // safe default = 125 kHz
 }
 
 /// Number of LoRa symbols carrying the payload — the `8 + ...` term of the
@@ -133,7 +134,7 @@ namespace airtime_detail {
  */
 [[nodiscard]] constexpr std::chrono::microseconds
 time_on_air(const lora_modulation& mod, const lora_packet_params& pkt, size_t payload_length) noexcept {
-    const uint64_t bw = airtime_detail::bandwidth_hz(mod.bw);
+    const uint64_t bw = static_cast<uint64_t>(airtime_detail::channel_bandwidth(mod.bw).count());
     const uint64_t sf = std::to_underlying(mod.sf);
     const uint32_t n_payload = airtime_detail::payload_symbols(
         mod.sf, mod.cr, pkt.header, pkt.crc_on, mod.low_data_rate_optimize, payload_length

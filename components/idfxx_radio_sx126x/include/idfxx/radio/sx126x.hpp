@@ -72,6 +72,17 @@ namespace idfxx::radio {
  * is selected at construction via `config::variant`; the driver then picks
  * the correct PA-config table and validates output-power range.
  *
+ * A cold start (the default) resets and configures the chip, then confirms
+ * a chip is actually answering on the bus — construction fails with
+ * `errc::not_found` otherwise. `config::warm_start` skips that check along
+ * with the rest of bring-up; use the inherited @ref lora_transceiver::probe
+ * to run it explicitly. The probe round-trips the LoRa sync-word register
+ * and restores it, so it is safe at any point the data path is idle; a
+ * sleeping chip is woken by it and left in standby. On a warm-started driver
+ * whose chip may still be listening autonomously, call
+ * @ref lora_transceiver::standby first — the probe's SPI traffic would end
+ * the listen.
+ *
  * Move-only and non-copyable, like the rest of idfxx. The destructor
  * tears down the worker task, removes the DIO1 ISR, and puts the chip in
  * sleep mode.
@@ -555,6 +566,7 @@ private:
     [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
     [[nodiscard]] result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) override;
     [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;
+    [[nodiscard]] result<void> do_probe() override;
     [[nodiscard]] result<packet_status> do_last_packet_status() override;
     [[nodiscard]] result<electro::centi_dbm> do_current_rssi() override;
     [[nodiscard]] std::chrono::microseconds do_rx_duty_cycle_min_sleep() const noexcept override;

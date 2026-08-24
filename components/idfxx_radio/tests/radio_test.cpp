@@ -85,6 +85,9 @@ static_assert(std::is_same_v<
               idfxx::result<rx_info>>);
 static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_scan_channel()), idfxx::result<cad_info>>);
 
+// Chip-presence verification is part of the chip-agnostic interface.
+static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_probe()), idfxx::result<void>>);
+
 // =============================================================================
 // Time-on-air (airtime.hpp)
 //
@@ -171,6 +174,14 @@ static_assert(
     !rx_duty_cycle_for({.sf = spreading_factor::sf7, .bw = bandwidth::bw_500}, 20, 8, std::chrono::microseconds{2000})
          .has_value()
 );
+
+// min_sleep takes any duration unit, rounded up to whole microseconds: the
+// same link's 1024 µs sleep window clears a 1024000 ns floor but not 1024001.
+constexpr lora_modulation sf7_bw500{.sf = spreading_factor::sf7, .bw = bandwidth::bw_500};
+static_assert(rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::nanoseconds{1'024'000}).has_value());
+static_assert(!rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::nanoseconds{1'024'001}).has_value());
+static_assert(!rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::milliseconds{2}).has_value());
+static_assert(!rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::duration<double, std::milli>{1.5}).has_value());
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)

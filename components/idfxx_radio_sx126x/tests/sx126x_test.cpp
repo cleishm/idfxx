@@ -9,6 +9,9 @@
 #include "idfxx/radio/sx126x"
 #include "unity.h"
 
+#include <idfxx/gpio>
+#include <idfxx/spi/master>
+
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -46,6 +49,9 @@ static_assert(std::is_default_constructible_v<sx126x::tcxo_config>);
 static_assert(std::is_same_v<decltype(sx126x::config::dio1_mask), std::optional<idfxx::flags<sx126x::irq_flag>>>);
 static_assert(std::is_same_v<decltype(&sx126x::try_adopt_pending), idfxx::result<std::optional<rx_info>> (sx126x::*)()>
 );
+
+// Chip-presence verification is inherited from the chip-agnostic interface.
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_probe()), idfxx::result<void>>);
 
 // irq_flag has the documented bit layout.
 static_assert(std::to_underlying(sx126x::irq_flag::tx_done) == (1 << 0));
@@ -233,4 +239,70 @@ TEST_CASE("pack_rx_duty_cycle lays out rx then sleep, MSB first", "[idfxx][radio
     auto p = codec::pack_rx_duty_cycle(std::chrono::microseconds{1000}, std::chrono::microseconds{15625});
     const std::array<uint8_t, 6> expected{0x00, 0x00, 0x40, 0x00, 0x03, 0xE8};
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected.data(), p.data(), expected.size());
+}
+
+// =============================================================================
+// Hardware-dependent tests: chip presence with nothing attached
+//
+// Use the pins the SPI hardware tests already treat as unpopulated. BUSY is
+// pulled low to model the absent-chip case where the line reads "ready" and
+// bring-up would otherwise succeed blind; the driver only sets the pin's
+// direction, so the pull persists. GPIO 4/5 are free inputs on the test board.
+// =============================================================================
+
+namespace {
+
+idfxx::spi::master_bus make_unpopulated_bus() {
+    idfxx::spi::bus_config cfg{};
+    cfg.mosi = idfxx::gpio_11;
+    cfg.miso = idfxx::gpio_13;
+    cfg.sclk = idfxx::gpio_12;
+    auto r = idfxx::spi::master_bus::make(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, cfg);
+    TEST_ASSERT_TRUE(r.has_value());
+    return std::move(*r);
+}
+
+sx126x::config no_chip_config() {
+    idfxx::gpio busy = idfxx::gpio_4;
+    TEST_ASSERT_TRUE(busy.try_set_pull_mode(idfxx::gpio::pull_mode::pulldown).has_value());
+    return {
+        .cs = idfxx::gpio_10,
+        .busy = busy,
+        .dio1 = idfxx::gpio_5,
+        .nreset = idfxx::gpio::nc(),
+    };
+}
+
+// The driver installs a DIO1 ISR, which needs the GPIO ISR service.
+struct isr_service_guard {
+    bool installed = idfxx::gpio::try_install_isr_service().has_value();
+    ~isr_service_guard() {
+        if (installed) {
+            idfxx::gpio::uninstall_isr_service();
+        }
+    }
+};
+
+} // namespace
+
+TEST_CASE("sx126x::make with no chip attached reports not_found", "[idfxx][radio][sx126x][hw]") {
+    isr_service_guard isr;
+    auto bus = make_unpopulated_bus();
+    auto radio = sx126x::make(bus, no_chip_config());
+    TEST_ASSERT_FALSE(radio.has_value());
+    TEST_ASSERT_TRUE(radio.error() == idfxx::errc::not_found);
+}
+
+TEST_CASE("sx126x::try_probe with no chip attached reports not_found", "[idfxx][radio][sx126x][hw]") {
+    isr_service_guard isr;
+    auto bus = make_unpopulated_bus();
+    // A warm start issues no SPI traffic, so construction succeeds without a
+    // chip; the explicit probe is what finds it missing.
+    auto cfg = no_chip_config();
+    cfg.warm_start = true;
+    auto radio = sx126x::make(bus, cfg);
+    TEST_ASSERT_TRUE(radio.has_value());
+    auto probed = radio->try_probe();
+    TEST_ASSERT_FALSE(probed.has_value());
+    TEST_ASSERT_TRUE(probed.error() == idfxx::errc::not_found);
 }
