@@ -46,7 +46,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_radio:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_radio` to the `REQUIRES` list in your component's
@@ -158,7 +158,8 @@ packet's air-time), `transmit(span, timeout)`, `receive(span, timeout)`,
 accepting `std::optional<rx_duty_cycle>` with continuous fallback), paired
 with `read_received`.
 
-**Status:** `last_packet_status`, `current_rssi`.
+**Status:** `probe` (confirms the chip is present and answering),
+`last_packet_status`, `current_rssi`.
 
 **Air-time:** `radio.time_on_air(payload_length)` — the packet's on-air
 duration under the configured link parameters — or the `constexpr` free
@@ -208,8 +209,9 @@ truncated, and reported as `errc::invalid_size`; timed-out blocking operations
 return `errc::timeout`. Out-of-range parameters (e.g. an unsupported output power for
 a particular chip variant) return `errc::invalid_arg`. A future whose
 operation is cancelled by a mode change (`standby`/`sleep`) before completing
-reports `errc::not_finished`. Using a moved-from driver object is undefined
-behavior.
+reports `errc::not_finished`. `probe` reports `errc::not_found` when no chip
+answers, as does `read_received` when no packet is queued. Using a moved-from
+driver object is undefined behavior.
 
 ## Important Notes
 

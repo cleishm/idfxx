@@ -875,6 +875,29 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
+     * @brief Confirms the radio chip is present and answering.
+     *
+     * A driver can bring up with nothing attached — an idle bus can look like
+     * a ready chip — so this exchanges data with the chip in a way a missing
+     * or unresponsive chip cannot satisfy, leaving the radio's configuration
+     * unchanged. Cold-start construction of a driver performs this check
+     * itself; call it explicitly after a warm start, or at any later point to
+     * confirm the chip is still answering. A sleeping radio may need to be
+     * woken to answer; it is then left in standby (see @ref current_mode).
+     *
+     * @pre No transmit, receive, or channel scan is in flight.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::not_found` if no
+     *         chip answers.
+     *
+     * @code
+     * idfxx::radio::sx126x radio(bus, {..., .nreset = idfxx::gpio::nc(), .warm_start = true});
+     * radio.probe();  // throws if the module is missing
+     * @endcode
+     */
+    void probe() { unwrap(try_probe()); }
+
+    /**
      * @brief Returns detailed status for the most recent packet.
      * @return Packet status (RSSI, SNR, signal RSSI).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -890,6 +913,19 @@ public:
      */
     [[nodiscard]] electro::centi_dbm current_rssi() { return unwrap(try_current_rssi()); }
 #endif
+
+    /**
+     * @brief Confirms the radio chip is present and answering.
+     *
+     * Exchanges data with the chip in a way a missing or unresponsive chip
+     * cannot satisfy, leaving the radio's configuration unchanged. A sleeping
+     * radio may need to be woken to answer; it is then left in standby.
+     *
+     * @return Success if a chip answers, or an error.
+     * @retval not_found No chip answered.
+     * @retval invalid_state A transmit, receive, or scan is in flight.
+     */
+    [[nodiscard]] result<void> try_probe() { return do_probe(); }
 
     /**
      * @brief Returns detailed status for the most recent packet.
@@ -987,6 +1023,12 @@ protected:
     /// popped and discarded) if it is larger than the buffer — never truncate.
     [[nodiscard]] virtual result<rx_info> do_read_received(std::span<uint8_t> buffer) = 0;
 
+    /// Hook for @ref try_probe. Must exchange data with the chip in a way an
+    /// absent or unresponsive chip cannot satisfy (e.g. round-trip a register),
+    /// report `errc::not_found` if it cannot, and leave the chip's
+    /// configuration unchanged. If the chip has to be woken to answer, leave
+    /// it in standby and reflect that in @ref do_current_mode.
+    [[nodiscard]] virtual result<void> do_probe() = 0;
     /// Hook for @ref try_last_packet_status.
     [[nodiscard]] virtual result<packet_status> do_last_packet_status() = 0;
     /// Hook for @ref try_current_rssi.

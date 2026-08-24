@@ -53,6 +53,8 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  * shorter than @p min_sleep. The caller should then use continuous receive;
  * passing the result straight to `lora_transceiver::start_listening` does exactly that.
  *
+ * @tparam Rep            Representation type of @p min_sleep.
+ * @tparam Period         Period (tick unit) of @p min_sleep.
  * @param mod             Modulation parameters (spreading factor and
  *                        bandwidth are used).
  * @param sender_preamble Preamble length, in symbols, that senders on this
@@ -60,7 +62,8 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  * @param min_symbols     Minimum preamble symbols the radio must observe to
  *                        detect a packet; must be at least 1. Increase for
  *                        margin at the cost of longer listen windows.
- * @param min_sleep       Shortest sleep window worth duty-cycling for.
+ * @param min_sleep       Shortest sleep window worth duty-cycling for, in any
+ *                        duration unit (rounded up to whole microseconds).
  *                        Below this the radio spends the window transitioning
  *                        in and out of sleep instead of saving power; add the
  *                        oscillator start-up time (e.g. the TCXO delay on
@@ -77,11 +80,12 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  * radio.start_listening(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
  * @endcode
  */
+template<typename Rep = std::chrono::microseconds::rep, typename Period = std::chrono::microseconds::period>
 [[nodiscard]] constexpr std::optional<rx_duty_cycle> rx_duty_cycle_for(
     const lora_modulation& mod,
     uint16_t sender_preamble,
     uint16_t min_symbols = 8,
-    std::chrono::microseconds min_sleep = default_min_rx_sleep
+    const std::chrono::duration<Rep, Period>& min_sleep = default_min_rx_sleep
 ) noexcept {
     if (min_symbols == 0 || 2 * static_cast<uint32_t>(min_symbols) >= sender_preamble) {
         return std::nullopt;
@@ -90,22 +94,21 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
     // Symbol duration Tsym = 2^SF / BW. Durations are computed as
     // n·2^SF·1e6 / BW in integer arithmetic, rounding the sleep window down
     // (wake early) and the listen window up (listen longer).
-    const int64_t bw = airtime_detail::bandwidth_hz(mod.bw);
+    const int64_t bw = airtime_detail::channel_bandwidth(mod.bw).count();
     const int64_t sym_x_1e6 = (int64_t{1} << std::to_underlying(mod.sf)) * 1'000'000;
-    const auto symbols_floor = [&](int64_t n) { return n * sym_x_1e6 / bw; };
-    const auto symbols_ceil = [&](int64_t n) { return (n * sym_x_1e6 + bw - 1) / bw; };
+    const auto symbols_floor = [&](int64_t n) { return std::chrono::microseconds{n * sym_x_1e6 / bw}; };
+    const auto symbols_ceil = [&](int64_t n) { return std::chrono::microseconds{(n * sym_x_1e6 + bw - 1) / bw}; };
 
-    const int64_t sleep_us = symbols_floor(sender_preamble - 2 * min_symbols);
-    if (sleep_us < min_sleep.count()) {
+    const auto sleep = symbols_floor(sender_preamble - 2 * min_symbols);
+    if (sleep < std::chrono::ceil<std::chrono::microseconds>(min_sleep)) {
         return std::nullopt;
     }
 
-    constexpr int64_t margin_us = 1'000;
-    const int64_t worst_case_us = (symbols_ceil(sender_preamble + 1) - (sleep_us - margin_us) + 1) / 2;
-    const int64_t detect_us = symbols_ceil(min_symbols + 1);
-    const int64_t rx_us = worst_case_us > detect_us ? worst_case_us : detect_us;
+    constexpr std::chrono::milliseconds margin{1};
+    const auto worst_case = (symbols_ceil(sender_preamble + 1) - (sleep - margin) + std::chrono::microseconds{1}) / 2;
+    const auto detect = symbols_ceil(min_symbols + 1);
 
-    return rx_duty_cycle{std::chrono::microseconds{rx_us}, std::chrono::microseconds{sleep_us}};
+    return rx_duty_cycle{worst_case > detect ? worst_case : detect, sleep};
 }
 
 } // namespace idfxx::radio

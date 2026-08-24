@@ -179,6 +179,9 @@ your module uses a plain crystal.
 **Construction:**
 - `make(bus, config)` — result-based.
 - `sx126x(bus, config)` — exception-based.
+- A cold start fails with `errc::not_found` if no chip answers on the bus;
+  the inherited `probe()` re-checks at any later point (e.g. after a warm
+  start).
 
 **Variant:**
 - `chip_variant::sx1261` (max +15 dBm), `chip_variant::sx1262` (max +22 dBm),
@@ -232,6 +235,8 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 - `errc::invalid_arg` — requested output power is outside the variant's
   supported range, or a configuration value is out of range.
 - `errc::invalid_state` — operation called in an incompatible state.
+- `errc::not_found` — no chip answered on the SPI bus (cold-start construction
+  or `probe()`), or `read_received` found no packet queued.
 - `errc::invalid_crc` — received packet failed its CRC check.
 - `errc::invalid_size` — received packet was larger than the buffer supplied
   to `receive`/`start_receive`/`read_received`; it is discarded, not truncated.
@@ -245,8 +250,14 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 - The constructor pulses NRESET, waits for BUSY low, applies a default LoRa
   configuration (sync word `0x3444`, buffer base 0/0), the variant's
   `SetPaConfig` table, and — when `config::tcxo` is set — a full chip
-  calibration. `set_frequency` additionally runs an image calibration for the
-  target band.
+  calibration, then round-trips the sync-word register to confirm a chip is
+  actually answering (a floating BUSY line can otherwise let bring-up succeed
+  with nothing attached). `set_frequency` additionally runs an image
+  calibration for the target band.
+- `config::warm_start` skips the presence check along with the rest of
+  bring-up. Call `probe()` to run it explicitly — after `standby()` in the
+  wake-on-radio flow below, since its SPI traffic would end an autonomous
+  listen. Probing a sleeping chip wakes it and leaves it in standby.
 - Events are only posted if you supply `config::loop` (your own loop or
   `event_loop::system()`). With no loop, blocking `transmit`/`receive` still
   work; events are simply dropped.

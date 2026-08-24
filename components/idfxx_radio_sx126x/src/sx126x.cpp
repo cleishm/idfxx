@@ -261,6 +261,36 @@ result<void> apply_default_config(sx126x::state& s) {
     return {};
 }
 
+// Confirms a chip is answering by round-tripping the LoRa sync-word register
+// (reg 0x0740, table 12-1): write whichever standard sync word differs from
+// the current contents, read it back, then restore. An absent chip returns the
+// bus's idle level (or, with MISO looped back to MOSI, the NOPs) whichever
+// value was written, so no fixed bus state can fake the echo. Both values are
+// ones the driver already writes, so nothing is assumed about undocumented bits.
+result<void> probe_chip(sx126x::state& s) {
+    std::array<uint8_t, 2> saved{};
+    if (auto e = s.read_register(internal::reg_lora_sync_word_msb, saved); !e) {
+        return e;
+    }
+    const auto pattern = internal::pack_sync_word(
+        saved == internal::pack_sync_word(sync_word_public) ? sync_word_private : sync_word_public
+    );
+    if (auto e = s.write_register(internal::reg_lora_sync_word_msb, pattern); !e) {
+        return e;
+    }
+    std::array<uint8_t, 2> echo{};
+    auto read = s.read_register(internal::reg_lora_sync_word_msb, echo);
+    // Restore before reporting so the caller's sync word survives a failed probe.
+    auto restore = s.write_register(internal::reg_lora_sync_word_msb, saved);
+    if (!read) {
+        return read;
+    }
+    if (!restore) {
+        return restore;
+    }
+    return echo == pattern ? result<void>{} : error(errc::not_found);
+}
+
 // Hardware reset via the active-low NRESET pin (DS §8.1 Reset): drive it low
 // briefly, release, then wait for the chip to finish booting (BUSY low).
 result<void> reset_chip(sx126x::state& s) {
@@ -669,6 +699,15 @@ result<sx126x> sx126x::make(spi::master_bus& bus, config cfg) {
         if (auto e = apply_default_config(*s); !e) {
             return error(e.error());
         }
+
+        // Bring-up succeeds blind when nothing is attached and BUSY reads
+        // ready, so confirm a chip actually answered before handing it over.
+        if (auto e = probe_chip(*s); !e) {
+            if (e.error() == errc::not_found) {
+                ESP_LOGE(TAG, "no SX126x answered on the SPI bus");
+            }
+            return error(e.error());
+        }
     }
 
     s->mode = chip_mode::stdby;
@@ -1035,6 +1074,28 @@ result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {
 // =============================================================================
 // Status
 // =============================================================================
+
+result<void> sx126x::do_probe() {
+    if (!_state) {
+        return error(errc::invalid_state);
+    }
+    auto& s = *_state;
+    // Hold `mu` across the round-trip so no data-path operation can claim the
+    // chip while the sync word holds the probe pattern. Lock order mu -> spi_mu
+    // matches the worker's drain path.
+    std::lock_guard g(s.mu);
+    if (s.driver_state != internal::driver_activity::idle) {
+        return error(errc::invalid_state);
+    }
+    const bool was_asleep = s.mode.load(std::memory_order_relaxed) == chip_mode::sleep;
+    auto r = probe_chip(s);
+    if (was_asleep) {
+        // The first SPI frame's NSS edge woke the chip into STDBY_RC (DS §9.3);
+        // keep the mode bookkeeping (and the worker's poll gating) honest.
+        s.mode = chip_mode::stdby;
+    }
+    return r;
+}
 
 result<packet_status> sx126x::do_last_packet_status() {
     if (!_state) {
