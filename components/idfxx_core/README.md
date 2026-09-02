@@ -8,7 +8,7 @@ Core utilities for the idfxx component family, providing foundational error hand
 
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
-- **Chrono utilities** for FreeRTOS tick conversions
+- **Chrono utilities** — FreeRTOS tick conversions, and `std::chrono` clocks over the tick count and the RTC timer
 - **Scheduling utilities** — `delay()`, `delay_until()`, `delay(next_tick)`, `yield()`
 - **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
 - **System information** — reset reason, restart, shutdown handlers
@@ -68,6 +68,30 @@ using namespace std::chrono_literals;
 
 TickType_t timeout = idfxx::chrono::ticks(100ms);
 xQueueReceive(queue, &item, timeout);
+```
+
+### RTC Clock
+
+`rtc_clock` counts from the last power-on reset and keeps running through deep sleep and
+every other kind of reset, so time points survive where `std::chrono::steady_clock` (which
+restarts at every boot) does not:
+
+```cpp
+#include <idfxx/chrono>
+#include <chrono>
+
+using namespace std::chrono_literals;
+using idfxx::chrono::rtc_clock;
+
+// Time since power-on, including time spent in deep sleep
+auto uptime = rtc_clock::now().time_since_epoch();
+
+// Rate-limit an action across deep-sleep cycles: the time point lives in RTC memory
+RTC_DATA_ATTR static rtc_clock::time_point last_report;
+if (rtc_clock::now() - last_report >= 1h) {
+    send_report();
+    last_report = rtc_clock::now();
+}
 ```
 
 ### Scheduling
@@ -162,6 +186,7 @@ bool ok = memory::check_integrity();
 
 - `ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
 - `tick_clock` - `std::chrono` clock over the FreeRTOS tick count
+- `rtc_clock` - `std::chrono` clock over the RTC timer: microsecond resolution, counts from power-on, keeps running through deep sleep and resets
 
 ### Scheduling (`<idfxx/sched>`)
 
@@ -238,6 +263,10 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
 - `result<T>` is the standard return type for fallible operations across idfxx
 - Memory allocators are stateless and can be used with standard containers
 - Chrono conversions handle overflow by clamping to `portMAX_DELAY`
+- **`rtc_clock` accuracy follows the RTC slow clock source**: the default internal RC
+  oscillator drifts with temperature, so long intervals measured across sleep drift with it.
+  Select an external 32 kHz crystal in the project configuration when timing across sleep
+  needs to be accurate
 - **`delay()` busy-waits below one tick**: durations shorter than the scheduler tick
   (`1 / CONFIG_FREERTOS_HZ`, 10 ms by default) spin the CPU for precision instead of blocking.
   Never use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which
