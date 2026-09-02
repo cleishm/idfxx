@@ -5,9 +5,12 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/chrono"
+#include "idfxx/sched"
 #include "unity.h"
 
 #include <chrono>
+#include <cstdint>
+#include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <type_traits>
 
@@ -104,4 +107,60 @@ TEST_CASE("ticks() handles duration arithmetic", "[idfxx][chrono]") {
 TEST_CASE("ticks() with hours", "[idfxx][chrono]") {
     TickType_t ticks_1h = ticks(1h);
     TEST_ASSERT_EQUAL(pdMS_TO_TICKS(3600000), ticks_1h);
+}
+
+// =============================================================================
+// Clocks
+// =============================================================================
+
+// Both clocks satisfy the C++20 Clock requirements
+static_assert(std::chrono::is_clock_v<tick_clock>);
+static_assert(std::chrono::is_clock_v<rtc_clock>);
+
+// rtc_clock counts microseconds in a signed 64-bit representation
+static_assert(std::is_same_v<rtc_clock::duration, std::chrono::microseconds>);
+static_assert(std::is_same_v<rtc_clock::period, std::micro>);
+static_assert(std::is_signed_v<rtc_clock::rep>);
+static_assert(sizeof(rtc_clock::rep) >= 8);
+static_assert(rtc_clock::is_steady);
+static_assert(std::is_same_v<decltype(rtc_clock::now()), rtc_clock::time_point>);
+static_assert(noexcept(rtc_clock::now()));
+
+// A time_point is constant-initialized, so it can live in RTC memory and survive deep sleep
+RTC_DATA_ATTR constinit static rtc_clock::time_point rtc_saved_time_point;
+
+TEST_CASE("rtc_clock::now() has advanced since power-on", "[idfxx][chrono]") {
+    TEST_ASSERT_TRUE(rtc_clock::now().time_since_epoch() > rtc_clock::duration::zero());
+}
+
+TEST_CASE("rtc_clock::now() never runs backwards", "[idfxx][chrono]") {
+    auto previous = rtc_clock::now();
+    for (int i = 0; i < 1000; ++i) {
+        auto current = rtc_clock::now();
+        TEST_ASSERT_TRUE(current >= previous);
+        previous = current;
+    }
+}
+
+TEST_CASE("rtc_clock tracks steady_clock", "[idfxx][chrono]") {
+    auto rtc_start = rtc_clock::now();
+    auto steady_start = std::chrono::steady_clock::now();
+    idfxx::delay(200ms);
+    auto rtc_elapsed = rtc_clock::now() - rtc_start;
+    auto steady_elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - steady_start);
+
+    // The RTC slow clock is calibrated at boot but is not a precision source, and QEMU's
+    // emulation of it runs about 10% fast. The tolerance only needs to catch scale errors.
+    auto rtc_us = static_cast<int32_t>(rtc_elapsed.count());
+    auto steady_us = static_cast<int32_t>(steady_elapsed.count());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(150'000, rtc_us);
+    TEST_ASSERT_INT32_WITHIN(steady_us / 4, steady_us, rtc_us);
+}
+
+TEST_CASE("rtc_clock time_point round-trips through RTC memory", "[idfxx][chrono]") {
+    auto now = rtc_clock::now();
+    rtc_saved_time_point = now;
+    TEST_ASSERT_TRUE(rtc_saved_time_point == now);
+    TEST_ASSERT_TRUE(rtc_clock::now() - rtc_saved_time_point >= rtc_clock::duration::zero());
 }
