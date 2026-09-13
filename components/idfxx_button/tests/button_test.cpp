@@ -36,6 +36,7 @@ static_assert(std::to_underlying(button::event_type::pressed) == 0);
 static_assert(std::to_underlying(button::event_type::released) == 1);
 static_assert(std::to_underlying(button::event_type::clicked) == 2);
 static_assert(std::to_underlying(button::event_type::long_press) == 3);
+static_assert(std::to_underlying(button::event_type::extended_press) == 4);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -51,6 +52,7 @@ TEST_CASE("button::config default values", "[idfxx][button]") {
     TEST_ASSERT_FALSE(cfg.autorepeat);
     TEST_ASSERT_EQUAL(50'000, cfg.dead_time.count());
     TEST_ASSERT_EQUAL(1'000'000, cfg.long_press_time.count());
+    TEST_ASSERT_EQUAL(0, cfg.extended_press_time.count());
     TEST_ASSERT_EQUAL(500'000, cfg.autorepeat_timeout.count());
     TEST_ASSERT_EQUAL(250'000, cfg.autorepeat_interval.count());
     TEST_ASSERT_EQUAL(10'000, cfg.poll_interval.count());
@@ -71,6 +73,27 @@ TEST_CASE("button::make with disconnected pin fails", "[idfxx][button]") {
     });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
+}
+
+TEST_CASE("button::make with extended press not beyond long press fails", "[idfxx][button]") {
+    auto result = button::make({
+        .pin = gpio_4,
+        .long_press_time = std::chrono::milliseconds{1000},
+        .extended_press_time = std::chrono::milliseconds{1000},
+        .callback = [](button::event_type) {},
+    });
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
+}
+
+TEST_CASE("button::make succeeds with extended press beyond long press", "[idfxx][button][hw]") {
+    auto result = button::make({
+        .pin = gpio_4,
+        .long_press_time = std::chrono::milliseconds{1000},
+        .extended_press_time = std::chrono::milliseconds{5000},
+        .callback = [](button::event_type) {},
+    });
+    TEST_ASSERT_TRUE(result.has_value());
 }
 
 TEST_CASE("button::make succeeds with valid config", "[idfxx][button][hw]") {

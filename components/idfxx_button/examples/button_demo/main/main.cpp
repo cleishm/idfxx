@@ -36,6 +36,8 @@ extern "C" void app_main() {
             case idfxx::button::event_type::long_press:
                 long_press_count.fetch_add(1, std::memory_order_relaxed);
                 break;
+            case idfxx::button::event_type::extended_press:
+                break;
             }
         },
     });
