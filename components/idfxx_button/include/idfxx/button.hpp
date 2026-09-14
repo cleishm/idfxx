@@ -54,16 +54,19 @@ public:
      *   pressed -> released -> clicked
      * and for a long press:
      *   pressed -> long_press -> released
+     * and, when extended_press_time is set (non-zero), for a press held beyond it:
+     *   pressed -> long_press -> extended_press -> released
      *
-     * When autorepeat is enabled, long press detection is disabled. Instead,
+     * When autorepeat is enabled, long and extended press detection are disabled. Instead,
      * holding the button generates repeated clicked events:
      *   pressed -> clicked -> clicked -> ... -> released
      */
     enum class event_type : int {
-        pressed = 0,    ///< Button pressed
-        released = 1,   ///< Button released
-        clicked = 2,    ///< Short press completed (pressed then released)
-        long_press = 3, ///< Button held beyond long-press threshold
+        pressed = 0,        ///< Button pressed
+        released = 1,       ///< Button released
+        clicked = 2,        ///< Short press completed (pressed then released)
+        long_press = 3,     ///< Button held beyond long-press threshold
+        extended_press = 4, ///< Button held beyond extended-press threshold
     };
 
     /**
@@ -91,6 +94,7 @@ public:
         bool autorepeat = false;                                            ///< Enable autorepeat (disables long press)
         std::chrono::microseconds dead_time{std::chrono::milliseconds{50}}; ///< Debounce delay
         std::chrono::microseconds long_press_time{std::chrono::milliseconds{1000}};    ///< Long press threshold
+        std::chrono::microseconds extended_press_time{0};                              ///< Extended press threshold
         std::chrono::microseconds autorepeat_timeout{std::chrono::milliseconds{500}};  ///< Autorepeat start delay
         std::chrono::microseconds autorepeat_interval{std::chrono::milliseconds{250}}; ///< Autorepeat repeat interval
         std::chrono::microseconds poll_interval{std::chrono::milliseconds{10}};        ///< Polling interval
@@ -104,7 +108,8 @@ public:
      * @param cfg Button configuration. pin and callback must be set.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
-     * @throws std::system_error with errc::invalid_arg if pin is not connected, or callback is not set.
+     * @throws std::system_error with errc::invalid_arg if pin is not connected, callback is not set, or
+     *         extended_press_time is set but not beyond long_press_time.
      */
     [[nodiscard]] explicit button(config cfg);
 #endif
@@ -114,7 +119,8 @@ public:
      *
      * @param cfg Button configuration. pin and callback must be set.
      * @return The new button, or an error.
-     * @retval invalid_arg pin is not connected, or callback is not set.
+     * @retval invalid_arg pin is not connected, callback is not set, or extended_press_time is set but not
+     *         beyond long_press_time.
      */
     [[nodiscard]] static result<button> make(config cfg);
 

@@ -6,10 +6,10 @@ GPIO push-button driver with debounce and event detection for ESP32.
 
 - **Debounced button input** with configurable dead time
 - **Click detection** distinguishing short press from long press
-- **Long press detection** with configurable threshold
+- **Long press detection** with configurable threshold, and an optional extended press beyond it
 - **Autorepeat mode** for repeated click events while held
 - **Polling and interrupt modes** for button state detection
-- **Event-driven callbacks** for press, release, click, and long press
+- **Event-driven callbacks** for press, release, click, long press, and extended press
 - **Type-safe configuration** with std::chrono durations and idfxx::gpio pins
 
 ## Requirements
@@ -103,6 +103,7 @@ if (!btn) {
 - `event_type::released` - Button released
 - `event_type::clicked` - Short press completed (pressed then released)
 - `event_type::long_press` - Button held beyond long-press threshold
+- `event_type::extended_press` - Button held beyond extended-press threshold (when `extended_press_time` is set)
 
 ### Detection Modes
 
@@ -119,6 +120,7 @@ Key configuration options:
 - `autorepeat` - Enable autorepeat mode (default: false, mutually exclusive with long press)
 - `dead_time` - Debounce delay (default: 50ms)
 - `long_press_time` - Long press threshold (default: 1000ms)
+- `extended_press_time` - Extended press threshold, beyond `long_press_time` (default: 0, disabled)
 - `autorepeat_timeout` - Autorepeat start delay (default: 500ms)
 - `autorepeat_interval` - Autorepeat repeat interval (default: 250ms)
 - `poll_interval` - Polling interval (default: 10ms)
@@ -130,14 +132,15 @@ The `make()` factory returns `idfxx::result<button>`. The exception-based constr
 
 Error codes from `idfxx::errc`:
 
-- `invalid_arg` - Pin is not connected, or callback is not set
+- `invalid_arg` - Pin is not connected, callback is not set, or `extended_press_time` is set but not beyond `long_press_time`
 
 ## Important Notes
 
 - **Non-copyable/move-only**: Button is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops monitoring and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the button API.
-- **Autorepeat vs long press**: These modes are mutually exclusive. When autorepeat is enabled, long press detection is disabled.
+- **Autorepeat vs long press**: These modes are mutually exclusive. When autorepeat is enabled, long and extended press detection are disabled.
+- **Extended press**: A press held beyond `extended_press_time` reports `pressed -> long_press -> extended_press -> released`; one released between the two thresholds reports `pressed -> long_press -> released`. Neither reports `clicked`.
 - **Interrupt mode**: When using `mode::interrupt`, the GPIO ISR service must be installed before creating the button (via `idfxx::gpio::install_isr_service()`).
 
 ## License

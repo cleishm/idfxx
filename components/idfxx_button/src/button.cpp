@@ -15,7 +15,7 @@ static const char* TAG = "idfxx_button";
 
 namespace {
 
-enum class button_state { released, pressed, pressed_long };
+enum class button_state { released, pressed, pressed_long, pressed_extended };
 
 struct button_context {
     // Config
@@ -64,6 +64,10 @@ void poll_button(button_context* ctx) {
         if (ctx->state == button_state::pressed && ctx->pressed_time >= ctx->cfg.long_press_time) {
             ctx->state = button_state::pressed_long;
             ctx->cfg.callback(button::event_type::long_press);
+        } else if (ctx->state == button_state::pressed_long && ctx->cfg.extended_press_time.count() != 0 &&
+                   ctx->pressed_time >= ctx->cfg.extended_press_time) {
+            ctx->state = button_state::pressed_extended;
+            ctx->cfg.callback(button::event_type::extended_press);
         }
     } else if (ctx->state != button_state::released) {
         bool clicked = ctx->state == button_state::pressed &&
@@ -118,6 +122,10 @@ result<button> button::make(config cfg) {
     }
     if (!cfg.callback) {
         ESP_LOGD(TAG, "Field 'callback' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (cfg.extended_press_time.count() != 0 && cfg.extended_press_time <= cfg.long_press_time) {
+        ESP_LOGD(TAG, "Field 'extended_press_time' has an invalid value");
         return error(errc::invalid_arg);
     }
 
