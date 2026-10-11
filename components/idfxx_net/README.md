@@ -262,7 +262,7 @@ auto r = sock.try_send(buf);
 if (!r) {
     if (r.error() == idfxx::net::errc::operation_would_block ||
         r.error() == std::errc::operation_would_block) {
-        // ...
+        // Non-blocking socket with no buffer space: retry later.
     }
 }
 ```
@@ -293,8 +293,18 @@ on an IPv6 datagram socket).
   of the returned handle — doing so desynchronizes the wrapper's invariants.
 - **DNS**: by default a single address is returned per query. Enable
   `CONFIG_LWIP_USE_ESP_GETADDRINFO` to receive multiple records.
+- **Timeouts vs. non-blocking mode**: on a blocking socket, an expired
+  receive or send timeout (`set_recv_timeout` / `set_send_timeout`, which on a
+  `listener` bounds `accept`) fails the call with `errc::timed_out`. A
+  non-blocking socket with no data, buffer space, or pending connection fails
+  immediately with `errc::operation_would_block` instead.
 - **Timeout resolution**: receive and send timeouts have millisecond
   resolution; finer-grained `chrono` durations are rounded up.
+- **Stream receive**: `recv` with an empty buffer returns an empty span at once
+  without receiving; pass a non-empty buffer to detect the peer closing the
+  connection. If `recv_exact` fails part-way (for example on a timeout), an
+  unspecified number of bytes have been consumed and the position in the
+  stream is no longer known.
 - **Interface names**: `bind_to_device` enforces an interface-name length
   limit; longer names return `errc::invalid_argument`.
 - **Netconn**: prefer the BSD socket API for most uses; the Netconn types

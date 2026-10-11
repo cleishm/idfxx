@@ -269,7 +269,7 @@ result<size_t> stream_socket::try_send(std::span<const std::byte> buf) {
     }
     ssize_t n = lwip_send(_fd, buf.data(), buf.size(), 0);
     if (n < 0) {
-        return error(errno_to_error_code(errno));
+        return error(detail::io_error_code(_fd, errno));
     }
     return static_cast<size_t>(n);
 }
@@ -308,11 +308,6 @@ result<void> stream_socket::try_recv_exact(std::span<std::byte> buf) {
 }
 
 result<size_t> stream_socket::try_read(std::span<uint8_t> buf) {
-    // A zero-length recv on a TCP socket blocks until data arrives, so answer
-    // an empty buffer directly.
-    if (buf.empty()) {
-        return 0;
-    }
     return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) { return r.size(); });
 }
 

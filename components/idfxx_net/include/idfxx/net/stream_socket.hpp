@@ -68,12 +68,14 @@ public:
      */
     struct config {
         address_family family = address_family::ipv4; ///< Address family (IPv4 / IPv6).
-        /// If true, I/O calls return immediately when no data or buffer space is available
-        /// rather than blocking the calling task. Equivalent to the POSIX `O_NONBLOCK` flag.
+        /// If true, I/O calls fail immediately with `errc::operation_would_block` when no
+        /// data or buffer space is available rather than blocking the calling task.
+        /// Equivalent to the POSIX `O_NONBLOCK` flag.
         bool non_blocking = false;
-        /// Maximum time `recv` will block waiting for data before returning `errc::timed_out`.
+        /// Maximum time `recv` will block waiting for data before failing with
+        /// `errc::timed_out`.
         std::optional<std::chrono::milliseconds> recv_timeout = std::nullopt;
-        /// Maximum time `send` will block waiting for buffer space before returning
+        /// Maximum time `send` will block waiting for buffer space before failing with
         /// `errc::timed_out`.
         std::optional<std::chrono::milliseconds> send_timeout = std::nullopt;
         /// Allow `bind` to reuse a local address that is still in `TIME_WAIT`. Equivalent
@@ -449,7 +451,10 @@ public:
      * @param buf Data to send.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         send timeout set by `set_send_timeout` expires before any byte is
+     *         sent and `errc::operation_would_block` when a non-blocking socket has
+     *         no buffer space.
      *
      * @return Number of bytes sent.
      */
@@ -459,8 +464,15 @@ public:
     /**
      * @brief Sends bytes on the connected socket.
      *
+     * May send fewer bytes than requested. See `try_send_all` for a helper that
+     * retries until the buffer is fully drained.
+     *
      * @param buf Data to send.
      * @return Number of bytes sent, or an error.
+     * @retval errc::timed_out The send timeout set by `set_send_timeout` expired
+     *         before any byte was sent.
+     * @retval errc::operation_would_block The socket is non-blocking and has no
+     *         buffer space.
      */
     [[nodiscard]] result<size_t> try_send(std::span<const std::byte> buf);
 
@@ -471,7 +483,10 @@ public:
      * @param buf Data to send.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         send timeout set by `set_send_timeout` expires before any byte is
+     *         sent and `errc::operation_would_block` when a non-blocking socket has
+     *         no buffer space.
      *
      * @return Number of bytes sent.
      */
@@ -483,6 +498,10 @@ public:
      *
      * @param buf Data to send.
      * @return Number of bytes sent, or an error.
+     * @retval errc::timed_out The send timeout set by `set_send_timeout` expired
+     *         before any byte was sent.
+     * @retval errc::operation_would_block The socket is non-blocking and has no
+     *         buffer space.
      */
     [[nodiscard]] result<size_t> try_send(std::string_view buf);
 
@@ -490,10 +509,16 @@ public:
     /**
      * @brief Sends @p buf in full, retrying on partial sends.
      *
+     * On failure, including a send timeout, an unspecified prefix of @p buf may
+     * already have been sent.
+     *
      * @param buf Data to send.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         send timeout set by `set_send_timeout` expires and
+     *         `errc::operation_would_block` when a non-blocking socket runs out
+     *         of buffer space.
      */
     void send_all(std::span<const std::byte> buf) { idfxx::unwrap(try_send_all(buf)); }
 #endif
@@ -501,8 +526,14 @@ public:
     /**
      * @brief Sends @p buf in full, retrying on partial sends.
      *
+     * On failure, including a send timeout, an unspecified prefix of @p buf may
+     * already have been sent.
+     *
      * @param buf Data to send.
      * @return Success, or an error.
+     * @retval errc::timed_out The send timeout set by `set_send_timeout` expired.
+     * @retval errc::operation_would_block The socket is non-blocking and ran out
+     *         of buffer space.
      */
     [[nodiscard]] result<void> try_send_all(std::span<const std::byte> buf);
 
@@ -510,10 +541,16 @@ public:
     /**
      * @brief Sends a string view in full, retrying on partial sends.
      *
+     * On failure, including a send timeout, an unspecified prefix of @p buf may
+     * already have been sent.
+     *
      * @param buf Data to send.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         send timeout set by `set_send_timeout` expires and
+     *         `errc::operation_would_block` when a non-blocking socket runs out
+     *         of buffer space.
      */
     void send_all(std::string_view buf) { idfxx::unwrap(try_send_all(buf)); }
 #endif
@@ -521,8 +558,14 @@ public:
     /**
      * @brief Sends a string view in full, retrying on partial sends.
      *
+     * On failure, including a send timeout, an unspecified prefix of @p buf may
+     * already have been sent.
+     *
      * @param buf Data to send.
      * @return Success, or an error.
+     * @retval errc::timed_out The send timeout set by `set_send_timeout` expired.
+     * @retval errc::operation_would_block The socket is non-blocking and ran out
+     *         of buffer space.
      */
     [[nodiscard]] result<void> try_send_all(std::string_view buf);
 
@@ -532,10 +575,19 @@ public:
     /**
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
+     * On failure, including a receive timeout or the peer closing early, an
+     * unspecified number of bytes have already been consumed from the stream and
+     * the contents of @p buf are unspecified, so the position in the stream is no
+     * longer known.
+     *
      * @param buf Buffer to fill exactly.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error if the peer closes early or on other failure.
+     * @throws std::system_error on failure, including `errc::unexpected_eof` if the
+     *         peer closes before @p buf is filled, `errc::timed_out` when the
+     *         receive timeout set by `set_recv_timeout` expires, and
+     *         `errc::operation_would_block` when a non-blocking socket runs out of
+     *         data.
      */
     void recv_exact(std::span<std::byte> buf) { idfxx::unwrap(try_recv_exact(buf)); }
 #endif
@@ -543,9 +595,17 @@ public:
     /**
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
+     * On failure, including a receive timeout or the peer closing early, an
+     * unspecified number of bytes have already been consumed from the stream and
+     * the contents of @p buf are unspecified, so the position in the stream is no
+     * longer known.
+     *
      * @param buf Buffer to fill exactly.
-     * @return Success, or an error (`errc::unexpected_eof` if the peer closed before
-     *         @p buf was fully received).
+     * @return Success, or an error.
+     * @retval errc::unexpected_eof The peer closed before @p buf was fully received.
+     * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
+     * @retval errc::operation_would_block The socket is non-blocking and ran out of
+     *         data.
      */
     [[nodiscard]] result<void> try_recv_exact(std::span<std::byte> buf);
 

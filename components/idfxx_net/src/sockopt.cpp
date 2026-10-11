@@ -84,4 +84,18 @@ result<void> set_timeout(int fd, int optname, std::chrono::milliseconds t) noexc
     return {};
 }
 
+std::error_code io_error_code(int fd, int errno_value) noexcept {
+    bool would_block = errno_value == EAGAIN;
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+    would_block = would_block || errno_value == EWOULDBLOCK;
+#endif
+    if (would_block) {
+        int flags = lwip_fcntl(fd, F_GETFL, 0);
+        if (flags >= 0 && (flags & O_NONBLOCK) == 0) {
+            return make_error_code(errc::timed_out);
+        }
+    }
+    return errno_to_error_code(errno_value);
+}
+
 } // namespace idfxx::net::detail

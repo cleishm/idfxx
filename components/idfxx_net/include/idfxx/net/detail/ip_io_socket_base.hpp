@@ -66,13 +66,24 @@ public:
     /**
      * @brief Receives data into the given buffer.
      *
+     * Blocks until data is available, the peer closes the connection, or the
+     * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
+     * the call returns immediately when no data is available.
+     *
+     * An empty @p buf returns an empty span at once without receiving
+     * anything, so it cannot detect peer close; pass a non-empty buffer for
+     * that.
+     *
      * @param buf Buffer to receive into.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when
+     *         the receive timeout expires and `errc::operation_would_block` when
+     *         a non-blocking socket has no data available.
      *
-     * @return Sub-span of @p buf with the bytes actually received. An empty
-     *         span on stream sockets indicates the peer closed the connection.
+     * @return Sub-span of @p buf with the bytes actually received. For a
+     *         non-empty @p buf, an empty span indicates the peer closed the
+     *         connection.
      */
     [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
@@ -80,8 +91,21 @@ public:
     /**
      * @brief Receives data into the given buffer.
      *
+     * Blocks until data is available, the peer closes the connection, or the
+     * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
+     * the call returns immediately when no data is available.
+     *
+     * An empty @p buf returns an empty span at once without receiving
+     * anything, so it cannot detect peer close; pass a non-empty buffer for
+     * that.
+     *
      * @param buf Buffer to receive into.
-     * @return Sub-span of @p buf with the bytes actually received, or an error.
+     * @return Sub-span of @p buf with the bytes actually received (for a
+     *         non-empty @p buf, an empty span indicates the peer closed the
+     *         connection), or an error.
+     * @retval errc::timed_out The receive timeout expired before any data arrived.
+     * @retval errc::operation_would_block The socket is non-blocking and no data
+     *         is available.
      */
     [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
 
@@ -96,8 +120,10 @@ public:
 
     /**
      * @brief Sets the maximum time `send` will block waiting for buffer space; on expiry
-     *        the call returns `errc::timed_out`. Equivalent to the POSIX `SO_SNDTIMEO`
-     *        socket option. Sub-millisecond resolutions are rounded up.
+     *        the call fails with `errc::timed_out`. Equivalent to the POSIX `SO_SNDTIMEO`
+     *        socket option. Sub-millisecond resolutions are rounded up. Has no effect
+     *        in non-blocking mode, where `send` fails immediately with
+     *        `errc::operation_would_block` instead of waiting.
      *
      * @param t Send timeout duration.
      */

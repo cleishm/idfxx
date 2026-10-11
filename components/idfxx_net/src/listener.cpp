@@ -101,7 +101,7 @@ result<stream_socket> listener::try_accept() {
     }
     int client_fd = lwip_accept(_fd, nullptr, nullptr);
     if (client_fd < 0) {
-        return error(errno_to_error_code(errno));
+        return error(detail::io_error_code(_fd, errno));
     }
     return stream_socket(client_fd, _family);
 }
@@ -114,7 +114,7 @@ result<listener::accepted_connection> listener::try_accept_with_peer() {
     socklen_t len = sizeof(ss);
     int client_fd = lwip_accept(_fd, reinterpret_cast<sockaddr*>(&ss), &len);
     if (client_fd < 0) {
-        return error(errno_to_error_code(errno));
+        return error(detail::io_error_code(_fd, errno));
     }
     // Take ownership of the accepted descriptor immediately so it is released
     // if the (near-impossible) peer-address parse below fails.

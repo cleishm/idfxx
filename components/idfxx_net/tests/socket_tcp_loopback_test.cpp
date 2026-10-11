@@ -7,7 +7,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <array>
 #include <chrono>
+#include <span>
 #include <type_traits>
 #include <unity.h>
 
@@ -130,4 +132,96 @@ TEST_CASE("tcp loopback: connect_to_for honors per-attempt timeout", "[net]") {
 
     auto server_side = srv->try_accept();
     TEST_ASSERT_TRUE(server_side.has_value());
+}
+
+TEST_CASE("tcp loopback: recv on a blocking socket with a recv timeout returns timed_out", "[net]") {
+    auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
+    TEST_ASSERT_TRUE(srv.has_value());
+    auto local = srv->local_endpoint().value();
+
+    auto client = stream_socket::connect_to(local, {.recv_timeout = std::chrono::milliseconds(50)});
+    TEST_ASSERT_TRUE(client.has_value());
+    auto server_side = srv->try_accept();
+    TEST_ASSERT_TRUE(server_side.has_value());
+
+    // Nothing is sent, so the receive timeout expires.
+    std::array<std::byte, 16> buf{};
+    auto r = client->try_recv(buf);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::net::errc::timed_out);
+    TEST_ASSERT_TRUE(r.error() == std::errc::timed_out);
+}
+
+TEST_CASE("tcp loopback: recv on a non-blocking socket with no data returns operation_would_block", "[net]") {
+    auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
+    TEST_ASSERT_TRUE(srv.has_value());
+    auto local = srv->local_endpoint().value();
+
+    auto client = stream_socket::connect_to(local);
+    TEST_ASSERT_TRUE(client.has_value());
+    auto server_side = srv->try_accept();
+    TEST_ASSERT_TRUE(server_side.has_value());
+
+    // A recv timeout must not turn a non-blocking would-block into timed_out.
+    server_side->set_recv_timeout(std::chrono::milliseconds(50));
+    server_side->set_non_blocking(true);
+    std::array<std::byte, 16> buf{};
+    auto r = server_side->try_recv(buf);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::net::errc::operation_would_block);
+}
+
+TEST_CASE("tcp loopback: accept on a blocking listener with a recv timeout returns timed_out", "[net]") {
+    auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
+    TEST_ASSERT_TRUE(srv.has_value());
+    srv->set_recv_timeout(std::chrono::milliseconds(50));
+
+    auto r = srv->try_accept();
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::net::errc::timed_out);
+
+    auto rp = srv->try_accept_with_peer();
+    TEST_ASSERT_FALSE(rp.has_value());
+    TEST_ASSERT_TRUE(rp.error() == idfxx::net::errc::timed_out);
+}
+
+TEST_CASE("tcp loopback: accept on a non-blocking listener with no client returns operation_would_block", "[net]") {
+    auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true, .non_blocking = true});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_accept();
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::net::errc::operation_would_block);
+}
+
+TEST_CASE("tcp loopback: recv into an empty buffer returns at once without consuming data", "[net]") {
+    auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
+    TEST_ASSERT_TRUE(srv.has_value());
+    auto local = srv->local_endpoint().value();
+
+    auto client = stream_socket::connect_to(local);
+    TEST_ASSERT_TRUE(client.has_value());
+    auto server_side = srv->try_accept();
+    TEST_ASSERT_TRUE(server_side.has_value());
+
+    // With no data pending, an empty receive must not wait for data (which
+    // would end in timed_out here) and must not report end-of-stream.
+    server_side->set_recv_timeout(std::chrono::milliseconds(200));
+    auto idle = server_side->try_recv(std::span<std::byte>{});
+    TEST_ASSERT_TRUE(idle.has_value());
+    TEST_ASSERT_TRUE(idle->empty());
+
+    constexpr std::string_view payload = "abc";
+    TEST_ASSERT_TRUE(client->try_send_all(payload).has_value());
+    TEST_ASSERT_TRUE(server_side->try_wait_readable(std::chrono::seconds(1)).has_value());
+
+    // With data pending, an empty receive still returns an empty span and
+    // leaves the data in place.
+    auto pending = server_side->try_recv(std::span<std::byte>{});
+    TEST_ASSERT_TRUE(pending.has_value());
+    TEST_ASSERT_TRUE(pending->empty());
+
+    std::array<std::byte, 3> buf{};
+    TEST_ASSERT_TRUE(server_side->try_recv_exact(buf).has_value());
+    TEST_ASSERT_EQUAL_MEMORY(payload.data(), buf.data(), payload.size());
 }
