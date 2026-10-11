@@ -4,9 +4,13 @@
 // Unit tests for idfxx_gfx
 // Pure pixel rendering — runs everywhere, including QEMU.
 
+#include "idfxx/epaper/gray4_framebuffer"
+#include "idfxx/epaper/mono_framebuffer"
+#include "idfxx/epaper/panel"
 #include "idfxx/font/spleen"
 #include "idfxx/gfx"
 #include "idfxx/lcd/mono_framebuffer"
+#include "idfxx/lcd/panel"
 #include "idfxx/lcd/rgb565_framebuffer"
 #include "unity.h"
 
@@ -59,48 +63,37 @@ struct counting_surface {
 
 static_assert(pixel_surface<counting_surface>);
 
-namespace {
-
-// A surface with its own flush, proving the canvas forwarders pass
-// arguments and return values through.
-struct flushable_surface {
-    using pixel_type = int;
-
-    int flushed = -1;
-
-    void set_pixel(size_t, size_t, int) noexcept {}
-    [[nodiscard]] size_t width() const noexcept { return 4; }
-    [[nodiscard]] size_t height() const noexcept { return 4; }
-    int flush(int arg) {
-        flushed = arg;
-        return arg + 1;
-    }
-};
-
-// GCC evaluates non-dependent requires-expressions eagerly, turning a failed
-// call into a hard error; concepts keep the negative checks SFINAE-friendly.
-template<typename C, typename... Args>
-concept has_flush = requires(C& c) { c.flush(std::declval<Args>()...); };
-
-template<typename C, typename... Args>
-concept has_try_flush = requires(C& c) { c.try_flush(std::declval<Args>()...); };
-
-} // namespace
-
 // A canvas is itself a pixel surface, whatever it wraps.
 static_assert(pixel_surface<canvas<mono_framebuffer>>);
 static_assert(pixel_surface<canvas<rgb565_framebuffer>>);
 static_assert(pixel_surface<canvas<counting_surface>>);
 
-// The flush forwarders exist exactly when the surface has a matching
-// method: framebuffers expose try_flush to a panel, counting_surface has
-// neither, flushable_surface has flush but not try_flush.
-static_assert(has_try_flush<canvas<rgb565_framebuffer>, idfxx::lcd::panel&, size_t, size_t>);
-static_assert(has_try_flush<canvas<mono_framebuffer>, idfxx::lcd::panel&>);
-static_assert(has_flush<canvas<flushable_surface>, int>);
-static_assert(!has_flush<canvas<counting_surface>>);
-static_assert(!has_try_flush<canvas<counting_surface>>);
-static_assert(!has_try_flush<canvas<flushable_surface>, int>);
+namespace {
+
+// A draw callback accepting a canvas over any band.
+struct any_draw {
+    template<typename Canvas>
+    void operator()(Canvas&) const {}
+};
+
+// A destination with no try_write at all.
+struct no_write_target {};
+
+} // namespace
+
+// render_banded accepts any destination that can write the band at an
+// offset: the LCD panels for their framebuffers, and the ePaper panels for
+// theirs.
+static_assert(banded_renderable<rgb565_framebuffer, idfxx::lcd::panel, any_draw>);
+static_assert(banded_renderable<mono_framebuffer, idfxx::lcd::panel, any_draw>);
+static_assert(banded_renderable<idfxx::epaper::mono_framebuffer, idfxx::epaper::panel, any_draw>);
+static_assert(banded_renderable<idfxx::epaper::gray4_framebuffer, idfxx::epaper::panel, any_draw>);
+
+// A destination without a try_write for the band type is rejected.
+static_assert(!banded_renderable<mono_framebuffer, no_write_target, any_draw>);
+static_assert(!banded_renderable<idfxx::epaper::mono_framebuffer, idfxx::lcd::panel, any_draw>);
+static_assert(!banded_renderable<rgb565_framebuffer, idfxx::epaper::panel, any_draw>);
+static_assert(!banded_renderable<counting_surface, idfxx::lcd::panel, any_draw>);
 
 // =============================================================================
 // Helpers
@@ -310,13 +303,6 @@ TEST_CASE("gfx canvas fill and clear fall back to per-pixel writes", "[idfxx][gf
     TEST_ASSERT_EQUAL(0, surface.pixels[3][4]);
 }
 
-TEST_CASE("gfx canvas flush forwards arguments and return value", "[idfxx][gfx]") {
-    flushable_surface surface;
-    canvas c(surface);
-    TEST_ASSERT_EQUAL(43, c.flush(42));
-    TEST_ASSERT_EQUAL(42, surface.flushed);
-}
-
 TEST_CASE("gfx canvas satisfies pixel_surface for the free functions", "[idfxx][gfx]") {
     auto fb = make_fb(16, 16);
     canvas c(fb);
@@ -476,16 +462,6 @@ static_assert(pixel_surface<rotated<mono_framebuffer>>);
 static_assert(pixel_surface<canvas<rotated<mono_framebuffer>>>);
 static_assert(pixel_surface<rotated<counting_surface>>);
 
-// The flush forwarders exist on a rotated view exactly when they do on its
-// surface, and a canvas over the view sees them too.
-static_assert(has_try_flush<rotated<mono_framebuffer>, idfxx::lcd::panel&>);
-static_assert(has_try_flush<canvas<rotated<mono_framebuffer>>, idfxx::lcd::panel&>);
-static_assert(has_flush<rotated<flushable_surface>, int>);
-static_assert(has_flush<canvas<rotated<flushable_surface>>, int>);
-static_assert(!has_flush<rotated<counting_surface>>);
-static_assert(!has_try_flush<rotated<counting_surface>>);
-static_assert(!has_try_flush<rotated<flushable_surface>, int>);
-
 TEST_CASE("gfx rotated view swaps the reported dimensions", "[idfxx][gfx]") {
     auto fb = make_fb(8, 16);
     rotated view(fb, rotation::cw90);
@@ -583,34 +559,14 @@ TEST_CASE("gfx rotated fill and clear forward to the surface", "[idfxx][gfx]") {
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
 }
 
-TEST_CASE("gfx rotated flush forwards arguments and return value", "[idfxx][gfx]") {
-    flushable_surface surface;
-    rotated view(surface, rotation::cw90);
-    TEST_ASSERT_EQUAL(43, view.flush(42));
-    TEST_ASSERT_EQUAL(42, surface.flushed);
-
-    canvas c(view);
-    TEST_ASSERT_EQUAL(8, c.flush(7));
-    TEST_ASSERT_EQUAL(7, surface.flushed);
-}
-
 // =============================================================================
 // Runtime tests: render_banded
 // =============================================================================
 
 namespace {
 
-// A frame-sized pixel store that band flushes assemble into, standing in
-// for a panel when testing try_render_banded end to end.
-struct band_target {
-    std::array<std::array<bool, 32>, 32> pixels{};
-    size_t flushes = 0;
-    size_t fail_at = SIZE_MAX; // flush index that reports failure
-};
-
-// A 32x16 band surface whose try_flush copies its pixels into a
-// band_target at the given offset.
-struct flushing_band {
+// A 32x16 band surface.
+struct test_band {
     using pixel_type = bool;
 
     std::array<std::array<bool, 32>, 16> pixels{};
@@ -622,14 +578,22 @@ struct flushing_band {
     }
     [[nodiscard]] size_t width() const noexcept { return 32; }
     [[nodiscard]] size_t height() const noexcept { return 16; }
+};
 
-    [[nodiscard]] idfxx::result<void> try_flush(band_target& target, size_t x, size_t y) const {
-        if (target.flushes++ == target.fail_at) {
+// A frame-sized pixel store that band writes assemble into, standing in
+// for a panel when testing try_render_banded end to end.
+struct band_target {
+    std::array<std::array<bool, 32>, 32> pixels{};
+    size_t writes = 0;
+    size_t fail_at = SIZE_MAX; // write index that reports failure
+
+    [[nodiscard]] idfxx::result<void> try_write(const test_band& band, size_t x, size_t y) {
+        if (writes++ == fail_at) {
             return idfxx::error(idfxx::errc::timeout);
         }
         for (size_t row = 0; row < 16; ++row) {
             for (size_t col = 0; col < 32; ++col) {
-                target.pixels[y + row][x + col] = pixels[row][col];
+                pixels[y + row][x + col] = band.pixels[row][col];
             }
         }
         return {};
@@ -643,16 +607,16 @@ TEST_CASE("gfx render_banded assembles a frame identical to a full-frame render"
     canvas ref_canvas(reference);
     draw_band_test_scene(ref_canvas);
 
-    flushing_band band;
+    test_band band;
     band_target target;
     size_t passes = 0;
-    auto rendered = try_render_banded(band, target, 32, [&](canvas<flushing_band>& c) {
+    auto rendered = try_render_banded(band, target, 32, [&](canvas<test_band>& c) {
         ++passes;
         draw_band_test_scene(c);
     });
     TEST_ASSERT_TRUE(rendered.has_value());
     TEST_ASSERT_EQUAL(2, passes);
-    TEST_ASSERT_EQUAL(2, target.flushes);
+    TEST_ASSERT_EQUAL(2, target.writes);
 
     for (size_t y = 0; y < 32; ++y) {
         for (size_t x = 0; x < 32; ++x) {
@@ -662,9 +626,9 @@ TEST_CASE("gfx render_banded assembles a frame identical to a full-frame render"
 }
 
 TEST_CASE("gfx render_banded rejects a frame height the band does not tile", "[idfxx][gfx]") {
-    flushing_band band;
+    test_band band;
     band_target target;
-    auto draw = [](canvas<flushing_band>&) {};
+    auto draw = [](canvas<test_band>&) {};
 
     auto not_multiple = try_render_banded(band, target, 24, draw);
     TEST_ASSERT_FALSE(not_multiple.has_value());
@@ -674,31 +638,31 @@ TEST_CASE("gfx render_banded rejects a frame height the band does not tile", "[i
     TEST_ASSERT_FALSE(zero.has_value());
     TEST_ASSERT_TRUE(idfxx::errc::invalid_arg == zero.error());
 
-    TEST_ASSERT_EQUAL(0, target.flushes);
+    TEST_ASSERT_EQUAL(0, target.writes);
 }
 
-TEST_CASE("gfx render_banded stops and reports a failed flush", "[idfxx][gfx]") {
-    flushing_band band;
+TEST_CASE("gfx render_banded stops and reports a failed write", "[idfxx][gfx]") {
+    test_band band;
     band_target target;
-    target.fail_at = 1; // second flush fails
+    target.fail_at = 1; // second write fails
 
     size_t passes = 0;
-    auto rendered = try_render_banded(band, target, 64, [&](canvas<flushing_band>&) { ++passes; });
+    auto rendered = try_render_banded(band, target, 64, [&](canvas<test_band>&) { ++passes; });
     TEST_ASSERT_FALSE(rendered.has_value());
     TEST_ASSERT_TRUE(idfxx::errc::timeout == rendered.error());
-    TEST_ASSERT_EQUAL(2, passes); // first band flushed, second failed, no further passes
+    TEST_ASSERT_EQUAL(2, passes); // first band written, second failed, no further passes
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 TEST_CASE("gfx render_banded throws on error", "[idfxx][gfx]") {
-    flushing_band band;
+    test_band band;
     band_target target;
 
-    render_banded(band, target, 32, [](canvas<flushing_band>&) {}); // no throw on success
+    render_banded(band, target, 32, [](canvas<test_band>&) {}); // no throw on success
 
     bool thrown = false;
     try {
-        render_banded(band, target, 24, [](canvas<flushing_band>&) {});
+        render_banded(band, target, 24, [](canvas<test_band>&) {});
     } catch (const std::system_error&) {
         thrown = true;
     }

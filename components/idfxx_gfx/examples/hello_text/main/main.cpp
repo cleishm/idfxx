@@ -52,7 +52,7 @@ extern "C" void app_main() {
         const size_t w = idfxx::font::text_width(idfxx::font::spleen_5x8, status);
         canvas.draw_text(idfxx::font::spleen_5x8, canvas.width() - w - 1, 54, status);
 
-        canvas.flush(display);
+        display.write(fb);
         logger.info("text drawn ({} px headline)", idfxx::font::text_width(idfxx::font::spleen_8x16, "23.7", 2));
 
         while (true) {

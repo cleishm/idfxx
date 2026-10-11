@@ -31,7 +31,7 @@
  * canvas.fill_rect(0, 0, canvas.width(), 10, true);
  * canvas.draw_text(idfxx::font::spleen_5x8, 2, 1, "status", false);
  * canvas.draw_text(idfxx::font::spleen_8x16, 4, 16, "23.7", true, 2);
- * canvas.flush(display);
+ * display.write(fb);
  * @endcode
  * @{
  */
@@ -347,17 +347,16 @@ void draw_text(Surface& surface, const font::mono_font& font, size_t x, size_t y
  * canvas.fill_rect(8, 8, 60, 24, red);
  * canvas.draw_rect(6, 6, 64, 28, white);
  * canvas.draw_text(idfxx::font::spleen_8x16, 84, 12, "red", red);
- * canvas.flush(panel, 0, 40);
+ * panel.write(band, 0, 40);
  * @endcode
  *
  * Each drawing member is equivalent to the free function of the same name
  * applied to the underlying surface, with the same ink-only rendering and
  * clipping contract. @ref fill and @ref clear use the surface's own
  * `fill`/`clear` when it provides them (framebuffers fill their backing
- * store directly), falling back to per-pixel writes otherwise. When the
- * surface can push its content onward (the framebuffers' `flush` /
- * `try_flush` to a panel), @ref flush and @ref try_flush forward to it, so
- * the full draw-then-transfer cycle reads off the one object.
+ * store directly), falling back to per-pixel writes otherwise. A canvas
+ * only draws: to get the image on screen, write the surface it draws on to
+ * the display (e.g. `panel.write(band, 0, 40)`).
  *
  * A canvas may also place its surface within a larger drawing-coordinate
  * space. Constructing with an origin — `canvas(band, 0, y)` — declares that
@@ -373,7 +372,7 @@ void draw_text(Surface& surface, const font::mono_font& font, size_t x, size_t y
  *     idfxx::gfx::canvas canvas(band, 0, y);
  *     canvas.clear();
  *     draw_frame(canvas); // draws in full-screen coordinates
- *     canvas.flush(panel, 0, y);
+ *     panel.write(band, 0, y);
  * }
  * @endcode
  *
@@ -556,48 +555,6 @@ public:
     }
 
     /**
-     * @brief Pushes the surface's content onward, on surfaces that support it.
-     *
-     * Forwards to the underlying surface's `flush`, so a canvas over a
-     * framebuffer completes the draw-then-transfer cycle without reaching
-     * for the surface: `canvas.flush(panel, x, y)`.
-     *
-     * @tparam Args Argument types accepted by the surface's `flush`.
-     * @param args Arguments forwarded to the surface's `flush`.
-     * @return Whatever the surface's `flush` returns.
-     * @note Only declared when the surface provides a matching `flush`
-     *       overload (for the idfxx framebuffers, only when
-     *       CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig).
-     * @throws Whatever the surface's `flush` throws (std::system_error for
-     *         the idfxx framebuffers).
-     */
-    template<typename... Args>
-        requires requires(Surface& s) { s.flush(std::declval<Args>()...); }
-    decltype(auto) flush(Args&&... args) const {
-        return _surface->flush(std::forward<Args>(args)...);
-    }
-
-    /**
-     * @brief Pushes the surface's content onward, on surfaces that support it.
-     *
-     * Forwards to the underlying surface's `try_flush`, so a canvas over a
-     * framebuffer completes the draw-then-transfer cycle without reaching
-     * for the surface: `canvas.try_flush(panel, x, y)`.
-     *
-     * @tparam Args Argument types accepted by the surface's `try_flush`.
-     * @param args Arguments forwarded to the surface's `try_flush`.
-     * @return Whatever the surface's `try_flush` returns (success or an
-     *         error for the idfxx framebuffers).
-     * @note Only declared when the surface provides a matching `try_flush`
-     *       overload.
-     */
-    template<typename... Args>
-        requires requires(Surface& s) { s.try_flush(std::declval<Args>()...); }
-    [[nodiscard]] decltype(auto) try_flush(Args&&... args) const {
-        return _surface->try_flush(std::forward<Args>(args)...);
-    }
-
-    /**
      * @brief Fills a rectangle with the given ink.
      *
      * The rectangle's top-left corner is at (@p x, @p y) and it spans
@@ -775,25 +732,23 @@ enum class rotation : uint8_t {
  * by a quarter turn — the common ePaper case of a portrait-native panel
  * mounted landscape. The view swaps the reported dimensions and remaps
  * @ref set_pixel so drawing happens in viewer coordinates while the
- * underlying surface keeps its native layout; a framebuffer behind the view
- * still flushes to its panel natively.
+ * underlying surface keeps its native layout; the framebuffer behind the
+ * view is written to the display in its native layout
+ * (`display.write(fb)`).
  *
  * @code
  * idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait
  * idfxx::gfx::rotated view(fb, idfxx::gfx::rotation::cw90);              // 250x122 landscape
  * idfxx::gfx::canvas canvas(view);
  * canvas.draw_text(idfxx::font::spleen_8x16, 8, 8, "landscape");
- * canvas.flush(display);                                                 // native, as always
+ * display.write(fb);                                                     // native layout, as always
  * @endcode
  *
  * Like a canvas, a rotated view is a cheap, copyable view: it does not own
  * the surface, and the caller must ensure the surface outlives it. It
  * satisfies @ref pixel_surface itself, with the same clipping contract —
  * writes outside its (swapped) bounds are ignored. @ref fill and @ref clear
- * forward to the surface's own when it provides them, and @ref flush /
- * @ref try_flush forward to the surface's when it has them, so a canvas
- * over a rotated view completes the draw-then-transfer cycle the same way
- * as one over the surface directly.
+ * forward to the surface's own when it provides them.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  */
@@ -868,48 +823,6 @@ public:
         _surface->clear();
     }
 
-    /**
-     * @brief Pushes the surface's content onward, on surfaces that support it.
-     *
-     * Forwards to the underlying surface's `flush` unchanged — the surface
-     * transfers in its native orientation, and any position arguments are
-     * in the surface's (native) coordinates.
-     *
-     * @tparam Args Argument types accepted by the surface's `flush`.
-     * @param args Arguments forwarded to the surface's `flush`.
-     * @return Whatever the surface's `flush` returns.
-     * @note Only declared when the surface provides a matching `flush`
-     *       overload (for the idfxx framebuffers, only when
-     *       CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig).
-     * @throws Whatever the surface's `flush` throws (std::system_error for
-     *         the idfxx framebuffers).
-     */
-    template<typename... Args>
-        requires requires(Surface& s) { s.flush(std::declval<Args>()...); }
-    decltype(auto) flush(Args&&... args) const {
-        return _surface->flush(std::forward<Args>(args)...);
-    }
-
-    /**
-     * @brief Pushes the surface's content onward, on surfaces that support it.
-     *
-     * Forwards to the underlying surface's `try_flush` unchanged — the
-     * surface transfers in its native orientation, and any position
-     * arguments are in the surface's (native) coordinates.
-     *
-     * @tparam Args Argument types accepted by the surface's `try_flush`.
-     * @param args Arguments forwarded to the surface's `try_flush`.
-     * @return Whatever the surface's `try_flush` returns (success or an
-     *         error for the idfxx framebuffers).
-     * @note Only declared when the surface provides a matching `try_flush`
-     *       overload.
-     */
-    template<typename... Args>
-        requires requires(Surface& s) { s.try_flush(std::declval<Args>()...); }
-    [[nodiscard]] decltype(auto) try_flush(Args&&... args) const {
-        return _surface->try_flush(std::forward<Args>(args)...);
-    }
-
 private:
     Surface* _surface;
     rotation _direction;
@@ -918,14 +831,15 @@ private:
 /**
  * @cond INTERNAL
  * @brief Constraint for the banded-rendering functions: the draw callback
- * accepts a canvas over the band, and the band can flush to the destination
- * at an offset.
+ * accepts a canvas over the band, and the destination can write the band at
+ * an offset.
  */
 template<typename Surface, typename Dest, typename DrawFn>
-concept banded_renderable = pixel_surface<Surface> && requires(canvas<Surface>& c, Dest& dest, DrawFn& draw) {
-    draw(c);
-    { c.try_flush(dest, size_t{}, size_t{}) } -> std::same_as<result<void>>;
-};
+concept banded_renderable =
+    pixel_surface<Surface> && requires(canvas<Surface>& c, const Surface& band, Dest& dest, DrawFn& draw) {
+        draw(c);
+        { dest.try_write(band, size_t{}, size_t{}) } -> std::same_as<result<void>>;
+    };
 /** @endcond */
 
 /** @cond INTERNAL */
@@ -942,10 +856,11 @@ template<pixel_surface Surface, typename Dest, typename DrawFn>
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and flushes the band to
- * @p dest at (0, y). Content outside the pass's band clips; content
- * straddling band edges renders exactly its visible part, so the assembled
- * frame is identical to one drawn through a full-frame buffer.
+ * placed at its slice via `canvas(band, 0, y)`), and writes the band to
+ * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
+ * pass's band clips; content straddling band edges renders exactly its
+ * visible part, so the assembled frame is identical to one drawn through a
+ * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
  * each time, as a pure function of the scene state — compute any state
@@ -961,16 +876,17 @@ template<pixel_surface Surface, typename Dest, typename DrawFn>
  * @endcode
  *
  * @tparam Surface The band's surface type (satisfies @ref pixel_surface).
- * @tparam Dest    The flush destination type (e.g. a panel).
+ * @tparam Dest    The destination type (e.g. a panel), providing
+ *                 `try_write(const Surface&, size_t x, size_t y)`.
  * @tparam DrawFn  The draw callback type, invocable with `canvas<Surface>&`.
  * @param band         The framebuffer to render through; its width is the frame width.
- * @param dest         The destination the band flushes to after each pass.
+ * @param dest         The destination the band is written to after each pass.
  * @param frame_height Height of the frame, in pixels; must be a non-zero
  *                     multiple of `band.height()`.
  * @param draw         Callback drawing the complete frame on the given canvas.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on error (e.g. an invalid @p frame_height, or a
- *         failed flush).
+ *         failed write).
  */
 template<pixel_surface Surface, typename Dest, typename DrawFn>
     requires banded_renderable<Surface, Dest, DrawFn>
@@ -986,10 +902,11 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and flushes the band to
- * @p dest at (0, y). Content outside the pass's band clips; content
- * straddling band edges renders exactly its visible part, so the assembled
- * frame is identical to one drawn through a full-frame buffer.
+ * placed at its slice via `canvas(band, 0, y)`), and writes the band to
+ * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
+ * pass's band clips; content straddling band edges renders exactly its
+ * visible part, so the assembled frame is identical to one drawn through a
+ * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
  * each time, as a pure function of the scene state — compute any state
@@ -997,10 +914,11 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
  * the callback.
  *
  * @tparam Surface The band's surface type (satisfies @ref pixel_surface).
- * @tparam Dest    The flush destination type (e.g. a panel).
+ * @tparam Dest    The destination type (e.g. a panel), providing
+ *                 `try_write(const Surface&, size_t x, size_t y)`.
  * @tparam DrawFn  The draw callback type, invocable with `canvas<Surface>&`.
  * @param band         The framebuffer to render through; its width is the frame width.
- * @param dest         The destination the band flushes to after each pass.
+ * @param dest         The destination the band is written to after each pass.
  * @param frame_height Height of the frame, in pixels; must be a non-zero
  *                     multiple of `band.height()`.
  * @param draw         Callback drawing the complete frame on the given canvas.
@@ -1019,8 +937,8 @@ template<pixel_surface Surface, typename Dest, typename DrawFn>
         canvas c(band, 0, y);
         c.clear();
         draw(c);
-        if (auto flushed = c.try_flush(dest, size_t{0}, y); !flushed) {
-            return flushed;
+        if (auto written = dest.try_write(std::as_const(band), size_t{0}, y); !written) {
+            return written;
         }
     }
     return {};

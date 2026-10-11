@@ -19,7 +19,7 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
   with widget-local coordinates
 - `rotated`: a quarter-turn view for a surface mounted sideways (a
   portrait-native ePaper panel used landscape) — draw in viewer coordinates,
-  the framebuffer keeps its native layout and flushes natively
+  the framebuffer keeps its native layout and is written to the display as usual
 - Filled and outlined rectangles, horizontal/vertical/arbitrary lines
 - Bitmap-font text rendering with integer scaling (`scale = 2` turns an 8x16
   font into 16x32 glyphs)
@@ -45,7 +45,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_gfx: "^1.0.0"
+  cleishm/idfxx_gfx: "^2.0.0"
   cleishm/idfxx_font_spleen: "^1.0.0"   # bundled fonts, if drawing text
 ```
 
@@ -68,7 +68,7 @@ canvas.draw_text(idfxx::font::spleen_5x8, 2, 1, "status", false);
 // Big headline (16x32 per glyph).
 canvas.draw_text(idfxx::font::spleen_8x16, 4, 16, "23.7", true, 2);
 
-canvas.flush(display);
+display.write(fb);
 ```
 
 ### Color (ILI9341)
@@ -86,12 +86,12 @@ idfxx::gfx::canvas canvas(band);
 
 canvas.fill({0, 0, 96});
 canvas.draw_text(idfxx::font::spleen_8x16, 8, 4, "idfxx gfx", rgb565(255, 255, 255), 2);
-canvas.flush(panel, 0, 0);          // top band
+panel.write(band, 0, 0);            // top band
 
 canvas.clear();
 canvas.fill_rect(8, 8, 60, 24, rgb565(255, 0, 0));
 canvas.draw_rect(6, 6, 64, 28, rgb565(255, 255, 255));
-canvas.flush(panel, 0, 40);         // next band down
+panel.write(band, 0, 40);           // next band down
 ```
 
 ### Band rendering
@@ -99,8 +99,8 @@ canvas.flush(panel, 0, 40);         // next band down
 A full frame at 16 bpp is large (a 240x320 frame is ~150 KB), so color
 frames are usually rendered through a band-sized framebuffer.
 `render_banded` takes a callback that draws the whole frame in screen
-coordinates, runs it once per band, and flushes each slice to its screen
-position — content straddling a band boundary clips on all four sides and
+coordinates, runs it once per band, and writes each slice to its screen
+position with the destination's `try_write(band, x, y)` — content straddling a band boundary clips on all four sides and
 renders exactly its visible part:
 
 ```cpp
@@ -126,14 +126,14 @@ A panel mounted a quarter turn from the drawing layout — typically a
 portrait-native ePaper panel used landscape — is drawn through a `rotated`
 view. The view swaps the reported dimensions and remaps `set_pixel`, so
 drawing happens in viewer coordinates while the framebuffer keeps its native
-layout and flushes to the panel as usual:
+layout and is written to the panel as usual:
 
 ```cpp
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait
 idfxx::gfx::rotated view(fb, idfxx::gfx::rotation::cw90);              // 250x122 landscape
 idfxx::gfx::canvas canvas(view);
 canvas.draw_text(idfxx::font::spleen_8x16, 8, 8, "landscape");
-canvas.flush(display);
+display.write(fb);                                                     // native layout
 ```
 
 `rotation::cw90` means the panel is mounted turned clockwise (its native top
@@ -157,11 +157,11 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | Item | Description |
 | ---- | ----------- |
 | `pixel_surface` | Concept: `pixel_type`, `set_pixel(x, y, pixel)`, `width()`, `height()`. |
-| `canvas(surface)` | Drawing view: the operations below as members, plus `fill(ink)` / `clear()` (using the surface's own fill/clear when present) and `flush(...)` / `try_flush(...)` (forwarding to the surface's, when it has them). |
+| `canvas(surface)` | Drawing view: the operations below as members, plus `fill(ink)` / `clear()` (using the surface's own fill/clear when present). |
 | `canvas(surface, x, y)` | Translated canvas: the surface holds the region of a larger drawing space whose top-left corner is (x, y) — see Band rendering above. |
 | `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping; `fill`/`clear` affect only the sub-region. |
-| `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear`/`flush`/`try_flush` forward to the surface's. |
-| `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and flushes each slice (also `try_render_banded`). |
+| `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear` forward to the surface's. |
+| `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and writes each slice with `dest.try_write(band, 0, y)` (also `try_render_banded`). |
 | `fill_rect(s, x, y, w, h, ink)` | Fill a rectangle. |
 | `draw_rect(s, x, y, w, h, ink)` | Outline a rectangle (one-pixel border). |
 | `draw_hline(s, x, y, len, ink)` / `draw_vline(...)` | Horizontal / vertical line. |
@@ -174,13 +174,11 @@ Text measurement (`idfxx::font::text_width`) lives in `idfxx_font`.
 
 Drawing functions are `noexcept` and cannot fail: coordinates outside the
 surface are clipped, and a `scale` of 0 is treated as 1. There are no error
-codes and no `try_*` variants — nothing needs them. The exceptions are the
-operations that transfer to a display: `canvas.flush(...)` /
-`canvas.try_flush(...)` forward to the underlying surface and report
-whatever it reports (for the idfxx framebuffers, panel I/O errors), and
-`render_banded` / `try_render_banded` report flush errors plus
-`idfxx::errc::invalid_arg` when the frame height is not a multiple of the
-band height.
+codes and no `try_*` variants — nothing needs them. The exception is band
+rendering, which transfers to a display: `render_banded` /
+`try_render_banded` report whatever the destination's `try_write` reports
+(for the idfxx panels, panel I/O errors) plus `idfxx::errc::invalid_arg`
+when the frame height is not a multiple of the band height.
 
 ## Important Notes
 
@@ -189,9 +187,13 @@ band height.
 - A `canvas` is a non-owning view: the surface must outlive it. It itself
   satisfies `pixel_surface`, so it can be passed anywhere a surface is
   expected. Its coordinate bounds are captured at construction.
-- A `rotated` view is likewise non-owning and itself a `pixel_surface`. Its
-  `flush`/`try_flush` forward unchanged, so any position arguments are in the
-  underlying surface's native coordinates.
+- A `rotated` view is likewise non-owning and itself a `pixel_surface`. The
+  framebuffer behind it is written to the display in its native layout
+  (`display.write(fb)`), so any write offsets are in the framebuffer's native
+  coordinates.
+- A canvas only draws; to get the image on screen, write the framebuffer it
+  draws on to the display (`display.write(fb)`, or `panel.write(band, 0, y)`
+  for a band).
 - The `pixel_surface` concept is structural: any user-defined type with a
   matching `set_pixel`/`width`/`height` shape works, no inheritance needed.
 - This component is deliberately small: integer coordinates, one-pixel
