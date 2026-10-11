@@ -4,7 +4,7 @@ if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
 endif()
 
 idf_component_register(
-    SRCS "src/error.cpp" "src/net.cpp" "src/sched.cpp" "src/system.cpp" "src/app.cpp"
+    SRCS "src/error.cpp" "src/net.cpp" "src/sched.cpp" "src/system.cpp" "src/app.cpp" "src/byte_source.cpp"
     INCLUDE_DIRS "include"
     REQUIRES ${core_requires}
     PRIV_REQUIRES esp_app_format
