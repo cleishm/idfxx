@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <esp_partition.h>
 #include <utility>
@@ -73,7 +74,15 @@ static_assert(std::to_underlying(idfxx::app_ota(15)) == ESP_PARTITION_SUBTYPE_AP
 
 namespace {
 const char* TAG = "idfxx::partition";
-}
+
+// v6.1 renamed the mmap memory enum, as it now also carries flags; the old name
+// remains as a deprecated alias.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+using idf_mmap_memory_t = esp_partition_mmap_flag_t;
+#else
+using idf_mmap_memory_t = esp_partition_mmap_memory_t;
+#endif
+} // namespace
 
 namespace idfxx {
 
@@ -213,8 +222,7 @@ result<std::array<uint8_t, 32>> partition::try_sha256() const {
 result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, enum mmap_memory memory) const {
     const void* ptr = nullptr;
     esp_partition_mmap_handle_t handle = 0;
-    esp_err_t err =
-        esp_partition_mmap(_part, offset, size, static_cast<esp_partition_mmap_memory_t>(memory), &ptr, &handle);
+    esp_err_t err = esp_partition_mmap(_part, offset, size, static_cast<idf_mmap_memory_t>(memory), &ptr, &handle);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "partition mmap failed: %s", esp_err_to_name(err));
         return error(err);
