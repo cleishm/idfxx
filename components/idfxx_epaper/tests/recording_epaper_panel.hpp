@@ -27,10 +27,15 @@ public:
 
     std::vector<write> mono_writes;
     std::vector<write> gray_writes;
+    std::vector<write> color6_writes;
     std::vector<idfxx::epaper::refresh_mode> refreshes;
     size_t clears = 0;
     size_t sleeps = 0;
     size_t wakes = 0;
+    size_t color_mode_changes = 0;
+    // Pixel formats reported by do_supports (mono is always supported).
+    bool supports_gray4 = true;
+    bool supports_color6 = true;
     // do_wait invocations (the base settles before every controller hook
     // and at the end of a blocking refresh), plus the hook count at the
     // time of the last one, for ordering assertions.
@@ -38,7 +43,8 @@ public:
     size_t hooks_before_last_wait = 0;
 
     [[nodiscard]] size_t hooks() const noexcept {
-        return mono_writes.size() + gray_writes.size() + refreshes.size() + clears + sleeps + wakes;
+        return mono_writes.size() + gray_writes.size() + color6_writes.size() + refreshes.size() + clears + sleeps +
+            wakes;
     }
 
 private:
@@ -54,6 +60,12 @@ private:
         return {};
     }
 
+    [[nodiscard]] idfxx::result<void>
+    do_write(const idfxx::epaper::color6_framebuffer&, size_t row_start, size_t row_end, size_t x, size_t y) override {
+        color6_writes.push_back({x, y, row_start, row_end});
+        return {};
+    }
+
     [[nodiscard]] idfxx::result<void> do_clear() override {
         ++clears;
         return {};
@@ -64,7 +76,21 @@ private:
         return {};
     }
 
-    [[nodiscard]] idfxx::result<void> do_set_color_mode(enum idfxx::epaper::color_mode) override { return {}; }
+    [[nodiscard]] bool do_supports(enum idfxx::epaper::color_mode mode) const noexcept override {
+        switch (mode) {
+        case idfxx::epaper::color_mode::gray4:
+            return supports_gray4;
+        case idfxx::epaper::color_mode::color6:
+            return supports_color6;
+        default:
+            return false;
+        }
+    }
+
+    [[nodiscard]] idfxx::result<void> do_set_color_mode(enum idfxx::epaper::color_mode) override {
+        ++color_mode_changes;
+        return {};
+    }
 
     [[nodiscard]] idfxx::result<void> do_sleep() override {
         ++sleeps;

@@ -4,6 +4,7 @@
 // Unit tests for idfxx_gfx
 // Pure pixel rendering — runs everywhere, including QEMU.
 
+#include "idfxx/epaper/color6_framebuffer"
 #include "idfxx/epaper/gray4_framebuffer"
 #include "idfxx/epaper/mono_framebuffer"
 #include "idfxx/epaper/panel"
@@ -88,6 +89,7 @@ static_assert(banded_renderable<rgb565_framebuffer, idfxx::lcd::panel, any_draw>
 static_assert(banded_renderable<mono_framebuffer, idfxx::lcd::panel, any_draw>);
 static_assert(banded_renderable<idfxx::epaper::mono_framebuffer, idfxx::epaper::panel, any_draw>);
 static_assert(banded_renderable<idfxx::epaper::gray4_framebuffer, idfxx::epaper::panel, any_draw>);
+static_assert(banded_renderable<idfxx::epaper::color6_framebuffer, idfxx::epaper::panel, any_draw>);
 
 // A destination without a try_write for the band type is rejected.
 static_assert(!banded_renderable<mono_framebuffer, no_write_target, any_draw>);

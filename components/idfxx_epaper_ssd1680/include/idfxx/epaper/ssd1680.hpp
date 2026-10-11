@@ -199,6 +199,7 @@ private:
     do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
     [[nodiscard]] result<void> do_clear() override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
+    [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_wake() override;

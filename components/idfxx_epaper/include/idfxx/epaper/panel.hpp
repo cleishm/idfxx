@@ -14,8 +14,9 @@
  * Provides a controller-agnostic abstract base class (`idfxx::epaper::panel`)
  * that concrete drivers — `idfxx::epaper::ssd1680`, `idfxx::epaper::uc8179`,
  * and future siblings — implement, plus the framebuffers
- * (`idfxx::epaper::mono_framebuffer`, `idfxx::epaper::gray4_framebuffer`)
- * that hold pixel data in the row-major layouts ePaper controllers consume.
+ * (`idfxx::epaper::mono_framebuffer`, `idfxx::epaper::gray4_framebuffer`,
+ * `idfxx::epaper::color6_framebuffer`) that hold pixel data in the row-major
+ * layouts ePaper controllers consume.
  *
  * The interface models the ePaper update cycle rather than an
  * immediate-mode display: pixel data is first uploaded to the controller's
@@ -24,8 +25,9 @@
  * the physical ink update and blocks until the controller's BUSY line
  * releases (or @ref idfxx::epaper::panel::start_refresh, which returns an
  * `idfxx::future` to await instead). Panels support full refreshes, faster
- * reduced-quality full refreshes, flicker-free partial refreshes, and
- * 4-level grayscale, subject to each driver's capabilities.
+ * reduced-quality full refreshes, flicker-free partial refreshes, 4-level
+ * grayscale, and six-color (E Ink Spectra 6) operation, subject to each
+ * driver's capabilities.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for the
  * BUSY and reset lines.
@@ -51,6 +53,7 @@ namespace idfxx::epaper {
 
 class mono_framebuffer;
 class gray4_framebuffer;
+class color6_framebuffer;
 
 /**
  * @headerfile <idfxx/epaper/panel>
@@ -80,11 +83,14 @@ enum class refresh_mode : uint8_t {
  * @brief Pixel format the panel is operating in.
  *
  * Selected with @ref panel::set_color_mode; determines which framebuffer
- * type @ref panel::write accepts.
+ * type @ref panel::write accepts. Every driver supports
+ * @ref color_mode::mono; the others depend on the controller and glass
+ * (see @ref panel::supports).
  */
 enum class color_mode : uint8_t {
-    mono,  ///< 1 bit per pixel black-and-white (@ref mono_framebuffer).
-    gray4, ///< 2 bits per pixel, 4 gray levels (@ref gray4_framebuffer).
+    mono,   ///< 1 bit per pixel black-and-white (@ref mono_framebuffer).
+    gray4,  ///< 2 bits per pixel, 4 gray levels (@ref gray4_framebuffer).
+    color6, ///< 4 bits per pixel, six colors (E Ink Spectra 6; @ref color6_framebuffer).
 };
 
 /**
@@ -201,6 +207,25 @@ public:
     void write(const gray4_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
 
     /**
+     * @brief Uploads a six-color framebuffer to the controller's RAM.
+     *
+     * Places the framebuffer's origin at pixel (@p x, @p y). The upload is
+     * invisible until the next @ref refresh. The panel must be operating in
+     * @ref color_mode::color6.
+     *
+     * @param fb The framebuffer to upload.
+     * @param x  Destination column; must be even (controller RAM packs two
+     *           pixels per byte along the row).
+     * @param y  Destination row.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg`
+     *         for an unaligned @p x or an out-of-bounds placement, and
+     *         `errc::invalid_state` if the panel is asleep or not in
+     *         @ref color_mode::color6.
+     */
+    void write(const color6_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+
+    /**
      * @brief Uploads a horizontal band of a monochrome framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
@@ -246,6 +271,30 @@ public:
      *         panel is asleep or in @ref color_mode::mono.
      */
     void write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+        unwrap(try_write_rows(fb, row_start, row_end, x, y));
+    }
+
+    /**
+     * @brief Uploads a horizontal band of a six-color framebuffer.
+     *
+     * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
+     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * panel row `y + r`.
+     *
+     * @param fb        The framebuffer to upload from.
+     * @param row_start First framebuffer row of the band, inclusive.
+     * @param row_end   End framebuffer row, exclusive; must satisfy
+     *                  `row_start < row_end <= fb.height()`.
+     * @param x         Destination column of the framebuffer origin; must be
+     *                  even.
+     * @param y         Destination row of the framebuffer origin.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg`
+     *         for an invalid row range, an unaligned @p x, or an
+     *         out-of-bounds placement, and `errc::invalid_state` if the
+     *         panel is asleep or not in @ref color_mode::color6.
+     */
+    void write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -308,6 +357,25 @@ public:
     [[nodiscard]] result<void> try_write(const gray4_framebuffer& fb, size_t x = 0, size_t y = 0);
 
     /**
+     * @brief Uploads a six-color framebuffer to the controller's RAM.
+     *
+     * Places the framebuffer's origin at pixel (@p x, @p y). The upload is
+     * invisible until the next @ref try_refresh. The panel must be operating
+     * in @ref color_mode::color6.
+     *
+     * @param fb The framebuffer to upload.
+     * @param x  Destination column; must be even (controller RAM packs two
+     *           pixels per byte along the row).
+     * @param y  Destination row.
+     * @return Success, or an error.
+     * @retval invalid_arg @p x is odd, or the framebuffer does not fit
+     *         within the panel at (@p x, @p y).
+     * @retval invalid_state The panel is asleep, or is not operating in
+     *         @ref color_mode::color6.
+     */
+    [[nodiscard]] result<void> try_write(const color6_framebuffer& fb, size_t x = 0, size_t y = 0);
+
+    /**
      * @brief Uploads a horizontal band of a monochrome framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
@@ -353,6 +421,29 @@ public:
      */
     [[nodiscard]] result<void>
     try_write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+
+    /**
+     * @brief Uploads a horizontal band of a six-color framebuffer.
+     *
+     * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
+     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * panel row `y + r`.
+     *
+     * @param fb        The framebuffer to upload from.
+     * @param row_start First framebuffer row of the band, inclusive.
+     * @param row_end   End framebuffer row, exclusive; must satisfy
+     *                  `row_start < row_end <= fb.height()`.
+     * @param x         Destination column of the framebuffer origin; must be
+     *                  even.
+     * @param y         Destination row of the framebuffer origin.
+     * @return Success, or an error.
+     * @retval invalid_arg The row range is invalid, @p x is odd, or the
+     *         band does not fit within the panel.
+     * @retval invalid_state The panel is asleep, or is not operating in
+     *         @ref color_mode::color6.
+     */
+    [[nodiscard]] result<void>
+    try_write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
 
     /**
      * @brief Clears the controller's RAM to white, without a framebuffer.
@@ -427,7 +518,7 @@ public:
      * by the next operation. To ask "done yet?" later, keep the future. A
      * future that outlives the panel simply observes the BUSY line.
      *
-     * Baseline handling matches @ref refresh: a @ref refresh_mode::partial
+     * Baseline handling matches @ref refresh. A @ref refresh_mode::partial
      * request without a baseline is silently promoted to
      * @ref refresh_mode::full.
      *
@@ -514,40 +605,64 @@ public:
     // Color mode
     // =========================================================================
 
+    /**
+     * @brief Reports whether the driver can operate in a pixel format.
+     *
+     * Every driver supports @ref color_mode::mono; support for
+     * @ref color_mode::gray4 and @ref color_mode::color6 depends on the
+     * controller and glass. @ref set_color_mode rejects any mode this
+     * reports as unsupported with `errc::not_supported`.
+     *
+     * @code
+     * if (display.supports(idfxx::epaper::color_mode::color6)) {
+     *     display.set_color_mode(idfxx::epaper::color_mode::color6);
+     * }
+     * @endcode
+     *
+     * @param mode The pixel format to query.
+     * @return true if the driver supports @p mode.
+     */
+    [[nodiscard]] bool supports(enum color_mode mode) const noexcept {
+        return mode == color_mode::mono || do_supports(mode);
+    }
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Switches the panel between monochrome and grayscale operation.
+     * @brief Switches the panel's pixel format.
      *
-     * Reconfigures the controller's waveforms for the new pixel format and
-     * invalidates the partial-refresh baseline: the next refresh is
-     * promoted to @ref refresh_mode::full. A no-op if the panel is already
-     * in the requested mode.
+     * Reconfigures the controller for the new pixel format (monochrome,
+     * 4-level grayscale, or six-color) and invalidates the partial-refresh
+     * baseline: the next refresh is promoted to @ref refresh_mode::full. A
+     * no-op if the panel is already in the requested mode.
      *
      * @param mode The pixel format to operate in.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_state`
-     *         if the panel is asleep, and `errc::not_supported` if the
-     *         driver has no grayscale support.
+     *         if the panel is asleep, and `errc::not_supported` if
+     *         @ref supports reports @p mode as unsupported.
      */
     void set_color_mode(enum color_mode mode) { unwrap(try_set_color_mode(mode)); }
 #endif
 
     /**
-     * @brief Switches the panel between monochrome and grayscale operation.
+     * @brief Switches the panel's pixel format.
      *
-     * Reconfigures the controller's waveforms for the new pixel format and
-     * invalidates the partial-refresh baseline: the next refresh is
-     * promoted to @ref refresh_mode::full. A no-op if the panel is already
-     * in the requested mode.
+     * Reconfigures the controller for the new pixel format (monochrome,
+     * 4-level grayscale, or six-color) and invalidates the partial-refresh
+     * baseline: the next refresh is promoted to @ref refresh_mode::full. A
+     * no-op if the panel is already in the requested mode.
      *
      * @param mode The pixel format to operate in.
      * @return Success, or an error.
      * @retval invalid_state The panel is asleep.
-     * @retval not_supported The driver has no grayscale support.
+     * @retval not_supported @ref supports reports @p mode as unsupported.
      */
     [[nodiscard]] result<void> try_set_color_mode(enum color_mode mode) {
         if (_asleep) {
             return error(errc::invalid_state);
+        }
+        if (!supports(mode)) {
+            return error(errc::not_supported);
         }
         if (mode == _color_mode) {
             return {};
@@ -711,12 +826,12 @@ protected:
     //
     // Concrete drivers override these (typically privately). Each hook
     // implements the correspondingly named public method; validation common
-    // to all controllers (alignment, bounds, sleep state, color-mode match,
-    // partial-refresh baseline promotion) has already been performed by the
-    // public wrappers, and every hook that commands the controller
-    // (do_write, do_clear, do_refresh, do_set_color_mode, do_sleep) is
-    // preceded by a do_wait() that completes any update a previous
-    // do_refresh left running.
+    // to all controllers (the framebuffer's x_alignment, bounds, sleep
+    // state, color-mode match, partial-refresh baseline promotion) has
+    // already been performed by the public wrappers, and every hook that
+    // commands the controller (do_write, do_clear, do_refresh,
+    // do_set_color_mode, do_sleep) is preceded by a do_wait() that completes
+    // any update a previous do_refresh left running.
     // =========================================================================
 
     /// Hook for @ref try_write / @ref try_write_rows (monochrome). Uploads
@@ -732,12 +847,30 @@ protected:
     /// The placement is aligned and in-bounds, the row range is valid, and
     /// the panel is awake and in @ref color_mode::gray4. Must not reference
     /// @p fb's storage after returning: callers may mutate the framebuffer
-    /// immediately. The default returns `errc::not_supported`; drivers with
-    /// grayscale support override it alongside @ref do_set_color_mode
-    /// (without that override the panel never enters @ref color_mode::gray4,
-    /// so this hook is never reached).
+    /// immediately. The default returns `errc::not_supported`; drivers
+    /// reporting @ref color_mode::gray4 from @ref do_supports override it
+    /// (otherwise the panel never enters that mode, so this hook is never
+    /// reached).
     [[nodiscard]] virtual result<void>
     do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+        (void)fb;
+        (void)row_start;
+        (void)row_end;
+        (void)x;
+        (void)y;
+        return error(errc::not_supported);
+    }
+    /// Hook for @ref try_write / @ref try_write_rows (six-color). Uploads
+    /// rows `[row_start, row_end)` of @p fb with its origin at (@p x, @p y).
+    /// The placement is aligned (even @p x) and in-bounds, the row range is
+    /// valid, and the panel is awake and in @ref color_mode::color6. Must
+    /// not reference @p fb's storage after returning: callers may mutate
+    /// the framebuffer immediately. The default returns
+    /// `errc::not_supported`; drivers reporting @ref color_mode::color6
+    /// from @ref do_supports override it (otherwise the panel never enters
+    /// that mode, so this hook is never reached).
+    [[nodiscard]] virtual result<void>
+    do_write(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
         (void)fb;
         (void)row_start;
         (void)row_end;
@@ -765,9 +898,19 @@ protected:
     /// @ref do_wait override.
     [[nodiscard]] virtual result<void> do_refresh(refresh_mode mode) = 0;
 
+    /// Hook for @ref supports. Reports whether the driver can operate in
+    /// @p mode, which is never @ref color_mode::mono (always supported).
+    /// @ref try_set_color_mode rejects a mode this reports as unsupported
+    /// before calling @ref do_set_color_mode, so every driver declares its
+    /// pixel formats explicitly and a newly added mode is unsupported until
+    /// a driver opts in.
+    [[nodiscard]] virtual bool do_supports(enum color_mode mode) const noexcept = 0;
+
     /// Hook for @ref try_set_color_mode. Called only for an actual mode
-    /// change while the panel is awake. The default returns
-    /// `errc::not_supported`: drivers with grayscale support override it.
+    /// change, to a mode @ref do_supports accepts (or back to
+    /// @ref color_mode::mono), while the panel is awake. The default returns
+    /// `errc::not_supported`; drivers supporting a mode other than
+    /// @ref color_mode::mono override it.
     [[nodiscard]] virtual result<void> do_set_color_mode(enum color_mode mode) {
         (void)mode;
         return error(errc::not_supported);
