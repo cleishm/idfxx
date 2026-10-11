@@ -7,8 +7,8 @@ Abstract ePaper panel interface, framebuffers, and shared types.
 ## Features
 
 - Abstract `idfxx::epaper::panel` base class — drivers for any ePaper
-  controller (SSD1680, UC8179, ...) implement this single interface so
-  application code can target any of them.
+  controller (SSD1680, UC8179, T133A01, ...) implement this single interface
+  so application code can target any of them.
 - ePaper-native vocabulary: `write` uploads pixels to the controller's RAM
   (invisible), `refresh` drives the physical ink update and blocks until the
   panel's BUSY line releases — or `start_refresh` returns an `idfxx::future`
@@ -57,8 +57,8 @@ Or add `idfxx_epaper` to the `REQUIRES` list in your component's
 `CMakeLists.txt`.
 
 This component is rarely used on its own — depend on a concrete driver such
-as `idfxx_epaper_ssd1680` or `idfxx_epaper_uc8179`, which pulls in
-`idfxx_epaper` automatically.
+as `idfxx_epaper_ssd1680`, `idfxx_epaper_uc8179`, or `idfxx_epaper_t133a01`,
+which pulls in `idfxx_epaper` automatically.
 
 ## Usage
 
