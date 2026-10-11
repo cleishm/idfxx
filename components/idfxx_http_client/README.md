@@ -6,6 +6,7 @@ Type-safe HTTP/HTTPS client for ESP32.
 
 - Blocking `perform()` for simple request/response workflows
 - Streaming `open()`/`write()`/`read()`/`close()` for large payloads
+- Models `idfxx::byte_source`, so a response body can be passed to any code that consumes a byte stream
 - TLS support with certificate pinning and bundle verification
 - HTTP Basic and Digest authentication
 - Automatic and manual redirect handling
@@ -28,7 +29,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_http_client:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_http_client` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -181,7 +182,8 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `open(write_len)` / `try_open(write_len)` - Open connection
 - `write(data)` / `try_write(data)` - Write request body
 - `fetch_headers()` / `try_fetch_headers()` - Read response headers
-- `read(buf)` / `try_read(buf)` - Read response body
+- `read(buf)` / `try_read(buf)` - Read response body; 0 at end of response. `try_read(std::span<uint8_t>)`
+  makes the client an `idfxx::byte_source`
 - `flush_response()` / `try_flush_response()` - Discard remaining data
 - `close()` / `try_close()` - Close connection
 
