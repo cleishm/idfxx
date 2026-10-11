@@ -8,14 +8,57 @@ on:
   workflow_dispatch:
 
 # A new push to a PR supersedes its in-flight run. Pushes to main and manual
-# runs each get their own group, so every main commit is fully built (docs.yml
+# runs each get their own group, so every main commit gets its own run (docs.yml
 # deploys off it) and none is queued behind or replaced by another.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  # Decides whether this run can skip the build. all-checks records each tree
+  # that passes on a pull request, and a push to main whose tree matches one of
+  # those (the PR merged without main moving underneath it) would only rebuild
+  # identical sources, so it skips. Trees are compared rather than commits
+  # because the commit that lands is never the one the PR tested, even when
+  # their contents are identical. Any other event, or a lookup that fails,
+  # builds.
+  tested:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tree: ${{ steps.check.outputs.tree }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Look for a passing run of this tree
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha) || tree=
+          skip=false
+          if [ "$EVENT" = push ] && [ -n "$tree" ]; then
+            # Records from fork PRs are ignored: a fork's run uses the fork's
+            # copy of this workflow, so its record proves nothing.
+            found=$(gh api "repos/$REPO/actions/artifacts?name=tested-tree-$tree" \
+              --jq '[.artifacts[] | select(.expired | not)
+                     | select(.workflow_run.head_repository_id == .workflow_run.repository_id)]
+                    | length') || found=0
+            if [ "$found" -gt 0 ]; then
+              skip=true
+            fi
+          fi
+          echo "tree: ${tree:-unknown}, skip: $skip"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   format-check:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.3
     steps:
@@ -36,6 +79,8 @@ jobs:
           cmake --build build --target format-check
 
   build:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.3
     strategy:
@@ -65,6 +110,8 @@ jobs:
   # Every other job pins to espressif/idf:v6.0.3; this one is allowed to fail so
   # unreleased upstream regressions flag a warning without blocking PRs.
   build-canary:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:release-v6.0
     continue-on-error: true
@@ -80,6 +127,8 @@ jobs:
           idf.py build
 
   build-compat:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v5.5
     name: build (compat-v5.5)
@@ -96,6 +145,8 @@ jobs:
           idf.py build
 
   discover-examples:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
@@ -136,6 +187,8 @@ jobs:
           idf.py build
 
   qemu-test:
+    needs: tested
+    if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.3
     steps:
@@ -225,9 +278,13 @@ jobs:
   # are added or renamed and cannot be required by name; this job gives every
   # job above one stable name to gate on. build-canary is deliberately absent —
   # it tracks an unreleased branch and is allowed to fail.
+  #
+  # On a pull request that passes, it also records the tested tree for the
+  # tested job above. The record expires after 30 days, after which a merge
+  # simply builds again.
   all-checks:
-    if: always()
-    needs: [format-check, build, build-compat, discover-examples, build-example, qemu-test]
+    if: always() && needs.tested.outputs.skip != 'true'
+    needs: [tested, format-check, build, build-compat, discover-examples, build-example, qemu-test]
     runs-on: ubuntu-latest
     steps:
       - name: Check that every required job succeeded
@@ -244,3 +301,16 @@ jobs:
             fi
           done
           echo "all required jobs succeeded"
+
+      - name: Write the tested-tree record
+        if: github.event_name == 'pull_request' && needs.tested.outputs.tree != ''
+        run: echo "${{ github.sha }}" > tested-tree
+
+      - name: Record the tree as tested
+        if: github.event_name == 'pull_request' && needs.tested.outputs.tree != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-tree-${{ needs.tested.outputs.tree }}
+          path: tested-tree
+          retention-days: 30
+          overwrite: true
