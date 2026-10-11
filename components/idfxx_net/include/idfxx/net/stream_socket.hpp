@@ -16,6 +16,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_source>
 #include <idfxx/net/detail/ip_io_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
@@ -23,6 +24,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -547,6 +549,49 @@ public:
      */
     [[nodiscard]] result<void> try_recv_exact(std::span<std::byte> buf);
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Reads received bytes into a byte buffer.
+     *
+     * Receives up to `buf.size()` bytes, as `recv` does, and returns how
+     * many were received. A return of 0 for a non-empty @p buf means the peer
+     * has closed the connection; an empty @p buf returns 0 without waiting for
+     * data. Fewer bytes than requested may be returned before the end of the
+     * stream. Once 0 has been returned, further reads fail with
+     * `errc::not_connected`. Together with @ref try_read, this lets the socket
+     * be used as an `idfxx::byte_source`.
+     *
+     * @param buf Buffer to read into.
+     *
+     * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+     * @throws std::system_error on failure, including a receive timeout.
+     *
+     * @return Number of bytes received, or 0 if the peer has closed the connection.
+     *
+     * @see recv
+     */
+    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return idfxx::unwrap(try_read(buf)); }
+#endif
+
+    /**
+     * @brief Reads received bytes into a byte buffer.
+     *
+     * Receives up to `buf.size()` bytes, as `try_recv` does, and returns
+     * how many were received. A return of 0 for a non-empty @p buf means the
+     * peer has closed the connection; an empty @p buf returns 0 without
+     * waiting for data. Fewer bytes than requested may be returned before the
+     * end of the stream. Once 0 has been returned, further reads fail with
+     * `errc::not_connected`. Lets the socket be used as an `idfxx::byte_source`.
+     *
+     * @param buf Buffer to read into.
+     * @return Number of bytes received (0 if the peer has closed the
+     *         connection), or an error — the same errors as `try_recv`,
+     *         including when a receive timeout expires.
+     *
+     * @see try_recv
+     */
+    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+
     // ----- shutdown -----
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -679,6 +724,10 @@ private:
     void _set_keep_idle(std::chrono::seconds s) noexcept;
     void _set_keep_interval(std::chrono::seconds s) noexcept;
 };
+
+/** @cond INTERNAL */
+static_assert(idfxx::byte_source<stream_socket>);
+/** @endcond */
 
 // Out-of-line definitions for the bare timed `connect_to_for` overload and the
 // throwing ctor that delegates to it. These cannot be defined inside the class

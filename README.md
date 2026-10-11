@@ -11,7 +11,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | Component | Description | Documentation |
 |-----------|-------------|---------------|
 | **Core Infrastructure** | | |
-| [idfxx_core](https://github.com/cleishm/idfxx/tree/main/components/idfxx_core) | Core utilities: error handling, memory allocators, chrono, scheduling, system info, app metadata, random | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__core.html) |
+| [idfxx_core](https://github.com/cleishm/idfxx/tree/main/components/idfxx_core) | Core utilities: error handling, memory allocators, chrono, scheduling, system info, app metadata, random, byte sources | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__core.html) |
 | [idfxx_hw_support](https://github.com/cleishm/idfxx/tree/main/components/idfxx_hw_support) | Hardware support: interrupt allocation, chip info, MAC addresses | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__hw__support.html) |
 | [idfxx_log](https://github.com/cleishm/idfxx/tree/main/components/idfxx_log) | Type-safe logging with std::format | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__log.html) |
 | **System Services** | | |

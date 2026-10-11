@@ -12,6 +12,7 @@ Type-safe flash partition discovery, reading, writing, and memory mapping.
 - Erase operations with alignment validation
 - SHA-256 hash computation and identity comparison
 - Memory-mapped partition access with automatic cleanup
+- Sequential reading of a whole partition or a byte range as an `idfxx::byte_source`
 - Copyable partition handles valid for the application lifetime
 
 ## Requirements
@@ -28,7 +29,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_partition:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_partition` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -114,6 +115,30 @@ for (unsigned i = 0; i < 16; ++i) {
 }
 ```
 
+### Sequential Reading
+
+`partition_source` reads a partition — or a byte range of it — from start to end, and works
+with any code written against `idfxx::byte_source`:
+
+```cpp
+#include <idfxx/partition>
+
+auto part = idfxx::partition::find("storage");
+
+// Read bytes 0x100..0x1100 in chunks
+idfxx::partition_source src{part, 0x100, 0x1000};
+std::array<uint8_t, 256> buf{};
+while (size_t n = src.read(buf)) {
+    // process std::span{buf}.first(n)...
+}
+
+// Result-based: make() rejects a range that extends past the end of the partition
+auto whole = idfxx::partition_source::make(part, 0, part.size());
+if (!whole) {
+    // errc::invalid_arg
+}
+```
+
 ## API Overview
 
 The component provides two API styles:
@@ -172,13 +197,23 @@ The component provides two API styles:
 - `as_span<T>()` → `std::span<T>` - Typed span over mapped memory
 - `release()` → `esp_partition_mmap_handle_t` - Release ownership without unmapping
 
+### Sequential Reading (`partition_source`)
+
+Models `idfxx::byte_source`.
+
+- `partition_source(part)` - Read the whole partition
+- `partition_source(part, offset, length)` - Read a byte range (exception-based; throws on an out-of-range window)
+- `partition_source::make(part, offset, length)` → `result<partition_source>` - Read a byte range
+- `remaining()` → `size_t` - Bytes left in the range
+- `read(buf)` → `size_t` / `try_read(buf)` → `result<size_t>` - Read the next bytes, with decryption; 0 at the end of the range
+
 ## Error Handling
 
 Uses standard `idfxx::errc` error codes:
 
 - `not_found` - No partition matches the search criteria
 - `invalid_state` - Operation on a null partition
-- `invalid_arg` - Invalid offset, size, or alignment
+- `invalid_arg` - Invalid offset, size, or alignment; a `partition_source` range that extends past the end of the partition
 - `invalid_size` - Size exceeds partition bounds
 - `not_allowed` - Write to a read-only partition
 

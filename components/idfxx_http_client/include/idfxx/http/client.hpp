@@ -20,6 +20,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_source>
 #include <idfxx/error>
 #include <idfxx/http/types>
 
@@ -702,6 +703,10 @@ private:
     std::string _client_cert_pem;
     std::string _client_key_pem;
 };
+
+/** @cond INTERNAL */
+static_assert(idfxx::byte_source<idfxx::http::client>);
+/** @endcond */
 
 /**
  * @headerfile <idfxx/http/client>

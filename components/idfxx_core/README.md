@@ -14,6 +14,8 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **System information** — reset reason, restart, shutdown handlers
 - **Application metadata** — version, project name, build timestamps, ELF hash
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
+- **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
+  in-memory and `FILE*` sources
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
 
 ## Requirements
@@ -171,6 +173,53 @@ memory::walk(memory::capabilities::default_heap, [](memory::region rgn, memory::
 bool ok = memory::check_integrity();
 ```
 
+### Byte Sources
+
+`idfxx::byte_source` is satisfied by anything with
+`result<size_t> try_read(std::span<uint8_t>)`, so a consumer written against it accepts
+in-memory data, files, partitions (`idfxx::partition_source`), network streams, and HTTP
+response bodies alike:
+
+```cpp
+#include <idfxx/byte_source>
+
+static const uint8_t blob[] = {1, 2, 3, 4};
+idfxx::memory_source mem{blob};
+
+std::array<uint8_t, 3> buf{};
+while (size_t n = mem.read(buf)) { // 3, then 1, then 0 at end of stream
+    // process std::span{buf}.first(n)...
+}
+
+FILE* f = std::fopen("/spiffs/data.bin", "rb");
+idfxx::file_source file{f}; // does not take ownership of f
+while (size_t n = file.read(buf)) {
+    // ...
+}
+std::fclose(f);
+```
+
+Generic code that accepts any byte source relies only on `try_read`:
+
+```cpp
+#include <idfxx/byte_source>
+
+idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
+    std::array<uint8_t, 64> buf{};
+    size_t total = 0;
+    while (true) {
+        auto n = src.try_read(buf);
+        if (!n) {
+            return idfxx::error(n.error());
+        }
+        if (*n == 0) {
+            return total; // end of stream
+        }
+        total += *n;
+    }
+}
+```
+
 ## API Overview
 
 ### Error Handling (`<idfxx/error>`)
@@ -245,6 +294,15 @@ bool ok = memory::check_integrity();
 - `fill_random(span)` - Fill a buffer with random bytes
 - `random_device` - `UniformRandomBitGenerator` for use with standard distributions
 
+### Byte Sources (`<idfxx/byte_source>`)
+
+- `byte_source` - Concept for types with `try_read(std::span<uint8_t>)` → `result<size_t>`;
+  returns the bytes read, with 0 (for a non-empty buffer) meaning end of stream, after which
+  callers stop reading
+- `memory_source` - Reads a caller-owned `std::span<const uint8_t>`; `remaining()` reports the bytes left
+- `file_source` - Reads an open `FILE*` (not owned) from its current position
+- `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
+
 ## Error Codes
 
 The `idfxx::errc` enum provides common error codes compatible with ESP-IDF:
@@ -276,6 +334,11 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
   `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. OOM is never
   returned as a recoverable error in `result<T>`. Use the ESP-IDF and FreeRTOS APIs directly
   if you need to handle potential out-of-memory conditions gracefully.
+- **Byte sources do not own what they read**: the buffer behind a `memory_source` must stay
+  valid and unchanged, and the `FILE*` behind a `file_source` must stay open, for as long as
+  the source is read from. A short read does not mean the end of the stream — only a return of
+  0 for a non-empty buffer does. Once a source has returned that 0, stop reading: the result of
+  further reads is unspecified (some sources keep returning 0, others return an error)
 
 ## License
 

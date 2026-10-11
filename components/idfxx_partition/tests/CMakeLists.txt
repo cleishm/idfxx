@@ -4,6 +4,7 @@
 # Test source files
 set(IDFXX_PARTITION_TEST_SOURCES
     partition_test.cpp
+    partition_source_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,

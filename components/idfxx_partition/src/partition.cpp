@@ -266,4 +266,29 @@ esp_partition_mmap_handle_t partition::mmap_handle::release() noexcept {
     return handle;
 }
 
+// =========================================================================
+// partition_source
+// =========================================================================
+
+result<partition_source> partition_source::make(const partition& part, size_t offset, size_t length) {
+    const size_t size = part.size();
+    // Written to avoid overflow: offset + length may not fit in size_t
+    if (offset > size || length > size - offset) {
+        return error(errc::invalid_arg);
+    }
+    return partition_source{offset, offset + length, part};
+}
+
+result<size_t> partition_source::try_read(std::span<uint8_t> buf) {
+    const size_t n = std::min(buf.size(), remaining());
+    if (n == 0) {
+        return 0;
+    }
+    if (auto r = _part.try_read(_pos, buf.first(n)); !r) {
+        return error(r.error());
+    }
+    _pos += n;
+    return n;
+}
+
 } // namespace idfxx
