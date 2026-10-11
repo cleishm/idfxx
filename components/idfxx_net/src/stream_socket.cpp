@@ -307,6 +307,15 @@ result<void> stream_socket::try_recv_exact(std::span<std::byte> buf) {
     return {};
 }
 
+result<size_t> stream_socket::try_read(std::span<uint8_t> buf) {
+    // A zero-length recv on a TCP socket blocks until data arrives, so answer
+    // an empty buffer directly.
+    if (buf.empty()) {
+        return 0;
+    }
+    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) { return r.size(); });
+}
+
 result<void> stream_socket::try_shutdown() {
     if (_fd < 0) {
         return error(errc::invalid_state);

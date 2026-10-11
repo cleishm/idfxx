@@ -12,6 +12,8 @@ Type-safe IP transport API (BSD sockets + Netconn) for ESP-IDF.
 - DNS resolver: `resolve_one` for the first match, `resolve_each` to iterate candidates without allocating, and `resolve` for the full `std::vector<endpoint>`
 - Named socket option setters and getters with type-safe enums
 - Synchronous-with-timeout `connect_for` and `accept_for`
+- `stream_socket` and `netconn::stream_channel` model `idfxx::byte_source` via `read` /
+  `try_read`, so code that consumes a byte stream can read a TCP connection directly
 - IPv4 and IPv6 multicast membership (`join_multicast_v4` / `join_multicast_v6`, etc.)
 - Lower-level Netconn API (`netconn::stream_channel`, `netconn::datagram_channel`,
   `netconn::raw_channel`, `netconn::listener`, `netconn::buffer`) for zero-copy receive
@@ -36,7 +38,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_net:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_net` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -89,6 +91,24 @@ while (true) {
     auto data = sock.recv(buf);
     if (data.empty()) break;
     idfxx::log::info("client", "got {} bytes", data.size());
+}
+```
+
+### Reading a TCP stream as a byte source
+
+`read` receives into a `uint8_t` buffer and returns the byte count, with 0 once the peer has
+closed the connection, so a stream socket or channel can be passed to anything written
+against `idfxx::byte_source`:
+
+```cpp
+#include <idfxx/net/stream_socket>
+
+idfxx::net::stream_socket sock("example.com", 80);
+sock.send_all("GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
+
+std::array<uint8_t, 512> buf;
+while (size_t n = sock.read(buf)) {
+    // process std::span{buf}.first(n)...
 }
 ```
 
@@ -176,7 +196,13 @@ connects; the `_for` variants (`connect_to_for`, `connect_for`) bound the
 attempt by a timeout. Each factory has a throwing constructor twin.
 
 Key operations: `bind`, `connect`, `connect_for`, `send`, `recv`, `send_all`,
-`recv_exact`, `shutdown`, `wait_readable`, `wait_writable`.
+`recv_exact`, `read`, `shutdown`, `wait_readable`, `wait_writable`.
+
+`read(buf)` / `try_read(buf)` receive into a `std::span<uint8_t>` and return the
+number of bytes received (`size_t` / `result<size_t>`), 0 once the peer has
+closed the connection (further reads then fail with `errc::not_connected`);
+errors, including receive timeouts, are those of `recv`. They make
+`stream_socket` an `idfxx::byte_source`.
 
 ### Datagram Socket
 
@@ -220,6 +246,10 @@ lower-level zero-copy receive API:
 
 Every channel exposes `local_endpoint()`; connected `stream_channel` and
 `datagram_channel` add `peer_endpoint()` / `try_peer_endpoint()`.
+
+`stream_channel` also has `read(buf)` / `try_read(buf)`, with the same
+semantics as on `stream_socket` except that reads after the peer has closed
+keep returning 0, making it an `idfxx::byte_source`.
 
 ## Error Handling
 

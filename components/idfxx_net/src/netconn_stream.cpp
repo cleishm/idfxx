@@ -149,6 +149,10 @@ result<std::span<std::byte>> stream_channel::try_recv(std::span<std::byte> buf) 
     return buf.first(copied);
 }
 
+result<size_t> stream_channel::try_read(std::span<uint8_t> buf) {
+    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) { return r.size(); });
+}
+
 result<void> stream_channel::try_close() {
     if (_conn == nullptr) {
         return error(errc::invalid_state);

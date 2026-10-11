@@ -16,6 +16,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_source>
 #include <idfxx/flags>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
@@ -354,6 +355,44 @@ public:
      */
     [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Reads received bytes into a byte buffer.
+     *
+     * Receives up to `buf.size()` bytes, as @ref recv(std::span<std::byte>)
+     * does, and returns how many were received. A return of 0 for a non-empty
+     * @p buf means the peer has closed the connection; an empty @p buf returns
+     * 0 without waiting for data. Fewer bytes than requested may be returned
+     * before the end of the stream. Together with @ref try_read, this lets the
+     * channel be used as an `idfxx::byte_source`.
+     *
+     * @param buf Buffer to read into.
+     *
+     * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+     * @throws std::system_error on failure, including a receive timeout.
+     *
+     * @return Number of bytes received, or 0 if the peer has closed the connection.
+     */
+    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return idfxx::unwrap(try_read(buf)); }
+#endif
+
+    /**
+     * @brief Reads received bytes into a byte buffer.
+     *
+     * Receives up to `buf.size()` bytes, as @ref try_recv(std::span<std::byte>)
+     * does, and returns how many were received. A return of 0 for a non-empty
+     * @p buf means the peer has closed the connection; an empty @p buf returns
+     * 0 without waiting for data. Fewer bytes than requested may be returned
+     * before the end of the stream. Lets the channel be used as an
+     * `idfxx::byte_source`.
+     *
+     * @param buf Buffer to read into.
+     * @return Number of bytes received (0 if the peer has closed the
+     *         connection), or an error — the same errors as
+     *         @ref try_recv(std::span<std::byte>), including a receive timeout.
+     */
+    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+
     // ----- endpoint -----
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -396,6 +435,10 @@ private:
     buffer _pending;
     size_t _pending_offset = 0;
 };
+
+/** @cond INTERNAL */
+static_assert(idfxx::byte_source<stream_channel>);
+/** @endcond */
 
 } // namespace idfxx::net::netconn
 
