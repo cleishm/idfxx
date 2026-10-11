@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "Type-safe IP transport API (BSD sockets + Netconn) for ESP-IDF"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_net"
 repository: "https://github.com/cleishm/idfxx.git"

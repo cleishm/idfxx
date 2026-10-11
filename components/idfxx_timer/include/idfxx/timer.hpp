@@ -17,6 +17,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 
 #include <algorithm>

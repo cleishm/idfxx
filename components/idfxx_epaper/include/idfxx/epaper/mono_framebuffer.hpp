@@ -10,6 +10,8 @@
  * @ingroup idfxx_epaper
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 
 #include <algorithm>

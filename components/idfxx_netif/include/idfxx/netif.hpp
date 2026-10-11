@@ -19,6 +19,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/chrono>
 #include <idfxx/error>
 #include <idfxx/event>
@@ -963,7 +965,6 @@ namespace idfxx {
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /// @cond INTERNAL
 #include <algorithm>

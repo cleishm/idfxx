@@ -22,6 +22,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/gpio>

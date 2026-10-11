@@ -20,6 +20,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error.hpp>
 #include <idfxx/flags.hpp>
 

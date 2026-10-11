@@ -25,6 +25,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 

@@ -20,6 +20,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/chrono>
 #include <idfxx/error>
 #include <idfxx/flags>

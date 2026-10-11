@@ -16,6 +16,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/flags>
 
 #include <cstdint>
@@ -161,7 +163,6 @@ private:
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

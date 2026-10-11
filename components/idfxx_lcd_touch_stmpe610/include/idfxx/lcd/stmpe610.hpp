@@ -10,6 +10,8 @@
  * @ingroup idfxx_lcd_touch
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 #include <idfxx/lcd/touch>
 #include <idfxx/panel_io>

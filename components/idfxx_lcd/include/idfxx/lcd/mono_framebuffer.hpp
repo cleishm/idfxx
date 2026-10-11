@@ -10,6 +10,8 @@
  * @ingroup idfxx_lcd
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 
 #include <algorithm>
