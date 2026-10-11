@@ -8,6 +8,7 @@
 #include "recording_panel.hpp"
 #include "unity.h"
 
+#include <system_error>
 #include <type_traits>
 #include <utility>
 
@@ -131,12 +132,12 @@ TEST_CASE("mono_framebuffer fill and clear", "[idfxx][lcd]") {
     TEST_ASSERT_FALSE(fb->get_pixel(31, 7));
 }
 
-TEST_CASE("mono_framebuffer flush draws the full frame", "[idfxx][lcd]") {
+TEST_CASE("panel write draws the full mono frame", "[idfxx][lcd]") {
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
     recording_panel display;
-    TEST_ASSERT_TRUE(fb->try_flush(display).has_value());
+    TEST_ASSERT_TRUE(display.try_write(*fb).has_value());
 
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
@@ -146,14 +147,37 @@ TEST_CASE("mono_framebuffer flush draws the full frame", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
 }
 
-TEST_CASE("mono_framebuffer flush_rows sends one page-aligned transfer", "[idfxx][lcd]") {
+TEST_CASE("panel write places a mono frame at a page-aligned offset", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(64, 16);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display;
+
+    // A band written lower down and to the right.
+    TEST_ASSERT_TRUE(display.try_write(*fb, 4, 24).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(4, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(24, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(68, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+
+    // A destination row inside a page is rejected without drawing.
+    display.draws.clear();
+    auto unaligned = display.try_write(*fb, 0, 12);
+    TEST_ASSERT_FALSE(unaligned.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), unaligned.error().value());
+    TEST_ASSERT_EQUAL(0, display.draws.size());
+}
+
+TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]") {
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
     recording_panel display;
 
     // Rows [26, 30) round out to pages 3 (rows 24-31): one full-width draw.
-    TEST_ASSERT_TRUE(fb->try_flush_rows(display, 26, 30).has_value());
+    TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
     TEST_ASSERT_EQUAL(24, display.draws[0].y_start);
@@ -161,24 +185,39 @@ TEST_CASE("mono_framebuffer flush_rows sends one page-aligned transfer", "[idfxx
     TEST_ASSERT_EQUAL(32, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
 
+    // With a destination offset, framebuffer row r lands at display row y + r.
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30, 2, 8).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(2, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(32, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(130, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
+
     // Invalid row ranges are rejected.
-    auto empty = fb->try_flush_rows(display, 30, 30);
+    auto empty = display.try_write_rows(*fb, 30, 30);
     TEST_ASSERT_FALSE(empty.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
 
-    auto overflow = fb->try_flush_rows(display, 0, 65);
+    auto overflow = display.try_write_rows(*fb, 0, 65);
     TEST_ASSERT_FALSE(overflow.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
+
+    // So is a destination row inside a page.
+    auto unaligned = display.try_write_rows(*fb, 26, 30, 0, 4);
+    TEST_ASSERT_FALSE(unaligned.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), unaligned.error().value());
 }
 
-TEST_CASE("mono_framebuffer flush_region sends one transfer per page", "[idfxx][lcd]") {
+TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]") {
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
     recording_panel display;
 
     // Columns [3, 5) over rows [10, 26): pages 1-3 (rows 8-32), one draw each.
-    TEST_ASSERT_TRUE(fb->try_flush_region(display, 3, 10, 5, 26).has_value());
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 26).has_value());
     TEST_ASSERT_EQUAL(3, display.draws.size());
     for (size_t i = 0; i < 3; ++i) {
         size_t page = 1 + i;
@@ -189,20 +228,56 @@ TEST_CASE("mono_framebuffer flush_region sends one transfer per page", "[idfxx][
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + page * 128 + 3, display.draws[i].data);
     }
 
+    // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 26, 10, 16).has_value());
+    TEST_ASSERT_EQUAL(3, display.draws.size());
+    for (size_t i = 0; i < 3; ++i) {
+        size_t page = 1 + i;
+        TEST_ASSERT_EQUAL(13, display.draws[i].x_start);
+        TEST_ASSERT_EQUAL(16 + page * 8, display.draws[i].y_start);
+        TEST_ASSERT_EQUAL(15, display.draws[i].x_end);
+        TEST_ASSERT_EQUAL(16 + (page + 1) * 8, display.draws[i].y_end);
+        TEST_ASSERT_EQUAL_PTR(fb->data().data() + page * 128 + 3, display.draws[i].data);
+    }
+
     // A full-width region collapses to a single transfer.
     display.draws.clear();
-    TEST_ASSERT_TRUE(fb->try_flush_region(display, 0, 0, 128, 64).has_value());
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 0, 0, 128, 64).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
 
     // Invalid column ranges are rejected.
-    auto empty = fb->try_flush_region(display, 5, 0, 5, 8);
+    auto empty = display.try_write_region(*fb, 5, 0, 5, 8);
     TEST_ASSERT_FALSE(empty.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
 
-    auto overflow = fb->try_flush_region(display, 0, 0, 129, 8);
+    auto overflow = display.try_write_region(*fb, 0, 0, 129, 8);
     TEST_ASSERT_FALSE(overflow.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
+
+    // So is a destination row inside a page.
+    auto unaligned = display.try_write_region(*fb, 3, 10, 5, 26, 0, 20);
+    TEST_ASSERT_FALSE(unaligned.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), unaligned.error().value());
 }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+TEST_CASE("panel write throws on an unaligned mono destination", "[idfxx][lcd]") {
+    mono_framebuffer fb(16, 8);
+    recording_panel display;
+
+    display.write(fb, 0, 8); // no throw on success
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+
+    bool thrown = false;
+    try {
+        display.write(fb, 0, 3);
+    } catch (const std::system_error&) {
+        thrown = true;
+    }
+    TEST_ASSERT_TRUE(thrown);
+}
+#endif
 
 TEST_CASE("panel reports native dimensions", "[idfxx][lcd]") {
     recording_panel display;

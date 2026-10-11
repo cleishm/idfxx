@@ -11,12 +11,12 @@
  */
 
 #include <idfxx/error>
-#include <idfxx/lcd/panel>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 #include <vector>
 
 /**
@@ -35,15 +35,15 @@ namespace idfxx::lcd {
  * top-to-bottom, each page spanning the full display width. The byte for
  * pixel (x, y) is at index `(y / 8) * width() + x`, bit `y % 8`.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then push it to
- * a panel with @ref flush (full frame) or @ref flush_rows (a horizontal
- * band). This is a plain value type: copyable, movable, and independent of
- * any panel.
+ * Draw into the framebuffer with @ref set_pixel and friends, then draw it on
+ * a panel with @ref panel::write (full frame), @ref panel::write_rows (a
+ * horizontal band) or @ref panel::write_region (a rectangle). This is a
+ * plain value type: copyable, movable, and independent of any panel.
  *
  * @code
  * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
  * fb.set_pixel(10, 20, true);
- * fb.flush(display);
+ * display.write(fb);
  * @endcode
  */
 class mono_framebuffer {
@@ -142,140 +142,6 @@ public:
      * @return A read-only view of the pixel data.
      */
     [[nodiscard]] std::span<const uint8_t> data() const noexcept { return _data; }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    /**
-     * @brief Draws the full framebuffer to a panel.
-     *
-     * The panel must use the page-packed 1-bpp format (e.g. an SSD1306) and
-     * should match the framebuffer's dimensions.
-     *
-     * @param panel The panel to draw to.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void flush(panel& panel) const { unwrap(try_flush(panel)); }
-
-    /**
-     * @brief Draws a horizontal band of the framebuffer to a panel.
-     *
-     * The band spans rows `[y_start, y_end)` across the full width, and is
-     * expanded outward to page boundaries (multiples of 8 rows) to match the
-     * page-packed layout. The panel must use the page-packed 1-bpp format
-     * (e.g. an SSD1306) and should match the framebuffer's dimensions.
-     *
-     * @param panel   The panel to draw to.
-     * @param y_start First row of the band, inclusive.
-     * @param y_end   End row of the band, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error (e.g. an invalid row range).
-     */
-    void flush_rows(panel& panel, size_t y_start, size_t y_end) const { unwrap(try_flush_rows(panel, y_start, y_end)); }
-
-    /**
-     * @brief Draws a rectangular region of the framebuffer to a panel.
-     *
-     * The region spans columns `[x_start, x_end)` and rows `[y_start, y_end)`,
-     * with the rows expanded outward to page boundaries (multiples of 8) to
-     * match the page-packed layout. Full-width regions transfer in a single
-     * draw; narrower regions transfer one draw per page. The panel must use
-     * the page-packed 1-bpp format (e.g. an SSD1306) and should match the
-     * framebuffer's dimensions.
-     *
-     * @param panel   The panel to draw to.
-     * @param x_start First column of the region, inclusive.
-     * @param y_start First row of the region, inclusive.
-     * @param x_end   End column, exclusive; must satisfy `x_start < x_end <= width()`.
-     * @param y_end   End row, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error (e.g. an invalid region).
-     */
-    void flush_region(panel& panel, size_t x_start, size_t y_start, size_t x_end, size_t y_end) const {
-        unwrap(try_flush_region(panel, x_start, y_start, x_end, y_end));
-    }
-#endif
-
-    /**
-     * @brief Draws the full framebuffer to a panel.
-     *
-     * The panel must use the page-packed 1-bpp format (e.g. an SSD1306) and
-     * should match the framebuffer's dimensions.
-     *
-     * @param panel The panel to draw to.
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_flush(panel& panel) const {
-        return panel.try_draw_bitmap(0, 0, static_cast<int>(_width), static_cast<int>(_height), _data.data());
-    }
-
-    /**
-     * @brief Draws a horizontal band of the framebuffer to a panel.
-     *
-     * The band spans rows `[y_start, y_end)` across the full width, and is
-     * expanded outward to page boundaries (multiples of 8 rows) to match the
-     * page-packed layout. The panel must use the page-packed 1-bpp format
-     * (e.g. an SSD1306) and should match the framebuffer's dimensions.
-     *
-     * @param panel   The panel to draw to.
-     * @param y_start First row of the band, inclusive.
-     * @param y_end   End row of the band, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg if the row range is invalid.
-     */
-    [[nodiscard]] result<void> try_flush_rows(panel& panel, size_t y_start, size_t y_end) const {
-        return try_flush_region(panel, 0, y_start, _width, y_end);
-    }
-
-    /**
-     * @brief Draws a rectangular region of the framebuffer to a panel.
-     *
-     * The region spans columns `[x_start, x_end)` and rows `[y_start, y_end)`,
-     * with the rows expanded outward to page boundaries (multiples of 8) to
-     * match the page-packed layout. Full-width regions transfer in a single
-     * draw; narrower regions transfer one draw per page. The panel must use
-     * the page-packed 1-bpp format (e.g. an SSD1306) and should match the
-     * framebuffer's dimensions.
-     *
-     * @param panel   The panel to draw to.
-     * @param x_start First column of the region, inclusive.
-     * @param y_start First row of the region, inclusive.
-     * @param x_end   End column, exclusive; must satisfy `x_start < x_end <= width()`.
-     * @param y_end   End row, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg if the region is invalid.
-     */
-    [[nodiscard]] result<void>
-    try_flush_region(panel& panel, size_t x_start, size_t y_start, size_t x_end, size_t y_end) const {
-        if (x_start >= x_end || x_end > _width || y_start >= y_end || y_end > _height) {
-            return error(errc::invalid_arg);
-        }
-        size_t first_page = y_start / 8;
-        size_t end_page = (y_end + 7) / 8;
-        if (x_start == 0 && x_end == _width) {
-            // In the page-major layout a full-width band is contiguous, so a
-            // single transfer covers all its pages.
-            return panel.try_draw_bitmap(
-                0,
-                static_cast<int>(first_page * 8),
-                static_cast<int>(_width),
-                static_cast<int>(end_page * 8),
-                _data.data() + first_page * _width
-            );
-        }
-        for (size_t page = first_page; page < end_page; ++page) {
-            auto drawn = panel.try_draw_bitmap(
-                static_cast<int>(x_start),
-                static_cast<int>(page * 8),
-                static_cast<int>(x_end),
-                static_cast<int>((page + 1) * 8),
-                _data.data() + page * _width + x_start
-            );
-            if (!drawn) {
-                return drawn;
-            }
-        }
-        return {};
-    }
 
 private:
     mono_framebuffer(size_t width, size_t height, std::vector<uint8_t> data)

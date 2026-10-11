@@ -26,7 +26,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ssd1306:
-    version: "^1.1.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_lcd_ssd1306` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -71,7 +71,7 @@ try {
     // Draw via a monochrome framebuffer
     idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
     fb.set_pixel(10, 20, true);
-    fb.flush(display);
+    display.write(fb);
 
 } catch (const std::system_error& e) {
     idfxx::log::error("OLED", "Error: {}", e.what());
@@ -135,14 +135,14 @@ display.set_contrast(0x20);
 
 ### Partial Updates
 
-`mono_framebuffer::flush_rows` redraws only a horizontal band, and
-`mono_framebuffer::flush_region` narrows the transfer further to a column
-range, which keeps I2C traffic low for small changes:
+`panel::write_rows` redraws only a horizontal band of a `mono_framebuffer`,
+and `panel::write_region` narrows the transfer further to a column range,
+which keeps I2C traffic low for small changes:
 
 ```cpp
 fb.set_pixel(64, 20, true);
-fb.flush_rows(display, 16, 24);           // only page 2 (rows 16-23) is transferred
-fb.flush_region(display, 64, 20, 65, 21); // only one byte of page 2 is transferred
+display.write_rows(fb, 16, 24);           // only page 2 (rows 16-23) is transferred
+display.write_region(fb, 64, 20, 65, 21); // only one byte of page 2 is transferred
 ```
 
 ## API Overview
@@ -227,7 +227,8 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
   (bit 0 topmost) and pages span the full width — the same layout
   `idfxx::lcd::mono_framebuffer` produces
 - Row coordinates passed to `draw_bitmap` must be **page-aligned** (multiples of 8);
-  `mono_framebuffer::flush_rows` handles this rounding for you
+  `panel::write_rows` / `write_region` handle this rounding for you when drawing a
+  `mono_framebuffer`
 - `swap_xy` and `mirror` only affect subsequent draws — redraw the frame after changing them
 - The `panel_io` must be created before the panel, and must outlive it
 - The `ssd1306` class inherits from the `panel` base class provided by `idfxx_lcd`

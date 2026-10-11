@@ -68,7 +68,7 @@ extern "C" void app_main() {
             }
         }
 
-        fb.flush(display);
+        display.write(fb);
         logger.info("Drew test pattern");
 
         // --- Animate: sweep a progress bar with partial updates, then invert ---
@@ -82,7 +82,7 @@ extern "C" void app_main() {
             }
             // Only the affected column is transferred (rows rounded out to the
             // containing page, i.e. rows 24-31): a single byte on the bus.
-            fb.flush_region(display, bar_x, 26, bar_x + 1, 30);
+            display.write_region(fb, bar_x, 26, bar_x + 1, 30);
 
             if (++bar_x < fb.width() - 2) {
                 continue;
@@ -98,7 +98,7 @@ extern "C" void app_main() {
                 fb.set_pixel(dx, y, true);
                 fb.set_pixel(fb.width() - 1 - dx, y, true);
             }
-            fb.flush_rows(display, 26, 30);
+            display.write_rows(fb, 26, 30);
             inverted = !inverted;
             display.invert_color(inverted);
             // Alternate contrast with the inversion (power-on default is 0x7F).
