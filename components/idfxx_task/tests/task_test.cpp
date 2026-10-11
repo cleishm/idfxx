@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <idfxx/chrono>
@@ -630,7 +631,19 @@ TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
 }
 
 #if CONFIG_SPIRAM
+
+// The esp32s3 test app enables PSRAM, but the module may have none fitted
+// (and QEMU emulates none); boot then continues without it. PSRAM-backed
+// tests skip in that case, since allocation failure aborts.
+static bool psram_available() {
+    return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
+}
+
 TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
+    if (!psram_available()) {
+        TEST_IGNORE_MESSAGE("no PSRAM available");
+    }
+
     std::atomic<bool> executed{false};
 
     auto t = std::make_unique<task>(
