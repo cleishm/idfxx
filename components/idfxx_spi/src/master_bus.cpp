@@ -3,6 +3,7 @@
 
 #include <idfxx/spi/master>
 
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <limits>
 #include <utility>
@@ -33,6 +34,9 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .data7_io_num = config.data7.idf_num(),
         .data_io_default_level = config.data_idle_level == gpio::level::high,
         .max_transfer_sz = static_cast<int>(config.max_transfer_sz),
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        .dma_burst_size = 0, // driver default
+#endif
         .flags = to_underlying(config.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
         // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.
