@@ -207,8 +207,19 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
   - `fetch_header` - Header read error
   - `invalid_transport` - Bad transport type
   - `connecting` - Connection in progress (async)
-  - `eagain` - Try again later
-  - `connection_closed` - Remote closed connection
+  - `eagain` - Timed out: `read()` before any data arrived, `write()` while waiting to send, or
+    `fetch_headers()` / `perform()` before the response headers arrived
+  - `connection_closed` - `read()` found the connection closed (or failed) before the response
+    body was complete
+  - `not_modified` - Server responded 304 Not Modified
+  - `range_not_satisfiable` - Server responded 416 Range Not Satisfiable
+  - `read_timeout` - Timed out reading response data (ESP-IDF 5.5.2+; ESP-IDF 5.5.2 through 6.1
+    report a `perform()` body-read timeout as `incomplete_data` instead)
+  - `incomplete_data` - Response body ended before the full Content-Length or final chunk; this
+    is what `perform()` returns when the body read times out or the server closes early
+    (ESP-IDF 5.5.2+; earlier versions complete `perform()` successfully with the truncated body)
+  - `redirect_downgrade` - Redirect from HTTPS to a non-HTTPS URL was blocked (ESP-IDF 6.0+)
+  - `header_too_long` - A request header does not fit in the transmit buffer (ESP-IDF 6.0+)
 - **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`, throwing methods raise `std::system_error`
 
 ## Important Notes

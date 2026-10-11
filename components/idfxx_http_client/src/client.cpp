@@ -49,6 +49,18 @@ static_assert(std::to_underlying(idfxx::http::client::errc::invalid_transport) =
 static_assert(std::to_underlying(idfxx::http::client::errc::connecting) == ESP_ERR_HTTP_CONNECTING);
 static_assert(std::to_underlying(idfxx::http::client::errc::eagain) == ESP_ERR_HTTP_EAGAIN);
 static_assert(std::to_underlying(idfxx::http::client::errc::connection_closed) == ESP_ERR_HTTP_CONNECTION_CLOSED);
+static_assert(std::to_underlying(idfxx::http::client::errc::not_modified) == ESP_ERR_HTTP_NOT_MODIFIED);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::range_not_satisfiable) == ESP_ERR_HTTP_RANGE_NOT_SATISFIABLE
+);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
+static_assert(std::to_underlying(idfxx::http::client::errc::read_timeout) == ESP_ERR_HTTP_READ_TIMEOUT);
+static_assert(std::to_underlying(idfxx::http::client::errc::incomplete_data) == ESP_ERR_HTTP_INCOMPLETE_DATA);
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(idfxx::http::client::errc::redirect_downgrade) == ESP_ERR_HTTP_REDIRECT_DOWNGRADE);
+static_assert(std::to_underlying(idfxx::http::client::errc::header_too_long) == ESP_ERR_HTTP_HEADER_TOO_LONG);
+#endif
 
 namespace {
 const char* TAG = "idfxx::http";
@@ -79,6 +91,22 @@ static std::optional<client::errc> make_errc(esp_err_t e) noexcept {
         return client::errc::eagain;
     case ESP_ERR_HTTP_CONNECTION_CLOSED:
         return client::errc::connection_closed;
+    case ESP_ERR_HTTP_NOT_MODIFIED:
+        return client::errc::not_modified;
+    case ESP_ERR_HTTP_RANGE_NOT_SATISFIABLE:
+        return client::errc::range_not_satisfiable;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
+    case ESP_ERR_HTTP_READ_TIMEOUT:
+        return client::errc::read_timeout;
+    case ESP_ERR_HTTP_INCOMPLETE_DATA:
+        return client::errc::incomplete_data;
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case ESP_ERR_HTTP_REDIRECT_DOWNGRADE:
+        return client::errc::redirect_downgrade;
+    case ESP_ERR_HTTP_HEADER_TOO_LONG:
+        return client::errc::header_too_long;
+#endif
     default:
         return std::nullopt;
     }
@@ -183,6 +211,22 @@ std::string client::error_category::message(int ec) const {
         return "Resource temporarily unavailable, try again";
     case client::errc::connection_closed:
         return "Connection closed by remote";
+    case client::errc::not_modified:
+        return "Not modified (HTTP 304)";
+    case client::errc::range_not_satisfiable:
+        return "Range not satisfiable (HTTP 416)";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
+    case client::errc::read_timeout:
+        return "Timed out reading response data";
+    case client::errc::incomplete_data:
+        return "Response data incomplete";
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case client::errc::redirect_downgrade:
+        return "Redirect from HTTPS to a non-HTTPS URL blocked";
+    case client::errc::header_too_long:
+        return "Request header too long for the transmit buffer";
+#endif
     default:
         return esp_err_to_name(static_cast<esp_err_t>(ec));
     }
@@ -530,6 +574,12 @@ result<size_t> client::try_write(std::span<const uint8_t> data) {
         ESP_LOGD(TAG, "write failed");
         return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
     }
+    if (written == 0 && len > 0) {
+        // The transport reports a write that timed out waiting for the socket
+        // to become writable as 0 bytes written.
+        ESP_LOGD(TAG, "write timed out");
+        return http_client_error(ESP_ERR_HTTP_EAGAIN);
+    }
     return static_cast<size_t>(written);
 }
 
@@ -541,8 +591,13 @@ result<int64_t> client::try_fetch_headers() {
     if (!_handle) {
         return error(idfxx::errc::invalid_state);
     }
+    // Success is never negative: a chunked or unknown length is reported as 0.
     int64_t content_length = esp_http_client_fetch_headers(_handle);
-    if (content_length < 0 && !esp_http_client_is_chunked_response(_handle)) {
+    if (content_length == -ESP_ERR_HTTP_EAGAIN) {
+        ESP_LOGD(TAG, "fetch_headers timed out");
+        return http_client_error(ESP_ERR_HTTP_EAGAIN);
+    }
+    if (content_length < 0) {
         ESP_LOGD(TAG, "fetch_headers failed");
         return http_client_error(ESP_ERR_HTTP_FETCH_HEADER);
     }
@@ -555,6 +610,10 @@ result<size_t> client::try_read(std::span<uint8_t> buf) {
     }
     int len = static_cast<int>(std::min(buf.size(), static_cast<size_t>(INT_MAX)));
     int read_len = esp_http_client_read(_handle, reinterpret_cast<char*>(buf.data()), len);
+    if (read_len == -ESP_ERR_HTTP_EAGAIN) {
+        ESP_LOGD(TAG, "read timed out");
+        return http_client_error(ESP_ERR_HTTP_EAGAIN);
+    }
     if (read_len < 0) {
         ESP_LOGD(TAG, "read failed");
         return http_client_error(ESP_ERR_HTTP_CONNECTION_CLOSED);

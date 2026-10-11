@@ -94,14 +94,32 @@ public:
      */
     enum class errc : esp_err_t {
         // clang-format off
-        max_redirect      = 0x7001, ///< Maximum number of redirects exceeded
-        connect           = 0x7002, ///< Connection to server failed
-        write_data        = 0x7003, ///< Error writing request data
-        fetch_header      = 0x7004, ///< Error reading response headers
-        invalid_transport = 0x7005, ///< Invalid transport type specified
-        connecting        = 0x7006, ///< Connection in progress (async mode)
-        eagain            = 0x7007, ///< Resource temporarily unavailable, try again
-        connection_closed = 0x7008, ///< Connection closed by remote
+        max_redirect          = 0x7001, ///< Maximum number of redirects exceeded
+        connect               = 0x7002, ///< Connection to server failed
+        write_data            = 0x7003, ///< Error writing request data
+        fetch_header          = 0x7004, ///< Error reading response headers
+        invalid_transport     = 0x7005, ///< Invalid transport type specified
+        connecting            = 0x7006, ///< Connection in progress (async mode)
+        eagain                = 0x7007, ///< Resource temporarily unavailable, try again
+        connection_closed     = 0x7008, ///< Connection closed by remote
+        not_modified          = 0x7009, ///< Server responded 304 Not Modified
+        range_not_satisfiable = 0x700A, ///< Server responded 416 Range Not Satisfiable
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
+        /// Timed out reading response data.
+        /// @note Available from ESP-IDF 5.5.2.
+        read_timeout          = 0x700B,
+        /// Response data ended before the expected length or final chunk.
+        /// @note Available from ESP-IDF 5.5.2.
+        incomplete_data       = 0x700C,
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+        /// Redirect from HTTPS to a non-HTTPS URL was blocked.
+        /// @note Available from ESP-IDF 6.0.
+        redirect_downgrade    = 0x700D,
+        /// A request header does not fit in the transmit buffer.
+        /// @note Available from ESP-IDF 6.0.
+        header_too_long       = 0x700E,
+#endif
         // clang-format on
     };
 
@@ -316,6 +334,12 @@ public:
      * Sends the request and reads the complete response. Use event callbacks
      * or the streaming API to process response data.
      *
+     * If the response body ends early — the timeout expires or the server closes
+     * the connection before the full Content-Length or the final chunk has been
+     * received — the request fails with `client::errc::incomplete_data`. The two
+     * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
+     * succeeds with the truncated body.
+     *
      * @code
      * idfxx::http::client c({.url = "https://example.com"});
      * c.perform();
@@ -323,7 +347,8 @@ public:
      * @endcode
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::incomplete_data`
+     *         when the response body ends early (ESP-IDF 5.5.2+).
      */
     void perform() { unwrap(try_perform()); }
 #endif
@@ -334,7 +359,22 @@ public:
      * Sends the request and reads the complete response. Use event callbacks
      * or the streaming API to process response data.
      *
+     * If the response body ends early — the timeout expires or the server closes
+     * the connection before the full Content-Length or the final chunk has been
+     * received — the request fails with `client::errc::incomplete_data`. The two
+     * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
+     * succeeds with the truncated body.
+     *
      * @return Success, or an error.
+     * @retval client::errc::connect Connecting to the server failed.
+     * @retval client::errc::eagain The timeout expired before the response
+     *         headers were received.
+     * @retval client::errc::fetch_header Reading the response headers failed,
+     *         including the server closing the connection before sending them.
+     * @retval client::errc::connection_closed The connection was found closed
+     *         while reading the response headers.
+     * @retval client::errc::incomplete_data The response body ended early (timeout
+     *         or connection closed). ESP-IDF 5.5.2+.
      */
     [[nodiscard]] result<void> try_perform();
 
@@ -362,20 +402,30 @@ public:
     /**
      * @brief Writes data to the open connection.
      *
+     * Blocks until all of @p data has been written or the timeout expires.
+     * When the write fails, including on a timeout, an unspecified prefix of
+     * @p data may already have been sent.
+     *
      * @param data Binary data to write.
      * @return Number of bytes written.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::eagain` when
+     *         the timeout expires and `client::errc::write_data` when the write fails.
      */
     [[nodiscard]] size_t write(std::span<const uint8_t> data) { return unwrap(try_write(data)); }
 
     /**
      * @brief Writes string data to the open connection.
      *
+     * Blocks until all of @p data has been written or the timeout expires.
+     * When the write fails, including on a timeout, an unspecified prefix of
+     * @p data may already have been sent.
+     *
      * @param data String data to write.
      * @return Number of bytes written.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::eagain` when
+     *         the timeout expires and `client::errc::write_data` when the write fails.
      */
     [[nodiscard]] size_t write(std::string_view data) { return unwrap(try_write(data)); }
 
@@ -383,31 +433,51 @@ public:
      * @brief Reads and processes response headers.
      *
      * Must be called after open() (and any write() calls) before reading
-     * response body data.
+     * response body data. Blocks until the response headers have been received
+     * or the timeout expires.
      *
-     * @return The content length, or -1 if chunked/unknown.
+     * @return The response's Content-Length when it is greater than zero, or 0
+     *         when the length is zero or not known in advance (a chunked response
+     *         or one without a Content-Length header); content_length() returns
+     *         -1 for the latter.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::eagain` when
+     *         the timeout expires before the headers are received and
+     *         `client::errc::fetch_header` when reading the headers fails.
      */
     int64_t fetch_headers() { return unwrap(try_fetch_headers()); }
 
     /**
      * @brief Reads response body data.
      *
+     * Blocks until @p buf is full, the response body is complete, the
+     * connection closes, or the timeout expires; data received before a close
+     * or timeout is returned first.
+     *
      * @param buf Buffer to read into.
      * @return Number of bytes read, or 0 at end of response.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::eagain` when
+     *         the timeout expires before any data is read and
+     *         `client::errc::connection_closed` when the connection closes or fails
+     *         before the response body is complete and no data was read.
      */
     [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
 
     /**
      * @brief Reads response body data into a character buffer.
      *
+     * Blocks until @p buf is full, the response body is complete, the
+     * connection closes, or the timeout expires; data received before a close
+     * or timeout is returned first.
+     *
      * @param buf Buffer to read into.
      * @return Number of bytes read, or 0 at end of response.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `client::errc::eagain` when
+     *         the timeout expires before any data is read and
+     *         `client::errc::connection_closed` when the connection closes or fails
+     *         before the response body is complete and no data was read.
      */
     [[nodiscard]] size_t read(std::span<char> buf) { return unwrap(try_read(buf)); }
 
@@ -447,16 +517,28 @@ public:
     /**
      * @brief Writes data to the open connection.
      *
+     * Blocks until all of @p data has been written or the timeout expires.
+     * When the write fails, including on a timeout, an unspecified prefix of
+     * @p data may already have been sent.
+     *
      * @param data Binary data to write.
      * @return Number of bytes written, or an error.
+     * @retval client::errc::eagain The timeout expired while waiting to write.
+     * @retval client::errc::write_data The write failed.
      */
     [[nodiscard]] result<size_t> try_write(std::span<const uint8_t> data);
 
     /**
      * @brief Writes string data to the open connection.
      *
+     * Blocks until all of @p data has been written or the timeout expires.
+     * When the write fails, including on a timeout, an unspecified prefix of
+     * @p data may already have been sent.
+     *
      * @param data String data to write.
      * @return Number of bytes written, or an error.
+     * @retval client::errc::eagain The timeout expired while waiting to write.
+     * @retval client::errc::write_data The write failed.
      */
     [[nodiscard]] result<size_t> try_write(std::string_view data);
 
@@ -464,9 +546,17 @@ public:
      * @brief Reads and processes response headers.
      *
      * Must be called after open() (and any write() calls) before reading
-     * response body data.
+     * response body data. Blocks until the response headers have been received
+     * or the timeout expires.
      *
-     * @return The content length (-1 if chunked/unknown), or an error.
+     * @return The response's Content-Length when it is greater than zero, 0 when
+     *         the length is zero or not known in advance (a chunked response or
+     *         one without a Content-Length header; content_length() returns -1
+     *         for the latter), or an error.
+     * @retval client::errc::eagain The timeout expired before the headers were
+     *         received.
+     * @retval client::errc::fetch_header Reading the headers failed, or the
+     *         connection closed before they were received.
      */
     // [[nodiscard]] intentionally omitted: callers may fetch headers for their
     // side effects without needing the returned content-length value.
@@ -475,16 +565,32 @@ public:
     /**
      * @brief Reads response body data.
      *
+     * Blocks until @p buf is full, the response body is complete, the
+     * connection closes, or the timeout expires; data received before a close
+     * or timeout is returned first.
+     *
      * @param buf Buffer to read into.
      * @return Number of bytes read (0 at end of response), or an error.
+     * @retval client::errc::eagain The timeout expired before any data was read.
+     *         Nothing was consumed; the read may be retried.
+     * @retval client::errc::connection_closed The connection closed or failed
+     *         before the response body was complete, and no data was read.
      */
     [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
 
     /**
      * @brief Reads response body data into a character buffer.
      *
+     * Blocks until @p buf is full, the response body is complete, the
+     * connection closes, or the timeout expires; data received before a close
+     * or timeout is returned first.
+     *
      * @param buf Buffer to read into.
      * @return Number of bytes read (0 at end of response), or an error.
+     * @retval client::errc::eagain The timeout expired before any data was read.
+     *         Nothing was consumed; the read may be retried.
+     * @retval client::errc::connection_closed The connection closed or failed
+     *         before the response body was complete, and no data was read.
      */
     [[nodiscard]] result<size_t> try_read(std::span<char> buf);
 
