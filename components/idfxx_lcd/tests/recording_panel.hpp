@@ -11,8 +11,8 @@
 
 namespace idfxx_lcd_test {
 
-// Stub panel recording draw_bitmap calls, for verifying flush behaviour
-// without hardware.
+// Stub panel recording draw_bitmap calls, for verifying framebuffer write
+// behaviour without hardware.
 class recording_panel : public idfxx::lcd::panel {
 public:
     struct draw {

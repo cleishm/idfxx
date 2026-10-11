@@ -1,12 +1,12 @@
 dependencies:
   cleishm/idfxx_gfx:
-    version: "^1.0.0"
+    version: "^2.0.0"
     override_path: ../../..
   cleishm/idfxx_font_spleen:
     version: "^1.0.0"
     override_path: ../../../../idfxx_font_spleen
   cleishm/idfxx_lcd_ili9341:
-    version: "^2.2.0"
+    version: "^3.0.0"
     override_path: ../../../../idfxx_lcd_ili9341
   cleishm/idfxx_spi:
     version: "^1.0.0"

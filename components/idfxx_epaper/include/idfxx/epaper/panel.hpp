@@ -112,7 +112,7 @@ enum class color_mode : uint8_t {
  * idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
  * idfxx::gfx::canvas canvas(fb);
  * canvas.draw_text(idfxx::font::spleen_8x16, 4, 4, "hello", true);
- * fb.flush(display);                              // upload to controller RAM
+ * display.write(fb);                             // upload to controller RAM
  * display.refresh();                              // make it visible
  * display.sleep();                                // deep sleep until the next update
  * @endcode
@@ -203,7 +203,7 @@ public:
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
-     * panel row `y + r`, so a band flushed from a full-frame framebuffer
+     * panel row `y + r`, so a band written from a full-frame framebuffer
      * lands exactly where the full upload would place it.
      *
      * @param fb        The framebuffer to upload from.
@@ -310,7 +310,7 @@ public:
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
-     * panel row `y + r`, so a band flushed from a full-frame framebuffer
+     * panel row `y + r`, so a band written from a full-frame framebuffer
      * lands exactly where the full upload would place it.
      *
      * @param fb        The framebuffer to upload from.
@@ -430,7 +430,7 @@ public:
      * @ref refresh_mode::full.
      *
      * @code
-     * fb.flush(display);
+     * display.write(fb);
      * auto done = display.start_refresh();
      * do_other_work();              // the glass updates meanwhile
      * done.wait();                  // or: if (done.done()) ...

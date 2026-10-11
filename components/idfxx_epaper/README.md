@@ -71,7 +71,7 @@ void show_message(idfxx::epaper::panel& display) {
     idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
     fb.set_pixel(10, 20, true); // true = black ink; the buffer starts white
 
-    fb.flush(display);   // upload to controller RAM — nothing visible yet
+    display.write(fb);   // upload to controller RAM — nothing visible yet
     display.refresh();   // drive the ink update; blocks until BUSY releases
     display.sleep();     // deep sleep between updates
 }
@@ -90,7 +90,7 @@ idfxx::result<void> show_message(idfxx::epaper::panel& display) {
     }
     fb->set_pixel(10, 20, true);
 
-    if (auto r = fb->try_flush(display); !r) {
+    if (auto r = display.try_write(*fb); !r) {
         return r;
     }
     if (auto r = display.try_refresh(); !r) {
@@ -106,7 +106,7 @@ A partial refresh flips only the pixels that changed since the previous
 refresh — no full-screen flash:
 
 ```cpp
-fb.flush(display);
+display.write(fb);
 display.refresh(idfxx::epaper::refresh_mode::partial);
 ```
 
@@ -123,7 +123,7 @@ refresh. `start_refresh` starts the same update and returns an
 meanwhile and wait, poll, or simply drop the handle:
 
 ```cpp
-fb.flush(display);
+display.write(fb);
 auto done = display.start_refresh();
 read_sensors();                 // the glass updates meanwhile
 done.wait();                    // or: if (done.done()) { ... }
@@ -144,21 +144,21 @@ display.set_color_mode(idfxx::epaper::color_mode::gray4);
 
 idfxx::epaper::gray4_framebuffer fb(display.width(), display.height());
 fb.set_pixel(10, 20, idfxx::epaper::gray4::dark);
-fb.flush(display);
+display.write(fb);
 display.refresh(); // gray4 supports full refresh only
 ```
 
 ### Drawing with idfxx_gfx
 
 Both framebuffers are `idfxx::gfx::pixel_surface`s, so the gfx canvas and
-text primitives draw on them directly, and `canvas.try_flush(display)`
-completes the draw-then-upload cycle:
+text primitives draw on them directly; upload the framebuffer the canvas
+draws on with `display.write(fb)`:
 
 ```cpp
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
 idfxx::gfx::canvas canvas(fb);
 canvas.draw_text(idfxx::font::spleen_8x16, 4, 4, "23.7°C", true, 2);
-canvas.flush(display);
+display.write(fb);
 display.refresh();
 ```
 
@@ -196,10 +196,9 @@ forms above are inline wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
   level, plane 1 = bit 1); `pixel_type` is `epaper::gray4` (`white`,
   `light`, `dark`, `black`). Starts all-white.
 
-Both provide `set_pixel` / `get_pixel` / `fill` / `clear`, raw data access
-(`data()` / `row(y)` on mono, `plane(i)` / `plane_row(i, y)` on gray4), and
-the flush family (`flush(panel, x = 0, y = 0)`, `flush_rows(panel, y_start,
-y_end)`, plus `try_*` forms).
+Both provide `set_pixel` / `get_pixel` / `fill` / `clear` and raw data
+access (`data()` / `row(y)` on mono, `plane(i)` / `plane_row(i, y)` on
+gray4). Upload them with the panel's `write` / `write_rows`.
 
 ### Types
 

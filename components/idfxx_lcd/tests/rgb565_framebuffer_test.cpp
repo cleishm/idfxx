@@ -147,14 +147,14 @@ TEST_CASE("rgb565_framebuffer fill and clear", "[idfxx][lcd]") {
     TEST_ASSERT_TRUE(fb->get_pixel(31, 7) == rgb565{});
 }
 
-TEST_CASE("rgb565_framebuffer flush draws the full frame at an offset", "[idfxx][lcd]") {
+TEST_CASE("panel write draws the full rgb565 frame at an offset", "[idfxx][lcd]") {
     auto fb = rgb565_framebuffer::make(240, 40);
     TEST_ASSERT_TRUE(fb.has_value());
 
     recording_panel display;
 
     // Default offset: top-left corner.
-    TEST_ASSERT_TRUE(fb->try_flush(display).has_value());
+    TEST_ASSERT_TRUE(display.try_write(*fb).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
     TEST_ASSERT_EQUAL(0, display.draws[0].y_start);
@@ -162,16 +162,26 @@ TEST_CASE("rgb565_framebuffer flush draws the full frame at an offset", "[idfxx]
     TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
 
-    // A band flushed lower down the frame.
+    // A band written lower down the frame.
     display.draws.clear();
-    TEST_ASSERT_TRUE(fb->try_flush(display, 0, 80).has_value());
+    TEST_ASSERT_TRUE(display.try_write(*fb, 0, 80).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(80, display.draws[0].y_start);
     TEST_ASSERT_EQUAL(120, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+
+    // And shifted right.
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write(*fb, 10, 7).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(10, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(7, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(250, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(47, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
 }
 
-TEST_CASE("rgb565_framebuffer flush_rows sends one transfer", "[idfxx][lcd]") {
+TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
     constexpr size_t width = 64;
     constexpr size_t height = 48;
     auto fb = rgb565_framebuffer::make(width, height);
@@ -179,7 +189,7 @@ TEST_CASE("rgb565_framebuffer flush_rows sends one transfer", "[idfxx][lcd]") {
 
     recording_panel display;
 
-    TEST_ASSERT_TRUE(fb->try_flush_rows(display, 26, 30).has_value());
+    TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
     TEST_ASSERT_EQUAL(26, display.draws[0].y_start);
@@ -187,17 +197,27 @@ TEST_CASE("rgb565_framebuffer flush_rows sends one transfer", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(30, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 26 * width, display.draws[0].data);
 
+    // With a destination offset, framebuffer row r lands at display row y + r.
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30, 5, 100).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(5, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(126, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(width + 5, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(130, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data() + 26 * width, display.draws[0].data);
+
     // Invalid row ranges are rejected.
-    auto empty = fb->try_flush_rows(display, 30, 30);
+    auto empty = display.try_write_rows(*fb, 30, 30);
     TEST_ASSERT_FALSE(empty.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
 
-    auto overflow = fb->try_flush_rows(display, 0, height + 1);
+    auto overflow = display.try_write_rows(*fb, 0, height + 1);
     TEST_ASSERT_FALSE(overflow.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
 }
 
-TEST_CASE("rgb565_framebuffer flush_region sends one transfer per row", "[idfxx][lcd]") {
+TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]") {
     constexpr size_t width = 64;
     constexpr size_t height = 48;
     auto fb = rgb565_framebuffer::make(width, height);
@@ -206,7 +226,7 @@ TEST_CASE("rgb565_framebuffer flush_region sends one transfer per row", "[idfxx]
     recording_panel display;
 
     // Columns [3, 5) over rows [10, 13): one draw per row.
-    TEST_ASSERT_TRUE(fb->try_flush_region(display, 3, 10, 5, 13).has_value());
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 13).has_value());
     TEST_ASSERT_EQUAL(3, display.draws.size());
     for (size_t i = 0; i < 3; ++i) {
         size_t row = 10 + i;
@@ -217,17 +237,40 @@ TEST_CASE("rgb565_framebuffer flush_region sends one transfer per row", "[idfxx]
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + row * width + 3, display.draws[i].data);
     }
 
+    // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 13, 7, 20).has_value());
+    TEST_ASSERT_EQUAL(3, display.draws.size());
+    for (size_t i = 0; i < 3; ++i) {
+        size_t row = 10 + i;
+        TEST_ASSERT_EQUAL(10, display.draws[i].x_start);
+        TEST_ASSERT_EQUAL(20 + row, display.draws[i].y_start);
+        TEST_ASSERT_EQUAL(12, display.draws[i].x_end);
+        TEST_ASSERT_EQUAL(20 + row + 1, display.draws[i].y_end);
+        TEST_ASSERT_EQUAL_PTR(fb->data().data() + row * width + 3, display.draws[i].data);
+    }
+
     // A full-width region collapses to a single transfer.
     display.draws.clear();
-    TEST_ASSERT_TRUE(fb->try_flush_region(display, 0, 0, width, height).has_value());
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 0, 0, width, height).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
 
+    // Offset full-width regions stay a single transfer at the destination.
+    display.draws.clear();
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 0, 4, width, 8, 16, 32).has_value());
+    TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(16, display.draws[0].x_start);
+    TEST_ASSERT_EQUAL(36, display.draws[0].y_start);
+    TEST_ASSERT_EQUAL(width + 16, display.draws[0].x_end);
+    TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
+    TEST_ASSERT_EQUAL_PTR(fb->data().data() + 4 * width, display.draws[0].data);
+
     // Invalid column ranges are rejected.
-    auto empty = fb->try_flush_region(display, 5, 0, 5, 8);
+    auto empty = display.try_write_region(*fb, 5, 0, 5, 8);
     TEST_ASSERT_FALSE(empty.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), empty.error().value());
 
-    auto overflow = fb->try_flush_region(display, 0, 0, width + 1, 8);
+    auto overflow = display.try_write_region(*fb, 0, 0, width + 1, 8);
     TEST_ASSERT_FALSE(overflow.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
 }

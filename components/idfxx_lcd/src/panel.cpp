@@ -1,11 +1,126 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include <idfxx/lcd/mono_framebuffer>
 #include <idfxx/lcd/panel>
+#include <idfxx/lcd/rgb565_framebuffer>
 
 #include <esp_lcd_panel_ops.h>
 
 namespace idfxx::lcd {
+
+result<void> panel::try_write(const rgb565_framebuffer& fb, size_t x, size_t y) {
+    return try_draw_bitmap(
+        static_cast<int>(x),
+        static_cast<int>(y),
+        static_cast<int>(x + fb.width()),
+        static_cast<int>(y + fb.height()),
+        fb.data().data()
+    );
+}
+
+result<void> panel::try_write(const mono_framebuffer& fb, size_t x, size_t y) {
+    if (y % 8 != 0) {
+        return error(errc::invalid_arg);
+    }
+    return try_draw_bitmap(
+        static_cast<int>(x),
+        static_cast<int>(y),
+        static_cast<int>(x + fb.width()),
+        static_cast<int>(y + fb.height()),
+        fb.data().data()
+    );
+}
+
+result<void> panel::try_write_rows(const rgb565_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+    return try_write_region(fb, 0, row_start, fb.width(), row_end, x, y);
+}
+
+result<void> panel::try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+    return try_write_region(fb, 0, row_start, fb.width(), row_end, x, y);
+}
+
+result<void> panel::try_write_region(
+    const rgb565_framebuffer& fb,
+    size_t x_start,
+    size_t y_start,
+    size_t x_end,
+    size_t y_end,
+    size_t x,
+    size_t y
+) {
+    const size_t width = fb.width();
+    if (x_start >= x_end || x_end > width || y_start >= y_end || y_end > fb.height()) {
+        return error(errc::invalid_arg);
+    }
+    const rgb565* data = fb.data().data();
+    if (x_start == 0 && x_end == width) {
+        // In the row-major layout a full-width band is contiguous, so a
+        // single transfer covers all its rows.
+        return try_draw_bitmap(
+            static_cast<int>(x),
+            static_cast<int>(y + y_start),
+            static_cast<int>(x + width),
+            static_cast<int>(y + y_end),
+            data + y_start * width
+        );
+    }
+    for (size_t row = y_start; row < y_end; ++row) {
+        auto drawn = try_draw_bitmap(
+            static_cast<int>(x + x_start),
+            static_cast<int>(y + row),
+            static_cast<int>(x + x_end),
+            static_cast<int>(y + row + 1),
+            data + row * width + x_start
+        );
+        if (!drawn) {
+            return drawn;
+        }
+    }
+    return {};
+}
+
+result<void> panel::try_write_region(
+    const mono_framebuffer& fb,
+    size_t x_start,
+    size_t y_start,
+    size_t x_end,
+    size_t y_end,
+    size_t x,
+    size_t y
+) {
+    const size_t width = fb.width();
+    if (x_start >= x_end || x_end > width || y_start >= y_end || y_end > fb.height() || y % 8 != 0) {
+        return error(errc::invalid_arg);
+    }
+    const uint8_t* data = fb.data().data();
+    const size_t first_page = y_start / 8;
+    const size_t end_page = (y_end + 7) / 8;
+    if (x_start == 0 && x_end == width) {
+        // In the page-major layout a full-width band is contiguous, so a
+        // single transfer covers all its pages.
+        return try_draw_bitmap(
+            static_cast<int>(x),
+            static_cast<int>(y + first_page * 8),
+            static_cast<int>(x + width),
+            static_cast<int>(y + end_page * 8),
+            data + first_page * width
+        );
+    }
+    for (size_t page = first_page; page < end_page; ++page) {
+        auto drawn = try_draw_bitmap(
+            static_cast<int>(x + x_start),
+            static_cast<int>(y + page * 8),
+            static_cast<int>(x + x_end),
+            static_cast<int>(y + (page + 1) * 8),
+            data + page * width + x_start
+        );
+        if (!drawn) {
+            return drawn;
+        }
+    }
+    return {};
+}
 
 result<void> panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
     auto handle = do_idf_handle();

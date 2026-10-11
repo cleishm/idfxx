@@ -294,7 +294,7 @@ idfxx::panel_io::spi_config io_config{
 - This component provides only the I/O layer; use a concrete driver
   (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`) for panel control
 - Prior to its extraction into this component, this class was available as
-  `idfxx::lcd::panel_io` in `idfxx_lcd` 2.x; that name remains as a deprecated alias
+  `idfxx::lcd::panel_io` in `idfxx_lcd` 2.x
 
 ## License
 

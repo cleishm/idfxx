@@ -1,4 +1,4 @@
-version: "2.2.0"
+version: "3.0.0"
 description: "LCD panel interface, color types, and framebuffers for SPI- and I2C-based displays"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -13,7 +13,3 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_gpio
-  cleishm/idfxx_panel_io:
-    version: "^1.0.0"
-    public: true
-    override_path: ../idfxx_panel_io

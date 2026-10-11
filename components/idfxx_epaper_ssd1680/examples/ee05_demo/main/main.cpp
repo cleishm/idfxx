@@ -41,7 +41,7 @@ using idfxx::epaper::refresh_mode;
 
 namespace {
 
-// Stages 1 and 3: a title screen drawn with idfxx_gfx and flushed as one
+// Stages 1 and 3: a title screen drawn with idfxx_gfx and written as one
 // full refresh.
 void draw_title_screen(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas) {
     canvas.clear();
@@ -85,7 +85,7 @@ extern "C" void app_main() {
 
         // --- Stage 1: full-refresh title screen ---
         draw_title_screen(canvas);
-        canvas.flush(display);
+        display.write(fb);
         display.refresh();
         logger.info("stage 1: full refresh done");
         idfxx::delay(5s);
@@ -108,7 +108,7 @@ extern "C" void app_main() {
             for (size_t i = 0; i < levels.size(); ++i) {
                 gray_canvas.fill_rect(0, i * band_h, gray_canvas.width(), band_h, levels[i]);
             }
-            gray_canvas.flush(display);
+            display.write(gray_fb);
         }
         display.refresh();
         logger.info("stage 2: grayscale done");
@@ -117,14 +117,14 @@ extern "C" void app_main() {
         // --- Stage 3: back to monochrome ---
         display.set_color_mode(color_mode::mono);
         draw_title_screen(canvas);
-        canvas.flush(display);
+        display.write(fb);
         display.refresh();
         logger.info("stage 3: full refresh done");
         idfxx::delay(5s);
 
         // --- Stage 4: fast refresh ---
         canvas.draw_text(idfxx::font::spleen_5x8, 4, 90, "fast refresh", true);
-        canvas.flush(display);
+        display.write(fb);
         display.refresh(refresh_mode::fast);
         logger.info("stage 4: fast refresh done");
         idfxx::delay(5s);
@@ -136,7 +136,7 @@ extern "C" void app_main() {
         display.refresh();
         // Each frame is drawn while the previous one is still updating on
         // the glass: start_refresh returns at once with a future, and the
-        // next flush waits out the outstanding update before writing to the
+        // next write waits out the outstanding update before uploading to the
         // controller. Only the last future needs an explicit wait.
         constexpr size_t counter_y = 110;
         constexpr size_t counter_h = 32;
@@ -144,7 +144,7 @@ extern "C" void app_main() {
         for (int i = 0; i <= 20; ++i) {
             canvas.fill_rect(0, counter_y, canvas.width(), counter_h, false);
             canvas.draw_text(idfxx::font::spleen_8x16, 8, counter_y, std::format("{:02}", i), true, 2);
-            fb.flush_rows(display, counter_y, counter_y + counter_h);
+            display.write_rows(fb, counter_y, counter_y + counter_h);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
             update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
@@ -159,7 +159,7 @@ extern "C" void app_main() {
         canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx epaper", false);
         canvas.draw_text(idfxx::font::spleen_8x16, 8, 100, "demo", true, 2);
         canvas.draw_text(idfxx::font::spleen_8x16, 8, 136, "complete", true);
-        canvas.flush(display);
+        display.write(fb);
         display.refresh();
         logger.info("stage 6: closing screen done");
 

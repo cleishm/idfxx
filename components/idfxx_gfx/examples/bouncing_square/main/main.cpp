@@ -4,7 +4,7 @@
 // drifts across the whole 240x320 screen and reflects off each edge,
 // changing color on every bounce. The square is drawn as four lines between
 // its rotated corners, authored once in screen coordinates in draw_frame();
-// render_banded runs it once per 240x40 band and flushes each slice, so the
+// render_banded runs it once per 240x40 band and writes each slice, so the
 // framebuffer stays band-sized (19 KB) even though the square roams the
 // whole display.
 //

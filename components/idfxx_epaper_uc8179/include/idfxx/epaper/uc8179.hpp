@@ -58,7 +58,7 @@ namespace idfxx::epaper {
  *
  * idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
  * fb.set_pixel(10, 20, true);
- * fb.flush(display);
+ * display.write(fb);
  * display.refresh();
  * display.sleep();
  * @endcode

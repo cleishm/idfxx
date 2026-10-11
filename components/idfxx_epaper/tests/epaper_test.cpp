@@ -221,11 +221,11 @@ TEST_CASE("epaper panel write validates placement and mode", "[idfxx][epaper]") 
     TEST_ASSERT_EQUAL(250, display.mono_writes[0].row_end);
 }
 
-TEST_CASE("epaper framebuffer flush maps to panel writes", "[idfxx][epaper]") {
+TEST_CASE("epaper panel write places the origin and write_rows forwards the band", "[idfxx][epaper]") {
     recording_epaper_panel display(128, 64);
 
     auto fb = mono_framebuffer::make(128, 16).value();
-    TEST_ASSERT_TRUE(fb.try_flush(display, 0, 32).has_value());
+    TEST_ASSERT_TRUE(display.try_write(fb, 0, 32).has_value());
     TEST_ASSERT_EQUAL(1, display.mono_writes.size());
     TEST_ASSERT_EQUAL(0, display.mono_writes[0].x);
     TEST_ASSERT_EQUAL(32, display.mono_writes[0].y);
@@ -233,7 +233,7 @@ TEST_CASE("epaper framebuffer flush maps to panel writes", "[idfxx][epaper]") {
     TEST_ASSERT_EQUAL(16, display.mono_writes[0].row_end);
 
     auto full = mono_framebuffer::make(128, 64).value();
-    TEST_ASSERT_TRUE(full.try_flush_rows(display, 8, 24).has_value());
+    TEST_ASSERT_TRUE(display.try_write_rows(full, 8, 24).has_value());
     TEST_ASSERT_EQUAL(2, display.mono_writes.size());
     TEST_ASSERT_EQUAL(0, display.mono_writes[1].x);
     TEST_ASSERT_EQUAL(0, display.mono_writes[1].y);

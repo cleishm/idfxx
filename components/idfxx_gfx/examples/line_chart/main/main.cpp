@@ -98,7 +98,7 @@ extern "C" void app_main() {
                 canvas.draw_line(2 * i - 1, sample_y(samples[i - 1]), 2 * i + 1, sample_y(samples[i]), true);
             }
 
-            canvas.flush(display);
+            display.write(fb);
             idfxx::delay(100ms);
         }
     } catch (const std::system_error& e) {

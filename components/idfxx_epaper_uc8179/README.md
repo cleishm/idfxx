@@ -68,7 +68,7 @@ idfxx::epaper::uc8179 display(io, {
 
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
 fb.set_pixel(10, 20, true); // black ink
-fb.flush(display);          // upload to controller RAM (48 KB, streamed by DMA)
+display.write(fb);          // upload to controller RAM (48 KB, streamed by DMA)
 display.refresh();          // make it visible (blocks until done; start_refresh() returns a future)
 display.sleep();            // deep sleep between updates
 ```
@@ -85,7 +85,7 @@ if (!fb) {
     return idfxx::error(fb.error());
 }
 fb->set_pixel(10, 20, true);
-if (auto r = fb->try_flush(*display); !r) {
+if (auto r = display->try_write(*fb); !r) {
     return r;
 }
 if (auto r = display->try_refresh(); !r) {
@@ -98,7 +98,7 @@ return display->try_sleep();
 
 ```cpp
 display.refresh(idfxx::epaper::refresh_mode::fast);    // shortened full waveform
-fb.flush(display);
+display.write(fb);
 display.refresh(idfxx::epaper::refresh_mode::partial); // differential, no flash
 ```
 
@@ -108,7 +108,7 @@ display.refresh(idfxx::epaper::refresh_mode::partial); // differential, no flash
 display.set_color_mode(idfxx::epaper::color_mode::gray4);
 idfxx::epaper::gray4_framebuffer gray_fb(display.width(), display.height());
 gray_fb.fill(idfxx::epaper::gray4::light);
-gray_fb.flush(display);
+display.write(gray_fb);
 display.refresh(); // gray4 supports full refresh only
 display.set_color_mode(idfxx::epaper::color_mode::mono); // back to monochrome
 ```
