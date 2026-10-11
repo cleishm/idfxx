@@ -20,6 +20,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_source>
 #include <idfxx/error>
 
 #include <array>
@@ -595,6 +596,125 @@ inline partition::mmap_handle partition::mmap(size_t offset, size_t size, enum m
     return unwrap(try_mmap(offset, size, memory));
 }
 #endif
+
+/**
+ * @headerfile <idfxx/partition>
+ * @brief A byte source that reads a partition's contents sequentially.
+ *
+ * Reads a range of a partition — the whole partition, or a byte range within
+ * it — from start to end, decrypting if the partition is encrypted. Models
+ * `idfxx::byte_source`, so it can be passed to any code that consumes a byte
+ * stream.
+ *
+ * Sources are copyable; a copy reads independently from the same position.
+ *
+ * @code
+ * auto part = idfxx::partition::find("storage");
+ *
+ * // Read the first 4 KiB of the partition in 256-byte chunks
+ * idfxx::partition_source src{part, 0, 4096};
+ * std::array<uint8_t, 256> buf{};
+ * while (size_t n = src.read(buf)) {
+ *     consume(std::span{buf}.first(n));
+ * }
+ * @endcode
+ */
+class partition_source {
+public:
+    /**
+     * @brief Creates a source that reads the whole partition.
+     *
+     * @param part The partition to read.
+     */
+    explicit partition_source(const partition& part) noexcept
+        : partition_source(0, part.size(), part) {}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates a source that reads a byte range of the partition.
+     *
+     * @param part   The partition to read.
+     * @param offset Byte offset within the partition at which reading starts.
+     * @param length Number of bytes to read, starting at @p offset.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if the range
+     *         extends past the end of the partition.
+     */
+    [[nodiscard]] partition_source(const partition& part, size_t offset, size_t length)
+        : partition_source(unwrap(make(part, offset, length))) {}
+#endif
+
+    /**
+     * @brief Creates a source that reads a byte range of the partition.
+     *
+     * @param part   The partition to read.
+     * @param offset Byte offset within the partition at which reading starts.
+     * @param length Number of bytes to read, starting at @p offset.
+     *
+     * @return The new source, or an error.
+     * @retval idfxx::errc::invalid_arg if the range extends past the end of
+     *         the partition (`offset + length` exceeds `part.size()`).
+     */
+    [[nodiscard]] static result<partition_source> make(const partition& part, size_t offset, size_t length);
+
+    /**
+     * @brief Returns the number of bytes not yet read.
+     *
+     * @return The number of bytes remaining before the end of the range.
+     */
+    [[nodiscard]] size_t remaining() const noexcept { return _end - _pos; }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Reads the next bytes into a buffer.
+     *
+     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf,
+     * decrypting if the partition is encrypted, and advances past them. If
+     * the read fails, the position is unchanged.
+     *
+     * @param buf Buffer to read into.
+     *
+     * @return The number of bytes read; 0 for a non-empty @p buf once the end
+     *         of the range has been reached.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error if the flash read fails.
+     */
+    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+#endif
+
+    /**
+     * @brief Reads the next bytes into a buffer.
+     *
+     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf,
+     * decrypting if the partition is encrypted, and advances past them. If
+     * the read fails, the position is unchanged.
+     *
+     * @param buf Buffer to read into.
+     *
+     * @return The number of bytes read; 0 for a non-empty @p buf once the end
+     *         of the range has been reached. If the flash read fails, its
+     *         error, as returned by partition::try_read.
+     */
+    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+
+private:
+    // Takes the range first so it cannot be confused with the public
+    // (part, offset, length) constructor: begin and end are absolute offsets.
+    partition_source(size_t begin, size_t end, const partition& part) noexcept
+        : _part(part)
+        , _pos(begin)
+        , _end(end) {}
+
+    partition _part;
+    size_t _pos;
+    size_t _end;
+};
+
+/** @cond INTERNAL */
+static_assert(byte_source<partition_source>);
+/** @endcond */
 
 } // namespace idfxx
 
