@@ -16,7 +16,6 @@ LCD panel interface, color types, and framebuffers for SPI- and I2C-based displa
 
 The I/O layer for SPI- and I2C-connected panels is provided by the
 [`idfxx_panel_io`](../idfxx_panel_io) component (`idfxx::panel_io`).
-`idfxx::lcd::panel_io` remains available as a deprecated alias.
 
 ## Requirements
 
@@ -176,8 +175,7 @@ matching framebuffer is simply `mono_framebuffer fb(display.width(), display.hei
 
 - This component provides the panel base class and framebuffers; use a concrete driver
   (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) or `idfxx_lcd_touch` for device control
-- The I/O layer (`idfxx::panel_io`) lives in the `idfxx_panel_io` component; the
-  `idfxx::lcd::panel_io` alias is deprecated and will be removed in a future major release
+- The I/O layer (`idfxx::panel_io`) lives in the `idfxx_panel_io` component
 
 ## License
 
