@@ -112,7 +112,7 @@ extern "C" void app_main() {
             for (size_t i = 0; i < levels.size(); ++i) {
                 gray_canvas.fill_rect(0, i * band_h, gray_canvas.width(), band_h, levels[i]);
             }
-            gray_canvas.flush(display);
+            display.write(gray_fb);
         }
         display.refresh();
         logger.info("stage 2: grayscale done");
@@ -140,11 +140,11 @@ extern "C" void app_main() {
         // under partial refreshes, so start the sequence from a full
         // refresh, which drives pixels to their stable extremes.
         display.refresh();
-        // A small framebuffer flushed at a pixel offset updates just the
+        // A small framebuffer written at a pixel offset updates just the
         // counter area; the differential refresh flips only changed pixels.
         // Each frame is drawn while the previous one is still updating on
         // the glass: start_refresh returns at once with a future, and the
-        // next flush waits out the outstanding update before writing to the
+        // next write waits out the outstanding update before uploading to the
         // controller. Only the last future needs an explicit wait.
         idfxx::epaper::mono_framebuffer counter_fb(160, 64);
         idfxx::gfx::canvas counter_canvas(counter_fb);
@@ -152,7 +152,7 @@ extern "C" void app_main() {
         for (int i = 0; i <= 20; ++i) {
             counter_canvas.clear();
             counter_canvas.draw_text(idfxx::font::spleen_8x16, 0, 0, std::format("{:02}", i), true, 4);
-            counter_fb.flush(display, 16, 360);
+            display.write(counter_fb, 16, 360);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
             update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);

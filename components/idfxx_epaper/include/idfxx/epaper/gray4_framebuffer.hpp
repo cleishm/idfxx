@@ -11,7 +11,6 @@
  */
 
 #include <idfxx/epaper/color>
-#include <idfxx/epaper/panel>
 #include <idfxx/error>
 
 #include <algorithm>
@@ -43,15 +42,16 @@ namespace idfxx::epaper {
  * `idfxx::gfx::canvas::clear`) clears to blank paper.
  *
  * Draw into the framebuffer with @ref set_pixel and friends, then upload it
- * to a panel's RAM with @ref flush or @ref flush_rows, and make it visible
- * with @ref panel::refresh. This is a plain value type: copyable, movable,
- * and independent of any panel.
+ * to a panel's RAM with @ref panel::write (full frame) or
+ * @ref panel::write_rows (a horizontal band), and make it visible with
+ * @ref panel::refresh. This is a plain value type: copyable, movable, and
+ * independent of any panel.
  *
  * @code
  * display.set_color_mode(idfxx::epaper::color_mode::gray4);
  * idfxx::epaper::gray4_framebuffer fb(display.width(), display.height());
  * fb.set_pixel(10, 20, idfxx::epaper::gray4::dark);
- * fb.flush(display);
+ * display.write(fb);
  * display.refresh();
  * @endcode
  */
@@ -195,73 +195,6 @@ public:
      */
     [[nodiscard]] std::span<const uint8_t> plane_row(size_t index, size_t y) const noexcept {
         return plane(index).subspan(y * stride_bytes(), stride_bytes());
-    }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    /**
-     * @brief Uploads the full framebuffer to a panel's RAM.
-     *
-     * Places the framebuffer's origin at panel pixel (@p x, @p y). The
-     * upload is invisible until the next @ref panel::refresh. The panel
-     * must be operating in @ref color_mode::gray4.
-     *
-     * @param panel The panel to upload to.
-     * @param x     Destination column; must be a multiple of 8.
-     * @param y     Destination row.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void flush(panel& panel, size_t x = 0, size_t y = 0) const { unwrap(try_flush(panel, x, y)); }
-
-    /**
-     * @brief Uploads a horizontal band of the framebuffer to a panel's RAM.
-     *
-     * The band spans rows `[y_start, y_end)` across the full width and
-     * lands at the same rows on the panel. The upload is invisible until
-     * the next @ref panel::refresh. The panel must be operating in
-     * @ref color_mode::gray4.
-     *
-     * @param panel   The panel to upload to.
-     * @param y_start First row of the band, inclusive.
-     * @param y_end   End row of the band, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error (e.g. an invalid row range).
-     */
-    void flush_rows(panel& panel, size_t y_start, size_t y_end) const { unwrap(try_flush_rows(panel, y_start, y_end)); }
-#endif
-
-    /**
-     * @brief Uploads the full framebuffer to a panel's RAM.
-     *
-     * Places the framebuffer's origin at panel pixel (@p x, @p y). The
-     * upload is invisible until the next @ref panel::try_refresh. The panel
-     * must be operating in @ref color_mode::gray4.
-     *
-     * @param panel The panel to upload to.
-     * @param x     Destination column; must be a multiple of 8.
-     * @param y     Destination row.
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_flush(panel& panel, size_t x = 0, size_t y = 0) const {
-        return panel.try_write(*this, x, y);
-    }
-
-    /**
-     * @brief Uploads a horizontal band of the framebuffer to a panel's RAM.
-     *
-     * The band spans rows `[y_start, y_end)` across the full width and
-     * lands at the same rows on the panel. The upload is invisible until
-     * the next @ref panel::try_refresh. The panel must be operating in
-     * @ref color_mode::gray4.
-     *
-     * @param panel   The panel to upload to.
-     * @param y_start First row of the band, inclusive.
-     * @param y_end   End row of the band, exclusive; must satisfy `y_start < y_end <= height()`.
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg if the row range is invalid.
-     */
-    [[nodiscard]] result<void> try_flush_rows(panel& panel, size_t y_start, size_t y_end) const {
-        return panel.try_write_rows(*this, y_start, y_end);
     }
 
 private:
