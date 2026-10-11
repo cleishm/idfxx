@@ -1,0 +1,8 @@
+# Target-specific overrides for esp32s3.
+# Enable PSRAM so PSRAM-only components (idfxx_epaper_t133a01) build and run
+# their tests. Modules without PSRAM still boot (IGNORE_NOTFOUND), and PSRAM is
+# reachable only through capability-based allocation, so malloc keeps
+# returning internal RAM for every other test.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y

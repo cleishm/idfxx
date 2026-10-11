@@ -7,6 +7,8 @@
 #include "idfxx/memory"
 #include "unity.h"
 
+#include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
 #include <type_traits>
 #include <vector>
 
@@ -42,7 +44,18 @@ static_assert(std::is_nothrow_constructible_v<spiram_allocator<int>, const spira
 
 #if CONFIG_SPIRAM
 
+// The esp32s3 test app enables PSRAM, but the module may have none fitted
+// (and QEMU emulates none); boot then continues without it. PSRAM-backed
+// tests skip in that case, since allocation failure aborts.
+static bool psram_available() {
+    return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
+}
+
 TEST_CASE("spiram_allocator basic allocation", "[idfxx][memory]") {
+    if (!psram_available()) {
+        TEST_IGNORE_MESSAGE("no PSRAM available");
+    }
+
     spiram_allocator<int> alloc;
 
     int* p = alloc.allocate(10);
@@ -62,6 +75,10 @@ TEST_CASE("spiram_allocator basic allocation", "[idfxx][memory]") {
 }
 
 TEST_CASE("spiram_allocator memory is in external PSRAM", "[idfxx][memory]") {
+    if (!psram_available()) {
+        TEST_IGNORE_MESSAGE("no PSRAM available");
+    }
+
     spiram_allocator<int> alloc;
 
     int* p = alloc.allocate(1);
@@ -74,6 +91,10 @@ TEST_CASE("spiram_allocator memory is in external PSRAM", "[idfxx][memory]") {
 }
 
 TEST_CASE("spiram_allocator with std::vector", "[idfxx][memory]") {
+    if (!psram_available()) {
+        TEST_IGNORE_MESSAGE("no PSRAM available");
+    }
+
     std::vector<uint8_t, spiram_allocator<uint8_t>> vec;
 
     vec.push_back(1);
