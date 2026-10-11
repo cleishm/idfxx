@@ -7,6 +7,13 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# A new push to a PR supersedes its in-flight run. Pushes to main and manual
+# runs each get their own group, so every main commit is fully built (docs.yml
+# deploys off it) and none is queued behind or replaced by another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   format-check:
     runs-on: ubuntu-latest
