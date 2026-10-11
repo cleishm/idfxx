@@ -16,6 +16,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 
 #include <cstddef>
@@ -140,7 +142,6 @@ result<void> try_unregister_shutdown_handler(void (*handler)());
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

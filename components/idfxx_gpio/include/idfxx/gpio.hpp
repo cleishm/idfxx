@@ -18,6 +18,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 #include <idfxx/flags>
 #include <idfxx/intr_alloc>
@@ -1066,7 +1068,6 @@ inline constexpr gpio gpio_48 = gpio_constant<48>::value;
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

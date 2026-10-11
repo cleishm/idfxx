@@ -18,6 +18,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <string>
 
 namespace idfxx::http {
@@ -106,7 +108,6 @@ namespace idfxx {
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

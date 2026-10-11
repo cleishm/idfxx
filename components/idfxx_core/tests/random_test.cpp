@@ -7,6 +7,7 @@
 #include "idfxx/random.hpp"
 #include "unity.h"
 
+#include <array>
 #include <random>
 #include <type_traits>
 

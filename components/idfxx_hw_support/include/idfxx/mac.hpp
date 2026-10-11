@@ -16,6 +16,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 
 #include <array>
@@ -274,7 +276,6 @@ void set_interface_mac_address(const mac_address& addr, mac_type type);
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

@@ -21,6 +21,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error.hpp>
 
 #include <chrono>

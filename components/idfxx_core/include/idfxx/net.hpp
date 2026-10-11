@@ -17,6 +17,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <array>
 #include <concepts>
 #include <cstdint>
@@ -316,7 +318,6 @@ namespace idfxx {
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /// @cond INTERNAL
 #include <format>

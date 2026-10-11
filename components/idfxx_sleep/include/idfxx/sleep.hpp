@@ -30,6 +30,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 #include <idfxx/gpio>
 
@@ -656,7 +658,6 @@ result<void> try_disable_all_wakeup_sources();
 
 /** @} */
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

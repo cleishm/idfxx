@@ -17,6 +17,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/chrono>
 #include <idfxx/cpu>
 #include <idfxx/error>

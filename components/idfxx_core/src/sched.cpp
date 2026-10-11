@@ -9,9 +9,9 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <esp_rom_sys.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <rom/ets_sys.h>
 
 namespace {
 
@@ -27,19 +27,19 @@ constexpr auto tick_period = std::chrono::ceil<std::chrono::microseconds>(tick_d
 // Ticks to ask vTaskDelay() for so that it does not wake before `remaining` has
 // elapsed: rounded up, and clamped to what TickType_t can carry (the caller loops).
 [[nodiscard]] TickType_t ticks_for(std::chrono::microseconds remaining) noexcept {
-    const int64_t ticks = (remaining.count() + tick_period.count() - 1) / tick_period.count();
-    return static_cast<TickType_t>(std::min<int64_t>(ticks, portMAX_DELAY));
+    const auto ticks = static_cast<uint64_t>((remaining.count() + tick_period.count() - 1) / tick_period.count());
+    return static_cast<TickType_t>(std::min<uint64_t>(ticks, portMAX_DELAY));
 }
 
 void busy_wait(std::chrono::microseconds duration) noexcept {
     auto us = duration.count();
-    // ets_delay_us takes a uint32_t; split very long waits
+    // esp_rom_delay_us takes a uint32_t; split very long waits
     while (us > UINT32_MAX) {
-        ets_delay_us(UINT32_MAX);
+        esp_rom_delay_us(UINT32_MAX);
         us -= UINT32_MAX;
     }
     if (us > 0) {
-        ets_delay_us(static_cast<uint32_t>(us));
+        esp_rom_delay_us(static_cast<uint32_t>(us));
     }
 }
 

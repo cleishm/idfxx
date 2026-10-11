@@ -23,7 +23,10 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <concepts>
+#include <cstdlib>
 #include <expected>
 #include <functional>
 #include <memory>
@@ -311,7 +314,9 @@ template<typename T>
 // Specialization for void
 template<>
 inline void unwrap(result<void> result) {
-    result.transform_error([](auto ec) -> std::error_code { throw std::system_error(ec); });
+    if (!result) {
+        throw std::system_error(result.error());
+    }
 }
 #endif
 
@@ -335,18 +340,17 @@ template<typename T, typename Callback>
     requires std::invocable<Callback, std::error_code> &&
     std::same_as<std::invoke_result_t<Callback, std::error_code>, void>
 inline void abort_on_error(result<T> result, Callback&& on_error) {
-    result.transform_error([&](auto ec) {
-        // Check if the callback is valid (for types with operator bool)
-        if constexpr (requires { static_cast<bool>(on_error); }) {
-            if (!on_error) {
-                abort();
-                return ec;
-            }
+    if (result) {
+        return;
+    }
+    // Check if the callback is valid (for types with operator bool)
+    if constexpr (requires { static_cast<bool>(on_error); }) {
+        if (!on_error) {
+            std::abort();
         }
-        std::forward<Callback>(on_error)(ec);
-        abort();
-        return ec;
-    });
+    }
+    std::forward<Callback>(on_error)(result.error());
+    std::abort();
 }
 
 /**
@@ -357,10 +361,9 @@ inline void abort_on_error(result<T> result, Callback&& on_error) {
  */
 template<typename T>
 inline void abort_on_error(result<T> result) {
-    result.transform_error([](auto ec) {
-        abort();
-        return ec;
-    });
+    if (!result) {
+        std::abort();
+    }
 }
 
 } // namespace idfxx

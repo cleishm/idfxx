@@ -36,6 +36,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error.hpp>
 #include <idfxx/font.hpp>
 

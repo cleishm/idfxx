@@ -34,6 +34,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <charconv>
 #include <concepts>
 #include <string>
@@ -378,7 +380,6 @@ template<idfxx::flag_enum E>
     return ~idfxx::flags<E>{a};
 }
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

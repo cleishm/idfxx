@@ -13,6 +13,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <hal/uart_types.h>
 #include <soc/soc_caps.h>
 #include <string>
@@ -84,7 +86,6 @@ enum class uart_port : int {
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

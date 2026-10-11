@@ -19,6 +19,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/flags>
@@ -900,7 +902,6 @@ namespace idfxx {
 
 } // namespace idfxx
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>

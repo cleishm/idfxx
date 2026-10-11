@@ -20,6 +20,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/i2c/master>
 #include <idfxx/spi/master>
 

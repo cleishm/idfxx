@@ -18,6 +18,8 @@
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
 #include <idfxx/http/types>
 
@@ -763,7 +765,6 @@ struct is_error_code_enum<idfxx::http::client::errc> : true_type {};
 } // namespace std
 /** @endcond */
 
-#include "sdkconfig.h"
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
 #include <algorithm>
