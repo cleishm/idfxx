@@ -76,7 +76,17 @@ wakeup_source from_esp_cause(esp_sleep_wakeup_cause_t cause) noexcept {
         return static_cast<wakeup_source>(cause);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     case ESP_SLEEP_WAKEUP_UART1:
+        // v6.1 declares the UART2+ causes only on chips that can wake from
+        // them; these guards mirror the ones in esp_sleep.h.
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 1, 0) || ((SOC_UART_HP_NUM > 2) && !SOC_PM_RTC_NOT_SUPPORT_UART2_WAKEUP)
     case ESP_SLEEP_WAKEUP_UART2:
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && (SOC_UART_HP_NUM > 3)
+    case ESP_SLEEP_WAKEUP_UART3:
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && (SOC_UART_HP_NUM > 4)
+    case ESP_SLEEP_WAKEUP_UART4:
+#endif
         return wakeup_source::uart;
 #endif
     case ESP_SLEEP_WAKEUP_WIFI:

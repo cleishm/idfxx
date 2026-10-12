@@ -4,6 +4,7 @@
 #include <idfxx/lcd/detail/panel_factory.hpp>
 #include <idfxx/lcd/ssd1306>
 
+#include <esp_idf_version.h>
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_ssd1306.h>
@@ -24,6 +25,9 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
     // The driver copies this during panel creation, so a stack instance is fine.
     esp_lcd_panel_ssd1306_config_t ssd1306_config{
         .height = static_cast<uint8_t>(config.height),
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        .contrast = 0, // driver default (128)
+#endif
     };
 
     return idfxx::lcd::detail::make_panel_handle(

@@ -27,8 +27,7 @@ extern "C" void app_main() {
         });
 
         loop.listener_add(
-            idfxx::wifi::ap_sta_disconnected,
-            [](const idfxx::wifi::ap_sta_disconnected_event_data& info) {
+            idfxx::wifi::ap_sta_disconnected, [](const idfxx::wifi::ap_sta_disconnected_event_data& info) {
                 logger.info("Station disconnected (AID: {}, reason: {})", info.aid, info.reason);
             }
         );

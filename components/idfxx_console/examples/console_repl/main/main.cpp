@@ -18,8 +18,7 @@ extern "C" void app_main() {
     logger.info("Registering commands...");
 
     idfxx::console::register_command(
-        {.name = "hello", .help = "Print a greeting. Usage: hello [name]"},
-        [](int argc, char** argv) {
+        {.name = "hello", .help = "Print a greeting. Usage: hello [name]"}, [](int argc, char** argv) {
             if (argc > 1) {
                 std::printf("Hello, %s!\n", argv[1]);
             } else {
@@ -32,8 +31,7 @@ extern "C" void app_main() {
 
     int counter = 0;
     idfxx::console::register_command(
-        {.name = "count", .help = "Increment and display a counter"},
-        [&counter](int, char**) {
+        {.name = "count", .help = "Increment and display a counter"}, [&counter](int, char**) {
             ++counter;
             std::printf("Count: %d\n", counter);
             return 0;

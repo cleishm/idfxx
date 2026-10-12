@@ -60,19 +60,23 @@ jobs:
       - name: Find the current pin
         id: current
         run: |
-          # Only a `container:` key holding a three-component version counts as
-          # the pin. This deliberately does not match build-compat, whose
-          # espressif/idf:v5.5 is the documented floor and has to keep testing
-          # the oldest supported release, nor build-canary, whose
-          # espressif/idf:release-v6.0 is a moving tag by design.
-          pins=$(grep -hoE 'container: *espressif/idf:v[0-9]+\.[0-9]+\.[0-9]+' .github/workflows/*.yml |
-              grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -u)
-          if [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then
+          # The pin is the `container:` image on the newest ESP-IDF series.
+          # ESP-IDF tags a series' first release vX.Y and its point releases
+          # vX.Y.Z, so both forms count. Images on older series are not the
+          # pin: build-compat's espressif/idf:v5.5 is the documented floor and
+          # has to keep testing the oldest supported release. build-canary's
+          # espressif/idf:release-vX.Y is a moving tag by design and never
+          # matches.
+          tags=$(grep -hoE 'container: *espressif/idf:v[0-9]+\.[0-9]+(\.[0-9]+)?' .github/workflows/*.yml |
+              grep -oE 'v[0-9]+\.[0-9]+(\.[0-9]+)?' | sort -uV)
+          series=$(printf '%s\n' "$tags" | grep -oE '^v[0-9]+\.[0-9]+' | sort -uV | tail -1)
+          pins=$(printf '%s\n' "$tags" | grep -E "^${series//./\\.}(\.[0-9]+)?$")
+          if [ -z "$series" ] || [ "$(printf '%s\n' "$pins" | grep -c .)" -ne 1 ]; then
             echo "::error::expected exactly one pinned ESP-IDF version, found: ${pins:-none}"
             exit 1
           fi
           echo "version=$pins" >> "$GITHUB_OUTPUT"
-          echo "series=${pins%.*}" >> "$GITHUB_OUTPUT"
+          echo "series=$series" >> "$GITHUB_OUTPUT"
           echo "Currently pinned to $pins"
 
       - name: Find the newest release in the series
@@ -87,7 +91,7 @@ jobs:
           # not something to apply unattended.
           latest=$(gh api "repos/espressif/esp-idf/releases?per_page=100" \
               --jq '.[] | select(.prerelease == false) | .tag_name' |
-              grep -E "^${SERIES//./\\.}\.[0-9]+$" | sort -V | tail -1)
+              grep -E "^${SERIES//./\\.}(\.[0-9]+)?$" | sort -V | tail -1)
           if [ -z "$latest" ]; then
             echo "::error::no $SERIES point release found"
             exit 1
@@ -119,8 +123,9 @@ jobs:
           BRANCH: ci/idf-pin
         run: |
           # One substitution covers every container: key and the pinned version
-          # named in prose in the build-canary comment.
-          sed -i "s|espressif/idf:${CURRENT//./\\.}|espressif/idf:$LATEST|g" .github/workflows/*.yml
+          # named in prose in the build-canary comment. The trailing guard stops
+          # a vX.Y pin from also matching the prefix of a vX.Y.Z tag.
+          sed -i -E "s#espressif/idf:${CURRENT//./\\.}([^.0-9]|\$)#espressif/idf:$LATEST\\1#g" .github/workflows/*.yml
           git diff --stat
 
           git config user.name 'github-actions[bot]'
