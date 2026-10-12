@@ -221,7 +221,7 @@ repl::repl(const config& cfg, const uart_config& uart)
 
 #if CONFIG_ESP_CONSOLE_USB_CDC
 
-result<repl> repl::make(const config& cfg, const usb_cdc_config& /*usb_cdc*/) {
+result<repl> repl::make(const config& cfg, usb_cdc_t /*transport*/) {
     auto idf_cfg = _translate_config(cfg);
 
     auto history_path = cfg.history_save_path.string();
@@ -247,8 +247,8 @@ result<repl> repl::make(const config& cfg, const usb_cdc_config& /*usb_cdc*/) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-repl::repl(const config& cfg, const usb_cdc_config& usb_cdc)
-    : repl(unwrap(make(cfg, usb_cdc))) {}
+repl::repl(const config& cfg, usb_cdc_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
 #endif
 
 #endif // USB CDC
@@ -259,7 +259,7 @@ repl::repl(const config& cfg, const usb_cdc_config& usb_cdc)
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
 
-result<repl> repl::make(const config& cfg, const usb_serial_jtag_config& /*usb_jtag*/) {
+result<repl> repl::make(const config& cfg, usb_serial_jtag_t /*transport*/) {
     auto idf_cfg = _translate_config(cfg);
 
     auto history_path = cfg.history_save_path.string();
@@ -285,8 +285,8 @@ result<repl> repl::make(const config& cfg, const usb_serial_jtag_config& /*usb_j
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-repl::repl(const config& cfg, const usb_serial_jtag_config& usb_jtag)
-    : repl(unwrap(make(cfg, usb_jtag))) {}
+repl::repl(const config& cfg, usb_serial_jtag_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
 #endif
 
 #endif // USB Serial JTAG
@@ -297,7 +297,7 @@ repl::repl(const config& cfg, const usb_serial_jtag_config& usb_jtag)
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 
-result<repl> repl::make(const config& cfg, const stdio_config& /*stdio*/) {
+result<repl> repl::make(const config& cfg, stdio_t /*transport*/) {
     auto idf_cfg = _translate_config(cfg);
 
     auto history_path = cfg.history_save_path.string();
@@ -321,8 +321,8 @@ result<repl> repl::make(const config& cfg, const stdio_config& /*stdio*/) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-repl::repl(const config& cfg, const stdio_config& stdio)
-    : repl(unwrap(make(cfg, stdio))) {}
+repl::repl(const config& cfg, stdio_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
 #endif
 
 #endif // Stdio
