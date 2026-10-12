@@ -27,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_panel_io:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_panel_io` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -229,7 +229,7 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 - `dc_gpio` - Data/Command GPIO (`idfxx::gpio`)
 - `spi_mode` - SPI mode (0-3)
 - `pclk_freq` - Pixel clock frequency (`freq::hertz`)
-- `trans_queue_depth` - Transaction queue size
+- `trans_queue_depth` - Transaction queue size (default 10; must be at least 1)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
 - `lcd_cmd_bits` - Command bits (typically 8)
 - `lcd_param_bits` - Parameter bits (typically 8)
