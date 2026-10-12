@@ -26,7 +26,7 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
     esp_lcd_panel_ssd1306_config_t ssd1306_config{
         .height = static_cast<uint8_t>(config.height),
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-        .contrast = 0, // driver default (128)
+        .contrast = 0, // overwritten by send_contrast() in make()
 #endif
     };
 
