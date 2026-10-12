@@ -57,6 +57,7 @@ TEST_CASE("ssd1306::config defaults", "[idfxx][lcd][ssd1306]") {
     TEST_ASSERT_EQUAL(GPIO_NUM_NC, config.reset_gpio.num());
     TEST_ASSERT_EQUAL(64, config.height);
     TEST_ASSERT_EQUAL(gpio::level::low, config.reset_active_level);
+    TEST_ASSERT_EQUAL(128, config.contrast);
 }
 
 TEST_CASE("ssd1306::config struct initialization", "[idfxx][lcd][ssd1306]") {
@@ -71,6 +72,12 @@ TEST_CASE("ssd1306::config struct initialization", "[idfxx][lcd][ssd1306]") {
     TEST_ASSERT_EQUAL(4, config.reset_gpio.num());
     TEST_ASSERT_EQUAL(32, config.height);
     TEST_ASSERT_EQUAL(gpio::level::high, config.reset_active_level);
+}
+
+TEST_CASE("ssd1306::config contrast initialization", "[idfxx][lcd][ssd1306]") {
+    ssd1306::config config{.contrast = 0};
+
+    TEST_ASSERT_EQUAL(0, config.contrast);
 }
 
 TEST_CASE("ssd1306::i2c_io_config supplies the controller framing", "[idfxx][lcd][ssd1306]") {
