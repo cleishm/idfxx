@@ -35,7 +35,7 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .data_io_default_level = config.data_idle_level == gpio::level::high,
         .max_transfer_sz = static_cast<int>(config.max_transfer_sz),
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-        .dma_burst_size = 0, // driver default
+        .dma_burst_size = config.dma_burst_size,
 #endif
         .flags = to_underlying(config.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is

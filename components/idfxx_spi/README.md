@@ -23,7 +23,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_spi:
-    version: "^1.0.0"
+    version: "^1.2.0"
 ```
 
 Or add `idfxx_spi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -162,6 +162,20 @@ Via `idfxx::spi::dma_chan`:
 - `dma_chan::ch_auto` - Automatic DMA channel selection (recommended)
 - `dma_chan::ch_1`, `dma_chan::ch_2` - Specific DMA channels (ESP32 only)
 - `dma_chan::disabled` - No DMA (limited transfer size)
+
+## Interrupt Configuration
+
+`bus_config::intr_levels` and `bus_config::intr_flags` control the bus interrupt. The driver rejects the
+following with `errc::invalid_arg` when the bus is created:
+- `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled`
+- `intr_levels` level 4, 5, 6 and `nmi`
+- `intr_flag::iram`, unless `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (and then all callbacks must be in IRAM)
+
+## DMA Burst Size
+
+With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. The default, 0, selects
+the driver default (32 bytes). A non-zero value must be one of the burst sizes supported by the chip's DMA
+controller, and is ignored on chips whose burst size is not configurable.
 
 ## Important Notes
 

@@ -8,6 +8,7 @@
 #include "unity.h"
 
 #include <driver/spi_master.h>
+#include <esp_idf_version.h>
 #include <type_traits>
 
 using namespace idfxx;
@@ -59,6 +60,9 @@ TEST_CASE("bus_config default initialization", "[idfxx][spi]") {
     TEST_ASSERT_FALSE(cfg.data5.is_connected());
     TEST_ASSERT_FALSE(cfg.data6.is_connected());
     TEST_ASSERT_FALSE(cfg.data7.is_connected());
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    TEST_ASSERT_EQUAL_UINT32(0, cfg.dma_burst_size);
+#endif
 }
 
 TEST_CASE("bus_config union aliasing", "[idfxx][spi]") {
