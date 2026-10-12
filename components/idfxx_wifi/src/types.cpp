@@ -476,6 +476,11 @@ static_assert(
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_uri_ready) == WIFI_EVENT_DPP_URI_READY);
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_cfg_recvd) == WIFI_EVENT_DPP_CFG_RECVD);
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_failed) == WIFI_EVENT_DPP_FAILED);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::to_underlying(idfxx::wifi::event_id::nan_pairing_indication) == WIFI_EVENT_NAN_PAIRING_INDICATION);
+static_assert(std::to_underlying(idfxx::wifi::event_id::nan_pairing_confirm) == WIFI_EVENT_NAN_PAIRING_CONFIRM);
+static_assert(std::to_underlying(idfxx::wifi::event_id::nan_cluster_join) == WIFI_EVENT_NAN_CLUSTER_JOIN);
+#endif
 
 // errc
 static_assert(std::to_underlying(idfxx::wifi::errc::not_init) == ESP_ERR_WIFI_NOT_INIT);

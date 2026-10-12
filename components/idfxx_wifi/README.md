@@ -30,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_wifi:
-    version: "^1.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -231,6 +231,8 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 ### Lifecycle
 
 `init(init_config)`, `deinit()`, `start()`, `stop()`, `restore()`
+
+`init_config` also exposes `privacy_enhancements` and `rmac_auto_reset_interval` (1-24 hours) for station privacy; these are available on ESP-IDF 6.1 and later only.
 
 ### Roles & Configuration
 
