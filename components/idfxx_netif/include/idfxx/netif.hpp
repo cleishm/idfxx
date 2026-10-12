@@ -30,6 +30,7 @@
 
 #include <array>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -627,6 +628,89 @@ public:
      * @return A vector of preferred IPv6 addresses.
      */
     [[nodiscard]] std::vector<net::ipv6_addr> get_all_preferred_ipv6() const;
+
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)) ||            \
+    defined(__DOXYGEN__)
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Adds a static IPv6 neighbor cache entry.
+     *
+     * Maps an IPv6 address to a fixed link-layer address, bypassing Neighbor
+     * Discovery: no Neighbor Solicitation or Advertisement is exchanged for the
+     * address. The entry never ages out and is never overwritten by incoming
+     * advertisements. Adding an address that already has an entry updates its
+     * MAC address.
+     *
+     * Static entries do not survive the interface going down; add them again
+     * after the interface is brought back up.
+     *
+     * @code
+     * auto peer = *idfxx::net::ipv6_addr::parse("fe80::1");
+     * netif.add_static_neighbor(peer, idfxx::mac_address(0x02, 0x00, 0x00, 0x00, 0x00, 0x01));
+     * @endcode
+     *
+     * @param addr The neighbor's IPv6 address.
+     * @param mac The neighbor's MAC address.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and
+     *       CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES are enabled, building with
+     *       ESP-IDF 6.1 or later.
+     * @throws std::system_error on failure.
+     */
+    void add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac) {
+        unwrap(try_add_static_neighbor(addr, mac));
+    }
+
+    /**
+     * @brief Removes a static IPv6 neighbor cache entry.
+     *
+     * Removes an entry previously added with add_static_neighbor(). Entries
+     * learned through Neighbor Discovery are not affected.
+     *
+     * @param addr The neighbor's IPv6 address.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and
+     *       CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES are enabled, building with
+     *       ESP-IDF 6.1 or later.
+     * @throws std::system_error on failure, including when no static entry exists
+     *         for @p addr.
+     */
+    void remove_static_neighbor(const net::ipv6_addr& addr) { unwrap(try_remove_static_neighbor(addr)); }
+#endif
+
+    /**
+     * @brief Adds a static IPv6 neighbor cache entry.
+     *
+     * Maps an IPv6 address to a fixed link-layer address, bypassing Neighbor
+     * Discovery: no Neighbor Solicitation or Advertisement is exchanged for the
+     * address. The entry never ages out and is never overwritten by incoming
+     * advertisements. Adding an address that already has an entry updates its
+     * MAC address.
+     *
+     * Static entries do not survive the interface going down; add them again
+     * after the interface is brought back up.
+     *
+     * @param addr The neighbor's IPv6 address.
+     * @param mac The neighbor's MAC address.
+     * @return Result indicating success or an error code.
+     * @retval idfxx::errc::fail The neighbor cache is full.
+     * @note Only available when CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES is enabled,
+     *       building with ESP-IDF 6.1 or later.
+     */
+    [[nodiscard]] result<void> try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac);
+
+    /**
+     * @brief Removes a static IPv6 neighbor cache entry.
+     *
+     * Removes an entry previously added with try_add_static_neighbor(). Entries
+     * learned through Neighbor Discovery are not affected.
+     *
+     * @param addr The neighbor's IPv6 address.
+     * @return Result indicating success or an error code.
+     * @retval idfxx::errc::not_found No static entry exists for @p addr.
+     * @note Only available when CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES is enabled,
+     *       building with ESP-IDF 6.1 or later.
+     */
+    result<void> try_remove_static_neighbor(const net::ipv6_addr& addr);
+#endif
 
     /// @cond INTERNAL
     // Backward-compatibility forwarders for the original spellings.

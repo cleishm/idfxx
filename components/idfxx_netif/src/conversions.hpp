@@ -27,6 +27,11 @@ inline net::ipv4_info ip4_from_native(const esp_netif_ip_info_t& native) {
     };
 }
 
+inline esp_ip6_addr_t to_native(const net::ipv6_addr& addr) {
+    const auto& words = addr.addr();
+    return {.addr = {words[0], words[1], words[2], words[3]}, .zone = addr.zone()};
+}
+
 inline net::ipv6_addr ip6_from_native(const esp_ip6_addr_t& native) {
     return net::ipv6_addr(
         std::array<uint32_t, 4>{native.addr[0], native.addr[1], native.addr[2], native.addr[3]}, native.zone
