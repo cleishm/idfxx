@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <esp_https_server.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <utility>
 
@@ -33,7 +34,18 @@ result<ssl_server> ssl_server::make(config cfg) {
     auto on_session_open = std::move(cfg.on_session_open);
     auto on_session_close = std::move(cfg.on_session_close);
 
-    _populate_httpd_config(ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close);
+    if (cfg.handshake_timeout.has_value() && cfg.handshake_timeout->count() <= 0) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    if (auto res = _populate_httpd_config(ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close); !res) {
+        return error(res.error());
+    }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    struct ifreq ifr{};
+    if (auto res = _populate_bind_to_device(ssl_cfg.httpd, cfg.bind_to_device, ifr); !res) {
+        return error(res.error());
+    }
+#endif
 
     // Move cert strings out of config — they only need to live until httpd_ssl_start() returns,
     // since ESP-IDF copies all certificate data internally.
@@ -56,8 +68,8 @@ result<ssl_server> ssl_server::make(config cfg) {
     ssl_cfg.ecdsa_key_efuse_blk = cfg.ecdsa_key_efuse_blk;
     ssl_cfg.session_tickets = cfg.session_tickets;
 
-    if (cfg.handshake_timeout.count() > 0) {
-        ssl_cfg.tls_handshake_timeout_ms = static_cast<unsigned int>(cfg.handshake_timeout.count());
+    if (cfg.handshake_timeout) {
+        ssl_cfg.tls_handshake_timeout_ms = static_cast<unsigned int>(cfg.handshake_timeout->count());
     }
 
     ssl_cfg.port_secure = cfg.server_port;

@@ -10,6 +10,7 @@
 #include "unity.h"
 
 #include <array>
+#include <chrono>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -38,6 +39,9 @@ static_assert(std::is_move_assignable_v<ssl_server>);
 
 // ssl_server::make returns result<ssl_server>
 static_assert(std::is_same_v<decltype(ssl_server::make(std::declval<ssl_server::config>())), result<ssl_server>>);
+
+// TLS handshake timeout is optional: std::nullopt lets the driver choose
+static_assert(std::is_same_v<decltype(ssl_server::config::handshake_timeout), std::optional<std::chrono::milliseconds>>);
 
 // =============================================================================
 // Embedded self-signed test certificates
@@ -259,4 +263,54 @@ TEST_CASE("https server unregisters handler", "[idfxx][https][hw]") {
     TEST_ASSERT_TRUE(r5.has_value());
 
     TEST_ASSERT_EQUAL(404, c->status_code());
+}
+
+TEST_CASE("https server config defaults", "[idfxx][https]") {
+    ssl_server::config cfg{};
+    TEST_ASSERT_EQUAL(CONFIG_HTTPD_MAX_REQ_HDR_LEN, cfg.max_req_hdr_len);
+    TEST_ASSERT_EQUAL(CONFIG_HTTPD_MAX_URI_LEN, cfg.max_uri_len);
+    TEST_ASSERT_FALSE(cfg.keep_alive_idle.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_interval.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_count.has_value());
+    TEST_ASSERT_FALSE(cfg.handshake_timeout.has_value());
+}
+
+TEST_CASE("https server rejects a zero handshake_timeout", "[idfxx][https]") {
+    ensure_event_loop();
+    auto srv = ssl_server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .server_cert = test_server_cert,
+        .private_key = test_server_key,
+        .handshake_timeout = std::chrono::milliseconds{0},
+    });
+    TEST_ASSERT_FALSE(srv.has_value());
+    TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("https server rejects a zero max_uri_len", "[idfxx][https]") {
+    ensure_event_loop();
+    auto srv = ssl_server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .max_uri_len = 0,
+        .server_cert = test_server_cert,
+        .private_key = test_server_key,
+    });
+    TEST_ASSERT_FALSE(srv.has_value());
+    TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("https server rejects a zero keep_alive_count", "[idfxx][https]") {
+    ensure_event_loop();
+    auto srv = ssl_server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .keep_alive_enable = true,
+        .keep_alive_count = 0,
+        .server_cert = test_server_cert,
+        .private_key = test_server_key,
+    });
+    TEST_ASSERT_FALSE(srv.has_value());
+    TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
 }

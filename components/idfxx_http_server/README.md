@@ -12,6 +12,8 @@ Type-safe HTTP server for ESP32.
 - Chunked and complete response sending
 - Session open/close callbacks
 - WebSocket endpoint support (when `CONFIG_HTTPD_WS_SUPPORT` is enabled)
+- Reading WebSocket frames larger than the receive buffer in parts (ESP-IDF 6.1+)
+- Binding the server to a single network interface (ESP-IDF 6.1+)
 - Chrono-typed timeouts and keep-alive intervals
 - Dual API: exception-based and result-based error handling
 
@@ -29,7 +31,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_http_server:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_http_server` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -93,11 +95,45 @@ if (!r) {
 }
 ```
 
+### Reading Large WebSocket Frames
+
+From ESP-IDF 6.1, a WebSocket handler can read a frame's payload in parts, so
+frames larger than the available buffer can be processed:
+
+```cpp
+srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
+    auto reader = req.ws_recv_begin();
+    if (reader.type() != idfxx::http::request::ws_frame_type::binary) {
+        reader.skip(); // discard frames we don't handle
+        return {};
+    }
+    std::array<uint8_t, 256> buf;
+    while (reader.remaining() > 0) {
+        auto part = reader.read(buf); // unmasked payload, referencing buf
+        process(part);
+    }
+    return {};
+});
+```
+
+The whole payload must be read, or discarded with `skip()`, before the handler
+returns — see [Important Notes](#important-notes).
+
+### Binding to a Network Interface
+
+From ESP-IDF 6.1, the server can be restricted to connections arriving through a
+single network interface, identified by its lwIP name:
+
+```cpp
+idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
+```
+
 ## API Overview
 
 ### Types
 
 - `request` - Non-owning view of an HTTP request (valid only during handler invocation)
+- `request::ws_frame_reader` - Reads one WebSocket frame's payload in parts (ESP-IDF 6.1+)
 - `server` - HTTP server with RAII lifecycle and handler registration
 
 ### `request`
@@ -128,15 +164,24 @@ if (!r) {
 
 **WebSocket (CONFIG_HTTPD_WS_SUPPORT):**
 - `ws_recv(buf)` / `try_ws_recv(buf)` - Receive WebSocket frame (the payload must fit in `buf`)
+- `ws_recv_begin()` / `try_ws_recv_begin()` - Begin receiving a frame whose payload is read in parts (ESP-IDF 6.1+)
 - `ws_send_text(text)` / `try_ws_send_text(text)` - Send text frame
 - `ws_send_binary(data)` / `try_ws_send_binary(data)` - Send binary frame
 - `ws_send(frame)` / `try_ws_send(frame)` - Send arbitrary frame
+
+### `request::ws_frame_reader` (ESP-IDF 6.1+, CONFIG_HTTPD_WS_SUPPORT)
+
+- `type()` / `final()` - Frame type and FIN flag
+- `size()` / `remaining()` - Total payload length and bytes not yet read
+- `read(buf)` / `try_read(buf)` - Read the next part of the payload into `buf`
+- `skip()` / `try_skip()` - Discard the rest of the payload
 
 ### `server`
 
 **Creation:**
 - `server(cfg)` - Constructor (exception-based, if enabled)
 - `make(cfg)` - Create server (result-based)
+- `config::bind_to_device` - Accept connections on one network interface only (ESP-IDF 6.1+)
 
 **Handler Registration:**
 - `on(method, uri, handler)` / `try_on(...)` - Register for specific method
@@ -170,7 +215,10 @@ if (!r) {
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the server begins accepting connections
 - **Response string lifetimes**: `set_status()`, `set_content_type()`, and `set_header()` copy strings internally to ensure they remain valid until the response is sent
 - **WebSocket**: WebSocket support requires `CONFIG_HTTPD_WS_SUPPORT` to be enabled in menuconfig
-- **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame fails with `invalid_size` and its payload is left unread; since the connection cannot continue past unread payload, it is closed when the handler returns, even if the handler reports success
+- **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame fails with `invalid_size` and its payload is left unread; since the connection cannot continue past unread payload, it is closed when the handler returns, even if the handler reports success. From ESP-IDF 6.1, use `ws_recv_begin()` for frames that may not fit
+- **Consume the whole WebSocket frame**: When using `ws_recv_begin()`, read the whole payload or discard the rest with `skip()` before the handler returns. Unread payload would otherwise be parsed as the next frame, so if a `ws_frame_reader` is destroyed with payload left unread, or receiving the frame fails, the connection is closed when the handler returns (even if the handler reports success) and a warning is logged. `ws_recv_begin()` can be called at most once per handler invocation, and not together with `ws_recv()`. The reader must not outlive the handler invocation
+- **Limits and keep-alive tuning**: `max_req_hdr_len` and `max_uri_len` default to the project's `CONFIG_HTTPD_MAX_REQ_HDR_LEN` and `CONFIG_HTTPD_MAX_URI_LEN` settings; `keep_alive_idle`, `keep_alive_interval` and `keep_alive_count` default to `std::nullopt` to let the driver choose. An explicit value of zero or less is rejected with `invalid_arg`
+- **Interface binding**: `bind_to_device` takes the lwIP interface name (e.g. `"st1"`, from `esp_netif_get_netif_impl_name()`), not the esp_netif key. The interface must exist when the server starts, otherwise starting fails; names of 6 or more characters are rejected with `invalid_arg`
 
 ## License
 
