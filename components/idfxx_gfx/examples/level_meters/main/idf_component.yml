@@ -9,7 +9,7 @@ dependencies:
     version: "^3.0.0"
     override_path: ../../../../idfxx_lcd_ili9341
   cleishm/idfxx_spi:
-    version: "^1.0.0"
+    version: "^2.0.0"
     override_path: ../../../../idfxx_spi
   cleishm/idfxx_gpio:
     version: "^1.0.0"
@@ -18,5 +18,5 @@ dependencies:
     version: "^1.0.0"
     override_path: ../../../../idfxx_log
   cleishm/idfxx_panel_io:
-    version: "^1.0.0"
+    version: "^2.0.0"
     override_path: ../../../../idfxx_panel_io

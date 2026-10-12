@@ -14,11 +14,11 @@ dependencies:
     public: true
     override_path: ../idfxx_gpio
   cleishm/idfxx_spi:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_spi
   cleishm/idfxx_i2c:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_i2c
   cleishm/frequency:
