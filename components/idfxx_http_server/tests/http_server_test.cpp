@@ -541,6 +541,7 @@ private:
     int _fd = -1;
 };
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 std::vector<uint8_t> make_pattern(size_t len) {
     std::vector<uint8_t> v(len);
     for (size_t i = 0; i < len; ++i) {
@@ -548,6 +549,7 @@ std::vector<uint8_t> make_pattern(size_t len) {
     }
     return v;
 }
+#endif
 
 result<server> make_ws_server(uint16_t port, server::handler_type handler) {
     auto srv = server::make({.stack_size = 6144, .server_port = port, .ctrl_port = alloc_ctrl_port()});
