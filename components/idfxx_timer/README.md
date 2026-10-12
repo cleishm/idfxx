@@ -6,7 +6,9 @@ High-resolution timer management for ESP32.
 
 - **Timer lifecycle management** with automatic cleanup
 - **Type-safe duration handling** with std::chrono
-- **One-shot and periodic timers**
+- **One-shot and periodic timers**, started after a delay or at an absolute time
+- **Restart at an absolute time**, keeping or replacing a periodic timer's period (ESP-IDF 6.1+)
+- **Stop and wait** for a running callback to finish (ESP-IDF 6.1+)
 - **Task-dispatched and ISR-dispatched callbacks**
 - **Monotonic uptime clock access** compatible with std::chrono
 
@@ -24,7 +26,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_timer:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_timer` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -118,6 +120,32 @@ auto timer = idfxx::timer::start_once(
     []() { idfxx::log::info("timer", "Alarm!"); });
 ```
 
+### Periodic Timer at Absolute Time (ESP-IDF 6.1+)
+
+```cpp
+#include <idfxx/timer>
+
+using namespace std::chrono_literals;
+
+// First tick at a specific time point, then every 100ms
+auto timer = idfxx::timer::start_periodic(
+    {.name = "sampler"}, idfxx::timer::clock::now() + 1s, 100ms,
+    []() { idfxx::log::info("timer", "Sample!"); });
+```
+
+### Stopping and Waiting for the Callback (ESP-IDF 6.1+)
+
+`stop()` disarms the timer but does not wait for a callback that is already running. To be
+sure the callback has finished, for example before releasing state it uses, use `stop_and_wait()`:
+
+```cpp
+// Disarm the timer and wait for a running callback to return
+timer.stop_and_wait();
+
+// Or give up waiting after 100ms (throws with idfxx::errc::timeout)
+timer.stop_and_wait(100ms);
+```
+
 ### Separate Creation and Start
 
 For cases where you need to configure the timer before starting it:
@@ -207,6 +235,7 @@ auto next = idfxx::timer::next_alarm();
 - `timer::start_once(config, duration, callback)` / `timer::try_start_once(config, duration, callback)` - Create and start a one-shot timer
 - `timer::start_once(config, time_point, callback)` / `timer::try_start_once(config, time_point, callback)` - Create and start a one-shot timer at an absolute time
 - `timer::start_periodic(config, duration, callback)` / `timer::try_start_periodic(config, duration, callback)` - Create and start a periodic timer
+- `timer::start_periodic(config, time_point, duration, callback)` / `timer::try_start_periodic(config, time_point, duration, callback)` - Create and start a periodic timer with an absolute first time (ESP-IDF 6.1+)
 
 Each has overloads for std::move_only_function and raw function pointer callbacks.
 
@@ -225,13 +254,18 @@ Each has overloads for std::move_only_function and raw function pointer callback
 - `start_once(duration)` / `try_start_once(duration)` - Start as one-shot timer
 - `start_once(time_point)` / `try_start_once(time_point)` - Start as one-shot timer at an absolute time
 - `start_periodic(duration)` / `try_start_periodic(duration)` - Start as periodic timer
+- `start_periodic(time_point, duration)` / `try_start_periodic(time_point, duration)` - Start as periodic timer with an absolute first time (ESP-IDF 6.1+)
 - `restart(duration)` / `try_restart(duration)` - Restart with new timeout
+- `restart(time_point)` / `try_restart(time_point)` - Restart to fire next at an absolute time, keeping a periodic timer's period (ESP-IDF 6.1+)
+- `restart(time_point, duration)` / `try_restart(time_point, duration)` - Restart to fire next at an absolute time with a new period; one-shot timers ignore the period (ESP-IDF 6.1+)
 - `stop()` / `try_stop()` - Stop running timer
+- `stop_and_wait()` / `try_stop_and_wait()` - Stop and wait for a running callback to finish (ESP-IDF 6.1+)
+- `stop_and_wait(duration)` / `try_stop_and_wait(duration)` - Stop and wait, up to a timeout, for a running callback to finish (ESP-IDF 6.1+)
 - `start_once_isr(us)` / `start_periodic_isr(us)` / `restart_isr(us)` / `stop_isr()` - ISR-safe methods
 
 ### Status
 
-- `is_active()` - Check if timer is running
+- `is_active()` - Check if timer is running (on ESP-IDF 6.1+, also while its callback is still executing)
 - `period()` - Get periodic timer interval (duration), returns 0 for one-shot timers
 - `expiry_time()` - Get one-shot expiry time (time_point), returns max() for periodic timers or on error
 - `idf_handle()` - Get underlying esp_timer handle
@@ -247,6 +281,8 @@ Timer operations use error codes from `idfxx::errc`:
 
 - `invalid_state` - Timer already running (start) or not running (stop)
 - `invalid_arg` - Invalid configuration or duration
+- `timeout` - A running callback did not finish within the timeout given to `stop_and_wait(duration)`
+- `not_finished` - `stop_and_wait()` could not wait for a running callback (called from ISR context)
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
@@ -255,6 +291,9 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **ISR dispatch**: Use the raw function pointer overload with `dispatch_method::isr` for ISR-safe callbacks. The std::move_only_function overload allocates memory that may not be in IRAM.
 - **Non-copyable/move-only**: Timer is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops and deletes the timer.
+- **Absolute times in the past**: Starting or restarting at a time point that has already passed fires the timer as soon as possible.
+- **Restarting a periodic timer**: `restart(duration)` makes the duration both the delay and the new period. `restart(time_point)` keeps the current period, and `restart(time_point, duration)` sets the new period explicitly.
+- **Stopping a timer that is not running**: `stop()` fails with `invalid_state`, while `stop_and_wait()` succeeds.
 - **Name storage**: Timer names are copied internally and remain valid for the timer's lifetime.
 
 ## License

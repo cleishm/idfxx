@@ -3,6 +3,7 @@
 
 #include <idfxx/timer>
 
+#include <algorithm>
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -134,6 +135,94 @@ void timer::_stop_and_delete() noexcept {
     }
     delete _context;
 }
+
+namespace {
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+// How many times an absolute-time call clamped to now is retried when the clamped time slips
+// into the past before the call checks it.
+constexpr int max_clamp_attempts = 3;
+
+// Microseconds since boot of a time point, as taken by the esp_timer absolute-time API.
+uint64_t to_alarm_us(timer::clock::time_point time) {
+    return static_cast<uint64_t>(time.time_since_epoch().count());
+}
+#else
+// Microseconds remaining until a time point, or zero if it has passed.
+uint64_t remaining_us(timer::clock::time_point time) {
+    return static_cast<uint64_t>(std::max(int64_t{0}, (time - timer::clock::now()).count()));
+}
+#endif
+
+} // namespace
+
+result<void> timer::try_start_once(clock::time_point time) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    // esp_timer_start_once_at() rejects a time in the past with ESP_ERR_INVALID_ARG. Fire at
+    // once instead, both when the time has already passed and when it slips by before the call
+    // checks it.
+    if (time > clock::now()) {
+        auto err = esp_timer_start_once_at(_handle, to_alarm_us(time));
+        if (err != ESP_ERR_INVALID_ARG) {
+            return wrap(err);
+        }
+    }
+    return wrap(esp_timer_start_once(_handle, 0));
+#else
+    return wrap(esp_timer_start_once(_handle, remaining_us(time)));
+#endif
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+result<void> timer::try_restart(clock::time_point next) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    // A one-shot timer reports a period of zero, which esp_timer_restart_at() ignores for it.
+    uint64_t period_us = 0;
+    esp_timer_get_period(_handle, &period_us);
+    return _try_restart_at(next, period_us);
+}
+
+result<void> timer::_try_restart_at(clock::time_point next, uint64_t period_us) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    // A relative restart would also replace the period of a periodic timer, so clamp a time in
+    // the past to now instead; see _try_start_periodic_at() for why ESP_ERR_INVALID_ARG means
+    // the clamped time slipped further into the past and is retried. The past check comes before
+    // the not-running check, so ESP_ERR_INVALID_STATE means the timer must be started instead.
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    for (int attempt = 0; attempt < max_clamp_attempts && err == ESP_ERR_INVALID_ARG; ++attempt) {
+        auto at = std::max(next, clock::now());
+        err = esp_timer_restart_at(_handle, period_us, to_alarm_us(at));
+    }
+    if (err == ESP_ERR_INVALID_STATE) {
+        return try_start_once(next);
+    }
+    return wrap(err);
+}
+
+result<void> timer::_try_start_periodic_at(clock::time_point first, uint64_t interval_us) {
+    if (_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    // There is no relative call that fires a periodic timer at once, so clamp a first time in
+    // the past to now. esp_timer_start_periodic_at() accepts a time no more than the minimum
+    // timer period in the past, and with the handle checked above ESP_ERR_INVALID_ARG can only
+    // mean the time slipped further than that before the call checked it; take a fresh now and
+    // try again, a bounded number of times.
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    for (int attempt = 0; attempt < max_clamp_attempts && err == ESP_ERR_INVALID_ARG; ++attempt) {
+        auto at = std::max(first, clock::now());
+        err = esp_timer_start_periodic_at(_handle, interval_us, to_alarm_us(at));
+    }
+    return wrap(err);
+}
+#endif
 
 esp_err_t TIMER_ISR_ATTR timer::try_start_once_isr(uint64_t timeout_us) {
     if (_handle == nullptr) {

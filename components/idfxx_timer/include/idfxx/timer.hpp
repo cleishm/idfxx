@@ -19,10 +19,12 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/chrono>
 #include <idfxx/error>
 
 #include <algorithm>
 #include <chrono>
+#include <esp_idf_version.h>
 #include <esp_timer.h>
 #include <functional>
 #include <string>
@@ -293,6 +295,81 @@ public:
         return unwrap(try_start_periodic(std::move(cfg), interval, callback, arg));
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Creates and starts a periodic timer with an absolute first time and a std::move_only_function callback.
+     *
+     * Combines timer creation and periodic start into a single operation. The callback
+     * is first invoked at the specified time point and then repeatedly at the given
+     * interval. If the time point is in the past, the first invocation happens as soon
+     * as possible. If creation succeeds but starting fails, the timer is automatically
+     * cleaned up via RAII.
+     *
+     * @warning This overload cannot be used with dispatch_method::isr.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     * auto t = idfxx::timer::start_periodic(
+     *     {.name = "heartbeat"}, idfxx::timer::clock::now() + 500ms, 100ms,
+     *     []() { idfxx::log::info("timer", "Tick!"); });
+     * @endcode
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param cfg Timer configuration.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @param callback Function to call when timer fires.
+     * @return The new running timer.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] static timer start_periodic(
+        config cfg,
+        clock::time_point first,
+        const std::chrono::duration<Rep, Period>& interval,
+        std::move_only_function<void()> callback
+    ) {
+        return unwrap(try_start_periodic(std::move(cfg), first, interval, std::move(callback)));
+    }
+
+    /**
+     * @brief Creates and starts a periodic timer with an absolute first time and a raw function pointer callback.
+     *
+     * Combines timer creation and periodic start into a single operation. The callback
+     * is first invoked at the specified time point and then repeatedly at the given
+     * interval. If the time point is in the past, the first invocation happens as soon
+     * as possible. If creation succeeds but starting fails, the timer is automatically
+     * cleaned up via RAII.
+     *
+     * @note This overload is suitable for ISR dispatch.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param cfg Timer configuration.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @param callback Function to call when timer fires.
+     * @param arg Argument passed to the callback.
+     * @return The new running timer.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] static timer start_periodic(
+        config cfg,
+        clock::time_point first,
+        const std::chrono::duration<Rep, Period>& interval,
+        void (*callback)(void*),
+        void* arg
+    ) {
+        return unwrap(try_start_periodic(std::move(cfg), first, interval, callback, arg));
+    }
+#endif
+
 #endif
 
     /**
@@ -499,6 +576,93 @@ public:
         return t;
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Creates and starts a periodic timer with an absolute first time and a std::move_only_function callback.
+     *
+     * Combines timer creation and periodic start into a single operation. The callback
+     * is first invoked at the specified time point and then repeatedly at the given
+     * interval. If the time point is in the past, the first invocation happens as soon
+     * as possible. If creation succeeds but starting fails, the timer is automatically
+     * cleaned up via RAII.
+     *
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
+     * dispatch.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param cfg Timer configuration.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @param callback Function to call when timer fires.
+     * @return The new running timer, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     *
+     * @retval invalid_arg Invalid configuration.
+     * @retval invalid_state Timer could not be started.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] static result<timer> try_start_periodic(
+        config cfg,
+        clock::time_point first,
+        const std::chrono::duration<Rep, Period>& interval,
+        std::move_only_function<void()> callback
+    ) {
+        auto t = make(std::move(cfg), std::move(callback));
+        if (!t) {
+            return t;
+        }
+        auto r = t->try_start_periodic(first, interval);
+        if (!r) {
+            return error(r.error());
+        }
+        return t;
+    }
+
+    /**
+     * @brief Creates and starts a periodic timer with an absolute first time and a raw function pointer callback.
+     *
+     * Combines timer creation and periodic start into a single operation. The callback
+     * is first invoked at the specified time point and then repeatedly at the given
+     * interval. If the time point is in the past, the first invocation happens as soon
+     * as possible. If creation succeeds but starting fails, the timer is automatically
+     * cleaned up via RAII.
+     *
+     * @note This overload is suitable for ISR dispatch.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param cfg Timer configuration.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @param callback Function to call when timer fires.
+     * @param arg Argument passed to the callback.
+     * @return The new running timer, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     *
+     * @retval invalid_arg Invalid configuration.
+     * @retval invalid_state Timer could not be started.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] static result<timer> try_start_periodic(
+        config cfg,
+        clock::time_point first,
+        const std::chrono::duration<Rep, Period>& interval,
+        void (*callback)(void*),
+        void* arg
+    ) {
+        auto t = make(std::move(cfg), callback, arg);
+        if (!t) {
+            return t;
+        }
+        auto r = t->try_start_periodic(first, interval);
+        if (!r) {
+            return error(r.error());
+        }
+        return t;
+    }
+#endif
+
     /**
      * @brief Destroys the timer.
      *
@@ -572,6 +736,36 @@ public:
     void start_periodic(const std::chrono::duration<Rep, Period>& interval) {
         unwrap(try_start_periodic(interval));
     }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Starts the timer as a periodic timer with an absolute first time.
+     *
+     * The callback is first invoked at the specified time point and then
+     * repeatedly at the given interval. If the time point is in the past, the
+     * first invocation happens as soon as possible.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     * auto t = idfxx::timer(
+     *     {.name = "sampler"},
+     *     []() { idfxx::log::info("timer", "Sample!"); });
+     * t.start_periodic(idfxx::timer::clock::now() + 1s, 100ms);
+     * @endcode
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    void start_periodic(clock::time_point first, const std::chrono::duration<Rep, Period>& interval) {
+        unwrap(try_start_periodic(first, interval));
+    }
+#endif
 #endif
 
     /**
@@ -604,13 +798,7 @@ public:
      * @return Success, or an error.
      * @retval invalid_state Timer is already running.
      */
-    [[nodiscard]] result<void> try_start_once(clock::time_point time) {
-        if (_handle == nullptr) {
-            return error(errc::invalid_state);
-        }
-        auto timeout_us = std::max(int64_t{0}, (time - clock::now()).count());
-        return wrap(esp_timer_start_once(_handle, static_cast<uint64_t>(timeout_us)));
-    }
+    [[nodiscard]] result<void> try_start_once(clock::time_point time);
 
     /**
      * @brief Starts the timer as a one-shot timer (ISR-compatible).
@@ -652,6 +840,30 @@ public:
         return wrap(esp_timer_start_periodic(_handle, to_us(interval)));
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Starts the timer as a periodic timer with an absolute first time.
+     *
+     * The callback is first invoked at the specified time point and then
+     * repeatedly at the given interval. If the time point is in the past, the
+     * first invocation happens as soon as possible.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param first Absolute time at which the callback is first invoked.
+     * @param interval Time between callback invocations.
+     * @return Success, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @retval invalid_state Timer is already running.
+     * @retval invalid_arg @p first kept slipping into the past before the timer could be started.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_start_periodic(clock::time_point first, const std::chrono::duration<Rep, Period>& interval) {
+        return _try_start_periodic_at(first, to_us(interval));
+    }
+#endif
+
     /**
      * @brief Starts the timer as a periodic timer (ISR-compatible).
      *
@@ -684,6 +896,57 @@ public:
     void restart(const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_restart(timeout));
     }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Restarts the timer so that it next fires at an absolute time.
+     *
+     * A running one-shot timer is rearmed to fire once at @p next. A running
+     * periodic timer next fires at @p next and keeps its current period. A
+     * timer that is not running is started as a one-shot timer firing at
+     * @p next. If @p next is in the past, the timer fires as soon as possible.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     * // Push the deadline back each time activity is seen
+     * watchdog.restart(idfxx::timer::clock::now() + 5s);
+     * @endcode
+     *
+     * @param next Absolute time at which the callback is next invoked.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error on failure.
+     */
+    void restart(clock::time_point next) { unwrap(try_restart(next)); }
+
+    /**
+     * @brief Restarts the timer so that it next fires at an absolute time, with a new period.
+     *
+     * A running periodic timer next fires at @p next and then repeatedly at
+     * the new @p period. A running one-shot timer is rearmed to fire once at
+     * @p next and ignores @p period. A timer that is not running is started
+     * as a one-shot timer firing at @p next, also ignoring @p period. If
+     * @p next is in the past, the timer fires as soon as possible.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     * // Resynchronize a periodic sampler to a new schedule
+     * sampler.restart(idfxx::timer::clock::now() + 1s, 250ms);
+     * @endcode
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param next Absolute time at which the callback is next invoked.
+     * @param period New time between callback invocations of a periodic timer.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error on failure.
+     */
+    template<typename Rep, typename Period>
+    void restart(clock::time_point next, const std::chrono::duration<Rep, Period>& period) {
+        unwrap(try_restart(next, period));
+    }
+#endif
 #endif
 
     /**
@@ -709,6 +972,47 @@ public:
         }
         return wrap(err);
     }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Restarts the timer so that it next fires at an absolute time.
+     *
+     * A running one-shot timer is rearmed to fire once at @p next. A running
+     * periodic timer next fires at @p next and keeps its current period. A
+     * timer that is not running is started as a one-shot timer firing at
+     * @p next. If @p next is in the past, the timer fires as soon as possible.
+     *
+     * @param next Absolute time at which the callback is next invoked.
+     * @return Success, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @retval invalid_state The timer could not be started.
+     * @retval invalid_arg @p next kept slipping into the past before the timer could be rearmed.
+     */
+    [[nodiscard]] result<void> try_restart(clock::time_point next);
+
+    /**
+     * @brief Restarts the timer so that it next fires at an absolute time, with a new period.
+     *
+     * A running periodic timer next fires at @p next and then repeatedly at
+     * the new @p period. A running one-shot timer is rearmed to fire once at
+     * @p next and ignores @p period. A timer that is not running is started
+     * as a one-shot timer firing at @p next, also ignoring @p period. If
+     * @p next is in the past, the timer fires as soon as possible.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param next Absolute time at which the callback is next invoked.
+     * @param period New time between callback invocations of a periodic timer.
+     * @return Success, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @retval invalid_state The timer could not be started.
+     * @retval invalid_arg @p next kept slipping into the past before the timer could be rearmed.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_restart(clock::time_point next, const std::chrono::duration<Rep, Period>& period) {
+        return _try_restart_at(next, to_us(period));
+    }
+#endif
 
     /**
      * @brief Restarts the timer with a new timeout (ISR-compatible).
@@ -736,6 +1040,71 @@ public:
      * @throws std::system_error on failure.
      */
     void stop() { unwrap(try_stop()); }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Stops the timer and waits for a running callback to finish.
+     *
+     * Once this returns, the callback is not running and will not run again
+     * until the timer is restarted. The timer is disarmed so that no further
+     * callbacks are dispatched, then, if the callback is currently executing,
+     * this waits for it to return, for as long as that takes.
+     *
+     * Unlike stop(), stopping a timer that is not running succeeds.
+     *
+     * When called from within this timer's own callback, the timer is disarmed
+     * and the call returns immediately without waiting; the callback finishes
+     * after it returns.
+     *
+     * @code
+     * // Make sure the callback is no longer touching shared state
+     * t.stop_and_wait();
+     * release_shared_state();
+     * @endcode
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error with idfxx::errc::not_finished if the callback may still be
+     *         running and could not be waited for. The timer is disarmed in that case too.
+     */
+    void stop_and_wait() { unwrap(try_stop_and_wait()); }
+
+    /**
+     * @brief Stops the timer and waits, up to a timeout, for a running callback to finish.
+     *
+     * Once this returns without throwing, the callback is not running and will
+     * not run again until the timer is restarted. The timer is disarmed so
+     * that no further callbacks are dispatched, then, if the callback is
+     * currently executing, this waits up to @p timeout for it to return.
+     *
+     * Unlike stop(), stopping a timer that is not running succeeds.
+     *
+     * When called from within this timer's own callback, the timer is disarmed
+     * and the call returns immediately without waiting; the callback finishes
+     * after it returns.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     * // Make sure the callback is no longer touching shared state
+     * t.stop_and_wait(100ms);
+     * release_shared_state();
+     * @endcode
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param timeout Maximum time to wait for a running callback to finish. A zero timeout
+     *                does not wait.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @throws std::system_error with idfxx::errc::timeout if the callback was still running
+     *         when the timeout expired, or with idfxx::errc::not_finished if the callback may
+     *         still be running and could not be waited for. The timer is disarmed in both cases.
+     */
+    template<typename Rep, typename Period>
+    void stop_and_wait(const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_stop_and_wait(timeout));
+    }
+#endif
 #endif
 
     /**
@@ -751,6 +1120,78 @@ public:
         return wrap(esp_timer_stop(_handle));
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Stops the timer and waits for a running callback to finish.
+     *
+     * On success, the callback is not running and will not run again until
+     * the timer is restarted. The timer is disarmed so that no further
+     * callbacks are dispatched, then, if the callback is currently executing,
+     * this waits for it to return, for as long as that takes.
+     *
+     * Unlike try_stop(), stopping a timer that is not running succeeds.
+     *
+     * When called from within this timer's own callback, the timer is disarmed
+     * and the call returns success immediately without waiting; the callback
+     * finishes after it returns.
+     *
+     * Whatever the result, the timer is disarmed when this returns. After a
+     * not_finished error, poll is_active() until it returns false to learn
+     * when the callback has finished.
+     *
+     * @return Success, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @retval not_finished The callback may still be running and could not be waited for:
+     *         the call was made from ISR context, or from a task-dispatched timer callback while
+     *         this timer's ISR-dispatched callback was running.
+     * @retval invalid_state The timer service is not initialized.
+     */
+    [[nodiscard]] result<void> try_stop_and_wait() {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
+        return wrap(esp_timer_stop_blocking(_handle, portMAX_DELAY));
+    }
+
+    /**
+     * @brief Stops the timer and waits, up to a timeout, for a running callback to finish.
+     *
+     * On success, the callback is not running and will not run again until
+     * the timer is restarted. The timer is disarmed so that no further
+     * callbacks are dispatched, then, if the callback is currently executing,
+     * this waits up to @p timeout for it to return.
+     *
+     * Unlike try_stop(), stopping a timer that is not running succeeds.
+     *
+     * When called from within this timer's own callback, the timer is disarmed
+     * and the call returns success immediately without waiting; the callback
+     * finishes after it returns.
+     *
+     * Whatever the result, the timer is disarmed when this returns. After a
+     * timeout or not_finished error, poll is_active() until it returns false to
+     * learn when the callback has finished.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period type.
+     * @param timeout Maximum time to wait for a running callback to finish. A zero timeout
+     *                does not wait.
+     * @return Success, or an error.
+     * @note Only available on ESP-IDF 6.1 and later.
+     * @retval timeout The callback was still running when the timeout expired.
+     * @retval not_finished The callback may still be running and could not be waited for:
+     *         the call was made from ISR context, or from a task-dispatched timer callback while
+     *         this timer's ISR-dispatched callback was running.
+     * @retval invalid_state The timer service is not initialized.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_stop_and_wait(const std::chrono::duration<Rep, Period>& timeout) {
+        if (_handle == nullptr) {
+            return error(errc::invalid_state);
+        }
+        return wrap(esp_timer_stop_blocking(_handle, chrono::ticks(timeout)));
+    }
+#endif
+
     /**
      * @brief Stops the timer (ISR-compatible).
      *
@@ -765,6 +1206,12 @@ public:
 
     /**
      * @brief Checks if the timer is currently running.
+     *
+     * @note On ESP-IDF 6.1 and later, a timer is also active while its callback
+     *       is executing, even once the timer is no longer armed: after stop(),
+     *       or after a one-shot timer has fired. On earlier versions, only an
+     *       armed timer is active.
+     *
      * @return true if the timer is active, false otherwise.
      */
     [[nodiscard]] bool is_active() const noexcept {
@@ -835,6 +1282,11 @@ private:
     explicit timer(esp_timer_handle_t handle, std::string name, context* ctx = nullptr);
 
     void _stop_and_delete() noexcept;
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    [[nodiscard]] result<void> _try_start_periodic_at(clock::time_point first, uint64_t interval_us);
+    [[nodiscard]] result<void> _try_restart_at(clock::time_point next, uint64_t period_us);
+#endif
 
     template<typename Rep, typename Period>
     static constexpr int64_t to_us(const std::chrono::duration<Rep, Period>& d) {
