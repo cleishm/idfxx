@@ -569,14 +569,16 @@ public:
      *
      * If the payload does not fit, it is left unread. The connection cannot
      * continue past an unread payload, so it is closed when the handler
-     * returns, even if the handler reports success.
+     * returns, even if the handler reports success. If receiving the frame
+     * fails, the position in the stream is unknown, and the connection is
+     * likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame with type and payload span referencing buf.
      * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
      * @throws std::system_error with idfxx::errc::invalid_size if the payload is larger than
-     *         @p buf (the connection is then closed when the handler returns), or another
-     *         error if the frame could not be received.
+     *         @p buf, or another error if the frame could not be received. In either case
+     *         the connection is closed when the handler returns.
      */
     [[nodiscard]] ws_frame ws_recv(std::span<uint8_t> buf) { return unwrap(try_ws_recv(buf)); }
 
@@ -656,13 +658,16 @@ public:
      *
      * If the payload does not fit, it is left unread. The connection cannot
      * continue past an unread payload, so it is closed when the handler
-     * returns, even if the handler reports success.
+     * returns, even if the handler reports success. If receiving the frame
+     * fails, the position in the stream is unknown, and the connection is
+     * likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame with type and payload span referencing buf, or an error.
      * @retval idfxx::errc::invalid_size if the payload is larger than @p buf. The connection
      *         is closed when the handler returns.
-     * @retval other if the frame could not be received.
+     * @retval other if the frame could not be received. The connection is closed when the
+     *         handler returns.
      */
     [[nodiscard]] result<ws_frame> try_ws_recv(std::span<uint8_t> buf);
 
