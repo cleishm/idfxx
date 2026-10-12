@@ -204,7 +204,8 @@ TEST_CASE("console repl config default values", "[idfxx][console]") {
     TEST_ASSERT_EQUAL(4096, cfg.task_stack_size);
     TEST_ASSERT_EQUAL(2, cfg.priority.value());
     TEST_ASSERT_FALSE(cfg.core_affinity.has_value());
-    TEST_ASSERT_EQUAL(0, cfg.max_cmdline_length);
+    TEST_ASSERT_FALSE(cfg.prompt.has_value());
+    TEST_ASSERT_FALSE(cfg.max_cmdline_length.has_value());
 }
 
 namespace {
@@ -268,8 +269,18 @@ TEST_CASE("console uart_config default values", "[idfxx][console]") {
     repl::uart_config cfg{};
     TEST_ASSERT_EQUAL(static_cast<int>(repl::default_uart_port), static_cast<int>(cfg.port));
     TEST_ASSERT_EQUAL(CONFIG_ESP_CONSOLE_UART_BAUDRATE, cfg.baud_rate);
-    TEST_ASSERT_EQUAL(-1, cfg.tx_gpio.num());
-    TEST_ASSERT_EQUAL(-1, cfg.rx_gpio.num());
+    TEST_ASSERT_FALSE(cfg.tx_gpio.has_value());
+    TEST_ASSERT_FALSE(cfg.rx_gpio.has_value());
+}
+
+TEST_CASE("console repl make rejects invalid config", "[idfxx][console]") {
+    auto zero_cmdline = repl::make({.max_cmdline_length = 0}, {});
+    TEST_ASSERT_FALSE(zero_cmdline.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), zero_cmdline.error().value());
+
+    auto nc_tx = repl::make({}, {.tx_gpio = idfxx::gpio::nc()});
+    TEST_ASSERT_FALSE(nc_tx.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), nc_tx.error().value());
 }
 #endif // UART
 

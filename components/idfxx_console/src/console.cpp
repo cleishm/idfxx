@@ -157,14 +157,18 @@ int run(std::string_view cmdline) {
 // REPL config translation
 // =============================================================================
 
-esp_console_repl_config_t repl::_translate_config(const config& cfg) {
+result<esp_console_repl_config_t> repl::_translate_config(const config& cfg) {
+    if (cfg.max_cmdline_length == 0u) {
+        return error(errc::invalid_arg);
+    }
+
     esp_console_repl_config_t idf_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     idf_cfg.max_history_len = static_cast<uint32_t>(cfg.max_history_len);
     idf_cfg.task_stack_size = static_cast<uint32_t>(cfg.task_stack_size);
     idf_cfg.task_priority = static_cast<uint32_t>(cfg.priority.value());
     idf_cfg.task_core_id = cfg.core_affinity.has_value() ? static_cast<BaseType_t>(*cfg.core_affinity) : tskNO_AFFINITY;
-    if (cfg.max_cmdline_length > 0) {
-        idf_cfg.max_cmdline_length = cfg.max_cmdline_length;
+    if (cfg.max_cmdline_length) {
+        idf_cfg.max_cmdline_length = *cfg.max_cmdline_length;
     }
     // Note: history_save_path and prompt need null-terminated strings that live
     // long enough for the esp_console_new_repl_* call. They are set in the
@@ -179,19 +183,27 @@ esp_console_repl_config_t repl::_translate_config(const config& cfg) {
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
 
 result<repl> repl::make(const config& cfg, const uart_config& uart) {
-    auto idf_cfg = _translate_config(cfg);
+    if ((uart.tx_gpio && !uart.tx_gpio->is_connected()) || (uart.rx_gpio && !uart.rx_gpio->is_connected())) {
+        return error(errc::invalid_arg);
+    }
+
+    auto translated = _translate_config(cfg);
+    if (!translated) {
+        return error(translated.error());
+    }
+    auto& idf_cfg = *translated;
 
     // Temporary strings for null termination (ESP-IDF copies them internally)
     auto history_path = cfg.history_save_path.string();
-    std::string prompt{cfg.prompt};
+    std::string prompt{cfg.prompt.value_or(std::string_view{})};
     idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
-    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+    idf_cfg.prompt = cfg.prompt ? prompt.c_str() : nullptr;
 
     esp_console_dev_uart_config_t dev_cfg{};
     dev_cfg.channel = static_cast<int>(uart.port);
     dev_cfg.baud_rate = uart.baud_rate;
-    dev_cfg.tx_gpio_num = uart.tx_gpio.num();
-    dev_cfg.rx_gpio_num = uart.rx_gpio.num();
+    dev_cfg.tx_gpio_num = uart.tx_gpio ? uart.tx_gpio->num() : -1; // -1 keeps the port's default pin
+    dev_cfg.rx_gpio_num = uart.rx_gpio ? uart.rx_gpio->num() : -1;
 
     esp_console_repl_t* handle = nullptr;
     auto err = esp_console_new_repl_uart(&dev_cfg, &idf_cfg, &handle);
@@ -222,12 +234,16 @@ repl::repl(const config& cfg, const uart_config& uart)
 #if CONFIG_ESP_CONSOLE_USB_CDC
 
 result<repl> repl::make(const config& cfg, usb_cdc_t /*transport*/) {
-    auto idf_cfg = _translate_config(cfg);
+    auto translated = _translate_config(cfg);
+    if (!translated) {
+        return error(translated.error());
+    }
+    auto& idf_cfg = *translated;
 
     auto history_path = cfg.history_save_path.string();
-    std::string prompt{cfg.prompt};
+    std::string prompt{cfg.prompt.value_or(std::string_view{})};
     idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
-    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+    idf_cfg.prompt = cfg.prompt ? prompt.c_str() : nullptr;
 
     esp_console_dev_usb_cdc_config_t dev_cfg = ESP_CONSOLE_DEV_CDC_CONFIG_DEFAULT();
 
@@ -260,12 +276,16 @@ repl::repl(const config& cfg, usb_cdc_t transport)
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
 
 result<repl> repl::make(const config& cfg, usb_serial_jtag_t /*transport*/) {
-    auto idf_cfg = _translate_config(cfg);
+    auto translated = _translate_config(cfg);
+    if (!translated) {
+        return error(translated.error());
+    }
+    auto& idf_cfg = *translated;
 
     auto history_path = cfg.history_save_path.string();
-    std::string prompt{cfg.prompt};
+    std::string prompt{cfg.prompt.value_or(std::string_view{})};
     idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
-    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+    idf_cfg.prompt = cfg.prompt ? prompt.c_str() : nullptr;
 
     esp_console_dev_usb_serial_jtag_config_t dev_cfg = ESP_CONSOLE_DEV_USB_SERIAL_JTAG_CONFIG_DEFAULT();
 
@@ -298,12 +318,16 @@ repl::repl(const config& cfg, usb_serial_jtag_t transport)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 
 result<repl> repl::make(const config& cfg, stdio_t /*transport*/) {
-    auto idf_cfg = _translate_config(cfg);
+    auto translated = _translate_config(cfg);
+    if (!translated) {
+        return error(translated.error());
+    }
+    auto& idf_cfg = *translated;
 
     auto history_path = cfg.history_save_path.string();
-    std::string prompt{cfg.prompt};
+    std::string prompt{cfg.prompt.value_or(std::string_view{})};
     idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
-    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+    idf_cfg.prompt = cfg.prompt ? prompt.c_str() : nullptr;
 
     esp_console_repl_t* handle = nullptr;
     auto err = esp_console_new_repl_stdio(&idf_cfg, &handle);
