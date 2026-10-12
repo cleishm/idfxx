@@ -164,7 +164,9 @@ public:
      * @brief Reads the raw ADC conversion value.
      * @return The raw value (range depends on the chip's bit width).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including
+     *         `idfxx::errc::timeout` when the conversion result is invalid or
+     *         the ADC unit is in use by another reader.
      */
     [[nodiscard]] int read_raw() { return unwrap(try_read_raw()); }
 
@@ -178,7 +180,8 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including
      *         `idfxx::errc::not_supported` when the chip has no usable
-     *         calibration data.
+     *         calibration data, and `idfxx::errc::timeout` when the conversion
+     *         result is invalid or the ADC unit is in use by another reader.
      */
     [[nodiscard]] electro::millivolts read_voltage() { return unwrap(try_read_voltage()); }
 #endif
@@ -186,6 +189,8 @@ public:
     /**
      * @brief Reads the raw ADC conversion value.
      * @return The raw value, or an error.
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<int> try_read_raw();
 
@@ -198,6 +203,8 @@ public:
      * @return The calibrated, divider-scaled voltage, or an error.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<electro::millivolts> try_read_voltage();
 
@@ -580,6 +587,8 @@ public:
      *         is configured with more than one pin, or
      *         idfxx::errc::not_supported if the chip has no usable calibration
      *         data (check @ref calibrated).
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] electro::millivolts to_voltage(int raw) const { return unwrap(try_to_voltage(raw)); }
 
@@ -612,6 +621,8 @@ public:
      *         sampler's configured pins.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<electro::millivolts> try_to_voltage(const sample& s) const;
 
@@ -627,6 +638,8 @@ public:
      *         than one pin.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<electro::millivolts> try_to_voltage(int raw) const;
 
