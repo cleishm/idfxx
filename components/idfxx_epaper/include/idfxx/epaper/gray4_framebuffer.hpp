@@ -62,6 +62,13 @@ public:
     /** @brief The value type written by @ref set_pixel. */
     using pixel_type = gray4;
 
+    /**
+     * @brief Destination-column alignment required by @ref panel::write.
+     * Eight pixels share a byte in each plane, so a framebuffer must land on
+     * a byte boundary.
+     */
+    static constexpr size_t x_alignment = 8;
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.

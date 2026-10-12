@@ -16,18 +16,20 @@ Abstract ePaper panel interface, framebuffers, and shared types.
 - Three refresh styles: `full` (highest quality, clears ghosting), `fast`
   (shortened full-screen waveform), and `partial` (flicker-free differential
   update of changed pixels only).
-- 4-level grayscale via `set_color_mode(color_mode::gray4)` on drivers that
-  support it.
+- 4-level grayscale via `set_color_mode(color_mode::gray4)` and six-color
+  (E Ink Spectra 6) operation via `set_color_mode(color_mode::color6)` on
+  drivers that support them; `supports(color_mode)` reports which do.
 - Deep-sleep power management (`sleep` / `wake`) with state tracking — writes
   and refreshes while asleep report `errc::invalid_state` instead of hanging
   on a dead controller.
 - Automatic partial-refresh baseline tracking: the first refresh after
   construction, `wake`, or a color-mode change is silently promoted to a
   full refresh.
-- `mono_framebuffer` (1 bpp) and `gray4_framebuffer` (2 bpp, two 1-bpp
-  planes) value types in the row-major layouts ePaper controllers consume,
-  uploadable at a pixel offset for banded rendering.
-- Both framebuffers satisfy the `idfxx::gfx::pixel_surface` concept, so the
+- `mono_framebuffer` (1 bpp), `gray4_framebuffer` (2 bpp, two 1-bpp
+  planes), and `color6_framebuffer` (4 bpp, two pixels per byte) value types
+  in the row-major layouts ePaper controllers consume, uploadable at a pixel
+  offset for banded rendering.
+- All framebuffers satisfy the `idfxx::gfx::pixel_surface` concept, so the
   `idfxx_gfx` drawing primitives (rectangles, lines, text) work on them
   directly.
 
@@ -148,9 +150,30 @@ display.write(fb);
 display.refresh(); // gray4 supports full refresh only
 ```
 
+### Six-color
+
+Spectra 6 panels take a 4-bit color code per pixel, packed two per byte, so
+`color6_framebuffer` uploads must land on an even column (rather than the
+multiple of 8 the 1-bpp formats need):
+
+```cpp
+display.set_color_mode(idfxx::epaper::color_mode::color6);
+
+idfxx::epaper::color6_framebuffer fb(display.width(), display.height());
+fb.set_pixel(10, 20, idfxx::epaper::color6::red);
+display.write(fb);
+display.refresh(); // color6 supports full refresh only
+```
+
+A full 1200x1600 frame is 960 KB, so this framebuffer is usually PSRAM
+resident: with `CONFIG_SPIRAM_USE_MALLOC=y` (and the default
+`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`) `std::vector` places it there
+automatically. Without PSRAM, draw through a band-sized framebuffer with
+`idfxx::gfx::render_banded` instead.
+
 ### Drawing with idfxx_gfx
 
-Both framebuffers are `idfxx::gfx::pixel_surface`s, so the gfx canvas and
+All framebuffers are `idfxx::gfx::pixel_surface`s, so the gfx canvas and
 text primitives draw on them directly; upload the framebuffer the canvas
 draws on with `display.write(fb)`:
 
@@ -169,18 +192,22 @@ display.refresh();
 **Accessors:** `width`, `height`, `color_mode`, `asleep`.
 
 **RAM upload:** `write(fb, x = 0, y = 0)` (overloaded for
-`mono_framebuffer` and `gray4_framebuffer`) uploads at a pixel offset;
-`write_rows(fb, row_start, row_end, x = 0, y = 0)` uploads a horizontal
-band. Destination columns must be multiples of 8 (controller RAM is
-byte-packed along the row). `clear()` fills the RAM with white without
-needing a framebuffer, and promotes the next partial refresh to full.
+`mono_framebuffer`, `gray4_framebuffer`, and `color6_framebuffer`) uploads
+at a pixel offset; `write_rows(fb, row_start, row_end, x = 0, y = 0)`
+uploads a horizontal band. Destination columns must be a multiple of the
+framebuffer's `x_alignment` — 8 for the 1-bpp formats (controller RAM is
+byte-packed along the row), 2 for `color6_framebuffer` (two pixels per
+byte). `clear()` fills the RAM with white without needing a framebuffer,
+and promotes the next partial refresh to full.
 
 **Refresh:** `refresh(mode = refresh_mode::full)` blocks until the update
 completes; `start_refresh(mode = refresh_mode::full)` returns an
 `idfxx::future<void>` that completes when it does.
 
-**Color mode:** `set_color_mode(color_mode)` switches between `mono` and
-`gray4` operation.
+**Color mode:** `set_color_mode(color_mode)` switches between `mono`,
+`gray4`, and `color6` operation. Every driver supports `mono`;
+`supports(color_mode)` reports whether it supports the others, and
+`set_color_mode` rejects a mode it doesn't support.
 
 **Power:** `sleep` enters deep sleep (a no-op when already asleep); `wake`
 hardware-resets and re-initializes the controller.
@@ -195,17 +222,25 @@ forms above are inline wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 - `gray4_framebuffer` — 2 bpp as two 1-bpp planes (plane 0 = bit 0 of the
   level, plane 1 = bit 1); `pixel_type` is `epaper::gray4` (`white`,
   `light`, `dark`, `black`). Starts all-white.
+- `color6_framebuffer` — 4 bpp, row-major, two pixels per byte (high nibble
+  = the even/left pixel), byte-padded rows; `pixel_type` is
+  `epaper::color6` (`black`, `white`, `yellow`, `red`, `blue`, `green`).
+  Starts all-white.
 
-Both provide `set_pixel` / `get_pixel` / `fill` / `clear` and raw data
-access (`data()` / `row(y)` on mono, `plane(i)` / `plane_row(i, y)` on
-gray4). Upload them with the panel's `write` / `write_rows`.
+All provide `set_pixel` / `get_pixel` / `fill` / `clear`, an `x_alignment`
+constant, and raw data access (`data()` / `row(y)` on mono and color6,
+`plane(i)` / `plane_row(i, y)` on gray4). Upload them with the panel's
+`write` / `write_rows`.
 
 ### Types
 
 - `refresh_mode` — `full`, `fast`, `partial`.
-- `color_mode` — `mono`, `gray4`.
+- `color_mode` — `mono`, `gray4`, `color6`.
 - `gray4` — `white` (0) through `black` (3); a value-initialized `gray4{}` is
   white so `gfx::canvas::clear()` blanks to paper.
+- `color6` — the panel-native Spectra 6 codes: `black` (0), `white` (1),
+  `yellow` (2), `red` (3), `blue` (5), `green` (6). Note that a
+  value-initialized `color6{}` is **black** (see Important Notes).
 
 ## Error Handling
 
@@ -216,8 +251,9 @@ The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 - `errc::invalid_state` — writing or refreshing while asleep, writing a
   framebuffer that doesn't match the panel's color mode, or waking a driver
   with no reset line configured.
-- `errc::not_supported` — `fast`/`partial` refresh in gray4 mode, or a
-  capability the concrete driver lacks.
+- `errc::not_supported` — `fast`/`partial` refresh in gray4 or color6 mode,
+  a color mode the concrete driver doesn't support (`supports` returns
+  false), or another capability it lacks.
 - `errc::timeout` — the panel's BUSY line did not release in time.
 
 Using a moved-from driver object is undefined behavior.
@@ -239,6 +275,13 @@ Using a moved-from driver object is undefined behavior.
 - **Sleep between updates.** Leaving an ePaper controller active degrades
   the glass over time and wastes power; call `sleep()` whenever the display
   will sit idle, and `wake()` before the next update.
+- **`color6{}` is black, not white.** The six-color codes are the panel's
+  own, and code 0 is black. `color6_framebuffer` starts white and its
+  `clear()` blanks to white, and a `gfx::canvas` covering the whole
+  framebuffer clears through it — but a *windowed* canvas (one placed at an
+  offset, or narrower than its surface) has no whole-surface clear to call
+  and fills with the value-initialized pixel, inking the window black. Use
+  `canvas.fill(color6::white)` there.
 - Drivers keep an internal shadow copy of the last-written frame to
   maintain the controller's previous-image plane for partial refreshes —
   budget roughly one frame of heap per panel (see each driver's README for

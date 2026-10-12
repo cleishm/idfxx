@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include <idfxx/epaper/color6_framebuffer>
 #include <idfxx/epaper/gray4_framebuffer>
 #include <idfxx/epaper/mono_framebuffer>
 #include <idfxx/epaper/panel>
@@ -13,16 +14,18 @@ using namespace std::chrono_literals;
 namespace idfxx::epaper {
 
 // Shared body of the write family: the panel must be awake and in the
-// framebuffer's color mode, the destination column must land on a RAM byte
-// boundary, the row range must be a valid band of the framebuffer, and the
-// placed band must fit within the panel.
+// framebuffer's color mode, the destination column must satisfy the
+// framebuffer's packing alignment (a RAM byte boundary for the 1-bpp
+// formats, an even column for the nibble-packed six-color one), the row
+// range must be a valid band of the framebuffer, and the placed band must
+// fit within the panel.
 template<typename FB>
 result<void>
 panel::_try_write_rows(const FB& fb, enum color_mode expected, size_t row_start, size_t row_end, size_t x, size_t y) {
     if (_asleep || _color_mode != expected) {
         return error(errc::invalid_state);
     }
-    if (x % 8 != 0 || row_start >= row_end || row_end > fb.height()) {
+    if (x % FB::x_alignment != 0 || row_start >= row_end || row_end > fb.height()) {
         return error(errc::invalid_arg);
     }
     if (x + fb.width() > _width || y + row_end > _height) {
@@ -42,12 +45,20 @@ result<void> panel::try_write(const gray4_framebuffer& fb, size_t x, size_t y) {
     return _try_write_rows(fb, color_mode::gray4, 0, fb.height(), x, y);
 }
 
+result<void> panel::try_write(const color6_framebuffer& fb, size_t x, size_t y) {
+    return _try_write_rows(fb, color_mode::color6, 0, fb.height(), x, y);
+}
+
 result<void> panel::try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
     return _try_write_rows(fb, color_mode::mono, row_start, row_end, x, y);
 }
 
 result<void> panel::try_write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
     return _try_write_rows(fb, color_mode::gray4, row_start, row_end, x, y);
+}
+
+result<void> panel::try_write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+    return _try_write_rows(fb, color_mode::color6, row_start, row_end, x, y);
 }
 
 result<void> panel::configure_control_lines(gpio busy_gpio, gpio reset_gpio) {

@@ -5,6 +5,7 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/epaper/color"
+#include "idfxx/epaper/color6_framebuffer"
 #include "idfxx/epaper/gray4_framebuffer"
 #include "idfxx/epaper/mono_framebuffer"
 #include "idfxx/epaper/panel"
@@ -36,21 +37,40 @@ static_assert(std::is_copy_constructible_v<mono_framebuffer>);
 static_assert(std::is_move_constructible_v<mono_framebuffer>);
 static_assert(std::is_copy_constructible_v<gray4_framebuffer>);
 static_assert(std::is_move_constructible_v<gray4_framebuffer>);
+static_assert(std::is_copy_constructible_v<color6_framebuffer>);
+static_assert(std::is_move_constructible_v<color6_framebuffer>);
 
-// Both framebuffers are drawable surfaces for the idfxx_gfx primitives.
+// All framebuffers are drawable surfaces for the idfxx_gfx primitives.
 static_assert(idfxx::gfx::pixel_surface<mono_framebuffer>);
 static_assert(idfxx::gfx::pixel_surface<gray4_framebuffer>);
+static_assert(idfxx::gfx::pixel_surface<color6_framebuffer>);
 
 // A value-initialized pixel is blank paper, so gfx::canvas::clear() blanks
 // ePaper surfaces to white.
 static_assert(gray4{} == gray4::white);
 static_assert(bool{} == false); // mono: false = white paper
+// ...except six-color, whose panel-native code 0 is black: the framebuffer's
+// own clear() blanks to white, and windowed canvas clears ink black.
+static_assert(color6{} == color6::black);
 
 // Gray levels are the canonical 2-bit values streamed to controller planes.
 static_assert(std::to_underlying(gray4::white) == 0);
 static_assert(std::to_underlying(gray4::light) == 1);
 static_assert(std::to_underlying(gray4::dark) == 2);
 static_assert(std::to_underlying(gray4::black) == 3);
+
+// Six-color values are the panel-native 4-bit Spectra 6 pixel codes.
+static_assert(std::to_underlying(color6::black) == 0x0);
+static_assert(std::to_underlying(color6::white) == 0x1);
+static_assert(std::to_underlying(color6::yellow) == 0x2);
+static_assert(std::to_underlying(color6::red) == 0x3);
+static_assert(std::to_underlying(color6::blue) == 0x5);
+static_assert(std::to_underlying(color6::green) == 0x6);
+
+// Destination-column alignment follows each format's pixel packing.
+static_assert(mono_framebuffer::x_alignment == 8);
+static_assert(gray4_framebuffer::x_alignment == 8);
+static_assert(color6_framebuffer::x_alignment == 2);
 
 // =============================================================================
 // Runtime tests: mono_framebuffer
@@ -181,6 +201,88 @@ TEST_CASE("epaper gray4_framebuffer encodes levels across planes", "[idfxx][epap
 }
 
 // =============================================================================
+// Runtime tests: color6_framebuffer
+// =============================================================================
+
+TEST_CASE("epaper color6_framebuffer::make rejects invalid dimensions", "[idfxx][epaper]") {
+    auto zero_width = color6_framebuffer::make(0, 3);
+    TEST_ASSERT_FALSE(zero_width.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), zero_width.error().value());
+
+    auto zero_height = color6_framebuffer::make(5, 0);
+    TEST_ASSERT_FALSE(zero_height.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), zero_height.error().value());
+}
+
+TEST_CASE("epaper color6_framebuffer starts all-white with nibble-padded rows", "[idfxx][epaper]") {
+    auto fb = color6_framebuffer::make(5, 3);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    TEST_ASSERT_EQUAL(5, fb->width());
+    TEST_ASSERT_EQUAL(3, fb->height());
+    TEST_ASSERT_EQUAL(3, fb->stride_bytes()); // (5 + 1) / 2
+    TEST_ASSERT_EQUAL(9, fb->data().size());
+
+    // White is code 1 in both nibbles.
+    for (uint8_t byte : fb->data()) {
+        TEST_ASSERT_EQUAL_HEX8(0x11, byte);
+    }
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::white), std::to_underlying(fb->get_pixel(0, 0)));
+    // Out-of-range reads are white too.
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::white), std::to_underlying(fb->get_pixel(5, 0)));
+}
+
+TEST_CASE("epaper color6_framebuffer packs the even pixel in the high nibble", "[idfxx][epaper]") {
+    auto fb = color6_framebuffer::make(5, 3).value(); // stride 3
+
+    // (0, 0) is the high nibble of byte 0.
+    fb.set_pixel(0, 0, color6::red);
+    TEST_ASSERT_EQUAL_HEX8(0x31, fb.data()[0]);
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::red), std::to_underlying(fb.get_pixel(0, 0)));
+
+    // (1, 0) is the low nibble of the same byte; the high nibble is kept.
+    fb.set_pixel(1, 0, color6::blue);
+    TEST_ASSERT_EQUAL_HEX8(0x35, fb.data()[0]);
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::blue), std::to_underlying(fb.get_pixel(1, 0)));
+
+    // (4, 1) is the high nibble of the last byte of row 1; the padding
+    // nibble past the right edge stays white.
+    fb.set_pixel(4, 1, color6::green);
+    TEST_ASSERT_EQUAL_HEX8(0x61, fb.row(1)[2]);
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::green), std::to_underlying(fb.get_pixel(4, 1)));
+    TEST_ASSERT_EQUAL_HEX8(0x11, fb.row(0)[2]);
+    TEST_ASSERT_EQUAL_HEX8(0x11, fb.row(2)[2]);
+
+    // Out-of-range writes are ignored (including the padding nibble's x).
+    fb.set_pixel(5, 1, color6::black);
+    fb.set_pixel(0, 3, color6::black);
+    TEST_ASSERT_EQUAL_HEX8(0x61, fb.row(1)[2]);
+    TEST_ASSERT_EQUAL_HEX8(0x35, fb.data()[0]);
+}
+
+TEST_CASE("epaper color6_framebuffer fill and clear", "[idfxx][epaper]") {
+    auto fb = color6_framebuffer::make(5, 3).value();
+
+    fb.fill(color6::yellow);
+    for (uint8_t byte : fb.data()) {
+        TEST_ASSERT_EQUAL_HEX8(0x22, byte);
+    }
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::yellow), std::to_underlying(fb.get_pixel(3, 2)));
+
+    fb.clear();
+    for (uint8_t byte : fb.data()) {
+        TEST_ASSERT_EQUAL_HEX8(0x11, byte);
+    }
+
+    // A whole-surface canvas clear goes through the framebuffer's clear()
+    // and so blanks to white rather than the value-initialized black.
+    fb.fill(color6::black);
+    idfxx::gfx::canvas canvas(fb);
+    canvas.clear();
+    TEST_ASSERT_EQUAL_HEX8(0x11, fb.data()[0]);
+}
+
+// =============================================================================
 // Runtime tests: panel state machine (via recording stub)
 // =============================================================================
 
@@ -260,6 +362,34 @@ TEST_CASE("epaper panel promotes partial refresh without a baseline", "[idfxx][e
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes[2]));
 }
 
+TEST_CASE("epaper panel rejects unsupported color modes before the driver", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+    display.supports_gray4 = false;
+    display.supports_color6 = false;
+
+    // Monochrome is always supported, whatever the driver reports.
+    TEST_ASSERT_TRUE(display.supports(color_mode::mono));
+    TEST_ASSERT_FALSE(display.supports(color_mode::gray4));
+    TEST_ASSERT_FALSE(display.supports(color_mode::color6));
+
+    // Unsupported modes fail without reaching the driver or changing state.
+    auto gray = display.try_set_color_mode(color_mode::gray4);
+    TEST_ASSERT_FALSE(gray.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), gray.error().value());
+    auto color = display.try_set_color_mode(color_mode::color6);
+    TEST_ASSERT_FALSE(color.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), color.error().value());
+    TEST_ASSERT_EQUAL(0, display.color_mode_changes);
+    TEST_ASSERT_EQUAL(std::to_underlying(color_mode::mono), std::to_underlying(display.color_mode()));
+
+    // A supported mode reaches the driver.
+    display.supports_color6 = true;
+    TEST_ASSERT_TRUE(display.supports(color_mode::color6));
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::color6).has_value());
+    TEST_ASSERT_EQUAL(1, display.color_mode_changes);
+    TEST_ASSERT_EQUAL(std::to_underlying(color_mode::color6), std::to_underlying(display.color_mode()));
+}
+
 TEST_CASE("epaper panel clear invalidates the partial baseline", "[idfxx][epaper]") {
     recording_epaper_panel display(122, 250);
 
@@ -305,6 +435,54 @@ TEST_CASE("epaper panel forwards gray4 refresh modes to the driver", "[idfxx][ep
     auto wrong_mode = display.try_write(fb);
     TEST_ASSERT_FALSE(wrong_mode.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), wrong_mode.error().value());
+}
+
+TEST_CASE("epaper panel color6 writes use even-column alignment", "[idfxx][epaper]") {
+    recording_epaper_panel display(16, 4);
+    auto cfb = color6_framebuffer::make(8, 4).value();
+
+    // Six-color framebuffer while in mono mode.
+    auto wrong_mode = display.try_write(cfb);
+    TEST_ASSERT_FALSE(wrong_mode.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), wrong_mode.error().value());
+
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::color6).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(color_mode::color6), std::to_underlying(display.color_mode()));
+
+    // An odd column is unaligned for the nibble-packed format...
+    auto unaligned = display.try_write(cfb, 1, 0);
+    TEST_ASSERT_FALSE(unaligned.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), unaligned.error().value());
+    TEST_ASSERT_EQUAL(0, display.color6_writes.size());
+
+    // ...but an even one that is not a multiple of 8 is fine.
+    TEST_ASSERT_TRUE(display.try_write(cfb, 2, 0).has_value());
+    TEST_ASSERT_EQUAL(1, display.color6_writes.size());
+    TEST_ASSERT_EQUAL(2, display.color6_writes[0].x);
+    TEST_ASSERT_EQUAL(0, display.color6_writes[0].y);
+    TEST_ASSERT_EQUAL(0, display.color6_writes[0].row_start);
+    TEST_ASSERT_EQUAL(4, display.color6_writes[0].row_end);
+
+    // Band writes map through the same overload.
+    TEST_ASSERT_TRUE(display.try_write_rows(cfb, 1, 3).has_value());
+    TEST_ASSERT_EQUAL(2, display.color6_writes.size());
+    TEST_ASSERT_EQUAL(0, display.color6_writes[1].x);
+    TEST_ASSERT_EQUAL(1, display.color6_writes[1].row_start);
+    TEST_ASSERT_EQUAL(3, display.color6_writes[1].row_end);
+
+    // Mono framebuffers are rejected in color6 mode.
+    auto fb = mono_framebuffer::make(8, 4).value();
+    auto mono_in_color6 = display.try_write(fb);
+    TEST_ASSERT_FALSE(mono_in_color6.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), mono_in_color6.error().value());
+
+    // The 1-bpp formats keep their byte alignment: x = 2 is still rejected
+    // for a mono framebuffer back in mono mode.
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::mono).has_value());
+    auto mono_unaligned = display.try_write(fb, 2, 0);
+    TEST_ASSERT_FALSE(mono_unaligned.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), mono_unaligned.error().value());
+    TEST_ASSERT_EQUAL(0, display.mono_writes.size());
 }
 
 TEST_CASE("epaper panel sleep blocks writes and refreshes until wake", "[idfxx][epaper]") {

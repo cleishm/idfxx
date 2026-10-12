@@ -271,6 +271,10 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
     return _update();
 }
 
+bool uc8179::do_supports(enum color_mode mode) const noexcept {
+    return mode == color_mode::gray4;
+}
+
 result<void> uc8179::do_set_color_mode(enum color_mode mode) {
     if (_io == nullptr) {
         return error(errc::invalid_state);
