@@ -85,7 +85,7 @@ result<size_t> datagram_socket::try_send(std::span<const std::byte> buf) {
     }
     ssize_t n = lwip_send(_fd, buf.data(), buf.size(), 0);
     if (n < 0) {
-        return error(errno_to_error_code(errno));
+        return error(detail::io_error_code(_fd, errno));
     }
     return static_cast<size_t>(n);
 }

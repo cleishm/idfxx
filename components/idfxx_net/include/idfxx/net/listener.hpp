@@ -87,8 +87,9 @@ public:
         /// Only available when `CONFIG_LWIP_IPV6` is enabled.
         bool ipv6_only = false;
 #endif
-        /// If true, `accept` returns immediately when no connection is pending rather than
-        /// blocking the calling task. Equivalent to the POSIX `O_NONBLOCK` flag.
+        /// If true, `accept` fails immediately with `errc::operation_would_block` when no
+        /// connection is pending rather than blocking the calling task. Equivalent to the
+        /// POSIX `O_NONBLOCK` flag.
         bool non_blocking = false;
         /// Restrict the listener to a specific network interface, identified by name (e.g.
         /// `"st1"`). Equivalent to the POSIX `SO_BINDTODEVICE` option.
@@ -192,10 +193,14 @@ public:
     /**
      * @brief Accepts a single incoming connection.
      *
-     * Blocks until a client connects.
+     * Blocks until a client connects or the timeout set by `set_recv_timeout`
+     * expires. On a non-blocking listener the call returns immediately when no
+     * connection is pending.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         `set_recv_timeout` timeout expires and `errc::operation_would_block`
+     *         when a non-blocking listener has no pending connection.
      *
      * @return The connected socket.
      */
@@ -204,8 +209,14 @@ public:
     /**
      * @brief Accepts a single incoming connection and returns the peer's endpoint.
      *
+     * Blocks until a client connects or the timeout set by `set_recv_timeout`
+     * expires. On a non-blocking listener the call returns immediately when no
+     * connection is pending.
+     *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         `set_recv_timeout` timeout expires and `errc::operation_would_block`
+     *         when a non-blocking listener has no pending connection.
      *
      * @return The accepted connection and the peer's endpoint.
      */
@@ -230,14 +241,30 @@ public:
     /**
      * @brief Accepts a single incoming connection.
      *
+     * Blocks until a client connects or the timeout set by `set_recv_timeout`
+     * expires. On a non-blocking listener the call returns immediately when no
+     * connection is pending.
+     *
      * @return The connected socket, or an error.
+     * @retval errc::timed_out The `set_recv_timeout` timeout expired with no
+     *         connection.
+     * @retval errc::operation_would_block The listener is non-blocking and no
+     *         connection is pending.
      */
     [[nodiscard]] result<stream_socket> try_accept();
 
     /**
      * @brief Accepts a single incoming connection and returns the peer's endpoint.
      *
+     * Blocks until a client connects or the timeout set by `set_recv_timeout`
+     * expires. On a non-blocking listener the call returns immediately when no
+     * connection is pending.
+     *
      * @return The accepted connection and the peer's endpoint, or an error.
+     * @retval errc::timed_out The `set_recv_timeout` timeout expired with no
+     *         connection.
+     * @retval errc::operation_would_block The listener is non-blocking and no
+     *         connection is pending.
      */
     [[nodiscard]] result<accepted_connection> try_accept_with_peer();
 

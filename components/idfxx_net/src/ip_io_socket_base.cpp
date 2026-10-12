@@ -42,9 +42,14 @@ result<std::span<std::byte>> ip_io_socket_base::try_recv(std::span<std::byte> bu
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
+    if (buf.empty()) {
+        // A zero-length TCP receive would block until data arrives and then
+        // return 0, indistinguishable from the peer closing the connection.
+        return buf;
+    }
     ssize_t n = lwip_recv(_fd, buf.data(), buf.size(), 0);
     if (n < 0) {
-        return error(errno_to_error_code(errno));
+        return error(io_error_code(_fd, errno));
     }
     return buf.first(static_cast<size_t>(n));
 }

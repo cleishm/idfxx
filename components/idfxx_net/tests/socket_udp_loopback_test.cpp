@@ -115,6 +115,32 @@ TEST_CASE("udp loopback: recv(span) of a zero-length datagram is empty, not EOF"
     TEST_ASSERT_TRUE(received->empty());
 }
 
+TEST_CASE("udp loopback: recv and recv_from on a blocking socket with a recv timeout return timed_out", "[net]") {
+    auto rx = datagram_socket::make({.recv_timeout = std::chrono::milliseconds(50)});
+    TEST_ASSERT_TRUE(rx.has_value());
+    rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
+
+    std::array<std::byte, 8> buf{};
+    auto from = rx->try_recv_from(buf);
+    TEST_ASSERT_FALSE(from.has_value());
+    TEST_ASSERT_TRUE(from.error() == idfxx::net::errc::timed_out);
+
+    auto received = rx->try_recv(buf);
+    TEST_ASSERT_FALSE(received.has_value());
+    TEST_ASSERT_TRUE(received.error() == idfxx::net::errc::timed_out);
+}
+
+TEST_CASE("udp loopback: recv_from on a non-blocking socket with no datagram returns operation_would_block", "[net]") {
+    auto rx = datagram_socket::make({.non_blocking = true, .recv_timeout = std::chrono::milliseconds(50)});
+    TEST_ASSERT_TRUE(rx.has_value());
+    rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
+
+    std::array<std::byte, 8> buf{};
+    auto from = rx->try_recv_from(buf);
+    TEST_ASSERT_FALSE(from.has_value());
+    TEST_ASSERT_TRUE(from.error() == idfxx::net::errc::operation_would_block);
+}
+
 TEST_CASE("udp: broadcast off by default", "[net]") {
     auto sock = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(sock.has_value());

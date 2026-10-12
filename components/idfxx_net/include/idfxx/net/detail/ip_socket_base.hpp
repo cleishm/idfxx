@@ -94,8 +94,9 @@ public:
     [[nodiscard]] result<void> try_bind(const endpoint& addr);
 
     /**
-     * @brief Toggles non-blocking mode — when on, I/O calls return immediately when no
-     *        data or buffer space is available rather than blocking the calling task.
+     * @brief Toggles non-blocking mode — when on, I/O calls fail immediately with
+     *        `errc::operation_would_block` when no data, buffer space, or pending
+     *        connection is available, rather than blocking the calling task.
      *        Equivalent to the POSIX `O_NONBLOCK` flag.
      *
      * @param on Whether to enable non-blocking mode.
@@ -149,12 +150,14 @@ public:
 
     /**
      * @brief Sets the maximum time `recv` will block waiting for data; on expiry the
-     *        call returns `errc::timed_out`. Equivalent to the POSIX `SO_RCVTIMEO`
+     *        call fails with `errc::timed_out`. Equivalent to the POSIX `SO_RCVTIMEO`
      *        socket option. Sub-millisecond resolutions are rounded up.
      *
-     *        On a `listener`, this option also bounds the wait performed by
-     *        `accept()` — lwIP applies `SO_RCVTIMEO` to both operations on the
-     *        same socket.
+     *        On a `listener`, this option bounds the wait performed by `accept()`
+     *        instead, which likewise fails with `errc::timed_out` on expiry.
+     *
+     *        Has no effect in non-blocking mode, where these calls fail
+     *        immediately with `errc::operation_would_block` instead of waiting.
      *
      * @param t Receive timeout duration.
      */

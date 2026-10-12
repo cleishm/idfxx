@@ -2,6 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 #include "detail/sockaddr.hpp"
+#include "detail/sockopt.hpp"
 
 #include <idfxx/net/detail/connectionless_socket_base.hpp>
 
@@ -28,7 +29,7 @@ result<std::span<std::byte>> connectionless_socket_base::try_recv(std::span<std:
     // overrun is reported as an error rather than a silent truncation.
     ssize_t len = lwip_recvmsg(_fd, &msg, 0);
     if (len < 0) {
-        return error(errno_to_error_code(errno));
+        return error(io_error_code(_fd, errno));
     }
     if ((msg.msg_flags & MSG_TRUNC) != 0) {
         return error(errc::message_too_long);
@@ -59,7 +60,7 @@ result<size_t> connectionless_socket_base::try_send_to(std::span<const std::byte
     }
     ssize_t n = lwip_sendto(_fd, buf.data(), buf.size(), 0, reinterpret_cast<const sockaddr*>(&ss), len);
     if (n < 0) {
-        return error(errno_to_error_code(errno));
+        return error(io_error_code(_fd, errno));
     }
     return static_cast<size_t>(n);
 }
@@ -84,7 +85,7 @@ result<datagram> connectionless_socket_base::try_recv_from(std::span<std::byte> 
     // so in a single call.
     ssize_t len = lwip_recvmsg(_fd, &msg, 0);
     if (len < 0) {
-        return error(errno_to_error_code(errno));
+        return error(io_error_code(_fd, errno));
     }
     auto ep = from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), msg.msg_namelen);
     if (!ep) {

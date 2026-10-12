@@ -58,14 +58,15 @@ public:
     struct config {
         ip_protocol protocol = {};                    ///< IP-layer protocol (e.g. `ip_protocol::icmp`). Required.
         address_family family = address_family::ipv4; ///< Address family (IPv4 / IPv6).
-        /// If true, I/O calls return immediately when no data or buffer space is available
-        /// rather than blocking the calling task. Equivalent to the POSIX `O_NONBLOCK` flag.
+        /// If true, I/O calls fail immediately with `errc::operation_would_block` when no
+        /// data or buffer space is available rather than blocking the calling task.
+        /// Equivalent to the POSIX `O_NONBLOCK` flag.
         bool non_blocking = false;
-        /// Maximum time `recv`/`recv_from` will block waiting for data before returning
-        /// `errc::timed_out`.
+        /// Maximum time `recv`/`recv_from` will block waiting for data before failing
+        /// with `errc::timed_out`.
         std::optional<std::chrono::milliseconds> recv_timeout = std::nullopt;
         /// Maximum time `send`/`send_to` will block waiting for buffer space before
-        /// returning `errc::timed_out`.
+        /// failing with `errc::timed_out`.
         std::optional<std::chrono::milliseconds> send_timeout = std::nullopt;
 #ifdef CONFIG_LWIP_IPV6
         /// Restrict an IPv6 socket to IPv6 traffic only. Equivalent to the POSIX

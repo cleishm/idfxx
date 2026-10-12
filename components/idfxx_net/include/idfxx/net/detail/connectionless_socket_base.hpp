@@ -39,7 +39,10 @@ public:
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure, including `errc::message_too_long`
-     *         when the datagram is larger than @p buf.
+     *         when the datagram is larger than @p buf, `errc::timed_out` when the
+     *         receive timeout set by `set_recv_timeout` expires, and
+     *         `errc::operation_would_block` when a non-blocking socket has no
+     *         datagram available.
      *
      * @return Sub-span of @p buf with the datagram's bytes. An empty span is a
      *         received zero-length datagram — connectionless sockets have no
@@ -57,10 +60,13 @@ public:
      * expected datagram or use `try_recv_from`.
      *
      * @param buf Buffer to receive into.
-     * @return Sub-span of @p buf with the datagram's bytes, or an error
-     *         (`errc::message_too_long` when the datagram is larger than @p buf).
-     *         An empty span is a received zero-length datagram — connectionless
-     *         sockets have no end-of-stream, so it never signals peer close.
+     * @return Sub-span of @p buf with the datagram's bytes, or an error. An empty
+     *         span is a received zero-length datagram — connectionless sockets
+     *         have no end-of-stream, so it never signals peer close.
+     * @retval errc::message_too_long The datagram is larger than @p buf.
+     * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
+     * @retval errc::operation_would_block The socket is non-blocking and no
+     *         datagram is available.
      */
     [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
 
@@ -114,7 +120,10 @@ public:
      * @param buf Buffer to fill.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::timed_out` when the
+     *         receive timeout set by `set_recv_timeout` expires and
+     *         `errc::operation_would_block` when a non-blocking socket has no
+     *         datagram available.
      *
      * @return Datagram metadata (filled sub-span, source endpoint).
      */
@@ -126,6 +135,9 @@ public:
      *
      * @param buf Buffer to fill.
      * @return Datagram metadata (filled sub-span, source endpoint), or an error.
+     * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
+     * @retval errc::operation_would_block The socket is non-blocking and no
+     *         datagram is available.
      */
     [[nodiscard]] result<datagram> try_recv_from(std::span<std::byte> buf);
 
