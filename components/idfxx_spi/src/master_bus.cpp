@@ -18,9 +18,15 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
     if (static_cast<spi_host_device_t>(host) >= SPI_HOST_MAX) {
         return error(errc::invalid_arg);
     }
-    if (config.max_transfer_sz > std::numeric_limits<int>::max()) {
+    if (config.max_transfer_sz == 0u ||
+        config.max_transfer_sz.value_or(0) > static_cast<size_t>(std::numeric_limits<int>::max())) {
         return error(errc::invalid_arg);
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    if (config.dma_burst_size == 0u) {
+        return error(errc::invalid_arg);
+    }
+#endif
 
     spi_bus_config_t spi_config{
         .mosi_io_num = config.mosi.idf_num(),
@@ -33,9 +39,9 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
         .data6_io_num = config.data6.idf_num(),
         .data7_io_num = config.data7.idf_num(),
         .data_io_default_level = config.data_idle_level == gpio::level::high,
-        .max_transfer_sz = static_cast<int>(config.max_transfer_sz),
+        .max_transfer_sz = static_cast<int>(config.max_transfer_sz.value_or(0)), // 0 selects the driver default
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-        .dma_burst_size = config.dma_burst_size,
+        .dma_burst_size = config.dma_burst_size.value_or(0), // 0 selects the driver default
 #endif
         .flags = to_underlying(config.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is

@@ -61,13 +61,17 @@ struct master_device::async_state {
 };
 
 static result<spi_device_handle_t> add_device(master_bus& bus, const master_device::config& config) {
+    if (config.duty_cycle_pos == 0) {
+        return error(errc::invalid_arg);
+    }
+
     spi_device_interface_config_t dev_config{
         .command_bits = config.command_bits,
         .address_bits = config.address_bits,
         .dummy_bits = config.dummy_bits,
         .mode = config.mode,
         .clock_source = SPI_CLK_SRC_DEFAULT,
-        .duty_cycle_pos = config.duty_cycle_pos,
+        .duty_cycle_pos = config.duty_cycle_pos.value_or(0), // 0 selects the driver default
         .cs_ena_pretrans = config.cs_ena_pretrans,
         .cs_ena_posttrans = config.cs_ena_posttrans,
         .clock_speed_hz = static_cast<int>(config.clock_speed.count()),

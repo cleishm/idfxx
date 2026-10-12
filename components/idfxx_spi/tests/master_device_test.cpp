@@ -73,7 +73,7 @@ TEST_CASE("master_device::config default initialization", "[idfxx][spi]") {
     TEST_ASSERT_EQUAL(0, cfg.address_bits);
     TEST_ASSERT_EQUAL(0, cfg.dummy_bits);
     TEST_ASSERT_EQUAL(0, cfg.mode);
-    TEST_ASSERT_EQUAL(0, cfg.duty_cycle_pos);
+    TEST_ASSERT_FALSE(cfg.duty_cycle_pos.has_value());
     TEST_ASSERT_EQUAL(0, cfg.cs_ena_pretrans);
     TEST_ASSERT_EQUAL(0, cfg.cs_ena_posttrans);
     TEST_ASSERT_EQUAL(0, cfg.clock_speed.count());
@@ -133,6 +133,16 @@ TEST_CASE("master_device::make creates device on bus", "[idfxx][spi]") {
     auto device = master_device::make(bus, dev_cfg);
     TEST_ASSERT_TRUE(device.has_value());
     TEST_ASSERT_NOT_NULL(device->idf_handle());
+}
+
+TEST_CASE("master_device::make with zero duty cycle fails", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto dev_cfg = default_device_config();
+    dev_cfg.duty_cycle_pos = 0;
+
+    auto device = master_device::make(bus, dev_cfg);
+    TEST_ASSERT_FALSE(device.has_value());
+    TEST_ASSERT_TRUE(device.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("master_device actual_frequency returns non-zero", "[idfxx][spi]") {

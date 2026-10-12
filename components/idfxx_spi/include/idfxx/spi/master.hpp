@@ -230,10 +230,11 @@ struct bus_config {
     idfxx::gpio data7 = gpio::nc(); ///< GPIO pin for spi data7 signal in octal mode, or gpio::nc() if not used.
 
     gpio::level data_idle_level = gpio::level::low; ///< Data pin output level while no transaction is active.
-    size_t max_transfer_sz = 0; ///< Maximum transfer size, in bytes (DMA only). A value of 0 selects the 4092-byte
-                                ///< default. Larger values allocate additional DMA descriptors (4092 bytes each).
-                                ///< Ignored when DMA is disabled; the effective limit is then
-                                ///< `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
+    /// Maximum transfer size, in bytes (DMA only), or std::nullopt to let the driver choose. Larger values allocate
+    /// more DMA descriptors. An explicit value of 0, or one larger than `INT_MAX`, is rejected with
+    /// `errc::invalid_arg` when the bus is created. Ignored when DMA is disabled; the effective limit is then
+    /// `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
+    std::optional<size_t> max_transfer_sz = std::nullopt;
 
     idfxx::flags<bus_flags> flags = {}; ///< Abilities of bus to be checked by the driver.
 
@@ -250,11 +251,11 @@ struct bus_config {
     idfxx::flags<idfxx::intr_flag> intr_flags = {};
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
-    /// DMA burst size, in bytes. A value of 0 selects the driver default (32 bytes). A non-zero value must be one
-    /// of the burst sizes supported by the chip's DMA controller, otherwise bus creation fails. Only used when
-    /// DMA is enabled, and ignored on chips whose DMA burst size is not configurable.
+    /// DMA burst size, in bytes, or std::nullopt to let the driver choose. When set, it must be one of the burst
+    /// sizes supported by the chip's DMA controller, otherwise bus creation fails with `errc::invalid_arg`. Only
+    /// used when DMA is enabled, and ignored on chips whose DMA burst size is not configurable.
     /// @note Only available with ESP-IDF 6.1 or later.
-    uint32_t dma_burst_size = 0;
+    std::optional<uint32_t> dma_burst_size = std::nullopt;
 #endif
 };
 
@@ -370,11 +371,13 @@ public:
      * @endcode
      */
     struct config {
-        uint8_t command_bits = 0;     ///< Default command phase length in bits (0-16).
-        uint8_t address_bits = 0;     ///< Default address phase length in bits (0-64).
-        uint8_t dummy_bits = 0;       ///< Dummy bits between address and data phase.
-        uint8_t mode = 0;             ///< SPI mode (0-3): (CPOL, CPHA) pair.
-        uint16_t duty_cycle_pos = 0;  ///< Duty cycle of positive clock in 1/256 increments (128 = 50%, 0 = default).
+        uint8_t command_bits = 0; ///< Default command phase length in bits (0-16).
+        uint8_t address_bits = 0; ///< Default address phase length in bits (0-64).
+        uint8_t dummy_bits = 0;   ///< Dummy bits between address and data phase.
+        uint8_t mode = 0;         ///< SPI mode (0-3): (CPOL, CPHA) pair.
+        /// Duty cycle of the positive clock, in 1/256 increments (128 = 50%), or std::nullopt to let the driver
+        /// choose. An explicit value of 0 is rejected with `errc::invalid_arg` when the device is created.
+        std::optional<uint16_t> duty_cycle_pos = std::nullopt;
         uint16_t cs_ena_pretrans = 0; ///< SPI bit-cycles CS is active before transmission (half-duplex only).
         uint8_t cs_ena_posttrans = 0; ///< SPI bit-cycles CS stays active after transmission.
         freq::hertz clock_speed{0};   ///< SPI clock speed in Hz.
