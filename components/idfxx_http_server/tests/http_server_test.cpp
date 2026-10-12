@@ -10,9 +10,24 @@
 #include "unity.h"
 
 #include <array>
+#include <esp_idf_version.h>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#if defined(CONFIG_HTTPD_WS_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <algorithm>
+#include <arpa/inet.h>
+#include <atomic>
+#include <cerrno>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <memory>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <vector>
+#endif
 
 using namespace idfxx;
 using namespace idfxx::http;
@@ -315,3 +330,245 @@ TEST_CASE("http server handler_exists error on duplicate registration", "[idfxx]
     TEST_ASSERT_FALSE(r2.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(server::errc::handler_exists), r2.error().value());
 }
+
+// =============================================================================
+// WebSocket (over a raw loopback socket)
+// =============================================================================
+
+// ESP-IDF 5.5 also passes the upgrade request itself to the WebSocket handler,
+// which these tests don't account for.
+#if defined(CONFIG_HTTPD_WS_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+
+namespace {
+
+/// Minimal WebSocket client over a loopback TCP socket.
+class ws_test_client {
+public:
+    enum class recv_status { frame, closed, timeout };
+
+    struct frame {
+        uint8_t opcode = 0;
+        std::vector<uint8_t> payload;
+    };
+
+    /// Masking key used for every frame sent.
+    static constexpr std::array<uint8_t, 4> mask = {0x12, 0x34, 0x56, 0x78};
+
+    explicit ws_test_client(uint16_t port) {
+        _fd = socket(AF_INET, SOCK_STREAM, 0);
+        TEST_ASSERT_TRUE(_fd >= 0);
+
+        timeval tv{.tv_sec = 5, .tv_usec = 0};
+        setsockopt(_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        TEST_ASSERT_EQUAL(0, connect(_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)));
+
+        std::string handshake = "GET /ws HTTP/1.1\r\n"
+                                "Host: 127.0.0.1\r\n"
+                                "Upgrade: websocket\r\n"
+                                "Connection: Upgrade\r\n"
+                                "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                                "Sec-WebSocket-Version: 13\r\n"
+                                "\r\n";
+        send_all(reinterpret_cast<const uint8_t*>(handshake.data()), handshake.size());
+
+        // Read the upgrade response one byte at a time so no frame data is consumed
+        std::string response;
+        while (response.size() < 4 || response.compare(response.size() - 4, 4, "\r\n\r\n") != 0) {
+            char ch;
+            int n = recv(_fd, &ch, 1, 0);
+            TEST_ASSERT_EQUAL(1, n);
+            response.push_back(ch);
+        }
+        TEST_ASSERT_TRUE(response.starts_with("HTTP/1.1 101"));
+    }
+
+    ~ws_test_client() {
+        if (_fd >= 0) {
+            close(_fd);
+        }
+    }
+
+    ws_test_client(const ws_test_client&) = delete;
+    ws_test_client& operator=(const ws_test_client&) = delete;
+
+    /// Sends a single masked frame with the FIN flag set.
+    void send_frame(uint8_t opcode, std::span<const uint8_t> payload) {
+        auto out = encode_frame(opcode, payload);
+        send_all(out.data(), out.size());
+    }
+
+    /// Encodes a single masked frame with the FIN flag set.
+    static std::vector<uint8_t> encode_frame(uint8_t opcode, std::span<const uint8_t> payload) {
+        std::vector<uint8_t> out;
+        out.push_back(0x80 | opcode);
+        if (payload.size() < 126) {
+            out.push_back(0x80 | static_cast<uint8_t>(payload.size()));
+        } else {
+            out.push_back(0x80 | 126);
+            out.push_back(static_cast<uint8_t>(payload.size() >> 8));
+            out.push_back(static_cast<uint8_t>(payload.size() & 0xff));
+        }
+        out.insert(out.end(), mask.begin(), mask.end());
+        for (size_t i = 0; i < payload.size(); ++i) {
+            out.push_back(payload[i] ^ mask[i % 4]);
+        }
+        return out;
+    }
+
+    void send_text(std::string_view text) {
+        send_frame(0x1, std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(text.data()), text.size()});
+    }
+
+    /// Receives one unmasked frame from the server.
+    recv_status recv_frame(frame& f) {
+        std::array<uint8_t, 2> hdr;
+        auto st = recv_exact(hdr.data(), hdr.size());
+        if (st != recv_status::frame) {
+            return st;
+        }
+        f.opcode = hdr[0] & 0x0f;
+        size_t len = hdr[1] & 0x7f;
+        if (len == 126) {
+            std::array<uint8_t, 2> ext;
+            st = recv_exact(ext.data(), ext.size());
+            if (st != recv_status::frame) {
+                return st;
+            }
+            len = (static_cast<size_t>(ext[0]) << 8) | ext[1];
+        }
+        f.payload.resize(len);
+        return recv_exact(f.payload.data(), len);
+    }
+
+    /// Receives one text frame and returns its payload.
+    std::string recv_text() {
+        frame f;
+        TEST_ASSERT_TRUE(recv_frame(f) == recv_status::frame);
+        TEST_ASSERT_EQUAL(0x1, f.opcode);
+        return std::string(f.payload.begin(), f.payload.end());
+    }
+
+private:
+    void send_all(const uint8_t* data, size_t len) {
+        while (len > 0) {
+            int n = send(_fd, data, len, 0);
+            TEST_ASSERT_TRUE(n > 0);
+            data += n;
+            len -= static_cast<size_t>(n);
+        }
+    }
+
+    recv_status recv_exact(uint8_t* data, size_t len) {
+        while (len > 0) {
+            int n = recv(_fd, data, len, 0);
+            if (n == 0) {
+                return recv_status::closed;
+            }
+            if (n < 0) {
+                return (errno == EAGAIN || errno == EWOULDBLOCK) ? recv_status::timeout : recv_status::closed;
+            }
+            data += n;
+            len -= static_cast<size_t>(n);
+        }
+        return recv_status::frame;
+    }
+
+    int _fd = -1;
+};
+
+std::vector<uint8_t> make_pattern(size_t len) {
+    std::vector<uint8_t> v(len);
+    for (size_t i = 0; i < len; ++i) {
+        v[i] = static_cast<uint8_t>((i * 7 + 3) & 0xff);
+    }
+    return v;
+}
+
+result<server> make_ws_server(uint16_t port, server::handler_type handler) {
+    auto srv = server::make({.stack_size = 6144, .server_port = port, .ctrl_port = alloc_ctrl_port()});
+    if (!srv) {
+        return srv;
+    }
+    auto r = srv->try_on_ws("/ws", std::move(handler));
+    if (!r) {
+        return idfxx::error(r.error());
+    }
+    return srv;
+}
+
+/// Returns a payload that, once masked by ws_test_client, appears on the wire
+/// as @p wire. Lets a test place arbitrary bytes, such as a complete frame,
+/// inside a frame's payload as they will be seen by the server.
+std::vector<uint8_t> payload_for_wire(std::span<const uint8_t> wire) {
+    std::vector<uint8_t> payload;
+    for (size_t i = 0; i < wire.size(); ++i) {
+        payload.push_back(wire[i] ^ ws_test_client::mask[i % 4]);
+    }
+    return payload;
+}
+
+} // namespace
+
+TEST_CASE("ws_recv keeps the connection in sync after an empty frame", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    // Replies with the payload length and the payload
+    auto srv = make_ws_server(port, [](request& req) -> result<void> {
+        std::array<uint8_t, 64> buf;
+        auto f = req.try_ws_recv(buf);
+        if (!f) return idfxx::error(f.error());
+        return req.try_ws_send_text(
+            "len=" + std::to_string(f->data.size()) + ":" + std::string(f->data.begin(), f->data.end())
+        );
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    ws_test_client ws{port};
+
+    ws.send_text("");
+    TEST_ASSERT_EQUAL_STRING("len=0:", ws.recv_text().c_str());
+    ws.send_text("hi");
+    TEST_ASSERT_EQUAL_STRING("len=2:hi", ws.recv_text().c_str());
+}
+
+TEST_CASE("ws_recv closes the connection after a frame larger than its buffer", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    auto too_large = std::make_shared<std::atomic<int>>(0);
+    // Ignores a receive error and reports success
+    auto srv = make_ws_server(port, [calls, too_large](request& req) -> result<void> {
+        calls->fetch_add(1);
+        std::array<uint8_t, 16> buf;
+        auto f = req.try_ws_recv(buf);
+        if (!f && f.error() == idfxx::errc::invalid_size) {
+            too_large->fetch_add(1);
+        }
+        return {};
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    ws_test_client ws{port};
+
+    // The payload is crafted to appear on the wire as a complete masked text
+    // frame. If the connection were kept, httpd would parse the unread payload
+    // as the next frame and call the handler again.
+    std::string_view smuggled = "smuggled-frame-text";
+    auto inner = ws_test_client::encode_frame(
+        0x1, std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(smuggled.data()), smuggled.size()}
+    );
+    ws.send_frame(0x2, payload_for_wire(inner));
+
+    ws_test_client::frame f;
+    TEST_ASSERT_TRUE(ws.recv_frame(f) == ws_test_client::recv_status::closed);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    TEST_ASSERT_EQUAL(1, calls->load());
+    TEST_ASSERT_EQUAL(1, too_large->load());
+}
+
+#endif // CONFIG_HTTPD_WS_SUPPORT && ESP_IDF_VERSION >= 6.0.0

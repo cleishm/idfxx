@@ -127,7 +127,7 @@ if (!r) {
 - `send_error(code, msg)` / `try_send_error(code, msg)` - Send error response
 
 **WebSocket (CONFIG_HTTPD_WS_SUPPORT):**
-- `ws_recv(buf)` / `try_ws_recv(buf)` - Receive WebSocket frame
+- `ws_recv(buf)` / `try_ws_recv(buf)` - Receive WebSocket frame (the payload must fit in `buf`)
 - `ws_send_text(text)` / `try_ws_send_text(text)` - Send text frame
 - `ws_send_binary(data)` / `try_ws_send_binary(data)` - Send binary frame
 - `ws_send(frame)` / `try_ws_send(frame)` - Send arbitrary frame
@@ -145,7 +145,7 @@ if (!r) {
 - `unregister_handler(method, uri)` / `try_unregister_handler(...)`
 
 **WebSocket (CONFIG_HTTPD_WS_SUPPORT):**
-- `on_ws(uri, handler, ws_cfg)` / `try_on_ws(...)` - Register WebSocket endpoint
+- `on_ws(uri, handler[, ws_cfg])` / `try_on_ws(...)` - Register WebSocket endpoint
 
 **Session:**
 - `close_session(sockfd)` / `try_close_session(sockfd)` - Close client connection
@@ -170,6 +170,7 @@ if (!r) {
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the server begins accepting connections
 - **Response string lifetimes**: `set_status()`, `set_content_type()`, and `set_header()` copy strings internally to ensure they remain valid until the response is sent
 - **WebSocket**: WebSocket support requires `CONFIG_HTTPD_WS_SUPPORT` to be enabled in menuconfig
+- **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame fails with `invalid_size` and its payload is left unread; since the connection cannot continue past unread payload, it is closed when the handler returns, even if the handler reports success
 
 ## License
 

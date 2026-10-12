@@ -32,3 +32,6 @@ CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 
 # Define QEMU build flag for conditional compilation
 CONFIG_IDF_TARGET_QEMU=y
+
+# WebSocket support for idfxx_http_server tests
+CONFIG_HTTPD_WS_SUPPORT=y
