@@ -434,8 +434,12 @@ public:
      * @endcode
      */
     struct config {
-        freq::hertz scl_speed{0}; ///< Per-device SCL speed in Hz (0 = use bus frequency).
-        uint32_t scl_wait_us = 0; ///< SCL wait time in microseconds (0 = default).
+        /// Per-device SCL speed, or std::nullopt to use the bus frequency. An explicit speed of 0 Hz or less is
+        /// rejected with `errc::invalid_arg` when the device is created.
+        std::optional<freq::hertz> scl_speed = std::nullopt;
+        /// SCL wait time in microseconds, or std::nullopt to let the driver choose. An explicit value of 0 is
+        /// rejected with `errc::invalid_arg` when the device is created.
+        std::optional<uint32_t> scl_wait_us = std::nullopt;
 #if SOC_I2C_SUPPORT_10BIT_ADDR
         bool addr_10bit = false; ///< Use 10-bit addressing mode instead of 7-bit.
 #endif

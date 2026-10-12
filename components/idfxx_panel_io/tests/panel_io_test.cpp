@@ -130,6 +130,37 @@ TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][panel_io]") {
     TEST_ASSERT_EQUAL(8, config.cs_enable_posttrans);
 }
 
+TEST_CASE("spi_config default initialization", "[idfxx][panel_io]") {
+    panel_io::spi_config config{};
+
+    TEST_ASSERT_FALSE(config.cs_gpio.is_connected());
+    TEST_ASSERT_FALSE(config.dc_gpio.is_connected());
+    TEST_ASSERT_EQUAL(0, config.spi_mode);
+    TEST_ASSERT_EQUAL(0, config.pclk_freq.count());
+    TEST_ASSERT_EQUAL(10, config.trans_queue_depth);
+    TEST_ASSERT_EQUAL(0, config.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(0, config.lcd_param_bits);
+}
+
+TEST_CASE("spi panel_io make rejects zero trans_queue_depth", "[idfxx][panel_io]") {
+    idfxx::spi::bus_config bus_cfg{};
+    bus_cfg.mosi = idfxx::gpio_11;
+    bus_cfg.miso = idfxx::gpio_13;
+    bus_cfg.sclk = idfxx::gpio_12;
+    auto bus = idfxx::spi::master_bus::make(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    auto io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .pclk_freq = 10_MHz,
+        .trans_queue_depth = 0,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+}
+
 TEST_CASE("i2c_config default initialization", "[idfxx][panel_io]") {
     panel_io::i2c_config config{};
 

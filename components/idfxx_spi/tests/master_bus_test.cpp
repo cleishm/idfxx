@@ -60,8 +60,9 @@ TEST_CASE("bus_config default initialization", "[idfxx][spi]") {
     TEST_ASSERT_FALSE(cfg.data5.is_connected());
     TEST_ASSERT_FALSE(cfg.data6.is_connected());
     TEST_ASSERT_FALSE(cfg.data7.is_connected());
+    TEST_ASSERT_FALSE(cfg.max_transfer_sz.has_value());
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-    TEST_ASSERT_EQUAL_UINT32(0, cfg.dma_burst_size);
+    TEST_ASSERT_FALSE(cfg.dma_burst_size.has_value());
 #endif
 }
 
@@ -101,6 +102,32 @@ TEST_CASE("master_bus::make with valid config succeeds", "[idfxx][spi]") {
     TEST_ASSERT_TRUE(result.has_value());
     TEST_ASSERT_EQUAL(host_device::spi2, result->host());
 }
+
+TEST_CASE("master_bus::make with zero max transfer size fails", "[idfxx][spi]") {
+    bus_config cfg{};
+    cfg.mosi = gpio_11;
+    cfg.miso = gpio_13;
+    cfg.sclk = gpio_12;
+    cfg.max_transfer_sz = 0;
+
+    auto result = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_TRUE(result.error() == idfxx::errc::invalid_arg);
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("master_bus::make with zero DMA burst size fails", "[idfxx][spi]") {
+    bus_config cfg{};
+    cfg.mosi = gpio_11;
+    cfg.miso = gpio_13;
+    cfg.sclk = gpio_12;
+    cfg.dma_burst_size = 0;
+
+    auto result = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_TRUE(result.error() == idfxx::errc::invalid_arg);
+}
+#endif
 
 TEST_CASE("master_bus::make with invalid GPIO fails", "[idfxx][spi]") {
     bus_config cfg{};

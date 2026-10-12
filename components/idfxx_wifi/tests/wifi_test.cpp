@@ -173,6 +173,19 @@ TEST_CASE("wifi try_init rejects oversized buffer count", "[idfxx][wifi]") {
     TEST_ASSERT_EQUAL_STRING("wifi::Error", r.error().category().name());
 }
 
+TEST_CASE("wifi sta_config listen interval defaults to unset", "[idfxx][wifi]") {
+    sta_config cfg;
+    TEST_ASSERT_FALSE(cfg.listen_interval.has_value());
+}
+
+TEST_CASE("wifi try_set_sta_config rejects zero listen interval", "[idfxx][wifi]") {
+    sta_config cfg;
+    cfg.listen_interval = 0;
+    auto r = try_set_sta_config(cfg);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+}
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 TEST_CASE("wifi init_config privacy fields default to unset", "[idfxx][wifi]") {
     init_config cfg;

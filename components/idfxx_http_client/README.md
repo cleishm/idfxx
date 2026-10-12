@@ -30,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_http_client:
-    version: "^1.1.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_http_client` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -258,11 +258,15 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
     (ESP-IDF 5.5.2+; earlier versions complete `perform()` successfully with the truncated body)
   - `redirect_downgrade` - Redirect from HTTPS to a non-HTTPS URL was blocked (ESP-IDF 6.0+)
   - `header_too_long` - A request header does not fit in the transmit buffer (ESP-IDF 6.0+)
+- **Configuration errors**: creating a client fails with `idfxx::errc::invalid_arg` when an optional
+  `config` setting is given an out-of-range value: a `port`, `timeout`, buffer size, redirect count or
+  keep-alive setting of 0 or less, an empty `path`, or a negative `max_authorization_retries`
 - **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`, throwing methods raise `std::system_error`
 
 ## Important Notes
 
 - **Not thread-safe**: The client handle is not thread-safe; callers must synchronize access
+- **Driver defaults**: Optional `config` settings left unset (`port`, `path`, `timeout`, `user_agent`, buffer sizes, redirect and authorization retry limits, keep-alive tuning) are chosen by the driver. Set `max_authorization_retries` to 0 to disable authorization retries; to stop following redirects, set `disable_auto_redirect`, which returns the 3xx response instead of failing
 - **Certificate lifetime**: TLS certificate strings are copied internally and kept alive for the client's lifetime
 - **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only a pointer
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief

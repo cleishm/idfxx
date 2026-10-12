@@ -44,7 +44,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_radio_sx126x:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_radio_sx126x` to the `REQUIRES` list in your component's

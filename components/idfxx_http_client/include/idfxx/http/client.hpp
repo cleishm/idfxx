@@ -141,14 +141,20 @@ public:
      */
     struct config {
         // Connection
-        std::string url = {};                               ///< Full URL
-        std::string host = {};                              ///< Host name
-        int port = 0;                                       ///< Port number (0 = default)
-        std::string path = {};                              ///< URL path
+        std::string url = {};  ///< Full URL
+        std::string host = {}; ///< Host name
+        /// Port number, or std::nullopt to let the driver choose based on the transport. An explicit value of 0
+        /// or less is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<int> port = std::nullopt;
+        /// URL path, or std::nullopt to let the driver choose. An explicit empty path is rejected with
+        /// `errc::invalid_arg` when the client is created.
+        std::optional<std::string> path = std::nullopt;
         std::string query = {};                             ///< URL query string
         enum method method = method::get;                   ///< HTTP method
         enum transport transport_type = transport::unknown; ///< Transport type
-        std::chrono::milliseconds timeout{5000};            ///< Request timeout
+        /// Network timeout, or std::nullopt to let the driver choose. An explicit timeout of 0 or less is
+        /// rejected with `errc::invalid_arg` when the client is created.
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt;
 
         // Authentication
         std::string username = {};                  ///< Username for authentication
@@ -161,22 +167,40 @@ public:
         std::string client_key_pem = {};  ///< Client private key (PEM)
 
         // Headers
-        std::string user_agent = {}; ///< Custom User-Agent string
+        /// User-Agent header value, or std::nullopt to let the driver choose. An explicit string, including an
+        /// empty one, is sent as given.
+        std::optional<std::string> user_agent = std::nullopt;
 
         // Redirect
         bool disable_auto_redirect = false; ///< Disable automatic redirect following
-        int max_redirection_count = 0;      ///< Maximum redirects (0 = default)
-        int max_authorization_retries = 0;  ///< Maximum auth retries (0 = default)
+        /// Maximum number of redirects to follow, or std::nullopt to let the driver choose. An explicit value of 0
+        /// or less is rejected with `errc::invalid_arg` when the client is created; to stop following redirects,
+        /// set `disable_auto_redirect`, which returns the 3xx response to the caller instead.
+        std::optional<int> max_redirection_count = std::nullopt;
+        /// Maximum number of authorization retries, or std::nullopt to let the driver choose. An explicit value of 0
+        /// disables retries. A negative value is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<int> max_authorization_retries = std::nullopt;
 
         // Buffers
-        int buffer_size = 0;    ///< Receive buffer size (0 = default)
-        int buffer_size_tx = 0; ///< Transmit buffer size (0 = default)
+        /// Receive buffer size, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 or
+        /// less is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<int> buffer_size = std::nullopt;
+        /// Transmit buffer size, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 or
+        /// less is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<int> buffer_size_tx = std::nullopt;
 
         // Keep-alive
-        bool keep_alive_enable = false;              ///< Enable TCP keep-alive
-        std::chrono::seconds keep_alive_idle{5};     ///< Keep-alive idle time
-        std::chrono::seconds keep_alive_interval{5}; ///< Keep-alive probe interval
-        int keep_alive_count = 3;                    ///< Keep-alive probe count
+        bool keep_alive_enable = false; ///< Enable TCP keep-alive
+        /// Keep-alive idle time before the first probe, or std::nullopt to let the driver choose. An explicit
+        /// value of 0 or less is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<std::chrono::seconds> keep_alive_idle = std::nullopt;
+        /// Interval between keep-alive probes, or std::nullopt to let the driver choose. An explicit value of 0 or
+        /// less is rejected with `errc::invalid_arg` when the client is created.
+        std::optional<std::chrono::seconds> keep_alive_interval = std::nullopt;
+        /// Number of unanswered keep-alive probes before the connection is dropped, or std::nullopt to let the
+        /// driver choose. An explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
+        /// created.
+        std::optional<int> keep_alive_count = std::nullopt;
 
         // TLS options
         bool use_global_ca_store = false;         ///< Use global CA store

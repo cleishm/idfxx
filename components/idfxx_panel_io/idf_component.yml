@@ -1,4 +1,4 @@
-version: "1.0.1"
+version: "2.0.0"
 description: "Panel I/O interface for SPI- and I2C-connected displays"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_panel_io"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -14,11 +14,11 @@ dependencies:
     public: true
     override_path: ../idfxx_gpio
   cleishm/idfxx_spi:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_spi
   cleishm/idfxx_i2c:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_i2c
   cleishm/frequency:

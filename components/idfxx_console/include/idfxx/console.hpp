@@ -317,8 +317,11 @@ public:
         size_t task_stack_size = 4096;                       ///< REPL task stack size in bytes
         task_priority priority = 2;                          ///< REPL task priority
         std::optional<core_id> core_affinity = std::nullopt; ///< Core affinity (nullopt = any core)
-        std::string_view prompt = {};                        ///< Prompt string (empty = default "esp> ")
-        size_t max_cmdline_length = 0;                       ///< Maximum command line length (0 = default 256)
+        /// Prompt string, or std::nullopt to let the driver choose. An explicit empty string gives a blank prompt.
+        std::optional<std::string_view> prompt = std::nullopt;
+        /// Maximum command line length, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 is
+        /// rejected with `errc::invalid_arg` when the REPL is created.
+        std::optional<size_t> max_cmdline_length = std::nullopt;
     };
 
     // =========================================================================
@@ -335,8 +338,12 @@ public:
     struct uart_config {
         uart_port port = default_uart_port;               ///< UART port
         int baud_rate = CONFIG_ESP_CONSOLE_UART_BAUDRATE; ///< Communication baud rate
-        gpio tx_gpio = gpio::nc();                        ///< TX GPIO (nc = default pin)
-        gpio rx_gpio = gpio::nc();                        ///< RX GPIO (nc = default pin)
+        /// TX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is rejected with
+        /// `errc::invalid_arg` when the REPL is created.
+        std::optional<gpio> tx_gpio = std::nullopt;
+        /// RX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is rejected with
+        /// `errc::invalid_arg` when the REPL is created.
+        std::optional<gpio> rx_gpio = std::nullopt;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -591,7 +598,7 @@ private:
 
     void _stop_and_delete() noexcept;
 
-    static esp_console_repl_config_t _translate_config(const config& cfg);
+    static result<esp_console_repl_config_t> _translate_config(const config& cfg);
 
     esp_console_repl_t* _handle = nullptr;
 };

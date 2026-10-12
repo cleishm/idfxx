@@ -151,6 +151,41 @@ TEST_CASE("http_client_error maps ESP-IDF HTTP codes to client::errc", "[idfxx][
 #endif
 }
 
+TEST_CASE("http client config leaves driver-chosen settings unset", "[idfxx][http]") {
+    client::config cfg{};
+    TEST_ASSERT_FALSE(cfg.port.has_value());
+    TEST_ASSERT_FALSE(cfg.path.has_value());
+    TEST_ASSERT_FALSE(cfg.timeout.has_value());
+    TEST_ASSERT_FALSE(cfg.user_agent.has_value());
+    TEST_ASSERT_FALSE(cfg.max_redirection_count.has_value());
+    TEST_ASSERT_FALSE(cfg.max_authorization_retries.has_value());
+    TEST_ASSERT_FALSE(cfg.buffer_size.has_value());
+    TEST_ASSERT_FALSE(cfg.buffer_size_tx.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_idle.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_interval.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_count.has_value());
+}
+
+TEST_CASE("http client make rejects out-of-range config values", "[idfxx][http]") {
+    auto defaults = client::make({.url = "http://127.0.0.1/"});
+    TEST_ASSERT_TRUE(defaults.has_value());
+
+    auto zero_timeout = client::make({.url = "http://127.0.0.1/", .timeout = std::chrono::milliseconds(0)});
+    TEST_ASSERT_FALSE(zero_timeout.has_value());
+    TEST_ASSERT_TRUE(zero_timeout.error() == idfxx::errc::invalid_arg);
+
+    auto empty_path = client::make({.host = "127.0.0.1", .path = ""});
+    TEST_ASSERT_FALSE(empty_path.has_value());
+    TEST_ASSERT_TRUE(empty_path.error() == idfxx::errc::invalid_arg);
+
+    auto negative_retries = client::make({.url = "http://127.0.0.1/", .max_authorization_retries = -1});
+    TEST_ASSERT_FALSE(negative_retries.has_value());
+    TEST_ASSERT_TRUE(negative_retries.error() == idfxx::errc::invalid_arg);
+
+    auto no_retries = client::make({.url = "http://127.0.0.1/", .max_authorization_retries = 0});
+    TEST_ASSERT_TRUE(no_retries.has_value());
+}
+
 // -- Streaming error reporting (loopback) --------------------------------------
 //
 // A plain TCP listener on loopback stands in for the HTTP server, so each test

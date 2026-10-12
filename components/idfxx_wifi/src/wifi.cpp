@@ -267,7 +267,9 @@ static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
     cfg.rssi_threshold = electro::dbm{s.threshold.rssi};
     cfg.pmf.capable = s.pmf_cfg.capable;
     cfg.pmf.required = s.pmf_cfg.required;
-    cfg.listen_interval = s.listen_interval;
+    if (s.listen_interval != 0) { // 0 means the driver default
+        cfg.listen_interval = s.listen_interval;
+    }
     cfg.rm_enabled = s.rm_enabled;
     cfg.btm_enabled = s.btm_enabled;
     cfg.mbo_enabled = s.mbo_enabled;
@@ -476,6 +478,10 @@ static wifi_interface_t to_wifi_if(role r) {
 // =============================================================================
 
 result<void> try_set_sta_config(const sta_config& cfg) {
+    if (cfg.listen_interval == 0) {
+        return error(idfxx::errc::invalid_arg);
+    }
+
     wifi_config_t wifi_cfg{};
 
     if (cfg.ssid.size() > sizeof(wifi_cfg.sta.ssid) - 1) {
@@ -500,7 +506,7 @@ result<void> try_set_sta_config(const sta_config& cfg) {
     wifi_cfg.sta.threshold.rssi = static_cast<int8_t>(cfg.rssi_threshold.count());
     wifi_cfg.sta.pmf_cfg.capable = cfg.pmf.capable;
     wifi_cfg.sta.pmf_cfg.required = cfg.pmf.required;
-    wifi_cfg.sta.listen_interval = cfg.listen_interval;
+    wifi_cfg.sta.listen_interval = cfg.listen_interval.value_or(0); // 0 selects the driver default
     wifi_cfg.sta.rm_enabled = cfg.rm_enabled;
     wifi_cfg.sta.btm_enabled = cfg.btm_enabled;
     wifi_cfg.sta.mbo_enabled = cfg.mbo_enabled;

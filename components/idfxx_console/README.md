@@ -153,7 +153,7 @@ The second argument selects the transport: a `uart_config` when there is somethi
 Console operations use error codes from `idfxx::errc`:
 
 - `invalid_state` - Console not initialized
-- `invalid_arg` - Invalid command name or empty command line
+- `invalid_arg` - Invalid command name or empty command line, or an invalid REPL configuration (a `max_cmdline_length` of 0, or a UART pin set to `gpio::nc()`)
 - `not_found` - Command not registered
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.

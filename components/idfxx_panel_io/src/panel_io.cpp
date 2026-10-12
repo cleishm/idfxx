@@ -38,6 +38,10 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
         ESP_LOGD(TAG, "Field 'pclk_freq' has an invalid value");
         return error(errc::invalid_arg);
     }
+    if (config.trans_queue_depth == 0) {
+        ESP_LOGD(TAG, "Field 'trans_queue_depth' has an invalid value");
+        return error(errc::invalid_arg);
+    }
     if (config.lcd_cmd_bits == 0) {
         ESP_LOGD(TAG, "Field 'lcd_cmd_bits' has an invalid value");
         return error(errc::invalid_arg);

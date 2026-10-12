@@ -58,11 +58,12 @@ public:
      * and lcd_param_bits at minimum.
      */
     struct spi_config {
-        gpio cs_gpio = gpio::nc();    ///< GPIO used for CS line
-        gpio dc_gpio = gpio::nc();    ///< GPIO used to select the D/C line, set to gpio::nc() if not used
-        int spi_mode = 0;             ///< Traditional SPI mode (0~3)
-        freq::hertz pclk_freq{0};     ///< Frequency of pixel clock
-        size_t trans_queue_depth = 0; ///< Size of internal transaction queue
+        gpio cs_gpio = gpio::nc();     ///< GPIO used for CS line
+        gpio dc_gpio = gpio::nc();     ///< GPIO used to select the D/C line, set to gpio::nc() if not used
+        int spi_mode = 0;              ///< Traditional SPI mode (0~3)
+        freq::hertz pclk_freq{0};      ///< Frequency of pixel clock
+        size_t trans_queue_depth = 10; ///< Size of the internal transaction queue. Must be at least 1; 0 is
+                                       ///< rejected with `errc::invalid_arg`.
         color_transfer_done_callback on_color_transfer_done =
             nullptr;            ///< Callback invoked when color data transfer has finished
         int lcd_cmd_bits = 0;   ///< Bit-width of LCD command

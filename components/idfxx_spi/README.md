@@ -23,7 +23,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_spi:
-    version: "^1.2.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_spi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -173,9 +173,9 @@ following with `errc::invalid_arg` when the bus is created:
 
 ## DMA Burst Size
 
-With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. The default, 0, selects
-the driver default (32 bytes). A non-zero value must be one of the burst sizes supported by the chip's DMA
-controller, and is ignored on chips whose burst size is not configurable.
+With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. Left unset, the driver
+chooses. When set, the value must be one of the burst sizes supported by the chip's DMA controller, and is ignored on
+chips whose burst size is not configurable.
 
 ## Important Notes
 
@@ -186,7 +186,7 @@ controller, and is ignored on chips whose burst size is not configurable.
 - The bus must remain alive while devices using it exist
 - DMA enables larger transfers but requires DMA-capable memory
 - Maximum transfer size without DMA is ~64 bytes
-- With DMA, transfer size is limited by `max_transfer_sz` in config
+- With DMA, transfer size is limited by `max_transfer_sz` in config; left unset, the driver default applies
 - GPIO pins must not be used by other peripherals
 
 ## License

@@ -53,7 +53,10 @@ static result<void> map_xfer_error(esp_err_t err, const char* op, uint16_t addre
 
 static result<i2c_master_dev_handle_t>
 make_device(master_bus& bus, uint16_t address, const master_device::config& config) {
-    auto scl_speed = config.scl_speed.count() > 0 ? config.scl_speed : bus.frequency();
+    if ((config.scl_speed && config.scl_speed->count() <= 0) || config.scl_wait_us == 0u) {
+        return error(errc::invalid_arg);
+    }
+    auto scl_speed = config.scl_speed.value_or(bus.frequency());
 
     i2c_device_config_t dev_config{
 #if SOC_I2C_SUPPORT_10BIT_ADDR
@@ -63,7 +66,7 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& conf
 #endif
         .device_address = address,
         .scl_speed_hz = static_cast<uint32_t>(scl_speed.count()),
-        .scl_wait_us = config.scl_wait_us,
+        .scl_wait_us = config.scl_wait_us.value_or(0), // 0 selects the driver default
         .flags = {
             .disable_ack_check = config.disable_ack_check ? 1u : 0u,
         },
