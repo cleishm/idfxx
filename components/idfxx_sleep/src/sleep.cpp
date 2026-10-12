@@ -37,6 +37,11 @@ static_assert(std::to_underlying(idfxx::sleep::ext1_mode::any_high) == ESP_EXT1_
 #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
 static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_low) == ESP_GPIO_WAKEUP_GPIO_LOW);
 static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_high) == ESP_GPIO_WAKEUP_GPIO_HIGH);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED
+static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_posedge) == ESP_GPIO_WAKEUP_GPIO_POSEDGE);
+static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_negedge) == ESP_GPIO_WAKEUP_GPIO_NEGEDGE);
+static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_anyedge) == ESP_GPIO_WAKEUP_GPIO_ANYEDGE);
+#endif
 #endif
 
 namespace idfxx::sleep {
@@ -283,6 +288,30 @@ std::optional<wakeup_source> wakeup_cause() noexcept {
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
 uint64_t ext1_wakeup_status() noexcept {
     return esp_sleep_get_ext1_wakeup_status();
+}
+#endif
+
+#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+uint64_t deep_sleep_gpio_wakeup_status() noexcept {
+    uint64_t status = esp_sleep_get_gpio_wakeup_status();
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    // v6.1 reports RTC IO numbers, which differ from GPIO numbers on some
+    // chips (e.g. the original ESP32); translate each to its GPIO.
+    uint64_t gpio_mask = 0;
+    while (status != 0) {
+        const auto num = esp_sleep_wakeup_io_bit2num(static_cast<uint32_t>(std::countr_zero(status)));
+        if (num != GPIO_NUM_NC) {
+            gpio_mask |= uint64_t{1} << static_cast<unsigned>(num);
+        }
+        status &= status - 1;
+    }
+    return gpio_mask;
+#else
+    // Before v6.1 the mask is also RTC IO numbered, but every chip offering
+    // this wake-up source numbers its RTC IOs identically to its GPIOs (or
+    // has no RTC IO and reports GPIO numbers directly).
+    return status;
+#endif
 }
 #endif
 

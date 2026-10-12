@@ -12,8 +12,10 @@ Light and deep sleep with type-safe wake-up source configuration for ESP32.
 - **Timer wake-up** with std::chrono durations
 - **GPIO wake-up** from light sleep on any digital pin
 - **EXT0/EXT1 wake-up** on RTC-capable pins, working in deep sleep
-- **Deep-sleep GPIO wake-up** on chips without EXT0/EXT1 (e.g. ESP32-C3)
-- **Wake-cause reporting** to detect why (and whether) the chip woke from sleep
+- **Deep-sleep GPIO wake-up** on level, or on edge where the chip supports it
+  (ESP-IDF 6.1+)
+- **Wake-cause reporting** to detect why (and whether) the chip woke from
+  sleep, and which pins triggered an EXT1 or deep-sleep GPIO wake
 
 ## Requirements
 
@@ -30,7 +32,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_sleep:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_sleep` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -133,7 +135,7 @@ See [examples/light_sleep_demo](examples/light_sleep_demo) and
 | `gpio_wake{pin, level}` | Wake from light sleep on a digital pin level |
 | `ext0_wake{pin, level}` | Wake on a single RTC-capable pin (EXT0; deep-sleep capable) |
 | `ext1_wake{{pins...}, mode}` | Wake on multiple RTC-capable pins (EXT1; deep-sleep capable) |
-| `deep_sleep_gpio_wake{{pins...}, mode}` | Deep-sleep pin wake on chips without EXT0/EXT1 |
+| `deep_sleep_gpio_wake{{pins...}, mode}` | Deep-sleep pin wake on a level or (ESP-IDF 6.1+, chip-dependent) an edge |
 
 ### Entering Sleep
 
@@ -158,6 +160,7 @@ See [examples/light_sleep_demo](examples/light_sleep_demo) and
 |--------|-------------|
 | `wakeup_cause()` | `std::optional<wakeup_source>`: the most recent wake cause, or `nullopt` if not a sleep wake |
 | `ext1_wakeup_status()` | Mask of pins that triggered the last EXT1 wake |
+| `deep_sleep_gpio_wakeup_status()` | Mask of pins that triggered the last deep-sleep GPIO wake |
 | `to_string(source)` | Name of a `wakeup_source`, e.g. `"timer"` (also usable via `std::format` when `CONFIG_IDFXX_STD_FORMAT` is enabled) |
 
 ## Error Handling
@@ -171,6 +174,8 @@ Errors are reported as `idfxx::result<T>` (result-based API) or
 - `idfxx::errc::invalid_arg` — negative duration, unconnected pin, a pin
   that is not capable of the requested wake-up, or a timer wake-up too short
   to enter sleep
+- `idfxx::errc::not_allowed` — light sleep was requested from a task whose
+  stack is in PSRAM (ESP-IDF 6.1+)
 
 ## Important Notes
 
@@ -186,9 +191,19 @@ Errors are reported as `idfxx::result<T>` (result-based API) or
   state after waking.
 - **Wake-up source availability is chip-specific.** EXT0 exists on
   ESP32/S2/S3; EXT1 on ESP32/S2/S3/C6/H2/P4; ESP32-C3 has neither and uses
-  `deep_sleep_gpio_wake` instead. The corresponding types are only declared
-  on chips that support them (`SOC_PM_SUPPORT_EXT0_WAKEUP`,
-  `SOC_PM_SUPPORT_EXT1_WAKEUP`, `SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
+  `deep_sleep_gpio_wake` instead (which ESP-IDF 6.1 also brings to
+  ESP32/S2/S3). The corresponding types are only declared on chips that
+  support them (`SOC_PM_SUPPORT_EXT0_WAKEUP`, `SOC_PM_SUPPORT_EXT1_WAKEUP`,
+  `SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
+- **Edge-triggered deep-sleep GPIO wake-up needs ESP-IDF 6.1 and a capable
+  chip.** `deep_sleep_gpio_mode::wake_posedge`, `wake_negedge` and
+  `wake_anyedge` are only defined where `SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED`
+  is set (e.g. ESP32-C5/C6/P4). Edges, like levels, must last at least 3 RTC
+  slow-clock cycles (about 7.4 us on the internal RC oscillator, 30.5 us on a
+  32 kHz crystal) to be detected.
+- **Light sleep must be entered from a task with its stack in internal RAM.**
+  From ESP-IDF 6.1, a request from a task whose stack is in PSRAM is rejected
+  with `errc::not_allowed`.
 - **EXT1's low trigger is named per target.** The original ESP32 defines
   `ext1_mode::all_low` (its hardware wakes only when all selected pins are
   low); every other EXT1 chip defines `ext1_mode::any_low`. Only the matching
