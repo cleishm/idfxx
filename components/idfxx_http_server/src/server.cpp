@@ -758,6 +758,9 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
     // First call with zero length to get the frame info
     esp_err_t err = httpd_ws_recv_frame(_req, &ws_pkt, 0);
     if (err != ESP_OK) {
+        // Part of the header may have been received, so the position in the
+        // stream is unknown; have the trampoline close the connection
+        _ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame (header) failed: %s", esp_err_to_name(err));
         return http_server_error(err);
     }
@@ -782,6 +785,9 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
     ws_pkt.payload = buf.data();
     err = httpd_ws_recv_frame(_req, &ws_pkt, ws_pkt.len);
     if (err != ESP_OK) {
+        // Part of the payload may have been received, so the position in the
+        // stream is unknown; have the trampoline close the connection
+        _ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame (payload) failed: %s", esp_err_to_name(err));
         return http_server_error(err);
     }
