@@ -295,6 +295,7 @@ See the [Installation](#installation) section above for details on adding `idfxx
 - Bus scanning probes addresses 0x08-0x77
 - Multiple devices can share the same bus
 - Bus access is thread-safe via internal mutex
+- With ESP-IDF 6.1 or later and `CONFIG_I2C_ISR_IRAM_SAFE` enabled, buffers that receive data (`receive`, `read_register`, and read operations in `execute_operations`) must reside in internal RAM, not PSRAM; otherwise the call fails with `idfxx::errc::invalid_arg`
 
 ## License
 

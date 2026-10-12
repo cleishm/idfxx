@@ -888,6 +888,9 @@ public:
      *
      * @param ops Operations to execute.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      *
@@ -914,6 +917,9 @@ public:
      * @param ops Operations to execute.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -932,6 +938,10 @@ public:
      * @param ops Operations to execute.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_execute_operations(std::span<const operation> ops) {
         return try_execute_operations(ops, DEFAULT_TIMEOUT);
@@ -944,6 +954,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -959,6 +973,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -972,6 +989,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -986,6 +1006,9 @@ public:
      * @param buf  Buffer for received data.
      * @param size Number of bytes to receive.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -998,6 +1021,9 @@ public:
      * @param size   Number of bytes to receive.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1011,6 +1037,9 @@ public:
      *
      * @param buf  Buffer for received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1022,6 +1051,9 @@ public:
      * @param buf    Buffer for received data.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1037,6 +1069,10 @@ public:
      * @param size Number of bytes to receive.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<std::vector<uint8_t>> try_receive(size_t size) { return try_receive(size, DEFAULT_TIMEOUT); }
 
@@ -1047,6 +1083,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<std::vector<uint8_t>>
@@ -1062,6 +1102,10 @@ public:
      * @param size Number of bytes to receive.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_receive(uint8_t* buf, size_t size) {
         return try_receive(buf, size, DEFAULT_TIMEOUT);
@@ -1075,6 +1119,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -1088,6 +1136,10 @@ public:
      * @param buf  Buffer for received data.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf) { return try_receive(buf, DEFAULT_TIMEOUT); }
 
@@ -1098,6 +1150,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
@@ -1645,6 +1701,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1661,6 +1720,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1676,6 +1738,9 @@ public:
      * @param reg  Register address (16-bit, MSB first).
      * @param buf  Buffer for received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1688,6 +1753,9 @@ public:
      * @param buf     Buffer for received data.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1703,6 +1771,9 @@ public:
      * @param buf  Buffer for received data.
      * @param size Number of bytes to read.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1716,6 +1787,9 @@ public:
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1732,6 +1806,10 @@ public:
      * @param size Number of bytes to read.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<std::vector<uint8_t>> try_read_register(uint16_t reg, size_t size) {
         return try_read_register(reg, size, DEFAULT_TIMEOUT);
@@ -1745,6 +1823,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<std::vector<uint8_t>>
@@ -1760,6 +1842,10 @@ public:
      * @param buf  Buffer for received data.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_read_register(uint16_t reg, std::span<uint8_t> buf) {
         return try_read_register(reg, buf, DEFAULT_TIMEOUT);
@@ -1772,6 +1858,10 @@ public:
      * @param buf Buffer for received data.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -1787,6 +1877,10 @@ public:
      * @param size Number of bytes to read.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_read_register(uint16_t reg, uint8_t* buf, size_t size) {
         return try_read_register(reg, buf, size, DEFAULT_TIMEOUT);
@@ -1801,6 +1895,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -1818,6 +1916,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1835,6 +1936,9 @@ public:
      *
      * @return Received data.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1852,6 +1956,9 @@ public:
      * @param buf     Buffer for received data.
      * @param size    Number of bytes to read.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1868,6 +1975,9 @@ public:
      * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1891,6 +2001,10 @@ public:
      * @param size    Number of bytes to read.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<std::vector<uint8_t>> try_read_register(uint8_t high, uint8_t low, size_t size) {
         return try_read_register(high, low, size, DEFAULT_TIMEOUT);
@@ -1905,6 +2019,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Received data, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<std::vector<uint8_t>>
@@ -1921,6 +2039,10 @@ public:
      * @param buf     Buffer for received data.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_read_register(uint8_t high, uint8_t low, std::span<uint8_t> buf) {
         return try_read_register(high, low, buf, DEFAULT_TIMEOUT);
@@ -1935,6 +2057,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_read_register(
@@ -1955,6 +2081,10 @@ public:
      * @param size    Number of bytes to read.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_read_register(uint8_t high, uint8_t low, uint8_t* buf, size_t size) {
         return try_read_register(high, low, buf, size, DEFAULT_TIMEOUT);
@@ -1970,6 +2100,10 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
+     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_read_register(
