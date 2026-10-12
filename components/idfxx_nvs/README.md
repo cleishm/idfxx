@@ -7,7 +7,7 @@ Type-safe persistent key-value storage in flash memory.
 ## Features
 
 - NVS namespace lifecycle management
-- Type-safe storage for integers (8-64 bits), strings, and binary blobs
+- Type-safe storage for integers (8-64 bits), `float`/`double` (ESP-IDF 6.1+), strings, and binary blobs
 - Explicit commit model for atomic updates
 - Read-only mode support
 - Partition-based APIs for multi-partition NVS configurations
@@ -135,6 +135,10 @@ idfxx::nvs nvs("storage", false);
 nvs.set_value<uint8_t>("byte", 255);
 nvs.set_value<int32_t>("temperature", -15);
 nvs.set_value<uint64_t>("timestamp", 1234567890ULL);
+
+// Floating point (ESP-IDF 6.1+; NaN is rejected with invalid_arg)
+nvs.set_value<float>("gain", 1.5f);
+nvs.set_value<double>("offset", -0.0025);
 
 // Strings
 nvs.set_string("name", "MyDevice");
@@ -299,6 +303,7 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 - Call `nvs::flash::init()` or `nvs::flash::try_init()` once before using NVS
 - Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
 - Supported integer types: `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`, `uint64_t`, `int64_t`
+- With ESP-IDF 6.1 or later, `float` and `double` are also supported; storing NaN fails with `idfxx::errc::invalid_arg`. On earlier versions these overloads do not exist
 
 ## License
 

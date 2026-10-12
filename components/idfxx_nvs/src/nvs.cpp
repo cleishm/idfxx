@@ -338,7 +338,7 @@ result<std::vector<uint8_t>> nvs::try_get_blob(std::string_view key) {
     return value;
 }
 
-// Traits mapping each integer type to its NVS get/set functions
+// Traits mapping each supported value type to its NVS get/set functions
 template<typename T>
 struct nvs_ops;
 // clang-format off
@@ -350,10 +350,14 @@ template<> struct nvs_ops<uint32_t> { static constexpr auto set = nvs_set_u32; s
 template<> struct nvs_ops<int32_t>  { static constexpr auto set = nvs_set_i32; static constexpr auto get = nvs_get_i32; };
 template<> struct nvs_ops<uint64_t> { static constexpr auto set = nvs_set_u64; static constexpr auto get = nvs_get_u64; };
 template<> struct nvs_ops<int64_t>  { static constexpr auto set = nvs_set_i64; static constexpr auto get = nvs_get_i64; };
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+template<> struct nvs_ops<float>    { static constexpr auto set = nvs_set_float;  static constexpr auto get = nvs_get_float;  };
+template<> struct nvs_ops<double>   { static constexpr auto set = nvs_set_double; static constexpr auto get = nvs_get_double; };
+#endif
 // clang-format on
 
 template<typename T>
-    requires sized_integral<T>
+    requires nvs_value<T>
 result<void> nvs::try_set_value(std::string_view key, T value) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
@@ -368,7 +372,7 @@ result<void> nvs::try_set_value(std::string_view key, T value) {
 }
 
 template<typename T>
-    requires sized_integral<T>
+    requires nvs_value<T>
 result<T> nvs::try_get_value(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
@@ -402,6 +406,12 @@ template result<uint32_t> nvs::try_get_value<uint32_t>(std::string_view);
 template result<int32_t> nvs::try_get_value<int32_t>(std::string_view);
 template result<uint64_t> nvs::try_get_value<uint64_t>(std::string_view);
 template result<int64_t> nvs::try_get_value<int64_t>(std::string_view);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+template result<void> nvs::try_set_value<float>(std::string_view, float);
+template result<void> nvs::try_set_value<double>(std::string_view, double);
+template result<float> nvs::try_get_value<float>(std::string_view);
+template result<double> nvs::try_get_value<double>(std::string_view);
+#endif
 
 result<void> nvs::flash::try_init() {
     esp_err_t err = nvs_flash_init();

@@ -8,6 +8,8 @@
 #include "idfxx/partition"
 #include "unity.h"
 
+#include <cmath>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -264,6 +266,62 @@ TEST_CASE("nvs set and get integer values", "[idfxx][nvs]") {
 
     TEST_ASSERT_TRUE(nvs.try_commit().has_value());
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("nvs set and get float and double values", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fp");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_set_value<float>("f", 3.25f).has_value());
+    auto f_result = nvs.try_get_value<float>("f");
+    TEST_ASSERT_TRUE(f_result.has_value());
+    TEST_ASSERT_EQUAL_FLOAT(3.25f, f_result.value());
+
+    TEST_ASSERT_TRUE(nvs.try_set_value<double>("d", -1234567.890123).has_value());
+    auto d_result = nvs.try_get_value<double>("d");
+    TEST_ASSERT_TRUE(d_result.has_value());
+    TEST_ASSERT_EQUAL_DOUBLE(-1234567.890123, d_result.value());
+
+    // Infinity is a valid IEEE 754 value
+    TEST_ASSERT_TRUE(nvs.try_set_value<double>("inf", std::numeric_limits<double>::infinity()).has_value());
+    auto inf_result = nvs.try_get_value<double>("inf");
+    TEST_ASSERT_TRUE(inf_result.has_value());
+    TEST_ASSERT_TRUE(std::isinf(inf_result.value()));
+
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+}
+
+TEST_CASE("nvs rejects NaN for float and double", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_nan");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    auto f_result = nvs.try_set_value<float>("f", std::numeric_limits<float>::quiet_NaN());
+    TEST_ASSERT_FALSE(f_result.has_value());
+    TEST_ASSERT_TRUE(f_result.error() == idfxx::errc::invalid_arg);
+
+    auto d_result = nvs.try_set_value<double>("d", std::numeric_limits<double>::quiet_NaN());
+    TEST_ASSERT_FALSE(d_result.has_value());
+    TEST_ASSERT_TRUE(d_result.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("nvs float and double type mismatch", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fpmm");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_set_value<float>("f", 1.5f).has_value());
+    TEST_ASSERT_FALSE(nvs.try_get_value<double>("f").has_value());
+    TEST_ASSERT_FALSE(nvs.try_get_value<uint32_t>("f").has_value());
+}
+#endif
 
 TEST_CASE("nvs erase key", "[idfxx][nvs]") {
     ensure_nvs_init();
@@ -532,6 +590,27 @@ TEST_CASE("nvs set and get string via exception API", "[idfxx][nvs]") {
     auto val = ns.get_string("greeting");
     TEST_ASSERT_EQUAL_STRING("hello", val.c_str());
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("nvs float and double via exception API", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc_fp");
+    ns.set_value<float>("f", 0.5f);
+    ns.set_value<double>("d", 2.5);
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, ns.get_value<float>("f"));
+    TEST_ASSERT_EQUAL_DOUBLE(2.5, ns.get_value<double>("d"));
+
+    bool threw = false;
+    try {
+        ns.set_value<float>("n", std::numeric_limits<float>::quiet_NaN());
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_TRUE(e.code() == idfxx::errc::invalid_arg);
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+#endif
 
 TEST_CASE("nvs get non-existent key throws", "[idfxx][nvs]") {
     ensure_nvs_init();
