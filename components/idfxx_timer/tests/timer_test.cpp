@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <esp_idf_version.h>
 #include <esp_timer.h>
 #include <idfxx/sched>
 #include <type_traits>
@@ -31,6 +32,43 @@ void wait_for_count(const std::atomic<int>& counter, int min_count) {
         idfxx::delay(10ms);
     }
 }
+
+// Poll until a fire timestamp has been recorded.
+void wait_for_fire(const std::atomic<int64_t>& fired_at) {
+    for (int i = 0; i < 500 && fired_at.load() == 0; ++i) {
+        idfxx::delay(10ms);
+    }
+}
+
+// Current timer::clock time in microseconds, for recording when a callback ran.
+int64_t now_us() {
+    return timer::clock::now().time_since_epoch().count();
+}
+
+// Microseconds from a time point to a recorded timestamp.
+int32_t us_after(timer::clock::time_point from, int64_t at_us) {
+    return static_cast<int32_t>(at_us - from.time_since_epoch().count());
+}
+
+// Detect the ESP-IDF 6.1 additions, which must not exist on earlier versions.
+template<typename T>
+concept has_stop_and_wait = requires(T& t) { t.try_stop_and_wait(); };
+
+template<typename T>
+concept has_stop_and_wait_timeout = requires(T& t) { t.try_stop_and_wait(std::chrono::milliseconds{1}); };
+
+template<typename T>
+concept has_restart_at = requires(T& t) { t.try_restart(timer::clock::time_point{}); };
+
+template<typename T>
+concept has_restart_at_period = requires(T& t) {
+    t.try_restart(timer::clock::time_point{}, std::chrono::milliseconds{1});
+};
+
+template<typename T>
+concept has_periodic_at = requires(T& t) {
+    t.try_start_periodic(timer::clock::time_point{}, std::chrono::milliseconds{1});
+};
 
 } // namespace
 
@@ -59,6 +97,21 @@ static_assert(std::to_underlying(timer::dispatch_method::isr) == ESP_TIMER_ISR);
 // Clock type checks
 static_assert(timer::clock::is_steady);
 static_assert(std::chrono::is_clock_v<timer::clock>);
+
+// ESP-IDF 6.1 additions exist exactly when the IDF provides them
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(has_stop_and_wait<timer>);
+static_assert(has_stop_and_wait_timeout<timer>);
+static_assert(has_restart_at<timer>);
+static_assert(has_restart_at_period<timer>);
+static_assert(has_periodic_at<timer>);
+#else
+static_assert(!has_stop_and_wait<timer>);
+static_assert(!has_stop_and_wait_timeout<timer>);
+static_assert(!has_restart_at<timer>);
+static_assert(!has_restart_at_period<timer>);
+static_assert(!has_periodic_at<timer>);
+#endif
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -641,6 +694,427 @@ TEST_CASE("timer::try_start_once static with time_point and raw callback", "[idf
 }
 
 // =============================================================================
+// Absolute-time start, restart and blocking stop tests
+// =============================================================================
+
+TEST_CASE("timer try_start_once with time_point fires no earlier than the target", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    auto result = timer::make({.name = "tp_target"}, [&fired_at]() { fired_at.store(now_us()); });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_start_once(target).has_value());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+
+    // Fires at the target, allowing generous latency for QEMU
+    auto late = us_after(target, fired_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, late);
+    TEST_ASSERT_LESS_THAN_INT32(100000, late);
+}
+
+TEST_CASE("timer try_start_once with time_point in the past fires promptly", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    auto result = timer::make({.name = "tp_past_prompt"}, [&fired_at]() { fired_at.store(now_us()); });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto started = timer::clock::now();
+    TEST_ASSERT_TRUE(result->try_start_once(started - 1s).has_value());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+    TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, fired_at.load()));
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+
+TEST_CASE("timer try_restart with time_point moves the deadline", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    auto result = timer::make({.name = "restart_tp"}, [&fired_at]() { fired_at.store(now_us()); });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_restart(target).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL(0, result->period().count());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+
+    auto late = us_after(target, fired_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, late);
+    TEST_ASSERT_LESS_THAN_INT32(100000, late);
+}
+
+TEST_CASE("timer try_restart with time_point starts a non-running timer", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    auto result = timer::make({.name = "restart_tp_idle"}, [&fired_at]() { fired_at.store(now_us()); });
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_FALSE(result->is_active());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_restart(target).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, us_after(target, fired_at.load()));
+}
+
+TEST_CASE("timer try_restart with time_point in the past fires promptly", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    auto result = timer::make({.name = "restart_tp_past"}, [&fired_at]() { fired_at.store(now_us()); });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+
+    auto started = timer::clock::now();
+    TEST_ASSERT_TRUE(result->try_restart(started - 1s).has_value());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+    TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, fired_at.load()));
+}
+
+TEST_CASE("timer try_restart with time_point keeps the period of a periodic timer", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "restart_tp_keep"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10s).has_value());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_restart(target).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL_INT32(10000000, static_cast<int32_t>(result->period().count()));
+
+    wait_for_fire(first_at);
+    TEST_ASSERT_NOT_EQUAL(0, first_at.load());
+
+    auto late = us_after(target, first_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, late);
+    TEST_ASSERT_LESS_THAN_INT32(100000, late);
+
+    // Still periodic with the original period, not yet due again
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL_INT32(10000000, static_cast<int32_t>(result->period().count()));
+    TEST_ASSERT_EQUAL(1, count.load());
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_restart with time_point and period sets a new period", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "restart_tp_period"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10s).has_value());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_restart(target, 30ms).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL_INT32(30000, static_cast<int32_t>(result->period().count()));
+
+    wait_for_count(count, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+
+    auto late = us_after(target, first_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, late);
+    TEST_ASSERT_LESS_THAN_INT32(100000, late);
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_restart with time_point in the past keeps the period of a periodic timer", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "restart_tp_past_keep"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10s).has_value());
+
+    auto started = timer::clock::now();
+    TEST_ASSERT_TRUE(result->try_restart(started - 1s).has_value());
+    TEST_ASSERT_EQUAL_INT32(10000000, static_cast<int32_t>(result->period().count()));
+
+    wait_for_fire(first_at);
+    TEST_ASSERT_NOT_EQUAL(0, first_at.load());
+    TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, first_at.load()));
+
+    // Fired once promptly, then waits out the original period
+    idfxx::delay(100ms);
+    TEST_ASSERT_EQUAL(1, count.load());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL_INT32(10000000, static_cast<int32_t>(result->period().count()));
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_restart with time_point in the past and period sets the period", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "restart_tp_past_period"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10s).has_value());
+
+    auto started = timer::clock::now();
+    TEST_ASSERT_TRUE(result->try_restart(started - 1s, 5s).has_value());
+    TEST_ASSERT_EQUAL_INT32(5000000, static_cast<int32_t>(result->period().count()));
+
+    wait_for_fire(first_at);
+    TEST_ASSERT_NOT_EQUAL(0, first_at.load());
+    TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, first_at.load()));
+
+    idfxx::delay(100ms);
+    TEST_ASSERT_EQUAL(1, count.load());
+    TEST_ASSERT_EQUAL_INT32(5000000, static_cast<int32_t>(result->period().count()));
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_restart with time_point and period on a one-shot ignores the period", "[idfxx][timer]") {
+    std::atomic<int64_t> fired_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "restart_tp_oneshot"}, [&]() {
+        fired_at.store(now_us());
+        count.fetch_add(1);
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+
+    auto target = timer::clock::now() + 100ms;
+    TEST_ASSERT_TRUE(result->try_restart(target, 20ms).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL(0, result->period().count());
+
+    wait_for_fire(fired_at);
+    TEST_ASSERT_NOT_EQUAL(0, fired_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, us_after(target, fired_at.load()));
+
+    // Fired exactly once
+    idfxx::delay(100ms);
+    TEST_ASSERT_EQUAL(1, count.load());
+    TEST_ASSERT_FALSE(result->is_active());
+}
+
+TEST_CASE("timer try_start_periodic with time_point fires first at the target", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "periodic_tp"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto target = timer::clock::now() + 200ms;
+    TEST_ASSERT_TRUE(result->try_start_periodic(target, 50ms).has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+    TEST_ASSERT_EQUAL_INT32(50000, static_cast<int32_t>(result->period().count()));
+
+    wait_for_count(count, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+
+    auto late = us_after(target, first_at.load());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(0, late);
+    TEST_ASSERT_LESS_THAN_INT32(100000, late);
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_start_periodic with time_point in the past fires promptly", "[idfxx][timer]") {
+    std::atomic<int64_t> first_at{0};
+    std::atomic<int> count{0};
+    auto result = timer::make({.name = "periodic_tp_past"}, [&]() {
+        if (count.fetch_add(1) == 0) {
+            first_at.store(now_us());
+        }
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto started = timer::clock::now();
+    TEST_ASSERT_TRUE(result->try_start_periodic(started - 1s, 1s).has_value());
+
+    wait_for_count(count, 1);
+    TEST_ASSERT_GREATER_OR_EQUAL(1, count.load());
+    TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, first_at.load()));
+    TEST_ASSERT_TRUE(result->is_active());
+
+    (void)result->try_stop();
+}
+
+TEST_CASE("timer try_start_periodic with time_point fails when already running", "[idfxx][timer]") {
+    auto result = timer::make({.name = "periodic_tp_busy"}, []() {});
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+
+    auto r = result->try_start_periodic(timer::clock::now() + 1s, 100ms);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_state), r.error().value());
+}
+
+TEST_CASE("timer::try_start_periodic static with time_point and functional callback", "[idfxx][timer]") {
+    std::atomic<int> count{0};
+    auto result = timer::try_start_periodic(
+        {.name = "static_periodic_tp"}, timer::clock::now() + 20ms, 20ms, [&count]() { count.fetch_add(1); }
+    );
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+
+    wait_for_count(count, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+}
+
+TEST_CASE("timer::try_start_periodic static with time_point and raw callback", "[idfxx][timer]") {
+    static std::atomic<int> count{0};
+    count.store(0);
+
+    auto result = timer::try_start_periodic(
+        {.name = "static_periodic_tp_raw"}, timer::clock::now() + 20ms, 20ms,
+        [](void* arg) { static_cast<std::atomic<int>*>(arg)->fetch_add(1); }, &count
+    );
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_TRUE(result->is_active());
+
+    wait_for_count(count, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+}
+
+TEST_CASE("timer try_stop_and_wait with timeout waits for a running callback", "[idfxx][timer]") {
+    std::atomic<bool> callback_started{false};
+    std::atomic<bool> callback_completed{false};
+    auto result = timer::make({.name = "stop_wait"}, [&]() {
+        callback_started.store(true);
+        idfxx::delay(100ms);
+        callback_completed.store(true);
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10ms).has_value());
+    wait_for(callback_started);
+    TEST_ASSERT_TRUE(callback_started.load());
+
+    auto r = result->try_stop_and_wait(2s);
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_TRUE(callback_completed.load());
+    TEST_ASSERT_FALSE(result->is_active());
+}
+
+TEST_CASE("timer try_stop_and_wait without timeout waits for a running callback", "[idfxx][timer]") {
+    std::atomic<bool> callback_started{false};
+    std::atomic<bool> callback_completed{false};
+    auto result = timer::make({.name = "stop_wait_forever"}, [&]() {
+        callback_started.store(true);
+        idfxx::delay(100ms);
+        callback_completed.store(true);
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(10ms).has_value());
+    wait_for(callback_started);
+    TEST_ASSERT_TRUE(callback_started.load());
+
+    auto r = result->try_stop_and_wait();
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_TRUE(callback_completed.load());
+    TEST_ASSERT_FALSE(result->is_active());
+}
+
+TEST_CASE("timer try_stop_and_wait with timeout times out on a long callback", "[idfxx][timer]") {
+    std::atomic<bool> callback_started{false};
+    std::atomic<bool> callback_completed{false};
+    auto result = timer::make({.name = "stop_timeout"}, [&]() {
+        callback_started.store(true);
+        idfxx::delay(500ms);
+        callback_completed.store(true);
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10ms).has_value());
+    wait_for(callback_started);
+    TEST_ASSERT_TRUE(callback_started.load());
+
+    auto r = result->try_stop_and_wait(20ms);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), r.error().value());
+    TEST_ASSERT_FALSE(callback_completed.load());
+
+    // The callback is still running, so the timer is still reported active
+    TEST_ASSERT_TRUE(result->is_active());
+
+    wait_for(callback_completed);
+    TEST_ASSERT_TRUE(callback_completed.load());
+}
+
+TEST_CASE("timer try_stop_and_wait succeeds on an idle timer", "[idfxx][timer]") {
+    auto result = timer::make({.name = "stop_idle"}, []() {});
+    TEST_ASSERT_TRUE(result.has_value());
+
+    // Not running
+    TEST_ASSERT_TRUE(result->try_stop_and_wait(10ms).has_value());
+    TEST_ASSERT_TRUE(result->try_stop_and_wait().has_value());
+
+    // Armed, callback not running
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+    TEST_ASSERT_TRUE(result->try_stop_and_wait(0ms).has_value());
+    TEST_ASSERT_FALSE(result->is_active());
+
+    TEST_ASSERT_TRUE(result->try_start_once(10s).has_value());
+    TEST_ASSERT_TRUE(result->try_stop_and_wait().has_value());
+    TEST_ASSERT_FALSE(result->is_active());
+}
+
+TEST_CASE("timer try_stop_and_wait from its own callback returns immediately", "[idfxx][timer]") {
+    std::atomic<bool> stop_ok{false};
+    std::atomic<int> count{0};
+    timer* self = nullptr;
+    auto result = timer::make({.name = "stop_self"}, [&]() {
+        stop_ok.store(self->try_stop_and_wait().has_value());
+        count.fetch_add(1);
+    });
+    TEST_ASSERT_TRUE(result.has_value());
+    self = &*result;
+
+    TEST_ASSERT_TRUE(result->try_start_periodic(20ms).has_value());
+    wait_for_count(count, 1);
+    TEST_ASSERT_TRUE(stop_ok.load());
+
+    // The periodic timer stopped itself after one invocation
+    for (int i = 0; i < 500 && result->is_active(); ++i) {
+        idfxx::delay(10ms);
+    }
+    TEST_ASSERT_FALSE(result->is_active());
+    idfxx::delay(100ms);
+    TEST_ASSERT_EQUAL(1, count.load());
+}
+
+#endif // ESP_IDF_VERSION >= 6.1.0
+
+// =============================================================================
 // Destruction race condition tests
 // =============================================================================
 
@@ -802,6 +1276,69 @@ TEST_CASE("timer::start_periodic static factory with exception API", "[idfxx][ti
     TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
     t.stop();
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+
+TEST_CASE("timer restart with time_point succeeds via exception API", "[idfxx][timer]") {
+    timer t({.name = "exc_restart_tp"}, []() {});
+
+    t.start_once(1s);
+    t.restart(timer::clock::now() + 500ms);
+    TEST_ASSERT_TRUE(t.is_active());
+
+    t.restart(timer::clock::now() + 500ms, 100ms);
+    TEST_ASSERT_TRUE(t.is_active());
+    t.stop_and_wait();
+    TEST_ASSERT_FALSE(t.is_active());
+}
+
+TEST_CASE("timer start_periodic with time_point and stop_and_wait via exception API", "[idfxx][timer]") {
+    timer t({.name = "exc_periodic_tp"}, []() {});
+
+    t.start_periodic(timer::clock::now() + 1s, 100ms);
+    TEST_ASSERT_TRUE(t.is_active());
+    t.stop_and_wait(100ms);
+    TEST_ASSERT_FALSE(t.is_active());
+}
+
+TEST_CASE("timer stop_and_wait with timeout throws on a long callback", "[idfxx][timer]") {
+    std::atomic<bool> callback_started{false};
+    std::atomic<bool> callback_completed{false};
+    timer t({.name = "exc_stop_timeout"}, [&]() {
+        callback_started.store(true);
+        idfxx::delay(500ms);
+        callback_completed.store(true);
+    });
+
+    t.start_once(10ms);
+    wait_for(callback_started);
+    TEST_ASSERT_TRUE(callback_started.load());
+
+    bool threw = false;
+    try {
+        t.stop_and_wait(20ms);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::timeout), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    wait_for(callback_completed);
+    TEST_ASSERT_TRUE(callback_completed.load());
+}
+
+TEST_CASE("timer::start_periodic static factory with time_point via exception API", "[idfxx][timer]") {
+    std::atomic<int> count{0};
+    auto t = timer::start_periodic(
+        {.name = "exc_periodic_tp_static"}, timer::clock::now() + 20ms, 20ms, [&count]() { count.fetch_add(1); }
+    );
+
+    TEST_ASSERT_TRUE(t.is_active());
+    wait_for_count(count, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL(3, count.load());
+}
+
+#endif // ESP_IDF_VERSION >= 6.1.0
 
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS
 
