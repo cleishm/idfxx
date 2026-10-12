@@ -30,6 +30,7 @@
 #include <idfxx/uart>
 
 #include <esp_console.h>
+#include <esp_idf_version.h>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -270,9 +271,16 @@ result<void> try_deinit();
  * @headerfile <idfxx/console>
  * @brief Interactive REPL (Read-Eval-Print Loop) console.
  *
- * Provides an interactive command-line interface over UART, USB CDC, or
- * USB Serial JTAG. The REPL runs in a background FreeRTOS task and processes
- * commands from the global command registry.
+ * Provides an interactive command-line interface over UART, USB CDC,
+ * USB Serial JTAG, or (with ESP-IDF 6.1 or later) the active stdio backend.
+ * The REPL runs in a background FreeRTOS task and processes commands from
+ * the global command registry.
+ *
+ * The second constructor / make() argument selects the transport: a
+ * @ref uart_config for UART (so `{}` selects UART with default settings),
+ * or one of the tags @ref usb_cdc, @ref usb_serial_jtag or @ref stdio.
+ * Which transports are available depends on the ESP-IDF console
+ * configuration.
  *
  * This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
@@ -287,9 +295,18 @@ result<void> try_deinit();
  *
  * // Create UART REPL (starts accepting input immediately)
  * idfxx::console::repl console({}, {});
+ *
+ * // Or, with ESP-IDF 6.1 or later, a REPL on the active stdio backend
+ * // idfxx::console::repl console({}, idfxx::console::repl::stdio);
  * @endcode
  */
 class repl {
+    /// @cond INTERNAL
+    struct _key {
+        explicit _key() = default;
+    };
+    /// @endcond
+
 public:
     /**
      * @brief REPL configuration parameters.
@@ -358,9 +375,30 @@ public:
 
 #if CONFIG_ESP_CONSOLE_USB_CDC || (defined(__DOXYGEN__) && SOC_USB_OTG_SUPPORTED)
     /**
-     * @brief USB CDC-specific configuration (reserved for future use).
+     * @brief Tag type selecting the USB CDC transport.
+     *
+     * Use the @ref usb_cdc tag object rather than constructing this type directly.
+     * It cannot be constructed from `{}`, so it never competes with @ref uart_config
+     * for an empty-brace argument.
+     *
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_CDC is enabled.
      */
-    struct usb_cdc_config {};
+    struct usb_cdc_t {
+        /// @cond INTERNAL
+        explicit constexpr usb_cdc_t(_key) noexcept {}
+        /// @endcond
+    };
+
+    /**
+     * @brief Tag selecting the USB CDC transport.
+     *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::usb_cdc);
+     * @endcode
+     *
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_CDC is enabled.
+     */
+    static const usb_cdc_t usb_cdc;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -368,24 +406,29 @@ public:
      *
      * The REPL starts accepting input immediately upon construction.
      *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::usb_cdc);
+     * @endcode
+     *
      * @param cfg REPL configuration.
-     * @param usb_cdc USB CDC-specific configuration.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @param transport The @ref usb_cdc tag.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_ESP_CONSOLE_USB_CDC are enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit repl(const config& cfg, const usb_cdc_config& usb_cdc);
+    [[nodiscard]] explicit repl(const config& cfg, usb_cdc_t transport);
 #endif
 
     /**
      * @brief Creates and starts a REPL over USB CDC.
      *
-     * The REPL starts accepting input immediately upon construction.
+     * The REPL starts accepting input immediately.
      *
      * @param cfg REPL configuration.
-     * @param usb_cdc USB CDC-specific configuration.
+     * @param transport The @ref usb_cdc tag.
      * @return The new running REPL, or an error.
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_CDC is enabled.
      */
-    [[nodiscard]] static result<repl> make(const config& cfg, const usb_cdc_config& usb_cdc);
+    [[nodiscard]] static result<repl> make(const config& cfg, usb_cdc_t transport);
 #endif // USB CDC
 
     // =========================================================================
@@ -394,9 +437,30 @@ public:
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG || (defined(__DOXYGEN__) && SOC_USB_SERIAL_JTAG_SUPPORTED)
     /**
-     * @brief USB Serial JTAG-specific configuration (reserved for future use).
+     * @brief Tag type selecting the USB Serial JTAG transport.
+     *
+     * Use the @ref usb_serial_jtag tag object rather than constructing this type
+     * directly. It cannot be constructed from `{}`, so it never competes with
+     * @ref uart_config for an empty-brace argument.
+     *
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is enabled.
      */
-    struct usb_serial_jtag_config {};
+    struct usb_serial_jtag_t {
+        /// @cond INTERNAL
+        explicit constexpr usb_serial_jtag_t(_key) noexcept {}
+        /// @endcond
+    };
+
+    /**
+     * @brief Tag selecting the USB Serial JTAG transport.
+     *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::usb_serial_jtag);
+     * @endcode
+     *
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is enabled.
+     */
+    static const usb_serial_jtag_t usb_serial_jtag;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -404,25 +468,96 @@ public:
      *
      * The REPL starts accepting input immediately upon construction.
      *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::usb_serial_jtag);
+     * @endcode
+     *
      * @param cfg REPL configuration.
-     * @param usb_jtag USB Serial JTAG-specific configuration.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @param transport The @ref usb_serial_jtag tag.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG are enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit repl(const config& cfg, const usb_serial_jtag_config& usb_jtag);
+    [[nodiscard]] explicit repl(const config& cfg, usb_serial_jtag_t transport);
 #endif
 
     /**
      * @brief Creates and starts a REPL over USB Serial JTAG.
      *
-     * The REPL starts accepting input immediately upon construction.
+     * The REPL starts accepting input immediately.
      *
      * @param cfg REPL configuration.
-     * @param usb_jtag USB Serial JTAG-specific configuration.
+     * @param transport The @ref usb_serial_jtag tag.
      * @return The new running REPL, or an error.
+     * @note Only available when CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is enabled.
      */
-    [[nodiscard]] static result<repl> make(const config& cfg, const usb_serial_jtag_config& usb_jtag);
+    [[nodiscard]] static result<repl> make(const config& cfg, usb_serial_jtag_t transport);
 #endif // USB Serial JTAG
+
+    // =========================================================================
+    // Stdio backend
+    // =========================================================================
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /**
+     * @brief Tag type selecting the active stdio transport.
+     *
+     * Use the @ref stdio tag object rather than constructing this type directly.
+     * It cannot be constructed from `{}`, so it never competes with @ref uart_config
+     * for an empty-brace argument.
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    struct stdio_t {
+        /// @cond INTERNAL
+        explicit constexpr stdio_t(_key) noexcept {}
+        /// @endcond
+    };
+
+    /**
+     * @brief Tag selecting the active stdio transport.
+     *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::stdio);
+     * @endcode
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    static const stdio_t stdio;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates and starts a REPL over the active stdio backend.
+     *
+     * The REPL reads and writes through whichever stdio driver is currently active
+     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
+     * accepting input immediately upon construction.
+     *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::stdio);
+     * @endcode
+     *
+     * @param cfg REPL configuration.
+     * @param transport The @ref stdio tag.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled and building with ESP-IDF 6.1 or later.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] explicit repl(const config& cfg, stdio_t transport);
+#endif
+
+    /**
+     * @brief Creates and starts a REPL over the active stdio backend.
+     *
+     * The REPL reads and writes through whichever stdio driver is currently active
+     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
+     * accepting input immediately.
+     *
+     * @param cfg REPL configuration.
+     * @param transport The @ref stdio tag.
+     * @return The new running REPL, or an error.
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    [[nodiscard]] static result<repl> make(const config& cfg, stdio_t transport);
+#endif // Stdio
 
     // =========================================================================
     // Lifecycle
@@ -460,6 +595,18 @@ private:
 
     esp_console_repl_t* _handle = nullptr;
 };
+
+/// @cond INTERNAL
+#if CONFIG_ESP_CONSOLE_USB_CDC || (defined(__DOXYGEN__) && SOC_USB_OTG_SUPPORTED)
+inline constexpr repl::usb_cdc_t repl::usb_cdc{repl::_key{}};
+#endif
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG || (defined(__DOXYGEN__) && SOC_USB_SERIAL_JTAG_SUPPORTED)
+inline constexpr repl::usb_serial_jtag_t repl::usb_serial_jtag{repl::_key{}};
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+inline constexpr repl::stdio_t repl::stdio{repl::_key{}};
+#endif
+/// @endcond
 
 /** @} */ // end of idfxx_console
 

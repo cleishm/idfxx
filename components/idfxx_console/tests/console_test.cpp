@@ -207,6 +207,62 @@ TEST_CASE("console repl config default values", "[idfxx][console]") {
     TEST_ASSERT_EQUAL(0, cfg.max_cmdline_length);
 }
 
+namespace {
+
+// A transport tag must not be constructible from `{}`, so that `repl({}, {})`
+// unambiguously selects the UART transport.
+template<typename T>
+concept direct_constructible_from_empty_braces = requires { T{}; };
+
+template<typename T>
+concept convertible_from_empty_braces = requires(void (*fn)(T)) { fn({}); };
+
+} // namespace
+
+#if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
+// `{}` selects the UART transport
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_constructible_v<repl, const repl::config&, const repl::uart_config&>);
+#endif
+static_assert(std::is_same_v<decltype(repl::make({}, {})), result<repl>>);
+#endif // UART
+
+#if CONFIG_ESP_CONSOLE_USB_CDC
+static_assert(std::is_empty_v<repl::usb_cdc_t>);
+static_assert(!std::is_default_constructible_v<repl::usb_cdc_t>);
+static_assert(!direct_constructible_from_empty_braces<repl::usb_cdc_t>);
+static_assert(!convertible_from_empty_braces<repl::usb_cdc_t>);
+static_assert(std::is_same_v<decltype(repl::usb_cdc), const repl::usb_cdc_t>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_constructible_v<repl, const repl::config&, repl::usb_cdc_t>);
+#endif
+static_assert(std::is_same_v<decltype(repl::make(repl::config{}, repl::usb_cdc)), result<repl>>);
+#endif // USB CDC
+
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+static_assert(std::is_empty_v<repl::usb_serial_jtag_t>);
+static_assert(!std::is_default_constructible_v<repl::usb_serial_jtag_t>);
+static_assert(!direct_constructible_from_empty_braces<repl::usb_serial_jtag_t>);
+static_assert(!convertible_from_empty_braces<repl::usb_serial_jtag_t>);
+static_assert(std::is_same_v<decltype(repl::usb_serial_jtag), const repl::usb_serial_jtag_t>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_constructible_v<repl, const repl::config&, repl::usb_serial_jtag_t>);
+#endif
+static_assert(std::is_same_v<decltype(repl::make(repl::config{}, repl::usb_serial_jtag)), result<repl>>);
+#endif // USB Serial JTAG
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::is_empty_v<repl::stdio_t>);
+static_assert(!std::is_default_constructible_v<repl::stdio_t>);
+static_assert(!direct_constructible_from_empty_braces<repl::stdio_t>);
+static_assert(!convertible_from_empty_braces<repl::stdio_t>);
+static_assert(std::is_same_v<decltype(repl::stdio), const repl::stdio_t>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_constructible_v<repl, const repl::config&, repl::stdio_t>);
+#endif
+static_assert(std::is_same_v<decltype(repl::make(repl::config{}, repl::stdio)), result<repl>>);
+#endif // stdio
+
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
 TEST_CASE("console uart_config default values", "[idfxx][console]") {
     repl::uart_config cfg{};

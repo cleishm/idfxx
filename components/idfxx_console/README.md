@@ -4,7 +4,7 @@ Interactive console REPL and command management for ESP32.
 
 ## Features
 
-- **REPL (Read-Eval-Print Loop)** over UART, USB CDC, or USB Serial JTAG
+- **REPL (Read-Eval-Print Loop)** over UART, USB CDC, USB Serial JTAG, or the active stdio backend (ESP-IDF 6.1+)
 - **Command registration** with C++ callbacks (lambdas, captures) or raw function pointers
 - **Global command registry** shared across all console backends
 - **Built-in help command** with automatic registration
@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_console:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_console` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -52,12 +52,20 @@ extern "C" void app_main() {
         register_help_command();
 
         // Create UART REPL (starts accepting input immediately)
-        repl console({}, uart_config{});
+        repl console({}, {});
 
     } catch (const std::system_error& e) {
         std::printf("Console error: %s\n", e.what());
     }
 }
+```
+
+### Stdio REPL (ESP-IDF 6.1+)
+
+With ESP-IDF 6.1 or later, a REPL can run on whichever stdio backend is active:
+
+```cpp
+idfxx::console::repl console({}, idfxx::console::repl::stdio);
 ```
 
 ### Result-based API
@@ -83,7 +91,7 @@ extern "C" void app_main() {
     try_register_help_command();
 
     // Create UART REPL (starts accepting input immediately)
-    auto console = repl::make({}, repl::uart_config{});
+    auto console = repl::make({}, {});
     if (!console) {
         std::printf("Failed to create REPL\n");
         return;
@@ -127,9 +135,12 @@ idfxx::console::deinit();
 
 ### REPL
 
-- `repl(config, uart_config)` / `repl::make(config, uart_config)` - Create and start UART REPL
-- `repl(config, usb_cdc_config)` / `repl::make(config, usb_cdc_config)` - Create and start USB CDC REPL
-- `repl(config, usb_serial_jtag_config)` / `repl::make(config, usb_serial_jtag_config)` - Create and start USB Serial JTAG REPL
+The second argument selects the transport: a `uart_config` when there is something to configure, a tag when there is not.
+
+- `repl(config, uart_config)` / `repl::make(config, uart_config)` - Create and start UART REPL (`repl(config, {})` uses the defaults)
+- `repl(config, repl::usb_cdc)` / `repl::make(config, repl::usb_cdc)` - Create and start USB CDC REPL
+- `repl(config, repl::usb_serial_jtag)` / `repl::make(config, repl::usb_serial_jtag)` - Create and start USB Serial JTAG REPL
+- `repl(config, repl::stdio)` / `repl::make(config, repl::stdio)` - Create and start a REPL on the active stdio backend (ESP-IDF 6.1+)
 
 ### Low-level Console
 
@@ -151,7 +162,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 
 - **Global command registry**: Commands are registered globally. All REPLs and `run()` calls share the same registry.
 - **String lifetime**: Command names, help text, and hint strings are copied internally and remain valid until deregistration.
-- **REPL backends**: Only one backend type is available at a time, determined by the ESP-IDF console configuration (`CONFIG_ESP_CONSOLE_UART_DEFAULT`, `CONFIG_ESP_CONSOLE_USB_CDC`, etc.).
+- **REPL backends**: Only one of the UART, USB CDC and USB Serial JTAG backends is available at a time, determined by the ESP-IDF console configuration (`CONFIG_ESP_CONSOLE_UART_DEFAULT`, `CONFIG_ESP_CONSOLE_USB_CDC`, etc.). The stdio backend (`repl::stdio`) is always available with ESP-IDF 6.1 or later. `repl(config, {})` selects UART, so it only compiles when UART is the console.
 - **Non-copyable/move-only**: The `repl` class is non-copyable and move-only.
 - **Automatic cleanup**: The `repl` destructor stops the REPL task and releases resources.
 

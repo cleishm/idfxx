@@ -221,7 +221,7 @@ repl::repl(const config& cfg, const uart_config& uart)
 
 #if CONFIG_ESP_CONSOLE_USB_CDC
 
-result<repl> repl::make(const config& cfg, const usb_cdc_config& /*usb_cdc*/) {
+result<repl> repl::make(const config& cfg, usb_cdc_t /*transport*/) {
     auto idf_cfg = _translate_config(cfg);
 
     auto history_path = cfg.history_save_path.string();
@@ -247,8 +247,8 @@ result<repl> repl::make(const config& cfg, const usb_cdc_config& /*usb_cdc*/) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-repl::repl(const config& cfg, const usb_cdc_config& usb_cdc)
-    : repl(unwrap(make(cfg, usb_cdc))) {}
+repl::repl(const config& cfg, usb_cdc_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
 #endif
 
 #endif // USB CDC
@@ -259,7 +259,7 @@ repl::repl(const config& cfg, const usb_cdc_config& usb_cdc)
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
 
-result<repl> repl::make(const config& cfg, const usb_serial_jtag_config& /*usb_jtag*/) {
+result<repl> repl::make(const config& cfg, usb_serial_jtag_t /*transport*/) {
     auto idf_cfg = _translate_config(cfg);
 
     auto history_path = cfg.history_save_path.string();
@@ -285,11 +285,47 @@ result<repl> repl::make(const config& cfg, const usb_serial_jtag_config& /*usb_j
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-repl::repl(const config& cfg, const usb_serial_jtag_config& usb_jtag)
-    : repl(unwrap(make(cfg, usb_jtag))) {}
+repl::repl(const config& cfg, usb_serial_jtag_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
 #endif
 
 #endif // USB Serial JTAG
+
+// =============================================================================
+// REPL stdio backend
+// =============================================================================
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+
+result<repl> repl::make(const config& cfg, stdio_t /*transport*/) {
+    auto idf_cfg = _translate_config(cfg);
+
+    auto history_path = cfg.history_save_path.string();
+    std::string prompt{cfg.prompt};
+    idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
+    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+
+    esp_console_repl_t* handle = nullptr;
+    auto err = esp_console_new_repl_stdio(&idf_cfg, &handle);
+    if (err != ESP_OK) {
+        return error(err);
+    }
+
+    err = esp_console_start_repl(handle);
+    if (err != ESP_OK) {
+        handle->del(handle);
+        return error(err);
+    }
+
+    return repl(handle);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+repl::repl(const config& cfg, stdio_t transport)
+    : repl(unwrap(make(cfg, transport))) {}
+#endif
+
+#endif // Stdio
 
 // =============================================================================
 // REPL lifecycle

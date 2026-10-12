@@ -1,4 +1,4 @@
-version: "1.0.2"
+version: "2.0.0"
 description: "Interactive console REPL and command management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_console"
 repository: "https://github.com/cleishm/idfxx.git"
