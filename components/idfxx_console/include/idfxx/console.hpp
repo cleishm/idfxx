@@ -30,6 +30,7 @@
 #include <idfxx/uart>
 
 #include <esp_console.h>
+#include <esp_idf_version.h>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -423,6 +424,53 @@ public:
      */
     [[nodiscard]] static result<repl> make(const config& cfg, const usb_serial_jtag_config& usb_jtag);
 #endif // USB Serial JTAG
+
+    // =========================================================================
+    // Stdio backend
+    // =========================================================================
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /**
+     * @brief Stdio-specific configuration (reserved for future use).
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    struct stdio_config {};
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates and starts a REPL over the active stdio backend.
+     *
+     * The REPL reads and writes through whichever stdio driver is currently active
+     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
+     * accepting input immediately upon construction.
+     *
+     * @code
+     * idfxx::console::repl console({}, idfxx::console::repl::stdio_config{});
+     * @endcode
+     *
+     * @param cfg REPL configuration.
+     * @param stdio Stdio-specific configuration.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled and building with ESP-IDF 6.1 or later.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] explicit repl(const config& cfg, const stdio_config& stdio);
+#endif
+
+    /**
+     * @brief Creates and starts a REPL over the active stdio backend.
+     *
+     * The REPL reads and writes through whichever stdio driver is currently active
+     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
+     * accepting input immediately.
+     *
+     * @param cfg REPL configuration.
+     * @param stdio Stdio-specific configuration.
+     * @return The new running REPL, or an error.
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    [[nodiscard]] static result<repl> make(const config& cfg, const stdio_config& stdio);
+#endif // Stdio
 
     // =========================================================================
     // Lifecycle

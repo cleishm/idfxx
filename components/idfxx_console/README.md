@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_console:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_console` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -58,6 +58,14 @@ extern "C" void app_main() {
         std::printf("Console error: %s\n", e.what());
     }
 }
+```
+
+### Stdio REPL (ESP-IDF 6.1+)
+
+With ESP-IDF 6.1 or later, a REPL can run on whichever stdio backend is active:
+
+```cpp
+idfxx::console::repl console({}, idfxx::console::repl::stdio_config{});
 ```
 
 ### Result-based API
@@ -130,6 +138,7 @@ idfxx::console::deinit();
 - `repl(config, uart_config)` / `repl::make(config, uart_config)` - Create and start UART REPL
 - `repl(config, usb_cdc_config)` / `repl::make(config, usb_cdc_config)` - Create and start USB CDC REPL
 - `repl(config, usb_serial_jtag_config)` / `repl::make(config, usb_serial_jtag_config)` - Create and start USB Serial JTAG REPL
+- `repl(config, stdio_config)` / `repl::make(config, stdio_config)` - Create and start a REPL on the active stdio backend (ESP-IDF 6.1+)
 
 ### Low-level Console
 

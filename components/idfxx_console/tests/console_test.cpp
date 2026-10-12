@@ -207,6 +207,15 @@ TEST_CASE("console repl config default values", "[idfxx][console]") {
     TEST_ASSERT_EQUAL(0, cfg.max_cmdline_length);
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::is_empty_v<repl::stdio_config>);
+static_assert(std::is_aggregate_v<repl::stdio_config>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_constructible_v<repl, const repl::config&, const repl::stdio_config&>);
+#endif
+static_assert(std::is_same_v<decltype(repl::make(repl::config{}, repl::stdio_config{})), result<repl>>);
+#endif // stdio
+
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
 TEST_CASE("console uart_config default values", "[idfxx][console]") {
     repl::uart_config cfg{};

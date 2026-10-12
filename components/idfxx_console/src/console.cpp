@@ -292,6 +292,42 @@ repl::repl(const config& cfg, const usb_serial_jtag_config& usb_jtag)
 #endif // USB Serial JTAG
 
 // =============================================================================
+// REPL stdio backend
+// =============================================================================
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+
+result<repl> repl::make(const config& cfg, const stdio_config& /*stdio*/) {
+    auto idf_cfg = _translate_config(cfg);
+
+    auto history_path = cfg.history_save_path.string();
+    std::string prompt{cfg.prompt};
+    idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
+    idf_cfg.prompt = prompt.empty() ? nullptr : prompt.c_str();
+
+    esp_console_repl_t* handle = nullptr;
+    auto err = esp_console_new_repl_stdio(&idf_cfg, &handle);
+    if (err != ESP_OK) {
+        return error(err);
+    }
+
+    err = esp_console_start_repl(handle);
+    if (err != ESP_OK) {
+        handle->del(handle);
+        return error(err);
+    }
+
+    return repl(handle);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+repl::repl(const config& cfg, const stdio_config& stdio)
+    : repl(unwrap(make(cfg, stdio))) {}
+#endif
+
+#endif // Stdio
+
+// =============================================================================
 // REPL lifecycle
 // =============================================================================
 
