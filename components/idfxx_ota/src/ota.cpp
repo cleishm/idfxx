@@ -4,7 +4,10 @@
 #include <idfxx/error>
 #include <idfxx/ota>
 
+#include <cstring>
 #include <esp_app_desc.h>
+#include <esp_app_format.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <utility>
@@ -16,6 +19,20 @@ static_assert(std::to_underlying(idfxx::ota::errc::validate_failed) == ESP_ERR_O
 static_assert(std::to_underlying(idfxx::ota::errc::small_sec_ver) == ESP_ERR_OTA_SMALL_SEC_VER);
 static_assert(std::to_underlying(idfxx::ota::errc::rollback_failed) == ESP_ERR_OTA_ROLLBACK_FAILED);
 static_assert(std::to_underlying(idfxx::ota::errc::rollback_invalid_state) == ESP_ERR_OTA_ROLLBACK_INVALID_STATE);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::to_underlying(idfxx::ota::errc::already_in_progress) == ESP_ERR_OTA_ALREADY_IN_PROGRESS);
+static_assert(std::to_underlying(idfxx::ota::errc::spi_mode_mismatch) == ESP_ERR_OTA_SPI_MODE_MISMATCH);
+
+// Verify image_flash_mode values match ESP-IDF constants
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::qio) == ESP_IMAGE_SPI_MODE_QIO);
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::qout) == ESP_IMAGE_SPI_MODE_QOUT);
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::dio) == ESP_IMAGE_SPI_MODE_DIO);
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::dout) == ESP_IMAGE_SPI_MODE_DOUT);
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::fast_read) == ESP_IMAGE_SPI_MODE_FAST_READ);
+static_assert(std::to_underlying(idfxx::ota::image_flash_mode::slow_read) == ESP_IMAGE_SPI_MODE_SLOW_READ);
+static_assert(std::to_underlying(idfxx::partition::type::app) == ESP_PARTITION_TYPE_APP);
+static_assert(std::to_underlying(idfxx::partition::type::bootloader) == ESP_PARTITION_TYPE_BOOTLOADER);
+#endif
 
 // Verify image_state values match ESP-IDF constants
 static_assert(std::to_underlying(idfxx::ota::image_state::new_image) == ESP_OTA_IMG_NEW);
@@ -57,6 +74,12 @@ std::string error_category::message(int ec) const {
         return "No valid firmware in passive partition for rollback";
     case errc::rollback_invalid_state:
         return "Running app is still pending verification; confirm before updating";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    case errc::already_in_progress:
+        return "Another OTA operation is already in progress on the same partition";
+    case errc::spi_mode_mismatch:
+        return "Image SPI flash mode does not match the running firmware";
+#endif
     default:
         return esp_err_to_name(static_cast<esp_err_t>(ec));
     }
@@ -118,6 +141,12 @@ uint32_t app_description::secure_version() const {
 std::span<const uint8_t, 32> app_description::app_elf_sha256() const {
     return std::span<const uint8_t, 32>(_desc.app_elf_sha256);
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+image_flash_mode app_description::flash_mode() const {
+    return static_cast<image_flash_mode>(_desc.spi_flash_mode);
+}
+#endif
 
 // =============================================================================
 // update
@@ -304,6 +333,16 @@ void set_boot_partition(const partition& part) {
     unwrap(try_set_boot_partition(part));
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+void set_boot_partition(const partition& part, skip_validation_t) {
+    unwrap(try_set_boot_partition(part, skip_validation));
+}
+
+void check_image_validity(enum partition::type type, std::span<const uint8_t> image_start) {
+    unwrap(try_check_image_validity(type, image_start));
+}
+#endif
+
 partition boot_partition() {
     return unwrap(try_boot_partition());
 }
@@ -320,6 +359,42 @@ partition next_update_partition(const partition* start_from) {
 result<void> try_set_boot_partition(const partition& part) {
     return checked(esp_ota_set_boot_partition(part.idf_handle()), "esp_ota_set_boot_partition");
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+result<void> try_set_boot_partition(const partition& part, skip_validation_t) {
+    return checked(
+        esp_ota_set_boot_partition_skip_validate(part.idf_handle()), "esp_ota_set_boot_partition_skip_validate"
+    );
+}
+
+result<void> try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start) {
+    if (type != partition::type::app && type != partition::type::bootloader) {
+        return error(idfxx::errc::invalid_arg);
+    }
+
+    constexpr size_t app_desc_offset = sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
+
+    // Copy into aligned locals; the span's data may be unaligned
+    esp_image_header_t header;
+    esp_app_desc_t desc;
+    const esp_app_desc_t* desc_ptr = nullptr;
+    if (type == partition::type::app) {
+        if (image_start.size() < app_desc_offset + sizeof(esp_app_desc_t)) {
+            return error(idfxx::errc::invalid_size);
+        }
+        std::memcpy(&desc, image_start.data() + app_desc_offset, sizeof(desc));
+        desc_ptr = &desc;
+    } else if (image_start.size() < sizeof(esp_image_header_t)) {
+        return error(idfxx::errc::invalid_size);
+    }
+    std::memcpy(&header, image_start.data(), sizeof(header));
+
+    return checked(
+        esp_ota_check_image_validity(static_cast<esp_partition_type_t>(type), &header, desc_ptr),
+        "esp_ota_check_image_validity"
+    );
+}
+#endif
 
 result<partition> try_boot_partition() {
     const esp_partition_t* part = esp_ota_get_boot_partition();

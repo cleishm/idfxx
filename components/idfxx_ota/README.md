@@ -28,7 +28,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_ota:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_ota` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -162,6 +162,8 @@ The component provides two API styles:
 ### Boot Partition Management
 
 - `set_boot_partition(part)` / `try_set_boot_partition(part)` - Set next boot partition
+- `set_boot_partition(part, skip_validation)` / `try_set_boot_partition(part, skip_validation)` - Set next boot partition without validating the image (requires ESP-IDF 6.1)
+- `check_image_validity(type, image_start)` / `try_check_image_validity(type, image_start)` - Check the leading bytes of an image (chip, revision, flash mode) before updating (requires ESP-IDF 6.1)
 - `boot_partition()` / `try_boot_partition()` → `partition` - Get configured boot partition
 - `running_partition()` / `try_running_partition()` → `partition` - Get running app partition
 - `next_update_partition()` / `try_next_update_partition()` → `partition` - Get next OTA slot
@@ -169,6 +171,7 @@ The component provides two API styles:
 ### App Description
 
 - `partition_description(part)` / `try_partition_description(part)` → `app_description`
+- `app_description::flash_mode()` → `image_flash_mode` - Flash mode recorded in the image (requires ESP-IDF 6.1)
 
 ### State Management
 
@@ -194,6 +197,8 @@ The `idfxx::ota::errc` enum provides OTA-specific error codes:
 - `small_sec_ver` - Firmware secure version too low
 - `rollback_failed` - No valid firmware for rollback
 - `rollback_invalid_state` - Running app pending verification
+- `already_in_progress` - Another OTA operation is already in progress on the same partition (requires ESP-IDF 6.1)
+- `spi_mode_mismatch` - Image flash mode does not match the running firmware (requires ESP-IDF 6.1)
 
 ## Important Notes
 
