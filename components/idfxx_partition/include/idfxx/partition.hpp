@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <esp_partition.h>
 #include <span>
 #include <string_view>
@@ -115,6 +116,25 @@ public:
     enum class mmap_memory : int {
         data = 0, ///< Map to data memory, allows byte-aligned access
         inst,     ///< Map to instruction memory, allows only 4-byte-aligned access
+    };
+
+    /** @brief Options for memory-mapping a partition region. */
+    struct mmap_config {
+        /** @brief Memory type to map to. */
+        enum mmap_memory memory = mmap_memory::data;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        /**
+         * @brief Block flash erase and program operations until the mapping is released.
+         *
+         * While the mapping is held, flash writes and erases wait instead of disabling the
+         * cache. Suited to read-only mappings that are short-lived and where no flash erase
+         * or program happens before the mapping is released; otherwise those operations
+         * stall until then.
+         *
+         * @note Only available on ESP-IDF 6.1 and later.
+         */
+        bool blocks_write = false;
+#endif
     };
 
     class mmap_handle;
@@ -361,19 +381,58 @@ public:
     [[nodiscard]] std::array<uint8_t, 32> sha256() const { return unwrap(try_sha256()); }
 
     /**
-     * @brief Memory-maps a region of the partition.
+     * @brief Memory-maps a region of the partition with default options.
      *
-     * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
-     *               or SPI_FLASH_MMU_PAGE_SIZE for instruction memory).
+     * @code
+     * auto mapped = part.mmap(0, part.size());
+     * auto bytes = mapped.as_span<const uint8_t>();
+     * @endcode
+     *
+     * @param offset Byte offset within the partition (must be aligned to 0x10000 for data memory).
      * @param size   Number of bytes to map.
-     * @param memory Memory type to map to.
      *
      * @return A handle to the mapped memory region.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] mmap_handle mmap(size_t offset, size_t size, enum mmap_memory memory = mmap_memory::data) const;
+    [[nodiscard]] mmap_handle mmap(size_t offset, size_t size) const;
+
+    /**
+     * @brief Memory-maps a region of the partition.
+     *
+     * @code
+     * auto mapped = part.mmap(0, part.size(), {.blocks_write = true});
+     * auto bytes = mapped.as_span<const uint8_t>();
+     * @endcode
+     *
+     * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
+     *               or SPI_FLASH_MMU_PAGE_SIZE for instruction memory).
+     * @param size   Number of bytes to map.
+     * @param config Mapping options.
+     *
+     * @return A handle to the mapped memory region.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard]] mmap_handle mmap(size_t offset, size_t size, const mmap_config& config) const;
+
+    /**
+     * @brief Memory-maps a region of the partition.
+     *
+     * @param offset Byte offset within the partition.
+     * @param size   Number of bytes to map.
+     * @param memory Memory type to map to.
+     *
+     * @return A handle to the mapped memory region.
+     *
+     * @deprecated Use the overload taking mmap_config.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    [[nodiscard, deprecated("use mmap_config")]] mmap_handle
+    mmap(size_t offset, size_t size, enum mmap_memory memory) const;
 #endif
 
     /**
@@ -480,17 +539,40 @@ public:
     [[nodiscard]] result<std::array<uint8_t, 32>> try_sha256() const;
 
     /**
+     * @brief Memory-maps a region of the partition with default options.
+     *
+     * @param offset Byte offset within the partition (must be aligned to 0x10000 for data memory).
+     * @param size   Number of bytes to map.
+     *
+     * @return A handle to the mapped memory region, or an error.
+     */
+    [[nodiscard]] result<mmap_handle> try_mmap(size_t offset, size_t size) const;
+
+    /**
      * @brief Memory-maps a region of the partition.
      *
      * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
      *               or SPI_FLASH_MMU_PAGE_SIZE for instruction memory).
      * @param size   Number of bytes to map.
-     * @param memory Memory type to map to.
+     * @param config Mapping options.
      *
      * @return A handle to the mapped memory region, or an error.
      */
-    [[nodiscard]] result<mmap_handle>
-    try_mmap(size_t offset, size_t size, enum mmap_memory memory = mmap_memory::data) const;
+    [[nodiscard]] result<mmap_handle> try_mmap(size_t offset, size_t size, const mmap_config& config) const;
+
+    /**
+     * @brief Memory-maps a region of the partition.
+     *
+     * @param offset Byte offset within the partition.
+     * @param size   Number of bytes to map.
+     * @param memory Memory type to map to.
+     *
+     * @return A handle to the mapped memory region, or an error.
+     *
+     * @deprecated Use the overload taking mmap_config.
+     */
+    [[nodiscard, deprecated("use mmap_config")]] result<mmap_handle>
+    try_mmap(size_t offset, size_t size, enum mmap_memory memory) const;
 
     /**
      * @brief Checks if two partitions have identical contents by comparing SHA-256 hashes.
@@ -592,8 +674,16 @@ private:
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+inline partition::mmap_handle partition::mmap(size_t offset, size_t size) const {
+    return unwrap(try_mmap(offset, size, mmap_config{}));
+}
+
+inline partition::mmap_handle partition::mmap(size_t offset, size_t size, const mmap_config& config) const {
+    return unwrap(try_mmap(offset, size, config));
+}
+
 inline partition::mmap_handle partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
-    return unwrap(try_mmap(offset, size, memory));
+    return unwrap(try_mmap(offset, size, mmap_config{.memory = memory}));
 }
 #endif
 

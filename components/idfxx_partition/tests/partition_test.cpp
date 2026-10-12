@@ -7,6 +7,7 @@
 #include "idfxx/partition"
 #include "unity.h"
 
+#include <cstring>
 #include <type_traits>
 #include <utility>
 
@@ -16,6 +17,12 @@ using namespace idfxx;
 // Compile-time tests (static_assert)
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
+
+// mmap_config defaults
+static_assert(partition::mmap_config{}.memory == partition::mmap_memory::data);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(partition::mmap_config{}.blocks_write == false);
+#endif
 
 // partition is not default constructible
 static_assert(!std::is_default_constructible_v<partition>);
@@ -145,6 +152,51 @@ TEST_CASE("partition mmap_handle default is invalid", "[idfxx][partition]") {
     TEST_ASSERT_EQUAL(0, handle.size());
 }
 
+// The mmap tests map phy_init rather than ota_0: the running app executes from
+// ota_0, and unmapping its first flash page unmaps the app's own read-only data.
+
+TEST_CASE("partition try_mmap with default config matches read", "[idfxx][partition]") {
+    auto p = partition::try_find(partition::type::data, partition::subtype::data_phy);
+    TEST_ASSERT_TRUE(p.has_value());
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+
+    auto mapped = p->try_mmap(0, len);
+    TEST_ASSERT_TRUE(mapped.has_value());
+    TEST_ASSERT_TRUE(static_cast<bool>(*mapped));
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped->data(), len));
+}
+
+TEST_CASE("partition try_mmap with designated memory", "[idfxx][partition]") {
+    auto p = partition::try_find(partition::type::data, partition::subtype::data_phy);
+    TEST_ASSERT_TRUE(p.has_value());
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+
+    auto mapped = p->try_mmap(0, len, {.memory = partition::mmap_memory::data});
+    TEST_ASSERT_TRUE(mapped.has_value());
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped->data(), len));
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("partition try_mmap with blocks_write matches read", "[idfxx][partition]") {
+    auto p = partition::try_find(partition::type::data, partition::subtype::data_phy);
+    TEST_ASSERT_TRUE(p.has_value());
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+
+    auto mapped = p->try_mmap(0, len, {.blocks_write = true});
+    TEST_ASSERT_TRUE(mapped.has_value());
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped->data(), len));
+}
+#endif
+
 TEST_CASE("partition try_sha256 on ota_0 app", "[idfxx][partition][hw]") {
     auto result = partition::try_find(partition::type::app, partition::subtype::app_ota_0);
     TEST_ASSERT_TRUE(result.has_value());
@@ -208,5 +260,49 @@ TEST_CASE("partition read on ota_0 app", "[idfxx][partition]") {
     }
     TEST_ASSERT_TRUE(has_nonzero);
 }
+
+TEST_CASE("partition mmap with default config and designated memory", "[idfxx][partition]") {
+    auto p = partition::find(partition::type::data, partition::subtype::data_phy);
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    p.read(0, expected, len);
+
+    auto a = p.mmap(0, len);
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, a.data(), len));
+    auto b = p.mmap(0, len, {.memory = partition::mmap_memory::data});
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, b.data(), len));
+}
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("partition mmap with blocks_write", "[idfxx][partition]") {
+    auto p = partition::find(partition::type::data, partition::subtype::data_phy);
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    p.read(0, expected, len);
+
+    auto mapped = p.mmap(0, len, {.blocks_write = true});
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped.data(), len));
+}
+#endif
+
+// The deprecated memory-type overloads still work.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+TEST_CASE("partition deprecated mmap with memory overload", "[idfxx][partition]") {
+    auto p = partition::find(partition::type::data, partition::subtype::data_phy);
+
+    constexpr size_t len = 256;
+    uint8_t expected[len] = {};
+    p.read(0, expected, len);
+
+    auto a = p.mmap(0, len, partition::mmap_memory::data);
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, a.data(), len));
+    auto b = p.try_mmap(0, len, partition::mmap_memory::data);
+    TEST_ASSERT_TRUE(b.has_value());
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected, b->data(), len));
+}
+#pragma GCC diagnostic pop
 
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS

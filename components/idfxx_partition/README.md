@@ -63,6 +63,8 @@ try {
 
     // Memory-map a region
     auto mapped = part.mmap(0, part.size());
+    // Or, on ESP-IDF 6.1+, block flash writes instead of disabling the cache:
+    // auto mapped = part.mmap(0, part.size(), {.blocks_write = true});
     auto bytes = mapped.as_span<const uint8_t>();
 
 } catch (const std::system_error& e) {
@@ -179,7 +181,7 @@ The component provides two API styles:
 - `write_raw(offset, src, size)` / `write_raw(offset, span)` - Raw write
 - `erase_range(offset, size)` - Erase region
 - `sha256()` → `std::array<uint8_t, 32>` - Compute hash
-- `mmap(offset, size, memory)` → `mmap_handle` - Memory map
+- `mmap(offset, size, config)` → `mmap_handle` - Memory map (`mmap_config`: `memory`, and `blocks_write` on ESP-IDF 6.1+)
 
 **Result-based:**
 - `try_read`, `try_write`, `try_read_raw`, `try_write_raw` → `result<void>`

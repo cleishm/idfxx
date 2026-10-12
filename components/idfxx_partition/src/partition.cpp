@@ -219,15 +219,29 @@ result<std::array<uint8_t, 32>> partition::try_sha256() const {
     return hash;
 }
 
-result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, enum mmap_memory memory) const {
+result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size) const {
+    return try_mmap(offset, size, mmap_config{});
+}
+
+result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, const mmap_config& config) const {
     const void* ptr = nullptr;
     esp_partition_mmap_handle_t handle = 0;
-    esp_err_t err = esp_partition_mmap(_part, offset, size, static_cast<idf_mmap_memory_t>(memory), &ptr, &handle);
+    auto flags = static_cast<int>(config.memory);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    if (config.blocks_write) {
+        flags |= ESP_PARTITION_MMAP_BLOCKS_WRITE;
+    }
+#endif
+    esp_err_t err = esp_partition_mmap(_part, offset, size, static_cast<idf_mmap_memory_t>(flags), &ptr, &handle);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "partition mmap failed: %s", esp_err_to_name(err));
         return error(err);
     }
     return mmap_handle{ptr, size, handle};
+}
+
+result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, enum mmap_memory memory) const {
+    return try_mmap(offset, size, mmap_config{.memory = memory});
 }
 
 bool partition::check_identity(const partition& other) const {
