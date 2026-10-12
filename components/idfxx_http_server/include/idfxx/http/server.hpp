@@ -829,8 +829,20 @@ public:
         uint16_t max_open_sockets = 7; ///< Maximum concurrent client connections
         uint16_t max_uri_handlers = 8; ///< Maximum registered URI handlers
         uint16_t max_resp_headers = 8; ///< Maximum additional response headers
-        size_t max_req_hdr_len = 0;    ///< Maximum request header length (0 = Kconfig default)
-        size_t max_uri_len = 0;        ///< Maximum URI length (0 = Kconfig default)
+        /**
+         * @brief Maximum request header length, in bytes.
+         *
+         * Defaults to the project's CONFIG_HTTPD_MAX_REQ_HDR_LEN setting. Zero is
+         * rejected with idfxx::errc::invalid_arg.
+         */
+        size_t max_req_hdr_len = CONFIG_HTTPD_MAX_REQ_HDR_LEN;
+        /**
+         * @brief Maximum URI length, in bytes.
+         *
+         * Defaults to the project's CONFIG_HTTPD_MAX_URI_LEN setting. Zero is
+         * rejected with idfxx::errc::invalid_arg.
+         */
+        size_t max_uri_len = CONFIG_HTTPD_MAX_URI_LEN;
 
         // Timeouts
         std::chrono::seconds recv_wait_timeout{5}; ///< Receive timeout
@@ -844,10 +856,25 @@ public:
         std::chrono::seconds linger_timeout{0}; ///< Linger timeout
 
         // Keep-alive
-        bool keep_alive_enable = false;              ///< Enable TCP keep-alive
-        std::chrono::seconds keep_alive_idle{0};     ///< Keep-alive idle time
-        std::chrono::seconds keep_alive_interval{0}; ///< Keep-alive probe interval
-        int keep_alive_count = 0;                    ///< Keep-alive probe count
+        bool keep_alive_enable = false; ///< Enable TCP keep-alive
+        /**
+         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<std::chrono::seconds> keep_alive_idle = std::nullopt;
+        /**
+         * @brief Keep-alive probe interval, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<std::chrono::seconds> keep_alive_interval = std::nullopt;
+        /**
+         * @brief Keep-alive probe count, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<int> keep_alive_count = std::nullopt;
 
         // URI matching
         bool wildcard_uri_match = false; ///< Enable wildcard URI matching
@@ -875,6 +902,7 @@ public:
      *
      * @param cfg Server configuration.
      * @return The new server, or an error.
+     * @retval idfxx::errc::invalid_arg A configuration field holds an out-of-range value.
      */
     [[nodiscard]] static result<server> make(config cfg);
 
@@ -1224,8 +1252,9 @@ protected:
     static esp_err_t _session_open_trampoline(httpd_handle_t hd, int sockfd);
     static void _session_close_trampoline(httpd_handle_t hd, int sockfd);
 
+    // Fails with errc::invalid_arg if cfg holds an out-of-range value.
     template<typename Config>
-    static void _populate_httpd_config(
+    [[nodiscard]] static result<void> _populate_httpd_config(
         struct httpd_config& httpd_cfg,
         const Config& cfg,
         server_ctx* ctx,

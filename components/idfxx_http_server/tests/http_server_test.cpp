@@ -10,6 +10,7 @@
 #include "unity.h"
 
 #include <array>
+#include <chrono>
 #include <esp_idf_version.h>
 #include <string>
 #include <type_traits>
@@ -95,6 +96,11 @@ static_assert(std::is_same_v<decltype(std::declval<request::ws_frame_reader&>().
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 static_assert(std::is_same_v<decltype(server::config::bind_to_device), std::optional<std::string_view>>);
 #endif
+
+// Keep-alive tuning is optional: std::nullopt lets the driver choose
+static_assert(std::is_same_v<decltype(server::config::keep_alive_idle), std::optional<std::chrono::seconds>>);
+static_assert(std::is_same_v<decltype(server::config::keep_alive_interval), std::optional<std::chrono::seconds>>);
+static_assert(std::is_same_v<decltype(server::config::keep_alive_count), std::optional<int>>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -348,6 +354,74 @@ TEST_CASE("http server handler_exists error on duplicate registration", "[idfxx]
     auto r2 = srv->try_on_get("/dup", handler);
     TEST_ASSERT_FALSE(r2.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(server::errc::handler_exists), r2.error().value());
+}
+
+TEST_CASE("http server config defaults", "[idfxx][http]") {
+    server::config cfg{};
+    TEST_ASSERT_EQUAL(CONFIG_HTTPD_MAX_REQ_HDR_LEN, cfg.max_req_hdr_len);
+    TEST_ASSERT_EQUAL(CONFIG_HTTPD_MAX_URI_LEN, cfg.max_uri_len);
+    TEST_ASSERT_FALSE(cfg.keep_alive_idle.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_interval.has_value());
+    TEST_ASSERT_FALSE(cfg.keep_alive_count.has_value());
+}
+
+TEST_CASE("http server starts with explicit limits and keep-alive settings", "[idfxx][http]") {
+    ensure_event_loop();
+    auto srv = server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .max_req_hdr_len = 2048,
+        .max_uri_len = 256,
+        .keep_alive_enable = true,
+        .keep_alive_idle = std::chrono::seconds{10},
+        .keep_alive_interval = std::chrono::seconds{2},
+        .keep_alive_count = 4,
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+}
+
+TEST_CASE("http server rejects a zero max_req_hdr_len", "[idfxx][http]") {
+    ensure_event_loop();
+    auto srv = server::make({.server_port = alloc_test_port(), .ctrl_port = alloc_ctrl_port(), .max_req_hdr_len = 0});
+    TEST_ASSERT_FALSE(srv.has_value());
+    TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("http server rejects a zero max_uri_len", "[idfxx][http]") {
+    ensure_event_loop();
+    auto srv = server::make({.server_port = alloc_test_port(), .ctrl_port = alloc_ctrl_port(), .max_uri_len = 0});
+    TEST_ASSERT_FALSE(srv.has_value());
+    TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("http server rejects zero keep-alive settings", "[idfxx][http]") {
+    ensure_event_loop();
+    auto idle = server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .keep_alive_enable = true,
+        .keep_alive_idle = std::chrono::seconds{0},
+    });
+    TEST_ASSERT_FALSE(idle.has_value());
+    TEST_ASSERT_TRUE(idle.error() == idfxx::errc::invalid_arg);
+
+    auto interval = server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .keep_alive_enable = true,
+        .keep_alive_interval = std::chrono::seconds{0},
+    });
+    TEST_ASSERT_FALSE(interval.has_value());
+    TEST_ASSERT_TRUE(interval.error() == idfxx::errc::invalid_arg);
+
+    auto count = server::make({
+        .server_port = alloc_test_port(),
+        .ctrl_port = alloc_ctrl_port(),
+        .keep_alive_enable = true,
+        .keep_alive_count = 0,
+    });
+    TEST_ASSERT_FALSE(count.has_value());
+    TEST_ASSERT_TRUE(count.error() == idfxx::errc::invalid_arg);
 }
 
 // =============================================================================

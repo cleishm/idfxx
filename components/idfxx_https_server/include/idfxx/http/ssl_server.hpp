@@ -97,8 +97,20 @@ public:
         uint16_t max_open_sockets = 4; ///< Maximum concurrent client connections
         uint16_t max_uri_handlers = 8; ///< Maximum registered URI handlers
         uint16_t max_resp_headers = 8; ///< Maximum additional response headers
-        size_t max_req_hdr_len = 0;    ///< Maximum request header length (0 = Kconfig default)
-        size_t max_uri_len = 0;        ///< Maximum URI length (0 = Kconfig default)
+        /**
+         * @brief Maximum request header length, in bytes.
+         *
+         * Defaults to the project's CONFIG_HTTPD_MAX_REQ_HDR_LEN setting. Zero is
+         * rejected with idfxx::errc::invalid_arg.
+         */
+        size_t max_req_hdr_len = CONFIG_HTTPD_MAX_REQ_HDR_LEN;
+        /**
+         * @brief Maximum URI length, in bytes.
+         *
+         * Defaults to the project's CONFIG_HTTPD_MAX_URI_LEN setting. Zero is
+         * rejected with idfxx::errc::invalid_arg.
+         */
+        size_t max_uri_len = CONFIG_HTTPD_MAX_URI_LEN;
 
         // Timeouts
         std::chrono::seconds recv_wait_timeout{5}; ///< Receive timeout
@@ -112,10 +124,25 @@ public:
         std::chrono::seconds linger_timeout{0}; ///< Linger timeout
 
         // Keep-alive
-        bool keep_alive_enable = false;              ///< Enable TCP keep-alive
-        std::chrono::seconds keep_alive_idle{0};     ///< Keep-alive idle time
-        std::chrono::seconds keep_alive_interval{0}; ///< Keep-alive probe interval
-        int keep_alive_count = 0;                    ///< Keep-alive probe count
+        bool keep_alive_enable = false; ///< Enable TCP keep-alive
+        /**
+         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<std::chrono::seconds> keep_alive_idle = std::nullopt;
+        /**
+         * @brief Keep-alive probe interval, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<std::chrono::seconds> keep_alive_interval = std::nullopt;
+        /**
+         * @brief Keep-alive probe count, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<int> keep_alive_count = std::nullopt;
 
         // URI matching
         bool wildcard_uri_match = false; ///< Enable wildcard URI matching
@@ -127,13 +154,18 @@ public:
         std::move_only_function<void(int) const> on_session_close = {};
 
         // TLS configuration
-        std::string server_cert = {};                   ///< Server certificate (PEM format)
-        std::string private_key = {};                   ///< Server private key (PEM format)
-        std::string client_ca_cert = {};                ///< CA cert for client verification (optional, PEM format)
-        bool use_ecdsa_peripheral = false;              ///< Use ECDSA peripheral for key operations
-        uint8_t ecdsa_key_efuse_blk = 0;                ///< eFuse block number for ECDSA key
-        bool session_tickets = false;                   ///< Enable TLS session tickets
-        std::chrono::milliseconds handshake_timeout{0}; ///< TLS handshake timeout (0 = default 10s)
+        std::string server_cert = {};      ///< Server certificate (PEM format)
+        std::string private_key = {};      ///< Server private key (PEM format)
+        std::string client_ca_cert = {};   ///< CA cert for client verification (optional, PEM format)
+        bool use_ecdsa_peripheral = false; ///< Use ECDSA peripheral for key operations
+        uint8_t ecdsa_key_efuse_blk = 0;   ///< eFuse block number for ECDSA key
+        bool session_tickets = false;      ///< Enable TLS session tickets
+        /**
+         * @brief TLS handshake timeout, or std::nullopt to let the driver choose.
+         *
+         * A value of zero or less is rejected with idfxx::errc::invalid_arg.
+         */
+        std::optional<std::chrono::milliseconds> handshake_timeout = std::nullopt;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -166,6 +198,7 @@ public:
      *
      * @param cfg Server configuration including TLS certificates.
      * @return The new HTTPS server, or an error.
+     * @retval idfxx::errc::invalid_arg A configuration field holds an out-of-range value.
      */
     [[nodiscard]] static result<ssl_server> make(config cfg);
 

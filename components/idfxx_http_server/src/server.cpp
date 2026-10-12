@@ -220,7 +220,9 @@ void server::_session_close_trampoline(httpd_handle_t hd, int sockfd) {
 result<httpd_handle_t>
 server::_start_server(const config& cfg, server_ctx* ctx, bool has_session_open, bool has_session_close) {
     httpd_config_t httpd_cfg = HTTPD_DEFAULT_CONFIG();
-    _populate_httpd_config(httpd_cfg, cfg, ctx, has_session_open, has_session_close);
+    if (auto res = _populate_httpd_config(httpd_cfg, cfg, ctx, has_session_open, has_session_close); !res) {
+        return error(res.error());
+    }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     struct ifreq ifr{};
     if (auto res = _populate_bind_to_device(httpd_cfg, cfg.bind_to_device, ifr); !res) {
