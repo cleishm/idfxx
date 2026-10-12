@@ -17,6 +17,11 @@ static_assert(std::to_underlying(idfxx::chip_model::esp32h2) == CHIP_ESP32H2);
 static_assert(std::to_underlying(idfxx::chip_model::esp32p4) == CHIP_ESP32P4);
 static_assert(std::to_underlying(idfxx::chip_model::esp32c5) == CHIP_ESP32C5);
 static_assert(std::to_underlying(idfxx::chip_model::esp32c61) == CHIP_ESP32C61);
+static_assert(std::to_underlying(idfxx::chip_model::esp32h21) == CHIP_ESP32H21);
+static_assert(std::to_underlying(idfxx::chip_model::esp32h4) == CHIP_ESP32H4);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::to_underlying(idfxx::chip_model::esp32s31) == CHIP_ESP32S31);
+#endif
 
 // Verify chip_feature values match ESP-IDF constants
 static_assert(std::to_underlying(idfxx::chip_feature::embedded_flash) == CHIP_FEATURE_EMB_FLASH);
@@ -56,6 +61,14 @@ std::string to_string(chip_model m) {
         return "ESP32-C5";
     case chip_model::esp32c61:
         return "ESP32-C61";
+    case chip_model::esp32h21:
+        return "ESP32-H21";
+    case chip_model::esp32h4:
+        return "ESP32-H4";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    case chip_model::esp32s31:
+        return "ESP32-S31";
+#endif
     default:
         return "unknown(" + std::to_string(static_cast<int>(m)) + ")";
     }

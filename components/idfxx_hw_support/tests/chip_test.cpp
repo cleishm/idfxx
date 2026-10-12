@@ -8,6 +8,7 @@
 #include "unity.h"
 
 #include <esp_chip_info.h>
+#include <esp_idf_version.h>
 #include <type_traits>
 
 using namespace idfxx;
@@ -31,6 +32,11 @@ static_assert(static_cast<int>(chip_model::esp32h2) == CHIP_ESP32H2);
 static_assert(static_cast<int>(chip_model::esp32p4) == CHIP_ESP32P4);
 static_assert(static_cast<int>(chip_model::esp32c5) == CHIP_ESP32C5);
 static_assert(static_cast<int>(chip_model::esp32c61) == CHIP_ESP32C61);
+static_assert(static_cast<int>(chip_model::esp32h21) == CHIP_ESP32H21);
+static_assert(static_cast<int>(chip_model::esp32h4) == CHIP_ESP32H4);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(static_cast<int>(chip_model::esp32s31) == CHIP_ESP32S31);
+#endif
 
 // chip_feature
 static_assert(std::is_enum_v<chip_feature>);
@@ -74,6 +80,14 @@ TEST_CASE("to_string(chip_model) returns non-empty", "[idfxx][hw_support][chip]"
     auto info = chip_info::get();
     auto s = to_string(info.model());
     TEST_ASSERT_FALSE(s.empty());
+}
+
+TEST_CASE("to_string(chip_model) names newer chips", "[idfxx][hw_support][chip]") {
+    TEST_ASSERT_EQUAL_STRING("ESP32-H21", to_string(chip_model::esp32h21).c_str());
+    TEST_ASSERT_EQUAL_STRING("ESP32-H4", to_string(chip_model::esp32h4).c_str());
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    TEST_ASSERT_EQUAL_STRING("ESP32-S31", to_string(chip_model::esp32s31).c_str());
+#endif
 }
 
 TEST_CASE("to_string(chip_model) handles unknown values", "[idfxx][hw_support][chip]") {

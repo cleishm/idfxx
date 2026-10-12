@@ -22,6 +22,7 @@
 
 #include <cstdint>
 #include <esp_chip_info.h>
+#include <esp_idf_version.h>
 #include <string>
 
 namespace idfxx {
@@ -42,6 +43,11 @@ enum class chip_model : int {
     esp32p4 = 18, ///< ESP32-P4
     esp32c5 = 23, ///< ESP32-C5
     esp32c61 = 20, ///< ESP32-C61
+    esp32h21 = 25, ///< ESP32-H21
+    esp32h4 = 28,  ///< ESP32-H4
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    esp32s31 = 32, ///< ESP32-S31 (available only with ESP-IDF 6.1 and later)
+#endif
     // clang-format on
 };
 

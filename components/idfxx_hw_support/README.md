@@ -24,7 +24,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_hw_support:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_hw_support` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -103,7 +103,7 @@ if (r) {
 - **Levels vs Flags**: `intr_level` specifies which priority levels to accept, while `intr_flag` controls behavioral aspects like sharing and IRAM placement. APIs that need both accept them as separate parameters.
 - **Priority Levels**: Levels 1-3 can use C/C++ handlers. Levels 4-6 and NMI require assembly handlers.
 - **IRAM Flag**: Use `intr_flag::iram` for ISR handlers that need to run when cache is disabled (e.g., during flash operations).
-- **Shared Interrupts**: Multiple handlers can share the same interrupt source with `intr_flag::shared`.
+- **Shared Interrupts**: Multiple handlers can share the same interrupt source with `intr_flag::shared`. On ESP-IDF 6.1 and later, `intr_flag::shared_private` restricts sharing to allocations that explicitly bind to the interrupt.
 - **Type Safety**: All enums are strongly typed and prevent accidental misuse.
 
 ## License

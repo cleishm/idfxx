@@ -7,6 +7,7 @@
 #include "idfxx/intr_alloc.hpp"
 #include "unity.h"
 
+#include <esp_idf_version.h>
 #include <esp_intr_alloc.h>
 #include <type_traits>
 
@@ -67,6 +68,10 @@ static_assert(std::to_underlying(intr_flag::shared) == ESP_INTR_FLAG_SHARED);
 static_assert(std::to_underlying(intr_flag::edge) == ESP_INTR_FLAG_EDGE);
 static_assert(std::to_underlying(intr_flag::iram) == ESP_INTR_FLAG_IRAM);
 static_assert(std::to_underlying(intr_flag::disabled) == ESP_INTR_FLAG_INTRDISABLED);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::to_underlying(intr_flag::shared_private) == ESP_INTR_FLAG_SHARED_PRIVATE);
+static_assert((to_underlying(intr_level_all) & std::to_underlying(intr_flag::shared_private)) == 0);
+#endif
 
 // Flags can be combined at compile time
 static_assert((intr_flag::shared | intr_flag::edge).contains(intr_flag::shared));
