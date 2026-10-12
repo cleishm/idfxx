@@ -44,12 +44,26 @@ jobs:
           if [ "$EVENT" = push ] && [ -n "$tree" ]; then
             # Records from fork PRs are ignored: a fork's run uses the fork's
             # copy of this workflow, so its record proves nothing.
-            found=$(gh api "repos/$REPO/actions/artifacts?name=tested-tree-$tree" \
+            match=$(gh api "repos/$REPO/actions/artifacts?name=tested-tree-$tree" \
               --jq '[.artifacts[] | select(.expired | not)
-                     | select(.workflow_run.head_repository_id == .workflow_run.repository_id)]
-                    | length') || found=0
-            if [ "$found" -gt 0 ]; then
+                     | select(.workflow_run.head_repository_id == .workflow_run.repository_id)][0] // empty
+                    | "\(.id) \(.workflow_run.id) \(.workflow_run.head_branch)"') || match=
+            if [ -n "$match" ]; then
               skip=true
+              read -r artifact_id run_id head_branch <<< "$match"
+              # The record holds the number of the PR that passed. If it can't
+              # be read, or holds anything other than a number, the notice
+              # names the branch instead.
+              pr=
+              if gh api "repos/$REPO/actions/artifacts/$artifact_id/zip" > "$RUNNER_TEMP/record.zip"; then
+                pr=$(unzip -p "$RUNNER_TEMP/record.zip" tested-tree) || pr=
+              fi
+              case "$pr" in *[!0-9]*) pr= ;; esac
+              source="${pr:+PR #$pr}"
+              source="${source:-branch $head_branch}"
+              run_url="$GITHUB_SERVER_URL/$REPO/actions/runs/$run_id"
+              echo "::notice title=Build skipped::tree $tree already passed in $source ($run_url)"
+              echo "Build skipped: this tree already passed in $source ([run]($run_url))." >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
           echo "tree: ${tree:-unknown}, skip: $skip"
@@ -167,8 +181,10 @@ jobs:
           done
           echo "matrix={\"include\":${examples}}" >> "$GITHUB_OUTPUT"
 
+  # Waits for the main builds so a change that already fails them doesn't also
+  # spend a job per example. build-canary is left out, since it may fail.
   build-example:
-    needs: discover-examples
+    needs: [discover-examples, format-check, build, build-compat]
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     strategy:
@@ -304,7 +320,9 @@ jobs:
 
       - name: Write the tested-tree record
         if: github.event_name == 'pull_request' && needs.tested.outputs.tree != ''
-        run: echo "${{ github.sha }}" > tested-tree
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: echo "$PR" > tested-tree
 
       - name: Record the tree as tested
         if: github.event_name == 'pull_request' && needs.tested.outputs.tree != ''
