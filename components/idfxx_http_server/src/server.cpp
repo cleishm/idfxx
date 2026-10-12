@@ -182,6 +182,14 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
         ESP_LOGD(TAG, "URI handler for %s returned error: %s", req->uri, msg.c_str());
         return ESP_FAIL;
     }
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    // Unread payload would be parsed as the next frame header, so the
+    // connection cannot continue. Returning an error makes httpd close it.
+    if (r._ws_payload_unread) {
+        ESP_LOGW(TAG, "WebSocket handler left frame payload unread; closing connection %d", httpd_req_to_sockfd(req));
+        return ESP_FAIL;
+    }
+#endif
     return ESP_OK;
 }
 
@@ -725,13 +733,25 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
         return http_server_error(err);
     }
 
-    size_t recv_len = ws_pkt.len;
-    if (recv_len > buf.size()) {
-        recv_len = buf.size();
+    // With len == 0, a second call would parse the next frame's header
+    if (ws_pkt.len == 0) {
+        return ws_frame{
+            .type = static_cast<ws_frame_type>(ws_pkt.type),
+            .final = ws_pkt.final,
+            .data = std::span<const uint8_t>(buf.data(), 0),
+        };
+    }
+
+    if (ws_pkt.len > buf.size()) {
+        // The payload stays unread and would be parsed as the next frame
+        // header, so have the trampoline close the connection
+        _ws_payload_unread = true;
+        ESP_LOGD(TAG, "WebSocket frame of %zu bytes exceeds the %zu-byte buffer", ws_pkt.len, buf.size());
+        return error(idfxx::errc::invalid_size);
     }
 
     ws_pkt.payload = buf.data();
-    err = httpd_ws_recv_frame(_req, &ws_pkt, recv_len);
+    err = httpd_ws_recv_frame(_req, &ws_pkt, ws_pkt.len);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "httpd_ws_recv_frame (payload) failed: %s", esp_err_to_name(err));
         return http_server_error(err);

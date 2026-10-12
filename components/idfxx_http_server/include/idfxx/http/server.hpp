@@ -372,11 +372,18 @@ public:
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
+     * The whole payload must fit in @p buf.
+     *
+     * If the payload does not fit, it is left unread. The connection cannot
+     * continue past an unread payload, so it is closed when the handler
+     * returns, even if the handler reports success.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame with type and payload span referencing buf.
      * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
-     * @throws std::system_error on failure.
+     * @throws std::system_error with idfxx::errc::invalid_size if the payload is larger than
+     *         @p buf (the connection is then closed when the handler returns), or another
+     *         error if the frame could not be received.
      */
     [[nodiscard]] ws_frame ws_recv(std::span<uint8_t> buf) { return unwrap(try_ws_recv(buf)); }
 
@@ -412,9 +419,17 @@ public:
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
+     * The whole payload must fit in @p buf.
+     *
+     * If the payload does not fit, it is left unread. The connection cannot
+     * continue past an unread payload, so it is closed when the handler
+     * returns, even if the handler reports success.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame with type and payload span referencing buf, or an error.
+     * @retval idfxx::errc::invalid_size if the payload is larger than @p buf. The connection
+     *         is closed when the handler returns.
+     * @retval other if the frame could not be received.
      */
     [[nodiscard]] result<ws_frame> try_ws_recv(std::span<uint8_t> buf);
 
@@ -464,6 +479,9 @@ private:
     std::vector<std::pair<std::string, std::string>> _resp_headers;
     mutable bool _query_fetched = false;
     mutable std::optional<std::string> _query_cache;
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    bool _ws_payload_unread = false; // frame payload was left unread; the connection must close
+#endif
 };
 
 /**
@@ -829,9 +847,22 @@ public:
      * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
      * @throws std::system_error on failure.
      */
-    void on_ws(std::string uri, handler_type handler, ws_config ws_cfg = {}) {
+    void on_ws(std::string uri, handler_type handler, ws_config ws_cfg) {
         unwrap(try_on_ws(std::move(uri), std::move(handler), std::move(ws_cfg)));
     }
+
+    /**
+     * @brief Registers a WebSocket endpoint with the default configuration.
+     *
+     * The handler is invoked for each incoming WebSocket frame after the
+     * initial HTTP upgrade handshake.
+     *
+     * @param uri The URI for the WebSocket endpoint.
+     * @param handler The handler function.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @throws std::system_error on failure.
+     */
+    void on_ws(std::string uri, handler_type handler) { unwrap(try_on_ws(std::move(uri), std::move(handler))); }
 #endif
 
     /**
@@ -845,7 +876,21 @@ public:
      * @param ws_cfg WebSocket configuration.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_on_ws(std::string uri, handler_type handler, ws_config ws_cfg = {});
+    [[nodiscard]] result<void> try_on_ws(std::string uri, handler_type handler, ws_config ws_cfg);
+
+    /**
+     * @brief Registers a WebSocket endpoint with the default configuration.
+     *
+     * The handler is invoked for each incoming WebSocket frame after the
+     * initial HTTP upgrade handshake.
+     *
+     * @param uri The URI for the WebSocket endpoint.
+     * @param handler The handler function.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_on_ws(std::string uri, handler_type handler) {
+        return try_on_ws(std::move(uri), std::move(handler), ws_config{});
+    }
 #endif // CONFIG_HTTPD_WS_SUPPORT
 
     // =========================================================================
@@ -917,7 +962,7 @@ private:
 #ifdef CONFIG_HTTPD_WS_SUPPORT
         bool is_websocket = false;
         bool handle_ws_control_frames = false;
-        std::string supported_subprotocol;
+        std::string supported_subprotocol = {};
 #endif
     };
 
