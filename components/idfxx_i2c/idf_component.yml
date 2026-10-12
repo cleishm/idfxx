@@ -1,4 +1,4 @@
-version: "1.0.2"
+version: "2.0.0"
 description: "Type-safe I2C master bus driver for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_i2c"
 repository: "https://github.com/cleishm/idfxx.git"

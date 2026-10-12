@@ -85,12 +85,46 @@ TEST_CASE("master_device::make with config default scl_speed uses bus frequency"
     }
     auto& bus = *bus_result;
 
-    // scl_speed = 0 means use bus frequency
+    // scl_speed left unset means use bus frequency
     auto device_result = master_device::make(bus, 0x50, {});
     TEST_ASSERT_TRUE(device_result.has_value());
 
     auto& device = *device_result;
     TEST_ASSERT_EQUAL(0x50, device.address());
+}
+
+TEST_CASE("master_device::config defaults leave optional settings unset", "[idfxx][i2c][master_device]") {
+    master_device::config cfg{};
+    TEST_ASSERT_FALSE(cfg.scl_speed.has_value());
+    TEST_ASSERT_FALSE(cfg.scl_wait_us.has_value());
+}
+
+TEST_CASE("master_device::make with zero scl_speed fails", "[idfxx][i2c][master_device]") {
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    if (!bus_result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus");
+    }
+    auto& bus = *bus_result;
+
+    auto device_result = master_device::make(bus, 0x50, {
+        .scl_speed = freq::hertz(0),
+    });
+    TEST_ASSERT_FALSE(device_result.has_value());
+    TEST_ASSERT_TRUE(device_result.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("master_device::make with zero scl_wait_us fails", "[idfxx][i2c][master_device]") {
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    if (!bus_result.has_value()) {
+        TEST_FAIL_MESSAGE("Failed to create I2C bus");
+    }
+    auto& bus = *bus_result;
+
+    auto device_result = master_device::make(bus, 0x50, {
+        .scl_wait_us = 0,
+    });
+    TEST_ASSERT_FALSE(device_result.has_value());
+    TEST_ASSERT_TRUE(device_result.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") {

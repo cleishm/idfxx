@@ -29,7 +29,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_i2c:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_i2c` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -135,7 +135,7 @@ idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
 
 // Device with per-device SCL speed
 idfxx::i2c::master_device device(bus, 0x3C, {
-    .scl_speed = 100_kHz,  // Slower than bus default
+    .scl_speed = 100_kHz,  // Slower than the bus frequency (omit to use the bus frequency)
 });
 
 // 10-bit addressed device
