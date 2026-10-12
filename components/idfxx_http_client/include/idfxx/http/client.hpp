@@ -341,6 +341,9 @@ public:
      * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
      * succeeds with the truncated body.
      *
+     * If a chunked request was abandoned by discarding its chunk_writer before
+     * finish(), the connection is closed first and a warning is logged.
+     *
      * @code
      * idfxx::http::client c({.url = "https://example.com"});
      * c.perform();
@@ -365,6 +368,9 @@ public:
      * received — the request fails with `client::errc::incomplete_data`. The two
      * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
      * succeeds with the truncated body.
+     *
+     * If a chunked request was abandoned by discarding its chunk_writer before
+     * try_finish(), the connection is closed first and a warning is logged.
      *
      * @return Success, or an error.
      * @retval client::errc::connect Connecting to the server failed.
@@ -399,10 +405,17 @@ public:
      *
      * If sending fails, the request body cannot be completed: the writer sends
      * nothing further, and later write() and finish() calls fail with
-     * idfxx::errc::invalid_state. Close the client to abandon the request.
+     * idfxx::errc::invalid_state.
      *
-     * Destroying a writer before finish() has completed sends nothing: the
-     * request body is left unterminated and a warning is logged.
+     * Destroying a writer before finish() has completed, including after a
+     * failure, abandons the request. Nothing is sent, so the request body is
+     * left unterminated on the connection. A warning is logged and the client
+     * refuses to continue that request: client::fetch_headers(), client::read(),
+     * client::flush_response() and client::write() fail with
+     * idfxx::errc::invalid_state. The next request started with client::open(),
+     * client::open_chunked() or client::perform() closes the connection first
+     * (logging a warning) and runs on a fresh connection. client::close() or
+     * client::cancel_request() also ends the abandoned request.
      *
      * This type is non-copyable and move-only. A moved-from object must not be
      * used: any operation other than destruction or assignment is undefined
@@ -421,8 +434,10 @@ public:
         /**
          * @brief Destroys the writer.
          *
-         * Sends nothing. If finish() has not completed, the request body is
-         * left unterminated and a warning is logged.
+         * Sends nothing. If finish() has not completed, the request is
+         * abandoned: its body is left unterminated, a warning is logged, and
+         * the client refuses to continue the request (see the class
+         * description).
          */
         ~chunk_writer();
 
@@ -435,8 +450,8 @@ public:
         /**
          * @brief Move assignment. Transfers the writer's state.
          *
-         * If this writer had not completed finish(), a warning is logged as
-         * for destruction.
+         * If this writer had not completed finish(), its request is abandoned
+         * as for destruction.
          */
         chunk_writer& operator=(chunk_writer&& other) noexcept;
 
@@ -547,7 +562,7 @@ public:
             : _client(&c) {}
 
         [[nodiscard]] result<void> _send(const char* data, size_t len);
-        void _warn_if_unfinished() const noexcept;
+        void _abandon_if_unfinished() noexcept;
 
         client* _client;
         stage _stage = stage::open;
@@ -560,6 +575,9 @@ public:
      * Opens the HTTP connection and sends request headers. If write_len is
      * greater than zero, the connection is opened for writing that many bytes
      * before reading the response.
+     *
+     * If a chunked request was abandoned by discarding its chunk_writer before
+     * finish(), the connection is closed first and a warning is logged.
      *
      * @param write_len Number of bytes to write (0 for read-only requests).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -577,7 +595,12 @@ public:
      * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
      * body of unknown length can be sent. Send the body through the returned
      * chunk_writer and call chunk_writer::finish() before fetch_headers();
-     * fetching headers before the body is finished is a usage error.
+     * fetching headers while the writer is still in use and unfinished is a
+     * usage error. Discarding the writer unfinished abandons the request (see
+     * chunk_writer).
+     *
+     * If an earlier chunked request was abandoned, the connection is closed
+     * first and a warning is logged.
      *
      * @code
      * idfxx::http::client c({.url = "http://example.com/upload", .method = idfxx::http::method::post});
@@ -607,7 +630,8 @@ public:
      * @return Number of bytes written.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
-     *         the timeout expires and `client::errc::write_data` when the write fails.
+     *         the timeout expires, `client::errc::write_data` when the write fails, and
+     *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
     [[nodiscard]] size_t write(std::span<const uint8_t> data) { return unwrap(try_write(data)); }
 
@@ -622,7 +646,8 @@ public:
      * @return Number of bytes written.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
-     *         the timeout expires and `client::errc::write_data` when the write fails.
+     *         the timeout expires, `client::errc::write_data` when the write fails, and
+     *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
     [[nodiscard]] size_t write(std::string_view data) { return unwrap(try_write(data)); }
 
@@ -631,9 +656,8 @@ public:
      *
      * Must be called after open() (and any write() calls) before reading
      * response body data. Blocks until the response headers have been received
-     * or the timeout expires.
-     * After open_chunked(), finish the request body with
-     * chunk_writer::finish() first.
+     * or the timeout expires. After open_chunked(), finish the request body
+     * with chunk_writer::finish() first.
      *
      * @return The response's Content-Length when it is greater than zero, or 0
      *         when the length is zero or not known in advance (a chunked response
@@ -642,7 +666,8 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
      *         the timeout expires before the headers are received and
-     *         `client::errc::fetch_header` when reading the headers fails.
+     *         `client::errc::fetch_header` when reading the headers fails, and
+     *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
     int64_t fetch_headers() { return unwrap(try_fetch_headers()); }
 
@@ -659,7 +684,8 @@ public:
      * @throws std::system_error on failure, including `client::errc::eagain` when
      *         the timeout expires before any data is read and
      *         `client::errc::connection_closed` when the connection closes or fails
-     *         before the response body is complete and no data was read.
+     *         before the response body is complete and no data was read, and
+     *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
     [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
 
@@ -676,7 +702,8 @@ public:
      * @throws std::system_error on failure, including `client::errc::eagain` when
      *         the timeout expires before any data is read and
      *         `client::errc::connection_closed` when the connection closes or fails
-     *         before the response body is complete and no data was read.
+     *         before the response body is complete and no data was read, and
+     *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
     [[nodiscard]] size_t read(std::span<char> buf) { return unwrap(try_read(buf)); }
 
@@ -684,12 +711,16 @@ public:
      * @brief Discards any remaining response data.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `idfxx::errc::invalid_state`
+     *         when a chunked request was abandoned.
      */
     void flush_response() { unwrap(try_flush_response()); }
 
     /**
      * @brief Closes the connection.
+     *
+     * This also ends a chunked request that was abandoned by discarding its
+     * chunk_writer before finish().
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -703,6 +734,9 @@ public:
      * Opens the HTTP connection and sends request headers. If write_len is
      * greater than zero, the connection is opened for writing that many bytes
      * before reading the response.
+     *
+     * If a chunked request was abandoned by discarding its chunk_writer before
+     * try_finish(), the connection is closed first and a warning is logged.
      *
      * @param write_len Number of bytes to write (0 for read-only requests).
      * @return Success, or an error.
@@ -720,8 +754,12 @@ public:
      * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
      * body of unknown length can be sent. Send the body through the returned
      * chunk_writer and call chunk_writer::try_finish() before
-     * try_fetch_headers(); fetching headers before the body is finished is a
-     * usage error.
+     * try_fetch_headers(); fetching headers while the writer is still in use
+     * and unfinished is a usage error. Discarding the writer unfinished
+     * abandons the request (see chunk_writer).
+     *
+     * If an earlier chunked request was abandoned, the connection is closed
+     * first and a warning is logged.
      *
      * @return A writer for the request body, or an error. The client must
      *         outlive the writer.
@@ -739,6 +777,8 @@ public:
      * @return Number of bytes written, or an error.
      * @retval client::errc::eagain The timeout expired while waiting to write.
      * @retval client::errc::write_data The write failed.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     [[nodiscard]] result<size_t> try_write(std::span<const uint8_t> data);
 
@@ -753,6 +793,8 @@ public:
      * @return Number of bytes written, or an error.
      * @retval client::errc::eagain The timeout expired while waiting to write.
      * @retval client::errc::write_data The write failed.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     [[nodiscard]] result<size_t> try_write(std::string_view data);
 
@@ -761,9 +803,8 @@ public:
      *
      * Must be called after open() (and any write() calls) before reading
      * response body data. Blocks until the response headers have been received
-     * or the timeout expires.
-     * After try_open_chunked(), finish the request body
-     * with chunk_writer::try_finish() first.
+     * or the timeout expires. After try_open_chunked(), finish the request
+     * body with chunk_writer::try_finish() first.
      *
      * @return The response's Content-Length when it is greater than zero, 0 when
      *         the length is zero or not known in advance (a chunked response or
@@ -773,6 +814,8 @@ public:
      *         received.
      * @retval client::errc::fetch_header Reading the headers failed, or the
      *         connection closed before they were received.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     // [[nodiscard]] intentionally omitted: callers may fetch headers for their
     // side effects without needing the returned content-length value.
@@ -791,6 +834,8 @@ public:
      *         Nothing was consumed; the read may be retried.
      * @retval client::errc::connection_closed The connection closed or failed
      *         before the response body was complete, and no data was read.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
 
@@ -807,6 +852,8 @@ public:
      *         Nothing was consumed; the read may be retried.
      * @retval client::errc::connection_closed The connection closed or failed
      *         before the response body was complete, and no data was read.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     [[nodiscard]] result<size_t> try_read(std::span<char> buf);
 
@@ -814,11 +861,16 @@ public:
      * @brief Discards any remaining response data.
      *
      * @return Success, or an error.
+     * @retval idfxx::errc::invalid_state A chunked request was abandoned by
+     *         discarding its chunk_writer before try_finish().
      */
     [[nodiscard]] result<void> try_flush_response();
 
     /**
      * @brief Closes the connection.
+     *
+     * This also ends a chunked request that was abandoned by discarding its
+     * chunk_writer before try_finish().
      *
      * @return Success, or an error.
      */
@@ -940,6 +992,9 @@ public:
      * Closes the current connection and opens a new socket.
      * Useful for aborting long-running or streaming requests.
      *
+     * This also ends a chunked request that was abandoned by discarding its
+     * chunk_writer before finish().
+     *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -951,6 +1006,9 @@ public:
      *
      * Closes the current connection and opens a new socket.
      * Useful for aborting long-running or streaming requests.
+     *
+     * This also ends a chunked request that was abandoned by discarding its
+     * chunk_writer before try_finish().
      *
      * @return Success, or an error.
      */
@@ -1007,6 +1065,7 @@ private:
     );
 
     void _set_timeout(std::chrono::milliseconds timeout);
+    void _discard_incomplete_request();
 
     static result<esp_http_client_handle_t> _init_client(
         config& cfg,
@@ -1024,6 +1083,8 @@ private:
     std::string _cert_pem;
     std::string _client_cert_pem;
     std::string _client_key_pem;
+    /// A chunk_writer was discarded before finishing, leaving the request body unterminated
+    bool _request_incomplete = false;
 };
 
 /** @cond INTERNAL */

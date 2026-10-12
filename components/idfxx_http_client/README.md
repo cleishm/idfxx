@@ -267,8 +267,9 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only a pointer
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief
 - **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a loop → `close()`
-- **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it; destroying a writer before `finish()` leaves the body unterminated and logs a warning
-- **Chunked write failures**: Once a `write()` or `finish()` fails, the writer sends nothing more and later calls fail with `invalid_state`; close the client to abandon the request
+- **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it
+- **Chunked write failures**: Once a `write()` or `finish()` fails, the writer sends nothing more and later calls fail with `invalid_state`
+- **Abandoned chunked requests**: Destroying a writer before `finish()` completes (including after a failure) abandons the request: nothing more is sent, so the body stays unterminated, and a warning is logged. The client then fails `fetch_headers()`, `read()`, `flush_response()` and `write()` with `invalid_state` instead of blocking on or corrupting that connection. The next `open()`, `open_chunked()` or `perform()` closes the connection (logging a warning) and starts on a fresh one; `close()` and `cancel_request()` also end the abandoned request
 
 ## License
 

@@ -527,6 +527,64 @@ TEST_CASE("http client chunk_writer stops sending after a failed write", "[idfxx
     c->try_close();
 }
 
+TEST_CASE("http client refuses an abandoned chunked request and starts the next one afresh", "[idfxx][http]") {
+    test::ensure_event_loop();
+    auto srv = make_test_listener();
+    auto c = client::make({.url = test_url(srv), .method = method::post});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    {
+        auto w = c->try_open_chunked();
+        TEST_ASSERT_TRUE(w.has_value());
+        TEST_ASSERT_TRUE(w->try_write(std::string_view{"hello"}).has_value());
+        // Discarded without finish(): the body is left unterminated
+    }
+    auto first = srv.try_accept_for(std::chrono::seconds(5));
+    TEST_ASSERT_TRUE(first.has_value());
+    first->set_recv_timeout(std::chrono::seconds(5));
+
+    // The abandoned request is refused rather than waiting on a response the
+    // server will never send (which would block until the 5 s timeout)
+    auto headers = c->try_fetch_headers();
+    TEST_ASSERT_FALSE(headers.has_value());
+    TEST_ASSERT_TRUE(headers.error() == idfxx::errc::invalid_state);
+    std::array<char, 16> buf;
+    auto body_read = c->try_read(buf);
+    TEST_ASSERT_FALSE(body_read.has_value());
+    TEST_ASSERT_TRUE(body_read.error() == idfxx::errc::invalid_state);
+    auto raw_write = c->try_write(std::string_view{"0\r\n\r\n"});
+    TEST_ASSERT_FALSE(raw_write.has_value());
+    TEST_ASSERT_TRUE(raw_write.error() == idfxx::errc::invalid_state);
+
+    // The next request closes the abandoned connection and uses a new one
+    TEST_ASSERT_TRUE(c->try_open(2).has_value());
+    auto written = c->try_write(std::string_view{"ok"});
+    TEST_ASSERT_TRUE(written.has_value());
+
+    // The first connection carries only the unterminated chunked request, then ends
+    std::string abandoned;
+    std::array<std::byte, 256> raw;
+    while (true) {
+        auto received = first->try_recv(raw);
+        TEST_ASSERT_TRUE(received.has_value());
+        if (received->empty()) break;
+        abandoned.append(reinterpret_cast<const char*>(received->data()), received->size());
+        TEST_ASSERT_TRUE(abandoned.size() < 4096);
+    }
+    TEST_ASSERT_TRUE(contains(request_headers(abandoned), "Transfer-Encoding: chunked\r\n"));
+    TEST_ASSERT_EQUAL_STRING("5\r\nhello\r\n", request_body(abandoned).c_str());
+
+    // The second connection carries a clean fixed-length request
+    std::string request;
+    auto second = accept_request(srv, request, "\r\n\r\nok");
+    TEST_ASSERT_TRUE(request_headers(request).starts_with("POST /upload HTTP/1.1\r\n"));
+    TEST_ASSERT_TRUE(contains(request_headers(request), "Content-Length: 2\r\n"));
+    TEST_ASSERT_FALSE(contains(request_headers(request), "Transfer-Encoding"));
+    TEST_ASSERT_EQUAL_STRING("ok", request_body(request).c_str());
+
+    complete_exchange(*c, second);
+}
+
 TEST_CASE("http client try_open_chunked fails when the server is unreachable", "[idfxx][http]") {
     test::ensure_event_loop();
     auto srv = make_test_listener();

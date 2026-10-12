@@ -387,7 +387,8 @@ client::client(client&& other) noexcept
     , _post_data(std::move(other._post_data))
     , _cert_pem(std::move(other._cert_pem))
     , _client_cert_pem(std::move(other._client_cert_pem))
-    , _client_key_pem(std::move(other._client_key_pem)) {
+    , _client_key_pem(std::move(other._client_key_pem))
+    , _request_incomplete(std::exchange(other._request_incomplete, false)) {
     if (_handle) {
         esp_http_client_set_user_data(_handle, this);
     }
@@ -405,6 +406,7 @@ client& client::operator=(client&& other) noexcept {
         _cert_pem = std::move(other._cert_pem);
         _client_cert_pem = std::move(other._client_cert_pem);
         _client_key_pem = std::move(other._client_key_pem);
+        _request_incomplete = std::exchange(other._request_incomplete, false);
         if (_handle) {
             esp_http_client_set_user_data(_handle, this);
         }
@@ -533,10 +535,19 @@ struct tls_client_guard {
 
 } // namespace
 
+void client::_discard_incomplete_request() {
+    if (_request_incomplete) {
+        ESP_LOGW(TAG, "closing the connection of a chunked request whose body was not finished");
+        esp_http_client_close(_handle);
+        _request_incomplete = false;
+    }
+}
+
 result<void> client::try_perform() {
     if (!_handle) {
         return error(idfxx::errc::invalid_state);
     }
+    _discard_incomplete_request();
     tls_client_guard guard(this);
     esp_err_t err = esp_http_client_perform(_handle);
     if (err != ESP_OK) {
@@ -557,6 +568,7 @@ result<void> client::try_open(size_t write_len) {
     if (write_len > static_cast<size_t>(INT_MAX)) {
         return error(idfxx::errc::invalid_arg);
     }
+    _discard_incomplete_request();
     tls_client_guard guard(this);
     esp_err_t err = esp_http_client_open(_handle, static_cast<int>(write_len));
     if (err != ESP_OK) {
@@ -570,6 +582,7 @@ result<client::chunk_writer> client::try_open_chunked() {
     if (!_handle) {
         return error(idfxx::errc::invalid_state);
     }
+    _discard_incomplete_request();
     // A chunked request must not carry a Content-Length, but some ESP-IDF
     // releases keep one left over from an earlier request on this handle.
     esp_http_client_delete_header(_handle, "Content-Length");
@@ -587,7 +600,7 @@ result<client::chunk_writer> client::try_open_chunked() {
 }
 
 result<size_t> client::try_write(std::span<const uint8_t> data) {
-    if (!_handle) {
+    if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
     int len = static_cast<int>(std::min(data.size(), static_cast<size_t>(INT_MAX)));
@@ -610,7 +623,7 @@ result<size_t> client::try_write(std::string_view data) {
 }
 
 result<int64_t> client::try_fetch_headers() {
-    if (!_handle) {
+    if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
     // Success is never negative: a chunked or unknown length is reported as 0.
@@ -627,7 +640,7 @@ result<int64_t> client::try_fetch_headers() {
 }
 
 result<size_t> client::try_read(std::span<uint8_t> buf) {
-    if (!_handle) {
+    if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
     int len = static_cast<int>(std::min(buf.size(), static_cast<size_t>(INT_MAX)));
@@ -648,7 +661,7 @@ result<size_t> client::try_read(std::span<char> buf) {
 }
 
 result<void> client::try_flush_response() {
-    if (!_handle) {
+    if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
     esp_err_t err = esp_http_client_flush_response(_handle, nullptr);
@@ -664,6 +677,7 @@ result<void> client::try_close() {
         return error(idfxx::errc::invalid_state);
     }
     esp_err_t err = esp_http_client_close(_handle);
+    _request_incomplete = false;
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "close failed: %s", esp_err_to_name(err));
         return http_client_error(err);
@@ -681,7 +695,7 @@ client::chunk_writer::chunk_writer(chunk_writer&& other) noexcept
 
 client::chunk_writer& client::chunk_writer::operator=(chunk_writer&& other) noexcept {
     if (this != &other) {
-        _warn_if_unfinished();
+        _abandon_if_unfinished();
         _client = std::exchange(other._client, nullptr);
         _stage = other._stage;
     }
@@ -689,12 +703,13 @@ client::chunk_writer& client::chunk_writer::operator=(chunk_writer&& other) noex
 }
 
 client::chunk_writer::~chunk_writer() {
-    _warn_if_unfinished();
+    _abandon_if_unfinished();
 }
 
-void client::chunk_writer::_warn_if_unfinished() const noexcept {
+void client::chunk_writer::_abandon_if_unfinished() noexcept {
     if (_client && _stage != stage::finished) {
         ESP_LOGW(TAG, "chunk_writer discarded before finish(); the request body is unterminated");
+        _client->_request_incomplete = true;
     }
 }
 
@@ -841,6 +856,7 @@ result<void> client::try_cancel_request() {
         ESP_LOGD(TAG, "cancel_request failed: %s", esp_err_to_name(err));
         return http_client_error(err);
     }
+    _request_incomplete = false;
     return {};
 }
 
