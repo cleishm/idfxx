@@ -254,6 +254,12 @@ esp_err_t client::_http_event_handler(esp_http_client_event* evt) {
 // This is safe because perform()/open() are blocking and the client is not thread-safe.
 static thread_local client* tls_active_client = nullptr;
 
+// True when an optional config value is set to zero or a negative value.
+template<typename T>
+static bool set_and_not_positive(const std::optional<T>& value) {
+    return value && *value <= T{};
+}
+
 esp_err_t client::_crt_bundle_trampoline(void* conf) {
     return tls_active_client->_crt_bundle_attach(conf);
 }
@@ -264,6 +270,15 @@ result<esp_http_client_handle_t> client::_init_client(
     const std::string& client_cert_pem,
     const std::string& client_key_pem
 ) {
+    if (set_and_not_positive(cfg.port) || (cfg.path && cfg.path->empty()) || set_and_not_positive(cfg.timeout) ||
+        set_and_not_positive(cfg.max_redirection_count) ||
+        (cfg.max_authorization_retries && *cfg.max_authorization_retries < 0) ||
+        set_and_not_positive(cfg.buffer_size) || set_and_not_positive(cfg.buffer_size_tx) ||
+        set_and_not_positive(cfg.keep_alive_idle) || set_and_not_positive(cfg.keep_alive_interval) ||
+        set_and_not_positive(cfg.keep_alive_count)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+
     esp_http_client_config_t esp_cfg{};
 
     if (!cfg.url.empty()) {
@@ -272,16 +287,16 @@ result<esp_http_client_handle_t> client::_init_client(
     if (!cfg.host.empty()) {
         esp_cfg.host = cfg.host.c_str();
     }
-    esp_cfg.port = cfg.port;
-    if (!cfg.path.empty()) {
-        esp_cfg.path = cfg.path.c_str();
+    esp_cfg.port = cfg.port.value_or(0); // 0 selects the driver default
+    if (cfg.path) {
+        esp_cfg.path = cfg.path->c_str();
     }
     if (!cfg.query.empty()) {
         esp_cfg.query = cfg.query.c_str();
     }
     esp_cfg.method = static_cast<esp_http_client_method_t>(cfg.method);
     esp_cfg.transport_type = static_cast<esp_http_client_transport_t>(cfg.transport_type);
-    esp_cfg.timeout_ms = static_cast<int>(cfg.timeout.count());
+    esp_cfg.timeout_ms = static_cast<int>(cfg.timeout.value_or(std::chrono::milliseconds{0}).count());
 
     if (!cfg.username.empty()) {
         esp_cfg.username = cfg.username.c_str();
@@ -304,21 +319,28 @@ result<esp_http_client_handle_t> client::_init_client(
         esp_cfg.client_key_len = client_key_pem.size() + 1;
     }
 
-    if (!cfg.user_agent.empty()) {
-        esp_cfg.user_agent = cfg.user_agent.c_str();
+    if (cfg.user_agent) {
+        esp_cfg.user_agent = cfg.user_agent->c_str();
     }
 
     esp_cfg.disable_auto_redirect = cfg.disable_auto_redirect;
-    esp_cfg.max_redirection_count = cfg.max_redirection_count;
-    esp_cfg.max_authorization_retries = cfg.max_authorization_retries;
+    esp_cfg.max_redirection_count = cfg.max_redirection_count.value_or(0);
+    // The driver reads 0 as "use the default" and -1 as "no retries".
+    if (!cfg.max_authorization_retries) {
+        esp_cfg.max_authorization_retries = 0;
+    } else if (*cfg.max_authorization_retries == 0) {
+        esp_cfg.max_authorization_retries = -1;
+    } else {
+        esp_cfg.max_authorization_retries = *cfg.max_authorization_retries;
+    }
 
-    esp_cfg.buffer_size = cfg.buffer_size;
-    esp_cfg.buffer_size_tx = cfg.buffer_size_tx;
+    esp_cfg.buffer_size = cfg.buffer_size.value_or(0);
+    esp_cfg.buffer_size_tx = cfg.buffer_size_tx.value_or(0);
 
     esp_cfg.keep_alive_enable = cfg.keep_alive_enable;
-    esp_cfg.keep_alive_idle = static_cast<int>(cfg.keep_alive_idle.count());
-    esp_cfg.keep_alive_interval = static_cast<int>(cfg.keep_alive_interval.count());
-    esp_cfg.keep_alive_count = cfg.keep_alive_count;
+    esp_cfg.keep_alive_idle = static_cast<int>(cfg.keep_alive_idle.value_or(std::chrono::seconds{0}).count());
+    esp_cfg.keep_alive_interval = static_cast<int>(cfg.keep_alive_interval.value_or(std::chrono::seconds{0}).count());
+    esp_cfg.keep_alive_count = cfg.keep_alive_count.value_or(0);
 
     esp_cfg.use_global_ca_store = cfg.use_global_ca_store;
     esp_cfg.skip_cert_common_name_check = cfg.skip_cert_common_name_check;
