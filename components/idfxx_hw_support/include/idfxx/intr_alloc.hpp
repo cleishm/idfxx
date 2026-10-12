@@ -19,6 +19,8 @@
 
 #include <idfxx/flags>
 
+#include <esp_idf_version.h>
+
 namespace idfxx {
 
 /**
@@ -71,7 +73,7 @@ inline constexpr intr_levels intr_level_all = intr_level_lowmed | intr_level_hig
  * Type-safe interrupt behavioral flags. These control sharing behavior
  * and handler requirements, but not priority levels.
  *
- * Bit values occupy bits 8-11, which do not overlap with `intr_level`
+ * Bit values occupy bits 8-12, which do not overlap with `intr_level`
  * values (bits 1-7), so they can be safely combined via
  * `to_underlying(levels) | to_underlying(flags)`.
  */
@@ -81,6 +83,17 @@ enum class intr_flag : int {
     edge = 1u << 9,      ///< Edge-triggered interrupt
     iram = 1u << 10,     ///< ISR can be called if cache is disabled
     disabled = 1u << 11, ///< Return from ISR with interrupts disabled
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /**
+     * @brief Interrupt can be shared only with interrupts that explicitly bind to it.
+     *
+     * Like `shared`, but the interrupt line is not open to arbitrary sharers: it can only be shared
+     * with allocations that bind to this specific interrupt (by handle or name) when allocating.
+     *
+     * @note Available only with ESP-IDF 6.1 and later.
+     */
+    shared_private = 1u << 12,
+#endif
 };
 
 } // namespace idfxx
