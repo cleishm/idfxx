@@ -28,7 +28,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_https_server:
-    version: "^1.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_https_server` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -149,6 +149,9 @@ TLS-specific configuration fields:
 - `use_ecdsa_peripheral` - Use ECDSA peripheral for key operations
 - `session_tickets` - Enable TLS session tickets
 - `handshake_timeout` - TLS handshake timeout
+
+Plus `bind_to_device` (ESP-IDF 6.1+), which accepts connections on one network
+interface only, as for `server::config`.
 
 Plus all standard HTTP server fields (task priority, ports, limits, timeouts, etc.)
 with HTTPS-appropriate defaults (10KB stack, port 443, LRU purge enabled, 4 max sockets).

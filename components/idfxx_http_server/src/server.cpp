@@ -5,9 +5,11 @@
 #include <idfxx/http/detail/server_config.ipp>
 #include <idfxx/http/server>
 
+#include <array>
 #include <cassert>
 #include <cstring>
 #include <esp_http_server.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <optional>
 #include <utility>
@@ -219,6 +221,12 @@ result<httpd_handle_t>
 server::_start_server(const config& cfg, server_ctx* ctx, bool has_session_open, bool has_session_close) {
     httpd_config_t httpd_cfg = HTTPD_DEFAULT_CONFIG();
     _populate_httpd_config(httpd_cfg, cfg, ctx, has_session_open, has_session_close);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    struct ifreq ifr{};
+    if (auto res = _populate_bind_to_device(httpd_cfg, cfg.bind_to_device, ifr); !res) {
+        return error(res.error());
+    }
+#endif
 
     httpd_handle_t handle = nullptr;
     esp_err_t err = httpd_start(&handle, &httpd_cfg);
@@ -228,6 +236,25 @@ server::_start_server(const config& cfg, server_ctx* ctx, bool has_session_open,
     }
     return handle;
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+result<void> server::_populate_bind_to_device(
+    struct httpd_config& httpd_cfg,
+    std::optional<std::string_view> name,
+    struct ifreq& ifr
+) {
+    if (!name) {
+        return {};
+    }
+    if (name->size() >= sizeof(ifr.ifr_name)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    ifr = {};
+    std::memcpy(ifr.ifr_name, name->data(), name->size());
+    httpd_cfg.if_name = &ifr;
+    return {};
+}
+#endif
 
 result<server> server::make(config cfg) {
     auto ctx = std::make_unique<server_ctx>();
@@ -763,6 +790,113 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
         .data = std::span<const uint8_t>(buf.data(), ws_pkt.len),
     };
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+result<request::ws_frame_reader> request::try_ws_recv_begin() {
+    // A second header read would take payload or a later frame as a header,
+    // as would retrying after a partially received header
+    if (_ws_frame_begun) {
+        return error(idfxx::errc::invalid_state);
+    }
+
+    _ws_frame_begun = true;
+
+    httpd_ws_frame_t ws_pkt{};
+    // With len == 0 and max_len == 0, only the frame header is received
+    esp_err_t err = httpd_ws_recv_frame_part(_req, &ws_pkt, 0);
+    if (err != ESP_OK) {
+        // Part of the header may have been received, so the position in the
+        // stream is unknown; have the trampoline close the connection
+        _ws_payload_unread = true;
+        ESP_LOGD(TAG, "httpd_ws_recv_frame_part (header) failed: %s", esp_err_to_name(err));
+        return http_server_error(err);
+    }
+
+    return ws_frame_reader{*this, static_cast<ws_frame_type>(ws_pkt.type), ws_pkt.final, ws_pkt.len};
+}
+
+request::ws_frame_reader::ws_frame_reader(ws_frame_reader&& other) noexcept
+    : _req(std::exchange(other._req, nullptr))
+    , _type(other._type)
+    , _final(other._final)
+    , _failed(other._failed)
+    , _size(other._size)
+    , _remaining(other._remaining) {}
+
+request::ws_frame_reader& request::ws_frame_reader::operator=(ws_frame_reader&& other) noexcept {
+    if (this != &other) {
+        _flag_if_unread();
+        _req = std::exchange(other._req, nullptr);
+        _type = other._type;
+        _final = other._final;
+        _failed = other._failed;
+        _size = other._size;
+        _remaining = other._remaining;
+    }
+    return *this;
+}
+
+request::ws_frame_reader::~ws_frame_reader() {
+    _flag_if_unread();
+}
+
+void request::ws_frame_reader::_flag_if_unread() const noexcept {
+    if (_req && _remaining > 0) {
+        _req->_ws_payload_unread = true;
+    }
+}
+
+result<std::span<const uint8_t>> request::ws_frame_reader::try_read(std::span<uint8_t> buf) {
+    if (!_req || _failed) {
+        return error(idfxx::errc::invalid_state);
+    }
+    // Never call into httpd once the payload is consumed: with nothing left
+    // (in particular for an empty frame) it would receive the next header.
+    if (_remaining == 0) {
+        return std::span<const uint8_t>{};
+    }
+    if (buf.empty()) {
+        return error(idfxx::errc::invalid_arg);
+    }
+
+    // httpd keeps the partial-read position in the frame struct; len != 0
+    // tells it the header has already been received.
+    httpd_ws_frame_t ws_pkt{};
+    ws_pkt.type = static_cast<httpd_ws_type_t>(_type);
+    ws_pkt.final = _final;
+    ws_pkt.payload = buf.data();
+    ws_pkt.len = _size;
+    ws_pkt.left_len = _remaining;
+
+    esp_err_t err = httpd_ws_recv_frame_part(_req->_req, &ws_pkt, buf.size());
+    if (err != ESP_OK) {
+        // Part of the payload may have been received, so the position in the
+        // stream is unknown; have the trampoline close the connection
+        _failed = true;
+        _req->_ws_payload_unread = true;
+        ESP_LOGD(TAG, "httpd_ws_recv_frame_part (payload) failed: %s", esp_err_to_name(err));
+        return http_server_error(err);
+    }
+
+    size_t received = _remaining - ws_pkt.left_len;
+    _remaining = ws_pkt.left_len;
+    return std::span<const uint8_t>{buf.data(), received};
+}
+
+result<void> request::ws_frame_reader::try_skip() {
+    if (!_req || _failed) {
+        return error(idfxx::errc::invalid_state);
+    }
+    std::array<uint8_t, 64> scratch;
+    while (_remaining > 0) {
+        auto part = try_read(scratch);
+        if (!part) {
+            return error(part.error());
+        }
+    }
+    return {};
+}
+#endif // ESP_IDF_VERSION >= 6.1.0
 
 result<void> request::try_ws_send_text(std::string_view text) {
     httpd_ws_frame_t ws_pkt{};

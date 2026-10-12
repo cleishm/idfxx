@@ -26,6 +26,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <functional>
 #include <list>
 #include <optional>
@@ -41,6 +42,9 @@ struct httpd_config;
 struct httpd_req;
 typedef struct httpd_req httpd_req_t;
 typedef int esp_err_t;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+struct ifreq;
+#endif
 
 namespace idfxx::http {
 
@@ -367,12 +371,201 @@ public:
         std::span<const uint8_t> data; ///< Frame payload data
     };
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @headerfile <idfxx/http/server>
+     * @brief Reads the payload of a WebSocket frame in parts.
+     *
+     * Obtained from request::ws_recv_begin(), which receives the frame header.
+     * The payload is then read in parts of any size with read(), so frames
+     * larger than the available buffer can be processed without holding the
+     * whole payload in memory. Each part is unmasked and returned as a span
+     * into the caller's buffer.
+     *
+     * The reader refers to the request that created it and is only valid
+     * during the handler invocation that received the frame.
+     *
+     * The whole payload must be consumed before the handler returns, either by
+     * reading it or by discarding the rest with skip(). Otherwise the unread
+     * payload would be taken as the start of the next frame. If a reader is
+     * destroyed while payload remains unread, the connection is closed when the
+     * handler returns, even if the handler reports success, and a warning is
+     * logged.
+     *
+     * If receiving fails, the position in the frame is lost: the reader
+     * receives nothing further, later read() and skip() calls fail with
+     * idfxx::errc::invalid_state, and the connection is closed when the handler
+     * returns, even if the handler reports success.
+     *
+     * This type is non-copyable and move-only. A moved-from object must not be
+     * used: any operation other than destruction or assignment is undefined
+     * behavior.
+     *
+     * @note Only available from ESP-IDF 6.1 and when CONFIG_HTTPD_WS_SUPPORT is enabled.
+     *
+     * @code
+     * srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
+     *     auto reader = req.ws_recv_begin();
+     *     if (reader.type() != idfxx::http::request::ws_frame_type::binary) {
+     *         reader.skip();
+     *         return {};
+     *     }
+     *     std::array<uint8_t, 256> buf;
+     *     while (reader.remaining() > 0) {
+     *         auto part = reader.read(buf);
+     *         process(part);
+     *     }
+     *     return {};
+     * });
+     * @endcode
+     */
+    class ws_frame_reader {
+    public:
+        /**
+         * @brief Destroys the reader.
+         *
+         * Receives nothing. If payload remains unread, the connection is
+         * closed when the handler returns.
+         */
+        ~ws_frame_reader();
+
+        ws_frame_reader(const ws_frame_reader&) = delete;
+        ws_frame_reader& operator=(const ws_frame_reader&) = delete;
+
+        /** @brief Move constructor. Transfers the reader's state. */
+        ws_frame_reader(ws_frame_reader&& other) noexcept;
+
+        /**
+         * @brief Move assignment. Transfers the reader's state.
+         *
+         * If this reader had payload left unread, the connection is closed when
+         * the handler returns, as for destruction.
+         */
+        ws_frame_reader& operator=(ws_frame_reader&& other) noexcept;
+
+        /**
+         * @brief Returns the frame type.
+         * @return The frame type.
+         */
+        [[nodiscard]] ws_frame_type type() const noexcept { return _type; }
+
+        /**
+         * @brief Returns whether this is the final fragment of a message.
+         * @return True if the frame has the FIN flag set.
+         */
+        [[nodiscard]] bool final() const noexcept { return _final; }
+
+        /**
+         * @brief Returns the total payload length of the frame.
+         * @return The payload length in bytes.
+         */
+        [[nodiscard]] size_t size() const noexcept { return _size; }
+
+        /**
+         * @brief Returns the length of the payload not yet read.
+         * @return The number of payload bytes still to be read or skipped.
+         */
+        [[nodiscard]] size_t remaining() const noexcept { return _remaining; }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+        /**
+         * @brief Reads the next part of the payload.
+         *
+         * Blocks until `std::min(buf.size(), remaining())` bytes have been
+         * received, unmasks them, and returns them as a span into @p buf.
+         * Returns an empty span, without receiving anything, once the whole
+         * payload has been read.
+         *
+         * @param buf Buffer to receive the payload part into. Must not be empty
+         *            while payload remains.
+         * @return The unmasked payload part, referencing @p buf.
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+         * @throws std::system_error with idfxx::errc::invalid_arg if @p buf is empty while
+         *         payload remains, idfxx::errc::invalid_state if an earlier read or skip
+         *         failed, or another error if the payload could not be received (nothing
+         *         further is received after this, and the connection is closed when the
+         *         handler returns).
+         */
+        [[nodiscard]] std::span<const uint8_t> read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+#endif
+
+        /**
+         * @brief Reads the next part of the payload.
+         *
+         * Blocks until `std::min(buf.size(), remaining())` bytes have been
+         * received, unmasks them, and returns them as a span into @p buf.
+         * Returns an empty span, without receiving anything, once the whole
+         * payload has been read.
+         *
+         * @param buf Buffer to receive the payload part into. Must not be empty
+         *            while payload remains.
+         * @return The unmasked payload part referencing @p buf, or an error.
+         * @retval idfxx::errc::invalid_arg if @p buf is empty while payload remains.
+         * @retval idfxx::errc::invalid_state if an earlier read or skip failed.
+         * @retval other if the payload could not be received. Nothing further is received
+         *         after this, and the connection is closed when the handler returns.
+         */
+        [[nodiscard]] result<std::span<const uint8_t>> try_read(std::span<uint8_t> buf);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+        /**
+         * @brief Discards the rest of the payload.
+         *
+         * Receives and discards the remaining payload, so that the handler can
+         * return without reading the whole frame. Does nothing if the whole
+         * payload has already been read.
+         *
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+         * @throws std::system_error with idfxx::errc::invalid_state if an earlier read or
+         *         skip failed, or another error if the payload could not be received
+         *         (nothing further is received after this, and the connection is closed
+         *         when the handler returns).
+         */
+        void skip() { unwrap(try_skip()); }
+#endif
+
+        /**
+         * @brief Discards the rest of the payload.
+         *
+         * Receives and discards the remaining payload, so that the handler can
+         * return without reading the whole frame. Does nothing if the whole
+         * payload has already been read.
+         *
+         * @return Success, or an error.
+         * @retval idfxx::errc::invalid_state if an earlier read or skip failed.
+         * @retval other if the payload could not be received. Nothing further is received
+         *         after this, and the connection is closed when the handler returns.
+         */
+        [[nodiscard]] result<void> try_skip();
+
+    private:
+        friend class request;
+
+        ws_frame_reader(request& req, ws_frame_type type, bool final, size_t size) noexcept
+            : _req(&req)
+            , _type(type)
+            , _final(final)
+            , _size(size)
+            , _remaining(size) {}
+
+        void _flag_if_unread() const noexcept;
+
+        request* _req;
+        ws_frame_type _type;
+        bool _final;
+        bool _failed = false;
+        size_t _size;
+        size_t _remaining;
+    };
+#endif // ESP_IDF_VERSION >= 6.1.0
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
-     * The whole payload must fit in @p buf.
+     * The whole payload must fit in @p buf; from ESP-IDF 6.1, use ws_recv_begin()
+     * to receive frames that may be larger than the buffer.
      *
      * If the payload does not fit, it is left unread. The connection cannot
      * continue past an unread payload, so it is closed when the handler
@@ -386,6 +579,45 @@ public:
      *         error if the frame could not be received.
      */
     [[nodiscard]] ws_frame ws_recv(std::span<uint8_t> buf) { return unwrap(try_ws_recv(buf)); }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Begins receiving a WebSocket frame whose payload is read in parts.
+     *
+     * Receives the header of the frame being handled and returns a reader for
+     * its payload. Use this instead of ws_recv() when the payload may not fit
+     * in a single buffer. Call it at most once per handler invocation, and not
+     * together with ws_recv().
+     *
+     * The whole payload must be read, or discarded with
+     * ws_frame_reader::skip(), before the handler returns; otherwise the
+     * connection is closed.
+     * If receiving the header fails (other than for a repeated call), the
+     * position in the stream is unknown, and the connection is likewise
+     * closed when the handler returns.
+     *
+     * @code
+     * srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
+     *     auto reader = req.ws_recv_begin();
+     *     std::array<uint8_t, 128> buf;
+     *     while (reader.remaining() > 0) {
+     *         auto part = reader.read(buf);
+     *         consume(part);
+     *     }
+     *     return {};
+     * });
+     * @endcode
+     *
+     * @return A reader for the frame payload. It must not outlive the handler invocation.
+     * @note Only available from ESP-IDF 6.1 and when CONFIG_HTTPD_WS_SUPPORT and
+     *       CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @throws std::system_error with idfxx::errc::invalid_state if ws_recv_begin() has
+     *         already been called during this handler invocation, the request is not a
+     *         WebSocket frame, or the frame is not masked; or another error if the frame
+     *         header could not be received.
+     */
+    [[nodiscard]] ws_frame_reader ws_recv_begin() { return unwrap(try_ws_recv_begin()); }
+#endif
 
     /**
      * @brief Sends a WebSocket text frame.
@@ -419,7 +651,8 @@ public:
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
-     * The whole payload must fit in @p buf.
+     * The whole payload must fit in @p buf; from ESP-IDF 6.1, use try_ws_recv_begin()
+     * to receive frames that may be larger than the buffer.
      *
      * If the payload does not fit, it is left unread. The connection cannot
      * continue past an unread payload, so it is closed when the handler
@@ -432,6 +665,33 @@ public:
      * @retval other if the frame could not be received.
      */
     [[nodiscard]] result<ws_frame> try_ws_recv(std::span<uint8_t> buf);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Begins receiving a WebSocket frame whose payload is read in parts.
+     *
+     * Receives the header of the frame being handled and returns a reader for
+     * its payload. Use this instead of try_ws_recv() when the payload may not
+     * fit in a single buffer. Call it at most once per handler invocation, and
+     * not together with try_ws_recv().
+     *
+     * The whole payload must be read, or discarded with
+     * ws_frame_reader::try_skip(), before the handler returns; otherwise the
+     * connection is closed.
+     * If receiving the header fails (other than for a repeated call), the
+     * position in the stream is unknown, and the connection is likewise
+     * closed when the handler returns.
+     *
+     * @return A reader for the frame payload, or an error. The reader must not
+     *         outlive the handler invocation.
+     * @retval idfxx::errc::invalid_state if try_ws_recv_begin() has already been called
+     *         during this handler invocation, the request is not a WebSocket frame, or the
+     *         frame is not masked.
+     * @retval other if the frame header could not be received.
+     * @note Only available from ESP-IDF 6.1 and when CONFIG_HTTPD_WS_SUPPORT is enabled.
+     */
+    [[nodiscard]] result<ws_frame_reader> try_ws_recv_begin();
+#endif
 
     /**
      * @brief Sends a WebSocket text frame.
@@ -481,6 +741,9 @@ private:
     mutable std::optional<std::string> _query_cache;
 #ifdef CONFIG_HTTPD_WS_SUPPORT
     bool _ws_payload_unread = false; // frame payload was left unread; the connection must close
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    bool _ws_frame_begun = false; // try_ws_recv_begin() has been called
+#endif
 #endif
 };
 
@@ -545,6 +808,22 @@ public:
         uint16_t server_port = 80;  ///< HTTP listening port
         uint16_t ctrl_port = 32768; ///< Control port for server commands
         uint16_t backlog_conn = 5;  ///< Maximum backlog connections
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        /**
+         * @brief Network interface to accept connections on (nullopt = all interfaces).
+         *
+         * Identified by its lwIP interface name (e.g. `"st1"`, as returned by
+         * `esp_netif_get_netif_impl_name()`). Equivalent to the POSIX
+         * `SO_BINDTODEVICE` option on the listening socket: only connections
+         * arriving through that interface are accepted. The interface must exist
+         * when the server starts, otherwise starting fails. An empty name has the
+         * same effect as std::nullopt. Names of `IFNAMSIZ` (6) or more characters
+         * are rejected with idfxx::errc::invalid_arg.
+         *
+         * @note Only available from ESP-IDF 6.1.
+         */
+        std::optional<std::string_view> bind_to_device = std::nullopt;
+#endif
 
         // Limits
         uint16_t max_open_sockets = 7; ///< Maximum concurrent client connections
@@ -953,6 +1232,12 @@ protected:
         bool has_session_open,
         bool has_session_close
     );
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    // Points httpd_cfg.if_name at ifr, filled from name. ifr must outlive the httpd start call.
+    [[nodiscard]] static result<void>
+    _populate_bind_to_device(struct httpd_config& httpd_cfg, std::optional<std::string_view> name, struct ifreq& ifr);
+#endif
 
 private:
     struct handler_record {

@@ -1,4 +1,4 @@
-version: "2.0.2"
+version: "2.1.0"
 description: "Type-safe HTTPS server for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_https_server"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -14,6 +14,6 @@ dependencies:
     public: true
     override_path: ../idfxx_http
   cleishm/idfxx_http_server:
-    version: "^1.0.0"
+    version: "^1.1.0"
     public: true
     override_path: ../idfxx_http_server

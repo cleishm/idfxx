@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <esp_https_server.h>
+#include <esp_idf_version.h>
 #include <esp_log.h>
 #include <utility>
 
@@ -34,6 +35,12 @@ result<ssl_server> ssl_server::make(config cfg) {
     auto on_session_close = std::move(cfg.on_session_close);
 
     _populate_httpd_config(ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    struct ifreq ifr{};
+    if (auto res = _populate_bind_to_device(ssl_cfg.httpd, cfg.bind_to_device, ifr); !res) {
+        return error(res.error());
+    }
+#endif
 
     // Move cert strings out of config — they only need to live until httpd_ssl_start() returns,
     // since ESP-IDF copies all certificate data internally.

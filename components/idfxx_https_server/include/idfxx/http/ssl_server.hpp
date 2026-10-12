@@ -32,9 +32,11 @@
 
 #include <chrono>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace idfxx::http {
 
@@ -74,6 +76,22 @@ public:
         uint16_t server_port = 443; ///< HTTPS listening port
         uint16_t ctrl_port = 32769; ///< Control port for server commands
         uint16_t backlog_conn = 5;  ///< Maximum backlog connections
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        /**
+         * @brief Network interface to accept connections on (nullopt = all interfaces).
+         *
+         * Identified by its lwIP interface name (e.g. `"st1"`, as returned by
+         * `esp_netif_get_netif_impl_name()`). Equivalent to the POSIX
+         * `SO_BINDTODEVICE` option on the listening socket: only connections
+         * arriving through that interface are accepted. The interface must exist
+         * when the server starts, otherwise starting fails. An empty name has the
+         * same effect as std::nullopt. Names of `IFNAMSIZ` (6) or more characters
+         * are rejected with idfxx::errc::invalid_arg.
+         *
+         * @note Only available from ESP-IDF 6.1.
+         */
+        std::optional<std::string_view> bind_to_device = std::nullopt;
+#endif
 
         // Limits
         uint16_t max_open_sockets = 4; ///< Maximum concurrent client connections
