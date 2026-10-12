@@ -7,6 +7,9 @@
 #include "idfxx/ota"
 #include "unity.h"
 
+#include <algorithm>
+#include <array>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -49,6 +52,23 @@ static_assert(std::to_underlying(image_state::undefined) == 0xFFFFFFFFU);
 
 // sequential_erase_tag is an empty tag type
 static_assert(std::is_empty_v<sequential_erase_tag>);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+// skip_validation_t is an empty tag type, not implicitly constructible
+static_assert(std::is_empty_v<skip_validation_t>);
+
+// 6.1 error codes
+static_assert(std::to_underlying(ota::errc::already_in_progress) == 0x1507);
+static_assert(std::to_underlying(ota::errc::spi_mode_mismatch) == 0x1508);
+
+// image_flash_mode enum values
+static_assert(std::to_underlying(image_flash_mode::qio) == 0);
+static_assert(std::to_underlying(image_flash_mode::qout) == 1);
+static_assert(std::to_underlying(image_flash_mode::dio) == 2);
+static_assert(std::to_underlying(image_flash_mode::dout) == 3);
+static_assert(std::to_underlying(image_flash_mode::fast_read) == 4);
+static_assert(std::to_underlying(image_flash_mode::slow_read) == 5);
+#endif
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -131,6 +151,62 @@ TEST_CASE("ota partition_state for running partition", "[idfxx][ota]") {
                          state == image_state::aborted || state == image_state::undefined);
     }
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+
+TEST_CASE("ota 6.1 error codes map to ota category", "[idfxx][ota]") {
+    std::error_code ec = ota::errc::already_in_progress;
+    TEST_ASSERT_TRUE(ec.category() == ota_category());
+    TEST_ASSERT_EQUAL_INT(0x1507, ec.value());
+    TEST_ASSERT_TRUE(ec.message() != esp_err_to_name(0x1507));
+
+    ec = ota::errc::spi_mode_mismatch;
+    TEST_ASSERT_TRUE(ec.category() == ota_category());
+    TEST_ASSERT_EQUAL_INT(0x1508, ec.value());
+    TEST_ASSERT_TRUE(ec.message() != esp_err_to_name(0x1508));
+}
+
+TEST_CASE("ota app_description flash_mode is a known mode", "[idfxx][ota]") {
+    auto desc = try_partition_description(*try_running_partition());
+    TEST_ASSERT_TRUE(desc.has_value());
+    auto mode = std::to_underlying(desc->flash_mode());
+    TEST_ASSERT_TRUE(mode <= std::to_underlying(image_flash_mode::slow_read));
+}
+
+TEST_CASE("ota try_check_image_validity rejects unsupported partition type", "[idfxx][ota]") {
+    std::array<uint8_t, 512> buf{};
+    auto r = try_check_image_validity(partition::type::data, buf);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("ota try_check_image_validity rejects too-short input", "[idfxx][ota]") {
+    std::array<uint8_t, 512> buf{};
+    auto r = try_check_image_validity(partition::type::app, std::span<const uint8_t>(buf).first(16));
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_size);
+
+    r = try_check_image_validity(partition::type::bootloader, std::span<const uint8_t>(buf).first(4));
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_size);
+}
+
+TEST_CASE("ota try_check_image_validity accepts the running app's leading bytes", "[idfxx][ota]") {
+    auto part = try_running_partition();
+    TEST_ASSERT_TRUE(part.has_value());
+    std::array<uint8_t, 512> buf{};
+    TEST_ASSERT_TRUE(part->try_read(0, buf.data(), buf.size()).has_value());
+    auto r = try_check_image_validity(partition::type::app, buf);
+    TEST_ASSERT_TRUE(r.has_value());
+
+    // Also with an unaligned start
+    std::array<uint8_t, 513> shifted{};
+    std::copy(buf.begin(), buf.end(), shifted.begin() + 1);
+    r = try_check_image_validity(partition::type::app, std::span<const uint8_t>(shifted).subspan(1));
+    TEST_ASSERT_TRUE(r.has_value());
+}
+
+#endif // ESP_IDF_VERSION >= 6.1
 
 // =============================================================================
 // Exception-based API tests

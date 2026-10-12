@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <esp_app_desc.h>
+#include <esp_idf_version.h>
 #include <span>
 #include <string_view>
 
@@ -48,6 +49,28 @@ struct sequential_erase_tag {};
  */
 inline constexpr sequential_erase_tag sequential_erase{};
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+/**
+ * @brief Tag type selecting the overloads that skip image validation.
+ *
+ * Use the `skip_validation` constant rather than constructing this directly.
+ *
+ * @note Requires ESP-IDF 6.1 or later.
+ */
+struct skip_validation_t {
+    explicit skip_validation_t() = default;
+};
+
+/**
+ * @brief Tag requesting that the image is not validated before it is selected:
+ *        `idfxx::ota::set_boot_partition(part, idfxx::ota::skip_validation)`.
+ *
+ * @note Requires ESP-IDF 6.1 or later.
+ * @see skip_validation_t
+ */
+inline constexpr skip_validation_t skip_validation{};
+#endif
+
 /**
  * @brief Error codes for OTA operations.
  */
@@ -59,6 +82,10 @@ enum class errc : esp_err_t {
     small_sec_ver          = 0x1504, /*!< Firmware secure version is less than the running firmware. */
     rollback_failed        = 0x1505, /*!< No valid firmware in passive partition for rollback. */
     rollback_invalid_state = 0x1506, /*!< Running app is still pending verification; confirm before updating. */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    already_in_progress    = 0x1507, /*!< Another OTA operation is already in progress on the same partition (ESP-IDF 6.1+). */
+    spi_mode_mismatch      = 0x1508, /*!< Image SPI flash mode does not match the running firmware (ESP-IDF 6.1+). */
+#endif
     // clang-format on
 };
 
@@ -90,6 +117,27 @@ enum class image_state : uint32_t {
     // clang-format on
 };
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+/**
+ * @brief Flash mode recorded in an application image.
+ *
+ * This is the mode the bootloader uses to boot the image. It is distinct from
+ * the I/O mode used for flash access at runtime.
+ *
+ * @note Requires ESP-IDF 6.1 or later.
+ */
+enum class image_flash_mode : uint8_t {
+    // clang-format off
+    qio       = 0, /*!< Quad I/O. */
+    qout      = 1, /*!< Quad output. */
+    dio       = 2, /*!< Dual I/O. */
+    dout      = 3, /*!< Dual output. */
+    fast_read = 4, /*!< Fast read. */
+    slow_read = 5, /*!< Slow read. */
+    // clang-format on
+};
+#endif
+
 /**
  * @headerfile <idfxx/ota>
  * @brief Application description from a firmware image.
@@ -119,6 +167,15 @@ public:
 
     /** @brief Returns the SHA-256 hash of the application ELF file. */
     [[nodiscard]] std::span<const uint8_t, 32> app_elf_sha256() const;
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    /**
+     * @brief Returns the flash mode recorded in the image.
+     *
+     * @note Requires ESP-IDF 6.1 or later.
+     */
+    [[nodiscard]] ota::image_flash_mode flash_mode() const;
+#endif
 
     /** @brief Returns a reference to the underlying ESP-IDF app description structure. */
     [[nodiscard]] const esp_app_desc_t& idf_handle() const { return _desc; }
@@ -526,6 +583,57 @@ private:
  */
 void set_boot_partition(const partition& part);
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+/**
+ * @brief Sets the boot partition for the next reboot without validating the app image.
+ *
+ * Use when the image has already been validated, for example by a completed
+ * OTA update session.
+ *
+ * @code
+ * idfxx::ota::set_boot_partition(part, idfxx::ota::skip_validation);
+ * @endcode
+ *
+ * @param part Partition containing the app image to boot.
+ *
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+ * @note Requires ESP-IDF 6.1 or later.
+ * @throws std::system_error on failure.
+ */
+void set_boot_partition(const partition& part, skip_validation_t);
+
+/**
+ * @brief Checks that an image is valid for the running chip.
+ *
+ * Verifies the chip ID and chip revision range from the image header and, for
+ * app images, that the flash mode recorded in the app description matches the
+ * running firmware. May be called before an update session begins, using the
+ * first bytes of the image.
+ *
+ * @code
+ * std::array<uint8_t, 512> start;
+ * size_t n = read_download(start);  // first bytes of the image
+ * auto data = std::span<const uint8_t>(start).first(n);
+ * idfxx::ota::check_image_validity(idfxx::partition::type::app, data);
+ * idfxx::ota::update upd(part);
+ * upd.write(data);  // write the same bytes
+ * @endcode
+ *
+ * @param type        Partition type of the image (app or bootloader).
+ * @param image_start Leading bytes of the image. A bootloader needs at least the image
+ *                    header; an app needs the image header, first segment header and
+ *                    app description.
+ *
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+ * @note Requires ESP-IDF 6.1 or later.
+ * @throws std::system_error with idfxx::errc::invalid_size if image_start is too short,
+ *         idfxx::errc::invalid_arg if type is not app or bootloader,
+ *         idfxx::errc::invalid_version if the chip ID or chip revision does not match, or
+ *         ota::errc::spi_mode_mismatch if the flash mode does not match.
+ */
+void check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
+#endif
+
 /**
  * @brief Returns the currently configured boot partition.
  *
@@ -571,6 +679,42 @@ void set_boot_partition(const partition& part);
  * @retval ota::errc::validate_failed if the partition contains an invalid app image.
  */
 [[nodiscard]] result<void> try_set_boot_partition(const partition& part);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+/**
+ * @brief Sets the boot partition for the next reboot without validating the app image.
+ *
+ * @param part Partition containing the app image to boot.
+ *
+ * @return Success, or an error.
+ *
+ * @note Requires ESP-IDF 6.1 or later.
+ */
+[[nodiscard]] result<void> try_set_boot_partition(const partition& part, skip_validation_t);
+
+/**
+ * @brief Checks that an image is valid for the running chip.
+ *
+ * Verifies the chip ID and chip revision range from the image header and, for
+ * app images, that the flash mode recorded in the app description matches the
+ * running firmware. May be called before an update session begins, using the
+ * first bytes of the image.
+ *
+ * @param type        Partition type of the image (app or bootloader).
+ * @param image_start Leading bytes of the image. A bootloader needs at least the image
+ *                    header; an app needs the image header, first segment header and
+ *                    app description.
+ *
+ * @return Success, or an error.
+ * @retval idfxx::errc::invalid_size if image_start is too short.
+ * @retval idfxx::errc::invalid_arg if type is not app or bootloader.
+ * @retval idfxx::errc::invalid_version if the chip ID or chip revision does not match.
+ * @retval ota::errc::spi_mode_mismatch if the flash mode does not match.
+ *
+ * @note Requires ESP-IDF 6.1 or later.
+ */
+[[nodiscard]] result<void> try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
+#endif
 
 /**
  * @brief Returns the currently configured boot partition.
