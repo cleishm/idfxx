@@ -128,7 +128,7 @@ display.swap_xy(true);
 // Turn display on/off
 display.display_on(true);
 
-// Set contrast (0x00 dimmest .. 0xFF brightest; the controller powers on at 0x7F).
+// Set contrast (0x00 dimmest .. 0xFF brightest; the default initial contrast is 128).
 // Dimming also slows OLED burn-in on mostly-static content.
 display.set_contrast(0x20);
 ```
@@ -189,6 +189,7 @@ display.write_region(fb, 64, 20, 65, 21); // only one byte of page 2 is transfer
 - `reset_gpio` - Reset pin GPIO (`idfxx::gpio::nc()` if not used; most I2C modules have no reset pin)
 - `height` - Display height in pixels: 64 (default) or 32
 - `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
+- `contrast` - Initial display contrast, 0x00-0xFF (default 128), applied at construction; same scale as `set_contrast()`
 
 ### Panel I/O Configuration
 

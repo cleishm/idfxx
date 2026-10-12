@@ -42,21 +42,29 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
     );
 }
 
+// Sends the SSD1306 "Set Contrast Control" command (0x81).
+idfxx::result<void> send_contrast(esp_lcd_panel_io_handle_t io_handle, uint8_t level) {
+    return idfxx::wrap(esp_lcd_panel_io_tx_param(io_handle, 0x81, &level, 1));
+}
+
 } // namespace
 
 namespace idfxx::lcd {
 
 result<ssd1306> ssd1306::make(idfxx::panel_io& panel_io, ssd1306::config config) {
-    return make_handle(panel_io.idf_handle(), config).transform([&](auto handle) {
-        return ssd1306{panel_io.idf_handle(), handle, config.height};
-    });
+    return make_handle(panel_io.idf_handle(), config)
+        .transform([&](auto handle) { return ssd1306{panel_io.idf_handle(), handle, config.height}; })
+        .and_then([&](ssd1306 panel) -> result<ssd1306> {
+            // On failure, `panel` is destroyed here, which deletes the panel handle.
+            return send_contrast(panel._io_handle, config.contrast).transform([&] { return std::move(panel); });
+        });
 }
 
 result<void> ssd1306::try_set_contrast(uint8_t level) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    return wrap(esp_lcd_panel_io_tx_param(_io_handle, 0x81, &level, 1));
+    return send_contrast(_io_handle, level);
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
