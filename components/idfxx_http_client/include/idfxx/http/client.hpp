@@ -459,14 +459,17 @@ public:
         /**
          * @brief Sends binary data as one chunk of the request body.
          *
-         * Sends all of the data or fails. Empty data sends nothing, since a
-         * zero-length chunk would end the body.
+         * Sends all of the data or fails. Blocks until the chunk has been sent or
+         * the timeout expires. Empty data sends nothing, since a zero-length
+         * chunk would end the body.
          *
          * @param data Binary data to send.
          * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-         * @throws std::system_error with client::errc::write_data if the data could not be sent
-         *         (no further data is sent after this), idfxx::errc::invalid_state if finish()
-         *         has already completed or an earlier write or finish failed, or
+         * @throws std::system_error with client::errc::eagain if the timeout expired, or
+         *         client::errc::write_data if sending failed (in either case part of the chunk
+         *         may have been sent, and no further data is sent after this),
+         *         idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed, or
          *         idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
          */
         void write(std::span<const uint8_t> data) { unwrap(try_write(data)); }
@@ -474,14 +477,17 @@ public:
         /**
          * @brief Sends string data as one chunk of the request body.
          *
-         * Sends all of the data or fails. Empty data sends nothing, since a
-         * zero-length chunk would end the body.
+         * Sends all of the data or fails. Blocks until the chunk has been sent or
+         * the timeout expires. Empty data sends nothing, since a zero-length
+         * chunk would end the body.
          *
          * @param data String data to send.
          * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-         * @throws std::system_error with client::errc::write_data if the data could not be sent
-         *         (no further data is sent after this), idfxx::errc::invalid_state if finish()
-         *         has already completed or an earlier write or finish failed, or
+         * @throws std::system_error with client::errc::eagain if the timeout expired, or
+         *         client::errc::write_data if sending failed (in either case part of the chunk
+         *         may have been sent, and no further data is sent after this),
+         *         idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed, or
          *         idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
          */
         void write(std::string_view data) { unwrap(try_write(data)); }
@@ -490,13 +496,16 @@ public:
         /**
          * @brief Sends binary data as one chunk of the request body.
          *
-         * Sends all of the data or fails. Empty data sends nothing, since a
-         * zero-length chunk would end the body.
+         * Sends all of the data or fails. Blocks until the chunk has been sent or
+         * the timeout expires. Empty data sends nothing, since a zero-length
+         * chunk would end the body.
          *
          * @param data Binary data to send.
          * @return Success, or an error.
-         * @retval client::errc::write_data if the data could not be sent. No further data is
-         *         sent after this.
+         * @retval client::errc::eagain if the timeout expired before the chunk was sent. Part
+         *         of the chunk may have been sent; no further data is sent after this.
+         * @retval client::errc::write_data if sending failed. Part of the chunk may have been
+         *         sent; no further data is sent after this.
          * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.
          * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
@@ -506,13 +515,16 @@ public:
         /**
          * @brief Sends string data as one chunk of the request body.
          *
-         * Sends all of the data or fails. Empty data sends nothing, since a
-         * zero-length chunk would end the body.
+         * Sends all of the data or fails. Blocks until the chunk has been sent or
+         * the timeout expires. Empty data sends nothing, since a zero-length
+         * chunk would end the body.
          *
          * @param data String data to send.
          * @return Success, or an error.
-         * @retval client::errc::write_data if the data could not be sent. No further data is
-         *         sent after this.
+         * @retval client::errc::eagain if the timeout expired before the chunk was sent. Part
+         *         of the chunk may have been sent; no further data is sent after this.
+         * @retval client::errc::write_data if sending failed. Part of the chunk may have been
+         *         sent; no further data is sent after this.
          * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.
          * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
@@ -523,12 +535,14 @@ public:
         /**
          * @brief Completes the request body.
          *
-         * Sends the terminating zero-length chunk. Call this before
-         * client::fetch_headers(). No further data can be written afterwards.
+         * Sends the terminating zero-length chunk, blocking until it has been
+         * sent or the timeout expires. Call this before client::fetch_headers().
+         * No further data can be written afterwards.
          *
          * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-         * @throws std::system_error with client::errc::write_data if the terminating chunk could
-         *         not be sent (no further data is sent after this), or
+         * @throws std::system_error with client::errc::eagain if the timeout expired, or
+         *         client::errc::write_data if sending failed (in either case no further data is
+         *         sent after this), or
          *         idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.
          */
@@ -538,11 +552,14 @@ public:
         /**
          * @brief Completes the request body.
          *
-         * Sends the terminating zero-length chunk. Call this before
-         * client::fetch_headers(). No further data can be written afterwards.
+         * Sends the terminating zero-length chunk, blocking until it has been
+         * sent or the timeout expires. Call this before client::fetch_headers().
+         * No further data can be written afterwards.
          *
          * @return Success, or an error.
-         * @retval client::errc::write_data if the terminating chunk could not be sent. No
+         * @retval client::errc::eagain if the timeout expired before the terminating chunk was
+         *         sent. No further data is sent after this.
+         * @retval client::errc::write_data if sending the terminating chunk failed. No
          *         further data is sent after this.
          * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.

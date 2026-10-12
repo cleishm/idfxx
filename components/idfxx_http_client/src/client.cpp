@@ -715,13 +715,19 @@ void client::chunk_writer::_abandon_if_unfinished() noexcept {
 
 result<void> client::chunk_writer::_send(const char* data, size_t len) {
     int written = esp_http_client_write(_client->_handle, data, static_cast<int>(len));
-    if (written < 0 || static_cast<size_t>(written) != len) {
-        // Part of a chunk may have been sent, so the body can no longer be framed correctly
-        _stage = stage::failed;
-        ESP_LOGD(TAG, "chunk write failed");
-        return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
+    if (written >= 0 && static_cast<size_t>(written) == len) {
+        return {};
     }
-    return {};
+    // Part of a chunk may have been sent, so the body can no longer be framed correctly
+    _stage = stage::failed;
+    if (written == 0 && len > 0) {
+        // The transport reports a write that timed out waiting for the socket
+        // to become writable as 0 bytes written.
+        ESP_LOGD(TAG, "chunk write timed out");
+        return http_client_error(ESP_ERR_HTTP_EAGAIN);
+    }
+    ESP_LOGD(TAG, "chunk write failed");
+    return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
 }
 
 result<void> client::chunk_writer::try_write(std::span<const uint8_t> data) {

@@ -527,6 +527,35 @@ TEST_CASE("http client chunk_writer stops sending after a failed write", "[idfxx
     c->try_close();
 }
 
+TEST_CASE("http client chunk_writer reports a timeout as eagain and stops sending", "[idfxx][http]") {
+    test::ensure_event_loop();
+    auto srv = make_loopback_server();
+    auto c = client::make({.url = loopback_url(srv), .method = method::post, .timeout = short_timeout});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    auto w = c->try_open_chunked();
+    TEST_ASSERT_TRUE(w.has_value());
+    auto conn = srv.try_accept();
+    TEST_ASSERT_TRUE(conn.has_value());
+
+    // The server never reads, so the chunk stalls once the loopback TCP send
+    // buffer and receive window are full (a few KiB each).
+    std::vector<uint8_t> body(32 * 1024, 0x55);
+    auto r = w->try_write(body);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == client::errc::eagain);
+
+    // The failure is latched: nothing more is sent
+    auto after = w->try_write(std::string_view{"more"});
+    TEST_ASSERT_FALSE(after.has_value());
+    TEST_ASSERT_TRUE(after.error() == idfxx::errc::invalid_state);
+    auto fin = w->try_finish();
+    TEST_ASSERT_FALSE(fin.has_value());
+    TEST_ASSERT_TRUE(fin.error() == idfxx::errc::invalid_state);
+
+    std::ignore = c->try_close();
+}
+
 TEST_CASE("http client refuses an abandoned chunked request and starts the next one afresh", "[idfxx][http]") {
     test::ensure_event_loop();
     auto srv = make_test_listener();

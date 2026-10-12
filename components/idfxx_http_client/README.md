@@ -268,7 +268,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief
 - **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a loop → `close()`
 - **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it
-- **Chunked write failures**: Once a `write()` or `finish()` fails, the writer sends nothing more and later calls fail with `invalid_state`
+- **Chunked write failures**: A `write()` or `finish()` that times out fails with `eagain`; any other send failure is `write_data`. Either way part of the chunk may already have been sent, so the writer sends nothing more and later calls fail with `invalid_state`
 - **Abandoned chunked requests**: Destroying a writer before `finish()` completes (including after a failure) abandons the request: nothing more is sent, so the body stays unterminated, and a warning is logged. The client then fails `fetch_headers()`, `read()`, `flush_response()` and `write()` with `invalid_state` instead of blocking on or corrupting that connection. The next `open()`, `open_chunked()` or `perform()` closes the connection (logging a warning) and starts on a fresh one; `close()` and `cancel_request()` also end the abandoned request
 
 ## License
