@@ -174,8 +174,8 @@ Errors are reported as `idfxx::result<T>` (result-based API) or
 - `idfxx::errc::invalid_arg` — negative duration, unconnected pin, a pin
   that is not capable of the requested wake-up, or a timer wake-up too short
   to enter sleep
-- `idfxx::errc::not_allowed` — light sleep was requested from a task whose
-  stack is in PSRAM (ESP-IDF 6.1+)
+- `idfxx::errc::not_allowed` — sleep was requested from a task whose stack
+  is in PSRAM (ESP-IDF 6.1+)
 
 ## Important Notes
 
@@ -201,9 +201,12 @@ Errors are reported as `idfxx::result<T>` (result-based API) or
   is set (e.g. ESP32-C5/C6/P4). Edges, like levels, must last at least 3 RTC
   slow-clock cycles (about 7.4 us on the internal RC oscillator, 30.5 us on a
   32 kHz crystal) to be detected.
-- **Light sleep must be entered from a task with its stack in internal RAM.**
-  From ESP-IDF 6.1, a request from a task whose stack is in PSRAM is rejected
-  with `errc::not_allowed`.
+- **Sleep must be entered from a task with its stack in internal RAM.**
+  From ESP-IDF 6.1, a light-sleep or `deep_sleep(sources...)` request from a
+  task whose stack is in PSRAM is rejected with `errc::not_allowed`.
+- **Deep sleep is not rejected for an already-active wake-up source.** The
+  chip sleeps and wakes immediately, restarting with that source as the
+  wake-up cause.
 - **EXT1's low trigger is named per target.** The original ESP32 defines
   `ext1_mode::all_low` (its hardware wakes only when all selected pins are
   low); every other EXT1 chip defines `ext1_mode::any_low`. Only the matching
