@@ -5,6 +5,8 @@
 #include <idfxx/http/client>
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <climits>
 #include <esp_http_client.h>
 #include <esp_idf_version.h>
@@ -564,6 +566,26 @@ result<void> client::try_open(size_t write_len) {
     return {};
 }
 
+result<client::chunk_writer> client::try_open_chunked() {
+    if (!_handle) {
+        return error(idfxx::errc::invalid_state);
+    }
+    // A chunked request must not carry a Content-Length, but some ESP-IDF
+    // releases keep one left over from an earlier request on this handle.
+    esp_http_client_delete_header(_handle, "Content-Length");
+    tls_client_guard guard(this);
+    esp_err_t err = esp_http_client_open(_handle, -1);
+    // The request headers have been sent. Drop Transfer-Encoding so that it is
+    // not carried into a later fixed-length request on this handle, which some
+    // ESP-IDF releases would send alongside a Content-Length.
+    esp_http_client_delete_header(_handle, "Transfer-Encoding");
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "open_chunked failed: %s", esp_err_to_name(err));
+        return http_client_error(err);
+    }
+    return chunk_writer{*this};
+}
+
 result<size_t> client::try_write(std::span<const uint8_t> data) {
     if (!_handle) {
         return error(idfxx::errc::invalid_state);
@@ -647,6 +669,77 @@ result<void> client::try_close() {
         return http_client_error(err);
     }
     return {};
+}
+
+// =========================================================================
+// Chunked request body
+// =========================================================================
+
+client::chunk_writer::chunk_writer(chunk_writer&& other) noexcept
+    : _client(std::exchange(other._client, nullptr))
+    , _stage(other._stage) {}
+
+client::chunk_writer& client::chunk_writer::operator=(chunk_writer&& other) noexcept {
+    if (this != &other) {
+        _warn_if_unfinished();
+        _client = std::exchange(other._client, nullptr);
+        _stage = other._stage;
+    }
+    return *this;
+}
+
+client::chunk_writer::~chunk_writer() {
+    _warn_if_unfinished();
+}
+
+void client::chunk_writer::_warn_if_unfinished() const noexcept {
+    if (_client && _stage != stage::finished) {
+        ESP_LOGW(TAG, "chunk_writer discarded before finish(); the request body is unterminated");
+    }
+}
+
+result<void> client::chunk_writer::_send(const char* data, size_t len) {
+    int written = esp_http_client_write(_client->_handle, data, static_cast<int>(len));
+    if (written < 0 || static_cast<size_t>(written) != len) {
+        // Part of a chunk may have been sent, so the body can no longer be framed correctly
+        _stage = stage::failed;
+        ESP_LOGD(TAG, "chunk write failed");
+        return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
+    }
+    return {};
+}
+
+result<void> client::chunk_writer::try_write(std::span<const uint8_t> data) {
+    if (!_client || !_client->_handle || _stage != stage::open) {
+        return error(idfxx::errc::invalid_state);
+    }
+    if (data.empty()) {
+        return {};
+    }
+    if (data.size() > static_cast<size_t>(INT_MAX)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    // Chunk size in hex, followed by CRLF
+    std::array<char, 2 * sizeof(size_t) + 2> header;
+    auto end = std::to_chars(header.data(), header.data() + header.size() - 2, data.size(), 16).ptr;
+    *end++ = '\r';
+    *end++ = '\n';
+
+    return _send(header.data(), static_cast<size_t>(end - header.data()))
+        .and_then([&] { return _send(reinterpret_cast<const char*>(data.data()), data.size()); })
+        .and_then([&] { return _send("\r\n", 2); });
+}
+
+result<void> client::chunk_writer::try_write(std::string_view data) {
+    return try_write(std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()});
+}
+
+result<void> client::chunk_writer::try_finish() {
+    if (!_client || !_client->_handle || _stage != stage::open) {
+        return error(idfxx::errc::invalid_state);
+    }
+    constexpr std::string_view terminator = "0\r\n\r\n";
+    return _send(terminator.data(), terminator.size()).transform([this] { _stage = stage::finished; });
 }
 
 // =========================================================================

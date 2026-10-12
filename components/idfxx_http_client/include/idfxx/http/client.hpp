@@ -83,7 +83,8 @@ struct event_data {
  *
  * Manages an HTTP session with support for TLS, authentication, custom headers,
  * redirects, and event callbacks. Provides both a simple blocking perform() API
- * and a streaming open()/write()/read()/close() API.
+ * and a streaming open()/write()/read()/close() API, including chunked request
+ * bodies via open_chunked().
  *
  * Not thread-safe — callers must manage their own synchronization.
  */
@@ -382,6 +383,176 @@ public:
     // Streaming API
     // =========================================================================
 
+    /**
+     * @headerfile <idfxx/http/client>
+     * @brief Writes a request body using chunked transfer encoding.
+     *
+     * Obtained from client::open_chunked(), which opens the connection with a
+     * `Transfer-Encoding: chunked` request header. Each write() sends its data
+     * as exactly one chunk, so the body can be streamed without knowing its
+     * total length in advance. finish() sends the terminating zero-length
+     * chunk, completing the request body; call it before
+     * client::fetch_headers().
+     *
+     * The writer refers to the client that created it. The client must outlive
+     * the writer and must not be moved while the writer is in use.
+     *
+     * If sending fails, the request body cannot be completed: the writer sends
+     * nothing further, and later write() and finish() calls fail with
+     * idfxx::errc::invalid_state. Close the client to abandon the request.
+     *
+     * Destroying a writer before finish() has completed sends nothing: the
+     * request body is left unterminated and a warning is logged.
+     *
+     * This type is non-copyable and move-only. A moved-from object must not be
+     * used: any operation other than destruction or assignment is undefined
+     * behavior.
+     *
+     * @code
+     * auto writer = c.open_chunked();
+     * writer.write("first part");
+     * writer.write("second part");
+     * writer.finish();
+     * c.fetch_headers();
+     * @endcode
+     */
+    class chunk_writer {
+    public:
+        /**
+         * @brief Destroys the writer.
+         *
+         * Sends nothing. If finish() has not completed, the request body is
+         * left unterminated and a warning is logged.
+         */
+        ~chunk_writer();
+
+        chunk_writer(const chunk_writer&) = delete;
+        chunk_writer& operator=(const chunk_writer&) = delete;
+
+        /** @brief Move constructor. Transfers the writer's state. */
+        chunk_writer(chunk_writer&& other) noexcept;
+
+        /**
+         * @brief Move assignment. Transfers the writer's state.
+         *
+         * If this writer had not completed finish(), a warning is logged as
+         * for destruction.
+         */
+        chunk_writer& operator=(chunk_writer&& other) noexcept;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+        /**
+         * @brief Sends binary data as one chunk of the request body.
+         *
+         * Sends all of the data or fails. Empty data sends nothing, since a
+         * zero-length chunk would end the body.
+         *
+         * @param data Binary data to send.
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+         * @throws std::system_error with client::errc::write_data if the data could not be sent
+         *         (no further data is sent after this), idfxx::errc::invalid_state if finish()
+         *         has already completed or an earlier write or finish failed, or
+         *         idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
+         */
+        void write(std::span<const uint8_t> data) { unwrap(try_write(data)); }
+
+        /**
+         * @brief Sends string data as one chunk of the request body.
+         *
+         * Sends all of the data or fails. Empty data sends nothing, since a
+         * zero-length chunk would end the body.
+         *
+         * @param data String data to send.
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+         * @throws std::system_error with client::errc::write_data if the data could not be sent
+         *         (no further data is sent after this), idfxx::errc::invalid_state if finish()
+         *         has already completed or an earlier write or finish failed, or
+         *         idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
+         */
+        void write(std::string_view data) { unwrap(try_write(data)); }
+#endif
+
+        /**
+         * @brief Sends binary data as one chunk of the request body.
+         *
+         * Sends all of the data or fails. Empty data sends nothing, since a
+         * zero-length chunk would end the body.
+         *
+         * @param data Binary data to send.
+         * @return Success, or an error.
+         * @retval client::errc::write_data if the data could not be sent. No further data is
+         *         sent after this.
+         * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed.
+         * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
+         */
+        [[nodiscard]] result<void> try_write(std::span<const uint8_t> data);
+
+        /**
+         * @brief Sends string data as one chunk of the request body.
+         *
+         * Sends all of the data or fails. Empty data sends nothing, since a
+         * zero-length chunk would end the body.
+         *
+         * @param data String data to send.
+         * @return Success, or an error.
+         * @retval client::errc::write_data if the data could not be sent. No further data is
+         *         sent after this.
+         * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed.
+         * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
+         */
+        [[nodiscard]] result<void> try_write(std::string_view data);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+        /**
+         * @brief Completes the request body.
+         *
+         * Sends the terminating zero-length chunk. Call this before
+         * client::fetch_headers(). No further data can be written afterwards.
+         *
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+         * @throws std::system_error with client::errc::write_data if the terminating chunk could
+         *         not be sent (no further data is sent after this), or
+         *         idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed.
+         */
+        void finish() { unwrap(try_finish()); }
+#endif
+
+        /**
+         * @brief Completes the request body.
+         *
+         * Sends the terminating zero-length chunk. Call this before
+         * client::fetch_headers(). No further data can be written afterwards.
+         *
+         * @return Success, or an error.
+         * @retval client::errc::write_data if the terminating chunk could not be sent. No
+         *         further data is sent after this.
+         * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
+         *         write or finish failed.
+         */
+        [[nodiscard]] result<void> try_finish();
+
+    private:
+        friend class client;
+
+        enum class stage : uint8_t {
+            open,     ///< Accepting chunks
+            failed,   ///< A send failed; the body cannot be completed
+            finished, ///< The terminating chunk has been sent
+        };
+
+        explicit chunk_writer(client& c) noexcept
+            : _client(&c) {}
+
+        [[nodiscard]] result<void> _send(const char* data, size_t len);
+        void _warn_if_unfinished() const noexcept;
+
+        client* _client;
+        stage _stage = stage::open;
+    };
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Opens a connection for streaming.
@@ -398,6 +569,32 @@ public:
 
     /// @overload
     void open(int write_len) { open(static_cast<size_t>(write_len)); }
+
+    /**
+     * @brief Opens a connection for streaming a chunked request body.
+     *
+     * Opens the HTTP connection and sends request headers with
+     * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
+     * body of unknown length can be sent. Send the body through the returned
+     * chunk_writer and call chunk_writer::finish() before fetch_headers();
+     * fetching headers before the body is finished is a usage error.
+     *
+     * @code
+     * idfxx::http::client c({.url = "http://example.com/upload", .method = idfxx::http::method::post});
+     * auto writer = c.open_chunked();
+     * writer.write("first part");
+     * writer.write("second part");
+     * writer.finish();
+     * c.fetch_headers();
+     * auto status = c.status_code();
+     * c.close();
+     * @endcode
+     *
+     * @return A writer for the request body. The client must outlive it.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error if the connection fails.
+     */
+    [[nodiscard]] chunk_writer open_chunked() { return unwrap(try_open_chunked()); }
 
     /**
      * @brief Writes data to the open connection.
@@ -435,6 +632,8 @@ public:
      * Must be called after open() (and any write() calls) before reading
      * response body data. Blocks until the response headers have been received
      * or the timeout expires.
+     * After open_chunked(), finish the request body with
+     * chunk_writer::finish() first.
      *
      * @return The response's Content-Length when it is greater than zero, or 0
      *         when the length is zero or not known in advance (a chunked response
@@ -515,6 +714,21 @@ public:
     [[nodiscard]] result<void> try_open(int write_len) { return try_open(static_cast<size_t>(write_len)); }
 
     /**
+     * @brief Opens a connection for streaming a chunked request body.
+     *
+     * Opens the HTTP connection and sends request headers with
+     * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
+     * body of unknown length can be sent. Send the body through the returned
+     * chunk_writer and call chunk_writer::try_finish() before
+     * try_fetch_headers(); fetching headers before the body is finished is a
+     * usage error.
+     *
+     * @return A writer for the request body, or an error. The client must
+     *         outlive the writer.
+     */
+    [[nodiscard]] result<chunk_writer> try_open_chunked();
+
+    /**
      * @brief Writes data to the open connection.
      *
      * Blocks until all of @p data has been written or the timeout expires.
@@ -548,6 +762,8 @@ public:
      * Must be called after open() (and any write() calls) before reading
      * response body data. Blocks until the response headers have been received
      * or the timeout expires.
+     * After try_open_chunked(), finish the request body
+     * with chunk_writer::try_finish() first.
      *
      * @return The response's Content-Length when it is greater than zero, 0 when
      *         the length is zero or not known in advance (a chunked response or
