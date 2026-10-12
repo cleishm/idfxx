@@ -24,6 +24,7 @@
 #include <idfxx/error>
 #include <idfxx/partition>
 
+#include <esp_idf_version.h>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -42,6 +43,17 @@ template<typename T>
 concept sized_integral =
     std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, uint16_t> || std::same_as<T, int16_t> ||
     std::same_as<T, uint32_t> || std::same_as<T, int32_t> || std::same_as<T, uint64_t> || std::same_as<T, int64_t>;
+
+/**
+ * @headerfile <idfxx/nvs>
+ * @brief Concept for types storable with set_value()/get_value().
+ */
+template<typename T>
+concept nvs_value = sized_integral<T>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    || std::same_as<T, float> || std::same_as<T, double>
+#endif
+    ;
 /** @endcond */
 
 /**
@@ -49,7 +61,8 @@ concept sized_integral =
  * @brief Non-Volatile Storage handle.
  *
  * Provides persistent key-value storage in flash memory. Supports strings,
- * binary blobs, and integer types from 8 to 64 bits.
+ * binary blobs, integer types from 8 to 64 bits, and (ESP-IDF 6.1 or later)
+ * float and double.
  *
  * This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
@@ -237,29 +250,34 @@ public:
     [[nodiscard]] std::vector<uint8_t> get_blob(std::string_view key) { return unwrap(try_get_blob(key)); }
 
     /**
-     * @brief Stores an integer value.
-     * @tparam T Integer type (8 to 64 bits, signed or unsigned).
+     * @brief Stores a numeric value.
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it is
+     *       rejected with idfxx::errc::invalid_arg.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
     template<typename T>
-        requires sized_integral<T>
+        requires nvs_value<T>
     void set_value(std::string_view key, T value) {
         unwrap(try_set_value(key, value));
     }
 
     /**
-     * @brief Retrieves an integer value.
-     * @tparam T Integer type (8 to 64 bits, signed or unsigned).
+     * @brief Retrieves a numeric value.
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
      * @param key Key name.
+     * @note float and double are only available with ESP-IDF 6.1 or later.
      * @return The value.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
     template<typename T>
-        requires sized_integral<T>
+        requires nvs_value<T>
     [[nodiscard]] T get_value(std::string_view key) {
         return unwrap(try_get_value<T>(key));
     }
@@ -324,24 +342,29 @@ public:
     [[nodiscard]] result<std::vector<uint8_t>> try_get_blob(std::string_view key);
 
     /**
-     * @brief Stores an integer value.
-     * @tparam T Integer type (8 to 64 bits, signed or unsigned).
+     * @brief Stores a numeric value.
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it is
+     *       rejected with idfxx::errc::invalid_arg.
      * @return Success, or an error.
      */
     template<typename T>
-        requires sized_integral<T>
+        requires nvs_value<T>
     [[nodiscard]] result<void> try_set_value(std::string_view key, T value);
 
     /**
-     * @brief Retrieves an integer value.
-     * @tparam T Integer type (8 to 64 bits, signed or unsigned).
+     * @brief Retrieves a numeric value.
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
      * @param key Key name.
+     * @note float and double are only available with ESP-IDF 6.1 or later.
      * @return The value, or an error.
      */
     template<typename T>
-        requires sized_integral<T>
+        requires nvs_value<T>
     [[nodiscard]] result<T> try_get_value(std::string_view key);
 
 private:

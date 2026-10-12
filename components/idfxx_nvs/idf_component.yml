@@ -1,4 +1,4 @@
-version: "1.0.2"
+version: "1.1.0"
 description: "Type-safe persistent key-value storage in flash memory"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_nvs"
 repository: "https://github.com/cleishm/idfxx.git"
