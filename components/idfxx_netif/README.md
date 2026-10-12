@@ -134,6 +134,8 @@ The component provides two API styles:
 
 **IPv6**: `create_ipv6_linklocal()`, `get_ipv6_linklocal()`, `get_ipv6_global()`, `get_all_ipv6()`, `get_all_preferred_ipv6()`
 
+**Static IPv6 neighbors** (ESP-IDF 6.1+, `CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES`): `add_static_neighbor()`, `remove_static_neighbor()`
+
 **DHCP Client**: `dhcp_client_start()`, `dhcp_client_stop()`, `is_dhcp_client_running()`
 
 **DHCP Server**: `dhcp_server_start()`, `dhcp_server_stop()`, `is_dhcp_server_running()`

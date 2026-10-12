@@ -11,3 +11,6 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 
 # WebSocket support for idfxx_http_server
 CONFIG_HTTPD_WS_SUPPORT=y
+
+# Static IPv6 neighbor API for idfxx_netif (ESP-IDF 6.1+)
+CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES=y

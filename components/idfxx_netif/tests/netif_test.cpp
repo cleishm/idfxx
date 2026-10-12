@@ -3,6 +3,7 @@
 
 #include <idfxx/netif>
 
+#include <esp_netif.h>
 #include <type_traits>
 #include <unity.h>
 
@@ -93,3 +94,25 @@ TEST_CASE("flags bitwise operations", "[netif]") {
     TEST_ASSERT_TRUE(f.contains(idfxx::netif::flag::autoup));
     TEST_ASSERT_FALSE(f.contains(idfxx::netif::flag::dhcp_server));
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)
+TEST_CASE("static neighbor add and remove", "[netif]") {
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    auto netif = idfxx::netif::interface::take(esp_netif_new(&cfg));
+    auto addr = *idfxx::net::ipv6_addr::parse("fe80::1");
+    auto mac = idfxx::mac_address(0x02, 0x00, 0x00, 0x00, 0x00, 0x01);
+
+    auto r = netif.try_remove_static_neighbor(addr);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::not_found);
+
+    TEST_ASSERT_TRUE(netif.try_add_static_neighbor(addr, mac).has_value());
+    // Re-adding the same address updates the entry
+    TEST_ASSERT_TRUE(netif.try_add_static_neighbor(addr, idfxx::mac_address(0x02, 0, 0, 0, 0, 0x02)).has_value());
+    TEST_ASSERT_TRUE(netif.try_remove_static_neighbor(addr).has_value());
+
+    r = netif.try_remove_static_neighbor(addr);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::not_found);
+}
+#endif

@@ -284,6 +284,35 @@ std::vector<net::ipv6_addr> interface::get_all_preferred_ipv6() const {
 #endif
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)
+result<void> interface::try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac) {
+    if (_handle == nullptr) {
+        return error(idfxx::errc::invalid_state);
+    }
+    auto native = to_native(addr);
+    auto err = esp_netif_add_static_neighbor(_handle, &native, mac.data());
+    if (err != ESP_OK) {
+        return netif_error(err);
+    }
+    return {};
+}
+
+result<void> interface::try_remove_static_neighbor(const net::ipv6_addr& addr) {
+    if (_handle == nullptr) {
+        return error(idfxx::errc::invalid_state);
+    }
+    auto native = to_native(addr);
+    auto err = esp_netif_remove_static_neighbor(_handle, &native);
+    if (err == ESP_FAIL) {
+        return error(idfxx::errc::not_found);
+    }
+    if (err != ESP_OK) {
+        return netif_error(err);
+    }
+    return {};
+}
+#endif
+
 // =========================================================================
 // DNS
 // =========================================================================
