@@ -3,6 +3,7 @@
 
 #include <idfxx/wifi>
 
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <esp_idf_version.h>
@@ -398,6 +399,19 @@ result<void> try_init(const init_config& cfg) {
     if (cfg.wifi_task_core_id) {
         init_cfg.wifi_task_core_id = std::to_underlying(*cfg.wifi_task_core_id);
     }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    if (cfg.privacy_enhancements) {
+        init_cfg.privacy_enhancements = *cfg.privacy_enhancements;
+    }
+    if (cfg.rmac_auto_reset_interval) {
+        if (*cfg.rmac_auto_reset_interval < std::chrono::hours{1} ||
+            *cfg.rmac_auto_reset_interval > std::chrono::hours{24}) {
+            return wifi_error(ESP_ERR_INVALID_ARG);
+        }
+        init_cfg.rmac_auto_reset_int = static_cast<uint8_t>(cfg.rmac_auto_reset_interval->count());
+    }
+#endif
 
     auto err = esp_wifi_init(&init_cfg);
     if (err != ESP_OK) {

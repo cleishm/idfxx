@@ -803,7 +803,8 @@ struct ftm_report_entry {
  *
  * Controls buffer allocation, AMPDU settings, NVS persistence, and task
  * pinning for the WiFi subsystem. All fields default to @c std::nullopt,
- * which preserves the Kconfig default values.
+ * which preserves the Kconfig default values. On ESP-IDF 6.1 and later, station
+ * privacy settings are also available.
  *
  * @code
  * idfxx::wifi::init({
@@ -824,6 +825,27 @@ struct init_config {
     std::optional<bool> ampdu_tx_enable;            /*!< AMPDU TX feature enable. */
     std::optional<bool> nvs_enable;                 /*!< NVS flash for WiFi config persistence. */
     std::optional<core_id> wifi_task_core_id;       /*!< WiFi task core ID. */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /**
+     * @brief Privacy enhancements for the station interface.
+     *
+     * When enabled, the station uses a random MAC address, randomized sequence
+     * numbers, and randomized dialogue token numbers. Applies to the station
+     * interface only.
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    std::optional<bool> privacy_enhancements;
+    /**
+     * @brief Interval at which the random MAC address is rotated while not connected.
+     *
+     * Must be between 1 and 24 hours inclusive; @c try_init() returns
+     * @c errc::invalid_arg otherwise.
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    std::optional<std::chrono::hours> rmac_auto_reset_interval;
+#endif
 
     [[nodiscard]] constexpr bool operator==(const init_config&) const noexcept = default;
 };
@@ -1099,6 +1121,11 @@ enum class event_id : int32_t {
     dpp_uri_ready                              = 47, /*!< DPP URI ready. */
     dpp_cfg_recvd                              = 48, /*!< DPP configuration received. */
     dpp_failed                                 = 49, /*!< DPP failed. */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    nan_pairing_indication                     = 50, /*!< NAN pairing indication received (ESP-IDF 6.1+). */
+    nan_pairing_confirm                        = 51, /*!< NAN pairing completed (ESP-IDF 6.1+). */
+    nan_cluster_join                           = 52, /*!< Joined, started, or merged into a NAN cluster (ESP-IDF 6.1+). */
+#endif
     // clang-format on
 };
 

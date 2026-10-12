@@ -3,13 +3,24 @@
 
 #include <idfxx/wifi>
 
+#include <chrono>
+#include <esp_idf_version.h>
 #include <limits>
+#include <optional>
 #include <system_error>
 #include <type_traits>
 #include <unity.h>
 #include <utility>
 
 using namespace idfxx::wifi;
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+static_assert(std::to_underlying(event_id::nan_pairing_indication) == 50);
+static_assert(std::to_underlying(event_id::nan_pairing_confirm) == 51);
+static_assert(std::to_underlying(event_id::nan_cluster_join) == 52);
+static_assert(std::is_same_v<decltype(init_config::privacy_enhancements), std::optional<bool>>);
+static_assert(std::is_same_v<decltype(init_config::rmac_auto_reset_interval), std::optional<std::chrono::hours>>);
+#endif
 
 // =============================================================================
 // Type properties
@@ -161,6 +172,27 @@ TEST_CASE("wifi try_init rejects oversized buffer count", "[idfxx][wifi]") {
     TEST_ASSERT_TRUE(r.error() == std::errc::value_too_large);
     TEST_ASSERT_EQUAL_STRING("wifi::Error", r.error().category().name());
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+TEST_CASE("wifi init_config privacy fields default to unset", "[idfxx][wifi]") {
+    init_config cfg;
+    TEST_ASSERT_FALSE(cfg.privacy_enhancements.has_value());
+    TEST_ASSERT_FALSE(cfg.rmac_auto_reset_interval.has_value());
+}
+
+TEST_CASE("wifi try_init rejects out-of-range rmac interval", "[idfxx][wifi]") {
+    init_config cfg;
+    cfg.rmac_auto_reset_interval = std::chrono::hours{0};
+    auto r = try_init(cfg);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+
+    cfg.rmac_auto_reset_interval = std::chrono::hours{25};
+    r = try_init(cfg);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+}
+#endif
 
 TEST_CASE("wifi get and set country", "[idfxx][wifi][hw]") {
     auto init_result = try_init();
