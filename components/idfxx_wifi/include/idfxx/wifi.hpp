@@ -866,16 +866,20 @@ struct pmf_config {
  * @brief Configuration for WiFi station mode.
  */
 struct sta_config {
-    std::string ssid;                                      /*!< SSID of the target access point. */
-    std::string password;                                  /*!< Password for the target access point. */
-    std::optional<mac_address> bssid = {};                 /*!< Target AP BSSID (empty = any). */
-    uint8_t channel = 0;                                   /*!< Channel hint (0 = scan all). */
-    enum scan_method scan_method = scan_method::fast;      /*!< Scan method when connecting. */
-    enum sort_method sort_method = sort_method::by_rssi;   /*!< AP sort method when connecting. */
-    enum auth_mode auth_threshold = auth_mode::open;       /*!< Minimum authentication mode to accept. */
-    electro::dbm rssi_threshold{-127};                     /*!< Minimum RSSI to accept. */
-    struct pmf_config pmf = {};                            /*!< PMF configuration. */
-    uint16_t listen_interval = 0;                          /*!< Listen interval for power save (0 = default). */
+    std::string ssid;                                    /*!< SSID of the target access point. */
+    std::string password;                                /*!< Password for the target access point. */
+    std::optional<mac_address> bssid = {};               /*!< Target AP BSSID (empty = any). */
+    uint8_t channel = 0;                                 /*!< Channel hint (0 = scan all). */
+    enum scan_method scan_method = scan_method::fast;    /*!< Scan method when connecting. */
+    enum sort_method sort_method = sort_method::by_rssi; /*!< AP sort method when connecting. */
+    enum auth_mode auth_threshold = auth_mode::open;     /*!< Minimum authentication mode to accept. */
+    electro::dbm rssi_threshold{-127};                   /*!< Minimum RSSI to accept. */
+    struct pmf_config pmf = {};                          /*!< PMF configuration. */
+    /**
+     * @brief Listen interval for maximum modem power save, in AP beacon intervals, or std::nullopt to let the driver
+     * choose. An explicit value of 0 is rejected with `idfxx::errc::invalid_arg` when the configuration is applied.
+     */
+    std::optional<uint16_t> listen_interval = std::nullopt;
     bool rm_enabled = false;                               /*!< Radio Measurement enabled. */
     bool btm_enabled = false;                              /*!< BSS Transition Management enabled. */
     bool mbo_enabled = false;                              /*!< MBO (Multi-Band Operation) enabled. */
@@ -900,7 +904,7 @@ struct ap_config {
     enum auth_mode authmode = auth_mode::open;                 /*!< Authentication mode. */
     uint8_t ssid_hidden = 0;                                   /*!< Whether SSID is hidden (0 = broadcast). */
     uint8_t max_connection = 4;                                /*!< Maximum number of connected stations. */
-    uint16_t beacon_interval = 100;                            /*!< Beacon interval in milliseconds. */
+    uint16_t beacon_interval = 100;                            /*!< Beacon interval in TU (1 TU = 1024 µs). */
     enum cipher_type pairwise_cipher = cipher_type::tkip_ccmp; /*!< Pairwise cipher type. */
     bool ftm_responder = false;                                /*!< FTM responder mode enabled. */
     struct pmf_config pmf = {};                                /*!< PMF configuration. */
