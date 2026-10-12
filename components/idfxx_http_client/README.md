@@ -6,6 +6,7 @@ Type-safe HTTP/HTTPS client for ESP32.
 
 - Blocking `perform()` for simple request/response workflows
 - Streaming `open()`/`write()`/`read()`/`close()` for large payloads
+- Chunked request bodies via `open_chunked()` for uploads of unknown length
 - Models `idfxx::byte_source`, so a response body can be passed to any code that consumes a byte stream
 - TLS support with certificate pinning and bundle verification
 - HTTP Basic and Digest authentication
@@ -121,6 +122,36 @@ try {
 }
 ```
 
+### Chunked Upload
+
+When the request body's length isn't known up front, `open_chunked()` sends it with
+chunked transfer encoding. Each `write()` sends one chunk; `finish()` ends the body.
+
+```cpp
+#include <idfxx/http/client>
+#include <idfxx/log>
+
+try {
+    idfxx::http::client c({
+        .url = "https://httpbin.org/post",
+        .method = idfxx::http::method::post,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    });
+
+    auto writer = c.open_chunked();
+    writer.write("first part,");
+    writer.write("second part");
+    writer.finish();
+
+    c.fetch_headers();
+    idfxx::log::info("HTTP", "Status: {}", c.status_code());
+    c.close();
+
+} catch (const std::system_error& e) {
+    idfxx::log::error("HTTP", "Upload failed: {}", e.what());
+}
+```
+
 ### Result-based API
 
 If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must be used:
@@ -157,6 +188,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `event_id` - Event identifiers for callbacks
 - `event_data` - Data passed to event callbacks
 - `client` - HTTP client session
+- `client::chunk_writer` - Writer for a chunked request body
 
 ### `client`
 
@@ -180,6 +212,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 
 **Streaming:**
 - `open(write_len)` / `try_open(write_len)` - Open connection
+- `open_chunked()` / `try_open_chunked()` - Open connection for a chunked request body; returns a `chunk_writer`
 - `write(data)` / `try_write(data)` - Write request body
 - `fetch_headers()` / `try_fetch_headers()` - Read response headers
 - `read(buf)` / `try_read(buf)` - Read response body; 0 at end of response. `try_read(std::span<uint8_t>)`
@@ -197,6 +230,11 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 **Redirect:**
 - `set_redirection()` / `try_set_redirection()` - Apply redirect URL
 - `reset_redirect_counter()` - Reset redirect counter
+
+### `client::chunk_writer`
+
+- `write(data)` / `try_write(data)` - Send data as one chunk; empty data sends nothing
+- `finish()` / `try_finish()` - Send the terminating chunk, completing the request body
 
 ## Error Handling
 
@@ -229,6 +267,9 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only a pointer
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief
 - **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a loop → `close()`
+- **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it
+- **Chunked write failures**: A `write()` or `finish()` that times out fails with `eagain`; any other send failure is `write_data`. Either way part of the chunk may already have been sent, so the writer sends nothing more and later calls fail with `invalid_state`
+- **Abandoned chunked requests**: Destroying a writer before `finish()` completes (including after a failure) abandons the request: nothing more is sent, so the body stays unterminated, and a warning is logged. The client then fails `fetch_headers()`, `read()`, `flush_response()` and `write()` with `invalid_state` instead of blocking on or corrupting that connection. The next `open()`, `open_chunked()` or `perform()` closes the connection (logging a warning) and starts on a fresh one; `close()` and `cancel_request()` also end the abandoned request
 
 ## License
 
