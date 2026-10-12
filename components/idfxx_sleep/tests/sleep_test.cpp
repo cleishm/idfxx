@@ -8,6 +8,7 @@
 #include <unity.h>
 
 #include <chrono>
+#include <esp_idf_version.h>
 #include <esp_sleep.h>
 #include <string>
 #include <utility>
@@ -47,6 +48,17 @@ static_assert(std::to_underlying(sleep::ext1_mode::any_high) == ESP_EXT1_WAKEUP_
 // deep_sleep_gpio_mode values match ESP-IDF constants
 static_assert(std::to_underlying(sleep::deep_sleep_gpio_mode::wake_low) == ESP_GPIO_WAKEUP_GPIO_LOW);
 static_assert(std::to_underlying(sleep::deep_sleep_gpio_mode::wake_high) == ESP_GPIO_WAKEUP_GPIO_HIGH);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED
+static_assert(std::to_underlying(sleep::deep_sleep_gpio_mode::wake_posedge) == ESP_GPIO_WAKEUP_GPIO_POSEDGE);
+static_assert(std::to_underlying(sleep::deep_sleep_gpio_mode::wake_negedge) == ESP_GPIO_WAKEUP_GPIO_NEGEDGE);
+static_assert(std::to_underlying(sleep::deep_sleep_gpio_mode::wake_anyedge) == ESP_GPIO_WAKEUP_GPIO_ANYEDGE);
+
+// Edge-triggered deep-sleep GPIO wake specifications carry their mode
+static_assert(
+    sleep::deep_sleep_gpio_wake{uint64_t{1}, sleep::deep_sleep_gpio_mode::wake_anyedge}.mode()
+    == sleep::deep_sleep_gpio_mode::wake_anyedge
+);
+#endif
 #endif
 
 // wake_spec is satisfied by exactly the wake-up source specification types
@@ -97,6 +109,20 @@ TEST_CASE("ext1 wakeup rejects unconnected pins", "[sleep]") {
     auto enabled = sleep::try_enable_wakeup(sleep::ext1_wake{{gpio::nc()}, sleep::ext1_mode::any_high});
     TEST_ASSERT_FALSE(enabled.has_value());
     TEST_ASSERT_TRUE(enabled.error() == errc::invalid_arg);
+}
+#endif
+
+#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+TEST_CASE("deep-sleep GPIO wakeup rejects unconnected pins", "[sleep]") {
+    auto enabled = sleep::try_enable_wakeup(
+        sleep::deep_sleep_gpio_wake{{gpio::nc()}, sleep::deep_sleep_gpio_mode::wake_low}
+    );
+    TEST_ASSERT_FALSE(enabled.has_value());
+    TEST_ASSERT_TRUE(enabled.error() == errc::invalid_arg);
+}
+
+TEST_CASE("first boot reports no deep-sleep GPIO wakeup pins", "[sleep]") {
+    TEST_ASSERT_TRUE(sleep::deep_sleep_gpio_wakeup_status() == 0);
 }
 #endif
 

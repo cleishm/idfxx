@@ -38,6 +38,7 @@
 #include <chrono>
 #include <concepts>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <initializer_list>
 #include <optional>
 #include <soc/soc_caps.h>
@@ -60,7 +61,7 @@ enum class wakeup_source : int {
     timer      = 4,  ///< Sleep timer expired.
     touchpad   = 5,  ///< Touch sensor.
     ulp        = 6,  ///< ULP coprocessor program.
-    gpio       = 7,  ///< Digital GPIO level (light sleep; also deep sleep on chips without EXT0/EXT1).
+    gpio       = 7,  ///< Digital GPIO (light sleep; also deep sleep via deep_sleep_gpio_wake).
     uart       = 8,  ///< UART activity (light sleep only).
     wifi       = 9,  ///< Wi-Fi beacon (light sleep only).
     cocpu      = 10, ///< ULP-RISC-V coprocessor interrupt.
@@ -219,21 +220,65 @@ private:
 #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
 /**
  * @headerfile <idfxx/sleep>
- * @brief Trigger level for deep-sleep GPIO wake-up.
+ * @brief Trigger condition for deep-sleep GPIO wake-up.
+ *
+ * Level triggers are available on every chip with deep-sleep GPIO wake-up.
+ * Edge triggers (`wake_posedge`, `wake_negedge`, `wake_anyedge`) are only
+ * defined on chips whose RTC GPIOs can latch an edge while sleeping (e.g.
+ * ESP32-C5, ESP32-C6, ESP32-P4), and only with ESP-IDF 6.1 or later.
+ *
+ * A level must be held, and an edge pulse must last, for at least 3 RTC
+ * slow-clock cycles to be reliably detected. The cycle length depends on the
+ * RTC clock source (`CONFIG_RTC_CLK_SRC`): about 7.4 us with the internal
+ * ~136 kHz RC oscillator, or about 30.5 us with a 32.768 kHz crystal.
+ *
+ * Unless `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` is disabled, the
+ * selected pins are biased towards their idle state while sleeping: pulled up
+ * for `wake_low` and `wake_negedge`, pulled down for `wake_high` and
+ * `wake_posedge`, and left floating for `wake_anyedge`.
  */
 enum class deep_sleep_gpio_mode : int {
-    wake_low = 0,  ///< Wake when a selected pin goes low.
-    wake_high = 1, ///< Wake when a selected pin goes high.
+    wake_low = 0,  ///< Wake when a selected pin is low.
+    wake_high = 1, ///< Wake when a selected pin is high.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED
+    /**
+     * @brief Wake on a rising edge of a selected pin.
+     *
+     * @note Only available with ESP-IDF 6.1 or later, on chips with RTC GPIO
+     *       edge wake-up support (`SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED`).
+     */
+    wake_posedge = 2,
+    /**
+     * @brief Wake on a falling edge of a selected pin.
+     *
+     * @note Only available with ESP-IDF 6.1 or later, on chips with RTC GPIO
+     *       edge wake-up support (`SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED`).
+     */
+    wake_negedge = 3,
+    /**
+     * @brief Wake on either edge of a selected pin.
+     *
+     * @note Only available with ESP-IDF 6.1 or later, on chips with RTC GPIO
+     *       edge wake-up support (`SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED`).
+     */
+    wake_anyedge = 4,
+#endif
 };
 
 /**
  * @headerfile <idfxx/sleep>
- * @brief Wakes the chip from deep sleep on levels of one or more pins.
+ * @brief Wakes the chip from deep sleep on the level or edge of one or more
+ *        pins.
  *
- * Available on chips without EXT0/EXT1 support (e.g. ESP32-C3), where it is
- * the only pin-based deep-sleep wake-up source. Only deep-sleep-capable pins
- * may be selected (typically the low-numbered GPIOs; see the chip datasheet).
- * Reported as @ref wakeup_source::gpio.
+ * The only pin-based deep-sleep wake-up source on chips without EXT0/EXT1
+ * support (e.g. ESP32-C3); with ESP-IDF 6.1 or later it is also available on
+ * the ESP32, ESP32-S2 and ESP32-S3. Only deep-sleep-capable pins may be
+ * selected (RTC-capable GPIOs; see the chip datasheet). Reported as
+ * @ref wakeup_source::gpio; the triggering pins are available from
+ * @ref deep_sleep_gpio_wakeup_status.
+ *
+ * Edges that occur before sleep is entered are discarded, so an edge-triggered
+ * wake responds only to activity while sleeping.
  *
  * @note Only available on chips with deep-sleep GPIO wake-up support
  *       (`SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
@@ -245,7 +290,7 @@ public:
      *
      * @param pins The pins to wake on; each must be deep-sleep wake capable
      *             and connected, or arming the specification fails.
-     * @param mode Whether high or low levels trigger the wake.
+     * @param mode The level or edge that triggers the wake.
      */
     constexpr deep_sleep_gpio_wake(std::initializer_list<idfxx::gpio> pins, deep_sleep_gpio_mode mode) noexcept
         : _pin_mask(detail::pin_mask_of(pins))
@@ -255,7 +300,7 @@ public:
      * @brief Specifies a deep-sleep GPIO wake on a mask of pins.
      *
      * @param pin_mask Bit mask of GPIO numbers to wake on (bit n selects GPIO n).
-     * @param mode     Whether high or low levels trigger the wake.
+     * @param mode     The level or edge that triggers the wake.
      */
     constexpr deep_sleep_gpio_wake(uint64_t pin_mask, deep_sleep_gpio_mode mode) noexcept
         : _pin_mask(pin_mask)
@@ -264,7 +309,7 @@ public:
     /// @brief Bit mask of GPIO numbers to wake on.
     [[nodiscard]] constexpr uint64_t pin_mask() const noexcept { return _pin_mask; }
 
-    /// @brief Whether high or low levels trigger the wake.
+    /// @brief The level or edge that triggers the wake.
     [[nodiscard]] constexpr deep_sleep_gpio_mode mode() const noexcept { return _mode; }
 
 private:
@@ -353,6 +398,9 @@ template<wake_spec... Sources>
  * @return The source that woke the chip.
  *
  * @note At least one wake-up source must be armed, or sleep is rejected.
+ * @note With ESP-IDF 6.1 or later, sleep is also rejected when the calling
+ *       task's stack is in PSRAM; call from a task whose stack is in internal
+ *       RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error if a source is invalid or sleep is rejected
  *         (e.g. a wake-up source triggered before sleep was entered).
@@ -394,8 +442,12 @@ template<wake_spec... Sources>
  *         enter sleep at all).
  * @retval idfxx::errc::invalid_state if sleep was rejected (e.g. a wake-up
  *         source triggered before sleep was entered).
+ * @retval idfxx::errc::not_allowed if the calling task's stack is in PSRAM
+ *         (ESP-IDF 6.1 or later).
  *
  * @note At least one wake-up source must be armed, or sleep is rejected.
+ * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
+ *       stack is in PSRAM; call from a task whose stack is in internal RAM.
  */
 template<wake_spec... Sources>
 [[nodiscard]] result<wakeup_source> try_light_sleep(const Sources&... sources) {
@@ -420,6 +472,9 @@ template<wake_spec... Sources>
  * @return The source that woke the chip (normally
  *         @ref wakeup_source::timer).
  *
+ * @note With ESP-IDF 6.1 or later, sleep is also rejected when the calling
+ *       task's stack is in PSRAM; call from a task whose stack is in internal
+ *       RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error if the duration is invalid or sleep is rejected.
  */
@@ -440,6 +495,11 @@ template<wake_spec... Sources>
  *         to enter sleep at all.
  * @retval idfxx::errc::invalid_state if sleep was rejected (e.g. a wake-up
  *         source triggered before sleep was entered).
+ * @retval idfxx::errc::not_allowed if the calling task's stack is in PSRAM
+ *         (ESP-IDF 6.1 or later).
+ *
+ * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
+ *       stack is in PSRAM; call from a task whose stack is in internal RAM.
  */
 [[nodiscard]] result<wakeup_source> try_light_sleep_for(std::chrono::microseconds duration);
 
@@ -570,6 +630,31 @@ template<wake_spec First, wake_spec... Rest>
  * @note Only available on chips with EXT1 wake-up support (`SOC_PM_SUPPORT_EXT1_WAKEUP`).
  */
 [[nodiscard]] uint64_t ext1_wakeup_status() noexcept;
+#endif
+
+#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+/**
+ * @brief Returns the pins that triggered the most recent deep-sleep GPIO wake.
+ *
+ * Identifies which of the pins armed with @ref deep_sleep_gpio_wake woke the
+ * chip.
+ *
+ * @return Bit mask of GPIO numbers (bit n set means GPIO n triggered the
+ *         wake). Zero if the last wake was not caused by a GPIO.
+ *
+ * @note Only available on chips with deep-sleep GPIO wake-up support
+ *       (`SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
+ *
+ * @code
+ * if (idfxx::sleep::wakeup_cause() == idfxx::sleep::wakeup_source::gpio) {
+ *     auto pins = idfxx::sleep::deep_sleep_gpio_wakeup_status();
+ *     if (pins & (uint64_t{1} << button.num())) {
+ *         // the button woke the chip
+ *     }
+ * }
+ * @endcode
+ */
+[[nodiscard]] uint64_t deep_sleep_gpio_wakeup_status() noexcept;
 #endif
 
 // =============================================================================
