@@ -5,6 +5,7 @@
 
 #include <bit>
 #include <esp_idf_version.h>
+#include <esp_memory_utils.h>
 #include <esp_sleep.h>
 #include <string>
 #include <utility>
@@ -202,6 +203,17 @@ result<wakeup_source> do_light_sleep() {
     // A completed light sleep always has a cause; `other` covers the
     // (unexpected) case where the chip cannot report one.
     return wakeup_cause().value_or(wakeup_source::other);
+}
+
+result<void> check_deep_sleep_allowed() {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && CONFIG_SPIRAM && CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+    // Entering sleep disables the cache, so the stack must be in internal RAM.
+    // esp_deep_sleep_start() only logs this and sleeps anyway.
+    if (!esp_task_stack_is_sane_cache_disabled()) {
+        return error(errc::not_allowed);
+    }
+#endif
+    return {};
 }
 
 void do_deep_sleep() noexcept {

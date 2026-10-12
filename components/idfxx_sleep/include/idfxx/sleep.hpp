@@ -339,6 +339,7 @@ void disarm(const deep_sleep_gpio_wake& source) noexcept;
 #endif
 
 [[nodiscard]] result<wakeup_source> do_light_sleep();
+[[nodiscard]] result<void> check_deep_sleep_allowed();
 [[noreturn]] void do_deep_sleep() noexcept;
 
 /// Arms each source in order, stopping at the first failure.
@@ -519,9 +520,11 @@ template<wake_spec First, wake_spec... Rest>
  * @param first The source that may wake the chip.
  * @param rest  Additional sources that may wake the chip.
  *
+ * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
+ *       stack is in PSRAM; call from a task whose stack is in internal RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
- * @throws std::system_error if a source is invalid; otherwise does not
- *         return.
+ * @throws std::system_error if a source is invalid or sleep is not allowed
+ *         from the calling task; otherwise does not return.
  *
  * @code
  * idfxx::sleep::deep_sleep(
@@ -555,9 +558,17 @@ template<wake_spec First, wake_spec... Rest>
  * @retval idfxx::errc::invalid_arg if a source is invalid (e.g. an
  *         unconnected pin or a pin that cannot wake the chip from deep
  *         sleep).
+ * @retval idfxx::errc::not_allowed if the calling task's stack is in PSRAM
+ *         (ESP-IDF 6.1 or later).
+ *
+ * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
+ *       stack is in PSRAM; call from a task whose stack is in internal RAM.
  */
 template<wake_spec First, wake_spec... Rest>
 [[nodiscard]] result<void> try_deep_sleep(const First& first, const Rest&... rest) {
+    if (auto allowed = detail::check_deep_sleep_allowed(); !allowed) {
+        return error(allowed.error());
+    }
     if (auto armed = detail::arm_all(first, rest...); !armed) {
         detail::disarm_all(first, rest...);
         return error(armed.error());
