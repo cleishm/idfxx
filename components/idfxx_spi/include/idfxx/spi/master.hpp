@@ -239,11 +239,23 @@ struct bus_config {
 
     std::optional<idfxx::core_id> isr_cpu_id = std::nullopt; ///< Select cpu core to register SPI ISR.
 
-    idfxx::intr_levels intr_levels = {};            ///< Interrupt priority levels to accept.
-    idfxx::flags<idfxx::intr_flag> intr_flags = {}; ///< Behavioral interrupt flags. The `intr_flag::edge` and
-                                                    ///< `intr_flag::disabled` flags are ignored by the driver.
-                                                    ///< If `intr_flag::iram` is set, all callbacks must be
-                                                    ///< placed in IRAM.
+    /// Interrupt priority levels to accept. Only the standard-priority levels (level 1, 2 and 3) are allowed;
+    /// level 4, 5, 6 and `nmi` are rejected by the driver with `errc::invalid_arg`.
+    idfxx::intr_levels intr_levels = {};
+
+    /// Behavioral interrupt flags. `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled` are not
+    /// allowed and are rejected by the driver with `errc::invalid_arg`. `intr_flag::iram` is only allowed when
+    /// `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (otherwise it is rejected with `errc::invalid_arg`); when set,
+    /// all callbacks must be placed in IRAM.
+    idfxx::flags<idfxx::intr_flag> intr_flags = {};
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /// DMA burst size, in bytes. A value of 0 selects the driver default (32 bytes). A non-zero value must be one
+    /// of the burst sizes supported by the chip's DMA controller, otherwise bus creation fails. Only used when
+    /// DMA is enabled, and ignored on chips whose DMA burst size is not configurable.
+    /// @note Only available with ESP-IDF 6.1 or later.
+    uint32_t dma_burst_size = 0;
+#endif
 };
 
 /**
@@ -266,7 +278,8 @@ public:
      * @param config   Bus configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure. In particular, `errc::invalid_arg` if the driver rejects
+     *         `config.intr_flags` or `config.intr_levels` (see ::idfxx::spi::bus_config).
      */
     [[nodiscard]] explicit master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
 #endif
@@ -279,6 +292,8 @@ public:
      * @param config   Bus configuration.
      *
      * @return The new bus, or an error.
+     * @retval errc::invalid_arg The driver rejected the configuration, including interrupt flags or levels
+     *         that are not allowed (see `bus_config::intr_flags` and `bus_config::intr_levels`).
      */
     [[nodiscard]] static result<master_bus>
     make(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
