@@ -3,9 +3,9 @@
 // Deep sleep with button and timer wake-up.
 //
 // Each boot reports why the chip woke, then deep-sleeps for up to 30 seconds
-// with the BOOT button (GPIO 0) armed as a wake-up pin. Waking from deep
-// sleep restarts the application from the beginning — only RTC memory
-// survives, demonstrated here with a boot counter.
+// with a button armed as a wake-up pin. Waking from deep sleep restarts the
+// application from the beginning — only RTC memory survives, demonstrated here
+// with a boot counter.
 
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -18,9 +18,16 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"deepsleep"};
 
-// BOOT button: pulled low while pressed. RTC-capable on chips with EXT1
-// wake-up, deep-sleep wake-capable on the others.
+// Button pulled low while pressed. On the ESP32-H2, the BOOT button's GPIO 9
+// is among the pins that can wake it from deep sleep (GPIO 7-14), but GPIO 0
+// isn't. Elsewhere, GPIO 0 can wake the chip: it is the BOOT button on the
+// ESP32, ESP32-S2 and ESP32-S3, while the ESP32-C3 and ESP32-C6 need a button
+// wired to it because their BOOT button (GPIO 9) can't wake them.
+#if CONFIG_IDF_TARGET_ESP32H2
+static constexpr auto WAKE_PIN = idfxx::gpio_9;
+#else
 static constexpr auto WAKE_PIN = idfxx::gpio_0;
+#endif
 
 // Maximum time to stay in deep sleep before the timer wakes the chip.
 static constexpr auto SLEEP_INTERVAL = 30s;
@@ -39,11 +46,11 @@ extern "C" void app_main() {
             break;
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
         case idfxx::sleep::wakeup_source::ext1:
-            logger.info("woke from deep sleep on BOOT button (ext1 status {:#x})", idfxx::sleep::ext1_wakeup_status());
+            logger.info("woke from deep sleep on button (ext1 status {:#x})", idfxx::sleep::ext1_wakeup_status());
             break;
 #endif
         case idfxx::sleep::wakeup_source::gpio:
-            logger.info("woke from deep sleep on BOOT button");
+            logger.info("woke from deep sleep on button");
             break;
         default:
             logger.warn("woke from deep sleep on unexpected source {}", *cause);
@@ -53,9 +60,9 @@ extern "C" void app_main() {
         logger.info("cold boot (not a wake from sleep)");
     }
 
-    logger.info("entering deep sleep ({} timer, or press BOOT)", SLEEP_INTERVAL);
+    logger.info("entering deep sleep ({} timer, or press the button)", SLEEP_INTERVAL);
 
-    // The BOOT strap has an external pull-up on most boards, so the pin idles
+    // The wake button has a pull-up (external on BOOT buttons), so the pin idles
     // high and a press pulls it low.
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
     // The original ESP32 only offers an all-pins-low trigger; every other EXT1

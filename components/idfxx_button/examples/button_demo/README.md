@@ -17,13 +17,11 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in 
 ## Hardware required
 
 - Any ESP32-series development board
-- A push button on GPIO 0
 
-On ESP32, ESP32-S2 and ESP32-S3 development boards, the BOOT button is on GPIO 0, so no extra parts
-are needed. On ESP32-C3, ESP32-C6 and ESP32-H2 boards the BOOT button is on GPIO 9: either connect a
-push button between GPIO 0 and GND, or change `idfxx::gpio_0` in `main/main.cpp` to `idfxx::gpio_9`.
-The example enables the internal pull-up and treats a low level as pressed, so no external resistor is
-needed.
+The example uses the board's BOOT button: GPIO 9 on the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0
+on the others, so no extra parts are needed. To use a different button, connect it between a pin and
+GND and change `button_pin` in `main/main.cpp`. The example enables the internal pull-up and treats a
+low level as pressed, so no external resistor is needed.
 
 ## How to use
 

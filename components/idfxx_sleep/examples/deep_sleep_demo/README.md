@@ -20,19 +20,17 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in 
 ## Hardware required
 
 - Any ESP32-series development board
-- A push button on GPIO 0 that pulls the pin low when pressed
+- On the ESP32-C3 and ESP32-C6, a push button on GPIO 0 that pulls the pin low when pressed
 
-On ESP32, ESP32-S2 and ESP32-S3 development boards, the BOOT button is on GPIO 0 and has an external
-pull-up, so no extra parts are needed. The example doesn't enable a pull-up for deep sleep, so on
-other chips you need to wire a button yourself:
+The example wakes on a button that pulls its pin low. It uses the board's BOOT button where that
+button can wake the chip from deep sleep: GPIO 0 on the ESP32, ESP32-S2 and ESP32-S3, and GPIO 9 on
+the ESP32-H2. These BOOT buttons have an external pull-up, so no extra parts are needed. The example
+doesn't enable a pull-up for deep sleep, and on the other chips you need to wire a button yourself:
 
 - **ESP32-C3:** connect a push button between GPIO 0 and GND. The pin is pulled up while the chip
   sleeps. (The BOOT button is on GPIO 9, which can't wake the ESP32-C3 from deep sleep.)
 - **ESP32-C6:** connect a push button between GPIO 0 and GND, and a ~10 kΩ pull-up resistor from
   GPIO 0 to 3.3 V. (The BOOT button is on GPIO 9, which can't wake the ESP32-C6 from deep sleep.)
-- **ESP32-H2:** GPIO 0 can't wake the ESP32-H2 from deep sleep. Change `WAKE_PIN` in `main/main.cpp`
-  to one of GPIO 7–14, and connect a push button from that pin to GND with a ~10 kΩ pull-up resistor
-  to 3.3 V.
 
 To use a different pin, change `WAKE_PIN` in `main/main.cpp`. To change the timer, change
 `SLEEP_INTERVAL`.

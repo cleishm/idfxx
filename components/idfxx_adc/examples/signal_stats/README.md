@@ -19,15 +19,19 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in 
 ## Hardware required
 
 - Any ESP32-series development board
-- A signal to measure on GPIO 3, between 0 V and about 3.1 V
+- A signal to measure, between 0 V and about 3.1 V
 
-Any source works, for example a potentiometer with its ends on 3.3 V and GND and its wiper on GPIO 3.
+The example samples an ADC1 pin that depends on the target:
+
+| Target                       | Pin     |
+|------------------------------|---------|
+| ESP32                        | GPIO 32 |
+| ESP32-S2, ESP32-S3, ESP32-H2 | GPIO 1  |
+| ESP32-C3, ESP32-C6           | GPIO 0  |
+
+Any source works, for example a potentiometer with its ends on 3.3 V and GND and its wiper on that pin.
 Connect the source's ground to the board's GND. The sampler only works with ADC1 pins. To use a
 different pin, change `signal_pin` in `main/main.cpp`.
-
-> [!NOTE]
-> On the original ESP32, GPIO 3 is the console UART's RX pin and isn't an ADC pin. Choose an ADC1 pin
-> (GPIO 32–39) instead. GPIO 3 is a strapping pin on the ESP32-S3 and ESP32-H2.
 
 ## How to use
 
@@ -41,9 +45,9 @@ cd signal_stats
 Then build and flash it, then watch the serial output:
 
 ```bash
-idf.py set-target esp32s3
+idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
 the monitor.

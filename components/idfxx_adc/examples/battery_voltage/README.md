@@ -18,15 +18,19 @@ with `try_read_voltage()` where it handles a failed read and keeps going.
 - Any ESP32-series development board
 - A battery, and two resistors of equal value (for example 100 kΩ each)
 
-Wire the battery's positive terminal through the first resistor to GPIO 3, and GPIO 3 through the
+The example reads the battery on an ADC1 pin that depends on the target:
+
+| Target                       | Pin     |
+|------------------------------|---------|
+| ESP32                        | GPIO 32 |
+| ESP32-S2, ESP32-S3, ESP32-H2 | GPIO 1  |
+| ESP32-C3, ESP32-C6           | GPIO 0  |
+
+Wire the battery's positive terminal through the first resistor to that pin, and the pin through the
 second resistor to GND. Connect the battery's negative terminal to GND. The example uses the default
 12 dB attenuation, which measures up to roughly 3.1 V at the pin, so with equal resistors the battery
 must stay below about 6.2 V. To use a different pin, change `battery_pin` in `main/main.cpp`; if your
 resistors aren't equal, change `.divider` to match.
-
-> [!NOTE]
-> On the original ESP32, GPIO 3 is the console UART's RX pin and can't be used as an analog input.
-> Choose an ADC pin such as GPIO 34 instead. GPIO 3 is a strapping pin on the ESP32-S3 and ESP32-H2.
 
 The first log line says whether calibration is active. Without calibration data, voltage reads fail
 and the example logs a warning each time.
@@ -43,9 +47,9 @@ cd battery_voltage
 Then build and flash it, then watch the serial output:
 
 ```bash
-idf.py set-target esp32s3
+idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
 the monitor.

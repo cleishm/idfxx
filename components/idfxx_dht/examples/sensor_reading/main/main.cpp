@@ -13,8 +13,13 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-/// GPIO pin connected to the sensor's data line (change as needed).
+/// GPIO pin connected to the sensor's data line (change as needed). GPIO 1 is
+/// the console UART's TX pin on the ESP32, so it uses GPIO 4 instead.
+#if CONFIG_IDF_TARGET_ESP32
+static constexpr auto sensor_pin = idfxx::gpio_4;
+#else
 static constexpr auto sensor_pin = idfxx::gpio_1;
+#endif
 
 extern "C" void app_main() {
     logger.info("=== DHT Sensor Example ===");

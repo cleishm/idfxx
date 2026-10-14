@@ -2,9 +2,9 @@
 
 // Periodic light sleep with timer and button wake-up.
 //
-// The chip light-sleeps until either a timer expires or the BOOT button
-// (GPIO 0) is pressed, then reports what woke it. Execution resumes in place
-// after each wake — all state is retained across light sleep.
+// The chip light-sleeps until either a timer expires or the BOOT button is
+// pressed, then reports what woke it. Execution resumes in place after each
+// wake — all state is retained across light sleep.
 
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -17,8 +17,13 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"lightsleep"};
 
-// BOOT button: pulled low while pressed.
+// BOOT button: pulled low while pressed. It is on GPIO 9 on the ESP32-C3,
+// ESP32-C6 and ESP32-H2 devkits, and on GPIO 0 on the others.
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2
+static constexpr auto WAKE_PIN = idfxx::gpio_9;
+#else
 static constexpr auto WAKE_PIN = idfxx::gpio_0;
+#endif
 
 // How long to sleep when the button stays untouched.
 static constexpr auto SLEEP_INTERVAL = 10s;
