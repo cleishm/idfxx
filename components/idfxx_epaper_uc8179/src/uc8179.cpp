@@ -175,15 +175,11 @@ result<void> uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size
     // The framebuffer's encoding (bit 1 = white) matches the controller's
     // new-image plane directly; the band streams as one transfer into a
     // partial window covering it (esp_lcd chunks it to the SPI limit).
-    if (auto r = _window_begin({x, y + row_start, fb.width(), rows}); !r) {
-        return r;
-    }
-    if (auto r = _stream(cmd_data_new, fb.data().subspan(row_start * stride, rows * stride)); !r) {
-        return r;
-    }
     // Exiting the window waits for the queued transfer, so the caller may
     // mutate the framebuffer immediately.
-    return _window_end();
+    return _in_window({x, y + row_start, fb.width(), rows}, [&] {
+        return _stream(cmd_data_new, fb.data().subspan(row_start * stride, rows * stride));
+    });
 }
 
 result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
@@ -210,13 +206,8 @@ result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, siz
             const size_t rows = std::min(band_rows, row_end - row);
             const auto band = plane.subspan(row * stride, rows * stride);
             std::ranges::transform(band, staging.begin(), [](uint8_t b) { return static_cast<uint8_t>(~b); });
-            if (auto r = _window_begin({x, y + row, fb.width(), rows}); !r) {
-                return r;
-            }
-            if (auto r = _stream(cmd, std::span(staging).first(band.size())); !r) {
-                return r;
-            }
-            if (auto r = _window_end(); !r) {
+            const auto data = std::span(staging).first(band.size());
+            if (auto r = _in_window({x, y + row, fb.width(), rows}, [&] { return _stream(cmd, data); }); !r) {
                 return r;
             }
         }
@@ -549,6 +540,20 @@ result<void> uc8179::_window_end() {
     return _cmd(cmd_partial_out);
 }
 
+template<typename Write>
+result<void> uc8179::_in_window(region r, Write&& write) {
+    auto res = _window_begin(r);
+    if (res) {
+        res = write();
+    }
+    // Exit the window even after a failure: a failed stream may leave
+    // earlier transfers still reading their data, and the controller would
+    // otherwise stay in partial mode, where a refresh covers only the
+    // window.
+    auto end = _window_end();
+    return res ? end : res;
+}
+
 result<void> uc8179::_clear_ram(bool include_old_plane) {
     // Set the image planes to white. The constant fill streams through a
     // small buffer with command-less continuation transfers, so no
@@ -557,19 +562,18 @@ result<void> uc8179::_clear_ram(bool include_old_plane) {
     std::array<uint8_t, 1024> white;
     white.fill(0xFF);
     const size_t plane_bytes = (width() + 7) / 8 * height();
-    if (auto r = _window_begin({0, 0, width(), height()}); !r) {
-        return r;
-    }
-    for (const uint8_t cmd : include_old_plane ? std::initializer_list<uint8_t>{cmd_data_old, cmd_data_new}
-                                               : std::initializer_list<uint8_t>{cmd_data_new}) {
-        for (size_t sent = 0; sent < plane_bytes; sent += white.size()) {
-            const auto chunk = std::span(white).first(std::min(white.size(), plane_bytes - sent));
-            if (auto r = _stream(sent == 0 ? cmd : -1, chunk); !r) {
-                return r;
+    return _in_window({0, 0, width(), height()}, [&]() -> result<void> {
+        for (const uint8_t cmd : include_old_plane ? std::initializer_list<uint8_t>{cmd_data_old, cmd_data_new}
+                                                   : std::initializer_list<uint8_t>{cmd_data_new}) {
+            for (size_t sent = 0; sent < plane_bytes; sent += white.size()) {
+                const auto chunk = std::span(white).first(std::min(white.size(), plane_bytes - sent));
+                if (auto r = _stream(sent == 0 ? cmd : -1, chunk); !r) {
+                    return r;
+                }
             }
         }
-    }
-    return _window_end();
+        return {};
+    });
 }
 
 result<void> uc8179::_update() {

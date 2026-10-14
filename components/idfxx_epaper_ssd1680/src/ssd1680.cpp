@@ -405,7 +405,14 @@ result<void> ssd1680::_cmd(uint8_t cmd, std::span<const uint8_t> params) {
 }
 
 result<void> ssd1680::_stream(uint8_t cmd, std::span<const uint8_t> data) {
-    return wrap(esp_lcd_panel_io_tx_color(_io->idf_handle(), cmd, data.data(), data.size()));
+    auto r = wrap(esp_lcd_panel_io_tx_color(_io->idf_handle(), cmd, data.data(), data.size()));
+    if (!r) {
+        // A failed call can leave earlier transfers queued and still reading
+        // their data. Wait for them, so the caller may return and release
+        // the data.
+        (void)_drain();
+    }
+    return r;
 }
 
 result<void> ssd1680::_drain() {

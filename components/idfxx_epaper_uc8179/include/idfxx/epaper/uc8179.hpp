@@ -226,6 +226,8 @@ private:
     [[nodiscard]] result<void> _ensure_waveform(waveform target);
     [[nodiscard]] result<void> _window_begin(region r);
     [[nodiscard]] result<void> _window_end();
+    template<typename Write>
+    [[nodiscard]] result<void> _in_window(region r, Write&& write);
     [[nodiscard]] result<void> _clear_ram(bool include_old_plane);
     [[nodiscard]] result<void> _update();
     [[nodiscard]] result<void> _enter_deep_sleep();
