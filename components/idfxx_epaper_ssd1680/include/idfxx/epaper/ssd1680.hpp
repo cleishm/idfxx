@@ -187,7 +187,7 @@ private:
               config.busy_timeout,
               config.reset_gpio
           )
-        , _io(&panel_io)
+        , _io_handle(panel_io.idf_handle())
         , _mirror_x(config.mirror_x)
         , _mirror_y(config.mirror_y)
         , _shadow(std::move(shadow)) {}
@@ -221,7 +221,7 @@ private:
     [[nodiscard]] result<void> _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
     [[nodiscard]] size_t _stride() const noexcept { return (width() + 7) / 8; }
 
-    idfxx::panel_io* _io = nullptr; // nullptr after move
+    esp_lcd_panel_io_handle_t _io_handle = nullptr; // nullptr after move
     bool _mirror_x = false;
     bool _mirror_y = false;
 

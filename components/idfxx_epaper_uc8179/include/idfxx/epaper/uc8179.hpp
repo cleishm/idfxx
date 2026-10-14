@@ -191,7 +191,7 @@ private:
 
     explicit uc8179(raw_tag, idfxx::panel_io& panel_io, config config)
         : panel(config.width, config.height, config.busy_gpio, gpio::level::low, config.busy_timeout, config.reset_gpio)
-        , _io(&panel_io) {}
+        , _io_handle(panel_io.idf_handle()) {}
 
     // epaper::panel customization hooks.
     [[nodiscard]] result<void>
@@ -232,7 +232,7 @@ private:
     [[nodiscard]] result<void> _update();
     [[nodiscard]] result<void> _enter_deep_sleep();
 
-    idfxx::panel_io* _io = nullptr; // nullptr after move
+    esp_lcd_panel_io_handle_t _io_handle = nullptr; // nullptr after move
     waveform _waveform = waveform::full;
 };
 

@@ -142,7 +142,7 @@ ssd1680::ssd1680(idfxx::panel_io& panel_io, ssd1680::config config)
 
 ssd1680::ssd1680(ssd1680&& other) noexcept
     : panel(std::move(other))
-    , _io(std::exchange(other._io, nullptr))
+    , _io_handle(std::exchange(other._io_handle, nullptr))
     , _mirror_x(other._mirror_x)
     , _mirror_y(other._mirror_y)
     , _pending(std::exchange(other._pending, pending::none))
@@ -150,12 +150,12 @@ ssd1680::ssd1680(ssd1680&& other) noexcept
 
 ssd1680& ssd1680::operator=(ssd1680&& other) noexcept {
     if (this != &other) {
-        if (_io != nullptr && !asleep()) {
+        if (_io_handle != nullptr && !asleep()) {
             (void)_settle();
             (void)_cmd(cmd_deep_sleep, {0x01});
         }
         panel::operator=(std::move(other));
-        _io = std::exchange(other._io, nullptr);
+        _io_handle = std::exchange(other._io_handle, nullptr);
         _mirror_x = other._mirror_x;
         _mirror_y = other._mirror_y;
         _pending = std::exchange(other._pending, pending::none);
@@ -168,7 +168,7 @@ ssd1680::~ssd1680() {
     // Leaving the controller active degrades the glass; park it in deep
     // sleep unless the caller already did. A refresh still driving finishes
     // first — deep sleep mid-waveform also stresses the glass.
-    if (_io != nullptr && !asleep()) {
+    if (_io_handle != nullptr && !asleep()) {
         (void)_settle();
         (void)_cmd(cmd_deep_sleep, {0x01});
     }
@@ -179,7 +179,7 @@ ssd1680::~ssd1680() {
 // =============================================================================
 
 result<void> ssd1680::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     const size_t stride = fb.stride_bytes();
@@ -201,7 +201,7 @@ result<void> ssd1680::do_write(const mono_framebuffer& fb, size_t row_start, siz
 }
 
 result<void> ssd1680::do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     const size_t stride = fb.stride_bytes();
@@ -218,7 +218,7 @@ result<void> ssd1680::do_write(const gray4_framebuffer& fb, size_t row_start, si
 }
 
 result<void> ssd1680::do_clear() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
@@ -237,7 +237,7 @@ result<void> ssd1680::do_clear() {
 }
 
 result<void> ssd1680::do_refresh(refresh_mode mode) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
@@ -326,7 +326,7 @@ bool ssd1680::do_supports(enum color_mode mode) const noexcept {
 }
 
 result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (mode == color_mode::gray4) {
@@ -351,7 +351,7 @@ result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
 }
 
 result<void> ssd1680::do_sleep() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (auto r = _cmd(cmd_deep_sleep, {0x01}); !r) {
@@ -364,7 +364,7 @@ result<void> ssd1680::do_sleep() {
 }
 
 result<void> ssd1680::do_wake() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     // The reset discards any update do_refresh left running.
@@ -379,7 +379,7 @@ result<void> ssd1680::do_wake() {
 }
 
 result<void> ssd1680::do_wait(std::optional<std::chrono::milliseconds> timeout) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (_pending == pending::none) {
@@ -393,19 +393,19 @@ result<void> ssd1680::do_wait(std::optional<std::chrono::milliseconds> timeout) 
 // =============================================================================
 
 result<void> ssd1680::_cmd(uint8_t cmd) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, nullptr, 0));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, nullptr, 0));
 }
 
 result<void> ssd1680::_cmd(uint8_t cmd, std::initializer_list<uint8_t> params) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, params.begin(), params.size()));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, params.begin(), params.size()));
 }
 
 result<void> ssd1680::_cmd(uint8_t cmd, std::span<const uint8_t> params) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, params.data(), params.size()));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, params.data(), params.size()));
 }
 
 result<void> ssd1680::_stream(uint8_t cmd, std::span<const uint8_t> data) {
-    auto r = wrap(esp_lcd_panel_io_tx_color(_io->idf_handle(), cmd, data.data(), data.size()));
+    auto r = wrap(esp_lcd_panel_io_tx_color(_io_handle, cmd, data.data(), data.size()));
     if (!r) {
         // A failed call can leave earlier transfers queued and still reading
         // their data. Wait for them, so the caller may return and release
