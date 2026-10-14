@@ -16,7 +16,7 @@ static constexpr auto sensor_pin = idfxx::gpio_4;
 
 extern "C" void app_main() {
     logger.info("=== DS18x20 Temperature Sensor Example ===");
-    logger.info("1-Wire bus on GPIO {}", sensor_pin);
+    logger.info("1-Wire bus on {}", sensor_pin);
 
     // --- Scan for devices ---
     logger.info("Scanning for DS18x20 sensors...");

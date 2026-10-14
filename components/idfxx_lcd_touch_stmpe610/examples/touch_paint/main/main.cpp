@@ -12,7 +12,6 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <esp_lcd_panel_ops.h>
 #include <esp_lcd_touch.h>
 #include <vector>
 
@@ -45,19 +44,19 @@ static constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
 static constexpr uint16_t COLOR_BG = rgb565(0, 0, 0);
 static constexpr uint16_t COLOR_FG = rgb565(255, 255, 255);
 
-static void clear_screen(esp_lcd_panel_handle_t panel) {
+static void clear_screen(idfxx::lcd::panel& panel) {
     std::vector<uint16_t> band(DISPLAY_W * BAND_H, COLOR_BG);
     for (int y = 0; y < DISPLAY_H; y += BAND_H) {
-        ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, 0, y, DISPLAY_W, y + BAND_H, band.data()));
+        panel.draw_bitmap(0, y, DISPLAY_W, y + BAND_H, band.data());
     }
 }
 
-static void draw_dot(esp_lcd_panel_handle_t panel, uint16_t cx, uint16_t cy, uint16_t color) {
+static void draw_dot(idfxx::lcd::panel& panel, uint16_t cx, uint16_t cy, uint16_t color) {
     int x1 = std::clamp(static_cast<int>(cx) - DOT_SIZE / 2, 0, DISPLAY_W - DOT_SIZE);
     int y1 = std::clamp(static_cast<int>(cy) - DOT_SIZE / 2, 0, DISPLAY_H - DOT_SIZE);
     std::array<uint16_t, DOT_SIZE * DOT_SIZE> buf;
     buf.fill(color);
-    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, x1, y1, x1 + DOT_SIZE, y1 + DOT_SIZE, buf.data()));
+    panel.draw_bitmap(x1, y1, x1 + DOT_SIZE, y1 + DOT_SIZE, buf.data());
 }
 
 extern "C" void app_main() {
@@ -119,10 +118,9 @@ extern "C" void app_main() {
             }
         );
 
-        auto* lcd_handle = panel.idf_handle();
         auto* touch_handle = touch.idf_handle();
 
-        clear_screen(lcd_handle);
+        clear_screen(panel);
         logger.info("Touch the display to paint");
 
         // --- Poll loop (skip redraws when the reported point hasn't moved) ---
@@ -134,7 +132,7 @@ extern "C" void app_main() {
                 uint8_t count = 0;
                 if (esp_lcd_touch_get_data(touch_handle, data.data(), &count, 1) == ESP_OK && count > 0) {
                     if (!have_last || data[0].x != last_x || data[0].y != last_y) {
-                        draw_dot(lcd_handle, data[0].x, data[0].y, COLOR_FG);
+                        draw_dot(panel, data[0].x, data[0].y, COLOR_FG);
                         last_x = data[0].x;
                         last_y = data[0].y;
                         have_last = true;

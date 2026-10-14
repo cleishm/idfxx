@@ -15,8 +15,20 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// ADC1-capable pin carrying the signal to measure (change as needed).
+// ADC1 pin carrying the signal to measure (change as needed).
+// The ADC1 pins differ by target, so this picks the lowest-numbered ADC1 pin
+// that isn't a strapping, flash, USB, JTAG, console UART or 32 kHz crystal pin.
+#if CONFIG_IDF_TARGET_ESP32
+static constexpr auto signal_pin = idfxx::gpio_34;
+#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32H2
+static constexpr auto signal_pin = idfxx::gpio_1;
+#elif CONFIG_IDF_TARGET_ESP32C3
 static constexpr auto signal_pin = idfxx::gpio_3;
+#elif CONFIG_IDF_TARGET_ESP32C6
+static constexpr auto signal_pin = idfxx::gpio_2;
+#else
+static constexpr auto signal_pin = idfxx::gpio_3;
+#endif
 
 extern "C" void app_main() {
     idfxx::adc::sampler sampler({.pins = {signal_pin}, .sample_rate = 20_kHz});

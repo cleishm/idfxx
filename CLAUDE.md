@@ -136,6 +136,16 @@ Exception-based methods should not have abbreviated documentation. Inline implem
 9. Important Notes (gotchas and tips)
 10. License
 
+**Example README**: Every example under `components/*/examples/` needs a `README.md` (the ESP Component
+Registry displays it). Follow `components/idfxx_gpio/examples/blink/README.md`:
+1. Title and one-line summary
+2. What it demonstrates (APIs used, in order; which API style)
+3. Hardware required (parts, wiring/pins, where to change them)
+4. Configuration (only if the user must set something first)
+5. How to use (`idf.py create-project-from-example "cleishm/<component>:<example>"`, then set-target and flash)
+
+No supported-targets table or example output (both go stale); note target restrictions in Hardware required.
+
 ### Testing
 
 - Compile-time validation with `static_assert` for type properties and enum values

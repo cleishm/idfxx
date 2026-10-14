@@ -12,16 +12,24 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
+// BOOT button (active-low). It is on GPIO 9 on the ESP32-C3, ESP32-C6 and
+// ESP32-H2 devkits, and on GPIO 0 on the others.
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2
+static constexpr auto button_pin = idfxx::gpio_9;
+#else
+static constexpr auto button_pin = idfxx::gpio_0;
+#endif
+
 static std::atomic<int> click_count{0};
 static std::atomic<int> long_press_count{0};
 
 extern "C" void app_main() {
     // --- Create button ---
     logger.info("=== Button Demo ===");
-    logger.info("Creating button on GPIO 0 (BOOT button)");
+    logger.info("Creating button on GPIO {} (BOOT button)", button_pin.num());
 
     idfxx::button btn({
-        .pin = idfxx::gpio_0,
+        .pin = button_pin,
         .pressed_level = idfxx::gpio::level::low,
         .enable_pull = true,
         .callback = [](idfxx::button::event_type event) {

@@ -28,6 +28,10 @@ static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
 
+// Carrier frequency — use one your region allows and your antenna is built for
+// (for example 868_MHz in Europe).
+static constexpr auto FREQUENCY = 915_MHz;
+
 extern "C" void app_main() {
     try {
         idfxx::gpio::install_isr_service();
@@ -46,14 +50,14 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
+                // The Heltec V3 drives a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
         radio.configure({
-            .frequency = 915_MHz,
+            .frequency = FREQUENCY,
             .output_power = 14_dBm,
             .modulation = {
                 .sf = idfxx::radio::spreading_factor::sf9,
@@ -63,7 +67,7 @@ extern "C" void app_main() {
         });
 
         // Loop with blocking single-shot receive — simplest pattern.
-        logger.info("Listening on 915 MHz");
+        logger.info("Listening on {}", FREQUENCY);
         std::array<uint8_t, 256> buf{};
         while (true) {
             auto r = radio.try_receive(buf, 10s);

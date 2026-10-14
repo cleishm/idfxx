@@ -13,12 +13,20 @@ using idfxx::gpio;
 
 static constexpr idfxx::log::logger logger{"example"};
 
+// BOOT button (active-low). It is on GPIO 9 on the ESP32-C3, ESP32-C6 and
+// ESP32-H2 devkits, and on GPIO 0 on the others.
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2
+static constexpr auto button_pin = idfxx::gpio_9;
+#else
+static constexpr auto button_pin = idfxx::gpio_0;
+#endif
+
 static std::atomic<int> press_count{0};
 
 extern "C" void app_main() {
     // --- Configure button pin ---
     logger.info("=== Button ISR Example ===");
-    auto button = idfxx::gpio_0; // BOOT button on most ESP32 devkits (active-low)
+    idfxx::gpio button = button_pin;
     logger.info("Button pin: {}", button);
 
     button.set_direction(gpio::mode::input);
@@ -46,7 +54,7 @@ extern "C" void app_main() {
 
     // --- Monitor for 30 seconds ---
     logger.info("Monitoring button presses for 30 seconds...");
-    logger.info("Press the BOOT button (GPIO 0) to trigger interrupts.");
+    logger.info("Press the BOOT button (GPIO {}) to trigger interrupts.", button.num());
     int last_count = 0;
     auto end_time = idfxx::chrono::tick_clock::now() + 30s;
 
