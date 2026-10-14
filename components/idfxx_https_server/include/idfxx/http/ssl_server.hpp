@@ -150,7 +150,11 @@ public:
         // Session callbacks
         /** @brief Called when a new session is opened. Return an error to reject. */
         std::move_only_function<result<void>(int) const> on_session_open = {};
-        /** @brief Called when a session is closed. */
+        /**
+         * @brief Called when a session is closed.
+         *
+         * The server closes the session's socket after this callback returns; the callback must not close it.
+         */
         std::move_only_function<void(int) const> on_session_close = {};
 
         // TLS configuration

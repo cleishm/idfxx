@@ -16,8 +16,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <esp_idf_version.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <memory>
 #include <netinet/in.h>
+#include <sdkconfig.h>
 #include <string>
 #include <sys/socket.h>
 #include <type_traits>
@@ -26,8 +29,6 @@
 
 #if defined(CONFIG_HTTPD_WS_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include <algorithm>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <vector>
 #endif
 
@@ -487,6 +488,42 @@ TEST_CASE("http server rejects an over-long interface name", "[idfxx][http]") {
     TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
 }
 #endif
+
+TEST_CASE("http server closes session sockets when on_session_close is set", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto closed = std::make_shared<std::atomic<int>>(0);
+    auto srv = server::make({
+        .server_port = port,
+        .ctrl_port = alloc_ctrl_port(),
+        .on_session_close = [closed](int) { closed->fetch_add(1); },
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_get("/hello", [](request& req) -> result<void> {
+        req.set_content_type("text/plain");
+        return req.try_send("Hello, World!");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    // More sequential connections than the system has sockets: this only
+    // succeeds if the server releases each session's socket.
+    constexpr int requests = CONFIG_LWIP_MAX_SOCKETS + 5;
+    auto url = "http://127.0.0.1:" + std::to_string(port) + "/hello";
+    for (int i = 0; i < requests; ++i) {
+        auto c = client::make({.url = url});
+        TEST_ASSERT_TRUE(c.has_value());
+        auto body = read_response_body(*c);
+        TEST_ASSERT_EQUAL(200, c->status_code());
+        TEST_ASSERT_EQUAL_STRING("Hello, World!", body.c_str());
+    }
+
+    // Session teardown is asynchronous; wait for the close callbacks.
+    for (int i = 0; i < 50 && closed->load() < requests; ++i) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    TEST_ASSERT_TRUE(closed->load() >= requests);
+}
 
 // =============================================================================
 // Error handlers
