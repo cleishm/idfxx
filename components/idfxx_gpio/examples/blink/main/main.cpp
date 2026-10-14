@@ -61,11 +61,11 @@ extern "C" void app_main() {
     // --- Batch configuration ---
     logger.info("=== Batch Configuration ===");
     gpio::config cfg{
-        .mode = gpio::mode::output,
+        .mode = gpio::mode::input_output,
         .pull_mode = gpio::pull_mode::floating,
     };
     idfxx::configure_gpios(cfg, led);
-    logger.info("Batch configured LED as output");
+    logger.info("Batch configured LED as input/output");
 
     // --- Drift-free blink loop ---
     logger.info("=== Drift-Free Blink (5 seconds) ===");
