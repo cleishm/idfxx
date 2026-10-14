@@ -7,9 +7,10 @@ Joins a Wi-Fi network, fetches `https://httpbin.org/get` over HTTPS, and logs th
 - Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an `idfxx::event_group`
 - Creating an `idfxx::http::client` for a URL, and checking the server's certificate against the ESP-IDF
   certificate bundle with the `crt_bundle_attach` option
-- Collecting the response body from `on_data` events in an `on_event` callback
+- Collecting the response body from `on_data` events, and the `Content-Type` header from `on_header` events,
+  in an `on_event` callback
 - Sending the request with `perform()`
-- Reading the response status with `status_code()` and the `Content-Type` header with `get_header()`
+- Reading the response status with `status_code()`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
 
