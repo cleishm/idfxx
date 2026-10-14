@@ -11,7 +11,7 @@
 #include <type_traits>
 
 using idfxx::panel_io;
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work; the
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
@@ -52,7 +52,7 @@ TEST_CASE("spi_config struct initialization", "[idfxx][panel_io]") {
         .cs_gpio = gpio_5,
         .dc_gpio = gpio_2,
         .spi_mode = 0,
-        .pclk_freq = freq::megahertz(10),
+        .pclk_freq = quanta::frequency::megahertz(10),
         .trans_queue_depth = 10,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
@@ -72,7 +72,7 @@ TEST_CASE("spi_config flags initialization", "[idfxx][panel_io]") {
         .cs_gpio = idfxx::gpio_5,
         .dc_gpio = idfxx::gpio_2,
         .spi_mode = 0,
-        .pclk_freq = freq::megahertz(10),
+        .pclk_freq = quanta::frequency::megahertz(10),
         .trans_queue_depth = 10,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
@@ -96,7 +96,7 @@ TEST_CASE("spi_config with custom flags", "[idfxx][panel_io]") {
         .cs_gpio = gpio_5,
         .dc_gpio = gpio_2,
         .spi_mode = 0,
-        .pclk_freq = freq::megahertz(40),
+        .pclk_freq = quanta::frequency::megahertz(40),
         .trans_queue_depth = 10,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
@@ -118,7 +118,7 @@ TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][panel_io]") {
         .cs_gpio = gpio_5,
         .dc_gpio = gpio_2,
         .spi_mode = 0,
-        .pclk_freq = freq::megahertz(10),
+        .pclk_freq = quanta::frequency::megahertz(10),
         .trans_queue_depth = 10,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,

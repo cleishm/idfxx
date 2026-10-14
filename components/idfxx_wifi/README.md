@@ -248,7 +248,7 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 
 ### Network Configuration
 
-`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` / `get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` / `get_channel()`, `set_max_tx_power(electro::centi_dbm)` / `get_max_tx_power()`, `set_rssi_threshold(electro::dbm)` / `get_rssi()`, `set_country(country_config)` / `get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`, `set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`, `set_storage(storage)`
+`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` / `get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` / `get_channel()`, `set_max_tx_power(quanta::electro::centi_dbm)` / `get_max_tx_power()`, `set_rssi_threshold(quanta::electro::dbm)` / `get_rssi()`, `set_country(country_config)` / `get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`, `set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`, `set_storage(storage)`
 
 ### Advanced Features
 
@@ -319,7 +319,7 @@ loop.listener_add(netif::sta_got_ip4,
 - **Procedural API**: WiFi is managed through namespace-level free functions rather than class instances, reflecting the global nature of the WiFi subsystem.
 - **Prerequisites**: Create the system event loop before using WiFi functions. Most applications will also need to initialize `idfxx::netif::init()` and create the appropriate default netif (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
-- **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `electro` levels (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power in 0.25 dBm steps (`electro::centi_dbm` carries the exact value), and may clamp to a lower supported level, so the value read back can differ from the value set.
+- **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `quanta::electro` levels (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power in 0.25 dBm steps (`quanta::electro::centi_dbm` carries the exact value), and may clamp to a lower supported level, so the value read back can differ from the value set.
 - **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep processing minimal or defer work to another task.
 - **FTM support**: Requires both initiator and responder to support FTM. Check `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.
 

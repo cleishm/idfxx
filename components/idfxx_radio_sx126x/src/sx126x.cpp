@@ -870,7 +870,7 @@ result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
 // Configuration
 // =============================================================================
 
-result<void> sx126x::do_set_frequency(freq::hertz hz) {
+result<void> sx126x::do_set_frequency(quanta::frequency::hertz hz) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -897,7 +897,7 @@ result<void> sx126x::do_set_frequency(freq::hertz hz) {
     return _state->write_command(internal::op_set_rf_frequency, params);
 }
 
-result<void> sx126x::do_set_output_power(electro::dbm power, ramp_time ramp) {
+result<void> sx126x::do_set_output_power(quanta::electro::dbm power, ramp_time ramp) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -1109,7 +1109,7 @@ result<packet_status> sx126x::do_last_packet_status() {
     return internal::decode_packet_status(r);
 }
 
-result<electro::centi_dbm> sx126x::do_current_rssi() {
+result<quanta::electro::centi_dbm> sx126x::do_current_rssi() {
     if (!_state) {
         return error(errc::invalid_state);
     }

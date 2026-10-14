@@ -13,7 +13,7 @@
 
 using namespace idfxx;
 using namespace idfxx::spi;
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)

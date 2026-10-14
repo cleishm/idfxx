@@ -31,10 +31,10 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <electro/decibel>
 #include <esp_idf_version.h>
 #include <esp_wifi_types.h>
 #include <optional>
+#include <quanta/decibel>
 #include <soc/soc_caps.h>
 #include <span>
 #include <string>
@@ -716,7 +716,7 @@ struct country_config {
     std::array<char, 3> cc = {'0', '1', '\0'};                /*!< Country code string. */
     uint8_t start_channel = 1;                                /*!< Start channel. */
     uint8_t num_channels = 11;                                /*!< Number of channels. */
-    electro::dbm max_tx_power{20};                            /*!< Maximum TX power. */
+    quanta::electro::dbm max_tx_power{20};                    /*!< Maximum TX power. */
     enum country_policy policy = country_policy::auto_policy; /*!< Country policy. */
 #if SOC_WIFI_SUPPORT_5G
     flags<channel_5g> channels_5g{}; /*!< Allowed 5GHz channels (empty = use regulatory defaults). */
@@ -734,7 +734,7 @@ struct country_config {
 struct ap_record {
     mac_address bssid;                         /*!< MAC address of the access point. */
     std::string ssid;                          /*!< SSID (network name). */
-    electro::dbm rssi;                         /*!< Received signal strength. */
+    quanta::electro::dbm rssi;                 /*!< Received signal strength. */
     uint8_t primary_channel;                   /*!< Primary channel number. */
     std::optional<enum second_channel> second; /*!< Secondary channel position, or nullopt for HT20. */
     enum auth_mode authmode;                   /*!< Authentication mode. */
@@ -764,15 +764,15 @@ struct ap_record {
  * @brief Information about a station connected to the soft-AP.
  */
 struct sta_info {
-    mac_address mac;   /*!< MAC address. */
-    electro::dbm rssi; /*!< Received signal strength. */
-    bool phy_11b;      /*!< Station supports 802.11b. */
-    bool phy_11g;      /*!< Station supports 802.11g. */
-    bool phy_11n;      /*!< Station supports 802.11n. */
-    bool phy_lr;       /*!< Station supports Long Range mode. */
-    bool phy_11a;      /*!< Station supports 802.11a. */
-    bool phy_11ac;     /*!< Station supports 802.11ac. */
-    bool phy_11ax;     /*!< Station supports 802.11ax. */
+    mac_address mac;           /*!< MAC address. */
+    quanta::electro::dbm rssi; /*!< Received signal strength. */
+    bool phy_11b;              /*!< Station supports 802.11b. */
+    bool phy_11g;              /*!< Station supports 802.11g. */
+    bool phy_11n;              /*!< Station supports 802.11n. */
+    bool phy_lr;               /*!< Station supports Long Range mode. */
+    bool phy_11a;              /*!< Station supports 802.11a. */
+    bool phy_11ac;             /*!< Station supports 802.11ac. */
+    bool phy_11ax;             /*!< Station supports 802.11ax. */
 
     [[nodiscard]] constexpr bool operator==(const sta_info&) const noexcept = default;
 };
@@ -782,13 +782,13 @@ struct sta_info {
  * @brief Single FTM report measurement entry.
  */
 struct ftm_report_entry {
-    uint8_t dlog_token; /*!< Dialog token. */
-    electro::dbm rssi;  /*!< RSSI of the FTM frame. */
-    uint32_t rtt;       /*!< Round-trip time in picoseconds. */
-    uint64_t t1;        /*!< Timestamp T1. */
-    uint64_t t2;        /*!< Timestamp T2. */
-    uint64_t t3;        /*!< Timestamp T3. */
-    uint64_t t4;        /*!< Timestamp T4. */
+    uint8_t dlog_token;        /*!< Dialog token. */
+    quanta::electro::dbm rssi; /*!< RSSI of the FTM frame. */
+    uint32_t rtt;              /*!< Round-trip time in picoseconds. */
+    uint64_t t1;               /*!< Timestamp T1. */
+    uint64_t t2;               /*!< Timestamp T2. */
+    uint64_t t3;               /*!< Timestamp T3. */
+    uint64_t t4;               /*!< Timestamp T4. */
 
     [[nodiscard]] constexpr bool operator==(const ftm_report_entry&) const noexcept = default;
 };
@@ -873,7 +873,7 @@ struct sta_config {
     enum scan_method scan_method = scan_method::fast;    /*!< Scan method when connecting. */
     enum sort_method sort_method = sort_method::by_rssi; /*!< AP sort method when connecting. */
     enum auth_mode auth_threshold = auth_mode::open;     /*!< Minimum authentication mode to accept. */
-    electro::dbm rssi_threshold{-127};                   /*!< Minimum RSSI to accept. */
+    quanta::electro::dbm rssi_threshold{-127};           /*!< Minimum RSSI to accept. */
     struct pmf_config pmf = {};                          /*!< PMF configuration. */
     /**
      * @brief Listen interval for maximum modem power save, in AP beacon intervals, or std::nullopt to let the driver
@@ -1266,8 +1266,8 @@ struct ap_sta_disconnected_event_data {
  * Dispatched with the wifi::event_id::ap_probe_req_received event.
  */
 struct ap_probe_req_event_data {
-    electro::dbm rssi; /*!< RSSI of the probe request. */
-    mac_address mac;   /*!< MAC address of the requesting station. */
+    quanta::electro::dbm rssi; /*!< RSSI of the probe request. */
+    mac_address mac;           /*!< MAC address of the requesting station. */
 
     /// @cond INTERNAL
     static ap_probe_req_event_data from_opaque(const void* event_data);
@@ -1283,7 +1283,7 @@ struct ap_probe_req_event_data {
  * Dispatched with the wifi::event_id::sta_bss_rssi_low event.
  */
 struct bss_rssi_low_event_data {
-    electro::dbm rssi; /*!< Current RSSI. */
+    quanta::electro::dbm rssi; /*!< Current RSSI. */
 
     /// @cond INTERNAL
     static bss_rssi_low_event_data from_opaque(const void* event_data);
@@ -2361,7 +2361,7 @@ void set_country_code(std::string_view cc, bool ieee80211d_enabled);
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_max_tx_power(electro::centi_dbm power);
+void set_max_tx_power(quanta::electro::centi_dbm power);
 
 /**
  * @brief Gets the current maximum transmit power.
@@ -2371,7 +2371,7 @@ void set_max_tx_power(electro::centi_dbm power);
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] electro::centi_dbm get_max_tx_power();
+[[nodiscard]] quanta::electro::centi_dbm get_max_tx_power();
 #endif
 
 /**
@@ -2381,7 +2381,7 @@ void set_max_tx_power(electro::centi_dbm power);
  *              power in 0.25 dBm steps; the value is rounded to the nearest step.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_max_tx_power(electro::centi_dbm power);
+[[nodiscard]] result<void> try_set_max_tx_power(quanta::electro::centi_dbm power);
 
 /**
  * @brief Gets the current maximum transmit power.
@@ -2389,7 +2389,7 @@ void set_max_tx_power(electro::centi_dbm power);
  * @return The maximum TX power, at the hardware's 0.25 dBm resolution, or
  *         an error.
  */
-[[nodiscard]] result<electro::centi_dbm> try_get_max_tx_power();
+[[nodiscard]] result<quanta::electro::centi_dbm> try_get_max_tx_power();
 
 // =============================================================================
 // Free function API — RSSI
@@ -2404,7 +2404,7 @@ void set_max_tx_power(electro::centi_dbm power);
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void set_rssi_threshold(electro::dbm threshold);
+void set_rssi_threshold(quanta::electro::dbm threshold);
 
 /**
  * @brief Gets the current RSSI of the connected AP.
@@ -2414,7 +2414,7 @@ void set_rssi_threshold(electro::dbm threshold);
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] electro::dbm get_rssi();
+[[nodiscard]] quanta::electro::dbm get_rssi();
 #endif
 
 /**
@@ -2423,14 +2423,14 @@ void set_rssi_threshold(electro::dbm threshold);
  * @param threshold The RSSI threshold.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_rssi_threshold(electro::dbm threshold);
+[[nodiscard]] result<void> try_set_rssi_threshold(quanta::electro::dbm threshold);
 
 /**
  * @brief Gets the current RSSI of the connected AP.
  *
  * @return The RSSI, or an error.
  */
-[[nodiscard]] result<electro::dbm> try_get_rssi();
+[[nodiscard]] result<quanta::electro::dbm> try_get_rssi();
 
 // =============================================================================
 // Free function API — Protocol
@@ -2962,8 +2962,13 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  * Receives the registered user context, the frame type carrying the IE, the
  * sender's MAC address, the vendor IE payload, and the frame's RSSI.
  */
-using vendor_ie_cb =
-    void (*)(void* ctx, enum vendor_ie_type type, mac_address sa, const vendor_ie_data_t* ie, electro::dbm rssi);
+using vendor_ie_cb = void (*)(
+    void* ctx,
+    enum vendor_ie_type type,
+    mac_address sa,
+    const vendor_ie_data_t* ie,
+    quanta::electro::dbm rssi
+);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
@@ -3468,18 +3473,18 @@ inline std::string get_country_code() {
 }
 
 // TX power
-inline void set_max_tx_power(electro::centi_dbm power) {
+inline void set_max_tx_power(quanta::electro::centi_dbm power) {
     unwrap(try_set_max_tx_power(power));
 }
-inline electro::centi_dbm get_max_tx_power() {
+inline quanta::electro::centi_dbm get_max_tx_power() {
     return unwrap(try_get_max_tx_power());
 }
 
 // RSSI
-inline void set_rssi_threshold(electro::dbm threshold) {
+inline void set_rssi_threshold(quanta::electro::dbm threshold) {
     unwrap(try_set_rssi_threshold(threshold));
 }
-inline electro::dbm get_rssi() {
+inline quanta::electro::dbm get_rssi() {
     return unwrap(try_get_rssi());
 }
 

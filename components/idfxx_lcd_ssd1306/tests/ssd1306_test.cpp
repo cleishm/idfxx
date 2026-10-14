@@ -11,7 +11,7 @@
 #include <utility>
 
 using namespace idfxx::lcd;
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work; the
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.

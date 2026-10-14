@@ -29,10 +29,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <frequency/frequency>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <quanta/frequency>
 #include <span>
 #include <string>
 #include <utility>
@@ -159,7 +159,7 @@ struct timer_constant;
  * before creating any output bound to it.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  *
  * auto tmr = idfxx::pwm::timer_0;
  * tmr.configure({.frequency = 5_kHz, .resolution_bits = 13});
@@ -179,8 +179,8 @@ public:
      * @brief Timer configuration parameters.
      */
     struct config {
-        freq::hertz frequency{0};     ///< PWM frequency.
-        uint8_t resolution_bits = 13; ///< Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
+        quanta::frequency::hertz frequency{0}; ///< PWM frequency.
+        uint8_t resolution_bits = 13;          ///< Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
         enum clk_source clk_source = clk_source::auto_select; ///< Clock source selection.
     };
 
@@ -225,7 +225,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void configure(freq::hertz frequency, uint8_t resolution_bits = 13) {
+    void configure(quanta::frequency::hertz frequency, uint8_t resolution_bits = 13) {
         unwrap(try_configure(frequency, resolution_bits));
     }
 #endif
@@ -253,7 +253,7 @@ public:
      * @param resolution_bits Duty resolution in bits (default: 13).
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_configure(freq::hertz frequency, uint8_t resolution_bits = 13) {
+    [[nodiscard]] result<void> try_configure(quanta::frequency::hertz frequency, uint8_t resolution_bits = 13) {
         return try_configure({.frequency = frequency, .resolution_bits = resolution_bits});
     }
 
@@ -293,7 +293,7 @@ public:
      *
      * @return Current frequency, or 0 Hz if the timer is not configured.
      */
-    [[nodiscard]] freq::hertz frequency() const;
+    [[nodiscard]] quanta::frequency::hertz frequency() const;
 
     /**
      * @brief Returns the PWM period (1 / frequency) as a duration.
@@ -324,7 +324,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void set_frequency(freq::hertz frequency) { unwrap(try_set_frequency(frequency)); }
+    void set_frequency(quanta::frequency::hertz frequency) { unwrap(try_set_frequency(frequency)); }
 #endif
 
     /**
@@ -338,7 +338,7 @@ public:
      * @retval invalid_arg Invalid frequency or timer not configured.
      * @retval fail Requested frequency cannot be achieved.
      */
-    [[nodiscard]] result<void> try_set_frequency(freq::hertz frequency);
+    [[nodiscard]] result<void> try_set_frequency(quanta::frequency::hertz frequency);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -382,7 +382,7 @@ public:
         if (ns <= 0) {
             return error(errc::invalid_arg);
         }
-        return try_set_frequency(freq::hertz{1'000'000'000 / ns});
+        return try_set_frequency(quanta::frequency::hertz{1'000'000'000 / ns});
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -504,7 +504,7 @@ struct output_config {
  * @throws std::system_error on failure.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  * using namespace std::chrono_literals;
  *
  * auto tmr = idfxx::pwm::timer_0;
@@ -538,7 +538,7 @@ struct output_config {
  * @throws std::system_error on failure.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  *
  * auto pwm = idfxx::pwm::start(idfxx::gpio_18, {.frequency = 5_kHz});
  * pwm.set_duty(0.5f);
@@ -575,7 +575,7 @@ void stop(
  * @retval invalid_arg GPIO not connected or invalid channel.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  *
  * auto tmr = idfxx::pwm::timer_0;
  * tmr.configure({.frequency = 5_kHz, .resolution_bits = 13});
@@ -619,7 +619,7 @@ void stop(
  * @retval invalid_arg GPIO not connected or invalid configuration.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  *
  * auto pwm = idfxx::pwm::try_start(idfxx::gpio_18, {.frequency = 5_kHz});
  * if (pwm) {
@@ -698,7 +698,7 @@ result<void> try_stop(
  * channel.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  * using namespace std::chrono_literals;
  *
  * auto pwm = idfxx::pwm::start(idfxx::gpio_18, {.frequency = 5_kHz});

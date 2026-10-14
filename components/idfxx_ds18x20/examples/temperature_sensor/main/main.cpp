@@ -37,14 +37,14 @@ extern "C" void app_main() {
     logger.info("=== Individual Readings ===");
     for (size_t i = 0; i < devices.size(); ++i) {
         auto temp = devices[i].measure_and_read();
-        logger.info("  Sensor [{}]: {:.1f}", i, temp);
+        logger.info("  Sensor [{}]: {:b.1f}", i, temp);
     }
 
     // --- Batch read ---
     logger.info("=== Batch Reading ===");
     auto temps = idfxx::ds18x20::measure_and_read_multi(devices);
     for (size_t i = 0; i < temps.size(); ++i) {
-        logger.info("  Sensor [{}]: {:.1f}", i, temps[i]);
+        logger.info("  Sensor [{}]: {:b.1f}", i, temps[i]);
     }
 
     // --- Change resolution (DS18B20 only) ---
@@ -63,7 +63,7 @@ extern "C" void app_main() {
         logger.info("  Sensor [{}]: changed to 10-bit resolution", i);
 
         auto temp = devices[i].measure_and_read();
-        logger.info("  Sensor [{}]: temperature at 10-bit: {:.1f}", i, temp);
+        logger.info("  Sensor [{}]: temperature at 10-bit: {:b.1f}", i, temp);
 
         devices[i].set_resolution(resolution::bits_12);
         logger.info("  Sensor [{}]: restored to 12-bit resolution", i);

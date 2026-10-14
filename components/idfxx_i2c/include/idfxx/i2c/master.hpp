@@ -28,12 +28,12 @@
 #include <cassert>
 #include <chrono>
 #include <concepts>
-#include <frequency/frequency>
 #include <functional>
 #include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <quanta/frequency>
 #include <span>
 #include <string>
 #include <vector>
@@ -171,7 +171,7 @@ public:
     struct config {
         idfxx::gpio sda = gpio::nc();                            ///< GPIO pin for the SDA line.
         idfxx::gpio scl = gpio::nc();                            ///< GPIO pin for the SCL line.
-        freq::hertz frequency{0};                                ///< Clock frequency in Hz.
+        quanta::frequency::hertz frequency{0};                   ///< Clock frequency in Hz.
         enum clk_source clk_source = clk_source::default_source; ///< Clock source for the I2C master bus.
 #if SOC_LP_I2C_SUPPORTED
         enum lp_clk_source lp_source_clk = lp_clk_source::default_source; ///< Clock source for LP I2C bus.
@@ -215,7 +215,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency);
+    [[nodiscard]] explicit master_bus(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency);
 #endif
 
     /**
@@ -247,7 +247,8 @@ public:
      *
      * @return The new master_bus, or an error.
      */
-    [[nodiscard]] static result<master_bus> make(enum port port, gpio sda, gpio scl, freq::hertz frequency);
+    [[nodiscard]] static result<master_bus>
+    make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency);
 
     ~master_bus();
 
@@ -287,7 +288,7 @@ public:
     [[nodiscard]] enum port port() const { return _port; }
 
     /** @brief Returns the bus clock frequency in Hz. */
-    [[nodiscard]] freq::hertz frequency() const { return _frequency; }
+    [[nodiscard]] quanta::frequency::hertz frequency() const { return _frequency; }
 
     /**
      * @brief Scans for devices on the bus.
@@ -394,7 +395,7 @@ public:
     }
 
 private:
-    explicit master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency);
+    explicit master_bus(i2c_master_bus_handle_t handle, enum port port, quanta::frequency::hertz frequency);
 
     void _delete() noexcept;
 
@@ -405,7 +406,7 @@ private:
     mutable std::unique_ptr<std::recursive_mutex> _mux;
     i2c_master_bus_handle_t _handle = nullptr;
     enum port _port;
-    freq::hertz _frequency;
+    quanta::frequency::hertz _frequency;
 };
 
 /**
@@ -436,7 +437,7 @@ public:
     struct config {
         /// Per-device SCL speed, or std::nullopt to use the bus frequency. An explicit speed of 0 Hz or less is
         /// rejected with `errc::invalid_arg` when the device is created.
-        std::optional<freq::hertz> scl_speed = std::nullopt;
+        std::optional<quanta::frequency::hertz> scl_speed = std::nullopt;
         /// SCL wait time in microseconds, or std::nullopt to let the driver choose. An explicit value of 0 is
         /// rejected with `errc::invalid_arg` when the device is created.
         std::optional<uint32_t> scl_wait_us = std::nullopt;

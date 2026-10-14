@@ -54,7 +54,7 @@ static void vendor_ie_trampoline(
 ) {
     mac_address mac;
     std::memcpy(mac.data(), sa, 6);
-    s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, electro::dbm{rssi});
+    s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
 }
 
 static csi_rx_cb s_csi_cb = nullptr;
@@ -66,7 +66,7 @@ static ap_record from_idf_record(const wifi_ap_record_t& r) {
     ap_record record;
     std::memcpy(record.bssid.data(), r.bssid, 6);
     record.ssid = std::string(reinterpret_cast<const char*>(r.ssid));
-    record.rssi = electro::dbm{r.rssi};
+    record.rssi = quanta::electro::dbm{r.rssi};
     record.primary_channel = r.primary;
     record.second =
         r.second == WIFI_SECOND_CHAN_NONE ? std::nullopt : std::optional(static_cast<second_channel>(r.second));
@@ -85,7 +85,7 @@ static ap_record from_idf_record(const wifi_ap_record_t& r) {
     record.ftm_initiator = r.ftm_initiator;
     record.country.start_channel = r.country.schan;
     record.country.num_channels = r.country.nchan;
-    record.country.max_tx_power = electro::dbm{r.country.max_tx_power};
+    record.country.max_tx_power = quanta::electro::dbm{r.country.max_tx_power};
     record.country.policy = static_cast<country_policy>(r.country.policy);
     std::memcpy(record.country.cc.data(), r.country.cc, 3);
 #if SOC_WIFI_SUPPORT_5G
@@ -118,7 +118,7 @@ static country_config from_idf_country(const wifi_country_t& c) {
     std::memcpy(cfg.cc.data(), c.cc, 3);
     cfg.start_channel = c.schan;
     cfg.num_channels = c.nchan;
-    cfg.max_tx_power = electro::dbm{c.max_tx_power};
+    cfg.max_tx_power = quanta::electro::dbm{c.max_tx_power};
     cfg.policy = static_cast<country_policy>(c.policy);
 #if SOC_WIFI_SUPPORT_5G
     cfg.channels_5g = flags<channel_5g>(c.wifi_5g_channel_mask);
@@ -142,7 +142,7 @@ static wifi_country_t to_idf_country(const country_config& cfg) {
 static sta_info from_idf_sta_info(const wifi_sta_info_t& s) {
     sta_info info;
     std::memcpy(info.mac.data(), s.mac, 6);
-    info.rssi = electro::dbm{s.rssi};
+    info.rssi = quanta::electro::dbm{s.rssi};
     info.phy_11b = s.phy_11b;
     info.phy_11g = s.phy_11g;
     info.phy_11n = s.phy_11n;
@@ -264,7 +264,7 @@ static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
     cfg.scan_method = static_cast<enum scan_method>(s.scan_method);
     cfg.sort_method = static_cast<enum sort_method>(s.sort_method);
     cfg.auth_threshold = static_cast<auth_mode>(s.threshold.authmode);
-    cfg.rssi_threshold = electro::dbm{s.threshold.rssi};
+    cfg.rssi_threshold = quanta::electro::dbm{s.threshold.rssi};
     cfg.pmf.capable = s.pmf_cfg.capable;
     cfg.pmf.required = s.pmf_cfg.required;
     if (s.listen_interval != 0) { // 0 means the driver default
@@ -923,7 +923,7 @@ result<std::string> try_get_country_code() {
 // TX power
 // =============================================================================
 
-result<void> try_set_max_tx_power(electro::centi_dbm power) {
+result<void> try_set_max_tx_power(quanta::electro::centi_dbm power) {
     // The hardware unit is 0.25 dBm (25 centi-dBm); round to the nearest step.
     const int64_t cdbm = power.count();
     const int64_t quarter_dbm = (cdbm >= 0 ? cdbm + 12 : cdbm - 12) / 25;
@@ -933,32 +933,32 @@ result<void> try_set_max_tx_power(electro::centi_dbm power) {
     return check(esp_wifi_set_max_tx_power(static_cast<int8_t>(quarter_dbm)), "Failed to set max TX power");
 }
 
-result<electro::centi_dbm> try_get_max_tx_power() {
+result<quanta::electro::centi_dbm> try_get_max_tx_power() {
     int8_t power = 0;
     auto err = esp_wifi_get_max_tx_power(&power);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to get max TX power: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    return electro::centi_dbm(static_cast<int64_t>(power) * 25);
+    return quanta::electro::centi_dbm(static_cast<int64_t>(power) * 25);
 }
 
 // =============================================================================
 // RSSI
 // =============================================================================
 
-result<void> try_set_rssi_threshold(electro::dbm threshold) {
+result<void> try_set_rssi_threshold(quanta::electro::dbm threshold) {
     return check(esp_wifi_set_rssi_threshold(static_cast<int32_t>(threshold.count())), "Failed to set RSSI threshold");
 }
 
-result<electro::dbm> try_get_rssi() {
+result<quanta::electro::dbm> try_get_rssi() {
     int rssi = 0;
     auto err = esp_wifi_sta_get_rssi(&rssi);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to get RSSI: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    return electro::dbm{rssi};
+    return quanta::electro::dbm{rssi};
 }
 
 // =============================================================================
@@ -1259,7 +1259,7 @@ result<std::vector<ftm_report_entry>> try_ftm_get_report(size_t max_entries) {
     for (uint8_t i = 0; i < num_entries; ++i) {
         ftm_report_entry entry;
         entry.dlog_token = idf_entries[i].dlog_token;
-        entry.rssi = electro::dbm{idf_entries[i].rssi};
+        entry.rssi = quanta::electro::dbm{idf_entries[i].rssi};
         entry.rtt = idf_entries[i].rtt;
         entry.t1 = idf_entries[i].t1;
         entry.t2 = idf_entries[i].t2;

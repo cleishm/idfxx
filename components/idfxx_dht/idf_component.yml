@@ -1,4 +1,4 @@
-version: "1.0.1"
+version: "2.0.0"
 description: "DHT11/DHT22 temperature and humidity sensor driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht"
 repository: "https://github.com/cleishm/idfxx.git"
@@ -13,6 +13,6 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_gpio
-  cleishm/thermo:
-    version: "^2.1.1"
+  cleishm/quanta:
+    version: "^0.1.0"
     public: true

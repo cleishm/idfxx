@@ -100,7 +100,7 @@ esp_lcd_panel_handle_t ssd1306::do_idf_handle() const {
     return _handle;
 }
 
-panel_io::i2c_config ssd1306::i2c_io_config(uint16_t device_address, freq::hertz scl_speed) noexcept {
+panel_io::i2c_config ssd1306::i2c_io_config(uint16_t device_address, quanta::frequency::hertz scl_speed) noexcept {
     return {
         .device_address = device_address,
         .scl_speed = scl_speed,

@@ -14,7 +14,7 @@
 
 #include <array>
 #include <chrono>
-#include <electro/electro>
+#include <quanta/electro>
 #include <type_traits>
 
 using namespace idfxx::adc;
@@ -101,7 +101,7 @@ TEST_CASE("adc sampler make rejects buffer smaller than frame", "[idfxx][adc]") 
 }
 
 TEST_CASE("adc sampler make rejects a zero sample rate", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {test_pin}, .sample_rate = freq::hertz{0}});
+    auto r = sampler::make({.pins = {test_pin}, .sample_rate = quanta::frequency::hertz{0}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
@@ -161,7 +161,7 @@ TEST_CASE("adc sampler batch to_voltage rejects an undersized output", "[idfxx][
     TEST_ASSERT_TRUE(s.has_value());
 
     std::array<sampler::sample, 2> in{};
-    std::array<electro::millivolts, 1> out{};
+    std::array<quanta::electro::millivolts, 1> out{};
     auto r = s->try_to_voltage(in, out);
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
@@ -172,7 +172,7 @@ TEST_CASE("adc sampler batch to_voltage rejects an unknown pin", "[idfxx][adc]")
     TEST_ASSERT_TRUE(s.has_value());
 
     std::array<sampler::sample, 1> in{sampler::sample{.pin = idfxx::gpio::nc(), .raw = 0}};
-    std::array<electro::millivolts, 1> out{};
+    std::array<quanta::electro::millivolts, 1> out{};
     auto r = s->try_to_voltage(in, out);
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
@@ -182,7 +182,7 @@ TEST_CASE("adc sampler voltage read before start is an error", "[idfxx][adc]") {
     auto s = sampler::make({.pins = {test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
-    std::array<electro::millivolts, 64> buf{};
+    std::array<quanta::electro::millivolts, 64> buf{};
     auto pre = s->try_read(buf, 10ms);
     TEST_ASSERT_FALSE(pre.has_value());
     TEST_ASSERT_TRUE(pre.error() == idfxx::errc::invalid_state);
@@ -195,7 +195,7 @@ TEST_CASE("adc sampler reads calibrated voltages", "[idfxx][adc]") {
 
     // The fused voltage read requires calibration; on chips without it the read
     // reports not_supported rather than fabricating a voltage.
-    std::array<electro::millivolts, 64> buf{};
+    std::array<quanta::electro::millivolts, 64> buf{};
     auto n = s->try_read(buf, 1s);
     if (s->calibrated()) {
         TEST_ASSERT_TRUE(n.has_value());

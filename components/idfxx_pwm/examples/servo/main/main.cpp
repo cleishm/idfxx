@@ -11,7 +11,7 @@
 
 #include <chrono>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"example"};

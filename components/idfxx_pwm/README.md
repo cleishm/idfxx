@@ -6,7 +6,7 @@ Type-safe LEDC PWM controller for ESP32.
 
 - **Lightweight timer identifiers** with predefined constants (timer_0 through timer_3)
 - **RAII output management** with automatic PWM stop on destruction
-- **Type-safe configuration** with config structs and `freq::hertz` frequency type
+- **Type-safe configuration** with config structs and `quanta::frequency::hertz` frequency type
 - **Hardware fade support** with time-based and step-based fading
 - **Dual error handling** — exception-based and result-based APIs
 - **High-speed mode support** on ESP32 (SOC_LEDC_SUPPORT_HS_MODE)
@@ -25,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_pwm:
-    version: "^1.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_pwm` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -39,7 +39,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 ```cpp
 #include <idfxx/pwm>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 // Configure a timer
@@ -62,7 +62,7 @@ Always available, even without exceptions:
 ```cpp
 #include <idfxx/pwm>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 auto tmr = idfxx::pwm::timer_0;
 if (auto r = tmr.try_configure(5_kHz, 13); !r) {

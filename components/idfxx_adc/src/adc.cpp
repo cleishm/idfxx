@@ -167,7 +167,7 @@ result<int> input::try_read_raw() {
     return raw;
 }
 
-result<electro::millivolts> input::try_read_voltage() {
+result<quanta::electro::millivolts> input::try_read_voltage() {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -184,7 +184,7 @@ result<electro::millivolts> input::try_read_voltage() {
     }
     // Scale by the configured external divider to report the source voltage.
     const auto& div = _state->cfg.divider;
-    return electro::millivolts{static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)};
+    return quanta::electro::millivolts{static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)};
 }
 
 struct sampler::state {
@@ -324,8 +324,8 @@ enum attenuation sampler::attenuation() const noexcept {
     return _state ? _state->cfg.attenuation : attenuation::db_12;
 }
 
-freq::hertz sampler::sample_rate() const noexcept {
-    return _state ? _state->cfg.sample_rate : freq::hertz{0};
+quanta::frequency::hertz sampler::sample_rate() const noexcept {
+    return _state ? _state->cfg.sample_rate : quanta::frequency::hertz{0};
 }
 
 bool sampler::running() const noexcept {
@@ -437,22 +437,22 @@ result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chro
     return count;
 }
 
-result<electro::millivolts> sampler::try_to_voltage(const sample& s) const {
-    electro::millivolts mv{0};
+result<quanta::electro::millivolts> sampler::try_to_voltage(const sample& s) const {
+    quanta::electro::millivolts mv{0};
     if (auto e = try_to_voltage(std::span{&s, 1}, std::span{&mv, 1}); !e) {
         return error(e.error());
     }
     return mv;
 }
 
-result<electro::millivolts> sampler::try_to_voltage(int raw) const {
+result<quanta::electro::millivolts> sampler::try_to_voltage(int raw) const {
     if (!_state || _state->cfg.pins.size() != 1) {
         return error(errc::invalid_state);
     }
     return try_to_voltage(sample{.pin = _state->cfg.pins.front(), .raw = raw});
 }
 
-result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<electro::millivolts> out) const {
+result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<quanta::electro::millivolts> out) const {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -482,13 +482,13 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<elect
         if (auto e = wrap(adc_cali_raw_to_voltage(cached_cali, in[i].raw, &mv)); !e) {
             return error(e.error());
         }
-        out[i] = electro::millivolts{mv};
+        out[i] = quanta::electro::millivolts{mv};
     }
     return {};
 }
 
 result<size_t>
-sampler::_read_voltage(std::span<electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout) {
+sampler::_read_voltage(std::span<quanta::electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout) {
     if (!_state) {
         return error(errc::invalid_state);
     }

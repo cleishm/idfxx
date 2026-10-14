@@ -57,6 +57,6 @@ TEST_CASE("ssd1680::spi_io_config fills the controller's SPI framing", "[idfxx][
     TEST_ASSERT_EQUAL(8, io_cfg.lcd_cmd_bits);
     TEST_ASSERT_EQUAL(8, io_cfg.lcd_param_bits);
 
-    auto fast = ssd1680::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, freq::hertz{20'000'000});
+    auto fast = ssd1680::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, quanta::frequency::hertz{20'000'000});
     TEST_ASSERT_EQUAL(20'000'000, fast.pclk_freq.count());
 }

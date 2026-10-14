@@ -35,9 +35,9 @@
 
 #include <chrono>
 #include <cstdint>
-#include <electro/decibel>
-#include <frequency/frequency>
 #include <optional>
+#include <quanta/decibel>
+#include <quanta/frequency>
 #include <span>
 
 namespace idfxx::radio {
@@ -459,7 +459,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void set_frequency(freq::hertz hz) { unwrap(try_set_frequency(hz)); }
+    void set_frequency(quanta::frequency::hertz hz) { unwrap(try_set_frequency(hz)); }
 
     /**
      * @brief Sets the transmit output power.
@@ -470,7 +470,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void set_output_power(electro::dbm power, ramp_time ramp = ramp_time::us_200) {
+    void set_output_power(quanta::electro::dbm power, ramp_time ramp = ramp_time::us_200) {
         unwrap(try_set_output_power(power, ramp));
     }
 
@@ -542,7 +542,7 @@ public:
      * @param hz Carrier frequency.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_frequency(freq::hertz hz) { return do_set_frequency(hz); }
+    [[nodiscard]] result<void> try_set_frequency(quanta::frequency::hertz hz) { return do_set_frequency(hz); }
 
     /**
      * @brief Sets the transmit output power.
@@ -551,7 +551,7 @@ public:
      * @return Success, or an error.
      * @retval invalid_arg The requested power is outside the chip variant's supported range.
      */
-    [[nodiscard]] result<void> try_set_output_power(electro::dbm power, ramp_time ramp = ramp_time::us_200) {
+    [[nodiscard]] result<void> try_set_output_power(quanta::electro::dbm power, ramp_time ramp = ramp_time::us_200) {
         return do_set_output_power(power, ramp);
     }
 
@@ -913,7 +913,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] electro::centi_dbm current_rssi() { return unwrap(try_current_rssi()); }
+    [[nodiscard]] quanta::electro::centi_dbm current_rssi() { return unwrap(try_current_rssi()); }
 #endif
 
     /**
@@ -939,7 +939,7 @@ public:
      * @brief Returns the instantaneous RSSI on the configured channel.
      * @return The RSSI, or an error.
      */
-    [[nodiscard]] result<electro::centi_dbm> try_current_rssi() { return do_current_rssi(); }
+    [[nodiscard]] result<quanta::electro::centi_dbm> try_current_rssi() { return do_current_rssi(); }
 
     /// Maximum LoRa payload length in bytes.
     static constexpr size_t max_payload_length = 255;
@@ -995,9 +995,9 @@ protected:
     [[nodiscard]] virtual result<idfxx::future<cad_info>> do_start_channel_scan() = 0;
 
     /// Hook for @ref try_set_frequency.
-    [[nodiscard]] virtual result<void> do_set_frequency(freq::hertz hz) = 0;
+    [[nodiscard]] virtual result<void> do_set_frequency(quanta::frequency::hertz hz) = 0;
     /// Hook for @ref try_set_output_power.
-    [[nodiscard]] virtual result<void> do_set_output_power(electro::dbm power, ramp_time ramp) = 0;
+    [[nodiscard]] virtual result<void> do_set_output_power(quanta::electro::dbm power, ramp_time ramp) = 0;
     /// Hook for @ref try_set_modulation.
     [[nodiscard]] virtual result<void> do_set_modulation(lora_modulation mod) = 0;
     /// Hook for @ref try_set_packet_params.
@@ -1034,7 +1034,7 @@ protected:
     /// Hook for @ref try_last_packet_status.
     [[nodiscard]] virtual result<packet_status> do_last_packet_status() = 0;
     /// Hook for @ref try_current_rssi.
-    [[nodiscard]] virtual result<electro::centi_dbm> do_current_rssi() = 0;
+    [[nodiscard]] virtual result<quanta::electro::centi_dbm> do_current_rssi() = 0;
 
     /// Hook for @ref rx_duty_cycle_for: the shortest sleep window worth
     /// duty-cycling for on this chip. Drivers add any per-wake oscillator

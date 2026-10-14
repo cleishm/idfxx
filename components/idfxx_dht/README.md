@@ -10,7 +10,7 @@ DHT11/DHT22 (AM2301/AM2302) temperature and humidity sensor driver for ESP32 wit
 - Reply frames captured with the RMT peripheral — no interrupt-latency-sensitive
   bit-banging, no critical sections during the 5 ms frame
 - Checksum verification and strict frame validation
-- Temperature as `thermo::millicelsius`, humidity in percent
+- Temperature as `quanta::thermo::millicelsius`, humidity in percent
 - Enforces the sensor's minimum sampling period (1 s DHT11 / 2 s DHT22)
 - Dual error handling: exception-based and `result`-based (`try_*`) APIs
 
@@ -18,7 +18,7 @@ DHT11/DHT22 (AM2301/AM2302) temperature and humidity sensor driver for ESP32 wit
 
 - ESP-IDF 5.5 or later
 - C++23 compiler support
-- Components: `idfxx_core`, `idfxx_gpio`, `thermo` (plus ESP-IDF `esp_driver_rmt`)
+- Components: `idfxx_core`, `idfxx_gpio`, `quanta` (plus ESP-IDF `esp_driver_rmt`)
 
 ## Installation
 
@@ -28,7 +28,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_dht: "^1.0.0"
+  cleishm/idfxx_dht: "^2.0.0"
 ```
 
 ## Usage
@@ -44,7 +44,7 @@ idfxx::dht::sensor sensor({
 });
 
 auto r = sensor.read();
-// r.temperature (thermo::millicelsius), r.humidity_pct (float %)
+// r.temperature (quanta::thermo::millicelsius), r.humidity_pct (float %)
 ```
 
 ### Result-based

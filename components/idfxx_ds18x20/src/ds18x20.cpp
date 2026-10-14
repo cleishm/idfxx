@@ -11,8 +11,8 @@
 namespace {
 const char* TAG = "idfxx::ds18x20";
 
-thermo::millicelsius to_millicelsius(float temp) {
-    return thermo::millicelsius(static_cast<int64_t>(std::lround(temp * 1000.0f)));
+quanta::thermo::millicelsius to_millicelsius(float temp) {
+    return quanta::thermo::millicelsius(static_cast<int64_t>(std::lround(temp * 1000.0f)));
 }
 } // namespace
 
@@ -43,14 +43,14 @@ result<void> device::try_measure(bool wait) {
     return wrap(ds18x20_measure(_pin.idf_num(), _addr.raw(), wait));
 }
 
-result<thermo::millicelsius> device::try_read_temperature() const {
+result<quanta::thermo::millicelsius> device::try_read_temperature() const {
     float temp;
     return wrap(ds18x20_read_temperature(_pin.idf_num(), _addr.raw(), &temp)).transform([&]() {
         return to_millicelsius(temp);
     });
 }
 
-result<thermo::millicelsius> device::try_measure_and_read() {
+result<quanta::thermo::millicelsius> device::try_measure_and_read() {
     float temp;
     return wrap(ds18x20_measure_and_read(_pin.idf_num(), _addr.raw(), &temp)).transform([&]() {
         return to_millicelsius(temp);
@@ -107,9 +107,9 @@ result<std::vector<device>> try_scan_devices(idfxx::gpio pin, size_t max_devices
 // Devices are grouped by GPIO pin so that a single batch measurement is issued per bus. Pointer-nulling tracks
 // processed devices in-place to avoid extra allocations, and `addrs` is reused across iterations via `.clear()`
 // to minimize heap activity.
-result<std::vector<thermo::millicelsius>> try_measure_and_read_multi(std::span<const device> devices) {
+result<std::vector<quanta::thermo::millicelsius>> try_measure_and_read_multi(std::span<const device> devices) {
     if (devices.empty()) {
-        return std::vector<thermo::millicelsius>{};
+        return std::vector<quanta::thermo::millicelsius>{};
     }
 
     std::vector<const device*> device_ptrs;
@@ -118,7 +118,7 @@ result<std::vector<thermo::millicelsius>> try_measure_and_read_multi(std::span<c
         device_ptrs.push_back(&d);
     }
     std::vector<onewire_addr_t> addrs;
-    std::vector<thermo::millicelsius> temps(devices.size());
+    std::vector<quanta::thermo::millicelsius> temps(devices.size());
 
     for (size_t i = 0; i < device_ptrs.size(); ++i) {
         if (device_ptrs[i] == nullptr) {

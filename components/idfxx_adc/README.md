@@ -11,7 +11,7 @@ One-shot and continuous ADC reads with calibrated voltages for ESP32, with type-
 - Continuous sampling (`adc::sampler`): fixed-rate background (DMA) sampling of
   one or more pins, delivered as parsed per-pin samples with overrun accounting
 - Single-call setup: ADC unit and channel resolved from the GPIO pin
-- Typed voltage readings (`electro::millivolts`) using the chip's factory
+- Typed voltage readings (`quanta::electro::millivolts`) using the chip's factory
   calibration when available
 - Attenuation selection for the full input-range spectrum
 - Dual error handling: exception-based and `result`-based (`try_*`) APIs
@@ -20,8 +20,7 @@ One-shot and continuous ADC reads with calibrated voltages for ESP32, with type-
 
 - ESP-IDF 5.5 or later
 - C++23 compiler support
-- Components: `idfxx_core`, `idfxx_gpio`, `electro`, `frequency` (plus
-  ESP-IDF `esp_adc`)
+- Components: `idfxx_core`, `idfxx_gpio`, `quanta` (plus ESP-IDF `esp_adc`)
 
 ## Installation
 
@@ -31,7 +30,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_adc: "^1.0.0"
+  cleishm/idfxx_adc: "^2.0.0"
 ```
 
 ## Usage
@@ -43,11 +42,11 @@ dependencies:
 
 // One-shot: read a battery behind a 2:1 divider on demand.
 idfxx::adc::input battery({.pin = idfxx::gpio_3, .divider = {2, 1}});
-electro::millivolts v = battery.read_voltage();  // battery-side voltage
+quanta::electro::millivolts v = battery.read_voltage();  // battery-side voltage
 ```
 
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Continuous: sample a signal at 20 kHz in the background.
 idfxx::adc::sampler mic({.pins = {idfxx::gpio_3}, .sample_rate = 20_kHz});
@@ -57,7 +56,7 @@ std::array<idfxx::adc::sampler::sample, 256> buf;
 while (true) {
     size_t n = mic.read(buf);
     for (size_t i = 0; i < n; ++i) {
-        electro::millivolts v = mic.to_voltage(buf[i]);
+        quanta::electro::millivolts v = mic.to_voltage(buf[i]);
         // ...
     }
 }
@@ -66,7 +65,7 @@ while (true) {
 For a single pin, read straight into calibrated voltages:
 
 ```cpp
-std::array<electro::millivolts, 256> volts;
+std::array<quanta::electro::millivolts, 256> volts;
 size_t n = mic.read(volts);  // reads and converts in one call
 ```
 
@@ -81,7 +80,7 @@ if (!v) { /* v.error() */ }
 ```
 
 ```cpp
-auto mic = idfxx::adc::sampler::make({.pins = {idfxx::gpio_3}, .sample_rate = freq::hertz{20'000}});
+auto mic = idfxx::adc::sampler::make({.pins = {idfxx::gpio_3}, .sample_rate = quanta::frequency::hertz{20'000}});
 if (!mic) { /* handle error */ }
 
 if (auto r = mic->try_start(); !r) { /* r.error() */ }
@@ -98,7 +97,7 @@ if (!n) { /* n.error() */ }
 | Method | Description |
 | ------ | ----------- |
 | `input(config)` / `make(config)` | Claim the pin's ADC unit and configure the channel. |
-| `read_voltage()` / `try_read_voltage()` | Calibrated voltage, scaled by the configured divider (`electro::millivolts`). |
+| `read_voltage()` / `try_read_voltage()` | Calibrated voltage, scaled by the configured divider (`quanta::electro::millivolts`). |
 | `read_raw()` / `try_read_raw()` | Raw conversion value. |
 | `calibrated()` | Whether factory calibration is active. |
 
@@ -114,8 +113,8 @@ scales by it to report the source voltage).
 | `start()` / `try_start()` | Begin conversion; resets the overrun counter. |
 | `stop()` / `try_stop()` | Stop conversion (idempotent). |
 | `read(out[, timeout])` / `try_read(out[, timeout])` | Block for at least one parsed sample (`out` a span of `sample`); returns the count written. |
-| `read(mv[, timeout])` / `try_read(mv[, timeout])` | Single-pin convenience: read and convert to voltages in one call (`out` a span of `electro::millivolts`). |
-| `to_voltage(sample)` / `try_to_voltage(sample)` | Calibrated voltage for one sample (`electro::millivolts`). |
+| `read(mv[, timeout])` / `try_read(mv[, timeout])` | Single-pin convenience: read and convert to voltages in one call (`out` a span of `quanta::electro::millivolts`). |
+| `to_voltage(sample)` / `try_to_voltage(sample)` | Calibrated voltage for one sample (`quanta::electro::millivolts`). |
 | `to_voltage(raw)` / `try_to_voltage(raw)` | Calibrated voltage for a raw value (single-pin samplers only). |
 | `to_voltage(in, out)` / `try_to_voltage(in, out)` | Convert a batch of samples to voltages, preserving pin association. |
 | `pins()` / `sample_rate()` / `running()` | Configuration and state accessors. |

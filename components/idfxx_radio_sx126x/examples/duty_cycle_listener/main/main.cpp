@@ -24,8 +24,8 @@
 #include <span>
 #include <string_view>
 
-using namespace electro_literals;
-using namespace frequency_literals;
+using namespace quanta::electro_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"dutycycle"};

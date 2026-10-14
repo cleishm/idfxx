@@ -26,9 +26,9 @@
 #include <idfxx/spi/master>
 
 #include <esp_lcd_panel_io.h>
-#include <frequency/frequency>
 #include <functional>
 #include <memory>
+#include <quanta/frequency>
 
 namespace idfxx {
 
@@ -58,12 +58,12 @@ public:
      * and lcd_param_bits at minimum.
      */
     struct spi_config {
-        gpio cs_gpio = gpio::nc();     ///< GPIO used for CS line
-        gpio dc_gpio = gpio::nc();     ///< GPIO used to select the D/C line, set to gpio::nc() if not used
-        int spi_mode = 0;              ///< Traditional SPI mode (0~3)
-        freq::hertz pclk_freq{0};      ///< Frequency of pixel clock
-        size_t trans_queue_depth = 10; ///< Size of the internal transaction queue. Must be at least 1; 0 is
-                                       ///< rejected with `errc::invalid_arg`.
+        gpio cs_gpio = gpio::nc();             ///< GPIO used for CS line
+        gpio dc_gpio = gpio::nc();             ///< GPIO used to select the D/C line, set to gpio::nc() if not used
+        int spi_mode = 0;                      ///< Traditional SPI mode (0~3)
+        quanta::frequency::hertz pclk_freq{0}; ///< Frequency of pixel clock
+        size_t trans_queue_depth = 10;         ///< Size of the internal transaction queue. Must be at least 1; 0 is
+                                               ///< rejected with `errc::invalid_arg`.
         color_transfer_done_callback on_color_transfer_done =
             nullptr;            ///< Callback invoked when color data transfer has finished
         int lcd_cmd_bits = 0;   ///< Bit-width of LCD command
@@ -95,8 +95,8 @@ public:
      * configuration (e.g. `ssd1306::i2c_io_config()`) or document the values they require.
      */
     struct i2c_config {
-        uint16_t device_address = 0; ///< 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
-        freq::hertz scl_speed{0};    ///< I2C SCL frequency
+        uint16_t device_address = 0;           ///< 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
+        quanta::frequency::hertz scl_speed{0}; ///< I2C SCL frequency
         color_transfer_done_callback on_color_transfer_done =
             nullptr;                    ///< Callback invoked when color data transfer has finished
         size_t control_phase_bytes = 0; ///< Number of bytes the panel encodes control information (e.g. D/C

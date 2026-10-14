@@ -75,8 +75,10 @@ public:
      * idfxx::lcd::ssd1306 display(io, {.height = 64});
      * @endcode
      */
-    [[nodiscard]] static panel_io::i2c_config
-    i2c_io_config(uint16_t device_address = 0x3C, freq::hertz scl_speed = freq::hertz{400000}) noexcept;
+    [[nodiscard]] static panel_io::i2c_config i2c_io_config(
+        uint16_t device_address = 0x3C,
+        quanta::frequency::hertz scl_speed = quanta::frequency::hertz{400000}
+    ) noexcept;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

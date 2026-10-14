@@ -35,6 +35,6 @@ extern "C" void app_main() {
             logger.warn("read failed: {}", r.error().message());
             continue;
         }
-        logger.info("temperature {:.1f}, humidity {:.1f} %", r->temperature, r->humidity_pct);
+        logger.info("temperature {:b.1f}, humidity {:.1f} %", r->temperature, r->humidity_pct);
     }
 }

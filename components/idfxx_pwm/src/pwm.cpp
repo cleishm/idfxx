@@ -178,7 +178,7 @@ uint32_t timer::ticks_max() const noexcept {
     return 1u << state.resolution_bits;
 }
 
-result<void> timer::try_set_frequency(freq::hertz frequency) {
+result<void> timer::try_set_frequency(quanta::frequency::hertz frequency) {
     if (!is_configured()) {
         return error(errc::invalid_state);
     }
@@ -190,11 +190,13 @@ result<void> timer::try_set_frequency(freq::hertz frequency) {
     );
 }
 
-freq::hertz timer::frequency() const {
+quanta::frequency::hertz timer::frequency() const {
     if (!is_configured()) {
-        return freq::hertz{0};
+        return quanta::frequency::hertz{0};
     }
-    return freq::hertz{static_cast<int64_t>(ledc_get_freq(to_ledc(_speed_mode), static_cast<ledc_timer_t>(_num)))};
+    return quanta::frequency::hertz{
+        static_cast<int64_t>(ledc_get_freq(to_ledc(_speed_mode), static_cast<ledc_timer_t>(_num)))
+    };
 }
 
 std::chrono::nanoseconds timer::period() const {

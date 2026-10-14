@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <type_traits>
 
-using namespace electro_literals;
+using namespace quanta::electro_literals;
 using namespace idfxx::radio;
 namespace codec = idfxx::radio::sx126x_internal;
 
@@ -148,7 +148,7 @@ static_assert(codec::tcxo_voltage_byte(5000) == 7);
 // GetPacketStatus (§13.5.3) / GetRssiInst (§13.5.4) decoding: RSSI bytes are
 // -raw/2 dBm, SNR bytes are a signed quarter-dB value.
 static_assert(codec::decode_rssi_byte(160) == -80_dBm);
-static_assert(codec::decode_rssi_byte(161) == electro::centi_dbm(-8050));
+static_assert(codec::decode_rssi_byte(161) == quanta::electro::centi_dbm(-8050));
 static_assert(codec::decode_rssi_byte(0) == 0_dBm);
 static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).rssi == -80_dBm);
 static_assert(codec::decode_packet_status(std::array<uint8_t, 3>{160, 20, 180}).snr == 5_dB);

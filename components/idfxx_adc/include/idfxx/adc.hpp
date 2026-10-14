@@ -20,7 +20,7 @@
  *   waveform-capture and signal-statistics case.
  *
  * In both modes the ADC unit and channel are resolved from the GPIO pin,
- * and readings convert to typed voltages (`electro::millivolts`) with the
+ * and readings convert to typed voltages (`quanta::electro::millivolts`) with the
  * chip's factory calibration when available.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin
@@ -36,10 +36,10 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <electro/electro>
-#include <frequency/frequency>
 #include <memory>
 #include <optional>
+#include <quanta/electro>
+#include <quanta/frequency>
 #include <span>
 #include <vector>
 
@@ -89,7 +89,7 @@ struct divider_ratio {
  *
  * @code
  * idfxx::adc::input battery({.pin = idfxx::gpio_3});
- * electro::millivolts v = battery.read_voltage();  // calibrated voltage at the pin
+ * quanta::electro::millivolts v = battery.read_voltage();  // calibrated voltage at the pin
  * @endcode
  */
 class input {
@@ -183,7 +183,7 @@ public:
      *         calibration data, and `idfxx::errc::timeout` when the conversion
      *         result is invalid or the ADC unit is in use by another reader.
      */
-    [[nodiscard]] electro::millivolts read_voltage() { return unwrap(try_read_voltage()); }
+    [[nodiscard]] quanta::electro::millivolts read_voltage() { return unwrap(try_read_voltage()); }
 #endif
 
     /**
@@ -206,7 +206,7 @@ public:
      * @retval idfxx::errc::timeout The conversion result was invalid, or the
      *         ADC unit is in use by another reader. The read may be retried.
      */
-    [[nodiscard]] result<electro::millivolts> try_read_voltage();
+    [[nodiscard]] result<quanta::electro::millivolts> try_read_voltage();
 
 private:
     /// @cond INTERNAL
@@ -227,7 +227,7 @@ private:
  * object. Move-only.
  *
  * @code
- * using namespace frequency_literals;
+ * using namespace quanta::frequency_literals;
  *
  * idfxx::adc::sampler mic({.pins = {idfxx::gpio_3}, .sample_rate = 20_kHz});
  * mic.start();
@@ -235,7 +235,7 @@ private:
  * std::array<idfxx::adc::sampler::sample, 256> buf;
  * size_t n = mic.read(buf);
  * for (size_t i = 0; i < n; ++i) {
- *     electro::millivolts v = mic.to_voltage(buf[i]);
+ *     quanta::electro::millivolts v = mic.to_voltage(buf[i]);
  *     // ...
  * }
  * @endcode
@@ -253,7 +253,7 @@ public:
         enum attenuation attenuation = attenuation::db_12;
         /// Total conversion rate across all pins; each pin samples at this rate divided by
         /// the pin count. Valid range is chip-specific; 20 kHz works on every target.
-        freq::hertz sample_rate{20'000};
+        quanta::frequency::hertz sample_rate{20'000};
         /// Samples delivered per driver transfer — the read granularity.
         size_t frame_samples = 256;
         /// Internal pool capacity in samples (at least @ref frame_samples). Reads must
@@ -331,7 +331,7 @@ public:
     [[nodiscard]] enum attenuation attenuation() const noexcept;
 
     /** @brief Returns the configured total sample rate across all pins. */
-    [[nodiscard]] freq::hertz sample_rate() const noexcept;
+    [[nodiscard]] quanta::frequency::hertz sample_rate() const noexcept;
 
     /** @brief Returns true while the sampler is started. */
     [[nodiscard]] bool running() const noexcept;
@@ -451,7 +451,7 @@ public:
      *         idfxx::errc::invalid_arg if `out` is empty, or idfxx::errc::not_supported if a
      *         sampled pin has no usable calibration data (check @ref calibrated).
      */
-    [[nodiscard]] size_t read(std::span<electro::millivolts> out) { return unwrap(try_read(out)); }
+    [[nodiscard]] size_t read(std::span<quanta::electro::millivolts> out) { return unwrap(try_read(out)); }
 
     /**
      * @brief Reads samples as calibrated voltages, blocking until at least one is available or the
@@ -472,7 +472,8 @@ public:
      *         idfxx::errc::not_supported if a sampled pin has no usable calibration data.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] size_t read(std::span<electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] size_t
+    read(std::span<quanta::electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_read(out, timeout));
     }
 #endif
@@ -532,7 +533,7 @@ public:
      * @retval idfxx::errc::not_supported A sampled pin has no usable calibration data (check
      *         @ref calibrated).
      */
-    [[nodiscard]] result<size_t> try_read(std::span<electro::millivolts> out) {
+    [[nodiscard]] result<size_t> try_read(std::span<quanta::electro::millivolts> out) {
         return _read_voltage(out, std::nullopt);
     }
 
@@ -555,7 +556,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<size_t>
-    try_read(std::span<electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
+    try_read(std::span<quanta::electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
         return _read_voltage(out, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -571,7 +572,7 @@ public:
      *         idfxx::errc::not_supported if the chip has no usable
      *         calibration data (check @ref calibrated).
      */
-    [[nodiscard]] electro::millivolts to_voltage(const sample& s) const { return unwrap(try_to_voltage(s)); }
+    [[nodiscard]] quanta::electro::millivolts to_voltage(const sample& s) const { return unwrap(try_to_voltage(s)); }
 
     /**
      * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
@@ -590,7 +591,7 @@ public:
      * @retval idfxx::errc::timeout The conversion result was invalid, or the
      *         ADC unit is in use by another reader. The read may be retried.
      */
-    [[nodiscard]] electro::millivolts to_voltage(int raw) const { return unwrap(try_to_voltage(raw)); }
+    [[nodiscard]] quanta::electro::millivolts to_voltage(int raw) const { return unwrap(try_to_voltage(raw)); }
 
     /**
      * @brief Converts a batch of samples to voltages using factory calibration.
@@ -607,7 +608,7 @@ public:
      *         idfxx::errc::not_supported if a pin has no usable calibration data (check
      *         @ref calibrated).
      */
-    void to_voltage(std::span<const sample> in, std::span<electro::millivolts> out) const {
+    void to_voltage(std::span<const sample> in, std::span<quanta::electro::millivolts> out) const {
         unwrap(try_to_voltage(in, out));
     }
 #endif
@@ -624,7 +625,7 @@ public:
      * @retval idfxx::errc::timeout The conversion result was invalid, or the
      *         ADC unit is in use by another reader. The read may be retried.
      */
-    [[nodiscard]] result<electro::millivolts> try_to_voltage(const sample& s) const;
+    [[nodiscard]] result<quanta::electro::millivolts> try_to_voltage(const sample& s) const;
 
     /**
      * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
@@ -641,7 +642,7 @@ public:
      * @retval idfxx::errc::timeout The conversion result was invalid, or the
      *         ADC unit is in use by another reader. The read may be retried.
      */
-    [[nodiscard]] result<electro::millivolts> try_to_voltage(int raw) const;
+    [[nodiscard]] result<quanta::electro::millivolts> try_to_voltage(int raw) const;
 
     /**
      * @brief Converts a batch of samples to voltages using factory calibration.
@@ -656,7 +657,8 @@ public:
      * @retval idfxx::errc::not_supported A pin has no usable calibration data (check
      *         @ref calibrated).
      */
-    [[nodiscard]] result<void> try_to_voltage(std::span<const sample> in, std::span<electro::millivolts> out) const;
+    [[nodiscard]] result<void>
+    try_to_voltage(std::span<const sample> in, std::span<quanta::electro::millivolts> out) const;
 
 private:
     /// @cond INTERNAL
@@ -665,7 +667,7 @@ private:
     // A nullopt timeout means wait forever.
     [[nodiscard]] result<size_t> _try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout);
     [[nodiscard]] result<size_t>
-    _read_voltage(std::span<electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout);
+    _read_voltage(std::span<quanta::electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout);
     /// @endcond
 
     std::unique_ptr<state> _state;

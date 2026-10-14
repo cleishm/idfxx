@@ -59,7 +59,7 @@ Or add `idfxx_radio_sx126x` to the `REQUIRES` list in your component's
 #include <idfxx/radio/sx126x>
 #include <idfxx/spi/master>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 idfxx::spi::master_bus bus(
