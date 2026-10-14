@@ -6,7 +6,7 @@
 //   * an event_loop receives rx_done / cad_done,
 //   * start_listening(radio.rx_duty_cycle_for()) puts the radio in periodic
 //     low-power listen with windows computed from the modulation,
-//   * scan_channel (blocking CAD) gates each transmit (listen-before-talk),
+//   * channel_busy (blocking CAD) gates each transmit (listen-before-talk),
 //   * start_transmit fires a beacon without blocking and returns a future,
 //     awaited under a watchdog sized from the packet's time-on-air.
 
@@ -30,8 +30,8 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"dutycycle"};
 
-// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3 /
-// LilyGo T3 layouts).
+// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3
+// layout).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_9;
@@ -39,6 +39,10 @@ static constexpr auto PIN_CS = idfxx::gpio_8;
 static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
+
+// Carrier frequency — use one your region allows and your antenna is built for
+// (for example 868_MHz in Europe).
+static constexpr auto FREQUENCY = 915_MHz;
 
 // The SX126x restarts its TCXO on every wake from sleep; sleep windows must
 // be long enough to be worth that transition.
@@ -81,7 +85,7 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
+                // The Heltec V3 drives a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = TCXO_STARTUP},
                 .loop = &loop,
@@ -89,7 +93,7 @@ extern "C" void app_main() {
         );
 
         radio.configure({
-            .frequency = 915_MHz,
+            .frequency = FREQUENCY,
             .output_power = 14_dBm,
             .modulation = MODULATION,
             .packet_params = PACKET_PARAMS,
@@ -117,12 +121,13 @@ extern "C" void app_main() {
         const auto duty_cycle = radio.rx_duty_cycle_for();
         if (duty_cycle) {
             logger.info(
-                "duty-cycle listener on 915 MHz: listen {}us / sleep {}us",
+                "duty-cycle listener on {}: listen {}us / sleep {}us",
+                FREQUENCY,
                 duty_cycle->rx_period.count(),
                 duty_cycle->sleep_period.count()
             );
         } else {
-            logger.info("duty-cycling infeasible for this modulation — listening continuously on 915 MHz");
+            logger.info("duty-cycling infeasible for this modulation — listening continuously on {}", FREQUENCY);
         }
 
         uint32_t counter = 0;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // LoRa ping-pong — two boards flash identical firmware and bounce a counter
-// back and forth. Whichever board sees its initial-receive window time out
+// back and forth. Whichever board sees its election listen window time out
 // first becomes the initiator and sends seq=0.
 //
 // On every received packet:
@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
+#include <esp_random.h>
 #include <span>
 #include <string_view>
 
@@ -29,8 +30,8 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"pingpong"};
 
-// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3 /
-// LilyGo T3 layouts).
+// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3
+// layout).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_9;
@@ -39,10 +40,16 @@ static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
 
+// Carrier frequency — use one your region allows and your antenna is built for
+// (for example 868_MHz in Europe).
+static constexpr auto FREQUENCY = 915_MHz;
+
 // How long to wait for a peer packet before electing ourselves the initiator.
-// A modest random jitter inside try_receive's poll loop is enough to break
-// symmetry when both boards boot together.
+// Each election adds a random extra wait of up to ELECTION_JITTER on top, so
+// two boards that start listening together time out at different moments and
+// the first to do so becomes the initiator.
 static constexpr auto LISTEN_TIMEOUT = 5s;
+static constexpr auto ELECTION_JITTER = 2s;
 
 // Maximum acceptable round-trip latency. If we send a packet and don't see a
 // reply by then, restart the election.
@@ -72,6 +79,14 @@ static int32_t parse_counter(std::string_view sv) {
     return static_cast<int32_t>(value);
 }
 
+// Listen window for one election: LISTEN_TIMEOUT plus a fresh random
+// 0..ELECTION_JITTER.
+static std::chrono::milliseconds election_listen_time() {
+    const auto max_jitter_ms = std::chrono::duration_cast<std::chrono::milliseconds>(ELECTION_JITTER).count();
+    const auto jitter = std::chrono::milliseconds(esp_random() % static_cast<uint32_t>(max_jitter_ms + 1));
+    return LISTEN_TIMEOUT + jitter;
+}
+
 static size_t format_packet(std::span<char> out, const char* tag, uint32_t counter) {
     int n = std::snprintf(out.data(), out.size(), "%s %04" PRIu32, tag, counter);
     return n > 0 ? static_cast<size_t>(n) : 0;
@@ -95,14 +110,14 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
+                // The Heltec V3 drives a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
         radio.configure({
-            .frequency = 915_MHz,
+            .frequency = FREQUENCY,
             .output_power = 14_dBm,
             .modulation = MODULATION,
             .packet_params = PACKET_PARAMS,
@@ -111,17 +126,15 @@ extern "C" void app_main() {
         std::array<uint8_t, 32> rx_buf{};
         std::array<char, 32> tx_buf{};
 
-        logger.info("ping-pong starting on 915 MHz, SF9, 125 kHz BW");
-        logger.info(
-            "listening up to {}s for a peer before electing as initiator",
-            std::chrono::duration_cast<std::chrono::seconds>(LISTEN_TIMEOUT).count()
-        );
+        logger.info("ping-pong starting on {}, SF9, 125 kHz BW", FREQUENCY);
 
         bool initiator = false;
         uint32_t counter = 0;
 
         // ---- Election: listen briefly; whoever times out first sends seq=0.
-        auto first = radio.try_receive(rx_buf, LISTEN_TIMEOUT);
+        const auto election_listen = election_listen_time();
+        logger.info("listening {}ms for a peer before electing as initiator", election_listen.count());
+        auto first = radio.try_receive(rx_buf, election_listen);
         if (first) {
             std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), first->length};
             int32_t parsed = parse_counter(sv);
@@ -167,7 +180,9 @@ extern "C" void app_main() {
                     // Restart the election: become a responder again and listen.
                     initiator = false;
                     counter = 0;
-                    auto re = radio.try_receive(rx_buf, LISTEN_TIMEOUT);
+                    const auto re_election_listen = election_listen_time();
+                    logger.info("listening {}ms for a peer", re_election_listen.count());
+                    auto re = radio.try_receive(rx_buf, re_election_listen);
                     if (!re) {
                         if (re.error() == idfxx::errc::timeout) {
                             logger.info("no peer heard — promoting to initiator");

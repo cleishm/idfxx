@@ -51,8 +51,8 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 ## Configuration
 
 Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change `915_MHz` in the `radio.configure()` call (for
-example to `868_MHz` in Europe). The same call sets the transmit power (`output_power = 14_dBm`).
+antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
+to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
 
 ## How to use
 
@@ -78,8 +78,9 @@ idf.py -p PORT flash monitor
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
 You need two boards, both flashed with this example and set to the same frequency. At startup each
-board listens for up to 5 seconds. A board that hears nothing becomes the initiator and sends
+board listens for 5 seconds plus a random extra of up to 2 seconds, so two boards that start together
+don't time out at the same moment. A board that hears nothing becomes the initiator and sends
 `PING 0000`; a board that hears a packet becomes the responder. Each board answers every packet it
 receives with the counter plus one: the initiator sends `PING` packets and the responder sends `PONG`
 packets, and both log the RSSI and SNR of what they receive. If a board gets no reply within 3 seconds,
-it listens again and the two boards pick a new initiator.
+it listens again, with a fresh random extra wait, and the two boards pick a new initiator.

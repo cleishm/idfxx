@@ -19,8 +19,8 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"beacon"};
 
-// Pin assignments — change to match your board (these match common Heltec
-// WiFi LoRa 32 V3 / LilyGo T3 layouts).
+// Pin assignments — change to match your board (these match the Heltec
+// WiFi LoRa 32 V3).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_9;
@@ -28,6 +28,10 @@ static constexpr auto PIN_CS = idfxx::gpio_8;
 static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
+
+// Carrier frequency — use one your region allows and your antenna is built for
+// (for example 868_MHz in Europe).
+static constexpr auto FREQUENCY = 915_MHz;
 
 extern "C" void app_main() {
     try {
@@ -47,14 +51,14 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // Heltec V3 / LilyGo T3 drive a TCXO from DIO3 — required for the
+                // The Heltec V3 drives a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
 
         radio.configure({
-            .frequency = 915_MHz,
+            .frequency = FREQUENCY,
             .output_power = 14_dBm,
             .modulation = {
                 .sf = idfxx::radio::spreading_factor::sf9,
@@ -63,7 +67,7 @@ extern "C" void app_main() {
             },
         });
 
-        logger.info("Beacon starting on 915 MHz, SF9, 125 kHz BW");
+        logger.info("Beacon starting on {}, SF9, 125 kHz BW", FREQUENCY);
 
         uint32_t counter = 0;
         std::array<char, 32> payload{};

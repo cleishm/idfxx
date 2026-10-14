@@ -49,8 +49,8 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 ## Configuration
 
 Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change `915_MHz` in the `radio.configure()` call (for
-example to `868_MHz` in Europe). The same call sets the transmit power (`output_power = 14_dBm`).
+antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
+to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
 
 ## How to use
 
