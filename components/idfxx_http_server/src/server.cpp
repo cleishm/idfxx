@@ -12,6 +12,7 @@
 #include <esp_idf_version.h>
 #include <esp_log.h>
 #include <optional>
+#include <unistd.h>
 #include <utility>
 
 // Verify errc enum values match ESP-IDF constants
@@ -268,6 +269,8 @@ void server::_session_close_trampoline(httpd_handle_t hd, int sockfd) {
     if (ctx && ctx->self && ctx->self->_on_session_close) {
         ctx->self->_on_session_close(sockfd);
     }
+    // A custom close_fn replaces the server's own close of the socket, so it must be closed here.
+    ::close(sockfd);
 }
 
 // =============================================================================
