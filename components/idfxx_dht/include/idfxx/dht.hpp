@@ -30,8 +30,8 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <quanta/thermo>
 #include <string>
-#include <thermo/thermo>
 #include <utility>
 
 /**
@@ -57,8 +57,8 @@ enum class model : uint8_t {
  * @brief One temperature and humidity measurement.
  */
 struct reading {
-    thermo::millicelsius temperature{0}; ///< Measured temperature.
-    float humidity_pct = 0.0f;           ///< Relative humidity in percent (0–100).
+    quanta::thermo::millicelsius temperature{0}; ///< Measured temperature.
+    float humidity_pct = 0.0f;                   ///< Relative humidity in percent (0–100).
 };
 
 /**

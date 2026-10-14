@@ -20,8 +20,8 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <frequency/frequency>
 #include <initializer_list>
+#include <quanta/frequency>
 #include <span>
 
 /**
@@ -113,7 +113,7 @@ public:
      * @endcode
      */
     [[nodiscard]] static panel_io::spi_config
-    spi_io_config(gpio cs, gpio dc, freq::hertz pclk = freq::hertz{10'000'000}) noexcept;
+    spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk = quanta::frequency::hertz{10'000'000}) noexcept;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

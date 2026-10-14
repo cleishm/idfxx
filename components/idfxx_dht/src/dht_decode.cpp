@@ -91,7 +91,7 @@ reading to_reading(const std::array<uint8_t, 5>& b, model m) {
         temp_tenths = (b[3] & 0x80) ? -mag : mag;
         r.humidity_pct = static_cast<float>(b[0]) + static_cast<float>(b[1]) / 10.0f;
     }
-    r.temperature = thermo::millicelsius(static_cast<int64_t>(temp_tenths) * 100);
+    r.temperature = quanta::thermo::millicelsius(static_cast<int64_t>(temp_tenths) * 100);
     return r;
 }
 

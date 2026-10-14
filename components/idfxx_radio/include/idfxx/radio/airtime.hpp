@@ -21,7 +21,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <frequency/frequency>
+#include <quanta/frequency>
 #include <utility>
 
 namespace idfxx::radio {
@@ -32,30 +32,30 @@ namespace airtime_detail {
 /// Channel bandwidth. The two fractional bandwidths return their exact LoRa
 /// values — 15.625 kHz and 31.25 kHz — rather than the rounded kHz that name
 /// the enumerators.
-[[nodiscard]] constexpr freq::hertz channel_bandwidth(bandwidth bw) noexcept {
+[[nodiscard]] constexpr quanta::frequency::hertz channel_bandwidth(bandwidth bw) noexcept {
     switch (bw) {
     case bandwidth::bw_7_8:
-        return freq::hertz{7'800};
+        return quanta::frequency::hertz{7'800};
     case bandwidth::bw_10_4:
-        return freq::hertz{10'400};
+        return quanta::frequency::hertz{10'400};
     case bandwidth::bw_15_6:
-        return freq::hertz{15'625};
+        return quanta::frequency::hertz{15'625};
     case bandwidth::bw_20_8:
-        return freq::hertz{20'800};
+        return quanta::frequency::hertz{20'800};
     case bandwidth::bw_31_25:
-        return freq::hertz{31'250};
+        return quanta::frequency::hertz{31'250};
     case bandwidth::bw_41_7:
-        return freq::hertz{41'700};
+        return quanta::frequency::hertz{41'700};
     case bandwidth::bw_62_5:
-        return freq::hertz{62'500};
+        return quanta::frequency::hertz{62'500};
     case bandwidth::bw_125:
-        return freq::hertz{125'000};
+        return quanta::frequency::hertz{125'000};
     case bandwidth::bw_250:
-        return freq::hertz{250'000};
+        return quanta::frequency::hertz{250'000};
     case bandwidth::bw_500:
-        return freq::hertz{500'000};
+        return quanta::frequency::hertz{500'000};
     }
-    return freq::hertz{125'000}; // safe default = 125 kHz
+    return quanta::frequency::hertz{125'000}; // safe default = 125 kHz
 }
 
 /// Number of LoRa symbols carrying the payload — the `8 + ...` term of the

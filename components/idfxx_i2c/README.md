@@ -44,7 +44,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/i2c/master>
 #include <idfxx/log>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 try {
     // Create I2C bus
@@ -78,7 +78,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 #include <idfxx/i2c/master>
 #include <idfxx/log>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Create I2C bus
 auto bus_result = idfxx::i2c::master_bus::make(
@@ -122,7 +122,7 @@ For fine-grained control over bus and device parameters, use the config-based co
 ```cpp
 #include <idfxx/i2c/master>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Bus with custom settings
 idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
@@ -147,7 +147,7 @@ idfxx::i2c::master_device device_10bit(bus, 0x1FF, {
 ### Scanning for Devices
 
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 idfxx::i2c::master_bus bus(
     idfxx::i2c::port::i2c0, idfxx::gpio_21, idfxx::gpio_22, 100_kHz
@@ -203,7 +203,7 @@ idfxx::log::info("I2C", "Received {} bytes", rx_data.size());
 The `master_bus` class implements the Lockable concept:
 
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 idfxx::i2c::master_bus bus(
     idfxx::i2c::port::i2c0, idfxx::gpio_21, idfxx::gpio_22, 100_kHz

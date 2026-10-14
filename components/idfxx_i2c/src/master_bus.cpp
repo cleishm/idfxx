@@ -124,7 +124,7 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
 master_bus::master_bus(enum port port, const struct config& config)
     : master_bus(unwrap(make_bus(port, config)), port, config.frequency) {}
 
-master_bus::master_bus(enum port port, gpio sda, gpio scl, freq::hertz frequency)
+master_bus::master_bus(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency)
     : master_bus(port, config{.sda = sda, .scl = scl, .frequency = frequency}) {}
 #endif
 
@@ -132,11 +132,11 @@ result<master_bus> master_bus::make(enum port port, const struct config& config)
     return make_bus(port, config).transform([&](auto handle) { return master_bus{handle, port, config.frequency}; });
 }
 
-result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, freq::hertz frequency) {
+result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency) {
     return make(port, config{.sda = sda, .scl = scl, .frequency = frequency});
 }
 
-master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, freq::hertz frequency)
+master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, quanta::frequency::hertz frequency)
     : _mux(std::make_unique<std::recursive_mutex>())
     , _handle(handle)
     , _port(port)

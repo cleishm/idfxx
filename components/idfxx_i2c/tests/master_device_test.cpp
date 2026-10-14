@@ -48,7 +48,7 @@ static_assert(std::is_default_constructible_v<master_device::config>);
 
 TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_device]") {
     // Create a bus first
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -63,14 +63,14 @@ TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_de
 }
 
 TEST_CASE("master_device::make with config succeeds", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
     auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50, {
-        .scl_speed = freq::kilohertz(400),
+        .scl_speed = quanta::frequency::kilohertz(400),
     });
     TEST_ASSERT_TRUE(device_result.has_value());
 
@@ -79,7 +79,7 @@ TEST_CASE("master_device::make with config succeeds", "[idfxx][i2c][master_devic
 }
 
 TEST_CASE("master_device::make with config default scl_speed uses bus frequency", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -100,21 +100,21 @@ TEST_CASE("master_device::config defaults leave optional settings unset", "[idfx
 }
 
 TEST_CASE("master_device::make with zero scl_speed fails", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
     auto& bus = *bus_result;
 
     auto device_result = master_device::make(bus, 0x50, {
-        .scl_speed = freq::hertz(0),
+        .scl_speed = quanta::frequency::hertz(0),
     });
     TEST_ASSERT_FALSE(device_result.has_value());
     TEST_ASSERT_TRUE(device_result.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("master_device::make with zero scl_wait_us fails", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -131,7 +131,7 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
     // This test verifies that the transmit API exists at compile time
     // Actual transmission would require hardware device
 
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -150,7 +150,7 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
 }
 
 TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -169,7 +169,7 @@ TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
 }
 
 TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -192,7 +192,7 @@ TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_devi
 }
 
 TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -215,7 +215,7 @@ TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_devic
 }
 
 TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }
@@ -235,7 +235,7 @@ TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_dev
 }
 
 TEST_CASE("master_device bus accessor works", "[idfxx][i2c][master_device]") {
-    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, freq::kilohertz(100));
+    auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
     if (!bus_result.has_value()) {
         TEST_FAIL_MESSAGE("Failed to create I2C bus");
     }

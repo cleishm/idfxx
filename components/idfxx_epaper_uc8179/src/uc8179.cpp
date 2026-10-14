@@ -90,7 +90,7 @@ constexpr size_t max_height = 600;
 
 } // namespace
 
-panel_io::spi_config uc8179::spi_io_config(gpio cs, gpio dc, freq::hertz pclk) noexcept {
+panel_io::spi_config uc8179::spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk) noexcept {
     return {
         .cs_gpio = cs,
         .dc_gpio = dc,

@@ -17,6 +17,6 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_hw_support
-  cleishm/frequency:
-    version: "^1.2.1"
+  cleishm/quanta:
+    version: "^0.1.0"
     public: true

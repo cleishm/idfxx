@@ -10,7 +10,7 @@
 
 #include <chrono>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
@@ -26,7 +26,7 @@ constexpr auto NOTE_B4 = 494_Hz;
 constexpr auto NOTE_C5 = 523_Hz;
 
 struct note {
-    freq::hertz frequency;
+    quanta::frequency::hertz frequency;
     std::chrono::milliseconds duration;
 };
 

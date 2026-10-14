@@ -21,8 +21,8 @@ dependencies:
     version: "^1.0.0"
     public: true
     override_path: ../idfxx_netif
-  cleishm/electro:
-    version: "^0.3.0"
+  cleishm/quanta:
+    version: "^0.1.0"
     public: true
 # esp_wifi only exists on Wi-Fi-capable chips.
 targets:

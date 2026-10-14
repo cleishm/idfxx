@@ -25,11 +25,11 @@
 
 #include <chrono>
 #include <cstdint>
-#include <electro/decibel>
-#include <electro/electro>
-#include <frequency/frequency>
 #include <memory>
 #include <optional>
+#include <quanta/decibel>
+#include <quanta/electro>
+#include <quanta/frequency>
 #include <span>
 
 namespace idfxx::radio {
@@ -152,8 +152,8 @@ public:
      * use the crystal oscillator.
      */
     struct tcxo_config {
-        electro::millivolts voltage{1700};        ///< TCXO supply voltage (1600–3300 mV).
-        std::chrono::microseconds startup{5'000}; ///< TCXO startup time before the chip uses it.
+        quanta::electro::millivolts voltage{1700}; ///< TCXO supply voltage (1600–3300 mV).
+        std::chrono::microseconds startup{5'000};  ///< TCXO startup time before the chip uses it.
 
         /**
          * @brief Compares two TCXO configurations for equality.
@@ -206,13 +206,13 @@ public:
      * power-on state).
      */
     struct config {
-        chip_variant variant = chip_variant::sx1262;    ///< Chip family member.
-        idfxx::gpio cs = gpio::nc();                    ///< SPI chip-select pin (required).
-        idfxx::gpio busy = gpio::nc();                  ///< BUSY input from chip (required).
-        idfxx::gpio dio1 = gpio::nc();                  ///< DIO1 IRQ input from chip (required).
-        idfxx::gpio nreset = gpio::nc();                ///< Active-low reset to chip; nc() skips the hardware reset.
-        freq::hertz clock_speed{10'000'000};            ///< SPI clock; chip max is 18 MHz.
-        bool dio2_as_rf_switch = true;                  ///< Use DIO2 as the antenna T/R switch.
+        chip_variant variant = chip_variant::sx1262;      ///< Chip family member.
+        idfxx::gpio cs = gpio::nc();                      ///< SPI chip-select pin (required).
+        idfxx::gpio busy = gpio::nc();                    ///< BUSY input from chip (required).
+        idfxx::gpio dio1 = gpio::nc();                    ///< DIO1 IRQ input from chip (required).
+        idfxx::gpio nreset = gpio::nc();                  ///< Active-low reset to chip; nc() skips the hardware reset.
+        quanta::frequency::hertz clock_speed{10'000'000}; ///< SPI clock; chip max is 18 MHz.
+        bool dio2_as_rf_switch = true;                    ///< Use DIO2 as the antenna T/R switch.
         idfxx::gpio rxen = gpio::nc();                  ///< Optional external RF-switch RX-enable pin; nc() if unused.
         idfxx::gpio txen = gpio::nc();                  ///< Optional external RF-switch TX-enable pin; nc() if unused.
         std::optional<tcxo_config> tcxo = std::nullopt; ///< Optional TCXO; leave unset for crystal.
@@ -561,8 +561,8 @@ private:
     do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) override;
     [[nodiscard]] result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) override;
     [[nodiscard]] result<idfxx::future<cad_info>> do_start_channel_scan() override;
-    [[nodiscard]] result<void> do_set_frequency(freq::hertz hz) override;
-    [[nodiscard]] result<void> do_set_output_power(electro::dbm power, ramp_time ramp) override;
+    [[nodiscard]] result<void> do_set_frequency(quanta::frequency::hertz hz) override;
+    [[nodiscard]] result<void> do_set_output_power(quanta::electro::dbm power, ramp_time ramp) override;
     [[nodiscard]] result<void> do_set_modulation(lora_modulation mod) override;
     [[nodiscard]] result<void> do_set_packet_params(lora_packet_params params) override;
     [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
@@ -570,7 +570,7 @@ private:
     [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;
     [[nodiscard]] result<void> do_probe() override;
     [[nodiscard]] result<packet_status> do_last_packet_status() override;
-    [[nodiscard]] result<electro::centi_dbm> do_current_rssi() override;
+    [[nodiscard]] result<quanta::electro::centi_dbm> do_current_rssi() override;
     [[nodiscard]] std::chrono::microseconds do_rx_duty_cycle_min_sleep() const noexcept override;
 
     std::unique_ptr<state> _state;

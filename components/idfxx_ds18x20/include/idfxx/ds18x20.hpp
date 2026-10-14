@@ -26,9 +26,9 @@
 
 #include <array>
 #include <cstdint>
+#include <quanta/thermo>
 #include <span>
 #include <string>
-#include <thermo/thermo>
 #include <vector>
 
 /**
@@ -93,7 +93,7 @@ class device;
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] inline std::vector<thermo::millicelsius> measure_and_read_multi(std::span<const device> devices);
+[[nodiscard]] inline std::vector<quanta::thermo::millicelsius> measure_and_read_multi(std::span<const device> devices);
 #endif
 
 /**
@@ -120,14 +120,15 @@ class device;
  *         or an error on bus communication failure. Returns an empty vector
  *         if the input is empty.
  */
-[[nodiscard]] result<std::vector<thermo::millicelsius>> try_measure_and_read_multi(std::span<const device> devices);
+[[nodiscard]] result<std::vector<quanta::thermo::millicelsius>>
+try_measure_and_read_multi(std::span<const device> devices);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 inline std::vector<device> scan_devices(idfxx::gpio pin, size_t max_devices) {
     return unwrap(try_scan_devices(pin, max_devices));
 }
 
-inline std::vector<thermo::millicelsius> measure_and_read_multi(std::span<const device> devices) {
+inline std::vector<quanta::thermo::millicelsius> measure_and_read_multi(std::span<const device> devices) {
     return unwrap(try_measure_and_read_multi(devices));
 }
 #endif
@@ -142,14 +143,14 @@ inline std::vector<thermo::millicelsius> measure_and_read_multi(std::span<const 
  * For single-sensor buses, use onewire::address::any() (the default) to skip ROM matching:
  * @code
  * auto dev = idfxx::ds18x20::device(idfxx::gpio_4);
- * thermo::millicelsius temp = dev.measure_and_read();
+ * quanta::thermo::millicelsius temp = dev.measure_and_read();
  * @endcode
  *
  * For multi-sensor buses, first scan for devices:
  * @code
  * auto devices = idfxx::ds18x20::scan_devices(idfxx::gpio_4);
  * for (auto& dev : devices) {
- *     thermo::millicelsius temp = dev.measure_and_read();
+ *     quanta::thermo::millicelsius temp = dev.measure_and_read();
  * }
  * @endcode
  */
@@ -211,7 +212,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] thermo::millicelsius read_temperature() const { return unwrap(try_read_temperature()); }
+    [[nodiscard]] quanta::thermo::millicelsius read_temperature() const { return unwrap(try_read_temperature()); }
 
     /**
      * @brief Measures and reads the temperature in a single operation.
@@ -222,7 +223,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] thermo::millicelsius measure_and_read() { return unwrap(try_measure_and_read()); }
+    [[nodiscard]] quanta::thermo::millicelsius measure_and_read() { return unwrap(try_measure_and_read()); }
 #endif
 
     /**
@@ -239,7 +240,7 @@ public:
      *
      * @return The measured temperature, or an error on bus communication failure.
      */
-    [[nodiscard]] result<thermo::millicelsius> try_read_temperature() const;
+    [[nodiscard]] result<quanta::thermo::millicelsius> try_read_temperature() const;
 
     /**
      * @brief Measures and reads the temperature in a single operation.
@@ -248,7 +249,7 @@ public:
      *
      * @return The measured temperature, or an error on bus communication failure.
      */
-    [[nodiscard]] result<thermo::millicelsius> try_measure_and_read();
+    [[nodiscard]] result<quanta::thermo::millicelsius> try_measure_and_read();
 
     // Resolution configuration
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

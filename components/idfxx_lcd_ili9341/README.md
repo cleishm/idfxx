@@ -43,7 +43,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/log>
 
 try {
-    using namespace frequency_literals;
+    using namespace quanta::frequency_literals;
 
     // Create SPI bus
     idfxx::spi::master_bus spi_bus(

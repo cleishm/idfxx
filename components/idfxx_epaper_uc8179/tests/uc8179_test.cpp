@@ -55,6 +55,6 @@ TEST_CASE("uc8179::spi_io_config fills the controller's SPI framing", "[idfxx][e
     TEST_ASSERT_EQUAL(8, io_cfg.lcd_cmd_bits);
     TEST_ASSERT_EQUAL(8, io_cfg.lcd_param_bits);
 
-    auto slow = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, freq::hertz{4'000'000});
+    auto slow = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, quanta::frequency::hertz{4'000'000});
     TEST_ASSERT_EQUAL(4'000'000, slow.pclk_freq.count());
 }

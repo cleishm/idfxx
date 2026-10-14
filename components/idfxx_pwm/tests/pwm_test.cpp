@@ -12,7 +12,7 @@
 #include <utility>
 
 using namespace idfxx::pwm;
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)

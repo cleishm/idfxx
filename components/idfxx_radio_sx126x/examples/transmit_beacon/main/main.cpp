@@ -13,8 +13,8 @@
 #include <cinttypes>
 #include <cstdio>
 
-using namespace electro_literals;
-using namespace frequency_literals;
+using namespace quanta::electro_literals;
+using namespace quanta::frequency_literals;
 using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"beacon"};

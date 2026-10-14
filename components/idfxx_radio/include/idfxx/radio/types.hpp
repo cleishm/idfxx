@@ -12,8 +12,8 @@
 
 #include <chrono>
 #include <cstdint>
-#include <electro/decibel>
-#include <frequency/frequency>
+#include <quanta/decibel>
+#include <quanta/frequency>
 
 /**
  * @headerfile <idfxx/radio/types>
@@ -168,8 +168,8 @@ struct lora_packet_params {
  * so they can be applied with a single `lora_transceiver::configure` call.
  */
 struct lora_link {
-    freq::hertz frequency{0};                            ///< RF carrier frequency (required; no meaningful default).
-    electro::dbm output_power{14};                       ///< Transmit output power.
+    quanta::frequency::hertz frequency{0};               ///< RF carrier frequency (required; no meaningful default).
+    quanta::electro::dbm output_power{14};               ///< Transmit output power.
     ramp_time ramp = ramp_time::us_200;                  ///< Output-power ramp-up time.
     lora_modulation modulation{};                        ///< Modulation parameters.
     lora_packet_params packet_params{};                  ///< Packet framing parameters.
@@ -206,9 +206,9 @@ struct rx_duty_cycle {
  * @brief Information about a received packet.
  */
 struct rx_info {
-    uint8_t length = 0;           ///< Number of bytes received into the caller's buffer.
-    electro::centi_dbm rssi{};    ///< Received-signal-strength indicator.
-    electro::centidecibels snr{}; ///< Signal-to-noise ratio.
+    uint8_t length = 0;                   ///< Number of bytes received into the caller's buffer.
+    quanta::electro::centi_dbm rssi{};    ///< Received-signal-strength indicator.
+    quanta::electro::centidecibels snr{}; ///< Signal-to-noise ratio.
 
     /**
      * @brief Compares two received-packet descriptions for equality.
@@ -234,8 +234,8 @@ struct cad_info {
  * @brief Detailed status for the most recent packet.
  */
 struct packet_status {
-    electro::centi_dbm rssi{};    ///< RSSI of the received packet.
-    electro::centidecibels snr{}; ///< Signal-to-noise ratio.
+    quanta::electro::centi_dbm rssi{};    ///< RSSI of the received packet.
+    quanta::electro::centidecibels snr{}; ///< Signal-to-noise ratio.
 
     /**
      * @brief Compares two packet-status records for equality.

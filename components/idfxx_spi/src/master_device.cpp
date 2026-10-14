@@ -166,13 +166,13 @@ void master_device::_delete() noexcept {
 // Accessors
 // =============================================================================
 
-freq::hertz master_device::frequency() const {
+quanta::frequency::hertz master_device::frequency() const {
     if (_handle == nullptr) {
-        return freq::hertz{0};
+        return quanta::frequency::hertz{0};
     }
     int freq_khz = 0;
     spi_device_get_actual_freq(_handle, &freq_khz);
-    return freq::hertz{static_cast<int64_t>(freq_khz) * 1000};
+    return quanta::frequency::hertz{static_cast<int64_t>(freq_khz) * 1000};
 }
 
 // =============================================================================

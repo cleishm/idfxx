@@ -45,7 +45,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/log>
 
 try {
-    using namespace frequency_literals;
+    using namespace quanta::frequency_literals;
 
     // Create I2C bus
     idfxx::i2c::master_bus i2c_bus(idfxx::i2c::port::i2c0, {
@@ -199,7 +199,7 @@ bit 6, and 8-bit commands and parameters); only the wiring-specific values are
 parameters:
 
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Defaults: address 0x3C, 400 kHz
 auto io_config = idfxx::lcd::ssd1306::i2c_io_config();

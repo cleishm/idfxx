@@ -15,8 +15,8 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <electro/decibel>
-#include <electro/electro>
+#include <quanta/decibel>
+#include <quanta/electro>
 #include <span>
 #include <utility>
 
@@ -137,8 +137,8 @@ namespace idfxx::radio::sx126x_internal {
 // =============================================================================
 
 /// Decodes a GetPacketStatus / GetRssiInst RSSI byte (half-dBm steps: -raw/2 dBm).
-[[nodiscard]] constexpr electro::centi_dbm decode_rssi_byte(uint8_t raw) noexcept {
-    return electro::centi_dbm(-static_cast<int64_t>(raw) * 50);
+[[nodiscard]] constexpr quanta::electro::centi_dbm decode_rssi_byte(uint8_t raw) noexcept {
+    return quanta::electro::centi_dbm(-static_cast<int64_t>(raw) * 50);
 }
 
 /// Decodes the three GetPacketStatus response bytes (table 13-80: rssi_pkt,
@@ -147,7 +147,7 @@ namespace idfxx::radio::sx126x_internal {
 [[nodiscard]] constexpr packet_status decode_packet_status(std::span<const uint8_t, 3> r) noexcept {
     return {
         .rssi = decode_rssi_byte(r[0]),
-        .snr = electro::centidecibels(static_cast<int8_t>(r[1]) * 25),
+        .snr = quanta::electro::centidecibels(static_cast<int8_t>(r[1]) * 25),
     };
 }
 
@@ -187,7 +187,7 @@ pack_rx_duty_cycle(std::chrono::microseconds rx, std::chrono::microseconds sleep
 /// byte followed by the startup timeout as a 24-bit count of the same 15.625 µs
 /// steps SetRxDutyCycle uses (MSB..LSB).
 [[nodiscard]] constexpr std::array<uint8_t, 4>
-pack_tcxo_params(electro::millivolts voltage, std::chrono::microseconds startup) noexcept {
+pack_tcxo_params(quanta::electro::millivolts voltage, std::chrono::microseconds startup) noexcept {
     const uint32_t timeout_steps = duty_cycle_steps(startup);
     return {
         tcxo_voltage_byte(static_cast<uint16_t>(voltage.count())),

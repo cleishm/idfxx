@@ -43,7 +43,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/log>
 
 try {
-    using namespace frequency_literals;
+    using namespace quanta::frequency_literals;
 
     idfxx::spi::master_bus spi_bus(
         idfxx::spi::host_device::spi2,
@@ -146,7 +146,7 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 STMPE610 can share the same SPI bus as the display (using different CS pins). This example uses the exception-based API:
 
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Create SPI bus
 idfxx::spi::master_bus spi_bus(

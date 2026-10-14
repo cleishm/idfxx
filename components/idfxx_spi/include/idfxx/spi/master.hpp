@@ -33,9 +33,9 @@
 #include <cstdint>
 #include <driver/spi_master.h>
 #include <esp_idf_version.h>
-#include <frequency/frequency>
 #include <memory>
 #include <optional>
+#include <quanta/frequency>
 #include <span>
 #include <string>
 #include <vector>
@@ -175,17 +175,17 @@ namespace idfxx::spi {
  * (transmit/receive/transfer) which handle bit-length conversion automatically.
  */
 struct transaction {
-    idfxx::flags<trans_flags> flags = {};    ///< Per-transaction flags.
-    uint16_t cmd = 0;                        ///< Command data (length set by device config or variable_cmd).
-    uint64_t addr = 0;                       ///< Address data (length set by device config or variable_addr).
-    std::span<const uint8_t> tx_buffer = {}; ///< Transmit buffer, or empty for no MOSI phase.
-    std::span<uint8_t> rx_buffer = {};       ///< Receive buffer, or empty for no MISO phase.
-    size_t length = 0;                       ///< Total data length in bits.
-    size_t rx_length = 0;                    ///< Receive length in bits (0 = same as length).
-    freq::hertz override_freq{0};            ///< Override clock speed for this transaction (0 = no override).
-    uint8_t command_bits = 0;                ///< Command length for variable_cmd flag.
-    uint8_t address_bits = 0;                ///< Address length for variable_addr flag.
-    uint8_t dummy_bits = 0;                  ///< Dummy length for variable_dummy flag.
+    idfxx::flags<trans_flags> flags = {};      ///< Per-transaction flags.
+    uint16_t cmd = 0;                          ///< Command data (length set by device config or variable_cmd).
+    uint64_t addr = 0;                         ///< Address data (length set by device config or variable_addr).
+    std::span<const uint8_t> tx_buffer = {};   ///< Transmit buffer, or empty for no MOSI phase.
+    std::span<uint8_t> rx_buffer = {};         ///< Receive buffer, or empty for no MISO phase.
+    size_t length = 0;                         ///< Total data length in bits.
+    size_t rx_length = 0;                      ///< Receive length in bits (0 = same as length).
+    quanta::frequency::hertz override_freq{0}; ///< Override clock speed for this transaction (0 = no override).
+    uint8_t command_bits = 0;                  ///< Command length for variable_cmd flag.
+    uint8_t address_bits = 0;                  ///< Address length for variable_addr flag.
+    uint8_t dummy_bits = 0;                    ///< Dummy length for variable_dummy flag.
 };
 
 class master_device;
@@ -380,7 +380,7 @@ public:
         std::optional<uint16_t> duty_cycle_pos = std::nullopt;
         uint16_t cs_ena_pretrans = 0; ///< SPI bit-cycles CS is active before transmission (half-duplex only).
         uint8_t cs_ena_posttrans = 0; ///< SPI bit-cycles CS stays active after transmission.
-        freq::hertz clock_speed{0};   ///< SPI clock speed in Hz.
+        quanta::frequency::hertz clock_speed{0}; ///< SPI clock speed in Hz.
         std::chrono::nanoseconds input_delay{0}; ///< Maximum data valid time of slave.
         idfxx::gpio cs = gpio::nc();             ///< GPIO pin for chip select, or gpio::nc() if not used.
         idfxx::flags<device_flags> flags = {};   ///< Device capability flags.
@@ -464,7 +464,7 @@ public:
      *
      * @return The actual frequency in Hz.
      */
-    [[nodiscard]] freq::hertz frequency() const;
+    [[nodiscard]] quanta::frequency::hertz frequency() const;
 
     // =========================================================================
     // Simple API (byte-oriented, blocking)

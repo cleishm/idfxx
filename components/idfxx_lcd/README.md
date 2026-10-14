@@ -47,7 +47,7 @@ Concrete panel drivers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) derive fr
 #include <idfxx/panel_io>
 #include <idfxx/lcd/ili9341>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 // Create SPI bus (see idfxx_spi), then the panel I/O
 idfxx::panel_io panel_io(

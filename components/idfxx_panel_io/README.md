@@ -43,7 +43,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <idfxx/panel_io>
 #include <idfxx/log>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 try {
     idfxx::spi::master_bus spi_bus(
@@ -86,7 +86,7 @@ Monochrome OLEDs and other I2C-connected panels use the same `panel_io` class wi
 #include <idfxx/i2c/master>
 #include <idfxx/panel_io>
 
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 idfxx::i2c::master_bus i2c_bus(idfxx::i2c::port::i2c0, {
     .sda = idfxx::gpio_21,
@@ -228,7 +228,7 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 - `cs_gpio` - Chip select GPIO (`idfxx::gpio`)
 - `dc_gpio` - Data/Command GPIO (`idfxx::gpio`)
 - `spi_mode` - SPI mode (0-3)
-- `pclk_freq` - Pixel clock frequency (`freq::hertz`)
+- `pclk_freq` - Pixel clock frequency (`quanta::frequency::hertz`)
 - `trans_queue_depth` - Transaction queue size (default 10; must be at least 1)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
 - `lcd_cmd_bits` - Command bits (typically 8)
@@ -248,7 +248,7 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 ### `panel_io::i2c_config`
 
 - `device_address` - 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
-- `scl_speed` - I2C SCL frequency (`freq::hertz`)
+- `scl_speed` - I2C SCL frequency (`quanta::frequency::hertz`)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
 - `control_phase_bytes` - Bytes used to encode control information (e.g. D/C selection)
 - `dc_bit_offset` - Offset of the D/C selection bit in the control phase
@@ -266,7 +266,7 @@ or document the values they require.
 
 For ILI9341 displays:
 ```cpp
-using namespace frequency_literals;
+using namespace quanta::frequency_literals;
 
 idfxx::panel_io::spi_config io_config{
     .cs_gpio = idfxx::gpio_5,

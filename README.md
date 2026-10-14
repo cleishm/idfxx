@@ -145,7 +145,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 
 extern "C" void app_main() {
     using namespace idfxx;
-    using namespace frequency_literals;
+    using namespace quanta::frequency_literals;
 
     try {
         // Initialize SPI bus for LCD and touch controller
@@ -214,7 +214,7 @@ Using `try_*` methods with `std::expected` for explicit error handling:
 
 extern "C" void app_main() {
     using namespace idfxx;
-    using namespace frequency_literals;
+    using namespace quanta::frequency_literals;
 
     // Initialize SPI bus for LCD and touch controller
     auto spi_bus_res = spi::master_bus::make(

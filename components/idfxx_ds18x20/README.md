@@ -7,7 +7,7 @@ DS18x20 1-Wire temperature sensor driver.
 - DS18S20, DS1822, DS18B20, and MAX31850 temperature sensor support
 - Typed 1-Wire address via `onewire::address`
 - Bus scanning to discover connected devices
-- Type-safe temperature values using `thermo::millicelsius`
+- Type-safe temperature values using `quanta::thermo::millicelsius`
 - Temperature measurement with configurable resolution (9-12 bit)
 - Low-level scratchpad read/write/copy access
 - Multi-device batch temperature reading
@@ -27,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_ds18x20:
-    version: "^1.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_ds18x20` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -46,7 +46,7 @@ try {
     // For a single sensor, address::any() (default) skips ROM matching
     idfxx::ds18x20::device sensor(idfxx::gpio_4);
 
-    thermo::millicelsius temp = sensor.measure_and_read();
+    quanta::thermo::millicelsius temp = sensor.measure_and_read();
     idfxx::log::info("TEMP", "Temperature: {}", temp);
 
 } catch (const std::system_error& e) {
@@ -66,7 +66,7 @@ try {
     idfxx::log::info("TEMP", "Found {} sensors", devices.size());
 
     for (auto& dev : devices) {
-        thermo::millicelsius temp = dev.measure_and_read();
+        quanta::thermo::millicelsius temp = dev.measure_and_read();
         idfxx::log::info("TEMP", "{}: {}", dev.addr(), temp);
     }
 
@@ -89,7 +89,7 @@ try {
     // Persist to EEPROM so it survives power cycles
     sensor.copy_scratchpad();
 
-    thermo::millicelsius temp = sensor.measure_and_read();
+    quanta::thermo::millicelsius temp = sensor.measure_and_read();
 
 } catch (const std::system_error& e) {
     // handle error
