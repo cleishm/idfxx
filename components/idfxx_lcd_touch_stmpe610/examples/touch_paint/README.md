@@ -11,8 +11,10 @@ that shares the display's SPI bus.
   controller at 1 MHz
 - Creating an `idfxx::lcd::ili9341` panel, and an `idfxx::lcd::stmpe610` touch controller whose coordinates match
   the 240x320 display
-- Getting the ESP-IDF handles with `idf_handle()` to draw with `esp_lcd_panel_draw_bitmap()` and to poll for
-  touches with `esp_lcd_touch_read_data()` and `esp_lcd_touch_get_data()`
+- Drawing with the panel's `draw_bitmap()`, which returns once the display has finished reading the pixel buffer,
+  so the buffer can be a local
+- Getting the touch controller's ESP-IDF handle with `idf_handle()` to poll for touches with
+  `esp_lcd_touch_read_data()` and `esp_lcd_touch_get_data()`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
 
