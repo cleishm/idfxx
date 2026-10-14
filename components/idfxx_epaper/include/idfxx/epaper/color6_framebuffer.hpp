@@ -163,7 +163,17 @@ public:
      * @brief Sets every pixel to the given color.
      * @param color The color to fill with.
      */
-    void fill(color6 color) noexcept { std::ranges::fill(_data, _pair(color)); }
+    void fill(color6 color) noexcept {
+        std::ranges::fill(_data, _pair(color));
+        // Keep the row padding nibble white.
+        if (_width % 2 != 0) {
+            const auto padded = static_cast<uint8_t>((_pair(color) & 0xF0) | (_pair(color6::white) & 0x0F));
+            const size_t stride = stride_bytes();
+            for (size_t y = 0; y < _height; ++y) {
+                _data[y * stride + stride - 1] = padded;
+            }
+        }
+    }
 
     /** @brief Blanks every pixel to white (equivalent to `fill(color6::white)`). */
     void clear() noexcept { fill(color6::white); }

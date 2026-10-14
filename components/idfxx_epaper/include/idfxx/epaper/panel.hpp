@@ -175,6 +175,10 @@ public:
      * invisible until the next @ref refresh. The panel must be operating in
      * @ref color_mode::mono.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
+     *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
@@ -193,6 +197,10 @@ public:
      * Places the framebuffer's origin at pixel (@p x, @p y). The upload is
      * invisible until the next @ref refresh. The panel must be operating in
      * @ref color_mode::gray4.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be a multiple of 8 (controller RAM
@@ -213,6 +221,10 @@ public:
      * invisible until the next @ref refresh. The panel must be operating in
      * @ref color_mode::color6.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is odd, its row padding also overwrites the next panel column
+     * with white.
+     *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be even (controller RAM packs two
      *           pixels per byte along the row).
@@ -232,6 +244,10 @@ public:
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`, so a band written from a full-frame framebuffer
      * lands exactly where the full upload would place it.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
@@ -257,6 +273,10 @@ public:
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
+     *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
      * @param row_end   End framebuffer row, exclusive; must satisfy
@@ -280,6 +300,10 @@ public:
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is odd, its row padding also overwrites the next panel column
+     * with white.
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
@@ -325,6 +349,10 @@ public:
      * invisible until the next @ref try_refresh. The panel must be operating
      * in @ref color_mode::mono.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
+     *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
@@ -343,6 +371,10 @@ public:
      * Places the framebuffer's origin at pixel (@p x, @p y). The upload is
      * invisible until the next @ref try_refresh. The panel must be operating
      * in @ref color_mode::gray4.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be a multiple of 8 (controller RAM
@@ -363,6 +395,10 @@ public:
      * invisible until the next @ref try_refresh. The panel must be operating
      * in @ref color_mode::color6.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is odd, its row padding also overwrites the next panel column
+     * with white.
+     *
      * @param fb The framebuffer to upload.
      * @param x  Destination column; must be even (controller RAM packs two
      *           pixels per byte along the row).
@@ -382,6 +418,10 @@ public:
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`, so a band written from a full-frame framebuffer
      * lands exactly where the full upload would place it.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
@@ -406,6 +446,10 @@ public:
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`.
      *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is not a multiple of 8, its row padding also overwrites the
+     * panel columns up to the next byte boundary with white.
+     *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
      * @param row_end   End framebuffer row, exclusive; must satisfy
@@ -428,6 +472,10 @@ public:
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
      * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
      * panel row `y + r`.
+     *
+     * Controller RAM is written in whole bytes, so if the framebuffer's
+     * width is odd, its row padding also overwrites the next panel column
+     * with white.
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
