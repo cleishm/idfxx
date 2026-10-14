@@ -67,7 +67,7 @@ public:
         bool mirror_x = false; ///< Mirror X after read coordinates
         bool mirror_y = false; ///< Mirror Y after read coordinates
 
-        /// Callback to apply user adjustments after reading coordinates from the touch controller
+        /// Callback to apply user adjustments after reading coordinates from the touch controller, before swap/mirror
         process_coordinates_callback process_coordinates = nullptr;
     };
 
