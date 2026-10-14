@@ -8,7 +8,7 @@ Core utilities for the idfxx component family, providing foundational error hand
 
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
-- **Chrono utilities** — FreeRTOS tick conversions, and `std::chrono` clocks over the tick count and the RTC timer
+- **Chrono utilities** — FreeRTOS tick conversions, `std::chrono` clocks over the tick count and the RTC timer, and a `picoseconds` duration alias
 - **Scheduling utilities** — `delay()`, `delay_until()`, `delay(next_tick)`, `yield()`
 - **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
 - **System information** — reset reason, restart, shutdown handlers
@@ -233,6 +233,7 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
 
 ### Chrono Utilities (`<idfxx/chrono>`)
 
+- `picoseconds` - `std::chrono::duration` with picosecond resolution
 - `ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
 - `tick_clock` - `std::chrono` clock over the FreeRTOS tick count
 - `rtc_clock` - `std::chrono` clock over the RTC timer: microsecond resolution, counts from power-on, keeps running through deep sleep and resets

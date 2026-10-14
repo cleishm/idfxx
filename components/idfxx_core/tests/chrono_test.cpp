@@ -22,6 +22,11 @@ using namespace std::chrono_literals;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
+// picoseconds is a signed 64-bit duration finer than nanoseconds
+static_assert(std::is_same_v<picoseconds::period, std::pico>);
+static_assert(std::is_same_v<picoseconds::rep, int64_t>);
+static_assert(picoseconds(std::chrono::nanoseconds(3)) == picoseconds(3000));
+
 // ticks() is constexpr
 static_assert(ticks(std::chrono::milliseconds(0)) == 0);
 
