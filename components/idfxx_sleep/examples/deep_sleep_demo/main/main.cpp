@@ -62,22 +62,25 @@ extern "C" void app_main() {
 
     logger.info("entering deep sleep ({} timer, or press the button)", SLEEP_INTERVAL);
 
-    // The wake button has a pull-up (external on BOOT buttons), so the pin idles
-    // high and a press pulls it low.
-#if SOC_PM_SUPPORT_EXT1_WAKEUP
-    // The original ESP32 only offers an all-pins-low trigger; every other EXT1
-    // chip offers any-pin-low. With a single wake pin the two are equivalent.
+#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP && !SOC_PM_SUPPORT_EXT0_WAKEUP
+    // On the ESP32-C3 and ESP32-C6, GPIO wake-up keeps the pin's internal
+    // pull-up enabled during deep sleep, so the pin idles high and a press
+    // pulls it low.
+    idfxx::sleep::deep_sleep(
+        idfxx::sleep::deep_sleep_gpio_wake{{WAKE_PIN}, idfxx::sleep::deep_sleep_gpio_mode::wake_low},
+        idfxx::sleep::timer_wake{SLEEP_INTERVAL}
+    );
+#elif SOC_PM_SUPPORT_EXT1_WAKEUP
+    // The BOOT button has an external pull-up, so the pin idles high and a
+    // press pulls it low. The original ESP32 only offers an all-pins-low
+    // trigger; every other EXT1 chip offers any-pin-low. With a single wake pin
+    // the two are equivalent.
 #if CONFIG_IDF_TARGET_ESP32
     constexpr auto ext1_low = idfxx::sleep::ext1_mode::all_low;
 #else
     constexpr auto ext1_low = idfxx::sleep::ext1_mode::any_low;
 #endif
     idfxx::sleep::deep_sleep(idfxx::sleep::ext1_wake{{WAKE_PIN}, ext1_low}, idfxx::sleep::timer_wake{SLEEP_INTERVAL});
-#elif SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
-    idfxx::sleep::deep_sleep(
-        idfxx::sleep::deep_sleep_gpio_wake{{WAKE_PIN}, idfxx::sleep::deep_sleep_gpio_mode::wake_low},
-        idfxx::sleep::timer_wake{SLEEP_INTERVAL}
-    );
 #else
     idfxx::sleep::deep_sleep(SLEEP_INTERVAL);
 #endif

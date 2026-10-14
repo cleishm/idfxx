@@ -10,8 +10,8 @@ cause on each boot.
 - Finding out which pin woke the chip with `idfxx::sleep::ext1_wakeup_status()`
 - Entering deep sleep with `idfxx::sleep::deep_sleep()`, armed with two wake-up sources: a pin and a
   timer (`idfxx::sleep::timer_wake`)
-- Choosing the pin wake-up source each chip supports: `idfxx::sleep::ext1_wake` on chips with EXT1
-  wake-up, and `idfxx::sleep::deep_sleep_gpio_wake` on the ESP32-C3
+- Choosing the pin wake-up source for each chip: `idfxx::sleep::deep_sleep_gpio_wake` on the ESP32-C3 and
+  ESP32-C6, which keeps the pin's internal pull-up on during sleep, and `idfxx::sleep::ext1_wake` on the others
 - Selecting the EXT1 low-level trigger by target: `ext1_mode::all_low` on the ESP32, `ext1_mode::any_low`
   on the others
 
@@ -24,13 +24,11 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in 
 
 The example wakes on a button that pulls its pin low. It uses the board's BOOT button where that
 button can wake the chip from deep sleep: GPIO 0 on the ESP32, ESP32-S2 and ESP32-S3, and GPIO 9 on
-the ESP32-H2. These BOOT buttons have an external pull-up, so no extra parts are needed. The example
-doesn't enable a pull-up for deep sleep, and on the other chips you need to wire a button yourself:
+the ESP32-H2. These BOOT buttons have an external pull-up, so no extra parts are needed.
 
-- **ESP32-C3:** connect a push button between GPIO 0 and GND. The pin is pulled up while the chip
-  sleeps. (The BOOT button is on GPIO 9, which can't wake the ESP32-C3 from deep sleep.)
-- **ESP32-C6:** connect a push button between GPIO 0 and GND, and a ~10 kΩ pull-up resistor from
-  GPIO 0 to 3.3 V. (The BOOT button is on GPIO 9, which can't wake the ESP32-C6 from deep sleep.)
+On the ESP32-C3 and ESP32-C6, the BOOT button is on GPIO 9, which can't wake these chips from deep
+sleep. Connect a push button between GPIO 0 and GND instead; the example keeps the pin's internal
+pull-up on while the chip sleeps.
 
 To use a different pin, change `WAKE_PIN` in `main/main.cpp`. To change the timer, change
 `SLEEP_INTERVAL`.
