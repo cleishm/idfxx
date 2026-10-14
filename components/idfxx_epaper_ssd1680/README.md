@@ -13,6 +13,8 @@ SSD1680 ePaper panel driver (up to 176x296, e.g. 2.13" 122x250).
 - 4-level grayscale (`color_mode::gray4`) using an explicitly loaded
   grayscale waveform (the Good Display reference recipe for this glass).
 - Deep sleep and wake (hardware reset + re-initialization).
+- `restore_baseline()` support, to keep partial refreshes across a wake or
+  an ESP32 deep sleep (in `color_mode::mono`).
 - Automatic previous-image plane maintenance: after every refresh the driver
   re-sends the displayed frame to the controller's old-image RAM, so partial
   refreshes diff against exactly what is on the glass.
@@ -118,9 +120,10 @@ modes on the EE05 board.
 
 ## API Overview
 
-The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
-`set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is inherited
-from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
+The panel API (`write`, `write_rows`, `clear`, `restore_baseline`,
+`refresh`, `start_refresh`, `set_color_mode`, `sleep`, `wake`, and their
+`try_*` forms) is inherited from `idfxx::epaper::panel` — see the
+`idfxx_epaper` documentation.
 
 Driver-specific surface:
 

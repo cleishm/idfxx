@@ -13,6 +13,8 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
 - 4-level grayscale (`color_mode::gray4`) using the glass's factory (OTP)
   grayscale waveform.
 - Deep sleep and wake (hardware reset + re-initialization).
+- `restore_baseline()` support, to keep partial refreshes across a wake or
+  an ESP32 deep sleep (in `color_mode::mono`).
 - No shadow frame: the UC8179 copies the new-image RAM to the
   previous-image RAM when a refresh completes, so partial refreshes diff
   against what is on the glass without host-side bookkeeping.
@@ -118,9 +120,10 @@ modes on the EE05 board.
 
 ## API Overview
 
-The panel API (`write`, `write_rows`, `clear`, `refresh`, `start_refresh`,
-`set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is inherited
-from `idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
+The panel API (`write`, `write_rows`, `clear`, `restore_baseline`,
+`refresh`, `start_refresh`, `set_color_mode`, `sleep`, `wake`, and their
+`try_*` forms) is inherited from `idfxx::epaper::panel` — see the
+`idfxx_epaper` documentation.
 
 Driver-specific surface:
 
