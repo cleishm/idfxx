@@ -9,24 +9,25 @@
 #include "idfxx/http/server"
 #include "unity.h"
 
+#include <arpa/inet.h>
 #include <array>
+#include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <esp_idf_version.h>
+#include <memory>
+#include <netinet/in.h>
 #include <string>
+#include <sys/socket.h>
 #include <type_traits>
+#include <unistd.h>
 #include <utility>
 
 #if defined(CONFIG_HTTPD_WS_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include <algorithm>
-#include <arpa/inet.h>
-#include <atomic>
-#include <cerrno>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <memory>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <vector>
 #endif
 
@@ -63,6 +64,31 @@ static_assert(!std::is_move_assignable_v<request>);
 
 // server::errc is an error_code_enum
 static_assert(std::is_error_code_enum_v<server::errc>);
+
+// status_code values are the HTTP status numbers
+static_assert(std::to_underlying(status_code::continue_) == 100);
+static_assert(std::to_underlying(status_code::ok) == 200);
+static_assert(std::to_underlying(status_code::permanent_redirect) == 308);
+static_assert(std::to_underlying(status_code::not_found) == 404);
+static_assert(std::to_underlying(status_code::request_header_fields_too_large) == 431);
+static_assert(std::to_underlying(status_code::internal_server_error) == 500);
+static_assert(std::to_underlying(status_code::network_authentication_required) == 511);
+
+// error_status accepts only the codes the server can pass to an error handler
+static_assert(error_status{status_code::not_found}.code() == status_code::not_found);
+static_assert(error_status::from(status_code::not_found)->code() == status_code::not_found);
+static_assert(error_status::from(status_code::http_version_not_supported).has_value());
+static_assert(error_status::from(status_code::ok) == std::nullopt);
+static_assert(error_status::from(status_code::service_unavailable) == std::nullopt);
+static_assert(error_status::from(static_cast<status_code>(418)) == std::nullopt);
+static_assert(error_status{status_code::forbidden} == error_status{status_code::forbidden});
+static_assert(error_status{status_code::forbidden} != error_status{status_code::not_found});
+static_assert(std::is_convertible_v<status_code, error_status>);
+
+// error handlers receive the request and the status code
+static_assert(std::is_same_v<server::error_handler_type,
+                             std::move_only_function<result<void>(request&, status_code) const>>);
+static_assert(std::is_same_v<decltype(std::declval<request&>().try_handle_error(status_code::not_found)), result<void>>);
 
 // =============================================================================
 // WebSocket compile-time tests
@@ -461,6 +487,311 @@ TEST_CASE("http server rejects an over-long interface name", "[idfxx][http]") {
     TEST_ASSERT_TRUE(srv.error() == idfxx::errc::invalid_arg);
 }
 #endif
+
+// =============================================================================
+// Error handlers
+// =============================================================================
+
+namespace {
+
+/// Minimal HTTP/1.1 client over a loopback TCP socket, for checking whether the
+/// server keeps a connection open after a response.
+class http_test_conn {
+public:
+    struct response {
+        int status = 0;
+        std::string body;
+    };
+
+    explicit http_test_conn(uint16_t port) {
+        _fd = socket(AF_INET, SOCK_STREAM, 0);
+        TEST_ASSERT_TRUE(_fd >= 0);
+
+        timeval tv{.tv_sec = 5, .tv_usec = 0};
+        setsockopt(_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        TEST_ASSERT_EQUAL(0, connect(_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)));
+    }
+
+    ~http_test_conn() {
+        if (_fd >= 0) {
+            close(_fd);
+        }
+    }
+
+    http_test_conn(const http_test_conn&) = delete;
+    http_test_conn& operator=(const http_test_conn&) = delete;
+
+    /// Sends a GET request and receives the response, failing the test if
+    /// no complete response arrives.
+    response get(std::string_view uri) {
+        std::string req = "GET " + std::string(uri) + " HTTP/1.1\r\n"
+                          "Host: 127.0.0.1\r\n"
+                          "\r\n";
+        size_t sent = 0;
+        while (sent < req.size()) {
+            int n = send(_fd, req.data() + sent, req.size() - sent, 0);
+            TEST_ASSERT_TRUE(n > 0);
+            sent += static_cast<size_t>(n);
+        }
+
+        // Read the head one byte at a time so nothing past it is consumed
+        std::string head;
+        while (head.size() < 4 || head.compare(head.size() - 4, 4, "\r\n\r\n") != 0) {
+            char ch;
+            int n = recv(_fd, &ch, 1, 0);
+            TEST_ASSERT_EQUAL(1, n);
+            head.push_back(ch);
+        }
+        TEST_ASSERT_TRUE(head.starts_with("HTTP/1.1 "));
+
+        response resp;
+        resp.status = std::atoi(head.c_str() + 9);
+        size_t len = 0;
+        auto pos = head.find("Content-Length: ");
+        if (pos != std::string::npos) {
+            len = static_cast<size_t>(std::atoi(head.c_str() + pos + 16));
+        }
+        resp.body.resize(len);
+        size_t got = 0;
+        while (got < len) {
+            int n = recv(_fd, resp.body.data() + got, len - got, 0);
+            TEST_ASSERT_TRUE(n > 0);
+            got += static_cast<size_t>(n);
+        }
+        return resp;
+    }
+
+    /// Returns whether the server has closed the connection, waiting for it
+    /// up to the receive timeout.
+    bool closed() {
+        char ch;
+        int n = recv(_fd, &ch, 1, 0);
+        return n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK);
+    }
+
+private:
+    int _fd = -1;
+};
+
+} // namespace
+
+TEST_CASE("http server error handler serves a custom not-found response", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::not_found, [](request& req, status_code code) -> result<void> {
+        req.set_status(404);
+        req.set_content_type("text/plain");
+        return req.try_send("custom 404 for " + std::to_string(std::to_underlying(code)));
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto url = "http://127.0.0.1:" + std::to_string(port) + "/missing";
+    auto c = client::make({.url = url});
+    TEST_ASSERT_TRUE(c.has_value());
+    auto body = read_response_body(*c);
+
+    TEST_ASSERT_EQUAL(404, c->status_code());
+    TEST_ASSERT_EQUAL_STRING("custom 404 for 404", body.c_str());
+}
+
+TEST_CASE("http server error handler returning success keeps the connection open", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::not_found, [](request& req, status_code) -> result<void> {
+        req.set_status(404);
+        return req.try_send("gone");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    auto r2 = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    http_test_conn conn{port};
+    auto first = conn.get("/missing");
+    TEST_ASSERT_EQUAL(404, first.status);
+    TEST_ASSERT_EQUAL_STRING("gone", first.body.c_str());
+
+    // The same connection serves further requests
+    auto second = conn.get("/missing");
+    TEST_ASSERT_EQUAL(404, second.status);
+    TEST_ASSERT_EQUAL_STRING("gone", second.body.c_str());
+    auto third = conn.get("/ok");
+    TEST_ASSERT_EQUAL(200, third.status);
+    TEST_ASSERT_EQUAL_STRING("ok", third.body.c_str());
+}
+
+TEST_CASE("http server error handler returning an error closes the connection", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::not_found, [](request& req, status_code) -> result<void> {
+        req.set_status(404);
+        auto s = req.try_send("gone");
+        if (!s) return s;
+        return idfxx::error(idfxx::errc::fail);
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    http_test_conn conn{port};
+    auto resp = conn.get("/missing");
+    TEST_ASSERT_EQUAL(404, resp.status);
+    TEST_ASSERT_EQUAL_STRING("gone", resp.body.c_str());
+    TEST_ASSERT_TRUE(conn.closed());
+}
+
+TEST_CASE("request handle_error invokes the registered error handler", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto seen = std::make_shared<std::atomic<int>>(0);
+    auto handled = std::make_shared<std::atomic<int>>(0);
+    auto r = srv->try_on_error(status_code::forbidden, [seen](request& req, status_code code) -> result<void> {
+        seen->store(std::to_underlying(code));
+        req.set_status(403);
+        return req.try_send("denied: " + std::string(req.uri()));
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    auto r2 = srv->try_on_get("/secret", [handled](request& req) -> result<void> {
+        auto res = req.try_handle_error(status_code::forbidden);
+        handled->store(res ? 1 : -1);
+        return res;
+    });
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    http_test_conn conn{port};
+    auto resp = conn.get("/secret");
+    TEST_ASSERT_EQUAL(403, resp.status);
+    TEST_ASSERT_EQUAL_STRING("denied: /secret", resp.body.c_str());
+
+    // The error handler succeeded, so the connection stays open
+    auto again = conn.get("/secret");
+    TEST_ASSERT_EQUAL(403, again.status);
+    TEST_ASSERT_EQUAL(403, seen->load());
+    TEST_ASSERT_EQUAL(1, handled->load());
+}
+
+TEST_CASE("request handle_error without an error handler sends the default response and closes", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto handled = std::make_shared<std::atomic<int>>(0);
+    auto r = srv->try_on_get("/private", [handled](request& req) -> result<void> {
+        auto res = req.try_handle_error(status_code::unauthorized);
+        handled->store(res ? 1 : -1);
+        return res;
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    http_test_conn conn{port};
+    auto resp = conn.get("/private");
+    TEST_ASSERT_EQUAL(401, resp.status);
+    TEST_ASSERT_TRUE(resp.body.size() > 0);
+    TEST_ASSERT_TRUE(conn.closed());
+    TEST_ASSERT_EQUAL(1, handled->load());
+}
+
+TEST_CASE("request handle_error with internal_server_error closes even when the handler succeeds", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::internal_server_error, [](request& req, status_code) -> result<void> {
+        req.set_status(500);
+        return req.try_send("oops");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    auto r2 = srv->try_on_get(
+        "/broken", [](request& req) -> result<void> { return req.try_handle_error(status_code::internal_server_error); }
+    );
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    http_test_conn conn{port};
+    auto resp = conn.get("/broken");
+    TEST_ASSERT_EQUAL(500, resp.status);
+    TEST_ASSERT_EQUAL_STRING("oops", resp.body.c_str());
+    TEST_ASSERT_TRUE(conn.closed());
+}
+
+TEST_CASE("http server handler_exists error on duplicate error handler", "[idfxx][http]") {
+    ensure_event_loop();
+    auto srv = server::make({.server_port = alloc_test_port(), .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto handler = [](request& req, status_code) -> result<void> { return req.try_send("err"); };
+
+    auto r = srv->try_on_error(status_code::not_found, handler);
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto r2 = srv->try_on_error(status_code::not_found, handler);
+    TEST_ASSERT_FALSE(r2.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(server::errc::handler_exists), r2.error().value());
+    TEST_ASSERT_TRUE(r2.error() == server::errc::handler_exists);
+
+    // Other codes are independent
+    auto r3 = srv->try_on_error(status_code::method_not_allowed, handler);
+    TEST_ASSERT_TRUE(r3.has_value());
+}
+
+TEST_CASE("http server unregistering an error handler restores the default response", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::not_found, [](request& req, status_code) -> result<void> {
+        req.set_status(404);
+        return req.try_send("custom");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto r2 = srv->try_unregister_error_handler(status_code::not_found);
+    TEST_ASSERT_TRUE(r2.has_value());
+
+    // Unregistering again finds no handler, as for URI handlers
+    auto r3 = srv->try_unregister_error_handler(status_code::not_found);
+    TEST_ASSERT_FALSE(r3.has_value());
+    TEST_ASSERT_TRUE(r3.error() == idfxx::errc::not_found);
+
+    http_test_conn conn{port};
+    auto resp = conn.get("/missing");
+    TEST_ASSERT_EQUAL(404, resp.status);
+    TEST_ASSERT_TRUE(resp.body != "custom");
+    TEST_ASSERT_TRUE(resp.body.size() > 0);
+    TEST_ASSERT_TRUE(conn.closed());
+
+    // A handler can be registered again
+    auto r4 = srv->try_on_error(status_code::not_found, [](request& req, status_code) -> result<void> {
+        return req.try_send("again");
+    });
+    TEST_ASSERT_TRUE(r4.has_value());
+}
+
+TEST_CASE("http server rejects an empty error handler", "[idfxx][http]") {
+    ensure_event_loop();
+    auto srv = server::make({.server_port = alloc_test_port(), .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_error(status_code::not_found, server::error_handler_type{});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+}
 
 // =============================================================================
 // WebSocket (over a raw loopback socket)

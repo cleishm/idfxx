@@ -11,8 +11,9 @@
  * @defgroup idfxx_http_server HTTP Server Component
  * @brief Type-safe HTTP server for ESP32.
  *
- * Provides URI handler registration with C++ callable handlers, RAII lifecycle
- * management, request/response handling, and optional WebSocket support.
+ * Provides URI handler registration with C++ callable handlers, server-wide
+ * error handlers, RAII lifecycle management, request/response handling, and
+ * optional WebSocket support.
  *
  * Depends on @ref idfxx_core for error handling.
  * @{
@@ -24,6 +25,7 @@
 #include <idfxx/error>
 #include <idfxx/http/types>
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <esp_idf_version.h>
@@ -49,6 +51,185 @@ struct ifreq;
 namespace idfxx::http {
 
 class server;
+
+/**
+ * @headerfile <idfxx/http/server>
+ * @brief HTTP response status codes.
+ *
+ * One value per code in the IANA HTTP Status Code Registry (except the unused
+ * 306 and 418). Each value equals its status number and is named after its
+ * reason phrase. Other codes can be formed with `static_cast<status_code>(n)`.
+ */
+enum class status_code : int {
+    // clang-format off
+    continue_                       = 100, ///< 100 Continue
+    switching_protocols             = 101, ///< 101 Switching Protocols
+    processing                      = 102, ///< 102 Processing
+    early_hints                     = 103, ///< 103 Early Hints
+    ok                              = 200, ///< 200 OK
+    created                         = 201, ///< 201 Created
+    accepted                        = 202, ///< 202 Accepted
+    non_authoritative_information   = 203, ///< 203 Non-Authoritative Information
+    no_content                      = 204, ///< 204 No Content
+    reset_content                   = 205, ///< 205 Reset Content
+    partial_content                 = 206, ///< 206 Partial Content
+    multi_status                    = 207, ///< 207 Multi-Status
+    already_reported                = 208, ///< 208 Already Reported
+    im_used                         = 226, ///< 226 IM Used
+    multiple_choices                = 300, ///< 300 Multiple Choices
+    moved_permanently               = 301, ///< 301 Moved Permanently
+    found                           = 302, ///< 302 Found
+    see_other                       = 303, ///< 303 See Other
+    not_modified                    = 304, ///< 304 Not Modified
+    use_proxy                       = 305, ///< 305 Use Proxy
+    temporary_redirect              = 307, ///< 307 Temporary Redirect
+    permanent_redirect              = 308, ///< 308 Permanent Redirect
+    bad_request                     = 400, ///< 400 Bad Request
+    unauthorized                    = 401, ///< 401 Unauthorized
+    payment_required                = 402, ///< 402 Payment Required
+    forbidden                       = 403, ///< 403 Forbidden
+    not_found                       = 404, ///< 404 Not Found
+    method_not_allowed              = 405, ///< 405 Method Not Allowed
+    not_acceptable                  = 406, ///< 406 Not Acceptable
+    proxy_authentication_required   = 407, ///< 407 Proxy Authentication Required
+    request_timeout                 = 408, ///< 408 Request Timeout
+    conflict                        = 409, ///< 409 Conflict
+    gone                            = 410, ///< 410 Gone
+    length_required                 = 411, ///< 411 Length Required
+    precondition_failed             = 412, ///< 412 Precondition Failed
+    content_too_large               = 413, ///< 413 Content Too Large
+    uri_too_long                    = 414, ///< 414 URI Too Long
+    unsupported_media_type          = 415, ///< 415 Unsupported Media Type
+    range_not_satisfiable           = 416, ///< 416 Range Not Satisfiable
+    expectation_failed              = 417, ///< 417 Expectation Failed
+    misdirected_request             = 421, ///< 421 Misdirected Request
+    unprocessable_content           = 422, ///< 422 Unprocessable Content
+    locked                          = 423, ///< 423 Locked
+    failed_dependency               = 424, ///< 424 Failed Dependency
+    too_early                       = 425, ///< 425 Too Early
+    upgrade_required                = 426, ///< 426 Upgrade Required
+    precondition_required           = 428, ///< 428 Precondition Required
+    too_many_requests               = 429, ///< 429 Too Many Requests
+    request_header_fields_too_large = 431, ///< 431 Request Header Fields Too Large
+    unavailable_for_legal_reasons   = 451, ///< 451 Unavailable For Legal Reasons
+    internal_server_error           = 500, ///< 500 Internal Server Error
+    not_implemented                 = 501, ///< 501 Not Implemented
+    bad_gateway                     = 502, ///< 502 Bad Gateway
+    service_unavailable             = 503, ///< 503 Service Unavailable
+    gateway_timeout                 = 504, ///< 504 Gateway Timeout
+    http_version_not_supported      = 505, ///< 505 HTTP Version Not Supported
+    variant_also_negotiates         = 506, ///< 506 Variant Also Negotiates
+    insufficient_storage            = 507, ///< 507 Insufficient Storage
+    loop_detected                   = 508, ///< 508 Loop Detected
+    not_extended                    = 510, ///< 510 Not Extended
+    network_authentication_required = 511, ///< 511 Network Authentication Required
+    // clang-format on
+};
+
+/**
+ * @headerfile <idfxx/http/server>
+ * @brief An HTTP error status that the server can pass to an error handler.
+ *
+ * Holds one of the status codes that server::on_error() can register a handler
+ * for and request::handle_error() can respond with: bad_request, unauthorized,
+ * forbidden, not_found, method_not_allowed, request_timeout, length_required,
+ * content_too_large, uri_too_long, request_header_fields_too_large,
+ * internal_server_error, not_implemented and http_version_not_supported.
+ *
+ * A constant status_code converts implicitly, and is checked at compile time:
+ * any other code fails to compile. A status code known only at run time is
+ * checked with from().
+ *
+ * @code
+ * using idfxx::http::status_code;
+ *
+ * srv.on_error(status_code::not_found, handler);   // compiles
+ * // srv.on_error(status_code::ok, handler);       // does not compile
+ *
+ * status_code code = lookup_status();               // known only at run time
+ * if (auto status = idfxx::http::error_status::from(code)) {
+ *     srv.on_error(*status, handler);
+ * }
+ * @endcode
+ */
+class error_status {
+public:
+    /**
+     * @brief Creates an error status from a constant status code.
+     *
+     * Evaluated at compile time; a status code the server cannot pass to an
+     * error handler fails to compile. Use from() for a status code known only
+     * at run time.
+     *
+     * @param code The status code.
+     */
+    consteval error_status(status_code code)
+        : _code(code) {
+        if (!_is_error_status(code)) {
+            _not_an_error_status();
+        }
+    }
+
+    /**
+     * @brief Creates an error status from a status code known at run time.
+     *
+     * @param code The status code.
+     * @return The error status, or std::nullopt if the server cannot pass
+     *         @p code to an error handler.
+     */
+    [[nodiscard]] static constexpr std::optional<error_status> from(status_code code) noexcept {
+        if (!_is_error_status(code)) {
+            return std::nullopt;
+        }
+        return error_status{code, checked{}};
+    }
+
+    /**
+     * @brief Returns the status code.
+     * @return The status code.
+     */
+    [[nodiscard]] constexpr status_code code() const noexcept { return _code; }
+
+    /**
+     * @brief Compares two error statuses for equality.
+     * @return True if both hold the same status code.
+     */
+    constexpr bool operator==(const error_status&) const noexcept = default;
+
+private:
+    struct checked {};
+
+    constexpr error_status(status_code code, checked) noexcept
+        : _code(code) {}
+
+    // The single list of status codes the server can pass to an error handler
+    [[nodiscard]] static constexpr bool _is_error_status(status_code code) noexcept {
+        switch (code) {
+        case status_code::bad_request:
+        case status_code::unauthorized:
+        case status_code::forbidden:
+        case status_code::not_found:
+        case status_code::method_not_allowed:
+        case status_code::request_timeout:
+        case status_code::length_required:
+        case status_code::content_too_large:
+        case status_code::uri_too_long:
+        case status_code::request_header_fields_too_large:
+        case status_code::internal_server_error:
+        case status_code::not_implemented:
+        case status_code::http_version_not_supported:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    // Deliberately not constexpr: reaching it in the consteval constructor
+    // makes a status code that is not an error status a compile error.
+    static void _not_an_error_status();
+
+    status_code _code;
+};
 
 /**
  * @headerfile <idfxx/http/server>
@@ -340,6 +521,63 @@ public:
      * @return Success, or an error.
      */
     [[nodiscard]] result<void> try_send_error(int code, std::string_view message = {});
+
+    // =========================================================================
+    // Error Handling
+    // =========================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Responds to this request with an error, using the server's error handler for it.
+     *
+     * Calls the handler registered with server::on_error() for @p status, if
+     * any, with this request; otherwise sends the default error response for
+     * @p status. The response is complete after the call, so send nothing
+     * further.
+     *
+     * The connection is closed once the URI handler returns if the error
+     * handler reports an error, if @p status is status_code::internal_server_error,
+     * or if no error handler is registered for @p status. An error reported by
+     * the error handler is not thrown.
+     *
+     * @code
+     * srv.on_get("/items", [&](idfxx::http::request& req) -> idfxx::result<void> {
+     *     auto id = req.query_param("id");
+     *     if (!id || !items.contains(*id)) {
+     *         req.handle_error(idfxx::http::status_code::not_found);
+     *         return {};
+     *     }
+     *     req.send(items.at(*id));
+     *     return {};
+     * });
+     * @endcode
+     *
+     * @param status The error to respond with.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error if no error handler is registered and the default error
+     *         response could not be sent.
+     */
+    void handle_error(error_status status) { unwrap(try_handle_error(status)); }
+#endif
+
+    /**
+     * @brief Responds to this request with an error, using the server's error handler for it.
+     *
+     * Calls the handler registered with server::try_on_error() for @p status, if
+     * any, with this request; otherwise sends the default error response for
+     * @p status. The response is complete after the call, so send nothing
+     * further.
+     *
+     * The connection is closed once the URI handler returns if the error
+     * handler reports an error, if @p status is status_code::internal_server_error,
+     * or if no error handler is registered for @p status. An error reported by
+     * the error handler is not returned.
+     *
+     * @param status The error to respond with.
+     * @return Success, or an error if no error handler is registered and the
+     *         default error response could not be sent.
+     */
+    [[nodiscard]] result<void> try_handle_error(error_status status);
 
     // =========================================================================
     // WebSocket
@@ -744,6 +982,7 @@ private:
     std::vector<std::pair<std::string, std::string>> _resp_headers;
     mutable bool _query_fetched = false;
     mutable std::optional<std::string> _query_cache;
+    bool _close_connection = false; // an error response requires the connection to close
 #ifdef CONFIG_HTTPD_WS_SUPPORT
     bool _ws_payload_unread = false; // frame payload was left unread; the connection must close
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
@@ -767,6 +1006,15 @@ class server {
 public:
     /** @brief Handler function type for URI handlers. */
     using handler_type = std::move_only_function<result<void>(request&) const>;
+
+    /**
+     * @brief Handler function type for error handlers.
+     *
+     * Receives the request being responded to and its error status code.
+     * Returning success keeps the connection open (except for
+     * status_code::internal_server_error); returning an error closes it.
+     */
+    using error_handler_type = std::move_only_function<result<void>(request&, status_code) const>;
 
     /**
      * @brief Error codes for HTTP server operations.
@@ -1021,6 +1269,44 @@ public:
      * @throws std::system_error on failure.
      */
     void on_head(std::string uri, handler_type handler) { unwrap(try_on_head(std::move(uri), std::move(handler))); }
+
+    /**
+     * @brief Registers a server-wide handler for an HTTP error.
+     *
+     * The handler is called in place of sending the default error response,
+     * both for errors the server detects itself (such as status_code::not_found
+     * when no URI handler matches) and when a URI handler calls
+     * request::handle_error(). It should send the complete error response.
+     *
+     * If the handler returns success, the connection is kept open, except for
+     * status_code::internal_server_error, which always closes it. If the handler
+     * returns an error, the connection is closed.
+     *
+     * For errors the server detects while receiving a request (such as
+     * status_code::bad_request, status_code::request_timeout,
+     * status_code::uri_too_long and status_code::request_header_fields_too_large),
+     * the handler may be called for a partially received request, so
+     * request::uri() and the request headers can be incomplete or empty.
+     *
+     * @code
+     * idfxx::http::server srv({});
+     * srv.on_error(idfxx::http::status_code::not_found,
+     *              [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {
+     *     req.set_status(404);
+     *     req.set_content_type("text/html");
+     *     req.send("<h1>Page not found</h1>");
+     *     return {};
+     * });
+     * @endcode
+     *
+     * @param status The error to handle.
+     * @param handler The handler function.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p handler is empty,
+     *         server::errc::handler_exists if a handler is already registered for
+     *         @p status, or idfxx::errc::invalid_state if the server is not running.
+     */
+    void on_error(error_status status, error_handler_type handler) { unwrap(try_on_error(status, std::move(handler))); }
 #endif
 
     /**
@@ -1108,6 +1394,33 @@ public:
         return try_on(method::head, std::move(uri), std::move(handler));
     }
 
+    /**
+     * @brief Registers a server-wide handler for an HTTP error.
+     *
+     * The handler is called in place of sending the default error response,
+     * both for errors the server detects itself (such as status_code::not_found
+     * when no URI handler matches) and when a URI handler calls
+     * request::try_handle_error(). It should send the complete error response.
+     *
+     * If the handler returns success, the connection is kept open, except for
+     * status_code::internal_server_error, which always closes it. If the handler
+     * returns an error, the connection is closed.
+     *
+     * For errors the server detects while receiving a request (such as
+     * status_code::bad_request, status_code::request_timeout,
+     * status_code::uri_too_long and status_code::request_header_fields_too_large),
+     * the handler may be called for a partially received request, so
+     * request::uri() and the request headers can be incomplete or empty.
+     *
+     * @param status The error to handle.
+     * @param handler The handler function.
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg if @p handler is empty.
+     * @retval server::errc::handler_exists if a handler is already registered for @p status.
+     * @retval idfxx::errc::invalid_state if the server is not running.
+     */
+    [[nodiscard]] result<void> try_on_error(error_status status, error_handler_type handler);
+
     // =========================================================================
     // Handler Unregistration
     // =========================================================================
@@ -1122,6 +1435,18 @@ public:
      * @throws std::system_error on failure.
      */
     void unregister_handler(enum method m, std::string_view uri) { unwrap(try_unregister_handler(m, uri)); }
+
+    /**
+     * @brief Unregisters the handler for an HTTP error.
+     *
+     * The default error response is sent for @p status afterwards.
+     *
+     * @param status The error whose handler to remove.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::not_found if no handler is registered for
+     *         @p status, or idfxx::errc::invalid_state if the server is not running.
+     */
+    void unregister_error_handler(error_status status) { unwrap(try_unregister_error_handler(status)); }
 #endif
 
     /**
@@ -1132,6 +1457,18 @@ public:
      * @return Success, or an error.
      */
     result<void> try_unregister_handler(enum method m, std::string_view uri);
+
+    /**
+     * @brief Unregisters the handler for an HTTP error.
+     *
+     * The default error response is sent for @p status afterwards.
+     *
+     * @param status The error whose handler to remove.
+     * @return Success, or an error.
+     * @retval idfxx::errc::not_found if no handler is registered for @p status.
+     * @retval idfxx::errc::invalid_state if the server is not running.
+     */
+    result<void> try_unregister_error_handler(error_status status);
 
     // =========================================================================
     // WebSocket
@@ -1292,10 +1629,21 @@ private:
 
     static esp_err_t _uri_handler_trampoline(httpd_req_t* req);
 
+    friend class request;
+
+    // Number of httpd_err_code_t values (verified against HTTPD_ERR_CODE_MAX in server.cpp).
+    static constexpr size_t _httpd_err_code_count = 13;
+
+    // Calls the error handler registered for status with req, or sends the default error
+    // response, and marks req to close the connection where required. Fails if the
+    // default response could not be sent.
+    [[nodiscard]] static result<void> _handle_error(request& req, error_status status);
+
     httpd_handle_t _handle;
     stop_fn_type _stop_fn;
     std::unique_ptr<server_ctx> _ctx;
     std::list<handler_record> _handlers;
+    std::array<error_handler_type, _httpd_err_code_count> _error_handlers; // indexed by httpd_err_code_t
     std::move_only_function<result<void>(int) const> _on_session_open;
     std::move_only_function<void(int) const> _on_session_close;
     /** @endcond */
