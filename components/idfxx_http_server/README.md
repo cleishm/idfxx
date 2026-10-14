@@ -8,6 +8,7 @@ Type-safe HTTP server for ESP32.
 - URI handler registration with `std::move_only_function` handlers
 - Convenience methods for GET, POST, PUT, PATCH, DELETE, HEAD
 - Wildcard and any-method URI matching
+- Server-wide error handlers for custom error responses (e.g. 404 pages), also callable from URI handlers
 - Request header, query string, and body parsing
 - Chunked and complete response sending
 - Session open/close callbacks
@@ -95,6 +96,36 @@ if (!r) {
 }
 ```
 
+### Custom Error Responses
+
+Register a handler to replace the default response for an HTTP error, whether the
+server detects it itself or a URI handler raises it with `handle_error()`:
+
+```cpp
+using idfxx::http::status_code;
+
+srv.on_error(status_code::not_found, [](idfxx::http::request& req, status_code) -> idfxx::result<void> {
+    req.set_status(404);
+    req.set_content_type("text/html");
+    req.send("<h1>Page not found</h1>");
+    return {}; // keep the connection open
+});
+
+srv.on_get("/items", [&](idfxx::http::request& req) -> idfxx::result<void> {
+    auto id = req.query_param("id");
+    if (!id || !items.contains(*id)) {
+        req.handle_error(status_code::not_found); // sends the custom 404 page
+        return {};
+    }
+    req.send(items.at(*id));
+    return {};
+});
+```
+
+Only the error statuses the server can raise itself are accepted (`error_status`); a
+constant `status_code` outside that set fails to compile, and a status code known only
+at run time is checked with `error_status::from()`.
+
 ### Reading Large WebSocket Frames
 
 From ESP-IDF 6.1, a WebSocket handler can read a frame's payload in parts, so
@@ -135,6 +166,8 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `request` - Non-owning view of an HTTP request (valid only during handler invocation)
 - `request::ws_frame_reader` - Reads one WebSocket frame's payload in parts (ESP-IDF 6.1+)
 - `server` - HTTP server with RAII lifecycle and handler registration
+- `status_code` - HTTP response status codes
+- `error_status` - A `status_code` the server can pass to an error handler (checked at compile time, or at run time with `error_status::from()`)
 
 ### `request`
 
@@ -161,6 +194,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `send_chunk(data)` / `try_send_chunk(data)` - Send chunked data
 - `end_chunked()` / `try_end_chunked()` - End chunked response
 - `send_error(code, msg)` / `try_send_error(code, msg)` - Send error response
+- `handle_error(status)` / `try_handle_error(status)` - Respond with the server's error handler for `status`, or the default error response
 
 **WebSocket (CONFIG_HTTPD_WS_SUPPORT):**
 - `ws_recv(buf)` / `try_ws_recv(buf)` - Receive WebSocket frame (the payload must fit in `buf`)
@@ -188,6 +222,10 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `on_any(uri, handler)` / `try_on_any(...)` - Register for any method
 - `on_get` / `on_post` / `on_put` / `on_patch` / `on_delete` / `on_head` + `try_` variants
 - `unregister_handler(method, uri)` / `try_unregister_handler(...)`
+
+**Error Handlers:**
+- `on_error(status, handler)` / `try_on_error(...)` - Register a server-wide handler for an HTTP error
+- `unregister_error_handler(status)` / `try_unregister_error_handler(...)` - Restore the default error response
 
 **WebSocket (CONFIG_HTTPD_WS_SUPPORT):**
 - `on_ws(uri, handler[, ws_cfg])` / `try_on_ws(...)` - Register WebSocket endpoint
@@ -217,6 +255,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - **WebSocket**: WebSocket support requires `CONFIG_HTTPD_WS_SUPPORT` to be enabled in menuconfig
 - **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame fails with `invalid_size` and its payload is left unread; since the connection cannot continue past unread payload, it is closed when the handler returns, even if the handler reports success. The same applies when receiving the frame fails, since the position in the stream is then unknown. From ESP-IDF 6.1, use `ws_recv_begin()` for frames that may not fit
 - **Consume the whole WebSocket frame**: When using `ws_recv_begin()`, read the whole payload or discard the rest with `skip()` before the handler returns. Unread payload would otherwise be parsed as the next frame, so if a `ws_frame_reader` is destroyed with payload left unread, or receiving the frame fails, the connection is closed when the handler returns (even if the handler reports success) and a warning is logged. `ws_recv_begin()` can be called at most once per handler invocation, and not together with `ws_recv()`. The reader must not outlive the handler invocation
+- **Error handlers and the connection**: An error handler that returns success keeps the connection open, except for `internal_server_error`, which always closes it; one that returns an error closes it. After `handle_error()`, the response is complete, so send nothing further; the connection is closed once the URI handler returns if the error handler failed, the status is `internal_server_error`, or no error handler is registered (the default error response is sent then). For errors the server detects while receiving a request (e.g. `bad_request`, `request_timeout`, `uri_too_long`, `request_header_fields_too_large`), the handler may see a partially parsed request, so `uri()` and headers can be incomplete or empty
 - **Limits and keep-alive tuning**: `max_req_hdr_len` and `max_uri_len` default to the project's `CONFIG_HTTPD_MAX_REQ_HDR_LEN` and `CONFIG_HTTPD_MAX_URI_LEN` settings; `keep_alive_idle`, `keep_alive_interval` and `keep_alive_count` default to `std::nullopt` to let the driver choose. An explicit value of zero or less is rejected with `invalid_arg`
 - **Interface binding**: `bind_to_device` takes the lwIP interface name (e.g. `"st1"`, from `esp_netif_get_netif_impl_name()`), not the esp_netif key. The interface must exist when the server starts, otherwise starting fails; names of 6 or more characters are rejected with `invalid_arg`
 

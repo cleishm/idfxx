@@ -97,6 +97,58 @@ idfxx::http::method from_httpd_method(unsigned m) {
     }
     // clang-format on
 }
+
+// error_status holds one status code per httpd_err_code_t value. If ESP-IDF adds
+// an error code, add its status code to error_status and to both mappings below,
+// then update this count.
+static_assert(HTTPD_ERR_CODE_MAX == 13);
+
+httpd_err_code_t to_httpd_err_code(idfxx::http::error_status status) {
+    using enum idfxx::http::status_code;
+    // clang-format off
+    switch (status.code()) {
+    case bad_request:                     return HTTPD_400_BAD_REQUEST;
+    case unauthorized:                    return HTTPD_401_UNAUTHORIZED;
+    case forbidden:                       return HTTPD_403_FORBIDDEN;
+    case not_found:                       return HTTPD_404_NOT_FOUND;
+    case method_not_allowed:              return HTTPD_405_METHOD_NOT_ALLOWED;
+    case request_timeout:                 return HTTPD_408_REQ_TIMEOUT;
+    case length_required:                 return HTTPD_411_LENGTH_REQUIRED;
+    case content_too_large:               return HTTPD_413_CONTENT_TOO_LARGE;
+    case uri_too_long:                    return HTTPD_414_URI_TOO_LONG;
+    case request_header_fields_too_large: return HTTPD_431_REQ_HDR_FIELDS_TOO_LARGE;
+    case internal_server_error:           return HTTPD_500_INTERNAL_SERVER_ERROR;
+    case not_implemented:                 return HTTPD_501_METHOD_NOT_IMPLEMENTED;
+    case http_version_not_supported:      return HTTPD_505_VERSION_NOT_SUPPORTED;
+    default:                              break;
+    }
+    // clang-format on
+    // error_status only holds the codes above
+    assert(false);
+    return HTTPD_500_INTERNAL_SERVER_ERROR;
+}
+
+idfxx::http::status_code from_httpd_err_code(httpd_err_code_t code) {
+    using enum idfxx::http::status_code;
+    // clang-format off
+    switch (code) {
+    case HTTPD_400_BAD_REQUEST:              return bad_request;
+    case HTTPD_401_UNAUTHORIZED:             return unauthorized;
+    case HTTPD_403_FORBIDDEN:                return forbidden;
+    case HTTPD_404_NOT_FOUND:                return not_found;
+    case HTTPD_405_METHOD_NOT_ALLOWED:       return method_not_allowed;
+    case HTTPD_408_REQ_TIMEOUT:              return request_timeout;
+    case HTTPD_411_LENGTH_REQUIRED:          return length_required;
+    case HTTPD_413_CONTENT_TOO_LARGE:        return content_too_large;
+    case HTTPD_414_URI_TOO_LONG:             return uri_too_long;
+    case HTTPD_431_REQ_HDR_FIELDS_TOO_LARGE: return request_header_fields_too_large;
+    case HTTPD_500_INTERNAL_SERVER_ERROR:    return internal_server_error;
+    case HTTPD_501_METHOD_NOT_IMPLEMENTED:   return not_implemented;
+    case HTTPD_505_VERSION_NOT_SUPPORTED:    return http_version_not_supported;
+    default:                                 return internal_server_error;
+    }
+    // clang-format on
+}
 } // namespace
 
 namespace idfxx::http {
@@ -192,6 +244,11 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
         return ESP_FAIL;
     }
 #endif
+    // An error response sent with try_handle_error() requires the connection
+    // to close. Returning an error makes httpd close it.
+    if (r._close_connection) {
+        return ESP_FAIL;
+    }
     return ESP_OK;
 }
 
@@ -310,6 +367,7 @@ server::server(server&& other) noexcept
     , _stop_fn(std::exchange(other._stop_fn, nullptr))
     , _ctx(std::move(other._ctx))
     , _handlers(std::move(other._handlers))
+    , _error_handlers(std::move(other._error_handlers))
     , _on_session_open(std::move(other._on_session_open))
     , _on_session_close(std::move(other._on_session_close)) {
     if (_ctx) {
@@ -326,6 +384,7 @@ server& server::operator=(server&& other) noexcept {
         _stop_fn = std::exchange(other._stop_fn, nullptr);
         _ctx = std::move(other._ctx);
         _handlers = std::move(other._handlers);
+        _error_handlers = std::move(other._error_handlers);
         _on_session_open = std::move(other._on_session_open);
         _on_session_close = std::move(other._on_session_close);
         if (_ctx) {
@@ -404,6 +463,94 @@ result<void> server::try_unregister_handler(enum method m, std::string_view uri)
     }
 
     _handlers.remove_if([&](const handler_record& r) { return r.uri == uri && r.httpd_method == hm; });
+    return {};
+}
+
+// =============================================================================
+// Error Handlers
+// =============================================================================
+
+result<void> server::try_on_error(error_status status, error_handler_type handler) {
+    if (!_handle) {
+        return error(idfxx::errc::invalid_state);
+    }
+    if (!handler) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    auto idf_code = to_httpd_err_code(status);
+    auto& slot = _error_handlers[idf_code];
+    if (slot) {
+        return http_server_error(ESP_ERR_HTTPD_HANDLER_EXISTS);
+    }
+
+    // Stored first, so the handler is in place before httpd can call the trampoline
+    slot = std::move(handler);
+    auto trampoline = [](httpd_req_t* req, httpd_err_code_t code) -> esp_err_t {
+        request r{req};
+        // Only codes that map from httpd_err_code_t are produced, so this always holds a value
+        auto status = error_status::from(from_httpd_err_code(code));
+        // On failure the request is marked to close the connection
+        (void)_handle_error(r, *status);
+        return r._close_connection ? ESP_FAIL : ESP_OK;
+    };
+    esp_err_t err = httpd_register_err_handler(_handle, idf_code, trampoline);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "httpd_register_err_handler failed: %s", esp_err_to_name(err));
+        slot = nullptr;
+        return http_server_error(err);
+    }
+    return {};
+}
+
+result<void> server::try_unregister_error_handler(error_status status) {
+    if (!_handle) {
+        return error(idfxx::errc::invalid_state);
+    }
+    auto idf_code = to_httpd_err_code(status);
+    auto& slot = _error_handlers[idf_code];
+    if (!slot) {
+        return http_server_error(ESP_ERR_NOT_FOUND);
+    }
+
+    // Unset first, so httpd no longer calls the trampoline once the handler is cleared
+    esp_err_t err = httpd_register_err_handler(_handle, idf_code, nullptr);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "httpd_register_err_handler (unset) failed: %s", esp_err_to_name(err));
+        return http_server_error(err);
+    }
+    slot = nullptr;
+    return {};
+}
+
+result<void> server::_handle_error(request& req, error_status status) {
+    static_assert(_httpd_err_code_count == HTTPD_ERR_CODE_MAX);
+
+    auto idf_code = to_httpd_err_code(status);
+    auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(req._req->handle));
+    if (ctx && ctx->self) {
+        if (auto& handler = ctx->self->_error_handlers[idf_code]) {
+            auto res = handler(req, status.code());
+            if (!res) {
+                auto msg = res.error().message();
+                ESP_LOGD(
+                    TAG, "Error handler for %d returned error: %s", std::to_underlying(status.code()), msg.c_str()
+                );
+                req._close_connection = true;
+            }
+            // httpd always closes the connection after an internal server error
+            if (status.code() == status_code::internal_server_error) {
+                req._close_connection = true;
+            }
+            return {};
+        }
+    }
+
+    req._close_connection = true;
+    esp_err_t err = httpd_resp_send_err(req._req, idf_code, nullptr);
+    if (err != ESP_OK) {
+        ESP_LOGD(TAG, "httpd_resp_send_err failed: %s", esp_err_to_name(err));
+        return http_server_error(err);
+    }
     return {};
 }
 
@@ -744,6 +891,14 @@ result<void> request::try_send_error(int code, std::string_view message) {
         return http_server_error(err);
     }
     return {};
+}
+
+// =============================================================================
+// Error Handling
+// =============================================================================
+
+result<void> request::try_handle_error(error_status status) {
+    return server::_handle_error(*this, status);
 }
 
 // =============================================================================
