@@ -1154,6 +1154,7 @@ public:
         /**
          * @brief Called when a session is closed.
          *
+         * Also called for a session rejected by on_session_open.
          * The server closes the session's socket after this callback returns; the callback must not close it.
          * An exception thrown from this callback is logged and otherwise ignored.
          */

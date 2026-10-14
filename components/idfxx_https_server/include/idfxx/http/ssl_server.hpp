@@ -151,12 +151,15 @@ public:
         /**
          * @brief Called when a new session is opened. Return an error to reject.
          *
+         * The callback runs after the session's TLS handshake has completed.
          * Throwing an exception has the same effect as returning an error.
          */
         std::move_only_function<result<void>(int) const> on_session_open = {};
         /**
          * @brief Called when a session is closed.
          *
+         * Also called for a session rejected by on_session_open, and for a session whose TLS
+         * handshake failed, for which on_session_open was never called.
          * The server closes the session's socket after this callback returns; the callback must not close it.
          * An exception thrown from this callback is logged and otherwise ignored.
          */
@@ -230,6 +233,8 @@ private:
         std::move_only_function<result<void>(int) const> on_session_open,
         std::move_only_function<void(int) const> on_session_close
     );
+
+    static esp_err_t _ssl_session_open_trampoline(httpd_handle_t hd, int sockfd);
     /** @endcond */
 };
 

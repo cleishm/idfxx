@@ -9,6 +9,7 @@
 #include <esp_https_server.h>
 #include <esp_idf_version.h>
 #include <esp_log.h>
+#include <sys/socket.h>
 #include <utility>
 
 namespace {
@@ -39,6 +40,9 @@ result<ssl_server> ssl_server::make(config cfg) {
     }
     if (auto res = _populate_httpd_config(ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close); !res) {
         return error(res.error());
+    }
+    if (has_session_open) {
+        ssl_cfg.httpd.open_fn = _ssl_session_open_trampoline;
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     struct ifreq ifr{};
@@ -92,6 +96,17 @@ ssl_server::ssl_server(
     std::move_only_function<void(int) const> on_session_close
 )
     : server(handle, std::move(ctx), std::move(on_session_open), std::move(on_session_close), httpd_ssl_stop) {}
+
+esp_err_t ssl_server::_ssl_session_open_trampoline(httpd_handle_t hd, int sockfd) {
+    esp_err_t err = _session_open_trampoline(hd, sockfd);
+    if (err != ESP_OK) {
+        // esp_https_server ignores the result of the open function and keeps the session, so shut
+        // the socket down instead: nothing more can be read from it, and the server closes the
+        // session when it next polls the socket.
+        ::shutdown(sockfd, SHUT_RDWR);
+    }
+    return err;
+}
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 ssl_server::ssl_server(config cfg)
