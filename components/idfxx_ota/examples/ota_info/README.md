@@ -12,8 +12,8 @@ status.
 - Finding the boot partition with `idfxx::ota::boot_partition()`, and the partition the next update would
   be written to with `idfxx::ota::next_update_partition()`
 - Counting the OTA app partitions with `idfxx::ota::app_partition_count()`
-- Reading image states with `idfxx::ota::partition_state()`, and with `try_partition_state()` for the next
-  update partition, which may have no recorded state
+- Reading image states with `idfxx::ota::try_partition_state()`, which reports an error for partitions
+  with no recorded state, such as the factory partition a freshly flashed board runs from
 - Checking whether a rollback is possible with `idfxx::ota::rollback_possible()`, and looking up the last
   invalid partition with `try_last_invalid_partition()`
 

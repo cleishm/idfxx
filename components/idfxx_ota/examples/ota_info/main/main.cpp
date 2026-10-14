@@ -62,8 +62,12 @@ extern "C" void app_main() {
 
     // --- Partition states ---
     logger.info("=== Partition States ===");
-    auto running_state = idfxx::ota::partition_state(running);
-    logger.info("Running partition state: {}", state_name(running_state));
+    auto running_state_result = idfxx::ota::try_partition_state(running);
+    if (running_state_result) {
+        logger.info("Running partition state: {}", state_name(*running_state_result));
+    } else {
+        logger.info("Running partition state: (no state recorded)");
+    }
 
     auto next_state_result = idfxx::ota::try_partition_state(next);
     if (next_state_result) {
