@@ -148,12 +148,17 @@ public:
         bool wildcard_uri_match = false; ///< Enable wildcard URI matching
 
         // Session callbacks
-        /** @brief Called when a new session is opened. Return an error to reject. */
+        /**
+         * @brief Called when a new session is opened. Return an error to reject.
+         *
+         * Throwing an exception has the same effect as returning an error.
+         */
         std::move_only_function<result<void>(int) const> on_session_open = {};
         /**
          * @brief Called when a session is closed.
          *
          * The server closes the session's socket after this callback returns; the callback must not close it.
+         * An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
 

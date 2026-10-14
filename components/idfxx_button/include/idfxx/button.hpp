@@ -100,7 +100,13 @@ public:
         std::chrono::microseconds autorepeat_timeout{std::chrono::milliseconds{500}};  ///< Autorepeat start delay
         std::chrono::microseconds autorepeat_interval{std::chrono::milliseconds{250}}; ///< Autorepeat repeat interval
         std::chrono::microseconds poll_interval{std::chrono::milliseconds{10}};        ///< Polling interval
-        std::move_only_function<void(event_type)> callback;                            ///< Event callback (required)
+        /**
+         * @brief Event callback (required).
+         *
+         * When exceptions are enabled, an exception thrown by the callback is
+         * logged and otherwise ignored, and the button keeps reporting events.
+         */
+        std::move_only_function<void(event_type)> callback;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

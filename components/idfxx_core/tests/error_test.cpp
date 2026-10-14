@@ -8,6 +8,7 @@
 #include "unity.h"
 
 #include <esp_err.h>
+#include <stdexcept>
 #include <system_error>
 #include <type_traits>
 
@@ -246,6 +247,98 @@ TEST_CASE("unwrap void throws system_error on error", "[idfxx][error]") {
         TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), e.code().value());
     }
     TEST_ASSERT_TRUE(threw);
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
+
+// =============================================================================
+// invoke_guarded tests
+// =============================================================================
+
+namespace {
+const char* TEST_TAG = "invoke_guarded_test";
+}
+
+// The callback's return type is flattened into a single result
+static_assert(std::is_same_v<decltype(invoke_guarded(TEST_TAG, "test", [] {})), result<void>>);
+static_assert(std::is_same_v<decltype(invoke_guarded(TEST_TAG, "test", [] { return 1; })), result<int>>);
+static_assert(std::is_same_v<decltype(invoke_guarded(TEST_TAG, "test", [] { return result<int>{1}; })), result<int>>);
+static_assert(std::is_same_v<decltype(invoke_guarded(TEST_TAG, "test", [] { return result<void>{}; })), result<void>>);
+static_assert(std::is_same_v<decltype(invoke_guarded(TEST_TAG, "test", "subject", [] {})), result<void>>);
+static_assert(noexcept(invoke_guarded(TEST_TAG, "test", [] {})));
+
+TEST_CASE("invoke_guarded passes through a void callback", "[idfxx][error]") {
+    int calls = 0;
+    auto r = invoke_guarded(TEST_TAG, "test", [&calls] { ++calls; });
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_EQUAL(1, calls);
+}
+
+TEST_CASE("invoke_guarded passes through a value", "[idfxx][error]") {
+    auto r = invoke_guarded(TEST_TAG, "test", [] { return 42; });
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_EQUAL(42, *r);
+}
+
+TEST_CASE("invoke_guarded passes through a result", "[idfxx][error]") {
+    auto ok = invoke_guarded(TEST_TAG, "test", [] { return result<int>{42}; });
+    TEST_ASSERT_TRUE(ok.has_value());
+    TEST_ASSERT_EQUAL(42, *ok);
+
+    auto err = invoke_guarded(TEST_TAG, "test", "subject", []() -> result<void> { return error(errc::timeout); });
+    TEST_ASSERT_FALSE(err.has_value());
+    TEST_ASSERT_TRUE(err.error() == errc::timeout);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("invoke_guarded returns the error code of a thrown system_error", "[idfxx][error]") {
+    auto from_void = invoke_guarded(TEST_TAG, "void callback", [] {
+        throw std::system_error(make_error_code(errc::invalid_state));
+    });
+    TEST_ASSERT_FALSE(from_void.has_value());
+    TEST_ASSERT_TRUE(from_void.error() == errc::invalid_state);
+
+    auto from_int = invoke_guarded(TEST_TAG, "int callback", []() -> int {
+        throw std::system_error(make_error_code(errc::timeout));
+    });
+    TEST_ASSERT_FALSE(from_int.has_value());
+    TEST_ASSERT_TRUE(from_int.error() == errc::timeout);
+
+    auto from_result = invoke_guarded(TEST_TAG, "result callback", []() -> result<int> {
+        throw std::system_error(make_error_code(errc::not_found));
+    });
+    TEST_ASSERT_FALSE(from_result.has_value());
+    TEST_ASSERT_TRUE(from_result.error() == errc::not_found);
+}
+
+TEST_CASE("invoke_guarded returns fail for a thrown std::exception", "[idfxx][error]") {
+    auto from_void = invoke_guarded(TEST_TAG, "void callback", [] { throw std::runtime_error("boom"); });
+    TEST_ASSERT_FALSE(from_void.has_value());
+    TEST_ASSERT_TRUE(from_void.error() == errc::fail);
+
+    auto from_int = invoke_guarded(TEST_TAG, "int callback", []() -> int { throw std::logic_error("boom"); });
+    TEST_ASSERT_FALSE(from_int.has_value());
+    TEST_ASSERT_TRUE(from_int.error() == errc::fail);
+
+    auto from_result =
+        invoke_guarded(TEST_TAG, "Handler for", "/uri", []() -> result<int> { throw std::runtime_error("boom"); });
+    TEST_ASSERT_FALSE(from_result.has_value());
+    TEST_ASSERT_TRUE(from_result.error() == errc::fail);
+}
+
+TEST_CASE("invoke_guarded returns fail for a thrown non-exception type", "[idfxx][error]") {
+    auto from_void = invoke_guarded(TEST_TAG, "void callback", [] { throw 42; });
+    TEST_ASSERT_FALSE(from_void.has_value());
+    TEST_ASSERT_TRUE(from_void.error() == errc::fail);
+
+    auto from_int = invoke_guarded(TEST_TAG, "int callback", []() -> int { throw 42; });
+    TEST_ASSERT_FALSE(from_int.has_value());
+    TEST_ASSERT_TRUE(from_int.error() == errc::fail);
+
+    auto from_result = invoke_guarded(TEST_TAG, "result callback", []() -> result<void> { throw 42; });
+    TEST_ASSERT_FALSE(from_result.has_value());
+    TEST_ASSERT_TRUE(from_result.error() == errc::fail);
 }
 
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS

@@ -139,6 +139,7 @@ Error codes from `idfxx::errc`:
 - **Non-copyable/move-only**: Button is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops monitoring and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the button API.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is logged and otherwise ignored. The button keeps tracking its state and reporting later events
 - **Autorepeat vs long press**: These modes are mutually exclusive. When autorepeat is enabled, long and extended press detection are disabled.
 - **Extended press**: A press held beyond `extended_press_time` reports `pressed -> long_press -> extended_press -> released`; one released between the two thresholds reports `pressed -> long_press -> released`. Neither reports `clicked`.
 - **Interrupt mode**: When using `mode::interrupt`, the GPIO ISR service must be installed before creating the button (via `idfxx::gpio::install_isr_service()`).

@@ -50,6 +50,9 @@ namespace idfxx::console {
  * Called when a registered command is executed. The callback receives the
  * argument count and argument vector, and returns an integer status code
  * (0 for success).
+ *
+ * When exceptions are enabled, an exception thrown by the handler is logged
+ * and the command fails with status code 1.
  */
 using handler = std::move_only_function<int(int argc, char** argv)>;
 

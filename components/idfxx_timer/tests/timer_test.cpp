@@ -12,6 +12,8 @@
 #include <esp_idf_version.h>
 #include <esp_timer.h>
 #include <idfxx/sched>
+#include <stdexcept>
+#include <system_error>
 #include <type_traits>
 
 using namespace idfxx;
@@ -1396,3 +1398,44 @@ TEST_CASE("timer move assignment cleans up target", "[idfxx][timer]") {
     TEST_ASSERT_NOT_NULL(r1->idf_handle());
     TEST_ASSERT_NULL(r2->idf_handle());
 }
+
+// =============================================================================
+// Exceptions thrown by callbacks
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("timer keeps firing when the callback throws", "[idfxx][timer][exceptions]") {
+    std::atomic<int> count{0};
+    {
+        auto result = timer::make({.name = "throwing_cb"}, [&count]() {
+            int n = count.fetch_add(1);
+            switch (n % 3) {
+            case 0:
+                throw std::system_error(make_error_code(errc::invalid_state));
+            case 1:
+                throw std::runtime_error("boom");
+            default:
+                throw 42;
+            }
+        });
+        TEST_ASSERT_TRUE(result.has_value());
+        auto& t = *result;
+
+        auto start_result = t.try_start_periodic(20ms);
+        TEST_ASSERT_TRUE(start_result.has_value());
+
+        // Each kind of exception is thrown at least twice
+        wait_for_count(count, 6);
+        TEST_ASSERT_GREATER_OR_EQUAL(6, count.load());
+        TEST_ASSERT_TRUE(t.is_active());
+
+        // Destroying the timer waits for the callback, so would hang if a
+        // throw had left the timer locked
+    }
+    int final_count = count.load();
+    idfxx::delay(60ms);
+    TEST_ASSERT_EQUAL(final_count, count.load());
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS

@@ -21,8 +21,10 @@
 #include <memory>
 #include <netinet/in.h>
 #include <sdkconfig.h>
+#include <stdexcept>
 #include <string>
 #include <sys/socket.h>
+#include <system_error>
 #include <type_traits>
 #include <unistd.h>
 #include <utility>
@@ -563,18 +565,27 @@ public:
     http_test_conn(const http_test_conn&) = delete;
     http_test_conn& operator=(const http_test_conn&) = delete;
 
-    /// Sends a GET request and receives the response, failing the test if
-    /// no complete response arrives.
-    response get(std::string_view uri) {
+    /// Sends a GET request without waiting for the response. Returns false if
+    /// the send fails, as it can once the server has closed the connection.
+    bool send_get(std::string_view uri) {
         std::string req = "GET " + std::string(uri) + " HTTP/1.1\r\n"
                           "Host: 127.0.0.1\r\n"
                           "\r\n";
         size_t sent = 0;
         while (sent < req.size()) {
             int n = send(_fd, req.data() + sent, req.size() - sent, 0);
-            TEST_ASSERT_TRUE(n > 0);
+            if (n <= 0) {
+                return false;
+            }
             sent += static_cast<size_t>(n);
         }
+        return true;
+    }
+
+    /// Sends a GET request and receives the response, failing the test if
+    /// no complete response arrives.
+    response get(std::string_view uri) {
+        TEST_ASSERT_TRUE(send_get(uri));
 
         // Read the head one byte at a time so nothing past it is consumed
         std::string head;
@@ -829,6 +840,133 @@ TEST_CASE("http server rejects an empty error handler", "[idfxx][http]") {
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
+
+// =============================================================================
+// Exceptions thrown by callbacks
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+namespace {
+
+/// Checks that the server still serves requests, on a new connection.
+void assert_serves_ok(uint16_t port) {
+    http_test_conn conn(port);
+    auto resp = conn.get("/ok");
+    TEST_ASSERT_EQUAL(200, resp.status);
+    TEST_ASSERT_EQUAL_STRING("ok", resp.body.c_str());
+}
+
+/// Sends a GET request on a new connection and checks that the server closes
+/// it without sending a response.
+void assert_closed_without_response(uint16_t port, std::string_view uri) {
+    http_test_conn conn(port);
+    // The server may already have closed the connection, so the send may fail
+    (void)conn.send_get(uri);
+    TEST_ASSERT_TRUE(conn.closed());
+}
+
+} // namespace
+
+TEST_CASE("http server closes the connection when a handler throws std::system_error", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    auto r = srv->try_on_get("/throw", [calls](request&) -> result<void> {
+        calls->fetch_add(1);
+        throw std::system_error(make_error_code(idfxx::errc::invalid_state));
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    assert_closed_without_response(port, "/throw");
+    TEST_ASSERT_EQUAL(1, calls->load());
+
+    assert_serves_ok(port);
+}
+
+TEST_CASE("http server closes the connection when a handler throws another exception", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_get("/throw", [](request&) -> result<void> { throw std::runtime_error("boom"); });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = srv->try_on_get("/throw-int", [](request&) -> result<void> { throw 42; });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    assert_closed_without_response(port, "/throw");
+    assert_closed_without_response(port, "/throw-int");
+
+    assert_serves_ok(port);
+}
+
+TEST_CASE("http server closes the connection when an error handler throws", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    auto r = srv->try_on_error(status_code::not_found, [calls](request&, status_code) -> result<void> {
+        calls->fetch_add(1);
+        throw std::runtime_error("boom");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = srv->try_on_get("/dispatch", [](request& req) -> result<void> {
+        return req.try_handle_error(status_code::not_found);
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    // Raised by the server, and dispatched by a handler
+    assert_closed_without_response(port, "/missing");
+    assert_closed_without_response(port, "/dispatch");
+    TEST_ASSERT_EQUAL(2, calls->load());
+
+    assert_serves_ok(port);
+}
+
+TEST_CASE("http server rejects a session when the open handler throws", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto calls = std::make_shared<std::atomic<int>>(0);
+    // Throws for the first two sessions, then accepts
+    auto srv = server::make({
+        .server_port = port,
+        .ctrl_port = alloc_ctrl_port(),
+        .on_session_open = [calls](int) -> result<void> {
+            int n = calls->fetch_add(1);
+            if (n == 0) {
+                throw std::runtime_error("boom");
+            }
+            if (n == 1) {
+                throw std::system_error(make_error_code(idfxx::errc::invalid_state));
+            }
+            return {};
+        },
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    assert_closed_without_response(port, "/ok");
+    assert_closed_without_response(port, "/ok");
+
+    assert_serves_ok(port);
+    TEST_ASSERT_EQUAL(3, calls->load());
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS
 
 // =============================================================================
 // WebSocket (over a raw loopback socket)

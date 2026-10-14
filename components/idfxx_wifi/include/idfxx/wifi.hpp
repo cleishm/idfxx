@@ -2767,6 +2767,9 @@ result<void> try_force_wakeup_release();
  * identifies the packet category. For management and data packets the frame
  * payload is present; for other categories it may be absent (see the
  * ESP-IDF promiscuous-mode documentation).
+ *
+ * When exceptions are enabled, an exception thrown by the callback is logged
+ * and otherwise ignored.
  */
 using promiscuous_rx_cb = void (*)(const wifi_promiscuous_pkt_t* pkt, promiscuous_pkt_type type);
 
@@ -2911,6 +2914,7 @@ void set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
  * @brief Callback invoked when a raw 802.11 frame transmission completes.
  *
  * Receives the transmission result and frame details for the completed send.
+ * The callback is called directly by the WiFi driver and must not throw.
  */
 using tx_80211_done_cb = void (*)(const esp_80211_tx_info_t* tx_info);
 
@@ -2971,6 +2975,9 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  *
  * Receives the registered user context, the frame type carrying the IE, the
  * sender's MAC address, the vendor IE payload, and the frame's RSSI.
+ *
+ * When exceptions are enabled, an exception thrown by the callback is logged
+ * and otherwise ignored.
  */
 using vendor_ie_cb = void (*)(
     void* ctx,
@@ -3036,6 +3043,9 @@ try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, c
  *
  * Receives the registered user context and the CSI record, valid only for
  * the duration of the call.
+ *
+ * When exceptions are enabled, an exception thrown by the callback is logged
+ * and otherwise ignored.
  */
 using csi_rx_cb = void (*)(void* ctx, const wifi_csi_info_t* info);
 

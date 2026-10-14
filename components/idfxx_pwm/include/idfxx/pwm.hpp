@@ -1201,7 +1201,8 @@ public:
      * @brief Registers a callback for fade-end events.
      *
      * The callback runs in ISR context and should return true if a
-     * higher-priority task was woken. Any previously registered callback on
+     * higher-priority task was woken. It must not throw, as throwing is not
+     * permitted in ISR context. Any previously registered callback on
      * this output is replaced. The callback is automatically unregistered
      * when the output is destroyed.
      *
@@ -1218,7 +1219,8 @@ public:
      * @brief Registers a callback for fade-end events.
      *
      * The callback runs in ISR context and should return true if a
-     * higher-priority task was woken. Any previously registered callback on
+     * higher-priority task was woken. It must not throw, as throwing is not
+     * permitted in ISR context. Any previously registered callback on
      * this output is replaced. The callback is automatically unregistered
      * when the output is destroyed.
      *

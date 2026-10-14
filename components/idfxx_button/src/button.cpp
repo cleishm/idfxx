@@ -32,6 +32,12 @@ struct button_context {
     bool monitoring = false;
 };
 
+// Delivers an event to the user callback. An exception is logged and the
+// button keeps operating.
+void notify(button_context* ctx, button::event_type event) {
+    (void)invoke_guarded(TAG, "Button callback", [&] { ctx->cfg.callback(event); });
+}
+
 void poll_button(button_context* ctx) {
     if (ctx->state == button_state::pressed && ctx->pressed_time < ctx->cfg.dead_time) {
         ctx->pressed_time += ctx->cfg.poll_interval;
@@ -43,7 +49,7 @@ void poll_button(button_context* ctx) {
             ctx->state = button_state::pressed;
             ctx->pressed_time = std::chrono::microseconds{0};
             ctx->repeating_time = std::chrono::microseconds{0};
-            ctx->cfg.callback(button::event_type::pressed);
+            notify(ctx, button::event_type::pressed);
             return;
         }
 
@@ -56,26 +62,26 @@ void poll_button(button_context* ctx) {
             ctx->repeating_time += ctx->cfg.poll_interval;
             if (ctx->repeating_time >= ctx->cfg.autorepeat_interval) {
                 ctx->repeating_time = std::chrono::microseconds{0};
-                ctx->cfg.callback(button::event_type::clicked);
+                notify(ctx, button::event_type::clicked);
             }
             return;
         }
 
         if (ctx->state == button_state::pressed && ctx->pressed_time >= ctx->cfg.long_press_time) {
             ctx->state = button_state::pressed_long;
-            ctx->cfg.callback(button::event_type::long_press);
+            notify(ctx, button::event_type::long_press);
         } else if (ctx->state == button_state::pressed_long && ctx->cfg.extended_press_time.count() != 0 &&
                    ctx->pressed_time >= ctx->cfg.extended_press_time) {
             ctx->state = button_state::pressed_extended;
-            ctx->cfg.callback(button::event_type::extended_press);
+            notify(ctx, button::event_type::extended_press);
         }
     } else if (ctx->state != button_state::released) {
         bool clicked = ctx->state == button_state::pressed &&
             !(ctx->cfg.autorepeat && ctx->pressed_time >= ctx->cfg.autorepeat_timeout);
         ctx->state = button_state::released;
-        ctx->cfg.callback(button::event_type::released);
+        notify(ctx, button::event_type::released);
         if (clicked) {
-            ctx->cfg.callback(button::event_type::clicked);
+            notify(ctx, button::event_type::clicked);
         }
     }
 }

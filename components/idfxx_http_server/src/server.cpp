@@ -231,7 +231,7 @@ std::string server::error_category::message(int ec) const {
 esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
     auto* record = static_cast<handler_record*>(req->user_ctx);
     request r{req};
-    auto res = record->handler(r);
+    auto res = idfxx::invoke_guarded(TAG, "Handler for", req->uri, [&] { return record->handler(r); });
     if (!res) {
         auto msg = res.error().message();
         ESP_LOGD(TAG, "URI handler for %s returned error: %s", req->uri, msg.c_str());
@@ -256,7 +256,8 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
 esp_err_t server::_session_open_trampoline(httpd_handle_t hd, int sockfd) {
     auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(hd));
     if (ctx && ctx->self && ctx->self->_on_session_open) {
-        auto res = ctx->self->_on_session_open(sockfd);
+        auto res =
+            idfxx::invoke_guarded(TAG, "Session open handler", [&] { return ctx->self->_on_session_open(sockfd); });
         if (!res) {
             return ESP_FAIL;
         }
@@ -267,7 +268,8 @@ esp_err_t server::_session_open_trampoline(httpd_handle_t hd, int sockfd) {
 void server::_session_close_trampoline(httpd_handle_t hd, int sockfd) {
     auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(hd));
     if (ctx && ctx->self && ctx->self->_on_session_close) {
-        ctx->self->_on_session_close(sockfd);
+        // An exception is logged and otherwise ignored
+        (void)idfxx::invoke_guarded(TAG, "Session close handler", [&] { ctx->self->_on_session_close(sockfd); });
     }
     // A custom close_fn replaces the server's own close of the socket, so it must be closed here.
     ::close(sockfd);
@@ -532,7 +534,9 @@ result<void> server::_handle_error(request& req, error_status status) {
     auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(req._req->handle));
     if (ctx && ctx->self) {
         if (auto& handler = ctx->self->_error_handlers[idf_code]) {
-            auto res = handler(req, status.code());
+            auto res = idfxx::invoke_guarded(TAG, "Error handler for", req._req->uri, [&] {
+                return handler(req, status.code());
+            });
             if (!res) {
                 auto msg = res.error().message();
                 ESP_LOGD(

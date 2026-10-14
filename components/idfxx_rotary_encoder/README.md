@@ -116,6 +116,7 @@ Error codes from `idfxx::errc`:
 - **Non-copyable/move-only**: Encoder is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops tracking and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the encoder API.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is logged and otherwise ignored. The encoder keeps tracking and reporting later rotation
 - **Pin requirements**: `pin_a` and `pin_b` must be connected GPIO pins.
 - **Button support**: Many rotary encoders include a built-in push-button. Use [idfxx_button](../idfxx_button) to handle the button independently.
 

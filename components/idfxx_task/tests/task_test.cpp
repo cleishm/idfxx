@@ -15,6 +15,8 @@
 #include <idfxx/chrono>
 #include <idfxx/memory>
 #include <idfxx/sched>
+#include <stdexcept>
+#include <system_error>
 #include <type_traits>
 
 using namespace idfxx;
@@ -1221,3 +1223,70 @@ TEST_CASE("moved-from task returns invalid_state", "[idfxx][task]") {
     TEST_ASSERT_TRUE(moved.try_join(1s).has_value());
     TEST_ASSERT_TRUE(done.load());
 }
+
+// =============================================================================
+// Exceptions thrown by task functions
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+TEST_CASE("task completes and joins when its function throws", "[idfxx][task][exceptions]") {
+    std::atomic<int> started{0};
+
+    task t1(task::config{.name = "throw_syserr"}, [&started](task::self&) {
+        started.fetch_add(1);
+        throw std::system_error(make_error_code(errc::invalid_state));
+    });
+    task t2(task::config{.name = "throw_exc"}, [&started](task::self&) {
+        started.fetch_add(1);
+        throw std::runtime_error("boom");
+    });
+    task t3(task::config{.name = "throw_int"}, [&started](task::self&) {
+        started.fetch_add(1);
+        throw 42;
+    });
+
+    TEST_ASSERT_TRUE(t1.try_join(1s).has_value());
+    TEST_ASSERT_TRUE(t2.try_join(1s).has_value());
+    TEST_ASSERT_TRUE(t3.try_join(1s).has_value());
+    TEST_ASSERT_EQUAL(3, started.load());
+}
+
+TEST_CASE("task is_completed after its function throws", "[idfxx][task][exceptions]") {
+    task t(task::config{.name = "throw_complete"}, [](task::self&) { throw std::runtime_error("boom"); });
+
+    idfxx::delay(100ms);
+    TEST_ASSERT_TRUE(t.is_completed());
+}
+
+TEST_CASE("detached and spawned tasks clean up when their function throws", "[idfxx][task][exceptions]") {
+    static std::atomic<int> started{0};
+    started.store(0);
+
+    // Let any tasks deleted by earlier tests finish cleaning up
+    idfxx::delay(100ms);
+    UBaseType_t baseline = uxTaskGetNumberOfTasks();
+
+    task::spawn({.name = "spawn_throw"}, [](task::self&) {
+        started.fetch_add(1);
+        throw std::runtime_error("boom");
+    });
+    task::spawn({.name = "spawn_throw_int"}, [](task::self&) {
+        started.fetch_add(1);
+        throw 42;
+    });
+    {
+        task t(task::config{.name = "detach_throw"}, [](task::self&) {
+            idfxx::delay(20ms);
+            started.fetch_add(1);
+            throw std::system_error(make_error_code(errc::invalid_state));
+        });
+        TEST_ASSERT_TRUE(t.try_detach().has_value());
+    }
+
+    idfxx::delay(300ms);
+    TEST_ASSERT_EQUAL(3, started.load());
+    TEST_ASSERT_EQUAL(baseline, uxTaskGetNumberOfTasks());
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS

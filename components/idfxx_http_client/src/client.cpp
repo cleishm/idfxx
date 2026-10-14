@@ -245,7 +245,8 @@ esp_err_t client::_http_event_handler(esp_http_client_event* evt) {
             .header_key = evt->header_key ? std::string_view(evt->header_key) : std::string_view{},
             .header_value = evt->header_value ? std::string_view(evt->header_value) : std::string_view{},
         };
-        self->_on_event(data);
+        // An exception is logged and otherwise ignored
+        (void)invoke_guarded(TAG, "Event callback", [&] { self->_on_event(data); });
     }
     return ESP_OK;
 }
@@ -261,7 +262,13 @@ static bool set_and_not_positive(const std::optional<T>& value) {
 }
 
 esp_err_t client::_crt_bundle_trampoline(void* conf) {
-    return tls_active_client->_crt_bundle_attach(conf);
+    auto res = invoke_guarded(TAG, "Certificate bundle attach callback", [&] {
+        return tls_active_client->_crt_bundle_attach(conf);
+    });
+    // On an exception (already logged), report failure. The TLS layer requires
+    // peer verification before calling this hook, so without an attached
+    // bundle the handshake fails.
+    return res.value_or(ESP_FAIL);
 }
 
 result<esp_http_client_handle_t> client::_init_client(

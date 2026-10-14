@@ -69,7 +69,13 @@ public:
         std::chrono::milliseconds acceleration_threshold{200}; ///< Acceleration starts below this interval
         std::chrono::milliseconds acceleration_cap{4};         ///< Minimum interval (limits max acceleration)
         std::chrono::microseconds polling_interval{std::chrono::milliseconds{1}}; ///< GPIO polling interval
-        std::move_only_function<void(int32_t)> callback;                          ///< Event callback (required)
+        /**
+         * @brief Event callback (required).
+         *
+         * When exceptions are enabled, an exception thrown by the callback is
+         * logged and otherwise ignored, and the encoder keeps reporting rotation.
+         */
+        std::move_only_function<void(int32_t)> callback;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

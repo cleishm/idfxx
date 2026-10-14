@@ -15,6 +15,10 @@
 #define TIMER_ISR_ATTR
 #endif
 
+namespace {
+const char* TAG = "idfxx::timer";
+}
+
 namespace idfxx {
 
 struct timer::context {
@@ -32,7 +36,8 @@ void timer::trampoline(void* arg) {
     auto* ctx = static_cast<context*>(arg);
     xSemaphoreTake(ctx->mutex, portMAX_DELAY);
     if (ctx->callback) {
-        ctx->callback();
+        // An exception is logged and the timer keeps running
+        (void)invoke_guarded(TAG, "Timer callback", [&] { ctx->callback(); });
     }
     xSemaphoreGive(ctx->mutex);
 }

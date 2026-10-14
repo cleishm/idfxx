@@ -161,6 +161,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 ## Important Notes
 
 - **Global command registry**: Commands are registered globally. All REPLs and `run()` calls share the same registry.
+- **Exceptions in handlers**: With exceptions enabled, an exception thrown by a command handler is logged and the command fails with status code 1. The REPL keeps running
 - **String lifetime**: Command names, help text, and hint strings are copied internally and remain valid until deregistration.
 - **REPL backends**: Only one of the UART, USB CDC and USB Serial JTAG backends is available at a time, determined by the ESP-IDF console configuration (`CONFIG_ESP_CONSOLE_UART_DEFAULT`, `CONFIG_ESP_CONSOLE_USB_CDC`, etc.). The stdio backend (`repl::stdio`) is always available with ESP-IDF 6.1 or later. `repl(config, {})` selects UART, so it only compiles when UART is the console.
 - **Non-copyable/move-only**: The `repl` class is non-copyable and move-only.

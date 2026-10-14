@@ -6,7 +6,7 @@ license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
   cleishm/idfxx_core:
-    version: "^1.0.0"
+    version: "^1.2.0"
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_gpio:

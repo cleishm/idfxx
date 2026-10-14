@@ -213,6 +213,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods throw `st
 - **Type-safe listeners**: Use `event` constants for specific events; wildcard listeners still use untyped callbacks
 - Create the system event loop with `event_loop::create_system()` before registering system event listeners
 - Event callbacks may be invoked from different task contexts depending on loop configuration
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a listener is logged and otherwise ignored. Other listeners for the event still run, and the event loop keeps dispatching later events
 - Use `unique_listener_handle` for automatic cleanup; `listener_handle` requires manual removal
 
 ## License

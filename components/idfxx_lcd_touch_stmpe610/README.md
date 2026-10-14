@@ -305,6 +305,7 @@ Adjust these values to match your specific display module and mounting orientati
 - Touch and display can share SPI bus but need different CS pins
 - Reset and interrupt pins are optional (default to `idfxx::gpio::nc()`)
 - Orientation flags should match your display orientation
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the `process_coordinates` callback is logged, and that read reports no touch points
 - The touch handle can be used with LVGL or other touch input libraries
 - The `stmpe610` class inherits from the `touch` base class provided by `idfxx_lcd_touch`
 - Polling mode (no interrupt) is simpler but uses more CPU

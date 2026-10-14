@@ -258,6 +258,7 @@ private:
 - `idfxx::lcd::touch` is an abstract base class; use concrete implementations for actual touch controllers
 - Coordinate transformations (swap, mirror) are applied by ESP-IDF automatically
 - Custom `process_coordinates` callback runs after automatic transformations
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `process_coordinates` is logged, and that read reports no touch points
 - Reset and interrupt pins are optional (use `gpio::nc()` if not needed)
 - Touch coordinates are device-specific; verify orientation matches your display
 

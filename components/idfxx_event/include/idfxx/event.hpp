@@ -253,6 +253,10 @@ struct event_handler_traits<void> {
  * For events with data (DataType is not void), the handler receives a const reference
  * to the data type. For events without data (DataType is void), the handler takes no arguments.
  *
+ * When exceptions are enabled, an exception thrown by the handler is logged and
+ * otherwise ignored. Other listeners for the event still run, and the event loop
+ * keeps dispatching later events.
+ *
  * @tparam DataType The event data type, or void for events without data.
  */
 template<typename DataType>
@@ -264,6 +268,8 @@ using event_handler = typename event_handler_traits<DataType>::type;
  *
  * Used with the wildcard listener overload that receives all events from a base.
  * The callback receives the event base, ID, and raw event data pointer.
+ *
+ * Exceptions thrown by the callback are handled as for event_handler.
  *
  * @tparam IdEnum The event ID enum type.
  */

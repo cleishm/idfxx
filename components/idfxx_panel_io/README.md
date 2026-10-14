@@ -289,6 +289,7 @@ idfxx::panel_io::spi_config io_config{
   the D/C selection is encoded in the control phase (`control_phase_bytes`/`dc_bit_offset`)
 - Clock frequency (`pclk_freq`/`scl_speed`) affects display performance
 - Transaction queue depth affects how many operations can be queued
+- **Exceptions in callbacks**: `on_color_transfer_done` must not throw. For SPI it runs in ISR context, where throwing is not permitted; for I2C it runs inside the driver in the transferring task, which an exception cannot propagate out of
 - The `lcd_cmd_bits`/`lcd_param_bits` field names follow the underlying ESP-IDF
   configuration and apply equally to non-LCD panels
 - This component provides only the I/O layer; use a concrete driver

@@ -36,7 +36,8 @@ handler_storage storage;
 // Trampoline function that ESP-IDF calls
 void listener_trampoline(void* handler_arg, esp_event_base_t base, int32_t id, void* event_data) {
     auto* ctx = static_cast<handler_context*>(handler_arg);
-    ctx->callback(base, id, event_data);
+    // An exception is logged and dispatch continues with the next listener
+    (void)invoke_guarded(TAG, "Event listener", [&] { ctx->callback(base, id, event_data); });
 }
 
 // Clean up handler context storage (call AFTER ESP-IDF unregistration)

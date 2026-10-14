@@ -270,6 +270,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - **Certificate lifetime**: TLS certificate strings are copied internally and kept alive for the client's lifetime
 - **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only a pointer
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `on_event` is logged and otherwise ignored, and the request continues. An exception thrown by `crt_bundle_attach` is logged and treated as returning a non-zero error code
 - **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a loop → `close()`
 - **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it
 - **Chunked write failures**: A `write()` or `finish()` that times out fails with `eagain`; any other send failure is `write_data`. Either way part of the chunk may already have been sent, so the writer sends nothing more and later calls fail with `invalid_state`

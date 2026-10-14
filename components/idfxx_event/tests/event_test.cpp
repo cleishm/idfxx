@@ -11,6 +11,8 @@
 #include <chrono>
 #include <esp_event.h>
 #include <idfxx/sched>
+#include <stdexcept>
+#include <system_error>
 #include <tuple>
 #include <type_traits>
 
@@ -389,3 +391,122 @@ TEST_CASE("from_opaque_data prefers from_opaque over static_cast", "[idfxx][even
     auto result = from_opaque_data<trivially_copyable_with_from_opaque>(&source);
     TEST_ASSERT_EQUAL(43, result.value);
 }
+
+// =============================================================================
+// Exceptions thrown by listeners
+// =============================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+
+namespace {
+
+/// Throws a std::system_error, another exception, or a non-exception type,
+/// cycling through them with each call.
+[[noreturn]] void throw_nth(int n) {
+    switch (n % 3) {
+    case 0:
+        throw std::system_error(make_error_code(errc::invalid_state));
+    case 1:
+        throw std::runtime_error("boom");
+    default:
+        throw 42;
+    }
+}
+
+} // namespace
+
+TEST_CASE("event loop keeps dispatching when a listener throws", "[idfxx][event][exceptions]") {
+    auto loop = event_loop::make({.name = "test_loop"}, 32).value();
+
+    std::atomic<int> thrown{0};
+    std::atomic<int> counter{0};
+
+    event_loop::unique_listener_handle throwing{
+        loop.try_listener_add(test_void_event_b, [&thrown]() { throw_nth(thrown++); }).value()};
+    event_loop::unique_listener_handle counting{
+        loop.try_listener_add(test_void_event_b, [&counter]() { counter++; }).value()};
+
+    for (int i = 0; i < 3; ++i) {
+        TEST_ASSERT_TRUE(loop.try_post(test_void_event_b));
+    }
+    idfxx::delay(100ms);
+
+    TEST_ASSERT_EQUAL(3, thrown.load());
+    TEST_ASSERT_EQUAL(3, counter.load());
+}
+
+TEST_CASE("event loop keeps dispatching when a typed or wildcard listener throws", "[idfxx][event][exceptions]") {
+    auto loop = event_loop::make({.name = "test_loop"}, 32).value();
+
+    std::atomic<int> thrown{0};
+    std::atomic<int> received_value{0};
+
+    event_loop::unique_listener_handle typed{
+        loop.try_listener_add(test_data_event, [&thrown](const test_event_data&) { throw_nth(thrown++); }).value()};
+    event_loop::unique_listener_handle wildcard{
+        loop.try_listener_add(test_events, [&thrown](event_base<test_event_id>, test_event_id, void*) {
+            throw_nth(thrown++);
+        }).value()};
+    event_loop::unique_listener_handle receiving{
+        loop.try_listener_add(test_data_event, [&received_value](const test_event_data& data) {
+            received_value = data.value;
+        }).value()};
+
+    TEST_ASSERT_TRUE(loop.try_post(test_data_event, test_event_data{1}));
+    TEST_ASSERT_TRUE(loop.try_post(test_data_event, test_event_data{2}));
+    idfxx::delay(100ms);
+
+    // Two events, each reaching the typed and the wildcard listener
+    TEST_ASSERT_EQUAL(4, thrown.load());
+    TEST_ASSERT_EQUAL(2, received_value.load());
+}
+
+TEST_CASE("user_event_loop manual dispatch continues when a listener throws", "[idfxx][event][exceptions]") {
+    auto loop = user_event_loop::make(16).value();
+
+    std::atomic<int> thrown{0};
+    std::atomic<int> counter{0};
+
+    event_loop::unique_listener_handle throwing{
+        loop.try_listener_add(test_void_event_b, [&thrown]() { throw_nth(thrown++); }).value()};
+    event_loop::unique_listener_handle counting{
+        loop.try_listener_add(test_void_event_b, [&counter]() { counter++; }).value()};
+
+    for (int i = 0; i < 3; ++i) {
+        TEST_ASSERT_TRUE(loop.try_post(test_void_event_b));
+        TEST_ASSERT_TRUE(loop.try_run(100ms));
+    }
+
+    TEST_ASSERT_EQUAL(3, thrown.load());
+    TEST_ASSERT_EQUAL(3, counter.load());
+}
+
+TEST_CASE("system event loop keeps dispatching when a listener throws", "[idfxx][event][exceptions]") {
+    // Another test may have left the system event loop running
+    bool created = event_loop::try_create_system().has_value();
+
+    std::atomic<int> thrown{0};
+    std::atomic<int> counter{0};
+
+    event_loop& sys = event_loop::system();
+    auto throwing = sys.try_listener_add(test_void_event_b, [&thrown]() { throw_nth(thrown++); });
+    TEST_ASSERT_TRUE(throwing);
+    auto counting = sys.try_listener_add(test_void_event_b, [&counter]() { counter++; });
+    TEST_ASSERT_TRUE(counting);
+
+    for (int i = 0; i < 3; ++i) {
+        TEST_ASSERT_TRUE(sys.try_post(test_void_event_b));
+    }
+    idfxx::delay(100ms);
+
+    TEST_ASSERT_EQUAL(3, thrown.load());
+    TEST_ASSERT_EQUAL(3, counter.load());
+
+    std::ignore = sys.try_listener_remove(throwing.value());
+    std::ignore = sys.try_listener_remove(counting.value());
+    if (created) {
+        std::ignore = event_loop::try_destroy_system();
+    }
+}
+
+#endif // CONFIG_COMPILER_CXX_EXCEPTIONS

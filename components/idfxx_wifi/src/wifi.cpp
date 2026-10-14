@@ -38,10 +38,13 @@ static result<void> check(esp_err_t err, const char* what) {
 
 // Trampolines bridging ESP-IDF callback signatures to the typed callbacks.
 // ESP-IDF holds a single global registration for each, so a single stored
-// user callback matches the underlying semantics.
+// user callback matches the underlying semantics. An exception thrown by a
+// callback is logged and otherwise ignored.
 static promiscuous_rx_cb s_promiscuous_cb = nullptr;
 static void promiscuous_trampoline(void* buf, wifi_promiscuous_pkt_type_t type) {
-    s_promiscuous_cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
+    (void)invoke_guarded(TAG, "Promiscuous callback", [&] {
+        s_promiscuous_cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
+    });
 }
 
 static vendor_ie_cb s_vendor_ie_cb = nullptr;
@@ -54,12 +57,14 @@ static void vendor_ie_trampoline(
 ) {
     mac_address mac;
     std::memcpy(mac.data(), sa, 6);
-    s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
+    (void)invoke_guarded(TAG, "Vendor IE callback", [&] {
+        s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
+    });
 }
 
 static csi_rx_cb s_csi_cb = nullptr;
 static void csi_trampoline(void* ctx, wifi_csi_info_t* info) {
-    s_csi_cb(ctx, info);
+    (void)invoke_guarded(TAG, "CSI callback", [&] { s_csi_cb(ctx, info); });
 }
 
 static ap_record from_idf_record(const wifi_ap_record_t& r) {

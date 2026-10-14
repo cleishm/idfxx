@@ -321,6 +321,7 @@ loop.listener_add(netif::sta_got_ip4,
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
 - **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `quanta::electro` levels (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power in 0.25 dBm steps (`quanta::electro::centi_dbm` carries the exact value), and may clamp to a lower supported level, so the value read back can differ from the value set.
 - **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep processing minimal or defer work to another task.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a promiscuous-mode, vendor IE, or CSI callback is logged and otherwise ignored, and WiFi keeps delivering later packets and records
 - **FTM support**: Requires both initiator and responder to support FTM. Check `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.
 
 ## License
