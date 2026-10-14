@@ -1406,10 +1406,16 @@ TEST_CASE("timer move assignment cleans up target", "[idfxx][timer]") {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 
 TEST_CASE("timer keeps firing when the callback throws", "[idfxx][timer][exceptions]") {
+    // Only the first calls throw, each kind twice. Unwinding takes tens of milliseconds on hardware,
+    // so throwing on every tick would leave the timer task permanently behind, starving this task.
+    constexpr int throwing_calls = 6;
     std::atomic<int> count{0};
     {
         auto result = timer::make({.name = "throwing_cb"}, [&count]() {
             int n = count.fetch_add(1);
+            if (n >= throwing_calls) {
+                return;
+            }
             switch (n % 3) {
             case 0:
                 throw std::system_error(make_error_code(errc::invalid_state));
@@ -1425,9 +1431,9 @@ TEST_CASE("timer keeps firing when the callback throws", "[idfxx][timer][excepti
         auto start_result = t.try_start_periodic(20ms);
         TEST_ASSERT_TRUE(start_result.has_value());
 
-        // Each kind of exception is thrown at least twice
-        wait_for_count(count, 6);
-        TEST_ASSERT_GREATER_OR_EQUAL(6, count.load());
+        // The timer keeps firing after the throws
+        wait_for_count(count, throwing_calls + 3);
+        TEST_ASSERT_GREATER_OR_EQUAL(throwing_calls + 3, count.load());
         TEST_ASSERT_TRUE(t.is_active());
 
         // Destroying the timer waits for the callback, so would hang if a
