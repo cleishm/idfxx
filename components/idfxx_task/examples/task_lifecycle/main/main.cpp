@@ -18,8 +18,7 @@ extern "C" void app_main() {
     // --- Create a worker task ---
     logger.info("=== Worker Task ===");
     idfxx::task worker({.name = "worker", .stack_size = 4096, .priority = 5}, [](idfxx::task::self& self) {
-        auto& log = logger;
-        log.info("[worker] started: name={}, priority={}", self.name(), self.priority());
+        logger.info("[worker] started: name={}, priority={}", self.name(), self.priority());
         int count = 0;
         while (!self.stop_requested()) {
             self.wait();
@@ -27,9 +26,9 @@ extern "C" void app_main() {
                 break;
             }
             ++count;
-            log.info("[worker] notified (count={})", count);
+            logger.info("[worker] notified (count={})", count);
         }
-        log.info("[worker] stop requested, exiting (stack HWM={})", self.stack_high_water_mark());
+        logger.info("[worker] stop requested, exiting (stack HWM={})", self.stack_high_water_mark());
     });
 
     logger.info("Worker name: {}", worker.name());
