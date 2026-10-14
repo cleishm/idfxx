@@ -189,6 +189,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - Call `idfxx::gpio::install_isr_service()` once before using interrupts
 - ISR handlers run in interrupt context - keep them short and use IRAM-safe functions
+- **Exceptions in ISR handlers**: ISR handlers must not throw, as throwing is not permitted in interrupt context
 - Multiple handlers per pin are stored in DRAM - ensure sufficient heap space
 - GPIO pins used by other peripherals (SPI, I2C, etc.) should not be reconfigured
 

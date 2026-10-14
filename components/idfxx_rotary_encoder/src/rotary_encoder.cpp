@@ -74,7 +74,8 @@ void poll_encoder(encoder_context* ctx) {
         }
     }
 
-    ctx->cfg.callback(diff);
+    // An exception is logged and the encoder keeps operating
+    (void)invoke_guarded(TAG, "Rotary encoder callback", [&] { ctx->cfg.callback(diff); });
 }
 
 void timer_callback(void* arg) {

@@ -39,6 +39,9 @@ public:
     /**
      * @headerfile <idfxx/lcd/touch>
      * @brief Callback type for processing touch coordinates.
+     *
+     * When exceptions are enabled, an exception thrown by the callback is
+     * logged, and that read reports no touch points.
      */
     typedef std::move_only_function<
         void(uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_num, uint8_t max_point_num)>
@@ -64,7 +67,7 @@ public:
         bool mirror_x = false; ///< Mirror X after read coordinates
         bool mirror_y = false; ///< Mirror Y after read coordinates
 
-        /// Callback to apply user adjustments after reading coordinates from the touch controller
+        /// Callback to apply user adjustments after reading coordinates from the touch controller, before swap/mirror
         process_coordinates_callback process_coordinates = nullptr;
     };
 

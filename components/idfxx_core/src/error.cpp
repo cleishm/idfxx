@@ -4,6 +4,7 @@
 #include <idfxx/error>
 
 #include <esp_err.h>
+#include <esp_log.h>
 
 static_assert(idfxx::detail::esp_err_no_mem == ESP_ERR_NO_MEM);
 
@@ -88,5 +89,24 @@ std::error_code make_error_code(esp_err_t e) {
     }
     return make_error_code(make_errc(e));
 }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+void detail::log_guarded_exception(
+    const char* tag,
+    const char* context,
+    const char* subject,
+    const char* what
+) noexcept {
+    const char* sep = subject ? " " : "";
+    if (!subject) {
+        subject = "";
+    }
+    if (what) {
+        ESP_LOGE(tag, "%s%s%s threw: %s", context, sep, subject, what);
+    } else {
+        ESP_LOGE(tag, "%s%s%s threw an unknown exception", context, sep, subject);
+    }
+}
+#endif
 
 } // namespace idfxx

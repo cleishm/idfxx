@@ -136,6 +136,7 @@ Timer and output operations return `idfxx::result<T>` or throw `std::system_erro
 - **Timer persistence**: Timers are fixed hardware — configuration persists even after the timer object goes out of scope
 - **Output cleanup**: `output` destructor stops PWM and sets the GPIO low
 - **Fade service**: Call `output::install_fade_service()` once before using any fade operations
+- **Exceptions in callbacks**: Fade-end callbacks run in ISR context and must not throw, as throwing is not permitted there
 - **Thread safety**: `set_duty()` and fade operations use thread-safe ESP-IDF APIs
 
 ## License

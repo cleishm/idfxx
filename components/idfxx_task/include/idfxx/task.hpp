@@ -47,6 +47,9 @@ namespace idfxx {
  * object must not be used: any operation other than destruction or
  * assignment is undefined behavior.
  *
+ * When exceptions are enabled, an exception thrown by the task function is
+ * logged and the task finishes as if the function had returned.
+ *
  * @note The task function runs in the created task's context, not the caller's context.
  */
 class task {
@@ -306,7 +309,9 @@ public:
      *
      * @param cfg Task configuration.
      * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction.
+     *                  reference for task self-interaction. When exceptions are enabled,
+     *                  an exception it throws is logged and the task finishes as if
+     *                  the function had returned.
      * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit task(const config& cfg, std::move_only_function<void(self&)> task_func);
@@ -318,7 +323,9 @@ public:
      *
      * @param cfg Task configuration.
      * @param task_func Function to execute in the task context. Receives a @ref self
-     *                  reference for task self-interaction.
+     *                  reference for task self-interaction. When exceptions are enabled,
+     *                  an exception it throws is logged and the task finishes as if
+     *                  the function had returned.
      * @throws std::bad_alloc if memory allocation fails.
      */
     static void spawn(config cfg, std::move_only_function<void(self&)> task_func);

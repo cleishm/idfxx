@@ -38,6 +38,10 @@ namespace idfxx {
  * Supports both one-shot and periodic timers with callbacks dispatched either
  * from a dedicated timer task or directly from ISR context.
  *
+ * When exceptions are enabled, an exception thrown by a std::move_only_function
+ * callback is logged and otherwise ignored, and the timer keeps running. Raw
+ * function pointer callbacks are called directly and must not throw.
+ *
  * This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
  * assignment is undefined behavior.

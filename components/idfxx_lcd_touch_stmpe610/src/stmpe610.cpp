@@ -26,7 +26,13 @@ void stmpe610::process_coordinates(
     if (user_data != nullptr) {
         auto* state = static_cast<callback_state*>(user_data);
         if (state->process_coordinates != nullptr) {
-            state->process_coordinates(x, y, strength, point_num, max_point_num);
+            auto res = invoke_guarded(TAG, "Coordinate processing callback", [&] {
+                state->process_coordinates(x, y, strength, point_num, max_point_num);
+            });
+            if (!res) {
+                // An exception (already logged) drops this sample: report no touch
+                *point_num = 0;
+            }
         }
     }
 }

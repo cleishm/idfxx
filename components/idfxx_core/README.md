@@ -335,6 +335,9 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
   `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. OOM is never
   returned as a recoverable error in `result<T>`. Use the ESP-IDF and FreeRTOS APIs directly
   if you need to handle potential out-of-memory conditions gracefully.
+- **Heap walkers run under the heap lock**: the callback passed to `memory::walk()` runs with
+  the heap's lock held, inside a critical section, so it must not allocate or free memory,
+  block, or throw
 - **Byte sources do not own what they read**: the buffer behind a `memory_source` must stay
   valid and unchanged, and the `FILE*` behind a `file_source` must stay open, for as long as
   the source is read from. A short read does not mean the end of the stream — only a return of

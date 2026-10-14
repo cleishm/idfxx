@@ -10,6 +10,10 @@
 #include <system_error>
 #include <utility>
 
+namespace {
+const char* TAG = "idfxx::task";
+}
+
 namespace idfxx {
 
 const task::error_category& task_category() noexcept {
@@ -62,7 +66,8 @@ void task::trampoline(void* arg) {
 
     if (ctx->func) {
         self s{ctx};
-        ctx->func(s);
+        // An exception is logged and the task completes as if the function returned
+        (void)invoke_guarded(TAG, "Task function", [&] { ctx->func(s); });
     }
 
     auto expected = context::state_t::running;

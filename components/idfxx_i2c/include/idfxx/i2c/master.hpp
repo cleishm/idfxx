@@ -859,6 +859,7 @@ public:
      *
      * The callback runs in ISR context when an asynchronous transaction
      * completes. It should return true if a higher-priority task was woken.
+     * It must not throw, as throwing is not permitted in ISR context.
      * Only useful when the bus was created with a non-zero trans_queue_depth.
      *
      * @param on_trans_done Transaction-done callback.
@@ -876,6 +877,7 @@ public:
      *
      * The callback runs in ISR context when an asynchronous transaction
      * completes. It should return true if a higher-priority task was woken.
+     * It must not throw, as throwing is not permitted in ISR context.
      * Only useful when the bus was created with a non-zero trans_queue_depth.
      *
      * @param on_trans_done Transaction-done callback.

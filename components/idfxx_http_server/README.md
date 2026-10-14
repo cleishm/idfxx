@@ -66,6 +66,8 @@ try {
     // Server runs until srv goes out of scope
 
 } catch (const std::system_error& e) {
+    // Starting the server or registering a handler failed. Exceptions thrown
+    // by handlers never reach here (see Important Notes).
     idfxx::log::error("HTTP", "Server failed: {}", e.what());
 }
 ```
@@ -249,6 +251,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 ## Important Notes
 
 - **Handler lifetime**: Handlers are stored internally and must not reference stack-local data that goes out of scope
+- **Exceptions in callbacks**: With exceptions enabled, handlers and session callbacks may throw. An exception thrown by a handler closes the connection: a `std::system_error` is treated exactly like returning its error code, and any other exception is also logged as an error. An exception thrown by `on_session_open` rejects the session, and one thrown by `on_session_close` is logged and ignored. The server keeps running either way
 - **Request lifetime**: The `request` object is only valid during the handler invocation; do not store references to it
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the server begins accepting connections
 - **Response string lifetimes**: `set_status()`, `set_content_type()`, and `set_header()` copy strings internally to ensure they remain valid until the response is sent

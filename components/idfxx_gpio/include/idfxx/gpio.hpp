@@ -540,6 +540,7 @@ public:
      *
      * The handler will be called from an ISR context. ISR handlers do not need
      * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
+     * The handler must not throw, as throwing is not permitted in ISR context.
      *
      * @warning This overload cannot be used if `intr_flag::iram` was passed to
      *          install_isr_service(), as std::move_only_function may allocate
@@ -561,6 +562,7 @@ public:
      *
      * The handler will be called from an ISR context. ISR handlers do not need
      * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
+     * The handler must not throw, as throwing is not permitted in ISR context.
      *
      * @pre install_isr_service() must have been called.
      * @param fn Function to call on interrupt.
@@ -582,6 +584,7 @@ public:
      *
      * The handler will be called from an ISR context. ISR handlers do not need
      * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
+     * The handler must not throw, as throwing is not permitted in ISR context.
      *
      * @warning This overload cannot be used if `intr_flag::iram` was passed to
      *          install_isr_service(), as std::move_only_function may allocate
@@ -599,6 +602,7 @@ public:
      *
      * The handler will be called from an ISR context. ISR handlers do not need
      * IRAM_ATTR unless `intr_flag::iram` was passed to install_isr_service().
+     * The handler must not throw, as throwing is not permitted in ISR context.
      *
      * @pre install_isr_service() must have been called.
      * @param fn Function to call on interrupt.

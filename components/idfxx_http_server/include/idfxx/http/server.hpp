@@ -1004,7 +1004,18 @@ private:
  */
 class server {
 public:
-    /** @brief Handler function type for URI handlers. */
+    /**
+     * @brief Handler function type for URI handlers.
+     *
+     * A handler returns success once it has handled the request. Returning an
+     * error closes the connection.
+     *
+     * When exceptions are enabled, a handler may also throw, for example by
+     * using the throwing request methods. A thrown std::system_error has the
+     * same effect as returning its error code. Any other exception is logged
+     * and likewise closes the connection. In both cases the server keeps
+     * running and serving other requests.
+     */
     using handler_type = std::move_only_function<result<void>(request&) const>;
 
     /**
@@ -1013,6 +1024,7 @@ public:
      * Receives the request being responded to and its error status code.
      * Returning success keeps the connection open (except for
      * status_code::internal_server_error); returning an error closes it.
+     * Exceptions are handled as for handler_type.
      */
     using error_handler_type = std::move_only_function<result<void>(request&, status_code) const>;
 
@@ -1133,12 +1145,17 @@ public:
         bool wildcard_uri_match = false; ///< Enable wildcard URI matching
 
         // Session callbacks
-        /** @brief Called when a new session is opened. Return an error to reject. */
+        /**
+         * @brief Called when a new session is opened. Return an error to reject.
+         *
+         * Throwing an exception has the same effect as returning an error.
+         */
         std::move_only_function<result<void>(int) const> on_session_open = {};
         /**
          * @brief Called when a session is closed.
          *
          * The server closes the session's socket after this callback returns; the callback must not close it.
+         * An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
     };

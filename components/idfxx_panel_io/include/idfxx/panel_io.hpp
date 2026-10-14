@@ -46,6 +46,11 @@ public:
     /**
      * @brief Callback type invoked when color data transfer has finished.
      *
+     * For SPI panel I/O the callback runs in ISR context; for I2C it runs in the
+     * task that issued the transfer, before the transfer call returns. In either
+     * case it must not throw: throwing is not permitted in ISR context, and an
+     * exception cannot propagate out of the driver to the caller.
+     *
      * @param edata Panel IO event data.
      * @return Whether a high priority task has been woken up by this function.
      */

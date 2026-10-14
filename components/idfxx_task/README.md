@@ -450,6 +450,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **Prefer timeouts**: Use `join(duration)` or `try_join(duration)` over the no-argument versions to avoid blocking indefinitely on tasks that may not return.
 - **Completed tasks**: Operations on a completed task (suspend, resume, set_priority) return `invalid_state`. Use `is_completed()` to check.
 - **Detached/spawned tasks**: Detached and spawned tasks clean up automatically when their function returns.
+- **Exceptions in task functions**: With exceptions enabled, an exception thrown by the task function is logged and the task finishes as if the function had returned: `join()` returns normally, and detached or spawned tasks still clean up
 - **Non-copyable/move-only**: Task is non-copyable and move-only.
 - **Notification index 0 reserved**: `wait()`/`take()`/`notify()` use FreeRTOS notification index 0. If you need additional notification indices, access them directly via `idf_handle()`.
 

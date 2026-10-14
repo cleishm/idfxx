@@ -36,7 +36,9 @@ command_storage storage;
 // Trampoline function that ESP-IDF calls for handler-based commands
 int command_trampoline(void* context, int argc, char** argv) {
     auto* ctx = static_cast<command_context*>(context);
-    return ctx->callback(argc, argv);
+    // An exception (already logged) fails the command
+    auto res = invoke_guarded(TAG, "Command handler", [&] { return ctx->callback(argc, argv); });
+    return res.value_or(1);
 }
 
 } // namespace

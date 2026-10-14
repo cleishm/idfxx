@@ -216,11 +216,20 @@ public:
          *
          * Typically set to `esp_crt_bundle_attach` from the ESP-IDF certificate
          * bundle component.
+         *
+         * When exceptions are enabled, an exception thrown by the callback is
+         * logged and treated as returning a non-zero error code.
          */
         std::move_only_function<int(void*) const> crt_bundle_attach = {};
 
         // Event handling
-        std::move_only_function<void(const event_data&) const> on_event = {}; ///< Event callback
+        /**
+         * @brief Event callback.
+         *
+         * When exceptions are enabled, an exception thrown by the callback is
+         * logged and otherwise ignored, and the request continues.
+         */
+        std::move_only_function<void(const event_data&) const> on_event = {};
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

@@ -7,6 +7,8 @@
 #include <idfxx/console>
 #include <unity.h>
 
+#include <stdexcept>
+#include <system_error>
 #include <type_traits>
 
 using namespace idfxx;
@@ -313,6 +315,46 @@ TEST_CASE("console run throws on unknown command", "[idfxx][console]") {
         TEST_ASSERT_EQUAL(std::to_underlying(errc::not_found), e.code().value());
     }
     TEST_ASSERT_TRUE(threw);
+}
+
+TEST_CASE("console command fails with status 1 when its handler throws", "[idfxx][console][exceptions]") {
+    console_fixture fixture;
+
+    int calls = 0;
+    auto r = try_register_command({.name = "throw_syserr"}, [&calls](int, char**) -> int {
+        ++calls;
+        throw std::system_error(make_error_code(errc::invalid_state));
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = try_register_command({.name = "throw_exc"}, [&calls](int, char**) -> int {
+        ++calls;
+        throw std::runtime_error("boom");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = try_register_command({.name = "throw_int"}, [&calls](int, char**) -> int {
+        ++calls;
+        throw 42;
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+    r = try_register_command({.name = "ok_cmd"}, [](int, char**) { return 7; });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    for (const char* cmd : {"throw_syserr", "throw_exc", "throw_int"}) {
+        auto run_result = try_run(cmd);
+        TEST_ASSERT_TRUE(run_result.has_value());
+        TEST_ASSERT_EQUAL(1, *run_result);
+    }
+    TEST_ASSERT_EQUAL(3, calls);
+
+    // Other commands still run normally
+    auto ok_result = try_run("ok_cmd");
+    TEST_ASSERT_TRUE(ok_result.has_value());
+    TEST_ASSERT_EQUAL(7, *ok_result);
+
+    TEST_ASSERT_TRUE(try_deregister_command("throw_syserr").has_value());
+    TEST_ASSERT_TRUE(try_deregister_command("throw_exc").has_value());
+    TEST_ASSERT_TRUE(try_deregister_command("throw_int").has_value());
+    TEST_ASSERT_TRUE(try_deregister_command("ok_cmd").has_value());
 }
 
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS

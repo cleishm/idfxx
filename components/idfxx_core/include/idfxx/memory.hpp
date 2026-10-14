@@ -190,6 +190,9 @@ struct block {
  * for each block. The walker receives a `region` describing the
  * containing region and a `block` describing the individual block.
  *
+ * The walker runs with the heap's lock held, inside a critical section. It
+ * must not allocate or free memory, block, or throw.
+ *
  * @tparam F Callable with signature `bool(region, block)`.
  * @param c Capability flags to filter heap regions.
  * @param walker Callable invoked for each block. Return true to continue, false to stop.

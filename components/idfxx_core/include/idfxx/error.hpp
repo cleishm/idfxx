@@ -27,12 +27,14 @@
 
 #include <concepts>
 #include <cstdlib>
+#include <exception>
 #include <expected>
 #include <functional>
 #include <memory>
 #include <new>
 #include <string>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 
 typedef int esp_err_t;
@@ -319,6 +321,128 @@ inline void unwrap(result<void> result) {
     }
 }
 #endif
+
+/** @cond INTERNAL */
+namespace detail {
+
+template<typename T>
+inline constexpr bool is_result_v = false;
+
+template<typename T>
+inline constexpr bool is_result_v<result<T>> = true;
+
+template<typename T>
+struct guarded_result {
+    using type = result<T>;
+};
+
+template<typename T>
+struct guarded_result<result<T>> {
+    using type = result<T>;
+};
+
+template<typename F>
+using guarded_result_t = typename guarded_result<std::remove_cvref_t<std::invoke_result_t<F>>>::type;
+
+template<typename F>
+guarded_result_t<F> invoke_as_result(F&& fn) {
+    if constexpr (std::is_void_v<std::invoke_result_t<F>>) {
+        std::invoke(std::forward<F>(fn));
+        return {};
+    } else {
+        return std::invoke(std::forward<F>(fn));
+    }
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+/// Logs an exception caught by invoke_guarded. `subject` and `what` may be null.
+void log_guarded_exception(const char* tag, const char* context, const char* subject, const char* what) noexcept;
+#endif
+
+template<typename F>
+guarded_result_t<F> invoke_guarded_impl(const char* tag, const char* context, const char* subject, F&& fn) noexcept {
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    try {
+        return invoke_as_result(std::forward<F>(fn));
+    } catch (const std::bad_alloc&) {
+        // Allocation failure is fatal
+        std::terminate();
+    } catch (const std::system_error& e) {
+        // Equivalent to returning the error, for a callback that can return one
+        if constexpr (!is_result_v<std::remove_cvref_t<std::invoke_result_t<F>>>) {
+            log_guarded_exception(tag, context, subject, e.what());
+        }
+        return error(e.code());
+    } catch (const std::exception& e) {
+        log_guarded_exception(tag, context, subject, e.what());
+    } catch (...) {
+        log_guarded_exception(tag, context, subject, nullptr);
+    }
+    // errc is not yet declared an error code enum here, so convert explicitly
+    return error(make_error_code(errc::fail));
+#else
+    (void)tag;
+    (void)context;
+    (void)subject;
+    return invoke_as_result(std::forward<F>(fn));
+#endif
+}
+
+} // namespace detail
+
+/**
+ * @brief Invokes a user callback from a context that an exception must never escape.
+ *
+ * Intended for callbacks invoked from ESP-IDF C code or from a task function,
+ * where an escaping exception would terminate the program. The callback's
+ * return value is returned as a result: `void` becomes `result<void>`, a
+ * `result<T>` is returned as is, and any other type `U` becomes `result<U>`.
+ *
+ * When exceptions are enabled, an exception thrown by the callback is caught
+ * and returned as an error: a std::system_error as its error code, and any
+ * other exception as errc::fail. Each is logged as an error, as
+ * "<context> threw: <what>", except a std::system_error thrown by a callback
+ * returning `result<T>`, which is treated exactly like returning its error
+ * code and left for the caller to handle. A std::bad_alloc is not caught:
+ * allocation failure terminates the program, as elsewhere in idfxx. Without
+ * exceptions, the callback is invoked directly.
+ *
+ * As a result, a caller acting on an error from a callback that does not
+ * return `result<T>` need not log it again.
+ *
+ * @tparam F The callable type.
+ * @param tag The log tag to use.
+ * @param context What was invoked, for the log message (e.g. "Timer callback").
+ * @param fn The callable to invoke, taking no arguments.
+ * @return The callback's result, or the error it threw.
+ */
+template<typename F>
+    requires std::invocable<F>
+[[nodiscard]] detail::guarded_result_t<F> invoke_guarded(const char* tag, const char* context, F&& fn) noexcept {
+    return detail::invoke_guarded_impl(tag, context, nullptr, std::forward<F>(fn));
+}
+
+/**
+ * @brief Invokes a user callback from a context that an exception must never escape.
+ *
+ * As for invoke_guarded(const char*, const char*, F&&), with the log message
+ * naming a subject: "<context> <subject> threw: <what>" (e.g. context
+ * "Handler for" and a URI as the subject).
+ *
+ * @tparam F The callable type.
+ * @param tag The log tag to use.
+ * @param context What was invoked, for the log message.
+ * @param subject The subject of the call, appended to the context in the log message.
+ * @param fn The callable to invoke, taking no arguments.
+ * @return The callback's result, or the error it threw.
+ */
+template<typename F>
+    requires std::invocable<F>
+[[nodiscard]] detail::guarded_result_t<F>
+invoke_guarded(const char* tag, const char* context, const char* subject, F&& fn) noexcept {
+    return detail::invoke_guarded_impl(tag, context, subject, std::forward<F>(fn));
+}
+/** @endcond */
 
 /**
  * @brief Aborts the program if the result contains an error.
