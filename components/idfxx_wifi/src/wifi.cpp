@@ -3,6 +3,7 @@
 
 #include <idfxx/wifi>
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
@@ -10,6 +11,7 @@
 #include <esp_log.h>
 #include <esp_netif.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -40,31 +42,72 @@ static result<void> check(esp_err_t err, const char* what) {
 // ESP-IDF holds a single global registration for each, so a single stored
 // user callback matches the underlying semantics. An exception thrown by a
 // callback is logged and otherwise ignored.
-static promiscuous_rx_cb s_promiscuous_cb = nullptr;
+//
+// The trampolines run on the WiFi task while the callbacks may be replaced or
+// cleared from another task, so each trampoline takes one snapshot of the
+// stored callback (and context) and skips the call if it has been cleared. The
+// stored context is passed to the callback in place of ESP-IDF's, so a
+// callback is never paired with another callback's context.
+template<typename Cb>
+class callback_slot {
+public:
+    void store(Cb cb, void* ctx) {
+        taskENTER_CRITICAL(&_mux);
+        _cb = cb;
+        _ctx = ctx;
+        taskEXIT_CRITICAL(&_mux);
+    }
+
+    [[nodiscard]] std::pair<Cb, void*> load() {
+        taskENTER_CRITICAL(&_mux);
+        std::pair<Cb, void*> snapshot{_cb, _ctx};
+        taskEXIT_CRITICAL(&_mux);
+        return snapshot;
+    }
+
+private:
+    portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+    Cb _cb = nullptr;
+    void* _ctx = nullptr;
+};
+
+static std::atomic<promiscuous_rx_cb> s_promiscuous_cb = nullptr;
 static void promiscuous_trampoline(void* buf, wifi_promiscuous_pkt_type_t type) {
+    auto cb = s_promiscuous_cb.load();
+    if (cb == nullptr) {
+        return;
+    }
     (void)invoke_guarded(TAG, "Promiscuous callback", [&] {
-        s_promiscuous_cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
+        cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
     });
 }
 
-static vendor_ie_cb s_vendor_ie_cb = nullptr;
+static callback_slot<vendor_ie_cb> s_vendor_ie_cb;
 static void vendor_ie_trampoline(
-    void* ctx,
+    void* /*idf_ctx*/,
     wifi_vendor_ie_type_t type,
     const uint8_t sa[6],
     const vendor_ie_data_t* vnd_ie,
     int rssi
 ) {
+    auto [cb, ctx] = s_vendor_ie_cb.load();
+    if (cb == nullptr) {
+        return;
+    }
     mac_address mac;
     std::memcpy(mac.data(), sa, 6);
     (void)invoke_guarded(TAG, "Vendor IE callback", [&] {
-        s_vendor_ie_cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
+        cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
     });
 }
 
-static csi_rx_cb s_csi_cb = nullptr;
-static void csi_trampoline(void* ctx, wifi_csi_info_t* info) {
-    (void)invoke_guarded(TAG, "CSI callback", [&] { s_csi_cb(ctx, info); });
+static callback_slot<csi_rx_cb> s_csi_cb;
+static void csi_trampoline(void* /*idf_ctx*/, wifi_csi_info_t* info) {
+    auto [cb, ctx] = s_csi_cb.load();
+    if (cb == nullptr) {
+        return;
+    }
+    (void)invoke_guarded(TAG, "CSI callback", [&] { cb(ctx, info); });
 }
 
 static ap_record from_idf_record(const wifi_ap_record_t& r) {
@@ -1117,11 +1160,14 @@ result<bool> try_get_promiscuous() {
 }
 
 result<void> try_set_promiscuous_rx_cb(promiscuous_rx_cb cb) {
-    s_promiscuous_cb = cb;
-    return check(
+    auto res = check(
         esp_wifi_set_promiscuous_rx_cb(cb != nullptr ? promiscuous_trampoline : nullptr),
         "Failed to set promiscuous RX callback"
     );
+    if (res) {
+        s_promiscuous_cb = cb;
+    }
+    return res;
 }
 
 result<void> try_set_promiscuous_filter(flags<promiscuous_filter> filter) {
@@ -1185,11 +1231,14 @@ result<void> try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendo
 }
 
 result<void> try_set_vendor_ie_cb(vendor_ie_cb cb, void* ctx) {
-    s_vendor_ie_cb = cb;
-    return check(
-        esp_wifi_set_vendor_ie_cb(cb != nullptr ? vendor_ie_trampoline : nullptr, ctx),
+    auto res = check(
+        esp_wifi_set_vendor_ie_cb(cb != nullptr ? vendor_ie_trampoline : nullptr, nullptr),
         "Failed to set vendor IE callback"
     );
+    if (res) {
+        s_vendor_ie_cb.store(cb, ctx);
+    }
+    return res;
 }
 
 // =============================================================================
@@ -1216,10 +1265,13 @@ result<csi_config> try_get_csi_config() {
 }
 
 result<void> try_set_csi_rx_cb(csi_rx_cb cb, void* ctx) {
-    s_csi_cb = cb;
-    return check(
-        esp_wifi_set_csi_rx_cb(cb != nullptr ? csi_trampoline : nullptr, ctx), "Failed to set CSI RX callback"
+    auto res = check(
+        esp_wifi_set_csi_rx_cb(cb != nullptr ? csi_trampoline : nullptr, nullptr), "Failed to set CSI RX callback"
     );
+    if (res) {
+        s_csi_cb.store(cb, ctx);
+    }
+    return res;
 }
 
 // =============================================================================
