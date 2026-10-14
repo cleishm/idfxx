@@ -115,6 +115,8 @@ enum class color_mode : uint8_t {
  *    or drop while the glass updates.
  * 3. @ref sleep puts the controller into deep sleep between updates —
  *    essential for ePaper longevity and power; @ref wake restores it.
+ *    After a wake or a reboot, @ref restore_baseline tells the controller
+ *    what is already on the glass, so partial refreshes can continue.
  *
  * @code
  * idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
@@ -524,6 +526,96 @@ public:
     }
 
     // =========================================================================
+    // Partial-refresh baseline
+    // =========================================================================
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Tells the controller which image is already on the glass.
+     *
+     * Loads @p fb into the controller as both the image on the glass and
+     * the current RAM image, leaving the controller as if @p fb had just
+     * been written and refreshed. The next @ref refresh_mode::partial
+     * refresh then diffs against @p fb and stays partial instead of being
+     * promoted to @ref refresh_mode::full. Nothing changes on the glass.
+     *
+     * Use this to keep flicker-free partial refreshes across a @ref wake
+     * or an ESP32 deep sleep (a reboot), both of which lose the
+     * partial-refresh baseline. Persisting the frame across the reboot
+     * (in flash, on an SD card, ...) is the application's job.
+     *
+     * The caller is responsible for @p fb matching what is on the glass.
+     * A mismatch does no damage, but pixels that differ are not driven
+     * correctly until the next full refresh. Monochrome only.
+     *
+     * @code
+     * // Before deep sleep: persist the frame on the glass, then park the
+     * // controller.
+     * save_frame(fb.data());                         // application storage
+     * display.sleep();
+     * idfxx::sleep::deep_sleep(idfxx::sleep::timer_wake{15min});
+     *
+     * // After the reboot: construct the driver (`display`) as usual, then
+     * // reload the saved frame and restore the baseline.
+     * idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
+     * if (load_frame(fb.data())) {                   // false if nothing valid was saved
+     *     display.restore_baseline(fb);
+     * }
+     * fb.set_pixel(10, 20, true);                    // draw the changes
+     * display.write(fb);
+     * display.refresh(idfxx::epaper::refresh_mode::partial); // stays partial
+     * @endcode
+     *
+     * @param fb The image on the glass; must match the panel's dimensions.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_state`
+     *         if the panel is asleep or not in @ref color_mode::mono,
+     *         `errc::invalid_arg` if @p fb's dimensions differ from the
+     *         panel's, and `errc::not_supported` if the driver cannot
+     *         restore a baseline; transfer errors are also reported. A
+     *         call rejected before the upload (`invalid_state`,
+     *         `invalid_arg`, or a BUSY `timeout`) leaves any existing
+     *         baseline in place; after any other failure the next partial
+     *         refresh is promoted to @ref refresh_mode::full.
+     */
+    void restore_baseline(const mono_framebuffer& fb) { unwrap(try_restore_baseline(fb)); }
+#endif
+
+    /**
+     * @brief Tells the controller which image is already on the glass.
+     *
+     * Loads @p fb into the controller as both the image on the glass and
+     * the current RAM image, leaving the controller as if @p fb had just
+     * been written and refreshed. The next @ref refresh_mode::partial
+     * refresh then diffs against @p fb and stays partial instead of being
+     * promoted to @ref refresh_mode::full. Nothing changes on the glass.
+     *
+     * Use this to keep flicker-free partial refreshes across a
+     * @ref try_wake or an ESP32 deep sleep (a reboot), both of which lose
+     * the partial-refresh baseline. Persisting the frame across the reboot
+     * (in flash, on an SD card, ...) is the application's job (see
+     * @ref restore_baseline for an example).
+     *
+     * The caller is responsible for @p fb matching what is on the glass.
+     * A mismatch does no damage, but pixels that differ are not driven
+     * correctly until the next full refresh. Monochrome only.
+     *
+     * @param fb The image on the glass; must match the panel's dimensions.
+     * @return Success, or an error. A call rejected before the upload
+     *         (`invalid_state`, `invalid_arg`, or `timeout`) leaves any
+     *         existing baseline in place; after any other failure the next
+     *         partial refresh is promoted to @ref refresh_mode::full.
+     * @retval invalid_state The panel is asleep, or is not operating in
+     *         @ref color_mode::mono.
+     * @retval invalid_arg @p fb's dimensions differ from the panel's.
+     * @retval not_supported The driver cannot restore a baseline.
+     * @retval timeout The BUSY line did not release before the upload.
+     * @retval other Errors from the transfer to the controller are
+     *         propagated.
+     */
+    [[nodiscard]] result<void> try_restore_baseline(const mono_framebuffer& fb);
+
+    // =========================================================================
     // Refresh
     // =========================================================================
 
@@ -540,7 +632,8 @@ public:
      * A @ref refresh_mode::partial refresh needs a baseline image from a
      * previous refresh to diff against; the first refresh after
      * construction, @ref wake, or a color-mode change is silently promoted
-     * to @ref refresh_mode::full.
+     * to @ref refresh_mode::full. @ref restore_baseline re-establishes a
+     * baseline without a refresh.
      *
      * @param mode The refresh style to use.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -568,7 +661,8 @@ public:
      *
      * Baseline handling matches @ref refresh. A @ref refresh_mode::partial
      * request without a baseline is silently promoted to
-     * @ref refresh_mode::full.
+     * @ref refresh_mode::full. @ref restore_baseline re-establishes a
+     * baseline without a refresh.
      *
      * @code
      * display.write(fb);
@@ -606,7 +700,8 @@ public:
      * A @ref refresh_mode::partial refresh needs a baseline image from a
      * previous refresh to diff against; the first refresh after
      * construction, @ref try_wake, or a color-mode change is silently
-     * promoted to @ref refresh_mode::full.
+     * promoted to @ref refresh_mode::full. @ref try_restore_baseline
+     * re-establishes a baseline without a refresh.
      *
      * @param mode The refresh style to use.
      * @return Success, or an error.
@@ -632,6 +727,8 @@ public:
      * `idfxx::future` that completes when the controller's BUSY line
      * releases (see @ref start_refresh). The next panel operation first
      * completes the outstanding update; dropping the future is safe.
+     * Baseline handling, including the promotion of a partial request
+     * without one, matches @ref try_refresh.
      *
      * @param mode The refresh style to use.
      * @return A future that completes when the update finishes, or an error
@@ -753,7 +850,7 @@ public:
      * this pulses the driver's reset line and re-runs the full controller
      * initialization, restoring the configured color mode. The
      * partial-refresh baseline is lost: the next refresh is promoted to
-     * @ref refresh_mode::full.
+     * @ref refresh_mode::full unless @ref restore_baseline re-establishes it.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_state`
@@ -797,7 +894,8 @@ public:
      * this pulses the driver's reset line and re-runs the full controller
      * initialization, restoring the configured color mode. The
      * partial-refresh baseline is lost: the next refresh is promoted to
-     * @ref refresh_mode::full.
+     * @ref refresh_mode::full unless @ref try_restore_baseline
+     * re-establishes it.
      *
      * @return Success, or an error.
      * @retval invalid_state No reset line is configured.
@@ -877,9 +975,9 @@ protected:
     // to all controllers (the framebuffer's x_alignment, bounds, sleep
     // state, color-mode match, partial-refresh baseline promotion) has
     // already been performed by the public wrappers, and every hook that
-    // commands the controller (do_write, do_clear, do_refresh,
-    // do_set_color_mode, do_sleep) is preceded by a do_wait() that completes
-    // any update a previous do_refresh left running.
+    // commands the controller (do_write, do_clear, do_restore_baseline,
+    // do_refresh, do_set_color_mode, do_sleep) is preceded by a do_wait()
+    // that completes any update a previous do_refresh left running.
     // =========================================================================
 
     /// Hook for @ref try_write / @ref try_write_rows (monochrome). Uploads
@@ -931,6 +1029,19 @@ protected:
     /// the current color mode. The panel is awake; the base class
     /// invalidates the partial-refresh baseline after a successful clear.
     [[nodiscard]] virtual result<void> do_clear() = 0;
+
+    /// Hook for @ref try_restore_baseline. @p fb matches the panel's
+    /// dimensions, and the panel is awake and in @ref color_mode::mono.
+    /// Must load @p fb into both the previous-image (old) and current (new)
+    /// image RAM, so that a later write of only a region followed by a
+    /// partial refresh leaves the rest of the glass undisturbed. Must not
+    /// reference @p fb's storage after returning. The base class records
+    /// the baseline on success and invalidates it on failure. The default
+    /// returns `errc::not_supported`.
+    [[nodiscard]] virtual result<void> do_restore_baseline(const mono_framebuffer& fb) {
+        (void)fb;
+        return error(errc::not_supported);
+    }
 
     /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
     /// awake, and a `partial` request has already been promoted to `full`
@@ -1045,7 +1156,8 @@ private:
     enum color_mode _color_mode = color_mode::mono;
     bool _asleep = false;
     // Whether the controller holds a refreshed image a partial update can
-    // diff against; cleared by wake and color-mode changes.
+    // diff against; set by refreshes and restore_baseline, cleared by wake,
+    // clears, color-mode changes, and a failed restore_baseline.
     bool _has_baseline = false;
 };
 

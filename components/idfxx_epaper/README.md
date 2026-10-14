@@ -24,7 +24,8 @@ Abstract ePaper panel interface, framebuffers, and shared types.
   on a dead controller.
 - Automatic partial-refresh baseline tracking: the first refresh after
   construction, `wake`, or a color-mode change is silently promoted to a
-  full refresh.
+  full refresh, unless `restore_baseline` re-establishes the baseline from
+  a saved frame (e.g. after an ESP32 deep sleep).
 - `mono_framebuffer` (1 bpp), `gray4_framebuffer` (2 bpp, two 1-bpp
   planes), and `color6_framebuffer` (4 bpp, two pixels per byte) value types
   in the row-major layouts ePaper controllers consume, uploadable at a pixel
@@ -115,7 +116,8 @@ display.refresh(idfxx::epaper::refresh_mode::partial);
 Partial updates accumulate ghosting; issue a `full` refresh periodically
 (every ~10 partials is a good rule of thumb) to clean the panel. The first
 refresh after construction, `wake`, or a color-mode change has no baseline
-image to diff against and is silently promoted to `full`.
+image to diff against and is silently promoted to `full` — unless
+`restore_baseline` re-establishes one (see Important Notes).
 
 ### Refreshing without blocking
 
@@ -203,6 +205,12 @@ the panel columns up to the next byte boundary; size partial framebuffers
 to a multiple of it to leave the neighbouring columns untouched. `clear()` fills the RAM with white without needing a framebuffer,
 and promotes the next partial refresh to full.
 
+**Partial-refresh baseline:** `restore_baseline(fb)` /
+`try_restore_baseline(fb)` load a panel-sized `mono_framebuffer` holding
+the image already on the glass, so the next partial refresh diffs against
+it instead of being promoted to full. Drivers without support report
+`errc::not_supported`.
+
 **Refresh:** `refresh(mode = refresh_mode::full)` blocks until the update
 completes; `start_refresh(mode = refresh_mode::full)` returns an
 `idfxx::future<void>` that completes when it does.
@@ -232,8 +240,9 @@ forms above are inline wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 
 All provide `set_pixel` / `get_pixel` / `fill` / `clear`, an `x_alignment`
 constant, and raw data access (`data()` / `row(y)` on mono and color6,
-`plane(i)` / `plane_row(i, y)` on gray4). Upload them with the panel's
-`write` / `write_rows`.
+`plane(i)` / `plane_row(i, y)` on gray4; `data()` and `plane(i)` are also
+writable, e.g. to load a saved frame in one copy). Upload them with the
+panel's `write` / `write_rows`.
 
 ### Types
 
@@ -250,9 +259,11 @@ constant, and raw data access (`data()` / `row(y)` on mono and color6,
 The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 
 - `errc::invalid_arg` — unaligned destination column, out-of-bounds
-  placement, invalid row range, or invalid framebuffer dimensions.
+  placement, invalid row range, invalid framebuffer dimensions, or a
+  `restore_baseline` framebuffer that isn't panel-sized.
 - `errc::invalid_state` — writing or refreshing while asleep, writing a
-  framebuffer that doesn't match the panel's color mode, or waking a driver
+  framebuffer that doesn't match the panel's color mode, restoring a
+  baseline while asleep or outside `color_mode::mono`, or waking a driver
   with no reset line configured.
 - `errc::not_supported` — `fast`/`partial` refresh in gray4 or color6 mode,
   a color mode the concrete driver doesn't support (`supports` returns
@@ -278,6 +289,29 @@ Using a moved-from driver object is undefined behavior.
 - **Sleep between updates.** Leaving an ePaper controller active degrades
   the glass over time and wastes power; call `sleep()` whenever the display
   will sit idle, and `wake()` before the next update.
+- **Keeping partial refreshes across deep sleep.** An ESP32 deep sleep is a
+  reboot, and both it and `wake()` lose the partial-refresh baseline, so the
+  next partial refresh would be promoted to full. To avoid that, persist the
+  frame on the glass (flash, SD card, ...) before sleeping, and hand it back
+  with `restore_baseline` after constructing the driver (mono only):
+
+  ```cpp
+  // Before sleeping:
+  save_frame(fb.data());   // application storage
+  display.sleep();
+
+  // After the reboot, once the driver is constructed:
+  idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
+  if (load_frame(fb.data())) {   // false if nothing valid was saved
+      display.restore_baseline(fb);
+  }
+  fb.set_pixel(10, 20, true);    // draw the changes
+  display.write(fb);
+  display.refresh(idfxx::epaper::refresh_mode::partial);
+  ```
+
+  The saved frame must match the glass: a mismatch does no damage, but the
+  differing pixels are not driven correctly until the next full refresh.
 - **`color6{}` is black, not white.** The six-color codes are the panel's
   own, and code 0 is black. `color6_framebuffer` starts white and its
   `clear()` blanks to white, and a `gfx::canvas` covering the whole
