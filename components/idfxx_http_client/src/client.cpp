@@ -507,6 +507,19 @@ void client::delete_header(std::string_view key) {
     esp_http_client_delete_header(_handle, key_str.c_str());
 }
 
+std::optional<std::string> client::get_header(std::string_view key) const {
+    if (!_handle) {
+        return std::nullopt;
+    }
+    std::string key_str{key};
+    char* value = nullptr;
+    esp_err_t err = esp_http_client_get_header(_handle, key_str.c_str(), &value);
+    if (err != ESP_OK || !value) {
+        return std::nullopt;
+    }
+    return std::string(value);
+}
+
 void client::set_post_field(std::string_view data) {
     if (!_handle) {
         return;
@@ -833,18 +846,20 @@ bool client::is_chunked_response() const {
     return esp_http_client_is_chunked_response(_handle);
 }
 
-std::optional<std::string> client::get_header(std::string_view key) const {
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
+std::optional<std::string> client::get_response_header(std::string_view key) const {
     if (!_handle) {
         return std::nullopt;
     }
     std::string key_str{key};
     char* value = nullptr;
-    esp_err_t err = esp_http_client_get_header(_handle, key_str.c_str(), &value);
+    esp_err_t err = esp_http_client_get_response_header(_handle, key_str.c_str(), &value);
     if (err != ESP_OK || !value) {
         return std::nullopt;
     }
     return std::string(value);
 }
+#endif
 
 std::string client::get_url() const {
     if (!_handle) {

@@ -201,6 +201,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `set_method(m)` - Set HTTP method
 - `set_header(key, value)` - Set request header
 - `delete_header(key)` - Remove request header
+- `get_header(key)` - Get request header (returns `std::optional`)
 - `set_post_field(data)` - Set POST body
 - `set_username(user)` - Set auth username
 - `set_password(pass)` - Set auth password
@@ -224,7 +225,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `status_code()` - HTTP status code
 - `content_length()` - Response content length
 - `is_chunked_response()` - Check chunked encoding
-- `get_header(key)` - Get response header (returns `std::optional`)
+- `get_response_header(key)` - Get response header (returns `std::optional`); requires `CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS` (ESP-IDF 6.0+)
 - `get_url()` - Get current effective URL
 
 **Redirect:**
