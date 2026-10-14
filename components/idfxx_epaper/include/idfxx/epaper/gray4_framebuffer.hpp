@@ -170,6 +170,15 @@ public:
         auto plane1 = std::span<uint8_t>(_data).last(_plane_size());
         std::ranges::fill(plane0, (bits & 0x01) != 0 ? uint8_t{0xFF} : uint8_t{0x00});
         std::ranges::fill(plane1, (bits & 0x02) != 0 ? uint8_t{0xFF} : uint8_t{0x00});
+        // Keep the row padding bits white (level 0) in both planes.
+        if (_width % 8 != 0) {
+            const auto pixels = static_cast<uint8_t>(~(0xFF >> (_width % 8)));
+            const size_t stride = stride_bytes();
+            for (size_t y = 0; y < _height; ++y) {
+                plane0[y * stride + stride - 1] &= pixels;
+                plane1[y * stride + stride - 1] &= pixels;
+            }
+        }
     }
 
     /** @brief Blanks every pixel to white (equivalent to `fill(gray4::white)`). */

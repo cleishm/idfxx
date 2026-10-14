@@ -129,8 +129,18 @@ TEST_CASE("epaper mono_framebuffer set_pixel uses row-major MSB-first layout", "
 TEST_CASE("epaper mono_framebuffer row spans and fill", "[idfxx][epaper]") {
     auto fb = mono_framebuffer::make(12, 3).value(); // stride 2
 
+    // fill inks every pixel; the 4 padding bits past the right edge stay white.
     fb.fill(true);
-    for (uint8_t byte : fb.data()) {
+    for (size_t y = 0; y < 3; ++y) {
+        TEST_ASSERT_EQUAL_HEX8(0x00, fb.row(y)[0]);
+        TEST_ASSERT_EQUAL_HEX8(0x0F, fb.row(y)[1]);
+    }
+    TEST_ASSERT_TRUE(fb.get_pixel(11, 2));
+
+    // A byte-aligned width has no padding: every byte is inked.
+    auto aligned = mono_framebuffer::make(16, 2).value();
+    aligned.fill(true);
+    for (uint8_t byte : aligned.data()) {
         TEST_ASSERT_EQUAL_HEX8(0x00, byte);
     }
 
@@ -192,9 +202,31 @@ TEST_CASE("epaper gray4_framebuffer encodes levels across planes", "[idfxx][epap
     TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane(0)[0]);
     TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane(1)[0]);
 
+    // fill sets every pixel; the 4 padding bits past the right edge stay
+    // white (clear) in both planes.
     fb.fill(gray4::black);
     for (size_t p = 0; p < 2; ++p) {
-        for (uint8_t byte : fb.plane(p)) {
+        for (size_t y = 0; y < 3; ++y) {
+            TEST_ASSERT_EQUAL_HEX8(0xFF, fb.plane_row(p, y)[0]);
+            TEST_ASSERT_EQUAL_HEX8(0xF0, fb.plane_row(p, y)[1]);
+        }
+    }
+    TEST_ASSERT_EQUAL(std::to_underlying(gray4::black), std::to_underlying(fb.get_pixel(11, 2)));
+
+    // light sets plane 0 only; its padding stays clear too.
+    fb.fill(gray4::light);
+    for (size_t y = 0; y < 3; ++y) {
+        TEST_ASSERT_EQUAL_HEX8(0xFF, fb.plane_row(0, y)[0]);
+        TEST_ASSERT_EQUAL_HEX8(0xF0, fb.plane_row(0, y)[1]);
+        TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane_row(1, y)[0]);
+        TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane_row(1, y)[1]);
+    }
+
+    // A byte-aligned width has no padding: every byte is set.
+    auto aligned = gray4_framebuffer::make(16, 2).value();
+    aligned.fill(gray4::black);
+    for (size_t p = 0; p < 2; ++p) {
+        for (uint8_t byte : aligned.plane(p)) {
             TEST_ASSERT_EQUAL_HEX8(0xFF, byte);
         }
     }
@@ -263,8 +295,19 @@ TEST_CASE("epaper color6_framebuffer packs the even pixel in the high nibble", "
 TEST_CASE("epaper color6_framebuffer fill and clear", "[idfxx][epaper]") {
     auto fb = color6_framebuffer::make(5, 3).value();
 
+    // fill colors every pixel; the padding nibble past the right edge stays
+    // white.
     fb.fill(color6::yellow);
-    for (uint8_t byte : fb.data()) {
+    for (size_t y = 0; y < 3; ++y) {
+        TEST_ASSERT_EQUAL_HEX8(0x22, fb.row(y)[0]);
+        TEST_ASSERT_EQUAL_HEX8(0x22, fb.row(y)[1]);
+        TEST_ASSERT_EQUAL_HEX8(0x21, fb.row(y)[2]);
+    }
+
+    // An even width has no padding nibble: every byte is colored.
+    auto even = color6_framebuffer::make(4, 2).value();
+    even.fill(color6::yellow);
+    for (uint8_t byte : even.data()) {
         TEST_ASSERT_EQUAL_HEX8(0x22, byte);
     }
     TEST_ASSERT_EQUAL(std::to_underlying(color6::yellow), std::to_underlying(fb.get_pixel(3, 2)));

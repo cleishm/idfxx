@@ -154,7 +154,17 @@ public:
      * @brief Sets every pixel to the given state.
      * @param ink true to ink all pixels black, false to blank them white.
      */
-    void fill(bool ink) noexcept { std::ranges::fill(_data, ink ? uint8_t{0x00} : uint8_t{0xFF}); }
+    void fill(bool ink) noexcept {
+        std::ranges::fill(_data, ink ? uint8_t{0x00} : uint8_t{0xFF});
+        // Keep the row padding bits white.
+        if (_width % 8 != 0) {
+            const auto padding = static_cast<uint8_t>(0xFF >> (_width % 8));
+            const size_t stride = stride_bytes();
+            for (size_t y = 0; y < _height; ++y) {
+                _data[y * stride + stride - 1] |= padding;
+            }
+        }
+    }
 
     /** @brief Blanks every pixel to white (equivalent to `fill(false)`). */
     void clear() noexcept { fill(false); }

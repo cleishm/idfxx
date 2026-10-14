@@ -197,7 +197,10 @@ at a pixel offset; `write_rows(fb, row_start, row_end, x = 0, y = 0)`
 uploads a horizontal band. Destination columns must be a multiple of the
 framebuffer's `x_alignment` — 8 for the 1-bpp formats (controller RAM is
 byte-packed along the row), 2 for `color6_framebuffer` (two pixels per
-byte). `clear()` fills the RAM with white without needing a framebuffer,
+byte). Rows are written in whole bytes too, so a framebuffer whose width is
+not a multiple of the `x_alignment` also writes its white row padding over
+the panel columns up to the next byte boundary; size partial framebuffers
+to a multiple of it to leave the neighbouring columns untouched. `clear()` fills the RAM with white without needing a framebuffer,
 and promotes the next partial refresh to full.
 
 **Refresh:** `refresh(mode = refresh_mode::full)` blocks until the update
