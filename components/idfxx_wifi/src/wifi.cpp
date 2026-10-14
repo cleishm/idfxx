@@ -1241,8 +1241,18 @@ result<void> try_ftm_end_session() {
     return check(esp_wifi_ftm_end_session(), "Failed to end FTM session");
 }
 
-result<void> try_ftm_resp_set_offset(int16_t offset) {
-    return check(esp_wifi_ftm_resp_set_offset(offset), "Failed to set FTM responder offset");
+result<void> try_ftm_resp_set_offset(quanta::spatial::centimeters offset) {
+    if (offset.count() < std::numeric_limits<int16_t>::min() || offset.count() > std::numeric_limits<int16_t>::max()) {
+        return wifi_error(ESP_ERR_INVALID_ARG);
+    }
+    return check(
+        esp_wifi_ftm_resp_set_offset(static_cast<int16_t>(offset.count())), "Failed to set FTM responder offset"
+    );
+}
+
+// FTM timestamps are unsigned picosecond counts; int64 covers about 106 days of them.
+static idfxx::chrono::picoseconds to_picoseconds(uint64_t ps) {
+    return idfxx::chrono::picoseconds{static_cast<int64_t>(ps)};
 }
 
 result<std::vector<ftm_report_entry>> try_ftm_get_report(size_t max_entries) {
@@ -1260,11 +1270,14 @@ result<std::vector<ftm_report_entry>> try_ftm_get_report(size_t max_entries) {
         ftm_report_entry entry;
         entry.dlog_token = idf_entries[i].dlog_token;
         entry.rssi = quanta::electro::dbm{idf_entries[i].rssi};
-        entry.rtt = idf_entries[i].rtt;
-        entry.t1 = idf_entries[i].t1;
-        entry.t2 = idf_entries[i].t2;
-        entry.t3 = idf_entries[i].t3;
-        entry.t4 = idf_entries[i].t4;
+        entry.rtt = idfxx::chrono::picoseconds{idf_entries[i].rtt};
+        entry.t1 = to_picoseconds(idf_entries[i].t1);
+        entry.t2 = to_picoseconds(idf_entries[i].t2);
+        entry.t3 = to_picoseconds(idf_entries[i].t3);
+        entry.t4 = to_picoseconds(idf_entries[i].t4);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+        entry.freq_offset_ppm = idf_entries[i].ppm;
+#endif
         entries.push_back(entry);
     }
     return entries;

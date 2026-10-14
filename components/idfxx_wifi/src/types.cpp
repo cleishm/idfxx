@@ -731,14 +731,19 @@ wifi::home_channel_change_event_data wifi::home_channel_change_event_data::from_
     };
 }
 
+// FTM timestamps are unsigned picosecond counts; int64 covers about 106 days of them.
+static idfxx::chrono::picoseconds to_picoseconds(uint64_t ps) {
+    return idfxx::chrono::picoseconds{static_cast<int64_t>(ps)};
+}
+
 wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_ftm_report_t*>(event_data);
     ftm_report_event_data result;
     std::memcpy(result.peer_mac.data(), info->peer_mac, 6);
     result.status = static_cast<ftm_status>(info->status);
-    result.rtt_raw = info->rtt_raw;
-    result.rtt_est = info->rtt_est;
-    result.dist_est = info->dist_est;
+    result.rtt_raw = std::chrono::nanoseconds{info->rtt_raw};
+    result.rtt_est = std::chrono::nanoseconds{info->rtt_est};
+    result.dist_est = quanta::spatial::centimeters{info->dist_est};
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     if (info->ftm_report_num_entries > 0) {
         std::vector<wifi_ftm_report_entry_t> raw(info->ftm_report_num_entries);
@@ -746,7 +751,18 @@ wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void*
             result.entries.reserve(info->ftm_report_num_entries);
             for (auto& e : raw) {
                 result.entries.push_back(
-                    ftm_report_entry{e.dlog_token, quanta::electro::dbm{e.rssi}, e.rtt, e.t1, e.t2, e.t3, e.t4}
+                    ftm_report_entry{
+                        .dlog_token = e.dlog_token,
+                        .rssi = quanta::electro::dbm{e.rssi},
+                        .rtt = idfxx::chrono::picoseconds{e.rtt},
+                        .t1 = to_picoseconds(e.t1),
+                        .t2 = to_picoseconds(e.t2),
+                        .t3 = to_picoseconds(e.t3),
+                        .t4 = to_picoseconds(e.t4),
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+                        .freq_offset_ppm = e.ppm,
+#endif
+                    }
                 );
             }
         }
@@ -757,7 +773,15 @@ wifi::ftm_report_event_data wifi::ftm_report_event_data::from_opaque(const void*
         for (uint8_t i = 0; i < info->ftm_report_num_entries; ++i) {
             auto& e = info->ftm_report_data[i];
             result.entries.push_back(
-                ftm_report_entry{e.dlog_token, quanta::electro::dbm{e.rssi}, e.rtt, e.t1, e.t2, e.t3, e.t4}
+                ftm_report_entry{
+                    e.dlog_token,
+                    quanta::electro::dbm{e.rssi},
+                    idfxx::chrono::picoseconds{e.rtt},
+                    to_picoseconds(e.t1),
+                    to_picoseconds(e.t2),
+                    to_picoseconds(e.t3),
+                    to_picoseconds(e.t4),
+                }
             );
         }
     }
