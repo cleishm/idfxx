@@ -146,8 +146,13 @@ public:
     ssd1306& operator=(ssd1306&& other) noexcept;
 
 private:
-    explicit ssd1306(esp_lcd_panel_io_handle_t io_handle, esp_lcd_panel_handle_t handle, size_t height)
-        : panel(128, height)
+    explicit ssd1306(
+        esp_lcd_panel_io_handle_t io_handle,
+        esp_lcd_panel_handle_t handle,
+        size_t height,
+        esp_lcd_panel_io_handle_t queued_io
+    )
+        : panel(128, height, queued_io)
         , _io_handle(io_handle)
         , _handle(handle) {}
 

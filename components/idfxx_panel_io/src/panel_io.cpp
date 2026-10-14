@@ -25,8 +25,9 @@ bool panel_io::on_color_transfer_done(
     return false;
 }
 
-panel_io::panel_io(esp_lcd_panel_io_handle_t handle, std::unique_ptr<callback_state> callbacks)
+panel_io::panel_io(esp_lcd_panel_io_handle_t handle, transport kind, std::unique_ptr<callback_state> callbacks)
     : _handle(handle)
+    , _transport(kind)
     , _callbacks(std::move(callbacks)) {}
 
 result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
@@ -89,7 +90,7 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
         ESP_LOGD(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
         return error(err);
     }
-    return panel_io{handle, std::move(cbs)};
+    return panel_io{handle, transport::spi, std::move(cbs)};
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -142,7 +143,7 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
         ESP_LOGD(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
         return error(err);
     }
-    return panel_io{handle, std::move(cbs)};
+    return panel_io{handle, transport::i2c, std::move(cbs)};
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -152,6 +153,7 @@ panel_io::panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config)
 
 panel_io::panel_io(panel_io&& other) noexcept
     : _handle(std::exchange(other._handle, nullptr))
+    , _transport(other._transport)
     , _callbacks(std::move(other._callbacks)) {}
 
 panel_io& panel_io::operator=(panel_io&& other) noexcept {
@@ -160,6 +162,7 @@ panel_io& panel_io::operator=(panel_io&& other) noexcept {
             esp_lcd_panel_io_del(_handle);
         }
         _handle = std::exchange(other._handle, nullptr);
+        _transport = other._transport;
         _callbacks = std::move(other._callbacks);
     }
     return *this;

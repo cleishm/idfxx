@@ -215,6 +215,8 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 
 **Properties:**
 - `idf_handle()` - Get ESP-IDF panel I/O handle
+- `queues_color_transfers()` - Whether color data transfers continue in the background
+  after a write returns (true for SPI, false for I2C)
 
 **Lifetime:**
 - Destructor automatically calls `esp_lcd_panel_io_del()`

@@ -5,11 +5,14 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/lcd/ili9341"
+#include "idfxx/lcd/rgb565_framebuffer"
 #include "unity.h"
 
+#include <atomic>
 #include <type_traits>
 
 using namespace idfxx::lcd;
+using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
@@ -124,3 +127,40 @@ TEST_CASE("panel::config with reset_active_level set", "[idfxx][lcd][ili9341]") 
     TEST_ASSERT_EQUAL(gpio::level::high, config.reset_active_level);
 }
 
+// Needs real SPI DMA: QEMU never completes queued color transfers, so the write would block.
+TEST_CASE("ili9341 write returns after the color transfer finishes", "[idfxx][lcd][ili9341][hw]") {
+    std::atomic<int> transfers_done{0};
+
+    idfxx::spi::bus_config bus_cfg{};
+    bus_cfg.mosi = idfxx::gpio_11;
+    bus_cfg.miso = idfxx::gpio_13;
+    bus_cfg.sclk = idfxx::gpio_12;
+    auto bus = idfxx::spi::master_bus::make(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    auto io = idfxx::panel_io::make(*bus, idfxx::panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .dc_gpio = idfxx::gpio_4,
+        .pclk_freq = 10_MHz,
+        .on_color_transfer_done = [&transfers_done](esp_lcd_panel_io_event_data_t*) {
+            transfers_done.fetch_add(1);
+            return false;
+        },
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_TRUE(io.has_value());
+
+    auto display = ili9341::make(*io, {.bits_per_pixel = 16});
+    TEST_ASSERT_TRUE(display.has_value());
+
+    // A 240x40 band is ~19 KB, which takes ~15 ms to clock out at 10 MHz.
+    auto band = rgb565_framebuffer::make(240, 40);
+    TEST_ASSERT_TRUE(band.has_value());
+    band->fill(rgb565(0, 0, 255));
+
+    int before = transfers_done.load();
+    TEST_ASSERT_TRUE(display->try_write(*band).has_value());
+    // The transfer must have finished (and the buffer been released) by the time write returns.
+    TEST_ASSERT_GREATER_THAN_INT32(before, transfers_done.load());
+}

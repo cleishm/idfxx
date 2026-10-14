@@ -11,8 +11,9 @@
 namespace idfxx::lcd {
 
 result<ili9341> ili9341::make(idfxx::panel_io& panel_io, panel::config config) {
+    auto queued_io = panel_io.queues_color_transfers() ? panel_io.idf_handle() : nullptr;
     return detail::make_panel_handle(esp_lcd_new_panel_ili9341, panel_io.idf_handle(), config)
-        .transform([](auto handle) { return ili9341{handle}; });
+        .transform([&](auto handle) { return ili9341{handle, queued_io}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
