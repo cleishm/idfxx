@@ -184,19 +184,37 @@ public:
     /** @brief Returns the underlying ESP-IDF handle. */
     [[nodiscard]] esp_lcd_panel_io_handle_t idf_handle() const { return _handle; }
 
+    /**
+     * @brief Reports whether color data transfers continue after a write returns.
+     *
+     * Over SPI, color data is transferred in the background: a write returns
+     * once the transfer is queued, while its source buffer is still being
+     * read. Over I2C, the transfer completes before the write returns.
+     *
+     * Panel drivers use this to decide whether a draw must wait for queued
+     * transfers before the caller's buffer may be reused.
+     *
+     * @return true if color data transfers continue in the background after a
+     *         write returns (SPI), false if they complete first (I2C).
+     */
+    [[nodiscard]] bool queues_color_transfers() const noexcept { return _transport == transport::spi; }
+
 private:
+    enum class transport : uint8_t { spi, i2c };
+
     panel_io() = default;
 
     struct callback_state {
         color_transfer_done_callback on_color_transfer_done;
     };
 
-    panel_io(esp_lcd_panel_io_handle_t handle, std::unique_ptr<callback_state> callbacks);
+    panel_io(esp_lcd_panel_io_handle_t handle, transport kind, std::unique_ptr<callback_state> callbacks);
 
     static bool
     on_color_transfer_done(esp_lcd_panel_io_handle_t handle, esp_lcd_panel_io_event_data_t* edata, void* user_ctx);
 
     esp_lcd_panel_io_handle_t _handle = nullptr;
+    transport _transport = transport::spi;
     std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks
 };
 

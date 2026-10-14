@@ -52,8 +52,9 @@ idfxx::result<void> send_contrast(esp_lcd_panel_io_handle_t io_handle, uint8_t l
 namespace idfxx::lcd {
 
 result<ssd1306> ssd1306::make(idfxx::panel_io& panel_io, ssd1306::config config) {
+    auto queued_io = panel_io.queues_color_transfers() ? panel_io.idf_handle() : nullptr;
     return make_handle(panel_io.idf_handle(), config)
-        .transform([&](auto handle) { return ssd1306{panel_io.idf_handle(), handle, config.height}; })
+        .transform([&](auto handle) { return ssd1306{panel_io.idf_handle(), handle, config.height, queued_io}; })
         .and_then([&](ssd1306 panel) -> result<ssd1306> {
             // On failure, `panel` is destroyed here, which deletes the panel handle.
             return send_contrast(panel._io_handle, config.contrast).transform([&] { return std::move(panel); });

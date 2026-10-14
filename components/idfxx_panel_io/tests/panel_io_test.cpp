@@ -211,3 +211,39 @@ TEST_CASE("i2c panel_io make rejects invalid config", "[idfxx][panel_io]") {
     TEST_ASSERT_FALSE(io.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 }
+
+TEST_CASE("spi panel_io queues color transfers", "[idfxx][panel_io]") {
+    idfxx::spi::bus_config bus_cfg{};
+    bus_cfg.mosi = idfxx::gpio_11;
+    bus_cfg.miso = idfxx::gpio_13;
+    bus_cfg.sclk = idfxx::gpio_12;
+    auto bus = idfxx::spi::master_bus::make(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    auto io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .pclk_freq = 10_MHz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_TRUE(io.has_value());
+
+    TEST_ASSERT_TRUE(io->queues_color_transfers());
+}
+
+TEST_CASE("i2c panel_io does not queue color transfers", "[idfxx][panel_io]") {
+    auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 400_kHz);
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    auto io = panel_io::make(*bus, panel_io::i2c_config{
+        .device_address = 0x3C,
+        .scl_speed = 400_kHz,
+        .control_phase_bytes = 1,
+        .dc_bit_offset = 6,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_TRUE(io.has_value());
+
+    TEST_ASSERT_FALSE(io->queues_color_transfers());
+}

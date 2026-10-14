@@ -14,7 +14,8 @@ ILI9341 LCD panel driver (240x320).
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
-- `idfxx_lcd` component (provides `panel` base class and `panel_io`)
+- `idfxx_lcd` component (provides `panel` base class)
+- `idfxx_panel_io` component (provides `panel_io`)
 
 ## Installation
 

@@ -5,6 +5,7 @@
 #include <idfxx/lcd/panel>
 #include <idfxx/lcd/rgb565_framebuffer>
 
+#include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 
 namespace idfxx::lcd {
@@ -127,7 +128,15 @@ result<void> panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_en
     if (handle == nullptr) {
         return error(errc::invalid_state);
     }
-    return wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data));
+    auto drawn = wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data));
+    if (_queued_io == nullptr) {
+        return drawn;
+    }
+    // The panel I/O may still be reading color_data in the background. A
+    // parameterless tx_param waits for every queued transfer and sends
+    // nothing; wait even after a failed draw, as earlier chunks may be queued.
+    auto waited = wrap(esp_lcd_panel_io_tx_param(_queued_io, -1, nullptr, 0));
+    return drawn ? waited : drawn;
 }
 
 result<void> panel::do_invert_color(bool invert) {

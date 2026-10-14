@@ -30,6 +30,8 @@
 
 struct esp_lcd_panel_t;
 typedef struct esp_lcd_panel_t* esp_lcd_panel_handle_t;
+struct esp_lcd_panel_io_t;
+typedef struct esp_lcd_panel_io_t* esp_lcd_panel_io_handle_t;
 
 /**
  * @headerfile <idfxx/lcd/panel>
@@ -415,7 +417,9 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation.
+     * monochrome OLEDs); consult the concrete driver's documentation. The
+     * panel does not retain @p color_data: the buffer may be reused as soon as
+     * the call returns.
      *
      * @param x_start    Start column, inclusive.
      * @param y_start    Start row, inclusive.
@@ -469,7 +473,9 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation.
+     * monochrome OLEDs); consult the concrete driver's documentation. The
+     * panel does not retain @p color_data: the buffer may be reused as soon as
+     * the call returns.
      *
      * @param x_start    Start column, inclusive.
      * @param y_start    Start row, inclusive.
@@ -517,6 +523,15 @@ protected:
     panel(size_t width, size_t height) noexcept
         : _width(width)
         , _height(height) {}
+    /// Constructs a panel reporting the given native dimensions, whose draws
+    /// wait for queued color transfers on @p queued_io before returning. Pass
+    /// the panel I/O handle when its color transfers continue in the
+    /// background after a write (`idfxx::panel_io::queues_color_transfers()`),
+    /// or nullptr when they complete before the write returns.
+    panel(size_t width, size_t height, esp_lcd_panel_io_handle_t queued_io) noexcept
+        : _width(width)
+        , _height(height)
+        , _queued_io(queued_io) {}
     panel(panel&&) noexcept = default;
     panel& operator=(panel&&) noexcept = default;
 
@@ -529,8 +544,11 @@ protected:
 
     /// Hook for @ref idf_handle.
     [[nodiscard]] virtual esp_lcd_panel_handle_t do_idf_handle() const = 0;
-    /// Hook for @ref try_draw_bitmap. The default implementation draws via the
-    /// panel handle returned by do_idf_handle().
+    /// Hook for @ref try_draw_bitmap. An override must not return until the
+    /// pixel data has been consumed, as callers may reuse the buffer at once.
+    /// The default implementation draws via the panel handle returned by
+    /// do_idf_handle(), then waits for queued color transfers on the panel
+    /// I/O handle given at construction, if any.
     [[nodiscard]] virtual result<void>
     do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data);
     /// Hook for @ref try_invert_color. The default implementation inverts via
@@ -549,6 +567,7 @@ protected:
 private:
     size_t _width = 0;
     size_t _height = 0;
+    esp_lcd_panel_io_handle_t _queued_io = nullptr;
 };
 
 /** @} */ // end of idfxx_lcd

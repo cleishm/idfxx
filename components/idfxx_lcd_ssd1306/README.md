@@ -15,7 +15,8 @@ SSD1306 monochrome OLED panel driver (128x64 / 128x32).
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
-- `idfxx_lcd` component (provides `panel` base class, `panel_io`, and `mono_framebuffer`)
+- `idfxx_lcd` component (provides `panel` base class and `mono_framebuffer`)
+- `idfxx_panel_io` component (provides `panel_io`)
 
 ## Installation
 
