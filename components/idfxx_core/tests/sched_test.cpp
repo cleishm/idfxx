@@ -148,8 +148,12 @@ TEST_CASE("delay_until() with past time point returns immediately", "[idfxx][sch
 }
 
 TEST_CASE("delay_until() with future time point delays", "[idfxx][sched]") {
+    // Count ticks from before the target is computed: a tick landing between the two would
+    // otherwise shorten the measured delay by one.
+    const auto start_ticks = xTaskGetTickCount();
     auto target = idfxx::chrono::tick_clock::now() + std::chrono::milliseconds(50);
-    auto [elapsed, ticks] = measure([&] { idfxx::delay_until(target); });
+    idfxx::delay_until(target);
+    const auto ticks = xTaskGetTickCount() - start_ticks;
 
     TickType_t expected = pdMS_TO_TICKS(50);
     TEST_ASSERT_GREATER_OR_EQUAL(expected, ticks);
