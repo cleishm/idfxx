@@ -116,7 +116,8 @@ display.set_color_mode(idfxx::epaper::color_mode::mono); // back to monochrome
 ```
 
 See `examples/ee05_demo` for a complete application exercising all refresh
-modes on the EE05 board.
+modes on the EE05 board, and `examples/deep_sleep_partial` for keeping
+partial refreshes across ESP32 deep sleep with `restore_baseline`.
 
 ## API Overview
 

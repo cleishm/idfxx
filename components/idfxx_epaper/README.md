@@ -312,6 +312,8 @@ Using a moved-from driver object is undefined behavior.
 
   The saved frame must match the glass: a mismatch does no damage, but the
   differing pixels are not driven correctly until the next full refresh.
+  `idfxx_epaper_ssd1680`'s `examples/deep_sleep_partial` shows the full
+  cycle, keeping the frame in RTC memory across timer wakes.
 - **`color6{}` is black, not white.** The six-color codes are the panel's
   own, and code 0 is black. `color6_framebuffer` starts white and its
   `clear()` blanks to white, and a `gfx::canvas` covering the whole
