@@ -10,7 +10,9 @@
 #include "unity.h"
 
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -121,7 +123,7 @@ static uint16_t alloc_ctrl_port() {
 static void ensure_event_loop() { test::ensure_event_loop(); }
 static std::string read_response_body(client& c) { return test::read_response_body(c); }
 
-TEST_CASE("https server handles GET request", "[idfxx][https][hw]") {
+TEST_CASE("https server handles GET request", "[idfxx][https]") {
     ensure_event_loop();
     auto port = alloc_test_port();
     auto srv = ssl_server::make({
@@ -151,7 +153,7 @@ TEST_CASE("https server handles GET request", "[idfxx][https][hw]") {
     TEST_ASSERT_EQUAL_STRING("Hello, TLS!", body.c_str());
 }
 
-TEST_CASE("https server handles POST with body", "[idfxx][https][hw]") {
+TEST_CASE("https server handles POST with body", "[idfxx][https]") {
     ensure_event_loop();
     auto port = alloc_test_port();
     auto srv = ssl_server::make({
@@ -201,7 +203,7 @@ TEST_CASE("https server handles POST with body", "[idfxx][https][hw]") {
     TEST_ASSERT_EQUAL_STRING("tls payload", body.c_str());
 }
 
-TEST_CASE("https server sets custom status code", "[idfxx][https][hw]") {
+TEST_CASE("https server sets custom status code", "[idfxx][https]") {
     ensure_event_loop();
     auto port = alloc_test_port();
     auto srv = ssl_server::make({
@@ -230,7 +232,7 @@ TEST_CASE("https server sets custom status code", "[idfxx][https][hw]") {
     TEST_ASSERT_EQUAL(201, c->status_code());
 }
 
-TEST_CASE("https server unregisters handler", "[idfxx][https][hw]") {
+TEST_CASE("https server unregisters handler", "[idfxx][https]") {
     ensure_event_loop();
     auto port = alloc_test_port();
     auto srv = ssl_server::make({
@@ -263,6 +265,61 @@ TEST_CASE("https server unregisters handler", "[idfxx][https][hw]") {
     TEST_ASSERT_TRUE(r5.has_value());
 
     TEST_ASSERT_EQUAL(404, c->status_code());
+}
+
+TEST_CASE("https server rejects a session when the open handler returns an error", "[idfxx][https]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto opened = std::make_shared<std::atomic<int>>(0);
+    auto served = std::make_shared<std::atomic<int>>(0);
+    // Rejects the first session, then accepts
+    auto srv = ssl_server::make({
+        .server_port = port,
+        .ctrl_port = alloc_ctrl_port(),
+        .on_session_open = [opened](int) -> result<void> {
+            if (opened->fetch_add(1) == 0) {
+                return error(idfxx::errc::invalid_state);
+            }
+            return {};
+        },
+        .server_cert = test_server_cert,
+        .private_key = test_server_key,
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_get("/ok", [served](request& req) -> result<void> {
+        served->fetch_add(1);
+        return req.try_send("ok");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto url = "https://127.0.0.1:" + std::to_string(port) + "/ok";
+    {
+        auto c = client::make({
+            .url = url,
+            .cert_pem = test_server_cert,
+            .skip_cert_common_name_check = true,
+        });
+        TEST_ASSERT_TRUE(c.has_value());
+        bool responded = c->try_open().has_value() && c->try_fetch_headers().has_value() && c->status_code() == 200;
+        (void)c->try_close();
+        TEST_ASSERT_FALSE(responded);
+    }
+    // The handshake completed and the session reached the open handler
+    TEST_ASSERT_EQUAL(1, opened->load());
+    TEST_ASSERT_EQUAL(0, served->load());
+
+    auto c = client::make({
+        .url = url,
+        .cert_pem = test_server_cert,
+        .skip_cert_common_name_check = true,
+    });
+    TEST_ASSERT_TRUE(c.has_value());
+    auto body = read_response_body(*c);
+    TEST_ASSERT_EQUAL(200, c->status_code());
+    TEST_ASSERT_EQUAL_STRING("ok", body.c_str());
+    TEST_ASSERT_EQUAL(2, opened->load());
+    TEST_ASSERT_EQUAL(1, served->load());
 }
 
 TEST_CASE("https server config defaults", "[idfxx][https]") {
