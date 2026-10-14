@@ -30,6 +30,20 @@
 namespace idfxx::chrono {
 
 /**
+ * @headerfile <idfxx/chrono>
+ * @brief Duration with picosecond resolution.
+ *
+ * Extends the standard `std::chrono` duration aliases below nanoseconds, for
+ * quantities such as Wi-Fi FTM round-trip times.
+ *
+ * @code
+ * idfxx::chrono::picoseconds rtt{12'500};
+ * auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(rtt); // 12ns
+ * @endcode
+ */
+using picoseconds = std::chrono::duration<int64_t, std::pico>;
+
+/**
  * @brief Converts a std::chrono duration to TickType_t ticks.
  */
 template<class Rep, class Period>

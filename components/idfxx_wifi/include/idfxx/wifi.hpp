@@ -21,6 +21,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/chrono>
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/event>
@@ -35,6 +36,7 @@
 #include <esp_wifi_types.h>
 #include <optional>
 #include <quanta/decibel>
+#include <quanta/spatial>
 #include <soc/soc_caps.h>
 #include <span>
 #include <string>
@@ -782,13 +784,21 @@ struct sta_info {
  * @brief Single FTM report measurement entry.
  */
 struct ftm_report_entry {
-    uint8_t dlog_token;        /*!< Dialog token. */
-    quanta::electro::dbm rssi; /*!< RSSI of the FTM frame. */
-    uint32_t rtt;              /*!< Round-trip time in picoseconds. */
-    uint64_t t1;               /*!< Timestamp T1. */
-    uint64_t t2;               /*!< Timestamp T2. */
-    uint64_t t3;               /*!< Timestamp T3. */
-    uint64_t t4;               /*!< Timestamp T4. */
+    uint8_t dlog_token;             /*!< Dialog token. */
+    quanta::electro::dbm rssi;      /*!< RSSI of the FTM frame. */
+    idfxx::chrono::picoseconds rtt; /*!< Round-trip time to the peer. */
+    idfxx::chrono::picoseconds t1;  /*!< Departure of the FTM frame from the responder (responder clock). */
+    idfxx::chrono::picoseconds t2;  /*!< Arrival of the FTM frame at the initiator (initiator clock). */
+    idfxx::chrono::picoseconds t3;  /*!< Departure of the ACK from the initiator (initiator clock). */
+    idfxx::chrono::picoseconds t4;  /*!< Arrival of the ACK at the responder (responder clock). */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
+    /**
+     * @brief Clock frequency offset between the local and peer devices, in parts per million.
+     *
+     * @note Only available when building with ESP-IDF 6.1 or later.
+     */
+    int16_t freq_offset_ppm;
+#endif
 
     [[nodiscard]] constexpr bool operator==(const ftm_report_entry&) const noexcept = default;
 };
@@ -1320,9 +1330,9 @@ struct home_channel_change_event_data {
 struct ftm_report_event_data {
     mac_address peer_mac;                  /*!< Peer MAC address. */
     enum ftm_status status;                /*!< FTM session status. */
-    uint32_t rtt_raw;                      /*!< Raw round-trip time (picoseconds). */
-    uint32_t rtt_est;                      /*!< Estimated round-trip time (picoseconds). */
-    uint32_t dist_est;                     /*!< Estimated distance (centimeters). */
+    std::chrono::nanoseconds rtt_raw;      /*!< Raw average round-trip time to the peer. */
+    std::chrono::nanoseconds rtt_est;      /*!< Estimated round-trip time to the peer. */
+    quanta::spatial::centimeters dist_est; /*!< Estimated distance to the peer. */
     std::vector<ftm_report_entry> entries; /*!< Individual measurement entries. */
 
     /// @cond INTERNAL
@@ -3128,14 +3138,18 @@ void ftm_initiate_session(const ftm_initiator_config& cfg);
 void ftm_end_session();
 
 /**
- * @brief Sets the FTM responder offset.
+ * @brief Sets the distance offset this device applies when responding to FTM.
  *
- * @param offset The offset value in nanoseconds.
+ * The light travel time over @p offset is added to the T1 timestamp of the FTM
+ * frames this device sends (see ftm_report_entry::t1). Set it in AP mode,
+ * before acting as an FTM responder.
+ *
+ * @param offset Distance offset (range: ±32767 cm).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void ftm_resp_set_offset(int16_t offset);
+void ftm_resp_set_offset(quanta::spatial::centimeters offset);
 
 /**
  * @brief Retrieves the FTM measurement report entries.
@@ -3165,12 +3179,16 @@ void ftm_resp_set_offset(int16_t offset);
 result<void> try_ftm_end_session();
 
 /**
- * @brief Sets the FTM responder offset.
+ * @brief Sets the distance offset this device applies when responding to FTM.
  *
- * @param offset The offset value in nanoseconds.
+ * The light travel time over @p offset is added to the T1 timestamp of the FTM
+ * frames this device sends (see ftm_report_entry::t1). Set it in AP mode,
+ * before acting as an FTM responder.
+ *
+ * @param offset Distance offset (range: ±32767 cm).
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_ftm_resp_set_offset(int16_t offset);
+[[nodiscard]] result<void> try_ftm_resp_set_offset(quanta::spatial::centimeters offset);
 
 /**
  * @brief Retrieves the FTM measurement report entries.
@@ -3605,7 +3623,7 @@ inline void ftm_initiate_session(const ftm_initiator_config& cfg) {
 inline void ftm_end_session() {
     unwrap(try_ftm_end_session());
 }
-inline void ftm_resp_set_offset(int16_t offset) {
+inline void ftm_resp_set_offset(quanta::spatial::centimeters offset) {
     unwrap(try_ftm_resp_set_offset(offset));
 }
 inline std::vector<ftm_report_entry> ftm_get_report(size_t max_entries) {
