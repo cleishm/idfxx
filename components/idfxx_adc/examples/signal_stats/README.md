@@ -25,9 +25,10 @@ The example samples an ADC1 pin that depends on the target:
 
 | Target                       | Pin     |
 |------------------------------|---------|
-| ESP32                        | GPIO 32 |
+| ESP32                        | GPIO 34 |
 | ESP32-S2, ESP32-S3, ESP32-H2 | GPIO 1  |
-| ESP32-C3, ESP32-C6           | GPIO 0  |
+| ESP32-C3                     | GPIO 3  |
+| ESP32-C6                     | GPIO 2  |
 
 Any source works, for example a potentiometer with its ends on 3.3 V and GND and its wiper on that pin.
 Connect the source's ground to the board's GND. The sampler only works with ADC1 pins. To use a

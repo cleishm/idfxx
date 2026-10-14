@@ -22,9 +22,10 @@ The example reads the battery on an ADC1 pin that depends on the target:
 
 | Target                       | Pin     |
 |------------------------------|---------|
-| ESP32                        | GPIO 32 |
+| ESP32                        | GPIO 34 |
 | ESP32-S2, ESP32-S3, ESP32-H2 | GPIO 1  |
-| ESP32-C3, ESP32-C6           | GPIO 0  |
+| ESP32-C3                     | GPIO 3  |
+| ESP32-C6                     | GPIO 2  |
 
 Wire the battery's positive terminal through the first resistor to that pin, and the pin through the
 second resistor to GND. Connect the battery's negative terminal to GND. The example uses the default
