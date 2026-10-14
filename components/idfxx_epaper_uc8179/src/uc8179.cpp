@@ -135,17 +135,17 @@ uc8179::uc8179(idfxx::panel_io& panel_io, uc8179::config config)
 
 uc8179::uc8179(uc8179&& other) noexcept
     : panel(std::move(other))
-    , _io(std::exchange(other._io, nullptr))
+    , _io_handle(std::exchange(other._io_handle, nullptr))
     , _waveform(other._waveform) {}
 
 uc8179& uc8179::operator=(uc8179&& other) noexcept {
     if (this != &other) {
-        if (_io != nullptr && !asleep()) {
+        if (_io_handle != nullptr && !asleep()) {
             (void)wait_busy();
             (void)_enter_deep_sleep();
         }
         panel::operator=(std::move(other));
-        _io = std::exchange(other._io, nullptr);
+        _io_handle = std::exchange(other._io_handle, nullptr);
         _waveform = other._waveform;
     }
     return *this;
@@ -156,7 +156,7 @@ uc8179::~uc8179() {
     // it in deep sleep unless the caller already did. A refresh still
     // driving finishes first — powering off mid-waveform also stresses the
     // glass.
-    if (_io != nullptr && !asleep()) {
+    if (_io_handle != nullptr && !asleep()) {
         (void)wait_busy();
         (void)_enter_deep_sleep();
     }
@@ -167,7 +167,7 @@ uc8179::~uc8179() {
 // =============================================================================
 
 result<void> uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     const size_t stride = fb.stride_bytes();
@@ -183,7 +183,7 @@ result<void> uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size
 }
 
 result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     const size_t stride = fb.stride_bytes();
@@ -216,7 +216,7 @@ result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, siz
 }
 
 result<void> uc8179::do_clear() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     // The all-ones fill is white in both color modes: set bits are white in
@@ -231,7 +231,7 @@ result<void> uc8179::do_clear() {
 }
 
 result<void> uc8179::do_refresh(refresh_mode mode) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
@@ -267,7 +267,7 @@ bool uc8179::do_supports(enum color_mode mode) const noexcept {
 }
 
 result<void> uc8179::do_set_color_mode(enum color_mode mode) {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (mode == color_mode::gray4) {
@@ -277,14 +277,14 @@ result<void> uc8179::do_set_color_mode(enum color_mode mode) {
 }
 
 result<void> uc8179::do_sleep() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     return _enter_deep_sleep();
 }
 
 result<void> uc8179::do_wake() {
-    if (_io == nullptr) {
+    if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
     if (auto r = hardware_reset(); !r) {
@@ -301,21 +301,21 @@ result<void> uc8179::do_wake() {
 // =============================================================================
 
 result<void> uc8179::_cmd(uint8_t cmd) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, nullptr, 0));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, nullptr, 0));
 }
 
 result<void> uc8179::_cmd(uint8_t cmd, std::initializer_list<uint8_t> params) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, params.begin(), params.size()));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, params.begin(), params.size()));
 }
 
 result<void> uc8179::_cmd(uint8_t cmd, std::span<const uint8_t> params) {
-    return wrap(esp_lcd_panel_io_tx_param(_io->idf_handle(), cmd, params.data(), params.size()));
+    return wrap(esp_lcd_panel_io_tx_param(_io_handle, cmd, params.data(), params.size()));
 }
 
 result<void> uc8179::_stream(int cmd, std::span<const uint8_t> data) {
     // A negative cmd continues the previous data stream without a command
     // phase (esp_lcd convention).
-    return wrap(esp_lcd_panel_io_tx_color(_io->idf_handle(), cmd, data.data(), data.size()));
+    return wrap(esp_lcd_panel_io_tx_color(_io_handle, cmd, data.data(), data.size()));
 }
 
 result<void> uc8179::_power_on() {
