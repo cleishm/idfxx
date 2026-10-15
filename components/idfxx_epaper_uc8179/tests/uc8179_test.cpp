@@ -32,16 +32,19 @@ static_assert(!std::is_copy_assignable_v<uc8179>);
 static_assert(std::is_move_constructible_v<uc8179>);
 static_assert(std::is_move_assignable_v<uc8179>);
 
+// The config requires a BUSY pin.
+static_assert(!std::is_default_constructible_v<uc8179::config>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
 TEST_CASE("uc8179 config defaults match the 7.5\" GDEY075T7 panel", "[idfxx][epaper][uc8179]") {
-    uc8179::config cfg{};
+    uc8179::config cfg{.busy_gpio = idfxx::gpio_4};
     TEST_ASSERT_EQUAL(800, cfg.width);
     TEST_ASSERT_EQUAL(480, cfg.height);
     TEST_ASSERT_FALSE(cfg.reset_gpio.is_connected());
-    TEST_ASSERT_FALSE(cfg.busy_gpio.is_connected());
+    TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
     TEST_ASSERT_EQUAL(30'000, cfg.busy_timeout.count());
 }
 
