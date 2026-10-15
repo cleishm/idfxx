@@ -26,6 +26,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/required>
 
 #include <chrono>
 #include <cstdint>
@@ -80,8 +81,8 @@ public:
      * @brief Configuration for a DHT sensor.
      */
     struct config {
-        idfxx::gpio pin = gpio::nc();    ///< Data line GPIO (required).
-        enum model model = model::dht22; ///< Sensor model on the line.
+        idfxx::required<idfxx::gpio> pin; ///< Data line GPIO.
+        enum model model = model::dht22;  ///< Sensor model on the line.
         /// Enable the internal pull-up on the data line. The bus idles high;
         /// disable only if the board has an external pull-up resistor.
         bool internal_pullup = true;
