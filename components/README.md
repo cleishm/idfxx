@@ -18,7 +18,7 @@ README](../README.md) for installation and conventions shared by every component
   idfxx_epaper_ssd1680, idfxx_epaper_uc8179, idfxx_epaper_el133uf1, idfxx_epaper_image
 - **[Graphics](graphics/README.md):** idfxx_gfx, idfxx_font, idfxx_font_spleen, idfxx_font_inter,
   idfxx_image, idfxx_jpeg
-- **[Sensors](sensors/README.md):** idfxx_dht, idfxx_ds18x20
+- **[Sensors](sensors/README.md):** idfxx_dht, idfxx_ds18x20, idfxx_max31865
 - **[Real-Time Clocks](rtc/README.md):** idfxx_rtc, idfxx_rtc_pcf8563
 - **[Application Protocols](protocols/README.md):** idfxx_http, idfxx_http_client,
   idfxx_http_server, idfxx_https_server
