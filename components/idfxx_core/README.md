@@ -16,6 +16,8 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
   in-memory and `FILE*` sources
+- **Required config fields** — `required<T>` makes a configuration-struct field mandatory at
+  compile time
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
 
 ## Requirements
@@ -220,6 +222,32 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
 }
 ```
 
+### Required Configuration Fields
+
+`idfxx::required<T>` marks a field of a configuration struct that has no safe default. It has no
+default constructor, so leaving the field out of a designated initializer fails to compile:
+
+```cpp
+#include <idfxx/required>
+
+struct sensor_config {
+    idfxx::required<std::chrono::microseconds> settle_time;
+    int retries = 3;
+};
+
+sensor_config cfg{.settle_time = 2ms}; // milliseconds convert to microseconds
+std::chrono::microseconds t = cfg.settle_time;
+bool two_ms = cfg.settle_time == 2ms;
+
+sensor_config bad{.retries = 5}; // compile error: settle_time is required
+```
+
+A braced list does not initialize a `required<T>` directly; name the type instead, as in
+`.pins = std::vector<idfxx::gpio>{...}`. The value is read with `get()`, `*`, `->`, or the
+implicit conversion to `const T&`; `get()` and `*` return a mutable reference on a non-const
+`required<T>` and an rvalue reference on an rvalue, so a move-only value such as a
+`std::move_only_function` can be moved out with `std::move(cfg.callback).get()`.
+
 ## API Overview
 
 ### Error Handling (`<idfxx/error>`)
@@ -303,6 +331,14 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
 - `memory_source` - Reads a caller-owned `std::span<const uint8_t>`; `remaining()` reports the bytes left
 - `file_source` - Reads an open `FILE*` (not owned) from its current position
 - `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
+
+### Required Fields (`<idfxx/required>`)
+
+- `required<T>` - Holds a `T` with no default constructor; initialized from any value implicitly
+  convertible to `T` without narrowing (an integer constant that fits in an integral `T` is accepted)
+- `get()` / `*` / `->` - Access the stored value (const, mutable, or rvalue to match the `required<T>`)
+- Implicit conversion to `const T&`
+- `==` / `!=` - Compare with another `required<T>` or with any value `T` compares equal to
 
 ## Error Codes
 

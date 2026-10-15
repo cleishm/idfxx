@@ -18,6 +18,7 @@ set(IDFXX_CORE_TEST_SOURCES
     system_test.cpp
     app_test.cpp
     random_test.cpp
+    required_test.cpp
     uart_test.cpp
     byte_source_test.cpp
 )
