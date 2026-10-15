@@ -19,6 +19,9 @@ using namespace idfxx::console;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
+// command is not default constructible (the name must be set)
+static_assert(!std::is_default_constructible_v<command>);
+
 // repl is not default constructible
 static_assert(!std::is_default_constructible_v<repl>);
 
@@ -126,6 +129,26 @@ TEST_CASE("console deregister command then run returns not_found", "[idfxx][cons
     auto run_result2 = try_run("ephemeral");
     TEST_ASSERT_FALSE(run_result2.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::not_found), run_result2.error().value());
+}
+
+TEST_CASE("console register rejects an empty command name", "[idfxx][console]") {
+    console_fixture fixture;
+
+    auto r = try_register_command({.name = ""}, [](int, char**) { return 0; });
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
+}
+
+TEST_CASE("console register rejects a command name containing a space", "[idfxx][console]") {
+    console_fixture fixture;
+
+    auto r = try_register_command({.name = "two words"}, [](int, char**) { return 0; });
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
+
+    auto run_result = try_run("two");
+    TEST_ASSERT_FALSE(run_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(errc::not_found), run_result.error().value());
 }
 
 TEST_CASE("console run unknown command returns not_found", "[idfxx][console]") {
@@ -302,6 +325,19 @@ TEST_CASE("console register_command with exception API", "[idfxx][console]") {
     TEST_ASSERT_TRUE(called);
 
     deregister_command("exc_test");
+}
+
+TEST_CASE("console register_command throws on an invalid command name", "[idfxx][console]") {
+    console_fixture fixture;
+
+    bool threw = false;
+    try {
+        register_command({.name = "bad name"}, [](int, char**) { return 0; });
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
 }
 
 TEST_CASE("console run throws on unknown command", "[idfxx][console]") {

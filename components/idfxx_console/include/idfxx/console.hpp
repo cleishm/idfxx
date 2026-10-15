@@ -27,6 +27,7 @@
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/required>
 #include <idfxx/uart>
 
 #include <esp_console.h>
@@ -60,14 +61,14 @@ using handler = std::move_only_function<int(int argc, char** argv)>;
  * @headerfile <idfxx/console>
  * @brief Command descriptor for registration.
  *
- * Describes a command to register with the console. The @c name field is
- * required and must not contain spaces. Other fields are optional.
+ * Describes a command to register with the console. The @c name field must
+ * be non-empty and must not contain spaces. Other fields are optional.
  */
 struct command {
-    std::string_view name;      ///< Command name (required, no spaces)
-    std::string_view help = {}; ///< Help text (empty = hidden from help)
-    std::string_view hint = {}; ///< Hint text (empty = auto-generate from argtable)
-    void* argtable = nullptr;   ///< Optional argtable3 pointer for argument parsing
+    required<std::string_view> name; ///< Command name (non-empty, no spaces)
+    std::string_view help = {};      ///< Help text (empty = hidden from help)
+    std::string_view hint = {};      ///< Hint text (empty = auto-generate from argtable)
+    void* argtable = nullptr;        ///< Optional argtable3 pointer for argument parsing
 };
 
 // =============================================================================
@@ -97,7 +98,8 @@ struct command {
  * @param cmd Command descriptor.
  * @param callback Function to call when the command is executed.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
- * @throws std::system_error on failure.
+ * @throws std::system_error on failure, including `errc::invalid_arg` if the
+ *         command name is empty or contains spaces.
  */
 void register_command(const command& cmd, handler callback);
 
