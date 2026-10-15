@@ -39,9 +39,9 @@ static_assert(!std::is_copy_assignable_v<master_bus>);
 static_assert(std::is_move_constructible_v<master_bus>);
 static_assert(std::is_move_assignable_v<master_bus>);
 
-// master_bus::config is an aggregate with sensible defaults
+// master_bus::config is an aggregate; sda, scl and frequency have no defaults
 static_assert(std::is_aggregate_v<master_bus::config>);
-static_assert(std::is_default_constructible_v<master_bus::config>);
+static_assert(!std::is_default_constructible_v<master_bus::config>);
 
 // Verify port enum values
 static_assert(static_cast<int>(port::i2c0) == 0);
@@ -69,7 +69,21 @@ TEST_CASE("master_bus::make with null GPIO returns error", "[idfxx][i2c][master_
 }
 
 TEST_CASE("master_bus::make with config and null GPIO returns error", "[idfxx][i2c][master_bus]") {
-    auto result = master_bus::make(port::i2c0, {.frequency = 100_kHz});
+    auto result = master_bus::make(port::i2c0, {
+        .sda = idfxx::gpio::nc(),
+        .scl = idfxx::gpio::nc(),
+        .frequency = 100_kHz,
+    });
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
+}
+
+TEST_CASE("master_bus::make with config and zero frequency returns error", "[idfxx][i2c][master_bus]") {
+    auto result = master_bus::make(port::i2c0, {
+        .sda = TEST_SDA,
+        .scl = TEST_SCL,
+        .frequency = 0_Hz,
+    });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
 }

@@ -55,23 +55,23 @@ lp_i2c_clock_source_t to_idf(lp_clk_source src) {
 namespace idfxx::i2c {
 
 static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus::config& config) {
-    if (!config.sda.is_connected()) {
+    if (!config.sda->is_connected()) {
         ESP_LOGD(TAG, "Field 'sda' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (!config.scl.is_connected()) {
+    if (!config.scl->is_connected()) {
         ESP_LOGD(TAG, "Field 'scl' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.frequency.count() == 0) {
+    if (config.frequency->count() == 0) {
         ESP_LOGD(TAG, "Field 'frequency' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     i2c_master_bus_config_t bus_config{
         .i2c_port = std::to_underlying(port),
-        .sda_io_num = config.sda.idf_num(),
-        .scl_io_num = config.scl.idf_num(),
+        .sda_io_num = config.sda->idf_num(),
+        .scl_io_num = config.scl->idf_num(),
         .clk_source = to_idf(config.clk_source),
         .glitch_ignore_cnt = config.glitch_ignore_cnt,
         .intr_priority =
@@ -94,9 +94,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
             TAG,
             "Failed to create I2C master bus on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz): %s",
             std::to_underlying(port),
-            config.sda.num(),
-            config.scl.num(),
-            static_cast<int>(config.frequency.count()),
+            config.sda->num(),
+            config.scl->num(),
+            static_cast<int>(config.frequency->count()),
             esp_err_to_name(err)
         );
         switch (err) {
@@ -113,9 +113,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         TAG,
         "I2C master bus created on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz)",
         std::to_underlying(port),
-        config.sda.num(),
-        config.scl.num(),
-        static_cast<int>(config.frequency.count())
+        config.sda->num(),
+        config.scl->num(),
+        static_cast<int>(config.frequency->count())
     );
     return handle;
 }
