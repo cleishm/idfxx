@@ -50,6 +50,11 @@ static_assert(std::is_default_constructible_v<rx_info>);
 static_assert(std::is_default_constructible_v<cad_info>);
 static_assert(std::is_default_constructible_v<packet_status>);
 
+// lora_link has no default carrier frequency.
+static_assert(!std::is_default_constructible_v<lora_link>);
+static_assert(lora_link{.frequency = quanta::frequency::hertz{915'000'000}}.frequency->count() == 915'000'000);
+static_assert(lora_link{.frequency = quanta::frequency::hertz{915'000'000}}.output_power.count() == 14);
+
 // Trivially copyable so they can flow through the event loop.
 static_assert(std::is_trivially_copyable_v<rx_info>);
 static_assert(std::is_trivially_copyable_v<cad_info>);

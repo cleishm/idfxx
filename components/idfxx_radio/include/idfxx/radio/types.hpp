@@ -10,6 +10,8 @@
  * @ingroup idfxx_radio
  */
 
+#include <idfxx/required>
+
 #include <chrono>
 #include <cstdint>
 #include <quanta/decibel>
@@ -168,7 +170,7 @@ struct lora_packet_params {
  * so they can be applied with a single `lora_transceiver::configure` call.
  */
 struct lora_link {
-    quanta::frequency::hertz frequency{0};               ///< RF carrier frequency (required; no meaningful default).
+    idfxx::required<quanta::frequency::hertz> frequency; ///< RF carrier frequency.
     quanta::electro::dbm output_power{14};               ///< Transmit output power.
     ramp_time ramp = ramp_time::us_200;                  ///< Output-power ramp-up time.
     lora_modulation modulation{};                        ///< Modulation parameters.
