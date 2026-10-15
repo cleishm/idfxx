@@ -113,7 +113,7 @@ namespace idfxx::pwm {
 // ======================================================================
 
 result<void> timer::try_configure(const struct config& cfg) {
-    if (cfg.frequency.count() <= 0) {
+    if (cfg.frequency->count() <= 0) {
         ESP_LOGD(TAG, "Field 'frequency' has an invalid value");
         return error(errc::invalid_arg);
     }
@@ -126,7 +126,7 @@ result<void> timer::try_configure(const struct config& cfg) {
         .speed_mode = to_ledc(_speed_mode),
         .duty_resolution = static_cast<ledc_timer_bit_t>(cfg.resolution_bits),
         .timer_num = static_cast<ledc_timer_t>(_num),
-        .freq_hz = static_cast<uint32_t>(cfg.frequency.count()),
+        .freq_hz = static_cast<uint32_t>(cfg.frequency->count()),
         .clk_cfg = to_ledc(cfg.clk_source),
         .deconfigure = false,
     };
@@ -136,7 +136,7 @@ result<void> timer::try_configure(const struct config& cfg) {
             TAG,
             "Failed to configure LEDC timer %u (Frequency: %d Hz, Resolution: %d bits): %s",
             _num,
-            static_cast<int>(cfg.frequency.count()),
+            static_cast<int>(cfg.frequency->count()),
             cfg.resolution_bits,
             esp_err_to_name(err)
         );
@@ -154,7 +154,7 @@ result<void> timer::try_configure(const struct config& cfg) {
         TAG,
         "LEDC timer %d configured (Frequency: %d Hz, Resolution: %d bits)",
         _num,
-        static_cast<int>(cfg.frequency.count()),
+        static_cast<int>(cfg.frequency->count()),
         cfg.resolution_bits
     );
     return {};
@@ -269,7 +269,7 @@ result<output> try_start(idfxx::gpio gpio, const timer::config& cfg, const outpu
             }
             continue;
         }
-        if (ledc_get_freq(ledc_mode, static_cast<ledc_timer_t>(t)) == static_cast<uint32_t>(cfg.frequency.count()) &&
+        if (ledc_get_freq(ledc_mode, static_cast<ledc_timer_t>(t)) == static_cast<uint32_t>(cfg.frequency->count()) &&
             state.resolution_bits == cfg.resolution_bits &&
             state.clk_source == static_cast<int8_t>(std::to_underlying(cfg.clk_source))) {
             matched_timer = t;

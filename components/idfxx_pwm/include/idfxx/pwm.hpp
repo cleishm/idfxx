@@ -26,6 +26,7 @@
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
+#include <idfxx/required>
 
 #include <algorithm>
 #include <chrono>
@@ -179,8 +180,8 @@ public:
      * @brief Timer configuration parameters.
      */
     struct config {
-        quanta::frequency::hertz frequency{0}; ///< PWM frequency.
-        uint8_t resolution_bits = 13;          ///< Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
+        idfxx::required<quanta::frequency::hertz> frequency; ///< PWM frequency.
+        uint8_t resolution_bits = 13; ///< Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
         enum clk_source clk_source = clk_source::auto_select; ///< Clock source selection.
     };
 
