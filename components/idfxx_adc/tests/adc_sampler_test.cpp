@@ -16,6 +16,7 @@
 #include <chrono>
 #include <quanta/electro>
 #include <type_traits>
+#include <vector>
 
 using namespace idfxx::adc;
 using namespace std::chrono_literals;
@@ -47,8 +48,10 @@ static_assert(!std::is_copy_assignable_v<sampler>);
 static_assert(std::is_move_constructible_v<sampler>);
 static_assert(std::is_move_assignable_v<sampler>);
 
-// config and sample are default-constructible (every field has a default).
-static_assert(std::is_default_constructible_v<sampler::config>);
+// config is not default-constructible (the pins must be set).
+static_assert(!std::is_default_constructible_v<sampler::config>);
+
+// sample is default-constructible (every field has a default).
 static_assert(std::is_default_constructible_v<sampler::sample>);
 
 // =============================================================================
@@ -56,8 +59,8 @@ static_assert(std::is_default_constructible_v<sampler::sample>);
 // =============================================================================
 
 TEST_CASE("adc sampler config defaults", "[idfxx][adc]") {
-    sampler::config cfg{};
-    TEST_ASSERT_TRUE(cfg.pins.empty());
+    sampler::config cfg{.pins = std::vector<idfxx::gpio>{test_pin}};
+    TEST_ASSERT_EQUAL(1, cfg.pins->size());
     TEST_ASSERT_EQUAL(attenuation::db_12, cfg.attenuation);
     TEST_ASSERT_EQUAL(20'000, cfg.sample_rate.count());
     TEST_ASSERT_EQUAL(256, cfg.frame_samples);
@@ -65,49 +68,49 @@ TEST_CASE("adc sampler config defaults", "[idfxx][adc]") {
 }
 
 TEST_CASE("adc sampler make rejects an empty pin list", "[idfxx][adc]") {
-    auto r = sampler::make({});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects an unconnected pin", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {idfxx::gpio::nc()}});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{idfxx::gpio::nc()}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects a non-ADC pin", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {non_adc_pin}});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{non_adc_pin}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects duplicate pins", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {test_pin, test_pin}});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin, test_pin}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects zero frame_samples", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {test_pin}, .frame_samples = 0});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}, .frame_samples = 0});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects buffer smaller than frame", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {test_pin}, .frame_samples = 256, .buffer_samples = 128});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}, .frame_samples = 256, .buffer_samples = 128});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler make rejects a zero sample rate", "[idfxx][adc]") {
-    auto r = sampler::make({.pins = {test_pin}, .sample_rate = quanta::frequency::hertz{0}});
+    auto r = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}, .sample_rate = quanta::frequency::hertz{0}});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("adc sampler lifecycle", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
     TEST_ASSERT_EQUAL(1, s->pins().size());
@@ -148,7 +151,7 @@ TEST_CASE("adc sampler lifecycle", "[idfxx][adc]") {
 }
 
 TEST_CASE("adc sampler to_voltage rejects an unknown pin", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
     auto v = s->try_to_voltage({.pin = idfxx::gpio::nc(), .raw = 0});
@@ -157,7 +160,7 @@ TEST_CASE("adc sampler to_voltage rejects an unknown pin", "[idfxx][adc]") {
 }
 
 TEST_CASE("adc sampler batch to_voltage rejects an undersized output", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
     std::array<sampler::sample, 2> in{};
@@ -168,7 +171,7 @@ TEST_CASE("adc sampler batch to_voltage rejects an undersized output", "[idfxx][
 }
 
 TEST_CASE("adc sampler batch to_voltage rejects an unknown pin", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
     std::array<sampler::sample, 1> in{sampler::sample{.pin = idfxx::gpio::nc(), .raw = 0}};
@@ -179,7 +182,7 @@ TEST_CASE("adc sampler batch to_voltage rejects an unknown pin", "[idfxx][adc]")
 }
 
 TEST_CASE("adc sampler voltage read before start is an error", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
 
     std::array<quanta::electro::millivolts, 64> buf{};
@@ -189,7 +192,7 @@ TEST_CASE("adc sampler voltage read before start is an error", "[idfxx][adc]") {
 }
 
 TEST_CASE("adc sampler reads calibrated voltages", "[idfxx][adc]") {
-    auto s = sampler::make({.pins = {test_pin}});
+    auto s = sampler::make({.pins = std::vector<idfxx::gpio>{test_pin}});
     TEST_ASSERT_TRUE(s.has_value());
     TEST_ASSERT_TRUE(s->try_start().has_value());
 

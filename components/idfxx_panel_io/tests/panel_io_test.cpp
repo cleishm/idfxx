@@ -27,11 +27,11 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// spi_config is default-constructible
-static_assert(std::is_default_constructible_v<panel_io::spi_config>);
+// spi_config is not default-constructible (cs_gpio, pclk_freq and the bit widths must be set)
+static_assert(!std::is_default_constructible_v<panel_io::spi_config>);
 
-// i2c_config is default-constructible
-static_assert(std::is_default_constructible_v<panel_io::i2c_config>);
+// i2c_config is not default-constructible (device_address, scl_speed and the bit widths must be set)
+static_assert(!std::is_default_constructible_v<panel_io::i2c_config>);
 
 // panel_io is non-copyable
 static_assert(!std::is_copy_constructible_v<panel_io>);
@@ -58,13 +58,13 @@ TEST_CASE("spi_config struct initialization", "[idfxx][panel_io]") {
         .lcd_param_bits = 8,
     };
 
-    TEST_ASSERT_EQUAL(5, config.cs_gpio.num());
+    TEST_ASSERT_EQUAL(5, config.cs_gpio->num());
     TEST_ASSERT_EQUAL(2, config.dc_gpio.num());
     TEST_ASSERT_EQUAL(0, config.spi_mode);
-    TEST_ASSERT_EQUAL(10000000, config.pclk_freq.count());
+    TEST_ASSERT_EQUAL(10000000, config.pclk_freq->count());
     TEST_ASSERT_EQUAL(10, config.trans_queue_depth);
-    TEST_ASSERT_EQUAL(8, config.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(8, config.lcd_param_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_param_bits);
 }
 
 TEST_CASE("spi_config flags initialization", "[idfxx][panel_io]") {
@@ -131,15 +131,19 @@ TEST_CASE("spi_config with cs pretrans and posttrans", "[idfxx][panel_io]") {
 }
 
 TEST_CASE("spi_config default initialization", "[idfxx][panel_io]") {
-    panel_io::spi_config config{};
+    panel_io::spi_config config{
+        .cs_gpio = idfxx::gpio_5,
+        .pclk_freq = 10_MHz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    };
 
-    TEST_ASSERT_FALSE(config.cs_gpio.is_connected());
     TEST_ASSERT_FALSE(config.dc_gpio.is_connected());
     TEST_ASSERT_EQUAL(0, config.spi_mode);
-    TEST_ASSERT_EQUAL(0, config.pclk_freq.count());
     TEST_ASSERT_EQUAL(10, config.trans_queue_depth);
-    TEST_ASSERT_EQUAL(0, config.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(0, config.lcd_param_bits);
+    TEST_ASSERT_FALSE(config.on_color_transfer_done);
+    TEST_ASSERT_EQUAL(0, config.cs_enable_pretrans);
+    TEST_ASSERT_EQUAL(0, config.cs_enable_posttrans);
 }
 
 TEST_CASE("spi panel_io make rejects zero trans_queue_depth", "[idfxx][panel_io]") {
@@ -161,15 +165,65 @@ TEST_CASE("spi panel_io make rejects zero trans_queue_depth", "[idfxx][panel_io]
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 }
 
-TEST_CASE("i2c_config default initialization", "[idfxx][panel_io]") {
-    panel_io::i2c_config config{};
+TEST_CASE("spi panel_io make rejects invalid config", "[idfxx][panel_io]") {
+    idfxx::spi::bus_config bus_cfg{};
+    bus_cfg.mosi = idfxx::gpio_11;
+    bus_cfg.miso = idfxx::gpio_13;
+    bus_cfg.sclk = idfxx::gpio_12;
+    auto bus = idfxx::spi::master_bus::make(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+    TEST_ASSERT_TRUE(bus.has_value());
 
-    TEST_ASSERT_EQUAL(0, config.device_address);
-    TEST_ASSERT_EQUAL(0, config.scl_speed.count());
+    // Unconnected cs_gpio.
+    auto io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio::nc(),
+        .pclk_freq = 10_MHz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+
+    // Zero pclk_freq.
+    io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .pclk_freq = 0_Hz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+
+    // Zero lcd_cmd_bits / lcd_param_bits.
+    io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .pclk_freq = 10_MHz,
+        .lcd_cmd_bits = 0,
+        .lcd_param_bits = 8,
+    });
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+
+    io = panel_io::make(*bus, panel_io::spi_config{
+        .cs_gpio = idfxx::gpio_10,
+        .pclk_freq = 10_MHz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 0,
+    });
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+}
+
+TEST_CASE("i2c_config default initialization", "[idfxx][panel_io]") {
+    panel_io::i2c_config config{
+        .device_address = 0x3C,
+        .scl_speed = 400_kHz,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+    };
+
+    TEST_ASSERT_FALSE(config.on_color_transfer_done);
     TEST_ASSERT_EQUAL(0, config.control_phase_bytes);
     TEST_ASSERT_EQUAL(0, config.dc_bit_offset);
-    TEST_ASSERT_EQUAL(0, config.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(0, config.lcd_param_bits);
     TEST_ASSERT_EQUAL(0, config.flags.dc_low_on_data);
     TEST_ASSERT_EQUAL(0, config.flags.disable_control_phase);
 }
@@ -184,30 +238,35 @@ TEST_CASE("i2c_config struct initialization", "[idfxx][panel_io]") {
         .lcd_param_bits = 8,
     };
 
-    TEST_ASSERT_EQUAL(0x3C, config.device_address);
-    TEST_ASSERT_EQUAL(400000, config.scl_speed.count());
+    TEST_ASSERT_EQUAL(0x3C, *config.device_address);
+    TEST_ASSERT_EQUAL(400000, config.scl_speed->count());
     TEST_ASSERT_EQUAL(1, config.control_phase_bytes);
     TEST_ASSERT_EQUAL(6, config.dc_bit_offset);
-    TEST_ASSERT_EQUAL(8, config.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(8, config.lcd_param_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_param_bits);
 }
 
 TEST_CASE("i2c panel_io make rejects invalid config", "[idfxx][panel_io]") {
     auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 400_kHz);
     TEST_ASSERT_TRUE(bus.has_value());
 
-    // Default config is missing device_address, scl_speed, and bit widths.
-    auto io = panel_io::make(*bus, {});
+    // Zero device_address.
+    auto io =
+        panel_io::make(*bus, {.device_address = 0, .scl_speed = 400_kHz, .lcd_cmd_bits = 8, .lcd_param_bits = 8});
     TEST_ASSERT_FALSE(io.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 
-    // Missing scl_speed.
-    io = panel_io::make(*bus, {.device_address = 0x3C, .lcd_cmd_bits = 8, .lcd_param_bits = 8});
+    // Zero scl_speed.
+    io = panel_io::make(*bus, {.device_address = 0x3C, .scl_speed = 0_Hz, .lcd_cmd_bits = 8, .lcd_param_bits = 8});
     TEST_ASSERT_FALSE(io.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 
-    // Missing lcd_cmd_bits / lcd_param_bits.
-    io = panel_io::make(*bus, {.device_address = 0x3C, .scl_speed = 400_kHz});
+    // Zero lcd_cmd_bits / lcd_param_bits.
+    io = panel_io::make(*bus, {.device_address = 0x3C, .scl_speed = 400_kHz, .lcd_cmd_bits = 0, .lcd_param_bits = 8});
+    TEST_ASSERT_FALSE(io.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
+
+    io = panel_io::make(*bus, {.device_address = 0x3C, .scl_speed = 400_kHz, .lcd_cmd_bits = 8, .lcd_param_bits = 0});
     TEST_ASSERT_FALSE(io.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), io.error().value());
 }

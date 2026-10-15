@@ -59,7 +59,10 @@ constexpr TickType_t reply_timeout_ticks = pdMS_TO_TICKS(100);
 } // namespace
 
 struct sensor::state {
-    config cfg{};
+    explicit state(config c)
+        : cfg(c) {}
+
+    config cfg;
     rmt_channel_handle_t channel = nullptr;
     QueueHandle_t done_queue = nullptr;
     std::array<rmt_symbol_word_t, rx_buffer_symbols> buffer{};
@@ -96,12 +99,11 @@ sensor::sensor(std::unique_ptr<state> s) noexcept
     : _state(std::move(s)) {}
 
 result<sensor> sensor::make(config cfg) {
-    if (!cfg.pin.is_connected()) {
+    if (!cfg.pin->is_connected()) {
         return error(errc::invalid_arg);
     }
 
-    auto s = std::make_unique<state>();
-    s->cfg = cfg;
+    auto s = std::make_unique<state>(cfg);
 
     s->done_queue = xQueueCreate(1, sizeof(rmt_rx_done_event_data_t));
     if (!s->done_queue) {
@@ -112,7 +114,7 @@ result<sensor> sensor::make(config cfg) {
     // pad itself is then configured as an open-drain output so the same line
     // can carry the host's start pulse.
     rmt_rx_channel_config_t rx_cfg{};
-    rx_cfg.gpio_num = cfg.pin.idf_num();
+    rx_cfg.gpio_num = cfg.pin->idf_num();
     rx_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
     rx_cfg.resolution_hz = internal::rmt_resolution_hz;
     rx_cfg.mem_block_symbols = rx_buffer_symbols;
@@ -129,7 +131,7 @@ result<sensor> sensor::make(config cfg) {
         return error(e.error());
     }
 
-    auto pin = cfg.pin;
+    auto pin = cfg.pin.get();
     if (auto e = pin.try_set_direction(gpio::mode::input_output_od); !e) {
         return error(e.error());
     }
@@ -150,7 +152,7 @@ sensor::sensor(sensor&& other) noexcept = default;
 sensor& sensor::operator=(sensor&& other) noexcept = default;
 
 idfxx::gpio sensor::pin() const noexcept {
-    return _state ? _state->cfg.pin : gpio::nc();
+    return _state ? _state->cfg.pin.get() : gpio::nc();
 }
 
 enum model sensor::model() const noexcept {
@@ -173,7 +175,7 @@ result<reading> sensor::try_read() {
         return error(errc::invalid_state);
     }
 
-    auto pin = s.cfg.pin;
+    auto pin = s.cfg.pin.get();
     xQueueReset(s.done_queue);
 
     // Start pulse: hold the line low, then arm the capture while still low —

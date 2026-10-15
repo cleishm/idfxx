@@ -31,11 +31,11 @@ panel_io::panel_io(esp_lcd_panel_io_handle_t handle, transport kind, std::unique
     , _callbacks(std::move(callbacks)) {}
 
 result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
-    if (!config.cs_gpio.is_connected()) {
+    if (!config.cs_gpio->is_connected()) {
         ESP_LOGD(TAG, "Field 'cs_gpio' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.pclk_freq.count() == 0) {
+    if (config.pclk_freq->count() == 0) {
         ESP_LOGD(TAG, "Field 'pclk_freq' has an invalid value");
         return error(errc::invalid_arg);
     }
@@ -58,10 +58,10 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
     }
 
     esp_lcd_panel_io_spi_config_t lcd_config{
-        .cs_gpio_num = config.cs_gpio.idf_num(),
+        .cs_gpio_num = config.cs_gpio->idf_num(),
         .dc_gpio_num = config.dc_gpio.idf_num(),
         .spi_mode = config.spi_mode,
-        .pclk_hz = static_cast<uint32_t>(config.pclk_freq.count()),
+        .pclk_hz = static_cast<uint32_t>(config.pclk_freq->count()),
         .trans_queue_depth = config.trans_queue_depth,
         .on_color_trans_done = cbs ? on_color_transfer_done : nullptr,
         .user_ctx = cbs ? static_cast<void*>(cbs.get()) : nullptr,
@@ -103,7 +103,7 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
         ESP_LOGD(TAG, "Field 'device_address' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.scl_speed.count() == 0) {
+    if (config.scl_speed->count() == 0) {
         ESP_LOGD(TAG, "Field 'scl_speed' has an invalid value");
         return error(errc::invalid_arg);
     }
@@ -127,7 +127,7 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
     // including any flags ESP-IDF adds later.
     esp_lcd_panel_io_i2c_config_t lcd_config{};
     lcd_config.dev_addr = config.device_address;
-    lcd_config.scl_speed_hz = static_cast<uint32_t>(config.scl_speed.count());
+    lcd_config.scl_speed_hz = static_cast<uint32_t>(config.scl_speed->count());
     lcd_config.control_phase_bytes = config.control_phase_bytes;
     lcd_config.dc_bit_offset = config.dc_bit_offset;
     lcd_config.lcd_cmd_bits = config.lcd_cmd_bits;

@@ -32,29 +32,32 @@ static_assert(!std::is_copy_assignable_v<uc8179>);
 static_assert(std::is_move_constructible_v<uc8179>);
 static_assert(std::is_move_assignable_v<uc8179>);
 
+// The config requires a BUSY pin.
+static_assert(!std::is_default_constructible_v<uc8179::config>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
 TEST_CASE("uc8179 config defaults match the 7.5\" GDEY075T7 panel", "[idfxx][epaper][uc8179]") {
-    uc8179::config cfg{};
+    uc8179::config cfg{.busy_gpio = idfxx::gpio_4};
     TEST_ASSERT_EQUAL(800, cfg.width);
     TEST_ASSERT_EQUAL(480, cfg.height);
     TEST_ASSERT_FALSE(cfg.reset_gpio.is_connected());
-    TEST_ASSERT_FALSE(cfg.busy_gpio.is_connected());
+    TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
     TEST_ASSERT_EQUAL(30'000, cfg.busy_timeout.count());
 }
 
 TEST_CASE("uc8179::spi_io_config fills the controller's SPI framing", "[idfxx][epaper][uc8179]") {
     auto io_cfg = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2);
-    TEST_ASSERT_EQUAL(idfxx::gpio_1.num(), io_cfg.cs_gpio.num());
+    TEST_ASSERT_EQUAL(idfxx::gpio_1.num(), io_cfg.cs_gpio->num());
     TEST_ASSERT_EQUAL(idfxx::gpio_2.num(), io_cfg.dc_gpio.num());
     TEST_ASSERT_EQUAL(0, io_cfg.spi_mode);
-    TEST_ASSERT_EQUAL(10'000'000, io_cfg.pclk_freq.count());
+    TEST_ASSERT_EQUAL(10'000'000, io_cfg.pclk_freq->count());
     TEST_ASSERT_EQUAL(10, io_cfg.trans_queue_depth);
-    TEST_ASSERT_EQUAL(8, io_cfg.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(8, io_cfg.lcd_param_bits);
+    TEST_ASSERT_EQUAL(8, *io_cfg.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(8, *io_cfg.lcd_param_bits);
 
     auto slow = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, quanta::frequency::hertz{4'000'000});
-    TEST_ASSERT_EQUAL(4'000'000, slow.pclk_freq.count());
+    TEST_ASSERT_EQUAL(4'000'000, slow.pclk_freq->count());
 }

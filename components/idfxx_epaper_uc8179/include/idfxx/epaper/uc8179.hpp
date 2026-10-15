@@ -16,6 +16,7 @@
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/panel_io>
+#include <idfxx/required>
 
 #include <chrono>
 #include <cstddef>
@@ -84,9 +85,9 @@ public:
         /// between refresh waveforms so each mode starts from a known
         /// register state.
         gpio reset_gpio = gpio::nc();
-        /// GPIO wired to the panel's BUSY output (required). The UC8179
-        /// drives BUSY low while an operation is in progress.
-        gpio busy_gpio = gpio::nc();
+        /// GPIO wired to the panel's BUSY output. The UC8179 drives BUSY
+        /// low while an operation is in progress.
+        required<gpio> busy_gpio;
         /// Maximum time to wait for the BUSY line to release. Full refreshes
         /// of large panels take several seconds on some glasses and
         /// temperatures.
@@ -129,7 +130,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration; `busy_gpio` is required.
+     * @param config   Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
@@ -151,7 +152,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration; `busy_gpio` is required.
+     * @param config   Panel configuration.
      *
      * @return The new uc8179, or an error.
      * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, the

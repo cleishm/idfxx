@@ -16,9 +16,6 @@ using namespace idfxx::lcd;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// touch::config is default-constructible
-static_assert(std::is_default_constructible_v<touch::config>);
-
 // touch is abstract (has pure virtual methods)
 static_assert(std::is_abstract_v<touch>);
 
@@ -31,6 +28,9 @@ static_assert(std::has_virtual_destructor_v<touch>);
 
 // touch is not default-constructible from outside (protected constructor)
 static_assert(!std::is_default_constructible_v<touch>);
+
+// touch::config is not default-constructible (x_max and y_max must be set)
+static_assert(!std::is_default_constructible_v<touch::config>);
 
 // process_coordinates_callback is a move_only_function
 static_assert(!std::is_copy_constructible_v<touch::process_coordinates_callback>);

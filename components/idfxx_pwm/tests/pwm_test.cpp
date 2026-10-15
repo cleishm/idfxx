@@ -26,9 +26,11 @@ static_assert(std::is_copy_assignable_v<timer>);
 static_assert(std::is_move_constructible_v<timer>);
 static_assert(std::is_move_assignable_v<timer>);
 
-// timer::config is an aggregate with sensible defaults
+// timer::config is an aggregate; the frequency has no default
 static_assert(std::is_aggregate_v<timer::config>);
-static_assert(std::is_default_constructible_v<timer::config>);
+static_assert(!std::is_default_constructible_v<timer::config>);
+static_assert(timer::config{.frequency = quanta::frequency::hertz{5000}}.resolution_bits == 13);
+static_assert(timer::config{.frequency = quanta::frequency::hertz{5000}}.clk_source == clk_source::auto_select);
 
 // Predefined timer constants have correct numbers
 static_assert(timer_0.num() == 0);

@@ -83,16 +83,16 @@ TEST_CASE("ssd1306::config contrast initialization", "[idfxx][lcd][ssd1306]") {
 TEST_CASE("ssd1306::i2c_io_config supplies the controller framing", "[idfxx][lcd][ssd1306]") {
     auto config = ssd1306::i2c_io_config();
 
-    TEST_ASSERT_EQUAL(0x3C, config.device_address);
-    TEST_ASSERT_EQUAL(400000, config.scl_speed.count());
+    TEST_ASSERT_EQUAL(0x3C, *config.device_address);
+    TEST_ASSERT_EQUAL(400000, config.scl_speed->count());
     TEST_ASSERT_EQUAL(1, config.control_phase_bytes);
     TEST_ASSERT_EQUAL(6, config.dc_bit_offset);
-    TEST_ASSERT_EQUAL(8, config.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(8, config.lcd_param_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(8, *config.lcd_param_bits);
 
     config = ssd1306::i2c_io_config(0x3D, 100_kHz);
-    TEST_ASSERT_EQUAL(0x3D, config.device_address);
-    TEST_ASSERT_EQUAL(100000, config.scl_speed.count());
+    TEST_ASSERT_EQUAL(0x3D, *config.device_address);
+    TEST_ASSERT_EQUAL(100000, config.scl_speed->count());
 }
 
 TEST_CASE("ssd1306::make rejects invalid height", "[idfxx][lcd][ssd1306]") {

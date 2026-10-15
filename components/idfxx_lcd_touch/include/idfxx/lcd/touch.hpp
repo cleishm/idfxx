@@ -11,6 +11,7 @@
  */
 
 #include <idfxx/gpio>
+#include <idfxx/required>
 
 #include <cstdint>
 #include <functional>
@@ -51,11 +52,11 @@ public:
      * @headerfile <idfxx/lcd/touch>
      * @brief Configuration structure for touch controllers.
      *
-     * All fields have sensible defaults, but you must define x_max and y_max at minimum.
+     * Every field other than x_max and y_max has a sensible default.
      */
     struct config {
-        uint16_t x_max = 0; ///< X coordinates max (for mirroring)
-        uint16_t y_max = 0; ///< Y coordinates max (for mirroring)
+        required<uint16_t> x_max; ///< X coordinates max (for mirroring)
+        required<uint16_t> y_max; ///< Y coordinates max (for mirroring)
 
         gpio rst_gpio = gpio::nc(); ///< GPIO number of reset pin
         gpio int_gpio = gpio::nc(); ///< GPIO number of interrupt pin

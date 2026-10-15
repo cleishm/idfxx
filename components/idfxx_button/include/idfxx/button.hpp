@@ -22,6 +22,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/required>
 
 #include <chrono>
 #include <functional>
@@ -75,7 +76,7 @@ public:
      * @headerfile <idfxx/button>
      * @brief Button configuration.
      *
-     * All fields have sensible defaults, but you must set pin and callback at minimum.
+     * Every field other than pin and callback has a sensible default.
      *
      * @code
      * idfxx::button btn({
@@ -89,7 +90,7 @@ public:
      * @endcode
      */
     struct config {
-        idfxx::gpio pin = gpio::nc();                                       ///< GPIO pin (required)
+        idfxx::required<idfxx::gpio> pin;                                   ///< GPIO pin
         enum mode mode = mode::poll;                                        ///< Detection mode
         gpio::level pressed_level = gpio::level::low;                       ///< GPIO level when pressed
         bool enable_pull = true;                                            ///< Enable internal pull resistor
@@ -101,22 +102,22 @@ public:
         std::chrono::microseconds autorepeat_interval{std::chrono::milliseconds{250}}; ///< Autorepeat repeat interval
         std::chrono::microseconds poll_interval{std::chrono::milliseconds{10}};        ///< Polling interval
         /**
-         * @brief Event callback (required).
+         * @brief Event callback.
          *
          * When exceptions are enabled, an exception thrown by the callback is
          * logged and otherwise ignored, and the button keeps reporting events.
          */
-        std::move_only_function<void(event_type)> callback;
+        idfxx::required<std::move_only_function<void(event_type)>> callback;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a button and begins monitoring.
      *
-     * @param cfg Button configuration. pin and callback must be set.
+     * @param cfg Button configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
-     * @throws std::system_error with errc::invalid_arg if pin is not connected, callback is not set, or
+     * @throws std::system_error with errc::invalid_arg if pin is not connected, callback is empty, or
      *         extended_press_time is set but not beyond long_press_time.
      */
     [[nodiscard]] explicit button(config cfg);
@@ -125,9 +126,9 @@ public:
     /**
      * @brief Creates a button and begins monitoring.
      *
-     * @param cfg Button configuration. pin and callback must be set.
+     * @param cfg Button configuration.
      * @return The new button, or an error.
-     * @retval invalid_arg pin is not connected, callback is not set, or extended_press_time is set but not
+     * @retval invalid_arg pin is not connected, callback is empty, or extended_press_time is set but not
      *         beyond long_press_time.
      */
     [[nodiscard]] static result<button> make(config cfg);

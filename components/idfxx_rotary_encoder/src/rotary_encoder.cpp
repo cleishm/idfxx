@@ -19,6 +19,9 @@ namespace {
 constexpr uint8_t valid_states[] = {0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0};
 
 struct encoder_context {
+    explicit encoder_context(rotary_encoder::config c)
+        : cfg(std::move(c)) {}
+
     rotary_encoder::config cfg;
 
     // Resources — destruction order matters (reverse of declaration)
@@ -36,10 +39,10 @@ struct encoder_context {
 void poll_encoder(encoder_context* ctx) {
     // Read current pin states and build 4-bit gray code
     ctx->code <<= 2;
-    if (ctx->cfg.pin_a.get_level() == gpio::level::high) {
+    if (ctx->cfg.pin_a->get_level() == gpio::level::high) {
         ctx->code |= 0x02;
     }
-    if (ctx->cfg.pin_b.get_level() == gpio::level::high) {
+    if (ctx->cfg.pin_b->get_level() == gpio::level::high) {
         ctx->code |= 0x01;
     }
     ctx->code &= 0x0f;
@@ -75,7 +78,7 @@ void poll_encoder(encoder_context* ctx) {
     }
 
     // An exception is logged and the encoder keeps operating
-    (void)invoke_guarded(TAG, "Rotary encoder callback", [&] { ctx->cfg.callback(diff); });
+    (void)invoke_guarded(TAG, "Rotary encoder callback", [&] { (*ctx->cfg.callback)(diff); });
 }
 
 void timer_callback(void* arg) {
@@ -86,27 +89,27 @@ void timer_callback(void* arg) {
 } // namespace
 
 result<rotary_encoder> rotary_encoder::make(config cfg) {
-    if (!cfg.pin_a.is_connected()) {
+    if (!cfg.pin_a->is_connected()) {
         ESP_LOGD(TAG, "Field 'pin_a' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (!cfg.pin_b.is_connected()) {
+    if (!cfg.pin_b->is_connected()) {
         ESP_LOGD(TAG, "Field 'pin_b' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (!cfg.callback) {
+    if (!*cfg.callback) {
         ESP_LOGD(TAG, "Field 'callback' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     // Set pin direction to input
-    auto r = cfg.pin_a.try_set_direction(gpio::mode::input);
+    auto r = cfg.pin_a->try_set_direction(gpio::mode::input);
     if (!r) {
         auto msg = r.error().message();
         ESP_LOGD(TAG, "Failed to set pin_a direction: %s", msg.c_str());
         return error(r.error());
     }
-    r = cfg.pin_b.try_set_direction(gpio::mode::input);
+    r = cfg.pin_b->try_set_direction(gpio::mode::input);
     if (!r) {
         auto msg = r.error().message();
         ESP_LOGD(TAG, "Failed to set pin_b direction: %s", msg.c_str());
@@ -115,13 +118,13 @@ result<rotary_encoder> rotary_encoder::make(config cfg) {
 
     // Configure pull modes on encoder pins
     if (cfg.encoder_pins_pull_mode) {
-        r = cfg.pin_a.try_set_pull_mode(*cfg.encoder_pins_pull_mode);
+        r = cfg.pin_a->try_set_pull_mode(*cfg.encoder_pins_pull_mode);
         if (!r) {
             auto msg = r.error().message();
             ESP_LOGD(TAG, "Failed to set pin_a pull mode: %s", msg.c_str());
             return error(r.error());
         }
-        r = cfg.pin_b.try_set_pull_mode(*cfg.encoder_pins_pull_mode);
+        r = cfg.pin_b->try_set_pull_mode(*cfg.encoder_pins_pull_mode);
         if (!r) {
             auto msg = r.error().message();
             ESP_LOGD(TAG, "Failed to set pin_b pull mode: %s", msg.c_str());
@@ -129,8 +132,7 @@ result<rotary_encoder> rotary_encoder::make(config cfg) {
         }
     }
 
-    auto* ctx = new encoder_context{};
-    ctx->cfg = std::move(cfg);
+    auto* ctx = new encoder_context(std::move(cfg));
 
     auto t = timer::make({.name = "rotary_encoder"}, &timer_callback, ctx);
     if (!t) {

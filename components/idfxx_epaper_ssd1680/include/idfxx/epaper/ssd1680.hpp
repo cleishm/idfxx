@@ -17,6 +17,7 @@
 #include <idfxx/gpio>
 #include <idfxx/memory>
 #include <idfxx/panel_io>
+#include <idfxx/required>
 
 #include <chrono>
 #include <cstddef>
@@ -80,9 +81,9 @@ public:
         /// wired. Required for @ref wake (the controller needs a hardware
         /// reset to leave deep sleep).
         gpio reset_gpio = gpio::nc();
-        /// GPIO wired to the panel's BUSY output (required). The SSD1680
-        /// drives BUSY high while an operation is in progress.
-        gpio busy_gpio = gpio::nc();
+        /// GPIO wired to the panel's BUSY output. The SSD1680 drives BUSY
+        /// high while an operation is in progress.
+        required<gpio> busy_gpio;
         /// Maximum time to wait for the BUSY line to release. Full refreshes
         /// take several seconds on some panels and temperatures.
         std::chrono::milliseconds busy_timeout{15'000};
@@ -131,7 +132,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration; `busy_gpio` is required.
+     * @param config   Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
@@ -152,7 +153,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration; `busy_gpio` is required.
+     * @param config   Panel configuration.
      *
      * @return The new ssd1680, or an error.
      * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, or

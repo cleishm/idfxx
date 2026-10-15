@@ -199,7 +199,7 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             // chip and abort the autonomous listen. BUSY high with nothing
             // latched also means nothing to drain — an rx_done returns the
             // chip to standby, where BUSY is low.
-            if (s.cfg.busy.is_connected() && s.cfg.busy.get_level() == gpio::level::high) {
+            if (s.cfg.busy->is_connected() && s.cfg.busy->get_level() == gpio::level::high) {
                 continue;
             }
         }

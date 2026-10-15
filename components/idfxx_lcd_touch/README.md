@@ -22,7 +22,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_touch:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_lcd_touch` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -184,8 +184,8 @@ idfxx::lcd::touch::config touch_config{
 ### `touch::config`
 
 **Coordinate Range:**
-- `x_max` - Maximum X coordinate (used for mirroring)
-- `y_max` - Maximum Y coordinate (used for mirroring)
+- `x_max` - Maximum X coordinate (used for mirroring, required)
+- `y_max` - Maximum Y coordinate (used for mirroring, required)
 
 **GPIO Pins:**
 - `rst_gpio` - Reset pin (default: `gpio::nc()`)

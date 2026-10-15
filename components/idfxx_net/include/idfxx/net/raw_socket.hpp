@@ -19,6 +19,7 @@
 #include <idfxx/net/detail/connectionless_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
+#include <idfxx/required>
 
 #include <chrono>
 #include <cstddef>
@@ -52,11 +53,11 @@ public:
     /**
      * @brief Raw socket configuration.
      *
-     * `protocol` is required (no sensible default exists). Defaults otherwise
-     * produce a blocking IPv4 raw socket.
+     * `protocol` has no default. The other defaults produce a blocking IPv4
+     * raw socket.
      */
     struct config {
-        ip_protocol protocol = {};                    ///< IP-layer protocol (e.g. `ip_protocol::icmp`). Required.
+        idfxx::required<ip_protocol> protocol;        ///< IP-layer protocol (e.g. `ip_protocol::icmp`).
         address_family family = address_family::ipv4; ///< Address family (IPv4 / IPv6).
         /// If true, I/O calls fail immediately with `errc::operation_would_block` when no
         /// data or buffer space is available rather than blocking the calling task.

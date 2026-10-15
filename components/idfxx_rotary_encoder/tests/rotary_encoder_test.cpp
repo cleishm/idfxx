@@ -16,8 +16,12 @@ using namespace idfxx;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// rotary_encoder::config is default constructible
-static_assert(std::is_default_constructible_v<rotary_encoder::config>);
+// rotary_encoder::config is not default constructible (pins and callback must be set)
+static_assert(!std::is_default_constructible_v<rotary_encoder::config>);
+
+// rotary_encoder::config is move-only (the callback is move-only)
+static_assert(std::is_move_constructible_v<rotary_encoder::config>);
+static_assert(!std::is_copy_constructible_v<rotary_encoder::config>);
 
 // rotary_encoder is not copyable
 static_assert(!std::is_copy_constructible_v<rotary_encoder>);
@@ -33,10 +37,14 @@ static_assert(std::is_move_assignable_v<rotary_encoder>);
 // =============================================================================
 
 TEST_CASE("rotary_encoder::config default values", "[idfxx][rotary_encoder]") {
-    rotary_encoder::config cfg{};
+    rotary_encoder::config cfg{
+        .pin_a = gpio_4,
+        .pin_b = gpio_5,
+        .callback = [](int32_t) {},
+    };
 
-    TEST_ASSERT_FALSE(cfg.pin_a.is_connected());
-    TEST_ASSERT_FALSE(cfg.pin_b.is_connected());
+    TEST_ASSERT_TRUE(cfg.pin_a == gpio_4);
+    TEST_ASSERT_TRUE(cfg.pin_b == gpio_5);
     TEST_ASSERT_TRUE(cfg.encoder_pins_pull_mode.has_value());
     TEST_ASSERT_EQUAL(gpio::pull_mode::pullup, *cfg.encoder_pins_pull_mode);
     TEST_ASSERT_EQUAL(200, cfg.acceleration_threshold.count());
@@ -44,11 +52,12 @@ TEST_CASE("rotary_encoder::config default values", "[idfxx][rotary_encoder]") {
     TEST_ASSERT_EQUAL(1'000, cfg.polling_interval.count());
 }
 
-TEST_CASE("rotary_encoder::make with no callback fails", "[idfxx][rotary_encoder]") {
-    rotary_encoder::config cfg{};
-    cfg.pin_a = gpio_4;
-    cfg.pin_b = gpio_5;
-    auto result = rotary_encoder::make(std::move(cfg));
+TEST_CASE("rotary_encoder::make with empty callback fails", "[idfxx][rotary_encoder]") {
+    auto result = rotary_encoder::make({
+        .pin_a = gpio_4,
+        .pin_b = gpio_5,
+        .callback = nullptr,
+    });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
 }

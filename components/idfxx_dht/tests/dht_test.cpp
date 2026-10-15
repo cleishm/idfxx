@@ -27,8 +27,8 @@ static_assert(!std::is_copy_assignable_v<sensor>);
 static_assert(std::is_move_constructible_v<sensor>);
 static_assert(std::is_move_assignable_v<sensor>);
 
-// config is default-constructible (every field has a default).
-static_assert(std::is_default_constructible_v<sensor::config>);
+// config is not default-constructible (the pin must be set).
+static_assert(!std::is_default_constructible_v<sensor::config>);
 
 // Captures are decoded at microsecond resolution.
 static_assert(decode::rmt_resolution_hz == 1'000'000);
@@ -187,4 +187,10 @@ TEST_CASE("dht11 conversion: integral degrees and percent", "[idfxx][dht]") {
 TEST_CASE("dht model to_string", "[idfxx][dht]") {
     TEST_ASSERT_EQUAL_STRING("DHT11", idfxx::to_string(model::dht11).c_str());
     TEST_ASSERT_EQUAL_STRING("DHT22", idfxx::to_string(model::dht22).c_str());
+}
+
+TEST_CASE("dht make rejects an unconnected pin", "[idfxx][dht]") {
+    auto r = sensor::make({.pin = idfxx::gpio::nc()});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }

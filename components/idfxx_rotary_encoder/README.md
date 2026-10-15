@@ -22,7 +22,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_rotary_encoder:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_rotary_encoder` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -109,7 +109,7 @@ The `make()` factory returns `idfxx::result<rotary_encoder>`. The exception-base
 
 Error codes from `idfxx::errc`:
 
-- `invalid_arg` - Required pins (pin_a, pin_b) are not connected
+- `invalid_arg` - Required pins (pin_a, pin_b) are not connected, or the callback is empty
 
 ## Important Notes
 

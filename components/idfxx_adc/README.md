@@ -49,7 +49,7 @@ quanta::electro::millivolts v = battery.read_voltage();  // battery-side voltage
 using namespace quanta::frequency_literals;
 
 // Continuous: sample a signal at 20 kHz in the background.
-idfxx::adc::sampler mic({.pins = {idfxx::gpio_3}, .sample_rate = 20_kHz});
+idfxx::adc::sampler mic({.pins = std::vector<idfxx::gpio>{idfxx::gpio_3}, .sample_rate = 20_kHz});
 mic.start();
 
 std::array<idfxx::adc::sampler::sample, 256> buf;
@@ -80,7 +80,10 @@ if (!v) { /* v.error() */ }
 ```
 
 ```cpp
-auto mic = idfxx::adc::sampler::make({.pins = {idfxx::gpio_3}, .sample_rate = quanta::frequency::hertz{20'000}});
+auto mic = idfxx::adc::sampler::make({
+    .pins = std::vector<idfxx::gpio>{idfxx::gpio_3},
+    .sample_rate = quanta::frequency::hertz{20'000},
+});
 if (!mic) { /* handle error */ }
 
 if (auto r = mic->try_start(); !r) { /* r.error() */ }

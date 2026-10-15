@@ -48,9 +48,14 @@ int command_trampoline(void* context, int argc, char** argv) {
 // =============================================================================
 
 result<void> try_register_command(const command& cmd, handler callback) {
+    if (cmd.name->empty() || cmd.name->find(' ') != std::string_view::npos) {
+        ESP_LOGD(TAG, "Field 'name' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+
     auto ctx = std::make_unique<command_context>();
     ctx->callback = std::move(callback);
-    ctx->name = std::string{cmd.name};
+    ctx->name = std::string{*cmd.name};
     ctx->help = std::string{cmd.help};
     ctx->hint = std::string{cmd.hint};
 

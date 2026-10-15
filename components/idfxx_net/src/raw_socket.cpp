@@ -56,7 +56,7 @@ result<raw_socket> raw_socket::make(const config& cfg) {
     if (af == AF_UNSPEC) {
         return error(errc::invalid_argument);
     }
-    int fd = lwip_socket(af, SOCK_RAW, static_cast<int>(cfg.protocol));
+    int fd = lwip_socket(af, SOCK_RAW, static_cast<int>(*cfg.protocol));
     if (fd < 0) {
         return error(errno_to_error_code(errno));
     }

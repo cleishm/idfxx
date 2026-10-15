@@ -23,6 +23,7 @@
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
+#include <idfxx/required>
 
 #include <array>
 #include <cassert>
@@ -156,7 +157,7 @@ public:
     /**
      * @brief I2C master bus configuration.
      *
-     * All fields have sensible defaults, but you should define sda, scl, and frequency at minimum. For example:
+     * Every field other than sda, scl, and frequency has a sensible default. For example:
      *
      * @code
      * idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
@@ -169,9 +170,9 @@ public:
      * @endcode
      */
     struct config {
-        idfxx::gpio sda = gpio::nc();                            ///< GPIO pin for the SDA line.
-        idfxx::gpio scl = gpio::nc();                            ///< GPIO pin for the SCL line.
-        quanta::frequency::hertz frequency{0};                   ///< Clock frequency in Hz.
+        idfxx::required<idfxx::gpio> sda;                        ///< GPIO pin for the SDA line.
+        idfxx::required<idfxx::gpio> scl;                        ///< GPIO pin for the SCL line.
+        idfxx::required<quanta::frequency::hertz> frequency;     ///< Clock frequency in Hz.
         enum clk_source clk_source = clk_source::default_source; ///< Clock source for the I2C master bus.
 #if SOC_LP_I2C_SUPPORTED
         enum lp_clk_source lp_source_clk = lp_clk_source::default_source; ///< Clock source for LP I2C bus.

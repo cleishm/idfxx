@@ -438,10 +438,10 @@ public:
      * setters in sequence. Both ends of a link must agree on every field
      * except the output power.
      *
-     * @param link Link configuration; `link.frequency` is required.
+     * @param link Link configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg` if
-     *         `link.frequency` is unset (zero).
+     *         `link.frequency` is zero.
      *
      * @code
      * radio.configure({
@@ -513,13 +513,13 @@ public:
      * setters in sequence, stopping at the first failure. Both ends of a link
      * must agree on every field except the output power.
      *
-     * @param link Link configuration; `link.frequency` is required.
+     * @param link Link configuration.
      * @return Success, or the first setter's error.
-     * @retval invalid_arg `link.frequency` is unset (zero), or a field is
+     * @retval invalid_arg `link.frequency` is zero, or a field is
      *         outside the driver's supported range.
      */
     [[nodiscard]] result<void> try_configure(const lora_link& link) {
-        if (link.frequency.count() == 0) {
+        if (link.frequency->count() == 0) {
             return error(errc::invalid_arg);
         }
         if (auto r = try_set_frequency(link.frequency); !r) {

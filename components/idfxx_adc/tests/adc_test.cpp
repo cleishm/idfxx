@@ -25,21 +25,30 @@ static_assert(!std::is_copy_assignable_v<input>);
 static_assert(std::is_move_constructible_v<input>);
 static_assert(std::is_move_assignable_v<input>);
 
-// config is default-constructible (every field has a default).
-static_assert(std::is_default_constructible_v<input::config>);
+// config is not default-constructible (the pin must be set).
+static_assert(!std::is_default_constructible_v<input::config>);
+
+// The required pin compares directly against a GPIO constant.
+static_assert(input::config{.pin = idfxx::gpio_5}.pin == idfxx::gpio_5);
+static_assert(idfxx::gpio_5 == input::config{.pin = idfxx::gpio_5}.pin);
+static_assert(input::config{.pin = idfxx::gpio_5}.pin != idfxx::gpio_6);
+static_assert(input::config{.pin = idfxx::gpio_5} == input::config{.pin = idfxx::gpio_5});
+static_assert(input::config{.pin = idfxx::gpio_5} != input::config{.pin = idfxx::gpio_6});
 
 // =============================================================================
 // Runtime tests
 // =============================================================================
 
 TEST_CASE("adc config defaults", "[idfxx][adc]") {
-    input::config cfg{};
-    TEST_ASSERT_FALSE(cfg.pin.is_connected());
+    input::config cfg{.pin = idfxx::gpio_5};
+    TEST_ASSERT_TRUE(cfg.pin == idfxx::gpio_5);
     TEST_ASSERT_EQUAL(attenuation::db_12, cfg.attenuation);
+    TEST_ASSERT_EQUAL(1, cfg.divider.num);
+    TEST_ASSERT_EQUAL(1, cfg.divider.den);
 }
 
 TEST_CASE("adc make rejects an unconnected pin", "[idfxx][adc]") {
-    auto r = input::make({});
+    auto r = input::make({.pin = idfxx::gpio::nc()});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
