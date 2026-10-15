@@ -39,8 +39,10 @@ static_assert(!std::is_copy_assignable_v<sx126x>);
 static_assert(std::is_move_constructible_v<sx126x>);
 static_assert(std::is_move_assignable_v<sx126x>);
 
-// config is default-constructible (every field has a default).
-static_assert(std::is_default_constructible_v<sx126x::config>);
+// config is not default-constructible (cs, busy and dio1 must be set).
+static_assert(!std::is_default_constructible_v<sx126x::config>);
+
+// cad_params and tcxo_config are default-constructible (every field has a default).
 static_assert(std::is_default_constructible_v<sx126x::cad_params>);
 static_assert(std::is_default_constructible_v<sx126x::tcxo_config>);
 
@@ -194,9 +196,10 @@ static_assert(codec::tx_power_config_for(sx126x::chip_variant::sx1268, 22).pa.de
 // =============================================================================
 
 TEST_CASE("sx126x config defaults", "[idfxx][radio][sx126x]") {
-    sx126x::config cfg{};
+    sx126x::config cfg{.cs = idfxx::gpio_10, .busy = idfxx::gpio_4, .dio1 = idfxx::gpio_5};
     TEST_ASSERT_EQUAL(sx126x::chip_variant::sx1262, cfg.variant);
-    TEST_ASSERT_FALSE(cfg.cs.is_connected());
+    TEST_ASSERT_TRUE(cfg.cs == idfxx::gpio_10);
+    TEST_ASSERT_FALSE(cfg.nreset.is_connected());
     TEST_ASSERT_TRUE(cfg.dio2_as_rf_switch);
     TEST_ASSERT_FALSE(cfg.tcxo.has_value());
     TEST_ASSERT_EQUAL(sx126x::regulator::ldo, cfg.regulator);

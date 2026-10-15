@@ -309,10 +309,10 @@ result<void> reset_chip(sx126x::state& s) {
 }
 
 result<void> setup_busy_pin(sx126x::state& s) {
-    if (!s.cfg.busy.is_connected()) {
+    if (!s.cfg.busy->is_connected()) {
         return {};
     }
-    auto busy = s.cfg.busy;
+    auto busy = s.cfg.busy.get();
     return busy.try_set_direction(gpio::mode::input);
 }
 
@@ -332,10 +332,10 @@ result<void> setup_rf_switch_pins(sx126x::state& s) {
 }
 
 result<gpio::unique_isr_handle> setup_dio1_isr(sx126x::state& s) {
-    if (!s.cfg.dio1.is_connected()) {
+    if (!s.cfg.dio1->is_connected()) {
         return error(errc::invalid_arg);
     }
-    auto dio1 = s.cfg.dio1;
+    auto dio1 = s.cfg.dio1.get();
     if (auto e = dio1.try_set_direction(gpio::mode::input); !e) {
         return error(e.error());
     }
@@ -460,7 +460,7 @@ void sx126x_set_rf_switch(sx126x::state& s, chip_mode mode) noexcept {
 // =============================================================================
 
 result<void> sx126x::state::wait_busy() {
-    if (!cfg.busy.is_connected()) {
+    if (!cfg.busy->is_connected()) {
         return {};
     }
     // BUSY high means the chip is still processing a command (DS §8.3.1 BUSY
@@ -471,7 +471,7 @@ result<void> sx126x::state::wait_busy() {
     // tick sleep for the rare long waits (e.g. ~3.5 ms after Calibrate) so
     // they don't monopolize the CPU.
     constexpr auto spin_limit = std::chrono::microseconds(500);
-    while (cfg.busy.get_level() == gpio::level::high) {
+    while (cfg.busy->get_level() == gpio::level::high) {
         auto now = std::chrono::steady_clock::now();
         if (now > deadline) {
             ESP_LOGW(TAG, "BUSY timeout");
@@ -654,7 +654,7 @@ sx126x::sx126x(std::unique_ptr<state> s) noexcept
 
 result<sx126x> sx126x::make(spi::master_bus& bus, config cfg) {
     // Validate required pins.
-    if (!cfg.cs.is_connected() || !cfg.busy.is_connected() || !cfg.dio1.is_connected()) {
+    if (!cfg.cs->is_connected() || !cfg.busy->is_connected() || !cfg.dio1->is_connected()) {
         ESP_LOGE(TAG, "cs/busy/dio1 must all be set");
         return error(errc::invalid_arg);
     }

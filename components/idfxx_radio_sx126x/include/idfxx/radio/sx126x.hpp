@@ -21,6 +21,7 @@
 #include <idfxx/radio/events.hpp>
 #include <idfxx/radio/lora_transceiver.hpp>
 #include <idfxx/radio/types.hpp>
+#include <idfxx/required>
 #include <idfxx/spi/master>
 
 #include <chrono>
@@ -200,16 +201,15 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief Configuration for an SX126x driver instance.
      *
-     * Most fields have sensible defaults. The cs, busy, and dio1 GPIO pins
-     * are required and must be set; nreset is strongly recommended (without
-     * it the chip is not reset at construction and is assumed to be in its
-     * power-on state).
+     * Every field other than the cs, busy, and dio1 GPIO pins has a sensible
+     * default. nreset is strongly recommended (without it the chip is not
+     * reset at construction and is assumed to be in its power-on state).
      */
     struct config {
         chip_variant variant = chip_variant::sx1262;      ///< Chip family member.
-        idfxx::gpio cs = gpio::nc();                      ///< SPI chip-select pin (required).
-        idfxx::gpio busy = gpio::nc();                    ///< BUSY input from chip (required).
-        idfxx::gpio dio1 = gpio::nc();                    ///< DIO1 IRQ input from chip (required).
+        idfxx::required<idfxx::gpio> cs;                  ///< SPI chip-select pin.
+        idfxx::required<idfxx::gpio> busy;                ///< BUSY input from chip.
+        idfxx::required<idfxx::gpio> dio1;                ///< DIO1 IRQ input from chip.
         idfxx::gpio nreset = gpio::nc();                  ///< Active-low reset to chip; nc() skips the hardware reset.
         quanta::frequency::hertz clock_speed{10'000'000}; ///< SPI clock; chip max is 18 MHz.
         bool dio2_as_rf_switch = true;                    ///< Use DIO2 as the antenna T/R switch.
