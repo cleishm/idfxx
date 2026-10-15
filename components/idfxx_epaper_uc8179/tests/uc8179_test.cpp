@@ -50,14 +50,14 @@ TEST_CASE("uc8179 config defaults match the 7.5\" GDEY075T7 panel", "[idfxx][epa
 
 TEST_CASE("uc8179::spi_io_config fills the controller's SPI framing", "[idfxx][epaper][uc8179]") {
     auto io_cfg = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2);
-    TEST_ASSERT_EQUAL(idfxx::gpio_1.num(), io_cfg.cs_gpio.num());
+    TEST_ASSERT_EQUAL(idfxx::gpio_1.num(), io_cfg.cs_gpio->num());
     TEST_ASSERT_EQUAL(idfxx::gpio_2.num(), io_cfg.dc_gpio.num());
     TEST_ASSERT_EQUAL(0, io_cfg.spi_mode);
-    TEST_ASSERT_EQUAL(10'000'000, io_cfg.pclk_freq.count());
+    TEST_ASSERT_EQUAL(10'000'000, io_cfg.pclk_freq->count());
     TEST_ASSERT_EQUAL(10, io_cfg.trans_queue_depth);
-    TEST_ASSERT_EQUAL(8, io_cfg.lcd_cmd_bits);
-    TEST_ASSERT_EQUAL(8, io_cfg.lcd_param_bits);
+    TEST_ASSERT_EQUAL(8, *io_cfg.lcd_cmd_bits);
+    TEST_ASSERT_EQUAL(8, *io_cfg.lcd_param_bits);
 
     auto slow = uc8179::spi_io_config(idfxx::gpio_1, idfxx::gpio_2, quanta::frequency::hertz{4'000'000});
-    TEST_ASSERT_EQUAL(4'000'000, slow.pclk_freq.count());
+    TEST_ASSERT_EQUAL(4'000'000, slow.pclk_freq->count());
 }

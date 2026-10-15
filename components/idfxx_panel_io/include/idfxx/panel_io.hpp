@@ -23,6 +23,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/i2c/master>
+#include <idfxx/required>
 #include <idfxx/spi/master>
 
 #include <esp_lcd_panel_io.h>
@@ -59,20 +60,20 @@ public:
     /**
      * @brief SPI-based panel I/O configuration.
      *
-     * All fields have sensible defaults, but you must define cs_gpio, pclk_freq, lcd_cmd_bits,
-     * and lcd_param_bits at minimum.
+     * Every field other than cs_gpio, pclk_freq, lcd_cmd_bits, and lcd_param_bits has a
+     * sensible default.
      */
     struct spi_config {
-        gpio cs_gpio = gpio::nc();             ///< GPIO used for CS line
-        gpio dc_gpio = gpio::nc();             ///< GPIO used to select the D/C line, set to gpio::nc() if not used
-        int spi_mode = 0;                      ///< Traditional SPI mode (0~3)
-        quanta::frequency::hertz pclk_freq{0}; ///< Frequency of pixel clock
-        size_t trans_queue_depth = 10;         ///< Size of the internal transaction queue. Must be at least 1; 0 is
-                                               ///< rejected with `errc::invalid_arg`.
+        required<gpio> cs_gpio;    ///< GPIO used for CS line
+        gpio dc_gpio = gpio::nc(); ///< GPIO used to select the D/C line, set to gpio::nc() if not used
+        int spi_mode = 0;          ///< Traditional SPI mode (0~3)
+        required<quanta::frequency::hertz> pclk_freq; ///< Frequency of pixel clock
+        size_t trans_queue_depth = 10; ///< Size of the internal transaction queue. Must be at least 1; 0 is
+                                       ///< rejected with `errc::invalid_arg`.
         color_transfer_done_callback on_color_transfer_done =
-            nullptr;            ///< Callback invoked when color data transfer has finished
-        int lcd_cmd_bits = 0;   ///< Bit-width of LCD command
-        int lcd_param_bits = 0; ///< Bit-width of LCD parameter
+            nullptr;                  ///< Callback invoked when color data transfer has finished
+        required<int> lcd_cmd_bits;   ///< Bit-width of LCD command
+        required<int> lcd_param_bits; ///< Bit-width of LCD parameter
         uint8_t cs_enable_pretrans =
             0; ///< Amount of SPI bit-cycles the cs should be activated before the transmission (0-16)
         uint8_t cs_enable_posttrans =
@@ -94,21 +95,21 @@ public:
     /**
      * @brief I2C-based panel I/O configuration.
      *
-     * All fields have sensible defaults, but you must define device_address, scl_speed,
-     * lcd_cmd_bits, and lcd_param_bits at minimum. The control-phase framing is a property
-     * of the panel controller; panel driver components typically provide a pre-filled
-     * configuration (e.g. `ssd1306::i2c_io_config()`) or document the values they require.
+     * Every field other than device_address, scl_speed, lcd_cmd_bits, and lcd_param_bits has
+     * a sensible default. The control-phase framing is a property of the panel controller;
+     * panel driver components typically provide a pre-filled configuration (e.g.
+     * `ssd1306::i2c_io_config()`) or document the values they require.
      */
     struct i2c_config {
-        uint16_t device_address = 0;           ///< 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
-        quanta::frequency::hertz scl_speed{0}; ///< I2C SCL frequency
+        required<uint16_t> device_address;            ///< 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
+        required<quanta::frequency::hertz> scl_speed; ///< I2C SCL frequency
         color_transfer_done_callback on_color_transfer_done =
             nullptr;                    ///< Callback invoked when color data transfer has finished
         size_t control_phase_bytes = 0; ///< Number of bytes the panel encodes control information (e.g. D/C
                                         ///< selection) into during the control phase
         unsigned int dc_bit_offset = 0; ///< Offset of the D/C selection bit in the control phase
-        int lcd_cmd_bits = 0;           ///< Bit-width of LCD command
-        int lcd_param_bits = 0;         ///< Bit-width of LCD parameter
+        required<int> lcd_cmd_bits;     ///< Bit-width of LCD command
+        required<int> lcd_param_bits;   ///< Bit-width of LCD parameter
         struct {
             unsigned int dc_low_on_data : 1 = 0; ///< If enabled, DC bit = 0 indicates data transfer and DC bit = 1
                                                  ///< indicates command transfer; vice versa otherwise

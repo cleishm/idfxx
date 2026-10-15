@@ -158,7 +158,8 @@ idfxx::panel_io::spi_config display_io_config{
     .cs_gpio = idfxx::gpio_5,   // Display CS
     .dc_gpio = idfxx::gpio_2,
     .pclk_freq = 40_MHz,
-    // ... other config
+    .lcd_cmd_bits = 8,
+    .lcd_param_bits = 8,
 };
 idfxx::panel_io display_panel_io(
     spi_bus, std::move(display_io_config)
@@ -169,7 +170,8 @@ idfxx::panel_io::spi_config touch_io_config{
     .cs_gpio = idfxx::gpio_15,  // Touch CS (different)
     .dc_gpio = idfxx::gpio_2,
     .pclk_freq = 1_MHz,
-    // ... other config
+    .lcd_cmd_bits = 8,
+    .lcd_param_bits = 8,
 };
 idfxx::panel_io touch_panel_io(
     spi_bus, std::move(touch_io_config)

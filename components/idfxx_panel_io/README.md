@@ -227,14 +227,14 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 
 ### `panel_io::spi_config`
 
-- `cs_gpio` - Chip select GPIO (`idfxx::gpio`)
+- `cs_gpio` - Chip select GPIO (`idfxx::gpio`, required)
 - `dc_gpio` - Data/Command GPIO (`idfxx::gpio`)
 - `spi_mode` - SPI mode (0-3)
-- `pclk_freq` - Pixel clock frequency (`quanta::frequency::hertz`)
+- `pclk_freq` - Pixel clock frequency (`quanta::frequency::hertz`, required)
 - `trans_queue_depth` - Transaction queue size (default 10; must be at least 1)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
-- `lcd_cmd_bits` - Command bits (typically 8)
-- `lcd_param_bits` - Parameter bits (typically 8)
+- `lcd_cmd_bits` - Command bits (typically 8, required)
+- `lcd_param_bits` - Parameter bits (typically 8, required)
 - `cs_enable_pretrans` - SPI bit-cycles CS activates before transmission (0-16)
 - `cs_enable_posttrans` - SPI bit-cycles CS stays active after transmission (0-16)
 - `flags` - Extra flags to fine-tune the SPI device:
@@ -249,13 +249,13 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 
 ### `panel_io::i2c_config`
 
-- `device_address` - 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
-- `scl_speed` - I2C SCL frequency (`quanta::frequency::hertz`)
+- `device_address` - 7-bit I2C device address (e.g. 0x3C for a typical SSD1306, required)
+- `scl_speed` - I2C SCL frequency (`quanta::frequency::hertz`, required)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
 - `control_phase_bytes` - Bytes used to encode control information (e.g. D/C selection)
 - `dc_bit_offset` - Offset of the D/C selection bit in the control phase
-- `lcd_cmd_bits` - Command bits (typically 8)
-- `lcd_param_bits` - Parameter bits (typically 8)
+- `lcd_cmd_bits` - Command bits (typically 8, required)
+- `lcd_param_bits` - Parameter bits (typically 8, required)
 - `flags` - Extra flags to fine-tune the I2C device:
   - `dc_low_on_data` - DC bit = 0 indicates data transfer (vice versa otherwise)
   - `disable_control_phase` - Don't use the control phase
