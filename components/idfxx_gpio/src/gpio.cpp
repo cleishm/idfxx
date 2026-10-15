@@ -10,6 +10,12 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 
+#if CONFIG_GPIO_CTRL_FUNC_IN_IRAM
+#define GPIO_CTRL_ATTR IRAM_ATTR
+#else
+#define GPIO_CTRL_ATTR
+#endif
+
 namespace {
 const char* TAG = "idfxx::gpio";
 }
@@ -223,11 +229,11 @@ result<void> gpio::try_pulldown_disable() {
     return wrap(gpio_pulldown_dis(_num));
 }
 
-void gpio::set_level(enum level level) {
+void GPIO_CTRL_ATTR gpio::set_level(enum level level) {
     gpio_set_level(_num, std::to_underlying(level));
 }
 
-gpio::level gpio::get_level() const {
+gpio::level GPIO_CTRL_ATTR gpio::get_level() const {
     return static_cast<enum level>(gpio_get_level(_num));
 }
 
@@ -263,7 +269,7 @@ void gpio::intr_enable() {
     }
 }
 
-void gpio::intr_disable() {
+void GPIO_CTRL_ATTR gpio::intr_disable() {
     if (is_connected()) {
         gpio_intr_disable(_num);
     }

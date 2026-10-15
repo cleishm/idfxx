@@ -43,6 +43,10 @@ public:
     /**
      * @headerfile <idfxx/button>
      * @brief Button detection mode.
+     *
+     * Interrupt mode requires the GPIO ISR service to be installed first. If it is
+     * installed with `intr_flag::iram`, enable CONFIG_GPIO_CTRL_FUNC_IN_IRAM so the
+     * button's interrupt handler stays IRAM-safe.
      */
     enum class mode : int {
         poll = 0,      ///< Periodic timer polling (default)

@@ -430,6 +430,8 @@ public:
      * @brief Sets the output level.
      * @param level The level to set (gpio::level::low or gpio::level::high).
      * @note Does nothing if the gpio is not configured for output.
+     * @note Safe to call from an ISR installed with `intr_flag::iram` when
+     *       CONFIG_GPIO_CTRL_FUNC_IN_IRAM is enabled.
      */
     void set_level(enum level level);
     /**
@@ -437,6 +439,8 @@ public:
      * @return The current input level.
      * @warning If the gpio is not configured for input, the returned value is always gpio::level::low.
      * @note Returns gpio::level::low for gpio::nc().
+     * @note Safe to call from an ISR installed with `intr_flag::iram` when
+     *       CONFIG_GPIO_CTRL_FUNC_IN_IRAM is enabled.
      */
     [[nodiscard]] enum level get_level() const;
     /**
@@ -637,6 +641,8 @@ public:
     /**
      * @brief Disables interrupts for this gpio.
      * @note Does nothing if called on gpio::nc().
+     * @note Safe to call from an ISR installed with `intr_flag::iram` when
+     *       CONFIG_GPIO_CTRL_FUNC_IN_IRAM is enabled.
      */
     void intr_disable();
 
