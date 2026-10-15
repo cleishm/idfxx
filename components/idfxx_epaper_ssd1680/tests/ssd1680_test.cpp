@@ -32,16 +32,19 @@ static_assert(!std::is_copy_assignable_v<ssd1680>);
 static_assert(std::is_move_constructible_v<ssd1680>);
 static_assert(std::is_move_assignable_v<ssd1680>);
 
+// The config requires a BUSY pin.
+static_assert(!std::is_default_constructible_v<ssd1680::config>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
 TEST_CASE("ssd1680 config defaults match the Seeed 2.13\" panel", "[idfxx][epaper][ssd1680]") {
-    ssd1680::config cfg{};
+    ssd1680::config cfg{.busy_gpio = idfxx::gpio_4};
     TEST_ASSERT_EQUAL(122, cfg.width);
     TEST_ASSERT_EQUAL(250, cfg.height);
     TEST_ASSERT_FALSE(cfg.reset_gpio.is_connected());
-    TEST_ASSERT_FALSE(cfg.busy_gpio.is_connected());
+    TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
     TEST_ASSERT_EQUAL(15'000, cfg.busy_timeout.count());
     TEST_ASSERT_FALSE(cfg.mirror_x);
     TEST_ASSERT_FALSE(cfg.mirror_y);
