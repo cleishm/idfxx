@@ -8,10 +8,13 @@
 #include <idfxx/sched>
 #include <idfxx/wifi>
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <esp_crt_bundle.h>
 #include <string>
+#include <string_view>
 
 using namespace std::chrono_literals;
 
@@ -70,11 +73,22 @@ extern "C" void app_main() {
 
         // --- Perform HTTPS GET ---
         std::string body;
+        std::string content_type;
         idfxx::http::client c({
             .url = REQUEST_URL,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .on_event = [&](const idfxx::http::event_data& evt) {
-                if (evt.id == idfxx::http::event_id::on_data) {
+                // Redirects and auth retries send a new request; keep only the final response.
+                if (evt.id == idfxx::http::event_id::headers_sent) {
+                    content_type.clear();
+                    body.clear();
+                } else if (evt.id == idfxx::http::event_id::on_header &&
+                           std::ranges::equal(evt.header_key, std::string_view("Content-Type"), [](char a, char b) {
+                               return std::tolower(static_cast<unsigned char>(a)) ==
+                                   std::tolower(static_cast<unsigned char>(b));
+                           })) {
+                    content_type = evt.header_value;
+                } else if (evt.id == idfxx::http::event_id::on_data) {
                     body.append(reinterpret_cast<const char*>(evt.data.data()), evt.data.size());
                 }
             },
@@ -84,8 +98,8 @@ extern "C" void app_main() {
         c.perform();
 
         logger.info("Status: {}", c.status_code());
-        if (auto ctype = c.get_header("Content-Type")) {
-            logger.info("Content-Type: {}", *ctype);
+        if (!content_type.empty()) {
+            logger.info("Content-Type: {}", content_type);
         }
         logger.info("Body ({} bytes): {}", body.size(), body);
 

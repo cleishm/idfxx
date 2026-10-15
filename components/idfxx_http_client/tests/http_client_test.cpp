@@ -186,6 +186,30 @@ TEST_CASE("http client make rejects out-of-range config values", "[idfxx][http]"
     TEST_ASSERT_TRUE(no_retries.has_value());
 }
 
+TEST_CASE("http client get_header returns request headers set with set_header", "[idfxx][http]") {
+    auto c = client::make({.url = "http://127.0.0.1/"});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    TEST_ASSERT_FALSE(c->get_header("X-Idfxx-Test").has_value());
+    c->set_header("X-Idfxx-Test", "abc");
+    auto value = c->get_header("X-Idfxx-Test");
+    TEST_ASSERT_TRUE(value.has_value());
+    TEST_ASSERT_EQUAL_STRING("abc", value->c_str());
+    c->delete_header("X-Idfxx-Test");
+    TEST_ASSERT_FALSE(c->get_header("X-Idfxx-Test").has_value());
+}
+
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
+TEST_CASE("http client get_response_header is empty before any response", "[idfxx][http]") {
+    auto c = client::make({.url = "http://127.0.0.1/"});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    c->set_header("X-Idfxx-Test", "abc");
+    TEST_ASSERT_FALSE(c->get_response_header("X-Idfxx-Test").has_value());
+    TEST_ASSERT_FALSE(c->get_response_header("Content-Type").has_value());
+}
+#endif
+
 // -- Streaming error reporting (loopback) --------------------------------------
 //
 // A plain TCP listener on loopback stands in for the HTTP server, so each test

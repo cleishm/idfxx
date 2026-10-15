@@ -314,6 +314,17 @@ public:
     void delete_header(std::string_view key);
 
     /**
+     * @brief Retrieves a request header value.
+     *
+     * Returns a header previously set with set_header(), or one added by the
+     * driver. This does not return headers from the server's response.
+     *
+     * @param key Header name to look up.
+     * @return The header value, or std::nullopt if the header is not set.
+     */
+    [[nodiscard]] std::optional<std::string> get_header(std::string_view key) const;
+
+    /**
      * @brief Sets the POST request body.
      *
      * The client takes ownership of a copy of the data, keeping it alive
@@ -978,13 +989,27 @@ public:
      */
     [[nodiscard]] bool is_chunked_response() const;
 
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
     /**
-     * @brief Retrieves a response header value.
+     * @brief Retrieves a response header value saved from the last response.
+     *
+     * Header names are matched case-insensitively. Only the first
+     * CONFIG_ESP_HTTP_CLIENT_MAX_SAVED_RESPONSE_HEADERS headers of a response are
+     * saved, with a repeated header counting toward that limit each time it
+     * appears. Headers larger than CONFIG_ESP_HTTP_CLIENT_MAX_RESPONSE_HEADER_SIZE
+     * bytes are discarded, and a header that appears multiple times (such as
+     * Set-Cookie) keeps only its last value. To observe every header regardless of these
+     * limits, handle event_id::on_header in config::on_event instead.
+     *
+     * @note Only available when CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS is
+     *       enabled (ESP-IDF 6.0+).
      *
      * @param key Header name to look up.
-     * @return The header value, or std::nullopt if the header is not present.
+     * @return The header value, or std::nullopt if the header is not present or no
+     *         response has been received.
      */
-    [[nodiscard]] std::optional<std::string> get_header(std::string_view key) const;
+    [[nodiscard]] std::optional<std::string> get_response_header(std::string_view key) const;
+#endif
 
     /**
      * @brief Retrieves the current effective URL.
