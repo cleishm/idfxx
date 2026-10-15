@@ -38,7 +38,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_net:
-    version: "^1.1.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_net` to the `REQUIRES` list in your component's `CMakeLists.txt`.
