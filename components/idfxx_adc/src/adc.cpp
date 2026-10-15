@@ -80,7 +80,10 @@ void delete_calibration([[maybe_unused]] adc_cali_handle_t cali) {
 } // namespace
 
 struct input::state {
-    config cfg{};
+    explicit state(config c)
+        : cfg(std::move(c)) {}
+
+    config cfg;
     adc_channel_t channel = ADC_CHANNEL_0;
     adc_oneshot_unit_handle_t handle = nullptr;
     adc_cali_handle_t cali = nullptr;
@@ -102,18 +105,17 @@ input::input(std::unique_ptr<state> s) noexcept
     : _state(std::move(s)) {}
 
 result<input> input::make(config cfg) {
-    if (!cfg.pin.is_connected()) {
+    if (!cfg.pin->is_connected()) {
         return error(errc::invalid_arg);
     }
     if (cfg.divider.num < 1 || cfg.divider.den < 1) {
         return error(errc::invalid_arg);
     }
 
-    auto s = std::make_unique<state>();
-    s->cfg = cfg;
+    auto s = std::make_unique<state>(cfg);
 
     adc_unit_t unit = ADC_UNIT_1;
-    if (adc_oneshot_io_to_channel(cfg.pin.num(), &unit, &s->channel) != ESP_OK) {
+    if (adc_oneshot_io_to_channel(cfg.pin->num(), &unit, &s->channel) != ESP_OK) {
         return error(errc::invalid_arg);
     }
 
@@ -141,7 +143,7 @@ input::input(input&& other) noexcept = default;
 input& input::operator=(input&& other) noexcept = default;
 
 idfxx::gpio input::pin() const noexcept {
-    return _state ? _state->cfg.pin : gpio::nc();
+    return _state ? _state->cfg.pin.get() : gpio::nc();
 }
 
 enum attenuation input::attenuation() const noexcept {
@@ -188,7 +190,10 @@ result<quanta::electro::millivolts> input::try_read_voltage() {
 }
 
 struct sampler::state {
-    config cfg{};
+    explicit state(config c)
+        : cfg(std::move(c)) {}
+
+    config cfg;
     adc_continuous_handle_t handle = nullptr;
     bool running = false;
     size_t overruns = 0;
@@ -229,10 +234,10 @@ sampler::sampler(std::unique_ptr<state> s) noexcept
     : _state(std::move(s)) {}
 
 result<sampler> sampler::make(config cfg) {
-    if (cfg.pins.empty() || cfg.pins.size() > SOC_ADC_PATT_LEN_MAX) {
+    if (cfg.pins->empty() || cfg.pins->size() > SOC_ADC_PATT_LEN_MAX) {
         return error(errc::invalid_arg);
     }
-    for (auto pin : cfg.pins) {
+    for (auto pin : *cfg.pins) {
         if (!pin.is_connected()) {
             return error(errc::invalid_arg);
         }
@@ -244,13 +249,12 @@ result<sampler> sampler::make(config cfg) {
         return error(errc::invalid_arg);
     }
 
-    auto s = std::make_unique<state>();
-    s->cfg = std::move(cfg);
+    auto s = std::make_unique<state>(std::move(cfg));
     s->chan_pin.fill(gpio::nc());
 
     // The digital (continuous) controller only serves ADC1 on the supported targets.
     std::vector<adc_channel_t> channels;
-    for (auto pin : s->cfg.pins) {
+    for (auto pin : *s->cfg.pins) {
         adc_unit_t unit = ADC_UNIT_1;
         adc_channel_t channel = ADC_CHANNEL_0;
         if (adc_continuous_io_to_channel(pin.num(), &unit, &channel) != ESP_OK || unit != ADC_UNIT_1) {
@@ -317,7 +321,7 @@ sampler::sampler(sampler&& other) noexcept = default;
 sampler& sampler::operator=(sampler&& other) noexcept = default;
 
 std::span<const idfxx::gpio> sampler::pins() const noexcept {
-    return _state ? std::span<const idfxx::gpio>{_state->cfg.pins} : std::span<const idfxx::gpio>{};
+    return _state ? std::span<const idfxx::gpio>{*_state->cfg.pins} : std::span<const idfxx::gpio>{};
 }
 
 enum attenuation sampler::attenuation() const noexcept {
@@ -446,10 +450,10 @@ result<quanta::electro::millivolts> sampler::try_to_voltage(const sample& s) con
 }
 
 result<quanta::electro::millivolts> sampler::try_to_voltage(int raw) const {
-    if (!_state || _state->cfg.pins.size() != 1) {
+    if (!_state || _state->cfg.pins->size() != 1) {
         return error(errc::invalid_state);
     }
-    return try_to_voltage(sample{.pin = _state->cfg.pins.front(), .raw = raw});
+    return try_to_voltage(sample{.pin = _state->cfg.pins->front(), .raw = raw});
 }
 
 result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<quanta::electro::millivolts> out) const {
@@ -468,11 +472,11 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<quant
     adc_cali_handle_t cached_cali = nullptr;
     for (size_t i = 0; i < in.size(); ++i) {
         if (i == 0 || in[i].pin != cached_pin) {
-            auto it = std::ranges::find(_state->cfg.pins, in[i].pin);
-            if (it == _state->cfg.pins.end()) {
+            auto it = std::ranges::find(*_state->cfg.pins, in[i].pin);
+            if (it == _state->cfg.pins->end()) {
                 return error(errc::invalid_arg);
             }
-            cached_cali = _state->calis[static_cast<size_t>(it - _state->cfg.pins.begin())];
+            cached_cali = _state->calis[static_cast<size_t>(it - _state->cfg.pins->begin())];
             cached_pin = in[i].pin;
         }
         if (!cached_cali) {

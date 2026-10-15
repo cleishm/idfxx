@@ -9,6 +9,7 @@
 #include <array>
 #include <chrono>
 #include <limits>
+#include <vector>
 
 using namespace std::chrono_literals;
 using namespace quanta::frequency_literals;
@@ -31,7 +32,7 @@ static constexpr auto signal_pin = idfxx::gpio_3;
 #endif
 
 extern "C" void app_main() {
-    idfxx::adc::sampler sampler({.pins = {signal_pin}, .sample_rate = 20_kHz});
+    idfxx::adc::sampler sampler({.pins = std::vector<idfxx::gpio>{signal_pin}, .sample_rate = 20_kHz});
     logger.info(
         "sampling GPIO {} at {} Hz ({}calibrated)",
         signal_pin.num(),

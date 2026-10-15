@@ -32,6 +32,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/required>
 
 #include <chrono>
 #include <cstddef>
@@ -99,7 +100,7 @@ public:
      * @brief Configuration for a one-shot analog input.
      */
     struct config {
-        idfxx::gpio pin = gpio::nc();                      ///< ADC-capable GPIO (required).
+        idfxx::required<idfxx::gpio> pin;                  ///< ADC-capable GPIO.
         enum attenuation attenuation = attenuation::db_12; ///< Input range selection.
         /// External voltage-divider ratio between the source and the pin.
         /// @ref read_voltage scales by it to report the source voltage;
@@ -229,7 +230,7 @@ private:
  * @code
  * using namespace quanta::frequency_literals;
  *
- * idfxx::adc::sampler mic({.pins = {idfxx::gpio_3}, .sample_rate = 20_kHz});
+ * idfxx::adc::sampler mic({.pins = std::vector<idfxx::gpio>{idfxx::gpio_3}, .sample_rate = 20_kHz});
  * mic.start();
  *
  * std::array<idfxx::adc::sampler::sample, 256> buf;
@@ -247,8 +248,8 @@ public:
      * @brief Configuration for a continuous sampler.
      */
     struct config {
-        /// ADC1-capable GPIOs, converted round-robin in this order (required, no duplicates).
-        std::vector<idfxx::gpio> pins{};
+        /// ADC1-capable GPIOs, converted round-robin in this order (no duplicates).
+        idfxx::required<std::vector<idfxx::gpio>> pins;
         /// Input range selection, applied uniformly to all pins (hardware limitation).
         enum attenuation attenuation = attenuation::db_12;
         /// Total conversion rate across all pins; each pin samples at this rate divided by
