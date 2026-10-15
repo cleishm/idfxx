@@ -18,6 +18,9 @@ namespace {
 enum class button_state { released, pressed, pressed_long, pressed_extended };
 
 struct button_context {
+    explicit button_context(button::config c)
+        : cfg(std::move(c)) {}
+
     // Config
     button::config cfg;
 
@@ -35,7 +38,7 @@ struct button_context {
 // Delivers an event to the user callback. An exception is logged and the
 // button keeps operating.
 void notify(button_context* ctx, button::event_type event) {
-    (void)invoke_guarded(TAG, "Button callback", [&] { ctx->cfg.callback(event); });
+    (void)invoke_guarded(TAG, "Button callback", [&] { (*ctx->cfg.callback)(event); });
 }
 
 void poll_button(button_context* ctx) {
@@ -44,7 +47,7 @@ void poll_button(button_context* ctx) {
         return;
     }
 
-    if (ctx->cfg.pin.get_level() == ctx->cfg.pressed_level) {
+    if (ctx->cfg.pin->get_level() == ctx->cfg.pressed_level) {
         if (ctx->state == button_state::released) {
             ctx->state = button_state::pressed;
             ctx->pressed_time = std::chrono::microseconds{0};
@@ -101,7 +104,7 @@ void timer_callback(void* arg) {
                 }
                 ctx->monitoring = false;
             }
-            ctx->cfg.pin.intr_enable();
+            ctx->cfg.pin->intr_enable();
         } else if (!ctx->monitoring) {
             auto r = ctx->tmr->try_start_periodic(ctx->cfg.poll_interval);
             if (!r) {
@@ -115,18 +118,18 @@ void timer_callback(void* arg) {
 
 void IRAM_ATTR button_isr_handler(void* arg) {
     auto* ctx = static_cast<button_context*>(arg);
-    ctx->cfg.pin.intr_disable();
+    ctx->cfg.pin->intr_disable();
     ctx->tmr->try_start_once_isr(0);
 }
 
 } // namespace
 
 result<button> button::make(config cfg) {
-    if (!cfg.pin.is_connected()) {
+    if (!cfg.pin->is_connected()) {
         ESP_LOGD(TAG, "Field 'pin' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (!cfg.callback) {
+    if (!*cfg.callback) {
         ESP_LOGD(TAG, "Field 'callback' has an invalid value");
         return error(errc::invalid_arg);
     }
@@ -135,7 +138,7 @@ result<button> button::make(config cfg) {
         return error(errc::invalid_arg);
     }
 
-    auto r = cfg.pin.try_set_direction(gpio::mode::input);
+    auto r = cfg.pin->try_set_direction(gpio::mode::input);
     if (!r) {
         auto msg = r.error().message();
         ESP_LOGD(TAG, "Failed to set pin direction: %s", msg.c_str());
@@ -144,7 +147,7 @@ result<button> button::make(config cfg) {
 
     if (cfg.enable_pull) {
         auto pull = cfg.pressed_level == gpio::level::low ? gpio::pull_mode::pullup : gpio::pull_mode::pulldown;
-        r = cfg.pin.try_set_pull_mode(pull);
+        r = cfg.pin->try_set_pull_mode(pull);
         if (!r) {
             auto msg = r.error().message();
             ESP_LOGD(TAG, "Failed to set pin pull mode: %s", msg.c_str());
@@ -152,8 +155,7 @@ result<button> button::make(config cfg) {
         }
     }
 
-    auto* ctx = new button_context{};
-    ctx->cfg = std::move(cfg);
+    auto* ctx = new button_context(std::move(cfg));
 
     auto t = timer::make({.name = "button"}, &timer_callback, ctx);
     if (!t) {
@@ -173,9 +175,9 @@ result<button> button::make(config cfg) {
             return error(sr.error());
         }
     } else {
-        ctx->cfg.pin.set_intr_type(gpio::intr_type::anyedge);
+        ctx->cfg.pin->set_intr_type(gpio::intr_type::anyedge);
 
-        auto ih = ctx->cfg.pin.try_isr_handler_add(&button_isr_handler, ctx);
+        auto ih = ctx->cfg.pin->try_isr_handler_add(&button_isr_handler, ctx);
         if (!ih) {
             auto msg = ih.error().message();
             ESP_LOGD(TAG, "Failed to add ISR handler: %s", msg.c_str());
@@ -184,7 +186,7 @@ result<button> button::make(config cfg) {
         }
         ctx->isr_handle = gpio::unique_isr_handle(std::move(*ih));
 
-        ctx->cfg.pin.intr_enable();
+        ctx->cfg.pin->intr_enable();
     }
 
     return button(ctx);
@@ -217,7 +219,7 @@ void button::_delete() noexcept {
     auto* ctx = static_cast<button_context*>(_context);
     if (ctx) {
         if (ctx->cfg.mode == mode::interrupt) {
-            ctx->cfg.pin.intr_disable();
+            ctx->cfg.pin->intr_disable();
         }
         delete ctx;
     }

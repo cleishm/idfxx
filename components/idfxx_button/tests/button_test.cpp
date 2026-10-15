@@ -16,8 +16,12 @@ using namespace idfxx;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// button::config is default constructible
-static_assert(std::is_default_constructible_v<button::config>);
+// button::config is not default constructible (pin and callback must be set)
+static_assert(!std::is_default_constructible_v<button::config>);
+
+// button::config is move-only (the callback is move-only)
+static_assert(std::is_move_constructible_v<button::config>);
+static_assert(!std::is_copy_constructible_v<button::config>);
 
 // button is not copyable
 static_assert(!std::is_copy_constructible_v<button>);
@@ -43,9 +47,12 @@ static_assert(std::to_underlying(button::event_type::extended_press) == 4);
 // =============================================================================
 
 TEST_CASE("button::config default values", "[idfxx][button]") {
-    button::config cfg{};
+    button::config cfg{
+        .pin = gpio_4,
+        .callback = [](button::event_type) {},
+    };
 
-    TEST_ASSERT_FALSE(cfg.pin.is_connected());
+    TEST_ASSERT_TRUE(cfg.pin == gpio_4);
     TEST_ASSERT_EQUAL(button::mode::poll, cfg.mode);
     TEST_ASSERT_EQUAL(gpio::level::low, cfg.pressed_level);
     TEST_ASSERT_TRUE(cfg.enable_pull);
@@ -58,10 +65,11 @@ TEST_CASE("button::config default values", "[idfxx][button]") {
     TEST_ASSERT_EQUAL(10'000, cfg.poll_interval.count());
 }
 
-TEST_CASE("button::make with no callback fails", "[idfxx][button]") {
-    button::config cfg{};
-    cfg.pin = gpio_4;
-    auto result = button::make(std::move(cfg));
+TEST_CASE("button::make with empty callback fails", "[idfxx][button]") {
+    auto result = button::make({
+        .pin = gpio_4,
+        .callback = nullptr,
+    });
     TEST_ASSERT_FALSE(result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), result.error().value());
 }

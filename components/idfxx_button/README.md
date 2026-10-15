@@ -26,7 +26,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_button:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_button` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -132,7 +132,7 @@ The `make()` factory returns `idfxx::result<button>`. The exception-based constr
 
 Error codes from `idfxx::errc`:
 
-- `invalid_arg` - Pin is not connected, callback is not set, or `extended_press_time` is set but not beyond `long_press_time`
+- `invalid_arg` - Pin is not connected, callback is empty, or `extended_press_time` is set but not beyond `long_press_time`
 
 ## Important Notes
 
