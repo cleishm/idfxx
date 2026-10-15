@@ -1,0 +1,22 @@
+version: "1.0.0"
+description: "MAX31865 RTD-to-digital converter driver"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_max31865"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_spi:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_spi
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
+  cleishm/quanta:
+    version: "^0.1.0"
+    public: true

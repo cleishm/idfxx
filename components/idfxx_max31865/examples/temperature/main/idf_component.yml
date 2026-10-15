@@ -1,0 +1,13 @@
+dependencies:
+  cleishm/idfxx_max31865:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_spi:
+    version: "^2.0.0"
+    override_path: ../../../../idfxx_spi
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_gpio
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log
