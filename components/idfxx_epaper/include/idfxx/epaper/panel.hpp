@@ -13,10 +13,10 @@
  *
  * Provides a controller-agnostic abstract base class (`idfxx::epaper::panel`)
  * that concrete drivers — `idfxx::epaper::ssd1680`, `idfxx::epaper::uc8179`,
- * and future siblings — implement, plus the framebuffers
- * (`idfxx::epaper::mono_framebuffer`, `idfxx::epaper::gray4_framebuffer`,
- * `idfxx::epaper::color6_framebuffer`) that hold pixel data in the row-major
- * layouts ePaper controllers consume.
+ * `idfxx::epaper::t133a01`, and future siblings — implement, plus the
+ * framebuffers (`idfxx::epaper::mono_framebuffer`,
+ * `idfxx::epaper::gray4_framebuffer`, `idfxx::epaper::color6_framebuffer`)
+ * that hold pixel data in the row-major layouts ePaper controllers consume.
  *
  * The interface models the ePaper update cycle rather than an
  * immediate-mode display: pixel data is first uploaded to the controller's
