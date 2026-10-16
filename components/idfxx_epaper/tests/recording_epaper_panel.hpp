@@ -7,6 +7,7 @@
 
 #include "idfxx/epaper/panel"
 
+#include <optional>
 #include <vector>
 
 namespace idfxx_epaper_test {
@@ -30,12 +31,17 @@ public:
     std::vector<write> color6_writes;
     std::vector<idfxx::epaper::refresh_mode> refreshes;
     size_t clears = 0;
+    size_t restores = 0;
     size_t sleeps = 0;
     size_t wakes = 0;
     size_t color_mode_changes = 0;
     // Pixel formats reported by do_supports (mono is always supported).
     bool supports_gray4 = true;
     bool supports_color6 = true;
+    // do_restore_baseline behavior: defer to the base default (a driver
+    // without support), or fail with the given error.
+    bool restore_unsupported = false;
+    std::optional<idfxx::errc> restore_error;
     // do_wait invocations (the base settles before every controller hook
     // and at the end of a blocking refresh), plus the hook count at the
     // time of the last one, for ordering assertions.
@@ -43,8 +49,8 @@ public:
     size_t hooks_before_last_wait = 0;
 
     [[nodiscard]] size_t hooks() const noexcept {
-        return mono_writes.size() + gray_writes.size() + color6_writes.size() + refreshes.size() + clears + sleeps +
-            wakes;
+        return mono_writes.size() + gray_writes.size() + color6_writes.size() + refreshes.size() + clears + restores +
+            sleeps + wakes;
     }
 
 private:
@@ -68,6 +74,17 @@ private:
 
     [[nodiscard]] idfxx::result<void> do_clear() override {
         ++clears;
+        return {};
+    }
+
+    [[nodiscard]] idfxx::result<void> do_restore_baseline(const idfxx::epaper::mono_framebuffer& fb) override {
+        ++restores;
+        if (restore_unsupported) {
+            return idfxx::epaper::panel::do_restore_baseline(fb);
+        }
+        if (restore_error) {
+            return idfxx::error(*restore_error);
+        }
         return {};
     }
 

@@ -61,6 +61,26 @@ result<void> panel::try_write_rows(const color6_framebuffer& fb, size_t row_star
     return _try_write_rows(fb, color_mode::color6, row_start, row_end, x, y);
 }
 
+result<void> panel::try_restore_baseline(const mono_framebuffer& fb) {
+    if (_asleep || _color_mode != color_mode::mono) {
+        return error(errc::invalid_state);
+    }
+    if (fb.width() != _width || fb.height() != _height) {
+        return error(errc::invalid_arg);
+    }
+    if (auto r = do_wait(std::nullopt); !r) {
+        return r;
+    }
+    if (auto r = do_restore_baseline(fb); !r) {
+        // The controller's image RAM may be partly overwritten, so neither
+        // the previous baseline nor the new one can be trusted.
+        _has_baseline = false;
+        return r;
+    }
+    _has_baseline = true;
+    return {};
+}
+
 result<void> panel::configure_control_lines(gpio busy_gpio, gpio reset_gpio) {
     if (!busy_gpio.is_connected()) {
         return error(errc::invalid_arg);

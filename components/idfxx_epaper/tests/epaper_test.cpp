@@ -13,7 +13,10 @@
 #include "recording_epaper_panel.hpp"
 #include "unity.h"
 
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -157,6 +160,24 @@ TEST_CASE("epaper mono_framebuffer row spans and fill", "[idfxx][epaper]") {
     TEST_ASSERT_EQUAL_HEX8(0xFF, fb.row(2)[0]);
 }
 
+TEST_CASE("epaper mono_framebuffer mutable data loads raw bytes", "[idfxx][epaper]") {
+    auto fb = mono_framebuffer::make(12, 2).value(); // stride 2
+
+    // Load a saved frame in one copy: (0, 0) and (9, 1) inked.
+    const std::array<uint8_t, 4> saved{0x7F, 0xFF, 0xFF, 0xBF};
+    std::span<uint8_t> raw = fb.data();
+    TEST_ASSERT_EQUAL(saved.size(), raw.size());
+    std::ranges::copy(saved, raw.begin());
+
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    TEST_ASSERT_FALSE(fb.get_pixel(1, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(9, 1));
+    TEST_ASSERT_FALSE(fb.get_pixel(8, 1));
+    const auto& cfb = fb;
+    TEST_ASSERT_TRUE(std::ranges::equal(saved, cfb.data()));
+    TEST_ASSERT_EQUAL_HEX8(0xBF, fb.row(1)[1]);
+}
+
 // =============================================================================
 // Runtime tests: gray4_framebuffer
 // =============================================================================
@@ -230,6 +251,26 @@ TEST_CASE("epaper gray4_framebuffer encodes levels across planes", "[idfxx][epap
             TEST_ASSERT_EQUAL_HEX8(0xFF, byte);
         }
     }
+}
+
+TEST_CASE("epaper gray4_framebuffer mutable planes load raw bytes", "[idfxx][epaper]") {
+    auto fb = gray4_framebuffer::make(12, 2).value(); // stride 2
+
+    // (0, 0) black (both planes), (1, 0) light (plane 0), (9, 1) dark
+    // (plane 1).
+    const std::array<uint8_t, 4> plane0{0xC0, 0x00, 0x00, 0x00};
+    const std::array<uint8_t, 4> plane1{0x80, 0x00, 0x00, 0x40};
+    TEST_ASSERT_EQUAL(plane0.size(), fb.plane(0).size());
+    std::ranges::copy(plane0, fb.plane(0).begin());
+    std::ranges::copy(plane1, fb.plane(1).begin());
+
+    TEST_ASSERT_EQUAL(std::to_underlying(gray4::black), std::to_underlying(fb.get_pixel(0, 0)));
+    TEST_ASSERT_EQUAL(std::to_underlying(gray4::light), std::to_underlying(fb.get_pixel(1, 0)));
+    TEST_ASSERT_EQUAL(std::to_underlying(gray4::dark), std::to_underlying(fb.get_pixel(9, 1)));
+    TEST_ASSERT_EQUAL(std::to_underlying(gray4::white), std::to_underlying(fb.get_pixel(8, 1)));
+    const auto& cfb = fb;
+    TEST_ASSERT_TRUE(std::ranges::equal(plane0, cfb.plane(0)));
+    TEST_ASSERT_TRUE(std::ranges::equal(plane1, cfb.plane(1)));
 }
 
 // =============================================================================
@@ -323,6 +364,23 @@ TEST_CASE("epaper color6_framebuffer fill and clear", "[idfxx][epaper]") {
     idfxx::gfx::canvas canvas(fb);
     canvas.clear();
     TEST_ASSERT_EQUAL_HEX8(0x11, fb.data()[0]);
+}
+
+TEST_CASE("epaper color6_framebuffer mutable data loads raw bytes", "[idfxx][epaper]") {
+    auto fb = color6_framebuffer::make(5, 3).value(); // stride 3
+
+    // (0, 0) red, (1, 0) blue, (3, 1) green; the rest white.
+    const std::array<uint8_t, 9> saved{0x35, 0x11, 0x11, 0x11, 0x16, 0x11, 0x11, 0x11, 0x11};
+    std::span<uint8_t> raw = fb.data();
+    TEST_ASSERT_EQUAL(saved.size(), raw.size());
+    std::ranges::copy(saved, raw.begin());
+
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::red), std::to_underlying(fb.get_pixel(0, 0)));
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::blue), std::to_underlying(fb.get_pixel(1, 0)));
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::white), std::to_underlying(fb.get_pixel(2, 1)));
+    TEST_ASSERT_EQUAL(std::to_underlying(color6::green), std::to_underlying(fb.get_pixel(3, 1)));
+    const auto& cfb = fb;
+    TEST_ASSERT_TRUE(std::ranges::equal(saved, cfb.data()));
 }
 
 // =============================================================================
@@ -636,4 +694,111 @@ TEST_CASE("epaper panel settles an outstanding refresh before every controller h
     TEST_ASSERT_FALSE(asleep.has_value());
     TEST_ASSERT_TRUE(display.try_wake().has_value());
     TEST_ASSERT_EQUAL(5, display.waits);
+}
+
+TEST_CASE("epaper panel restore_baseline keeps the next partial refresh partial", "[idfxx][epaper]") {
+    recording_epaper_panel display(128, 64);
+    auto fb = mono_framebuffer::make(128, 64).value();
+
+    // A fresh panel has no baseline; restoring one reaches the driver (after
+    // settling) and keeps the next partial refresh partial.
+    TEST_ASSERT_TRUE(display.try_restore_baseline(fb).has_value());
+    TEST_ASSERT_EQUAL(1, display.restores);
+    TEST_ASSERT_EQUAL(1, display.waits);
+    TEST_ASSERT_EQUAL(0, display.hooks_before_last_wait);
+    TEST_ASSERT_TRUE(display.try_write(fb).has_value());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(1, display.refreshes.size());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes[0]));
+
+    // Wake loses the baseline; restoring re-establishes it.
+    TEST_ASSERT_TRUE(display.try_sleep().has_value());
+    TEST_ASSERT_TRUE(display.try_wake().has_value());
+    TEST_ASSERT_TRUE(display.try_restore_baseline(fb).has_value());
+    TEST_ASSERT_EQUAL(2, display.restores);
+    TEST_ASSERT_TRUE(display.try_write(fb).has_value());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(2, display.refreshes.size());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes[1]));
+}
+
+TEST_CASE("epaper panel restore_baseline validates state and dimensions", "[idfxx][epaper]") {
+    recording_epaper_panel display(128, 64);
+    auto fb = mono_framebuffer::make(128, 64).value();
+
+    // Asleep.
+    TEST_ASSERT_TRUE(display.try_sleep().has_value());
+    auto asleep = display.try_restore_baseline(fb);
+    TEST_ASSERT_FALSE(asleep.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), asleep.error().value());
+    TEST_ASSERT_TRUE(display.try_wake().has_value());
+
+    // Not in mono mode.
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::gray4).has_value());
+    auto gray = display.try_restore_baseline(fb);
+    TEST_ASSERT_FALSE(gray.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), gray.error().value());
+    TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::mono).has_value());
+
+    // The framebuffer must be exactly panel-sized.
+    auto narrow = mono_framebuffer::make(120, 64).value();
+    auto bad_width = display.try_restore_baseline(narrow);
+    TEST_ASSERT_FALSE(bad_width.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), bad_width.error().value());
+    auto short_fb = mono_framebuffer::make(128, 32).value();
+    auto bad_height = display.try_restore_baseline(short_fb);
+    TEST_ASSERT_FALSE(bad_height.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), bad_height.error().value());
+
+    // None of the rejected calls reached the driver, and no baseline was
+    // recorded.
+    TEST_ASSERT_EQUAL(0, display.restores);
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));
+
+    // A rejected call leaves an existing baseline in place.
+    TEST_ASSERT_FALSE(display.try_restore_baseline(narrow).has_value());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
+}
+
+TEST_CASE("epaper panel restore_baseline reports drivers without support", "[idfxx][epaper]") {
+    recording_epaper_panel display(128, 64);
+    display.restore_unsupported = true;
+    auto fb = mono_framebuffer::make(128, 64).value();
+
+    auto unsupported = display.try_restore_baseline(fb);
+    TEST_ASSERT_FALSE(unsupported.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), unsupported.error().value());
+    TEST_ASSERT_EQUAL(1, display.restores);
+
+    // No baseline: the next partial refresh is still promoted to full.
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));
+}
+
+TEST_CASE("epaper panel restore_baseline failure invalidates the baseline", "[idfxx][epaper]") {
+    recording_epaper_panel display(128, 64);
+    auto fb = mono_framebuffer::make(128, 64).value();
+
+    // Establish a baseline first.
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::full).has_value());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
+
+    // A failed restore may leave the controller RAM half-written, so the
+    // existing baseline is dropped too.
+    display.restore_error = idfxx::errc::timeout;
+    auto failed = display.try_restore_baseline(fb);
+    TEST_ASSERT_FALSE(failed.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::timeout), failed.error().value());
+    TEST_ASSERT_EQUAL(1, display.restores);
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));
+
+    // A successful retry restores it.
+    display.restore_error.reset();
+    TEST_ASSERT_TRUE(display.try_restore_baseline(fb).has_value());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
 }

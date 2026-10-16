@@ -230,6 +230,24 @@ result<void> uc8179::do_clear() {
     return _clear_ram(color_mode() == color_mode::gray4);
 }
 
+result<void> uc8179::do_restore_baseline(const mono_framebuffer& fb) {
+    if (_io_handle == nullptr) {
+        return error(errc::invalid_state);
+    }
+    // A partial refresh drives each pixel from its previous-image (0x10)
+    // value to its new-image (0x13) value, so the frame on the glass goes
+    // into both planes: a later region-only write then leaves every other
+    // pixel unchanged. The planes share the framebuffer's encoding (the
+    // controller copies one into the other after a refresh), and both
+    // stream into one full-panel window, as in _clear_ram. Exiting the
+    // window waits for the queued transfers, so the caller may mutate the
+    // framebuffer immediately.
+    return _in_window({0, 0, width(), height()}, [&] {
+        auto r = _stream(cmd_data_old, fb.data());
+        return r ? _stream(cmd_data_new, fb.data()) : r;
+    });
+}
+
 result<void> uc8179::do_refresh(refresh_mode mode) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);

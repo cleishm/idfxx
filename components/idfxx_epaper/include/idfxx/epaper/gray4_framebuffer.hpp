@@ -202,6 +202,25 @@ public:
     }
 
     /**
+     * @brief Returns the raw pixel data of one plane for modification.
+     *
+     * The same `stride_bytes() * height()` bytes as the read-only overload,
+     * in the same layout, for filling a whole plane in one copy — for
+     * example, loading a previously saved frame.
+     *
+     * Bytes written this way are not checked. The pixel accessors keep the
+     * padding bits past the right edge white (clear in both planes); raw
+     * writes should too, since padding is uploaded to the panel along with
+     * its row. Passing an out-of-range @p index is undefined behavior.
+     *
+     * @param index The plane to view: 0 or 1.
+     * @return A mutable view of the plane's pixel data.
+     */
+    [[nodiscard]] std::span<uint8_t> plane(size_t index) noexcept {
+        return std::span<uint8_t>(_data).subspan(index * _plane_size(), _plane_size());
+    }
+
+    /**
      * @brief Returns the raw bytes of a single row of one plane.
      *
      * Unlike @ref set_pixel / @ref get_pixel, the raw views do not tolerate

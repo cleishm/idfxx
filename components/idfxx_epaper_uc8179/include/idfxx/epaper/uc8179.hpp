@@ -39,7 +39,7 @@ namespace idfxx::epaper {
  * 7.5" 800x480 panel (GooDisplay GDEY075T7 glass) on the Seeed Studio XIAO
  * ePaper Display Board EE05. Implements the full @ref idfxx::epaper::panel
  * interface: full, fast, and partial refreshes, 4-level grayscale, deep
- * sleep, and wake.
+ * sleep, wake, and partial-refresh baseline restore.
  *
  * The driver owns the panel's BUSY input (active low on this controller)
  * and (optional) reset output lines, and communicates through an
@@ -200,6 +200,7 @@ private:
     [[nodiscard]] result<void>
     do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
     [[nodiscard]] result<void> do_clear() override;
+    [[nodiscard]] result<void> do_restore_baseline(const mono_framebuffer& fb) override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
     [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;

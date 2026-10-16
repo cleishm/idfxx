@@ -181,6 +181,21 @@ public:
     [[nodiscard]] std::span<const uint8_t> data() const noexcept { return _data; }
 
     /**
+     * @brief Returns the raw row-major pixel data for modification.
+     *
+     * The same `stride_bytes() * height()` bytes as the read-only overload,
+     * in the same layout, for filling the whole framebuffer in one copy —
+     * for example, loading a previously saved frame.
+     *
+     * Bytes written this way are not checked. The pixel accessors keep the
+     * padding bits past the right edge white; raw writes should too, since
+     * padding is uploaded to the panel along with its row.
+     *
+     * @return A mutable view of the pixel data.
+     */
+    [[nodiscard]] std::span<uint8_t> data() noexcept { return _data; }
+
+    /**
      * @brief Returns the raw bytes of a single row.
      *
      * Unlike @ref set_pixel / @ref get_pixel, the raw views do not tolerate
