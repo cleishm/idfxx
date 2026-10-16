@@ -57,6 +57,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | **Sensor Drivers** | | |
 | [idfxx_dht](https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht) | DHT11/DHT22 temperature and humidity sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__dht.html) |
 | [idfxx_ds18x20](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20) | DS18x20 1-Wire temperature sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ds18x20.html) |
+| [idfxx_max31865](https://github.com/cleishm/idfxx/tree/main/components/idfxx_max31865) | MAX31865 RTD-to-digital converter driver (PT100/PT1000) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__max31865.html) |
 | **Application Protocols** | | |
 | [idfxx_http](https://github.com/cleishm/idfxx/tree/main/components/idfxx_http) | Common HTTP types (methods, auth, transport) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__http.html) |
 | [idfxx_http_client](https://github.com/cleishm/idfxx/tree/main/components/idfxx_http_client) | HTTP/HTTPS client | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__http__client.html) |
