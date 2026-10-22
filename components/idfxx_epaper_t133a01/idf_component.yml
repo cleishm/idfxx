@@ -1,0 +1,26 @@
+version: "1.0.0"
+description: "T133A01 ePaper panel driver (13.3\" 1200x1600 E Ink Spectra 6, e.g. reTerminal E1004, XIAO ePaper DIY Kit EE02)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_t133a01"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_epaper:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_epaper
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
+  cleishm/idfxx_panel_io:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_panel_io
+  cleishm/quanta:
+    version: "^0.1.0"
+    public: true
