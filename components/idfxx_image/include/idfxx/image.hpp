@@ -23,9 +23,13 @@
  *   functions to invert and compose them, map pixel coordinates through them,
  *   and apply them to an image (@ref idfxx::image::orient,
  *   @ref idfxx::image::oriented).
+ * - @ref idfxx::image::sink, the interface through which a producer such as
+ *   an image decoder delivers pixels block by block.
  *
- * The API cannot fail: functions have documented preconditions instead of
- * error results, and memory allocation follows the allocator's own behavior.
+ * The image operations cannot fail: functions have documented preconditions
+ * instead of error results, and memory allocation follows the allocator's own
+ * behavior. Only a @ref idfxx::image::sink reports errors, which it returns to
+ * the producer feeding it.
  *
  * Depends on @ref idfxx_core for error handling.
  *
@@ -46,9 +50,11 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <esp_err.h>
 #include <memory>
 #include <span>
 #include <string>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -58,6 +64,59 @@
  * @brief Pixel images, views, and orientation transforms.
  */
 namespace idfxx::image {
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Error codes for working with images.
+ */
+enum class errc : esp_err_t {
+    // clang-format off
+    too_large = 1, /*!< Rendering or decoding needs more working memory than the configured limit. */
+    // clang-format on
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Error category for image errors.
+ */
+class error_category : public std::error_category {
+public:
+    /**
+     * @brief Returns the name of the error category.
+     *
+     * @return The category name.
+     */
+    [[nodiscard]] const char* name() const noexcept override final;
+
+    /**
+     * @brief Returns a human-readable message for the given error code.
+     *
+     * @param ec The error code value.
+     *
+     * @return A descriptive error message.
+     */
+    [[nodiscard]] std::string message(int ec) const override final;
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Returns a reference to the image error category singleton.
+ *
+ * @return Reference to the singleton image::error_category instance.
+ */
+[[nodiscard]] const error_category& image_category() noexcept;
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Creates an error code from an idfxx::image::errc value.
+ *
+ * @param e The image error code.
+ *
+ * @return The corresponding std::error_code in the image category.
+ */
+[[nodiscard]] inline std::error_code make_error_code(errc e) noexcept {
+    return {std::to_underlying(e), image_category()};
+}
 
 /**
  * @headerfile <idfxx/image>
@@ -890,6 +949,45 @@ struct size {
 
 /**
  * @headerfile <idfxx/image>
+ * @brief A destination that receives decoded pixels as blocks.
+ *
+ * A producer, such as an image decoder, delivers an image to a sink in
+ * rectangular blocks. Each call passes the block's top-left position in the
+ * full image and a read-only view of the block's pixels, which is valid only
+ * for the duration of the call. Blocks arrive in the producer's order (e.g.
+ * top to bottom).
+ *
+ * The sink returns success to receive the next block, or an error to stop the
+ * producer, which then returns that same error to its caller.
+ *
+ * A type models `sink<S, P>` when an lvalue `S&` is invocable with
+ * `(point, view<const P>)` and returns `idfxx::result<void>`. Lambdas,
+ * function objects and function pointers all qualify.
+ *
+ * @tparam S The sink type.
+ * @tparam P The pixel type the producer delivers.
+ *
+ * @code
+ * idfxx::image::buffer<> screen(320, 240);
+ * auto to_screen = [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> block)
+ *     -> idfxx::result<void> {
+ *     if (at.x + block.width() > screen.width() || at.y + block.height() > screen.height()) {
+ *         return idfxx::error(idfxx::errc::invalid_size); // stops the producer
+ *     }
+ *     for (size_t y = 0; y < block.height(); ++y) {
+ *         std::ranges::copy(block.row(y), screen.row(at.y + y).begin() + at.x);
+ *     }
+ *     return {};
+ * };
+ * static_assert(idfxx::image::sink<decltype(to_screen)>);
+ * @endcode
+ */
+template<typename S, typename P = rgb888>
+concept sink = std::invocable<S&, point, view<const P>> &&
+    std::same_as<std::invoke_result_t<S&, point, view<const P>>, result<void>>;
+
+/**
+ * @headerfile <idfxx/image>
  * @brief Maps a pixel of an oriented image back to the source pixel it shows.
  *
  * For a source image of `src_width` x `src_height` pixels displayed with
@@ -1091,6 +1189,13 @@ oriented(const Src& src, orientation o) {
 }
 
 } // namespace idfxx::image
+
+/** @cond INTERNAL */
+namespace std {
+template<>
+struct is_error_code_enum<idfxx::image::errc> : true_type {};
+} // namespace std
+/** @endcond */
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
