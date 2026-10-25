@@ -66,8 +66,8 @@ namespace idfxx::epaper {
  *
  * The panel's data output is optional. When it is wired to the bus's MISO
  * line, setting @ref config::check_presence makes the driver confirm that
- * both controllers answer after every hardware reset, so a disconnected or
- * unpowered panel is reported instead of appearing idle.
+ * both controllers answer during construction and @ref wake, so a
+ * disconnected or unpowered panel is reported instead of appearing idle.
  *
  * Because the controllers have no addressable window, every refresh
  * uploads the whole frame. The driver keeps a 960 KB shadow of the frame in
@@ -132,14 +132,20 @@ public:
         required<gpio> dc_gpio;
         /// GPIO wired to the panel's reset line, or `gpio::nc()` if not
         /// wired. Required for @ref wake; strongly recommended so the
-        /// controllers start from a known register state.
+        /// controllers start from a known register state. Without it,
+        /// construction waits for BUSY to release instead of resetting,
+        /// and only cycling the panel's power undoes @ref sleep (which the
+        /// destructor also performs): sleeping controllers ignore commands
+        /// until reset, so a driver created later fails with
+        /// `errc::not_found` when `check_presence` is set, and otherwise
+        /// succeeds but leaves the glass unchanged.
         gpio reset_gpio = gpio::nc();
         /// GPIO wired to the panel's BUSY output. The controllers drive
         /// BUSY low while an operation is in progress.
         required<gpio> busy_gpio;
         /// Whether to confirm that both controllers are present. When set,
-        /// the driver reads each controller's ID register after every
-        /// hardware reset (during construction and @ref wake) and fails
+        /// the driver reads each controller's ID register during
+        /// construction and after the reset in @ref wake, and fails
         /// with `errc::not_found` if either controller does not answer.
         /// Requires the panel's data output to be wired to the bus's MISO
         /// line.
@@ -158,10 +164,11 @@ public:
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
      * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (confirming that both answer, if `config.check_presence` is set),
-     * runs the full initialization sequence, and allocates the PSRAM shadow
-     * frame (blank white), leaving the panel awake in
-     * @ref color_mode::color6 and ready for writes.
+     * (or, without a `config.reset_gpio`, waits for BUSY to release),
+     * confirms that both answer if `config.check_presence` is set, runs the
+     * full initialization sequence, and allocates the PSRAM shadow frame
+     * (blank white), leaving the panel awake in @ref color_mode::color6 and
+     * ready for writes.
      *
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.
@@ -197,10 +204,11 @@ public:
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
      * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (confirming that both answer, if `config.check_presence` is set),
-     * runs the full initialization sequence, and allocates the PSRAM shadow
-     * frame (blank white), leaving the panel awake in
-     * @ref color_mode::color6 and ready for writes.
+     * (or, without a `config.reset_gpio`, waits for BUSY to release),
+     * confirms that both answer if `config.check_presence` is set, runs the
+     * full initialization sequence, and allocates the PSRAM shadow frame
+     * (blank white), leaving the panel awake in @ref color_mode::color6 and
+     * ready for writes.
      *
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.

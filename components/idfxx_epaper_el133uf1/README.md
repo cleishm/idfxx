@@ -25,8 +25,8 @@ as used in modules such as Seeed Studio's T133A01 (in the reTerminal E1004).
 - Deep sleep and wake (hardware reset + re-initialization; the shadow
   frame survives).
 - Optional presence check: with the panel's data output wired to the bus's
-  MISO line, `check_presence` confirms that both controllers answer after
-  every hardware reset, so a disconnected panel is reported as an error
+  MISO line, `check_presence` confirms that both controllers answer during
+  construction and `wake`, so a disconnected panel is reported as an error
   instead of appearing idle.
 
 ## Requirements
@@ -160,9 +160,9 @@ Driver-specific surface:
   0-599), `slave_cs_gpio` (required; columns 600-1199), `dc_gpio`
   (required, shared), `reset_gpio` (required for `wake`, strongly
   recommended), `busy_gpio` (required, active low), `check_presence`
-  (default `false`; confirms both controllers answer after each hardware
-  reset, and needs the bus's MISO line wired to the panel), `pclk` (SPI
-  clock, default and maximum 10 MHz), `busy_timeout` (default 60 s).
+  (default `false`; confirms both controllers answer during construction
+  and `wake`, and needs the bus's MISO line wired to the panel), `pclk`
+  (SPI clock, default and maximum 10 MHz), `busy_timeout` (default 60 s).
 
 ## Error Handling
 
@@ -238,6 +238,14 @@ Using a moved-from driver object is undefined behavior.
   glass; the destructor powers off an awake controller pair and puts them
   into deep sleep. After `wake()` the shadow frame is intact, so a partial
   redraw plus `refresh()` shows the full composed frame.
+- **Without a reset line, deep sleep is one-way.** Only a hardware reset
+  wakes the controllers, so with no `reset_gpio`, `wake()` fails with
+  `errc::invalid_state`, and after `sleep()` or the destructor only cycling
+  the panel's power brings them back. A driver created in the meantime
+  fails with `errc::not_found` when `check_presence` is set; without the
+  check it succeeds, but writes and refreshes leave the glass unchanged.
+  Construction without a reset line waits for BUSY to release instead, so
+  it can pick up a panel still finishing an earlier update.
 - The initialization sequence follows Seeed Studio's drivers for the
   T133A01 module; several registers are undocumented and carried over verbatim.
 
