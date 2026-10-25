@@ -21,9 +21,8 @@ namespace {
 
 // EL133UF1 command set. The controller IC is unpublished; the commands
 // follow the UltraChip lineage (cf. UC8179), and the initialization
-// sequence and register values follow Seeed Studio's GxEPD2 port and
-// Seeed_GFX driver for the T133A01 module built on this glass
-// (MIT/BSD-licensed).
+// sequence and register values follow Seeed Studio's Seeed_GFX driver
+// for the T133A01 module built on this glass (MIT/BSD-licensed).
 constexpr uint8_t cmd_panel_setting = 0x00; // Panel setting
 constexpr uint8_t cmd_power_setting = 0x01; // Power setting (gate/source voltages)
 constexpr uint8_t cmd_power_off = 0x02;     // Power off the drive rails
@@ -303,7 +302,9 @@ result<void> el133uf1::do_refresh(refresh_mode mode) {
         return r;
     }
     idfxx::delay(30ms);
-    if (auto r = _cmd(target::both, cmd_refresh, {0x01}); !r) {
+    // The refresh parameter is undocumented. 0x00 follows E Ink's reference
+    // sequence (Good Display's demo sends 0x01).
+    if (auto r = _cmd(target::both, cmd_refresh, {0x00}); !r) {
         return r;
     }
     // Give the controllers time to assert BUSY before anyone polls it, then
