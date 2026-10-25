@@ -35,6 +35,10 @@ static_assert(std::is_trivially_copyable_v<rgb888>);
 static_assert(std::is_standard_layout_v<rgb888>);
 static_assert(rgb888{} == rgb888{0, 0, 0});
 
+// The image error codes.
+static_assert(std::is_error_code_enum_v<errc>);
+static_assert(std::to_underlying(errc::too_large) == 1);
+
 // view types and conversions.
 static_assert(std::same_as<view<rgb888>::pixel_type, rgb888>);
 static_assert(std::same_as<view<rgb888>::value_type, rgb888>);
@@ -139,6 +143,37 @@ static_assert(can_orient_copy<view<rgb888>>);
 static_assert(can_orient_copy<view<const rgb888>>);
 static_assert(!can_orient_copy<int>);
 static_assert(std::same_as<decltype(oriented(std::declval<view<const int>>(), orientation::identity)), buffer<int>>);
+
+// sink: invocable with (point, view<const P>), returning result<void>.
+namespace {
+
+using good_sink = decltype([](point, view<const rgb888>) -> idfxx::result<void> { return {}; });
+using mutable_sink = decltype([n = 0](point, view<const rgb888>) mutable -> idfxx::result<void> {
+    ++n;
+    return {};
+});
+using sink_function = idfxx::result<void> (*)(point, view<const rgb888>);
+using gray_sink = decltype([](point, view<const uint8_t>) -> idfxx::result<void> { return {}; });
+using void_sink = decltype([](point, view<const rgb888>) {});
+using bool_sink = decltype([](point, view<const rgb888>) { return true; });
+using result_int_sink = decltype([](point, view<const rgb888>) -> idfxx::result<int> { return 0; });
+using mutable_view_sink = decltype([](point, view<rgb888>) -> idfxx::result<void> { return {}; });
+using no_point_sink = decltype([](view<const rgb888>) -> idfxx::result<void> { return {}; });
+
+} // namespace
+
+static_assert(sink<good_sink>);
+static_assert(sink<good_sink, rgb888>);
+static_assert(sink<mutable_sink>);
+static_assert(sink<sink_function>);
+static_assert(sink<gray_sink, uint8_t>);
+static_assert(!sink<gray_sink>);
+static_assert(!sink<void_sink>);
+static_assert(!sink<bool_sink>);
+static_assert(!sink<result_int_sink>);
+static_assert(!sink<mutable_view_sink>);
+static_assert(!sink<no_point_sink>);
+static_assert(!sink<int>);
 
 // =============================================================================
 // Helpers
@@ -884,4 +919,14 @@ TEST_CASE("image orient works with non-rgb888 pixels", "[idfxx][image]") {
     TEST_ASSERT_EQUAL(1002, (r[0, 0]));
     TEST_ASSERT_EQUAL(1005, (r[1, 0]));
     TEST_ASSERT_EQUAL(1000, (r[0, 2]));
+}
+
+TEST_CASE("image error codes have a category and messages", "[idfxx][image]") {
+    std::error_code ec = errc::too_large;
+    TEST_ASSERT_TRUE(ec.category() == image_category());
+    TEST_ASSERT_EQUAL_INT(1, ec.value());
+    TEST_ASSERT_EQUAL_STRING("image::Error", ec.category().name());
+    TEST_ASSERT_EQUAL_STRING(
+        "Rendering or decoding needs more working memory than the configured limit", ec.message().c_str()
+    );
 }
