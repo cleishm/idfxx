@@ -211,7 +211,7 @@ public:
         idfxx::required<idfxx::gpio> busy;                ///< BUSY input from chip.
         idfxx::required<idfxx::gpio> dio1;                ///< DIO1 IRQ input from chip.
         idfxx::gpio nreset = gpio::nc();                  ///< Active-low reset to chip; nc() skips the hardware reset.
-        quanta::frequency::hertz clock_speed{10'000'000}; ///< SPI clock; chip max is 18 MHz.
+        quanta::frequency::hertz clock_speed{10'000'000}; ///< SPI clock; datasheet max is 16 MHz.
         bool dio2_as_rf_switch = true;                    ///< Use DIO2 as the antenna T/R switch.
         idfxx::gpio rxen = gpio::nc();                  ///< Optional external RF-switch RX-enable pin; nc() if unused.
         idfxx::gpio txen = gpio::nc();                  ///< Optional external RF-switch TX-enable pin; nc() if unused.

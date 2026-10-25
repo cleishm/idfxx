@@ -581,8 +581,41 @@ result<void> sx126x::state::write_command(uint8_t opcode, std::span<const uint8_
 }
 
 result<void> sx126x::state::read_command(uint8_t opcode, std::span<uint8_t> response) {
-    std::array<uint8_t, 2> header{opcode, 0x00}; // opcode + NOP turnaround
-    return read_framed(*this, header, response);
+    // The chip fetches each MISO byte about one byte-time before shifting it
+    // out, so in a contiguous frame the first response byte (after the status
+    // byte) is fetched as soon as the opcode has been clocked in. In STBY_RC
+    // the reply can take longer than a byte-time at 10 MHz and above to
+    // prepare; a stale byte then goes out in its place and the response
+    // arrives one byte late. Ending the first transaction after the opcode,
+    // with CS held, gives the chip the inter-transaction gap (a few us) to
+    // prepare the reply. Register and buffer reads have address/offset bytes
+    // ahead of their data and keep the single-frame path.
+    std::array<uint8_t, internal::max_frame> tx_buf;
+    std::array<uint8_t, internal::max_frame> rx_buf;
+    const size_t total = 1 + response.size(); // NOP turnaround + response
+    if (total > tx_buf.size()) {
+        return error(errc::invalid_arg);
+    }
+    std::fill_n(tx_buf.begin(), total, 0); // NOPs clocked while the chip answers
+
+    std::lock_guard guard(spi_mu);
+    if (auto e = wait_busy_waking(); !e) {
+        return e;
+    }
+    std::lock_guard bus(device); // cs_keep_active requires exclusive bus access
+    const spi::transaction op{
+        .flags = spi::trans_flags::cs_keep_active,
+        .tx_buffer = {&opcode, 1},
+        .length = 8,
+    };
+    if (auto e = device.try_polling_transmit(op); !e) {
+        return e;
+    }
+    if (auto e = device.try_polling_transfer({tx_buf.data(), total}, {rx_buf.data(), total}); !e) {
+        return e;
+    }
+    std::copy_n(rx_buf.data() + 1, response.size(), response.data());
+    return {};
 }
 
 result<void> sx126x::state::write_register(uint16_t addr, std::span<const uint8_t> data) {
