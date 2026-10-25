@@ -491,6 +491,33 @@ TEST_CASE("epaper panel rejects unsupported color modes before the driver", "[id
     TEST_ASSERT_EQUAL(std::to_underlying(color_mode::color6), std::to_underlying(display.color_mode()));
 }
 
+TEST_CASE("epaper panel rejects unsupported refresh modes before promotion", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+    display.supports_fast = false;
+    display.supports_partial = false;
+
+    // No baseline yet: an unsupported partial is rejected, not promoted.
+    auto first = display.try_refresh(refresh_mode::partial);
+    TEST_ASSERT_FALSE(first.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), first.error().value());
+    auto started = display.try_start_refresh(refresh_mode::partial);
+    TEST_ASSERT_FALSE(started.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), started.error().value());
+    TEST_ASSERT_EQUAL(0, display.refreshes.size());
+    TEST_ASSERT_EQUAL(0, display.waits);
+
+    // With a baseline, the result is the same.
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::full).has_value());
+    TEST_ASSERT_EQUAL(1, display.refreshes.size());
+    auto again = display.try_refresh(refresh_mode::partial);
+    TEST_ASSERT_FALSE(again.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), again.error().value());
+    auto fast = display.try_refresh(refresh_mode::fast);
+    TEST_ASSERT_FALSE(fast.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), fast.error().value());
+    TEST_ASSERT_EQUAL(1, display.refreshes.size());
+}
+
 TEST_CASE("epaper panel clear invalidates the partial baseline", "[idfxx][epaper]") {
     recording_epaper_panel display(122, 250);
 
@@ -520,7 +547,8 @@ TEST_CASE("epaper panel forwards gray4 refresh modes to the driver", "[idfxx][ep
     TEST_ASSERT_EQUAL(std::to_underlying(color_mode::gray4), std::to_underlying(display.color_mode()));
 
     // Refresh-mode capability (e.g. gray4 being full-only on current
-    // drivers) is driver policy: the base forwards the mode unchanged.
+    // drivers) is driver policy: a mode the driver accepts is forwarded
+    // unchanged.
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::full).has_value());
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::fast).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::fast), std::to_underlying(display.refreshes.back()));
@@ -689,11 +717,19 @@ TEST_CASE("epaper panel settles an outstanding refresh before every controller h
     TEST_ASSERT_EQUAL(5, display.waits);
     TEST_ASSERT_EQUAL(3, display.hooks_before_last_wait);
 
-    // Validation failures and wake do not wait.
+    // Validation failures and waking from sleep do not wait.
     auto asleep = display.try_clear();
     TEST_ASSERT_FALSE(asleep.has_value());
     TEST_ASSERT_TRUE(display.try_wake().has_value());
     TEST_ASSERT_EQUAL(5, display.waits);
+
+    // Waking an awake panel settles first, so the reset cannot cut off an
+    // outstanding update.
+    const size_t hooks = display.hooks();
+    TEST_ASSERT_TRUE(display.try_wake().has_value());
+    TEST_ASSERT_EQUAL(6, display.waits);
+    TEST_ASSERT_EQUAL(hooks, display.hooks_before_last_wait);
+    TEST_ASSERT_EQUAL(2, display.wakes);
 }
 
 TEST_CASE("epaper panel restore_baseline keeps the next partial refresh partial", "[idfxx][epaper]") {

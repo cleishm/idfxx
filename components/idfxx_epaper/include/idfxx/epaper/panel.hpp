@@ -640,7 +640,8 @@ public:
      * @throws std::system_error on failure, including `errc::timeout` if
      *         the BUSY line does not release in time, `errc::invalid_state`
      *         if the panel is asleep, and `errc::not_supported` if the
-     *         driver does not support @p mode in the current color mode.
+     *         driver does not support @p mode in the current color mode
+     *         (checked before any promotion to full).
      */
     void refresh(refresh_mode mode = refresh_mode::full) { unwrap(try_refresh(mode)); }
 
@@ -681,7 +682,8 @@ public:
      * @throws std::system_error on failure to start the update, including
      *         `errc::invalid_state` if the panel is asleep, and
      *         `errc::not_supported` if the driver does not support @p mode
-     *         in the current color mode.
+     *         in the current color mode (checked before any promotion to
+     *         full).
      */
     [[nodiscard]] idfxx::future<void> start_refresh(refresh_mode mode = refresh_mode::full) {
         return unwrap(try_start_refresh(mode));
@@ -711,7 +713,8 @@ public:
      * @retval invalid_state The panel is asleep.
      * @retval not_supported The driver does not support @p mode in the
      *         current color mode (e.g. `fast`/`partial` in
-     *         @ref color_mode::gray4 on current drivers).
+     *         @ref color_mode::gray4 on current drivers), checked before
+     *         any promotion to full.
      */
     [[nodiscard]] result<void> try_refresh(refresh_mode mode = refresh_mode::full) {
         if (auto r = _start_refresh(mode); !r) {
@@ -737,7 +740,7 @@ public:
      *         in time.
      * @retval invalid_state The panel is asleep.
      * @retval not_supported The driver does not support @p mode in the
-     *         current color mode.
+     *         current color mode, checked before any promotion to full.
      */
     [[nodiscard]] result<idfxx::future<void>> try_start_refresh(refresh_mode mode = refresh_mode::full) {
         if (auto r = _start_refresh(mode); !r) {
@@ -852,9 +855,14 @@ public:
      * partial-refresh baseline is lost: the next refresh is promoted to
      * @ref refresh_mode::full unless @ref restore_baseline re-establishes it.
      *
+     * If the panel is awake, an outstanding update (see @ref start_refresh)
+     * completes first, so the reset does not interrupt the glass mid-update.
+     *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_state`
-     *         if no reset line is configured.
+     *         if no reset line is configured, and `errc::timeout` if an
+     *         outstanding update or the reset does not release the BUSY line
+     *         in time.
      */
     void wake() { unwrap(try_wake()); }
 #endif
@@ -897,10 +905,23 @@ public:
      * @ref refresh_mode::full unless @ref try_restore_baseline
      * re-establishes it.
      *
+     * If the panel is awake, an outstanding update (see
+     * @ref try_start_refresh) completes first, so the reset does not
+     * interrupt the glass mid-update.
+     *
      * @return Success, or an error.
      * @retval invalid_state No reset line is configured.
+     * @retval timeout An outstanding update, or the reset, did not release
+     *         the BUSY line in time.
      */
     [[nodiscard]] result<void> try_wake() {
+        // Resetting mid-waveform stresses the glass: let a running update
+        // finish first.
+        if (!_asleep) {
+            if (auto r = do_wait(std::nullopt); !r) {
+                return r;
+            }
+        }
         if (auto r = do_wake(); !r) {
             return r;
         }
@@ -973,8 +994,9 @@ protected:
     // Concrete drivers override these (typically privately). Each hook
     // implements the correspondingly named public method; validation common
     // to all controllers (the framebuffer's x_alignment, bounds, sleep
-    // state, color-mode match, partial-refresh baseline promotion) has
-    // already been performed by the public wrappers, and every hook that
+    // state, color-mode match, refresh-mode support, partial-refresh
+    // baseline promotion) has already been performed by the public
+    // wrappers, and every hook that
     // commands the controller (do_write, do_clear, do_restore_baseline,
     // do_refresh, do_set_color_mode, do_sleep) is preceded by a do_wait()
     // that completes any update a previous do_refresh left running.
@@ -1044,9 +1066,9 @@ protected:
     }
 
     /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
-    /// awake, and a `partial` request has already been promoted to `full`
-    /// when no baseline exists. Must return `errc::not_supported` for a mode
-    /// the driver cannot perform in the current color mode.
+    /// awake, @p mode is one @ref do_supports(refresh_mode) accepts in the
+    /// current color mode, and a `partial` request has already been
+    /// promoted to `full` when no baseline exists.
     ///
     /// May return as soon as the update is started, while the glass is
     /// still driving: the base class waits via @ref do_wait before the next
@@ -1064,6 +1086,17 @@ protected:
     /// pixel formats explicitly and a newly added mode is unsupported until
     /// a driver opts in.
     [[nodiscard]] virtual bool do_supports(enum color_mode mode) const noexcept = 0;
+
+    /// Hook for refresh-mode validation. Reports whether the driver can
+    /// perform a @p mode refresh in the current color mode.
+    /// @ref try_refresh and @ref try_start_refresh reject a mode this
+    /// reports as unsupported with `errc::not_supported`, before promoting
+    /// a `partial` request without a baseline to `full`, so @ref do_refresh
+    /// only sees supported modes. The default supports every mode.
+    [[nodiscard]] virtual bool do_supports(refresh_mode mode) const noexcept {
+        (void)mode;
+        return true;
+    }
 
     /// Hook for @ref try_set_color_mode. Called only for an actual mode
     /// change, to a mode @ref do_supports accepts (or back to
@@ -1124,14 +1157,16 @@ protected:
     /**
      * @brief Pulses the reset line and waits for the controller to settle.
      *
-     * Drives the reset pin configured at construction low for 10 ms, back
-     * high for 10 ms, then waits for the BUSY line to release.
+     * Drives the reset pin configured at construction low for @p pulse,
+     * back high for @p pulse, then waits for the BUSY line to release.
      *
+     * @param pulse How long to hold the reset line low, and to wait after
+     *              releasing it before polling BUSY.
      * @return Success, or an error.
      * @retval invalid_state No reset pin is configured.
      * @retval timeout The BUSY line did not release after the reset.
      */
-    [[nodiscard]] result<void> hardware_reset();
+    [[nodiscard]] result<void> hardware_reset(std::chrono::milliseconds pulse = std::chrono::milliseconds{10});
 
 private:
     template<typename FB>
