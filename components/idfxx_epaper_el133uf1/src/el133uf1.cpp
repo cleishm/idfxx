@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <esp_log.h>
 #include <mutex>
 #include <utility>
 
@@ -46,6 +47,11 @@ constexpr uint8_t cmd_reg_0xb7 = 0xB7;      // Vendor: unknown
 constexpr uint8_t cmd_cascade = 0xE0;       // Cascade setting
 constexpr uint8_t cmd_power_saving = 0xE3;  // Power saving
 constexpr uint8_t cmd_reg_0xf0 = 0xF0;      // Vendor: unknown
+constexpr uint8_t cmd_read_id = 0xF2;       // Vendor: read controller ID (3 bytes)
+
+// First ID byte an answering controller returns. An unselected or
+// unresponsive controller leaves MISO idle, which never reads as this value.
+constexpr uint8_t id_present = 0x01;
 
 // Six-color codes for the two pixels of a byte.
 constexpr uint8_t pair_white = 0x11;
@@ -64,6 +70,12 @@ constexpr auto init_settle = 10ms;
 
 // Largest transmit staged through the driver's DMA buffer.
 constexpr size_t max_chunk_bytes = 4096;
+
+// Register reads need a slower clock than writes (a read cycle of at least
+// 150 ns, i.e. at most 6.67 MHz).
+constexpr quanta::frequency::hertz read_clock{4'000'000};
+
+constexpr const char* TAG = "idfxx::el133uf1";
 
 // Holds the chip-select line(s) of a transfer low (selected) for its
 // lifetime, releasing them high on every exit path. Declared after the
@@ -128,7 +140,7 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
     }
 
     // The driver drives both chip selects itself, so the device has none.
-    // The panel is write-only: there is no MISO phase.
+    // Half-duplex: a register read's reply follows its command byte.
     auto device = spi::master_device::make(
         bus,
         {
@@ -154,6 +166,12 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
         if (auto r = display._reset(); !r) {
             return error(r.error());
         }
+    } else if (auto r = display.wait_busy(); !r) {
+        // Without a reset, the controllers may still be finishing earlier work.
+        return error(r.error());
+    }
+    if (auto r = display._confirm_presence(); !r) {
+        return error(r.error());
     }
     if (auto r = display._init(); !r) {
         return error(r.error());
@@ -176,6 +194,7 @@ el133uf1::el133uf1(el133uf1&& other) noexcept
     , _master_cs(other._master_cs)
     , _slave_cs(other._slave_cs)
     , _dc(other._dc)
+    , _check_presence(other._check_presence)
     , _chunk(std::move(other._chunk))
     , _pending(std::exchange(other._pending, pending::none))
     , _shadow(std::move(other._shadow)) {}
@@ -191,6 +210,7 @@ el133uf1& el133uf1::operator=(el133uf1&& other) noexcept {
         _master_cs = other._master_cs;
         _slave_cs = other._slave_cs;
         _dc = other._dc;
+        _check_presence = other._check_presence;
         _chunk = std::move(other._chunk);
         _pending = std::exchange(other._pending, pending::none);
         _shadow = std::move(other._shadow);
@@ -348,6 +368,9 @@ result<void> el133uf1::do_wake() {
     if (auto r = _reset(); !r) {
         return r;
     }
+    if (auto r = _confirm_presence(); !r) {
+        return r;
+    }
     return _init();
 }
 
@@ -427,6 +450,50 @@ result<void> el133uf1::_reset() {
     reset_gpio().set_level(gpio::level::high);
     idfxx::delay(20ms);
     return wait_busy();
+}
+
+result<void> el133uf1::_confirm_presence() {
+    if (!_check_presence) {
+        return {};
+    }
+    // Never faster than the configured clock, which may be lowered for the
+    // wiring.
+    const quanta::frequency::hertz clock = std::min(_device.frequency(), read_clock);
+    // One controller at a time: both drive MISO while selected.
+    const struct {
+        gpio cs;
+        const char* name;
+    } controllers[]{{_master_cs, "master"}, {_slave_cs, "slave"}};
+    for (const auto& controller : controllers) {
+        // The command goes out in the command phase, so the transaction has
+        // no MOSI data phase (half-duplex DMA can't combine both on every
+        // target). The reply lands in the DMA buffer, as _send stages writes.
+        const std::span<uint8_t> reply = std::span(_chunk).first(3);
+        {
+            std::lock_guard lock(_device);
+            const chip_select selected(controller.cs, gpio::nc());
+            _dc.set_level(gpio::level::low);
+            if (auto r = _device.try_transmit({
+                    .flags = spi::trans_flags::variable_cmd,
+                    .cmd = cmd_read_id,
+                    .rx_buffer = reply,
+                    .rx_length = reply.size() * 8,
+                    .override_freq = clock,
+                    .command_bits = 8,
+                });
+                !r) {
+                return r;
+            }
+        }
+        if (reply[0] != id_present) {
+            ESP_LOGE(
+                TAG, "%s controller did not answer (ID %02X %02X %02X)", controller.name, reply[0], reply[1], reply[2]
+            );
+            return error(errc::not_found);
+        }
+        ESP_LOGD(TAG, "%s controller ID %02X %02X %02X", controller.name, reply[0], reply[1], reply[2]);
+    }
+    return {};
 }
 
 result<void> el133uf1::_init() {

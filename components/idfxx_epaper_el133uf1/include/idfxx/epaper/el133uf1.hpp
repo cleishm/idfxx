@@ -63,6 +63,11 @@ namespace idfxx::epaper {
  * reaches them in a single transfer with both selected. It also owns the
  * BUSY input and reset output lines.
  *
+ * The panel's data output is optional. When it is wired to the bus's MISO
+ * line, setting @ref config::check_presence makes the driver confirm that
+ * both controllers answer after every hardware reset, so a disconnected or
+ * unpowered panel is reported instead of appearing idle.
+ *
  * Because the controllers have no addressable window, every refresh
  * uploads the whole frame. The driver keeps a 960 KB shadow of the frame in
  * PSRAM: writes (at any row, and any even column in color6 or any multiple
@@ -131,6 +136,13 @@ public:
         /// GPIO wired to the panel's BUSY output. The controllers drive
         /// BUSY low while an operation is in progress.
         required<gpio> busy_gpio;
+        /// Whether to confirm that both controllers are present. When set,
+        /// the driver reads each controller's ID register after every
+        /// hardware reset (during construction and @ref wake) and fails
+        /// with `errc::not_found` if either controller does not answer.
+        /// Requires the panel's data output to be wired to the bus's MISO
+        /// line.
+        bool check_presence = false;
         /// SPI clock frequency. The controllers accept up to 10 MHz for
         /// writes.
         quanta::frequency::hertz pclk{10'000'000};
@@ -144,7 +156,8 @@ public:
      * @brief Creates a new EL133UF1 panel driver on the given SPI bus.
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
-     * data/command, BUSY and reset GPIOs, hardware-resets the controllers,
+     * data/command, BUSY and reset GPIOs, hardware-resets the controllers
+     * (confirming that both answer, if `config.check_presence` is set),
      * runs the full initialization sequence, and allocates the PSRAM shadow
      * frame (blank white), leaving the panel awake in
      * @ref color_mode::color6 and ready for writes.
@@ -152,15 +165,18 @@ public:
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.
      *
-     * @param bus    SPI master bus the panel is wired to. Only MOSI and SCLK
-     *               are used: the panel has no MISO line.
+     * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
+     *               always used; MISO is used only when
+     *               `config.check_presence` is set.
      * @param config Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
      *         if the two chip-select GPIOs are the same or a required GPIO
-     *         is unconnected, and `errc::timeout` if the BUSY line does not
-     *         release during initialization.
+     *         is unconnected, `errc::timeout` if the BUSY line does not
+     *         release during initialization, and `errc::not_found` if
+     *         `config.check_presence` is set and a controller does not
+     *         answer.
      *
      * @code
      * idfxx::epaper::el133uf1 display(bus, {
@@ -179,7 +195,8 @@ public:
      * @brief Creates a new EL133UF1 panel driver on the given SPI bus.
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
-     * data/command, BUSY and reset GPIOs, hardware-resets the controllers,
+     * data/command, BUSY and reset GPIOs, hardware-resets the controllers
+     * (confirming that both answer, if `config.check_presence` is set),
      * runs the full initialization sequence, and allocates the PSRAM shadow
      * frame (blank white), leaving the panel awake in
      * @ref color_mode::color6 and ready for writes.
@@ -187,8 +204,9 @@ public:
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.
      *
-     * @param bus    SPI master bus the panel is wired to. Only MOSI and SCLK
-     *               are used: the panel has no MISO line.
+     * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
+     *               always used; MISO is used only when
+     *               `config.check_presence` is set.
      * @param config Panel configuration.
      *
      * @return The new el133uf1, or an error. Errors adding the panel's
@@ -198,6 +216,8 @@ public:
      *         `slave_cs_gpio`, `dc_gpio` and `busy_gpio` is not connected.
      * @retval idfxx::errc::timeout if the controllers' BUSY line does not
      *         release during initialization.
+     * @retval idfxx::errc::not_found if `config.check_presence` is set and
+     *         either controller does not answer.
      *
      * @code
      * auto display = idfxx::epaper::el133uf1::make(bus, {
@@ -233,7 +253,8 @@ private:
         , _device(std::move(device))
         , _master_cs(config.master_cs_gpio)
         , _slave_cs(config.slave_cs_gpio)
-        , _dc(config.dc_gpio) {}
+        , _dc(config.dc_gpio)
+        , _check_presence(config.check_presence) {}
 
     // epaper::panel customization hooks.
     [[nodiscard]] result<void>
@@ -254,6 +275,7 @@ private:
     [[nodiscard]] result<void> _stream(target to, uint8_t cmd, std::span<const uint8_t> plane);
     [[nodiscard]] result<void> _send(std::span<const uint8_t> bytes);
     [[nodiscard]] result<void> _reset();
+    [[nodiscard]] result<void> _confirm_presence();
     [[nodiscard]] result<void> _init();
     [[nodiscard]] result<void> _upload();
     [[nodiscard]] result<void> _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
@@ -274,6 +296,8 @@ private:
     gpio _master_cs;
     gpio _slave_cs;
     gpio _dc;
+    // Whether to read the controllers' ID registers after each reset.
+    bool _check_presence;
 
     // Internal DMA-capable staging buffer for outgoing bytes (at most 4 KB,
     // capped at the bus's maximum transaction length). Shadow-plane chunks
