@@ -213,7 +213,7 @@ your module uses a plain crystal.
 | `variant`              | `sx1262`                         | Picks the PA table and max-power validation.                                           |
 | `cs`, `busy`, `dio1`   | none                             | Required pins; SX126x has no DIO0.                                                     |
 | `nreset`               | `gpio::nc()`                     | Active-low reset; strongly recommended. `nc()` skips the hardware reset at construction. |
-| `clock_speed`          | `10 MHz`                         | Well under the chip's 18 MHz limit.                                                    |
+| `clock_speed`          | `10 MHz`                         | Datasheet maximum is 16 MHz.                                                           |
 | `dio2_as_rf_switch`    | `true`                           | Matches most modules (Heltec, LilyGo, RAK).                                            |
 | `rxen`, `txen`         | `gpio::nc()`                     | Optional external RF-switch control pins, driven to match TX / RX / idle; `nc()` if unused. |
 | `tcxo`                 | `std::nullopt`                   | When set, DIO3 powers the TCXO (default 1.7 V, 5 ms startup) and the chip is calibrated. |
