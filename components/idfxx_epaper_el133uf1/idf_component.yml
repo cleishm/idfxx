@@ -1,0 +1,26 @@
+version: "1.0.0"
+description: "EL133UF1 ePaper panel driver (E Ink 13.3\" 1200x1600 Spectra 6 glass, e.g. Seeed Studio's T133A01 module in the reTerminal E1004)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_el133uf1"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_epaper:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_epaper
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_gpio
+  cleishm/idfxx_spi:
+    version: "^2.0.0"
+    public: true
+    override_path: ../idfxx_spi
+  cleishm/quanta:
+    version: "^0.1.0"
+    public: true
