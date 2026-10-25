@@ -1,0 +1,18 @@
+version: "1.0.0"
+description: "JPEG decoding into RGB888 images, with output scaling and EXIF orientation"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_jpeg"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_image:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_image
+  espressif/libjpeg-turbo:
+    version: "^3.2.0"
+    public: false
