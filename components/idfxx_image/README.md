@@ -26,14 +26,17 @@ Pixel image views, owning buffers, and EXIF orientation transforms.
   `source_point` for mapping displayed pixels back to source pixels
 - `orient(src, dst, o)` and `oriented(src, o)` apply an orientation to any
   buffer or view, passed directly
-- No failure modes: operations are infallible given their documented
+- `sink<S, P>`: the concept for a destination that receives pixels block by
+  block from a producer such as an image decoder, and can stop it by
+  returning an error
+- No failure modes: image operations are infallible given their documented
   preconditions
 
 ## Requirements
 
 - ESP-IDF 5.5 or later
 - C++23 compiler support
-- No component dependencies
+- idfxx_core
 
 ## Installation
 
@@ -74,9 +77,8 @@ image::orientation total = image::compose(o, image::orientation::rotate_180);
 
 ### PSRAM-backed buffers
 
-On ESP-IDF, a large image can be placed in PSRAM by supplying an allocator
-from `idfxx_core`'s `<idfxx/memory>` (add `idfxx_core` to your dependencies;
-this component does not depend on it):
+A large image can be placed in PSRAM by supplying an allocator from
+`idfxx_core`'s `<idfxx/memory>`:
 
 ```cpp
 #include <idfxx/image>
@@ -88,6 +90,32 @@ psram_image frame(1024, 768);
 
 // The result of oriented() uses the source buffer's allocator, so it is in PSRAM too.
 psram_image rotated = idfxx::image::oriented(frame, idfxx::image::orientation::rotate_90);
+```
+
+### Receiving pixels through a sink
+
+A producer such as a decoder hands an image to a `sink` one block at a time:
+the block's top-left position in the full image and a read-only view of its
+pixels. Returning an error stops the producer, which returns that error.
+
+```cpp
+#include <idfxx/image>
+
+#include <algorithm>
+
+idfxx::image::buffer<> screen(320, 240);
+
+auto to_screen = [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> block)
+    -> idfxx::result<void> {
+    if (at.x + block.width() > screen.width() || at.y + block.height() > screen.height()) {
+        return idfxx::error(idfxx::errc::invalid_size);
+    }
+    for (size_t y = 0; y < block.height(); ++y) {
+        std::ranges::copy(block.row(y), screen.row(at.y + y).begin() + at.x);
+    }
+    return {};
+};
+static_assert(idfxx::image::sink<decltype(to_screen)>);
 ```
 
 ## API Overview
@@ -109,13 +137,14 @@ psram_image rotated = idfxx::image::oriented(frame, idfxx::image::orientation::r
 | `source_point(o, p, src_w, src_h)` | The source pixel shown at `p` in the oriented image. |
 | `orient(src, dst, o)` | Copy `src` into `dst` with `o` applied. |
 | `oriented(src, o[, alloc])` | A new `buffer` holding `src` with `o` applied; allocated like `src` when it is a buffer, unless `alloc` is given. |
+| `sink<S, P = rgb888>` | Concept: `S&` is callable as `(point, view<const P>)` returning `idfxx::result<void>`. |
 
 ## Error Handling
 
-The API has no failure modes and no error codes: there are no `try_*`
-variants and no `result` types. Instead, functions have documented
-preconditions that the caller is responsible for meeting, and which are not
-checked at run time:
+The image operations have no failure modes and no error codes: there are no
+`try_*` variants, and the only `result` type is the one a `sink` returns to
+the producer feeding it. Instead, functions have documented preconditions that
+the caller is responsible for meeting, and which are not checked at run time:
 
 - Pixel coordinates and rows must be within the image (`x < width()`,
   `y < height()`), except for `set_pixel`, which ignores writes outside it;
