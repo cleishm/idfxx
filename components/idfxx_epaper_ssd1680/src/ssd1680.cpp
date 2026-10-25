@@ -257,9 +257,6 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
-        if (mode != refresh_mode::full) {
-            return error(errc::not_supported);
-        }
         // The grayscale LUT was loaded by _init_gray; display without
         // reloading it.
         if (auto r = _cmd(cmd_update_ctrl2, {seq_display}); !r) {
@@ -341,6 +338,11 @@ bool ssd1680::do_supports(enum color_mode mode) const noexcept {
     return mode == color_mode::gray4;
 }
 
+bool ssd1680::do_supports(refresh_mode mode) const noexcept {
+    // The grayscale LUT has no fast or differential variant.
+    return color_mode() != color_mode::gray4 || mode == refresh_mode::full;
+}
+
 result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
@@ -383,11 +385,13 @@ result<void> ssd1680::do_wake() {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // The reset discards any update do_refresh left running.
-    _pending = pending::none;
     if (auto r = hardware_reset(); !r) {
+        // A failed reset leaves the controller as it was, so any pending
+        // work still applies.
         return r;
     }
+    // The reset discarded any update do_refresh left running.
+    _pending = pending::none;
     if (color_mode() == color_mode::gray4) {
         return _init_gray();
     }

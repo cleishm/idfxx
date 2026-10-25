@@ -9,7 +9,7 @@ as used in modules such as Seeed Studio's T133A01 (in the reTerminal E1004).
 
 - Implements the `idfxx::epaper::panel` interface — application code
   written against the abstract panel works unchanged, provided it uses
-  full refreshes (`fast` and `partial` return `errc::not_supported`).
+  full refreshes (`fast` and `partial` always return `errc::not_supported`).
 - Six-color operation (`color_mode::color6`, the panel's native 4-bpp
   format: black, white, yellow, red, blue, green) via `color6_framebuffer`.
 - Monochrome operation (`color_mode::mono`) renders 1-bpp
@@ -178,8 +178,8 @@ Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
 - `errc::not_found` — with `check_presence` set, a controller did not
   answer during construction or `wake` (the log names which one).
-- `errc::not_supported` — `fast` or `partial` refresh, or
-  `color_mode::gray4`.
+- `errc::not_supported` — any `fast` or `partial` refresh (including the
+  first one, before a baseline exists), or `color_mode::gray4`.
 
 Running out of memory for the shadow frame (or the driver's 4 KB internal
 DMA buffer) is not reported as an error:

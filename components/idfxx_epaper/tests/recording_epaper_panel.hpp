@@ -38,6 +38,9 @@ public:
     // Pixel formats reported by do_supports (mono is always supported).
     bool supports_gray4 = true;
     bool supports_color6 = true;
+    // Refresh modes reported by do_supports (full is always supported).
+    bool supports_fast = true;
+    bool supports_partial = true;
     // do_restore_baseline behavior: defer to the base default (a driver
     // without support), or fail with the given error.
     bool restore_unsupported = false;
@@ -101,6 +104,17 @@ private:
             return supports_color6;
         default:
             return false;
+        }
+    }
+
+    [[nodiscard]] bool do_supports(idfxx::epaper::refresh_mode mode) const noexcept override {
+        switch (mode) {
+        case idfxx::epaper::refresh_mode::fast:
+            return supports_fast;
+        case idfxx::epaper::refresh_mode::partial:
+            return supports_partial;
+        default:
+            return true;
         }
     }
 

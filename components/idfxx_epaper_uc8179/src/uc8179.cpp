@@ -253,9 +253,6 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
-        if (mode != refresh_mode::full) {
-            return error(errc::not_supported);
-        }
         // do_set_color_mode already loaded the grayscale waveform.
         if (auto r = _ensure_waveform(waveform::gray); !r) {
             return r;
@@ -282,6 +279,11 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
 
 bool uc8179::do_supports(enum color_mode mode) const noexcept {
     return mode == color_mode::gray4;
+}
+
+bool uc8179::do_supports(refresh_mode mode) const noexcept {
+    // The grayscale waveform has no fast or differential variant.
+    return color_mode() != color_mode::gray4 || mode == refresh_mode::full;
 }
 
 result<void> uc8179::do_set_color_mode(enum color_mode mode) {

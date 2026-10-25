@@ -8,6 +8,7 @@
 #include <idfxx/sched>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstring>
 #include <esp_log.h>
@@ -63,6 +64,20 @@ constexpr size_t chip_width = el133uf1::native_width / 2; // 600 pixels
 constexpr size_t plane_stride = chip_width / 2;           // 300 bytes
 constexpr size_t plane_bytes = plane_stride * el133uf1::native_height;
 constexpr size_t shadow_bytes = 2 * plane_bytes; // 960,000
+
+// Expansion of a 1-bpp source byte (MSB = leftmost pixel; set = paper) into
+// the 4 shadow bytes of its 8 pixels, two per byte with the left pixel in
+// the high nibble.
+constexpr auto mono_expansion = [] {
+    std::array<std::array<uint8_t, 4>, 256> table{};
+    for (size_t b = 0; b < table.size(); ++b) {
+        for (size_t pair = 0; pair < 4; ++pair) {
+            const auto code = [&](size_t bit) { return (b & (0x80u >> bit)) ? code_white : code_black; };
+            table[b][pair] = static_cast<uint8_t>((code(2 * pair) << 4) | code(2 * pair + 1));
+        }
+    }
+    return table;
+}();
 
 // Vendor timing: the controllers need a short pause after every register
 // write during initialization.
@@ -163,7 +178,8 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
     // color6_framebuffer holds. PSRAM is a hard requirement.
     display._shadow.assign(shadow_bytes, pair_white);
     if (config.reset_gpio.is_connected()) {
-        if (auto r = display._reset(); !r) {
+        // The vendor reset timing is longer than the base's default pulse.
+        if (auto r = display.hardware_reset(20ms); !r) {
             return error(r.error());
         }
     } else if (auto r = display.wait_busy(); !r) {
@@ -239,23 +255,34 @@ result<void> el133uf1::do_write(const mono_framebuffer& fb, size_t row_start, si
     }
     // Expand 1-bpp ink/paper into the shadow's six-color nibbles: ink is
     // black, paper is white. The destination column is a multiple of 8, so
-    // pixel pairs align with shadow bytes; an odd-width framebuffer's last
-    // pixel shares its byte with a neighbour outside the band, which is
-    // preserved.
+    // each source byte expands to 4 consecutive shadow bytes, and since the
+    // plane split (byte 300) is a multiple of 4, those never straddle it.
+    // An odd-width framebuffer's last pixel shares its byte with a
+    // neighbour outside the band, which is preserved.
     const size_t width = fb.width();
-    const auto code_at = [](std::span<const uint8_t> row, size_t c) -> uint8_t {
-        return (row[c / 8] & (0x80u >> (c % 8))) ? code_white : code_black;
-    };
+    const size_t whole = width / 8; // full source bytes per row
+    const size_t rem = width % 8;   // pixels in a trailing partial byte
+    const size_t x0 = x / 2;        // first panel byte
+    // Source bytes before this index land in plane 0, the rest in plane 1.
+    const size_t split = x0 < plane_stride ? (plane_stride - x0) / 4 : 0;
     for (size_t r = row_start; r < row_end; ++r) {
         const auto src = fb.row(r);
         const size_t dst_y = y + r;
-        size_t col = 0;
-        for (; col + 1 < width; col += 2) {
-            *_shadow_byte(x + col, dst_y) = static_cast<uint8_t>((code_at(src, col) << 4) | code_at(src, col + 1));
+        // Destination of source byte i: dst0 + 4 * i below split, else
+        // dst1 + 4 * (i - split).
+        uint8_t* const dst0 = _shadow_byte(x, dst_y);
+        uint8_t* const dst1 = _shadow_byte(std::max(x0, plane_stride) * 2, dst_y);
+        const auto dst_at = [&](size_t i) { return i < split ? dst0 + 4 * i : dst1 + 4 * (i - split); };
+        for (size_t i = 0; i < whole; ++i) {
+            std::ranges::copy(mono_expansion[src[i]], dst_at(i));
         }
-        if (col < width) {
-            uint8_t& dst = *_shadow_byte(x + col, dst_y);
-            dst = static_cast<uint8_t>((code_at(src, col) << 4) | (dst & 0x0F));
+        if (rem != 0) {
+            const auto& codes = mono_expansion[src[whole]];
+            uint8_t* const dst = dst_at(whole);
+            std::copy_n(codes.begin(), rem / 2, dst);
+            if (rem % 2 != 0) {
+                dst[rem / 2] = static_cast<uint8_t>((codes[rem / 2] & 0xF0) | (dst[rem / 2] & 0x0F));
+            }
         }
     }
     return {};
@@ -307,17 +334,17 @@ result<void> el133uf1::do_refresh(refresh_mode mode) {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
-    // The glass has a single full-update waveform: no fast or differential
-    // modes.
-    if (mode != refresh_mode::full) {
-        return error(errc::not_supported);
-    }
+    // do_supports(refresh_mode) admits only full refreshes.
+    (void)mode;
     if (auto r = _upload(); !r) {
         return r;
     }
     if (auto r = _cmd(target::both, cmd_power_on); !r) {
         return r;
     }
+    // The rails are up: from here on, whatever fails, _settle must still
+    // power them off.
+    _pending = pending::power_off;
     if (auto r = wait_busy(); !r) {
         return r;
     }
@@ -332,12 +359,17 @@ result<void> el133uf1::do_refresh(refresh_mode mode) {
     // do_wait) before the next controller command, and _settle powers the
     // rails off once the update finishes.
     idfxx::delay(10ms);
-    _pending = pending::power_off;
     return {};
 }
 
 bool el133uf1::do_supports(enum color_mode mode) const noexcept {
     return mode == color_mode::color6;
+}
+
+bool el133uf1::do_supports(refresh_mode mode) const noexcept {
+    // The glass has a single full-update waveform: no fast or differential
+    // modes.
+    return mode == refresh_mode::full;
 }
 
 result<void> el133uf1::do_set_color_mode(enum color_mode mode) {
@@ -362,12 +394,15 @@ result<void> el133uf1::do_wake() {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
-    // The reset discards any update do_refresh left running. The shadow
-    // frame survives: the next refresh re-uploads it.
-    _pending = pending::none;
-    if (auto r = _reset(); !r) {
+    // The vendor reset timing is longer than the base's default pulse.
+    if (auto r = hardware_reset(20ms); !r) {
+        // A failed reset leaves the controllers as they were, so any
+        // pending power-off still applies.
         return r;
     }
+    // The reset discarded any update do_refresh left running. The shadow
+    // frame survives: the next refresh re-uploads it.
+    _pending = pending::none;
     if (auto r = _confirm_presence(); !r) {
         return r;
     }
@@ -415,8 +450,10 @@ result<void> el133uf1::_cmd(target to, uint8_t cmd, std::initializer_list<uint8_
 result<void> el133uf1::_stream(target to, uint8_t cmd, std::span<const uint8_t> plane) {
     // The controller counts image bytes from the data-start command, so
     // chip select stays asserted, and the bus held, across every chunk.
+    const gpio first = to == target::slave ? _slave_cs : _master_cs;
+    const gpio second = to == target::both ? _slave_cs : gpio::nc();
     std::lock_guard lock(_device);
-    const chip_select selected(to == target::slave ? _slave_cs : _master_cs, gpio::nc());
+    const chip_select selected(first, second);
     _dc.set_level(gpio::level::low);
     if (auto r = _send({&cmd, 1}); !r) {
         return r;
@@ -432,24 +469,13 @@ result<void> el133uf1::_stream(target to, uint8_t cmd, std::span<const uint8_t> 
 
 result<void> el133uf1::_send(std::span<const uint8_t> bytes) {
     // Stage through the internal DMA buffer: the shadow lives in PSRAM and
-    // command parameters in flash, neither of which the SPI DMA reads, so
-    // the bus driver would otherwise allocate a bounce buffer per transfer.
+    // command parameters may live in flash (constant parameter lists can be
+    // placed there), neither of which the SPI DMA reads, so the bus driver
+    // would otherwise allocate a bounce buffer per transfer.
     // An interrupt-driven transfer lets other tasks run while DMA sends
     // each chunk; the device lock already keeps the sequence exclusive.
     std::ranges::copy(bytes, _chunk.begin());
     return _device.try_transmit(std::span<const uint8_t>(_chunk).first(bytes.size()));
-}
-
-result<void> el133uf1::_reset() {
-    // Vendor timing (longer than the base's hardware_reset pulse).
-    if (!reset_gpio().is_connected()) {
-        return error(errc::invalid_state);
-    }
-    reset_gpio().set_level(gpio::level::low);
-    idfxx::delay(20ms);
-    reset_gpio().set_level(gpio::level::high);
-    idfxx::delay(20ms);
-    return wait_busy();
 }
 
 result<void> el133uf1::_confirm_presence() {
@@ -551,12 +577,12 @@ result<void> el133uf1::_upload() {
 }
 
 result<void> el133uf1::_settle(std::optional<std::chrono::milliseconds> timeout) {
-    // Completes the update do_refresh left running: wait out BUSY, then
-    // power the drive rails off. The base class calls this (via do_wait)
-    // before every controller hook, so a running refresh delays the *next*
-    // operation rather than blocking refresh's caller; the destructor and
-    // move-assignment call it directly. On failure the work stays pending
-    // for the next attempt.
+    // Completes what do_refresh left behind once the rails came up: wait
+    // out BUSY (the update, if one started), then power the rails off. The
+    // base class calls this (via do_wait) before every controller hook, so
+    // a running refresh delays the *next* operation rather than blocking
+    // refresh's caller; the destructor and move-assignment call it
+    // directly. On failure the work stays pending for the next attempt.
     if (_pending == pending::none) {
         return {};
     }
@@ -587,10 +613,6 @@ result<void> el133uf1::_enter_deep_sleep() {
 // =============================================================================
 // Shadow-frame addressing
 // =============================================================================
-
-std::span<uint8_t> el133uf1::_plane(size_t index) noexcept {
-    return std::span(_shadow).subspan(index * plane_bytes, plane_bytes);
-}
 
 std::span<const uint8_t> el133uf1::_plane(size_t index) const noexcept {
     return std::span(_shadow).subspan(index * plane_bytes, plane_bytes);

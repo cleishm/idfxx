@@ -50,8 +50,9 @@ namespace idfxx::epaper {
  * pixel) and @ref color_mode::mono (1-bpp framebuffers rendered as black
  * and white, so existing text and banded-rendering code works unchanged).
  * The glass supports full refreshes only: `fast` and `partial` refresh
- * modes, and @ref color_mode::gray4, report `errc::not_supported`. A full
- * refresh takes on the order of 25-30 seconds.
+ * requests always report `errc::not_supported` (even before a baseline
+ * exists), as does @ref color_mode::gray4. A full refresh takes on the
+ * order of 25-30 seconds.
  *
  * The panel is driven by two cascaded controller ICs, each owning one
  * 600-column half of every row: the master (columns 0-599) and the slave
@@ -264,6 +265,7 @@ private:
     [[nodiscard]] result<void> do_clear() override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
     [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
+    [[nodiscard]] bool do_supports(refresh_mode mode) const noexcept override;
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_wake() override;
@@ -274,7 +276,6 @@ private:
     [[nodiscard]] result<void> _cmd(target to, uint8_t cmd, std::initializer_list<uint8_t> params);
     [[nodiscard]] result<void> _stream(target to, uint8_t cmd, std::span<const uint8_t> plane);
     [[nodiscard]] result<void> _send(std::span<const uint8_t> bytes);
-    [[nodiscard]] result<void> _reset();
     [[nodiscard]] result<void> _confirm_presence();
     [[nodiscard]] result<void> _init();
     [[nodiscard]] result<void> _upload();
@@ -283,7 +284,6 @@ private:
 
     // Shadow-frame addressing: each controller's plane is native_height
     // rows of native_width / 4 bytes (600 pixels at two per byte).
-    [[nodiscard]] std::span<uint8_t> _plane(size_t index) noexcept;
     [[nodiscard]] std::span<const uint8_t> _plane(size_t index) const noexcept;
     [[nodiscard]] uint8_t* _shadow_byte(size_t x, size_t y) noexcept;
 
@@ -309,7 +309,7 @@ private:
     /// next controller command.
     enum class pending : uint8_t {
         none,      ///< Controllers idle; nothing deferred.
-        power_off, ///< An update is driving; wait for BUSY, then power off the rails.
+        power_off, ///< The drive rails are up (an update may be driving); wait for BUSY, then power them off.
     };
     pending _pending = pending::none;
 

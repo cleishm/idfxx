@@ -203,6 +203,7 @@ private:
     [[nodiscard]] result<void> do_restore_baseline(const mono_framebuffer& fb) override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
     [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
+    [[nodiscard]] bool do_supports(refresh_mode mode) const noexcept override;
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_wake() override;

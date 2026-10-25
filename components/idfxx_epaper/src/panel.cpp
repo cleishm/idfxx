@@ -9,8 +9,6 @@
 
 #include <chrono>
 
-using namespace std::chrono_literals;
-
 namespace idfxx::epaper {
 
 // Shared body of the write family: the panel must be awake and in the
@@ -130,6 +128,11 @@ result<void> panel::_start_refresh(refresh_mode mode) {
     if (_asleep) {
         return error(errc::invalid_state);
     }
+    // An unsupported mode is rejected even when it would be promoted below,
+    // so the result does not depend on whether a baseline exists.
+    if (!do_supports(mode)) {
+        return error(errc::not_supported);
+    }
     if (mode == refresh_mode::partial && !_has_baseline) {
         mode = refresh_mode::full;
     }
@@ -159,14 +162,14 @@ result<void> panel::wait_busy(std::optional<std::chrono::milliseconds> timeout) 
     return poll_busy(_busy_gpio, _busy_level, timeout, _busy_timeout);
 }
 
-result<void> panel::hardware_reset() {
+result<void> panel::hardware_reset(std::chrono::milliseconds pulse) {
     if (!_reset_gpio.is_connected()) {
         return error(errc::invalid_state);
     }
     _reset_gpio.set_level(gpio::level::low);
-    delay(10ms);
+    delay(pulse);
     _reset_gpio.set_level(gpio::level::high);
-    delay(10ms);
+    delay(pulse);
     return wait_busy();
 }
 
