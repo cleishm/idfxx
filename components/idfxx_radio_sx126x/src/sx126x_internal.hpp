@@ -253,6 +253,10 @@ struct sx126x::state {
     std::atomic<chip_mode> mode{chip_mode::stdby};
     sx126x_internal::driver_activity driver_state = sx126x_internal::driver_activity::idle;
 
+    // Sleep window of the duty-cycled receive this driver armed, in us; 0 when
+    // none is armed. Written under `mu`; read lock-free by wait_busy_waking().
+    std::atomic<uint32_t> duty_sleep_us{0};
+
     // Most-recent packet params written via set_packet_params; transmit
     // re-issues these with an updated payload length so it never clobbers the
     // caller's header/CRC/IQ choices.
@@ -316,11 +320,13 @@ struct sx126x::state {
     /// wait_busy(), waking the chip first if it turns out to be asleep: in
     /// SLEEP mode — including the sleep phases of a duty-cycled receive —
     /// BUSY idles high and only an NSS falling edge wakes the chip, so a
-    /// bare BUSY wait can never succeed. A full wait_busy() timeout (far
-    /// beyond any real command's processing time) is taken as "asleep": a
-    /// GetStatus frame is clocked to provide the NSS edge (its content is
-    /// ignored by a sleeping chip), then BUSY is waited again. Requires
-    /// `spi_mu` held.
+    /// bare BUSY wait can never succeed. BUSY still high after the longest
+    /// processing time (Calibrate plus any TCXO start-up, plus the sleep
+    /// window of a duty cycle this driver armed; capped at `busy_timeout`) is
+    /// taken as "asleep", silently: a GetStatus frame is
+    /// clocked to provide the NSS edge (its content is ignored by a sleeping
+    /// chip), then wait_busy() runs with the full timeout and logs only if
+    /// that fails. Requires `spi_mu` held.
     [[nodiscard]] result<void> wait_busy_waking();
 
     /// Full-duplex transfer of equal-length tx/rx spans.

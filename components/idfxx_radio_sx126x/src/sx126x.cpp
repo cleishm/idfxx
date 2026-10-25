@@ -63,6 +63,7 @@ void reset_idle(sx126x::state& s, chip_mode parked = chip_mode::stdby) {
     std::lock_guard g(s.mu);
     s.driver_state = internal::driver_activity::idle;
     s.mode = parked;
+    s.duty_sleep_us = 0;
     cancel_active_op(s, errc::not_finished);
     sx126x_set_rf_switch(s, parked);
 }
@@ -108,7 +109,13 @@ result<std::shared_ptr<internal::op_latch>> claim_data_path(
 // the command, and records the rx bookkeeping. Duty-cycled receive shares
 // rx_continuous: the worker already posts rx_done and never completes a
 // blocking waiter for it, which is exactly the duty-cycle behaviour.
-result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<const uint8_t> params) {
+// `sleep_period` is the duty cycle's sleep window (zero for continuous).
+result<void> arm_stream_receive(
+    sx126x::state& s,
+    uint8_t opcode,
+    std::span<const uint8_t> params,
+    std::chrono::microseconds sleep_period
+) {
     if (auto e = apply_rx_boost(s); !e) {
         return error(e.error());
     }
@@ -139,6 +146,7 @@ result<void> arm_stream_receive(sx126x::state& s, uint8_t opcode, std::span<cons
     std::lock_guard g(s.mu);
     s.mode = chip_mode::rx;
     s.driver_state = internal::driver_activity::rx_continuous;
+    s.duty_sleep_us = static_cast<uint32_t>(std::min<std::chrono::microseconds::rep>(sleep_period.count(), UINT32_MAX));
     return {};
 }
 
@@ -459,29 +467,41 @@ void sx126x_set_rf_switch(sx126x::state& s, chip_mode mode) noexcept {
 // WriteBuffer/ReadBuffer (§13.2.1..13.2.4).
 // =============================================================================
 
-result<void> sx126x::state::wait_busy() {
-    if (!cfg.busy->is_connected()) {
-        return {};
-    }
-    // BUSY high means the chip is still processing a command (DS §8.3.1 BUSY
-    // Control Line).
+namespace {
+
+// Polls BUSY until it goes low, giving up after `limit`; returns whether it
+// went low. BUSY high means the chip is still processing a command (DS §8.3.1
+// BUSY Control Line).
+bool busy_clears_within(const gpio& busy, std::chrono::microseconds limit) {
     const auto start = std::chrono::steady_clock::now();
-    const auto deadline = start + cfg.busy_timeout;
+    const auto deadline = start + limit;
     // Normal command turnaround is ~1 us, so spin-yield first; back off to a
     // tick sleep for the rare long waits (e.g. ~3.5 ms after Calibrate) so
     // they don't monopolize the CPU.
     constexpr auto spin_limit = std::chrono::microseconds(500);
-    while (cfg.busy->get_level() == gpio::level::high) {
+    while (busy.get_level() == gpio::level::high) {
         auto now = std::chrono::steady_clock::now();
         if (now > deadline) {
-            ESP_LOGW(TAG, "BUSY timeout");
-            return error(errc::timeout);
+            return false;
         }
         if (now - start < spin_limit) {
             idfxx::yield();
         } else {
             idfxx::delay(idfxx::next_tick);
         }
+    }
+    return true;
+}
+
+} // namespace
+
+result<void> sx126x::state::wait_busy() {
+    if (!cfg.busy->is_connected()) {
+        return {};
+    }
+    if (!busy_clears_within(cfg.busy.get(), cfg.busy_timeout)) {
+        ESP_LOGW(TAG, "BUSY timeout");
+        return error(errc::timeout);
     }
     return {};
 }
@@ -492,20 +512,41 @@ result<void> sx126x::state::wait_busy() {
 // duration of the transfer.
 constexpr size_t polling_frame_max = 32;
 
+// Longest BUSY-high stretch the chip spends processing rather than asleep,
+// excluding TCXO start-up: Calibrate holds BUSY ~3.5 ms (§13.1.12), with
+// margin for the PLL lock and mode transitions around it.
+constexpr auto max_processing_busy = std::chrono::milliseconds(10);
+
 result<void> sx126x::state::wait_busy_waking() {
-    auto e = wait_busy();
-    if (!e && e.error() == errc::timeout) {
-        // BUSY held high through the whole window: no command processing
-        // lasts that long, so the chip is asleep (e.g. the sleep phase of a
-        // duty-cycled receive) and needs an NSS edge before it can respond
-        // (DS §9.3: in Sleep BUSY is held high and an NSS falling edge wakes
-        // the chip; §8.2.2 SPI timing when leaving Sleep).
-        ESP_LOGD(TAG, "BUSY held high — waking chip with an NSS edge");
-        const std::array<uint8_t, 2> get_status{internal::op_get_status, 0x00};
-        (void)device.try_polling_transmit(get_status);
-        e = wait_busy();
+    if (!cfg.busy->is_connected()) {
+        return {};
     }
-    return e;
+    // Every start of the chip's oscillator (a move to TX/RX/FS, Calibrate, or
+    // a wake from a duty-cycle sleep window) also waits out the TCXO start-up
+    // with BUSY high (§13.3.6).
+    std::chrono::microseconds probe = max_processing_busy;
+    if (cfg.tcxo) {
+        probe += cfg.tcxo->startup;
+    }
+    // Waking the chip mid-way through a duty-cycle sleep window ends the
+    // autonomous listen, so when this driver armed the duty cycle, wait the
+    // window out for the next receive phase instead (still capped by
+    // busy_timeout). A warm-started driver doesn't know the period and wakes
+    // the chip promptly.
+    probe += std::chrono::microseconds(duty_sleep_us.load(std::memory_order_relaxed));
+    if (busy_clears_within(cfg.busy.get(), std::min<std::chrono::microseconds>(probe, cfg.busy_timeout))) {
+        return {};
+    }
+    // BUSY held high past any processing time: the chip is asleep (e.g. the
+    // sleep phase of a duty-cycled receive) and needs an NSS edge before it
+    // can respond (DS §9.3: in Sleep BUSY is held high and an NSS falling edge
+    // wakes the chip; §8.2.2 SPI timing when leaving Sleep). GetStatus changes
+    // no chip state and clears no IRQ; the wake itself is the only effect, and
+    // any frame reaching a sleeping chip has it, whichever command it carries.
+    ESP_LOGD(TAG, "BUSY held high — waking chip with an NSS edge");
+    const std::array<uint8_t, 2> get_status{internal::op_get_status, 0x00};
+    (void)device.try_polling_transmit(get_status);
+    return wait_busy();
 }
 
 result<void> sx126x::state::transfer(std::span<const uint8_t> tx, std::span<uint8_t> rx) {
@@ -849,7 +890,7 @@ result<void> sx126x::do_start_listening() {
     }
     // SetRx (§13.1.5) with timeout = 0xFFFFFF = continuous mode (table 13-9).
     std::array<uint8_t, 3> params{0xFF, 0xFF, 0xFF};
-    return arm_stream_receive(*_state, internal::op_set_rx, params);
+    return arm_stream_receive(*_state, internal::op_set_rx, params, {});
 }
 
 result<void> sx126x::do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
@@ -858,7 +899,7 @@ result<void> sx126x::do_start_listening(std::chrono::microseconds rx_period, std
     }
     // SetRxDutyCycle (§13.1.7): the chip alternates receive and sleep windows.
     auto params = internal::pack_rx_duty_cycle(rx_period, sleep_period);
-    return arm_stream_receive(*_state, internal::op_set_rx_duty_cycle, params);
+    return arm_stream_receive(*_state, internal::op_set_rx_duty_cycle, params, sleep_period);
 }
 
 std::chrono::microseconds sx126x::do_rx_duty_cycle_min_sleep() const noexcept {
