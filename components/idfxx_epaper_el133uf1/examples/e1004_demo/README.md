@@ -8,7 +8,8 @@ reTerminal E1004 (Seeed's T133A01 module, built on the E Ink EL133UF1 glass).
 - Switching on the display's power supply with an `idfxx::gpio` output
 - Setting up an SPI bus with `idfxx::spi::master_bus`
 - Creating an `idfxx::epaper::el133uf1` driver on the bus, with the chip-select pins of the panel's two controllers,
-  their shared D/C pin, and the reset and BUSY pins
+  their shared D/C pin, and the reset and BUSY pins, and with `check_presence` set so that construction fails if
+  either controller does not answer over MISO
 - Drawing six color bars in landscape into a full-frame `idfxx::epaper::color6_framebuffer` through an
   `idfxx::gfx::rotated` view and an `idfxx::gfx::canvas`, then showing it with `write()` and `refresh()`
 - Switching to monochrome with `set_color_mode()`, and drawing full-screen text pages with
@@ -33,12 +34,16 @@ has its own chip select: CS for the left half of the panel, CS1 for the right ha
 | -------------------------- | ------------- |
 | SCLK                       | GPIO 7        |
 | MOSI                       | GPIO 9        |
+| MISO                       | GPIO 8        |
 | CS (left half)             | GPIO 10       |
 | CS1 (right half)           | GPIO 2        |
 | DC                         | GPIO 11       |
 | RESET                      | GPIO 38       |
 | BUSY                       | GPIO 13       |
 | Power enable (active high) | GPIO 12       |
+
+MISO is shared with the E1004's microSD card slot, so the example holds the card's chip select (GPIO 14) high to keep
+it off the line while the driver checks that the panel is present.
 
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 

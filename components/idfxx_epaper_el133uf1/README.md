@@ -24,6 +24,10 @@ as used in modules such as Seeed Studio's T133A01 (in the reTerminal E1004).
   `gfx::render_banded` work without a frame-sized application buffer.
 - Deep sleep and wake (hardware reset + re-initialization; the shadow
   frame survives).
+- Optional presence check: with the panel's data output wired to the bus's
+  MISO line, `check_presence` confirms that both controllers answer after
+  every hardware reset, so a disconnected panel is reported as an error
+  instead of appearing idle.
 
 ## Requirements
 
@@ -155,8 +159,10 @@ Driver-specific surface:
 - `config` — `master_cs_gpio` (required; the controller driving columns
   0-599), `slave_cs_gpio` (required; columns 600-1199), `dc_gpio`
   (required, shared), `reset_gpio` (required for `wake`, strongly
-  recommended), `busy_gpio` (required, active low), `pclk` (SPI clock,
-  default and maximum 10 MHz), `busy_timeout` (default 60 s).
+  recommended), `busy_gpio` (required, active low), `check_presence`
+  (default `false`; confirms both controllers answer after each hardware
+  reset, and needs the bus's MISO line wired to the panel), `pclk` (SPI
+  clock, default and maximum 10 MHz), `busy_timeout` (default 60 s).
 
 ## Error Handling
 
@@ -170,6 +176,8 @@ Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 - `errc::invalid_state` — writing/refreshing while asleep, a framebuffer
   not matching the color mode, or `wake` without a `reset_gpio`.
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
+- `errc::not_found` — with `check_presence` set, a controller did not
+  answer during construction or `wake` (the log names which one).
 - `errc::not_supported` — `fast` or `partial` refresh, or
   `color_mode::gray4`.
 
@@ -210,6 +218,12 @@ Using a moved-from driver object is undefined behavior.
   of at most 4 KB (capped at the bus's maximum transaction length), each
   copied from the PSRAM shadow through a 4 KB internal DMA-capable buffer
   that the driver allocates once at construction.
+- **The presence check reads over MISO.** `check_presence` needs the
+  panel's data output on the bus's MISO line; without it the check reads an
+  idle line and fails. On the reTerminal E1004 the panel's MISO (GPIO8) is
+  shared with the microSD card's data line, so keep the card deselected
+  (SD CS, GPIO14, held high) while constructing or waking the panel with
+  the check enabled.
 - **Portrait-native.** `width()` is 1200 and `height()` 1600. Use
   `idfxx::gfx::rotated` for a landscape mounting (the E1004 mounts the
   glass landscape).

@@ -55,6 +55,8 @@ TEST_CASE("el133uf1 config defaults", "[idfxx][epaper][el133uf1]") {
     TEST_ASSERT_TRUE(cfg.dc_gpio == idfxx::gpio_3);
     TEST_ASSERT_FALSE(cfg.reset_gpio.is_connected());
     TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
+    // The presence check needs MISO wired, so it is opt-in.
+    TEST_ASSERT_FALSE(cfg.check_presence);
     // The controllers accept up to 10 MHz for writes.
     TEST_ASSERT_EQUAL(10'000'000, cfg.pclk.count());
     // A full six-color refresh takes 25-30 s.

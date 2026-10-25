@@ -29,13 +29,15 @@ static constexpr idfxx::log::logger logger{"e1004_demo"};
 // two controllers share the bus and D/C line and have separate chip
 // selects: CS for the master (left half), CS1 for the slave (right half).
 static constexpr auto PIN_SCLK = idfxx::gpio_7;
-static constexpr auto PIN_MOSI = idfxx::gpio_9; // no MISO: the panel is write-only
+static constexpr auto PIN_MOSI = idfxx::gpio_9;
+static constexpr auto PIN_MISO = idfxx::gpio_8; // Panel data output, for the presence check
 static constexpr auto PIN_CS = idfxx::gpio_10;
 static constexpr auto PIN_CS1 = idfxx::gpio_2;
 static constexpr auto PIN_DC = idfxx::gpio_11;
 static constexpr auto PIN_RST = idfxx::gpio_38;
 static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_POWER = idfxx::gpio_12; // Display power enable, active-high
+static constexpr auto PIN_SD_CS = idfxx::gpio_14; // microSD chip select, shares MISO with the panel
 
 using idfxx::epaper::color6;
 using idfxx::epaper::color_mode;
@@ -101,8 +103,15 @@ extern "C" void app_main() {
         idfxx::delay(100ms);
 
         // --- SPI bus ---
+        // The microSD card shares MISO with the panel: keep it deselected so
+        // it leaves the line to the panel's presence check.
+        idfxx::gpio sd_cs = PIN_SD_CS;
+        sd_cs.set_level(idfxx::gpio::level::high);
+        sd_cs.set_direction(idfxx::gpio::mode::output);
+
         idfxx::spi::bus_config bus_cfg{};
         bus_cfg.mosi = PIN_MOSI;
+        bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
         idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
 
@@ -115,6 +124,7 @@ extern "C" void app_main() {
                 .dc_gpio = PIN_DC,
                 .reset_gpio = PIN_RST,
                 .busy_gpio = PIN_BUSY,
+                .check_presence = true,
             }
         );
         logger.info("display initialized ({}x{})", display.width(), display.height());
