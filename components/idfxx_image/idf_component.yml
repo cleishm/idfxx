@@ -1,0 +1,7 @@
+version: "1.0.0"
+description: "Pixel image views, owning buffers, and EXIF orientation transforms"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_image"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
