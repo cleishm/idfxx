@@ -1,0 +1,13 @@
+dependencies:
+  cleishm/idfxx_jpeg:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_image:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_image
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    override_path: ../../../../idfxx_core
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log

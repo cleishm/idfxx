@@ -23,9 +23,13 @@
  *   functions to invert and compose them, map pixel coordinates through them,
  *   and apply them to an image (@ref idfxx::image::orient,
  *   @ref idfxx::image::oriented).
+ * - @ref idfxx::image::sink, the interface through which a producer such as
+ *   an image decoder delivers pixels block by block.
  *
- * The API cannot fail: functions have documented preconditions instead of
- * error results, and memory allocation follows the allocator's own behavior.
+ * The image operations cannot fail: functions have documented preconditions
+ * instead of error results, and memory allocation follows the allocator's own
+ * behavior. Only a @ref idfxx::image::sink reports errors, which it returns to
+ * the producer feeding it.
  *
  * @code
  * idfxx::image::buffer<> photo(640, 480);
@@ -37,6 +41,8 @@
  * @endcode
  * @{
  */
+
+#include <idfxx/error>
 
 #include <concepts>
 #include <cstddef>
@@ -691,6 +697,45 @@ struct point {
      */
     constexpr bool operator==(const point& other) const = default;
 };
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief A destination that receives decoded pixels as blocks.
+ *
+ * A producer, such as an image decoder, delivers an image to a sink in
+ * rectangular blocks. Each call passes the block's top-left position in the
+ * full image and a read-only view of the block's pixels, which is valid only
+ * for the duration of the call. Blocks arrive in the producer's order (e.g.
+ * top to bottom).
+ *
+ * The sink returns success to receive the next block, or an error to stop the
+ * producer, which then returns that same error to its caller.
+ *
+ * A type models `sink<S, P>` when an lvalue `S&` is invocable with
+ * `(point, view<const P>)` and returns `idfxx::result<void>`. Lambdas,
+ * function objects and function pointers all qualify.
+ *
+ * @tparam S The sink type.
+ * @tparam P The pixel type the producer delivers.
+ *
+ * @code
+ * idfxx::image::buffer<> screen(320, 240);
+ * auto to_screen = [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> block)
+ *     -> idfxx::result<void> {
+ *     if (at.x + block.width() > screen.width() || at.y + block.height() > screen.height()) {
+ *         return idfxx::error(idfxx::errc::invalid_size); // stops the producer
+ *     }
+ *     for (size_t y = 0; y < block.height(); ++y) {
+ *         std::ranges::copy(block.row(y), screen.row(at.y + y).begin() + at.x);
+ *     }
+ *     return {};
+ * };
+ * static_assert(idfxx::image::sink<decltype(to_screen)>);
+ * @endcode
+ */
+template<typename S, typename P = rgb888>
+concept sink = std::invocable<S&, point, view<const P>> &&
+    std::same_as<std::invoke_result_t<S&, point, view<const P>>, result<void>>;
 
 /**
  * @headerfile <idfxx/image>

@@ -5,3 +5,7 @@ repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"
 dependencies:
   idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
