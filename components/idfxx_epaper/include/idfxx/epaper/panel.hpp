@@ -95,6 +95,31 @@ enum class color_mode : uint8_t {
 
 /**
  * @headerfile <idfxx/epaper/panel>
+ * @brief How the panel's border is driven.
+ *
+ * Many glasses have a border electrode: the strip of ink around the active
+ * area, outside any pixel. Selected with @ref panel::set_border and applied
+ * at each full or fast refresh; a refresh that runs as
+ * @ref refresh_mode::partial (one not promoted to full for lack of a
+ * baseline) always leaves the border undriven, whatever the setting, so it
+ * does not flicker. Drivers for glasses whose border is not selectable
+ * report every value as unsupported (see @ref panel::supports) and report
+ * @ref border::white from @ref panel::border.
+ */
+enum class border : uint8_t {
+    /// Driven white alongside each full or fast refresh. The controller
+    /// drives the border with the same waveform as a black-to-white pixel,
+    /// so it flashes with the refresh. The default.
+    white,
+    /// Driven black alongside each full or fast refresh.
+    black,
+    /// Never driven: the border keeps whatever color it last had, so it
+    /// never flickers.
+    hold,
+};
+
+/**
+ * @headerfile <idfxx/epaper/panel>
  * @brief Abstract base class for ePaper display panels.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
@@ -153,6 +178,16 @@ public:
      * @return The current color mode.
      */
     [[nodiscard]] enum color_mode color_mode() const noexcept { return _color_mode; }
+
+    /**
+     * @brief Returns how the panel's border is driven.
+     *
+     * Reflects the most recent successful @ref try_set_border /
+     * @ref set_border, or @ref border::white before any call.
+     *
+     * @return The current border setting.
+     */
+    [[nodiscard]] enum border border() const noexcept { return _border; }
 
     /**
      * @brief Returns whether the panel is in deep sleep.
@@ -827,6 +862,77 @@ public:
     }
 
     // =========================================================================
+    // Border
+    // =========================================================================
+
+    /**
+     * @brief Reports whether the driver can drive the panel's border as @p b.
+     *
+     * Drivers for glasses whose border is not selectable report false for
+     * every value, including the @ref border::white that @ref border
+     * reports on them. @ref set_border rejects any value this reports as
+     * unsupported with `errc::not_supported`.
+     *
+     * @code
+     * if (display.supports(idfxx::epaper::border::hold)) {
+     *     display.set_border(idfxx::epaper::border::hold);
+     * }
+     * @endcode
+     *
+     * @param b The border drive to query.
+     * @return true if the driver supports @p b.
+     */
+    [[nodiscard]] bool supports(enum border b) const noexcept { return do_supports(b); }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Selects how the panel's border is driven.
+     *
+     * Stores the setting, which the driver applies at each subsequent full
+     * or fast refresh; refreshes that run as @ref refresh_mode::partial
+     * (not promoted to full) always hold the border, whatever the setting.
+     * Nothing is sent to the controller, so
+     * the border can be selected while the panel is asleep, does not wait
+     * for an outstanding update, and does not invalidate the
+     * partial-refresh baseline.
+     *
+     * @code
+     * display.set_border(idfxx::epaper::border::black);
+     * display.refresh();            // the border turns black with this refresh
+     * @endcode
+     *
+     * @param b The border drive to use.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::not_supported`
+     *         if @ref supports reports @p b as unsupported.
+     */
+    void set_border(enum border b) { unwrap(try_set_border(b)); }
+#endif
+
+    /**
+     * @brief Selects how the panel's border is driven.
+     *
+     * Stores the setting, which the driver applies at each subsequent full
+     * or fast refresh; refreshes that run as @ref refresh_mode::partial
+     * (not promoted to full) always hold the border, whatever the setting.
+     * Nothing is sent to the controller, so
+     * the border can be selected while the panel is asleep, does not wait
+     * for an outstanding update, and does not invalidate the
+     * partial-refresh baseline.
+     *
+     * @param b The border drive to use.
+     * @return Success, or an error.
+     * @retval not_supported @ref supports reports @p b as unsupported.
+     */
+    [[nodiscard]] result<void> try_set_border(enum border b) {
+        if (!supports(b)) {
+            return error(errc::not_supported);
+        }
+        _border = b;
+        return {};
+    }
+
+    // =========================================================================
     // Power management
     // =========================================================================
 
@@ -1098,6 +1204,22 @@ protected:
         return true;
     }
 
+    /// Hook for border-drive validation. Reports whether the driver can
+    /// drive the panel's border electrode as @p b; @ref try_set_border
+    /// rejects a value this reports as unsupported. There is no matching
+    /// setter hook: the base class stores the setting, and drivers consult
+    /// @ref border() in @ref do_refresh. A driver that reports support must
+    /// honour the documented contract there: drive the border as selected
+    /// on full and fast refreshes, never drive it on a
+    /// @ref refresh_mode::partial refresh, and never drive it while
+    /// @ref border::hold is selected. The default reports every value as
+    /// unsupported, so a driver whose border is not selectable needs no
+    /// change.
+    [[nodiscard]] virtual bool do_supports(enum border b) const noexcept {
+        (void)b;
+        return false;
+    }
+
     /// Hook for @ref try_set_color_mode. Called only for an actual mode
     /// change, to a mode @ref do_supports accepts (or back to
     /// @ref color_mode::mono), while the panel is awake. The default returns
@@ -1189,6 +1311,7 @@ private:
     std::chrono::milliseconds _busy_timeout{15'000};
     gpio _reset_gpio = gpio::nc();
     enum color_mode _color_mode = color_mode::mono;
+    enum border _border = border::white;
     bool _asleep = false;
     // Whether the controller holds a refreshed image a partial update can
     // diff against; set by refreshes and restore_baseline, cleared by wake,

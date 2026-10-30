@@ -19,6 +19,8 @@ Abstract ePaper panel interface, framebuffers, and shared types.
 - 4-level grayscale via `set_color_mode(color_mode::gray4)` and six-color
   (E Ink Spectra 6) operation via `set_color_mode(color_mode::color6)` on
   drivers that support them; `supports(color_mode)` reports which do.
+- Selectable border drive (`set_border`: white, black, or held) on drivers
+  whose glass supports it; `supports(border)` reports which do.
 - Deep-sleep power management (`sleep` / `wake`) with state tracking — writes
   and refreshes while asleep report `errc::invalid_state` instead of hanging
   on a dead controller.
@@ -220,6 +222,10 @@ completes; `start_refresh(mode = refresh_mode::full)` returns an
 `supports(color_mode)` reports whether it supports the others, and
 `set_color_mode` rejects a mode it doesn't support.
 
+**Border:** `set_border(border)` / `try_set_border(border)` select how the
+border is driven on full and fast refreshes (`border()` reports it);
+`supports(border)` reports which values the driver accepts.
+
 **Power:** `sleep` enters deep sleep (a no-op when already asleep); `wake`
 hardware-resets and re-initializes the controller.
 
@@ -248,6 +254,7 @@ panel's `write` / `write_rows`.
 
 - `refresh_mode` — `full`, `fast`, `partial`.
 - `color_mode` — `mono`, `gray4`, `color6`.
+- `border` — `white` (default), `black`, `hold`.
 - `gray4` — `white` (0) through `black` (3); a value-initialized `gray4{}` is
   white so `gfx::canvas::clear()` blanks to paper.
 - `color6` — the panel-native Spectra 6 codes: `black` (0), `white` (1),

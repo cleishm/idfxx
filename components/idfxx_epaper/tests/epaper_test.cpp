@@ -518,6 +518,54 @@ TEST_CASE("epaper panel rejects unsupported refresh modes before promotion", "[i
     TEST_ASSERT_EQUAL(1, display.refreshes.size());
 }
 
+TEST_CASE("epaper panel rejects borders the driver does not support", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+
+    // A driver whose border is not selectable supports no value.
+    TEST_ASSERT_FALSE(display.supports(border::white));
+    TEST_ASSERT_FALSE(display.supports(border::black));
+    TEST_ASSERT_FALSE(display.supports(border::hold));
+    TEST_ASSERT_EQUAL(std::to_underlying(border::white), std::to_underlying(display.border()));
+
+    auto hold = display.try_set_border(border::hold);
+    TEST_ASSERT_FALSE(hold.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), hold.error().value());
+    TEST_ASSERT_EQUAL(std::to_underlying(border::white), std::to_underlying(display.border()));
+}
+
+TEST_CASE("epaper panel stores a supported border without the controller", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+    display.supported_borders = {border::white, border::hold};
+    TEST_ASSERT_TRUE(display.supports(border::hold));
+    TEST_ASSERT_FALSE(display.supports(border::black));
+
+    // Establish a baseline so partial refreshes stay partial.
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::full).has_value());
+    const size_t waits = display.waits;
+    const size_t hooks = display.hooks();
+
+    // Setting the border reaches no hook, does not settle, and keeps the
+    // baseline: the next partial refresh stays partial.
+    TEST_ASSERT_TRUE(display.try_set_border(border::hold).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(border::hold), std::to_underlying(display.border()));
+    TEST_ASSERT_EQUAL(waits, display.waits);
+    TEST_ASSERT_EQUAL(hooks, display.hooks());
+    TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
+
+    // An unsupported value leaves the setting unchanged.
+    auto black = display.try_set_border(border::black);
+    TEST_ASSERT_FALSE(black.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), black.error().value());
+    TEST_ASSERT_EQUAL(std::to_underlying(border::hold), std::to_underlying(display.border()));
+
+    // The border can be selected while the panel is asleep.
+    TEST_ASSERT_TRUE(display.try_sleep().has_value());
+    TEST_ASSERT_TRUE(display.try_set_border(border::white).has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(border::white), std::to_underlying(display.border()));
+    TEST_ASSERT_TRUE(display.asleep());
+}
+
 TEST_CASE("epaper panel clear invalidates the partial baseline", "[idfxx][epaper]") {
     recording_epaper_panel display(122, 250);
 

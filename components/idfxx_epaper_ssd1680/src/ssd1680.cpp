@@ -52,10 +52,11 @@ constexpr uint8_t seq_partial = 0xFF;  // load temp + LUT, display (mode 2, diff
 constexpr uint8_t seq_load_lut = 0x91; // load LUT for the written temperature, no display
 constexpr uint8_t seq_display = 0xC7;  // display with the currently loaded LUT
 
-// Border waveform values: follow-LUT for normal refreshes, HiZ during
-// partial refreshes so the border does not flicker.
+// Border waveform values: follow-LUT for normal refreshes; during partial
+// refreshes the border is tied to VCOM (0x3C bits 7:6 = 10; HiZ would be
+// 0xC0), so no field crosses it and the panel edge does not flicker.
 constexpr uint8_t border_normal = 0x05;
-constexpr uint8_t border_hiz = 0x80;
+constexpr uint8_t border_vcom = 0x80;
 
 // Temperature-register value selecting an alternate OTP waveform bank
 // (Seeed's recipe; per-panel-batch tunable): a shortened "fast" full
@@ -315,9 +316,9 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         }
         break;
     case refresh_mode::partial:
-        // HiZ border keeps the panel edge from flickering on differential
-        // updates.
-        if (auto r = _cmd(cmd_border, {border_hiz}); !r) {
+        // A VCOM-tied border keeps the panel edge from flickering on
+        // differential updates.
+        if (auto r = _cmd(cmd_border, {border_vcom}); !r) {
             return r;
         }
         if (auto r = _cmd(cmd_update_ctrl2, {seq_partial}); !r) {

@@ -7,6 +7,7 @@
 
 #include "idfxx/epaper/panel"
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -41,6 +42,9 @@ public:
     // Refresh modes reported by do_supports (full is always supported).
     bool supports_fast = true;
     bool supports_partial = true;
+    // Border drives reported by do_supports (none by default, like a driver
+    // whose border is not selectable).
+    std::vector<idfxx::epaper::border> supported_borders;
     // do_restore_baseline behavior: defer to the base default (a driver
     // without support), or fail with the given error.
     bool restore_unsupported = false;
@@ -116,6 +120,10 @@ private:
         default:
             return true;
         }
+    }
+
+    [[nodiscard]] bool do_supports(enum idfxx::epaper::border b) const noexcept override {
+        return std::ranges::find(supported_borders, b) != supported_borders.end();
     }
 
     [[nodiscard]] idfxx::result<void> do_set_color_mode(enum idfxx::epaper::color_mode) override {
