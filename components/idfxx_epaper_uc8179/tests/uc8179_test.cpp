@@ -13,6 +13,7 @@
 #include "unity.h"
 
 #include <type_traits>
+#include <utility>
 
 using namespace idfxx::epaper;
 
@@ -35,6 +36,9 @@ static_assert(std::is_move_assignable_v<uc8179>);
 // The config requires a BUSY pin.
 static_assert(!std::is_default_constructible_v<uc8179::config>);
 
+// The config selects the initial border drive.
+static_assert(std::is_same_v<decltype(uc8179::config::border), border>);
+
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
@@ -46,6 +50,7 @@ TEST_CASE("uc8179 config defaults match the 7.5\" GDEY075T7 panel", "[idfxx][epa
     TEST_ASSERT_FALSE(cfg.reset_gpio.is_connected());
     TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
     TEST_ASSERT_EQUAL(30'000, cfg.busy_timeout.count());
+    TEST_ASSERT_EQUAL(std::to_underlying(border::white), std::to_underlying(cfg.border));
 }
 
 TEST_CASE("uc8179::spi_io_config fills the controller's SPI framing", "[idfxx][epaper][uc8179]") {

@@ -57,11 +57,60 @@ constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform ban
 // keeps the differential (partial) waveform's old-image plane current
 // without any bookkeeping writes. Every value used around a refresh must
 // keep DDX = 01 and N2OCP set.
-constexpr std::initializer_list<uint8_t> border_normal{0x29, 0x07};
-// Border held (no drive) while a partial window is active or a partial
-// refresh runs, so the panel edge does not flicker.
-constexpr std::initializer_list<uint8_t> border_hold{0xA9, 0x07};
-// Border floating for deep sleep.
+constexpr uint8_t cdi_ddx_n2ocp = 0x09; // DDX = 01, N2OCP set
+// The high bits select the border drive: BDZ (bit 7) floats the border
+// electrode (Hi-Z); otherwise BDV (bits 5:4) picks the LUT that drives it.
+constexpr uint8_t cdi_bdz = 0x80;    // Border Hi-Z (BDV is then ignored)
+constexpr uint8_t cdi_bdv_kk = 0x00; // Border follows LUTKK
+constexpr uint8_t cdi_bdv_wk = 0x10; // Border follows LUTWK
+constexpr uint8_t cdi_bdv_kw = 0x20; // Border follows LUTKW
+// The second parameter: the VCOM and data interval (CDI).
+constexpr uint8_t cdi_interval = 0x07;
+
+// Returns the cmd_vcom_interval parameters driving the border as `b` on a
+// refresh using the monochrome (`gray` false) or grayscale (`gray` true)
+// waveform bank, or floating it whatever the setting when `held` (partial
+// refreshes and active partial windows, so the edge does not flicker).
+// In the monochrome banks the border follows LUTKW (black-to-white, so a
+// white border flashes with the refresh) for white and LUTWK
+// (white-to-black) for black. White is not a border option in the
+// grayscale bank, whose LUTKW and LUTWK carry gray levels, so a white
+// setting holds the border there; LUTKK drives it black.
+constexpr std::array<uint8_t, 2> border_params(enum border b, bool gray, bool held) noexcept {
+    auto drive = static_cast<uint8_t>(cdi_bdz | cdi_bdv_kw); // Hi-Z, as in the vendor hold value
+    if (!held) {
+        switch (b) {
+        case border::white:
+            if (!gray) {
+                drive = cdi_bdv_kw;
+            }
+            break;
+        case border::black:
+            drive = gray ? cdi_bdv_kk : cdi_bdv_wk;
+            break;
+        case border::hold:
+            break;
+        }
+    }
+    return {static_cast<uint8_t>(drive | cdi_ddx_n2ocp), cdi_interval};
+}
+
+// First-parameter values per the UC8179 datasheet (0x29 and 0xA9 are the
+// vendor sequences' white-drive and hold values).
+static_assert(border_params(border::white, false, false) == std::array<uint8_t, 2>{0x29, 0x07});
+static_assert(border_params(border::black, false, false) == std::array<uint8_t, 2>{0x19, 0x07});
+static_assert(border_params(border::hold, false, false) == std::array<uint8_t, 2>{0xA9, 0x07});
+static_assert(border_params(border::white, true, false) == std::array<uint8_t, 2>{0xA9, 0x07});
+static_assert(border_params(border::black, true, false) == std::array<uint8_t, 2>{0x09, 0x07});
+static_assert(border_params(border::black, false, true) == std::array<uint8_t, 2>{0xA9, 0x07});
+
+// Border held (Hi-Z) while a partial window is active.
+constexpr auto border_held = border_params(border::hold, false, true);
+// Border driven white, as the vendor initialization sequences program it;
+// do_refresh programs the configured drive before every update.
+constexpr auto border_init = border_params(border::white, false, false);
+// Border floating for deep sleep (the vendor sequence's value; powering off
+// floats the border anyway).
 constexpr std::initializer_list<uint8_t> border_float{0xF7};
 
 // Register-written waveform tables for the fast refresh mode (42 bytes
@@ -112,6 +161,11 @@ result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config config) {
     }
 
     uc8179 display(raw_tag{}, panel_io, config);
+    // Store the configured border drive before any controller I/O; it is
+    // applied by do_refresh.
+    if (auto r = display.try_set_border(config.border); !r) {
+        return error(r.error());
+    }
     if (config.reset_gpio.is_connected()) {
         if (auto r = display.hardware_reset(); !r) {
             return error(r.error());
@@ -257,8 +311,9 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
         if (auto r = _ensure_waveform(waveform::gray); !r) {
             return r;
         }
-        // Hold the border: the grayscale LUTs do not define a border drive.
-        if (auto r = _cmd(cmd_vcom_interval, border_hold); !r) {
+        // White is not a border option in the grayscale waveform bank, so a
+        // white setting holds the border; LUTKK drives it black.
+        if (auto r = _cmd(cmd_vcom_interval, border_params(border(), true, false)); !r) {
             return r;
         }
         return _update();
@@ -270,8 +325,9 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
     if (auto r = _ensure_waveform(target); !r) {
         return r;
     }
-    // Hold the border on differential updates so it does not flicker.
-    if (auto r = _cmd(cmd_vcom_interval, mode == refresh_mode::partial ? border_hold : border_normal); !r) {
+    // Drive the border as configured, but always hold it on differential
+    // updates so it does not flicker.
+    if (auto r = _cmd(cmd_vcom_interval, border_params(border(), false, mode == refresh_mode::partial)); !r) {
         return r;
     }
     return _update();
@@ -284,6 +340,16 @@ bool uc8179::do_supports(enum color_mode mode) const noexcept {
 bool uc8179::do_supports(refresh_mode mode) const noexcept {
     // The grayscale waveform has no fast or differential variant.
     return color_mode() != color_mode::gray4 || mode == refresh_mode::full;
+}
+
+bool uc8179::do_supports(enum border b) const noexcept {
+    switch (b) {
+    case border::white:
+    case border::black:
+    case border::hold:
+        return true;
+    }
+    return false;
 }
 
 result<void> uc8179::do_set_color_mode(enum color_mode mode) {
@@ -400,7 +466,9 @@ result<void> uc8179::_init_full() {
     if (auto r = _cmd(cmd_dual_spi, {0x00}); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_vcom_interval, border_normal); !r) {
+    // The vendor value; do_refresh programs the configured border drive
+    // before every update.
+    if (auto r = _cmd(cmd_vcom_interval, border_init); !r) {
         return r;
     }
     if (auto r = _cmd(cmd_tcon, {0x22}); !r) {
@@ -433,7 +501,9 @@ result<void> uc8179::_init_fast() {
     if (auto r = _set_resolution(); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_vcom_interval, border_normal); !r) {
+    // The vendor value; do_refresh programs the configured border drive
+    // before every update.
+    if (auto r = _cmd(cmd_vcom_interval, border_init); !r) {
         return r;
     }
     if (auto r = _load_luts(lut_vcom_fast, lut_ww_fast, lut_kw_fast, lut_wk_fast, lut_kk_fast); !r) {
@@ -486,7 +556,9 @@ result<void> uc8179::_init_gray() {
     if (auto r = _set_resolution(); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_vcom_interval, border_normal); !r) {
+    // The vendor value; do_refresh programs the configured border drive
+    // before every update.
+    if (auto r = _cmd(cmd_vcom_interval, border_init); !r) {
         return r;
     }
     if (auto r = _cmd(cmd_cascade, {0x02}); !r) { // temperature from the forced-temperature register
@@ -527,8 +599,9 @@ result<void> uc8179::_ensure_waveform(waveform target) {
 }
 
 result<void> uc8179::_window_begin(region r) {
-    // Hold the border while the partial window is active.
-    if (auto e = _cmd(cmd_vcom_interval, border_hold); !e) {
+    // Hold the border while the window is active; do_refresh programs the
+    // configured drive before each update.
+    if (auto e = _cmd(cmd_vcom_interval, border_held); !e) {
         return e;
     }
     if (auto e = _cmd(cmd_partial_in); !e) {

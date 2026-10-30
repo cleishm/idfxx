@@ -12,6 +12,8 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
   partial refreshes.
 - 4-level grayscale (`color_mode::gray4`) using the glass's factory (OTP)
   grayscale waveform.
+- Selectable border: driven white or black on full/fast refreshes, or held
+  so it never flickers.
 - Deep sleep and wake (hardware reset + re-initialization).
 - `restore_baseline()` support, to keep partial refreshes across a wake or
   an ESP32 deep sleep (in `color_mode::mono`).
@@ -115,15 +117,22 @@ display.refresh(); // gray4 supports full refresh only
 display.set_color_mode(idfxx::epaper::color_mode::mono); // back to monochrome
 ```
 
+### Border
+
+```cpp
+idfxx::epaper::uc8179 display(io, {.busy_gpio = idfxx::gpio_4, .border = idfxx::epaper::border::hold});
+display.set_border(idfxx::epaper::border::black); // driven black from the next full/fast refresh
+```
+
 See `examples/ee05_demo` for a complete application exercising all refresh
 modes on the EE05 board.
 
 ## API Overview
 
 The panel API (`write`, `write_rows`, `clear`, `restore_baseline`,
-`refresh`, `start_refresh`, `set_color_mode`, `sleep`, `wake`, and their
-`try_*` forms) is inherited from `idfxx::epaper::panel` — see the
-`idfxx_epaper` documentation.
+`refresh`, `start_refresh`, `set_color_mode`, `set_border`, `sleep`,
+`wake`, and their `try_*` forms) is inherited from `idfxx::epaper::panel` —
+see the `idfxx_epaper` documentation.
 
 Driver-specific surface:
 
@@ -132,7 +141,9 @@ Driver-specific surface:
   image planes to white.
 - `config` — `width`/`height` (default 800x480; width must be a multiple
   of 8), `reset_gpio` (required for `wake`, strongly recommended in
-  general), `busy_gpio` (required), `busy_timeout` (default 30 s).
+  general), `busy_gpio` (required), `busy_timeout` (default 30 s),
+  `border` (default `border::white`; all three values supported, changeable
+  later with `set_border`).
 - `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled
   `panel_io::spi_config` (mode 0, 8-bit command/parameter framing).
 
@@ -182,6 +193,16 @@ Using a moved-from driver object is undefined behavior.
   from a `full` refresh, which drives pixels to their stable extremes.
 - **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean
   accumulated ghosting.
+- **A white border flashes with each full refresh.** The controller has no
+  fixed-level border drive: it drives the border with the black-to-white
+  pixel waveform, so `border::white` flashes along with the image.
+  `border::hold` leaves the border undriven, keeping its last color — once
+  the border is white, switching to `hold` stops it flashing. Whether a
+  floating border stays clean across many full refreshes depends on the
+  glass; drive it white again now and then if it greys. In
+  `color_mode::gray4` white is not drivable, so a white setting holds the
+  border (black is still driven). Partial refreshes and deep sleep always
+  float the border, whatever the setting.
 - **Gray4 amplifies ghosting from long-displayed content.** The gray
   midtones are open-loop drives, so they expose residual polarization the
   ink accumulates while content sits in one state — content that was black

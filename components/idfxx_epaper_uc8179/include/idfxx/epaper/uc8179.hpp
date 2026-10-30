@@ -49,6 +49,13 @@ namespace idfxx::epaper {
  * completes, so the driver keeps no shadow frame — full-frame writes stream
  * the framebuffer's 48 KB (at 800x480) straight to the controller.
  *
+ * The border (see @ref idfxx::epaper::border) is selectable: driven white
+ * or black alongside each full or fast refresh, or held. In
+ * @ref color_mode::gray4 white is not drivable (the grayscale waveform bank
+ * has no white border drive), so a white setting holds the border there,
+ * while black is still driven. Partial refreshes and deep sleep always
+ * float the border, whatever the setting.
+ *
  * This type is non-copyable and move-only. A moved-from object must not be
  * used: any operation other than destruction or assignment is undefined
  * behavior. The destructor powers off an awake controller and puts it into
@@ -92,6 +99,13 @@ public:
         /// of large panels take several seconds on some glasses and
         /// temperatures.
         std::chrono::milliseconds busy_timeout{30'000};
+        /// How the strip around the active area is driven on full and fast
+        /// refreshes. @ref idfxx::epaper::border::white flashes with each
+        /// refresh, like a black-to-white pixel;
+        /// @ref idfxx::epaper::border::black drives it black;
+        /// @ref idfxx::epaper::border::hold keeps its color and never
+        /// flickers. May be changed later with @ref set_border.
+        enum border border = border::white;
     };
 
     /**
@@ -204,6 +218,7 @@ private:
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
     [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
     [[nodiscard]] bool do_supports(refresh_mode mode) const noexcept override;
+    [[nodiscard]] bool do_supports(enum border b) const noexcept override;
     [[nodiscard]] result<void> do_set_color_mode(enum color_mode mode) override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_wake() override;
