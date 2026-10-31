@@ -11,6 +11,7 @@
 #include <array>
 #include <chrono>
 #include <esp_lcd_panel_io.h>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -20,9 +21,9 @@ namespace idfxx::epaper {
 
 namespace {
 
-// UC8179 command set (UltraChip UC8179 datasheet; sequences and LUT tables
-// follow Seeed Studio's Seeed_GFX UC8179 ePaper driver, MIT/BSD-licensed,
-// validated on the GDEY075T7 glass).
+// UC8179 command set (UltraChip UC8179 datasheet; sequences validated on the
+// GDEY075T7 glass; see the notice above the waveform tables below for the
+// vendor-derived parts).
 constexpr uint8_t cmd_panel_setting = 0x00;  // Panel setting (LUT source, scan direction)
 constexpr uint8_t cmd_power_setting = 0x01;  // Power setting (gate/source voltages)
 constexpr uint8_t cmd_power_off = 0x02;      // Power off the drive rails
@@ -40,6 +41,7 @@ constexpr uint8_t cmd_lut_wk = 0x23;         // White-to-black LUT
 constexpr uint8_t cmd_lut_kk = 0x24;         // Black-to-black LUT
 constexpr uint8_t cmd_pll = 0x30;            // PLL control (frame rate)
 constexpr uint8_t cmd_vcom_interval = 0x50;  // VCOM and data interval (border behaviour)
+constexpr uint8_t cmd_end_voltage = 0x52;    // End voltage setting (VCOM/border level after the LUTs)
 constexpr uint8_t cmd_tcon = 0x60;           // TCON (gate/source non-overlap)
 constexpr uint8_t cmd_resolution = 0x61;     // Resolution setting
 constexpr uint8_t cmd_vcom_dc = 0x82;        // VCOM DC level
@@ -47,6 +49,7 @@ constexpr uint8_t cmd_partial_window = 0x90; // Partial window bounds
 constexpr uint8_t cmd_partial_in = 0x91;     // Enter partial (windowed) mode
 constexpr uint8_t cmd_partial_out = 0x92;    // Exit partial mode
 constexpr uint8_t cmd_cascade = 0xE0;        // Cascade setting (external temperature enable)
+constexpr uint8_t cmd_power_saving = 0xE3;   // Power saving (PWS)
 constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform bank selection)
 
 // VCOM and data interval values (cmd_vcom_interval parameters). The first
@@ -113,6 +116,31 @@ constexpr auto border_init = border_params(border::white, false, false);
 // floats the border anyway).
 constexpr std::initializer_list<uint8_t> border_float{0xF7};
 
+// The fast and grayscale waveform tables below, and the initialization
+// sequences that load them (_init_fast, _init_gray), are from Seeed Studio's
+// Seeed_GFX UC8179 driver (the vendor driver of the XIAO ePaper Display Board
+// EE05), used under the MIT License:
+//
+// Copyright (c) 2026 Seeed Studio
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 // Register-written waveform tables for the fast refresh mode (42 bytes
 // each, per-panel-batch tunable).
 constexpr std::array<uint8_t, 42> lut_vcom_fast{
@@ -133,9 +161,73 @@ constexpr std::array<uint8_t, 42> lut_wk_fast{
 };
 constexpr std::array<uint8_t, 42> lut_kk_fast = lut_wk_fast;
 
+// Register-written waveform tables for 4-level grayscale (42 bytes each):
+// the glass's factory grayscale waveform, byte for byte.
+constexpr std::array<uint8_t, 42> lut_vcom_gray{
+    0x00, 0x00, 0x06, 0x08, 0x07, 0x01, 0x00, 0x06, 0x0A, 0x0B, 0x0A, 0x01, 0x00, 0x03,
+    0x03, 0x00, 0x00, 0x03, 0x00, 0x05, 0x09, 0x06, 0x06, 0x01, 0x00, 0x02, 0x02, 0x0A,
+    0x0A, 0x01, 0x00, 0x0A, 0x11, 0x06, 0x07, 0x01, 0x00, 0x02, 0x01, 0x02, 0x01, 0x01,
+};
+constexpr std::array<uint8_t, 42> lut_ww_gray{
+    0x15, 0x00, 0x06, 0x08, 0x07, 0x01, 0x54, 0x06, 0x0A, 0x0B, 0x0A, 0x01, 0x90, 0x03,
+    0x03, 0x00, 0x00, 0x03, 0x2A, 0x05, 0x09, 0x06, 0x06, 0x01, 0xAA, 0x02, 0x02, 0x0A,
+    0x0A, 0x01, 0x00, 0x0A, 0x11, 0x06, 0x07, 0x01, 0x28, 0x02, 0x01, 0x02, 0x01, 0x01,
+};
+constexpr std::array<uint8_t, 42> lut_kw_gray{
+    0x2A, 0x00, 0x06, 0x08, 0x07, 0x01, 0x59, 0x06, 0x0A, 0x0B, 0x0A, 0x01, 0x90, 0x03,
+    0x03, 0x00, 0x00, 0x03, 0x5A, 0x05, 0x09, 0x06, 0x06, 0x01, 0xA8, 0x02, 0x02, 0x0A,
+    0x0A, 0x01, 0x45, 0x0A, 0x11, 0x06, 0x07, 0x01, 0xA8, 0x02, 0x01, 0x02, 0x01, 0x01,
+};
+constexpr std::array<uint8_t, 42> lut_wk_gray{
+    0x16, 0x00, 0x06, 0x08, 0x07, 0x01, 0xA0, 0x06, 0x0A, 0x0B, 0x0A, 0x01, 0x90, 0x03,
+    0x03, 0x00, 0x00, 0x03, 0x99, 0x05, 0x09, 0x06, 0x06, 0x01, 0xA0, 0x02, 0x02, 0x0A,
+    0x0A, 0x01, 0x40, 0x0A, 0x11, 0x06, 0x07, 0x01, 0x20, 0x02, 0x01, 0x02, 0x01, 0x01,
+};
+constexpr std::array<uint8_t, 42> lut_kk_gray{
+    0x26, 0x00, 0x06, 0x08, 0x07, 0x01, 0x6A, 0x06, 0x0A, 0x0B, 0x0A, 0x01, 0x90, 0x03,
+    0x03, 0x00, 0x00, 0x03, 0x65, 0x05, 0x09, 0x06, 0x06, 0x01, 0x50, 0x02, 0x02, 0x0A,
+    0x0A, 0x01, 0x10, 0x0A, 0x11, 0x06, 0x07, 0x01, 0x10, 0x02, 0x01, 0x02, 0x01, 0x01,
+};
+
 // Controller limits (800 sources x 600 gates).
 constexpr size_t max_width = 800;
 constexpr size_t max_height = 600;
+
+// Returns the PLL control (frame rate) code for `rate`, or nullopt if the
+// controller has no such frame rate.
+constexpr std::optional<uint8_t> pll_code(quanta::frequency::hertz rate) noexcept {
+    constexpr std::array<int64_t, 16> rates{5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 200};
+    for (size_t i = 0; i < rates.size(); ++i) {
+        if (rates[i] == rate.count()) {
+            return static_cast<uint8_t>(i);
+        }
+    }
+    return std::nullopt;
+}
+
+// Returns the power setting VDH/VDL level code for a source drive voltage
+// magnitude of `v` (2.4 V to 15 V in 0.2 V steps), or nullopt if out of range
+// or off-step.
+constexpr std::optional<uint8_t> source_code(quanta::electro::millivolts v) noexcept {
+    const int64_t mv = v.count();
+    if (mv < 2'400 || mv > 15'000 || (mv - 2'400) % 200 != 0) {
+        return std::nullopt;
+    }
+    return static_cast<uint8_t>((mv - 2'400) / 200);
+}
+
+static_assert(pll_code(quanta::frequency::hertz{50}) == 6);
+static_assert(pll_code(quanta::frequency::hertz{20}) == 3);
+static_assert(pll_code(quanta::frequency::hertz{30}) == 4);
+static_assert(pll_code(quanta::frequency::hertz{100}) == 11);
+static_assert(pll_code(quanta::frequency::hertz{200}) == 15);
+static_assert(pll_code(quanta::frequency::hertz{25}) == std::nullopt);
+static_assert(source_code(quanta::electro::millivolts{15'000}) == 0x3F);
+static_assert(source_code(quanta::electro::millivolts{10'000}) == 0x26);
+static_assert(source_code(quanta::electro::millivolts{2'400}) == 0x00);
+static_assert(source_code(quanta::electro::millivolts{10'100}) == std::nullopt);
+static_assert(source_code(quanta::electro::millivolts{15'200}) == std::nullopt);
+static_assert(source_code(quanta::electro::millivolts{2'200}) == std::nullopt);
 
 } // namespace
 
@@ -156,11 +248,18 @@ result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config config) {
         config.height > max_height) {
         return error(errc::invalid_arg);
     }
+    const auto gray_frame_rate_code = pll_code(config.gray4_frame_rate);
+    const auto gray_source_code = source_code(config.gray4_source_voltage);
+    if (!gray_frame_rate_code || !gray_source_code) {
+        return error(errc::invalid_arg);
+    }
     if (auto r = configure_control_lines(config.busy_gpio, config.reset_gpio); !r) {
         return error(r.error());
     }
 
     uc8179 display(raw_tag{}, panel_io, config);
+    display._gray_frame_rate_code = *gray_frame_rate_code;
+    display._gray_source_code = *gray_source_code;
     // Store the configured border drive before any controller I/O; it is
     // applied by do_refresh.
     if (auto r = display.try_set_border(config.border); !r) {
@@ -190,7 +289,9 @@ uc8179::uc8179(idfxx::panel_io& panel_io, uc8179::config config)
 uc8179::uc8179(uc8179&& other) noexcept
     : panel(std::move(other))
     , _io_handle(std::exchange(other._io_handle, nullptr))
-    , _waveform(other._waveform) {}
+    , _waveform(other._waveform)
+    , _gray_frame_rate_code(other._gray_frame_rate_code)
+    , _gray_source_code(other._gray_source_code) {}
 
 uc8179& uc8179::operator=(uc8179&& other) noexcept {
     if (this != &other) {
@@ -201,6 +302,8 @@ uc8179& uc8179::operator=(uc8179&& other) noexcept {
         panel::operator=(std::move(other));
         _io_handle = std::exchange(other._io_handle, nullptr);
         _waveform = other._waveform;
+        _gray_frame_rate_code = other._gray_frame_rate_code;
+        _gray_source_code = other._gray_source_code;
     }
     return *this;
 }
@@ -537,20 +640,28 @@ result<void> uc8179::_init_partial() {
 }
 
 result<void> uc8179::_init_gray() {
-    // OTP-waveform initialization for 4-level grayscale: the factory 4-gray
-    // waveform bank is selected by a forced temperature of 0x5F (per the
-    // vendor sequence). The glass-specific factory waveform ghosts less than
-    // the generic register-LUT tables.
-    if (auto r = _cmd(cmd_power_setting, {0x07, 0x07, 0x3F, 0x3F}); !r) {
+    // Register-LUT initialization for 4-level grayscale. The tables are the
+    // glass's factory grayscale waveform, loaded through registers so the
+    // frame rate and source voltage are programmable: the factory bank fixes
+    // them at 50 Hz and +/-15 V, where the drive supplies sag under
+    // source-switching load and the gray levels follow the image content.
+    const uint8_t src = _gray_source_code;
+    if (auto r = _cmd(cmd_power_setting, {0x07, 0x17, src, src, 0x07}); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_booster, {0x27, 0x27, 0x18, 0x17}); !r) {
+    if (auto r = _cmd(cmd_pll, {_gray_frame_rate_code}); !r) {
+        return r;
+    }
+    if (auto r = _cmd(cmd_vcom_dc, {0x12}); !r) {
+        return r;
+    }
+    if (auto r = _cmd(cmd_booster, {0x27, 0x27, 0x28, 0x17}); !r) {
         return r;
     }
     if (auto r = _power_on(); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_panel_setting, {0x1F}); !r) { // KW mode, LUT from OTP
+    if (auto r = _cmd(cmd_panel_setting, {0x3F}); !r) { // KW mode, LUT from registers
         return r;
     }
     if (auto r = _set_resolution(); !r) {
@@ -561,10 +672,13 @@ result<void> uc8179::_init_gray() {
     if (auto r = _cmd(cmd_vcom_interval, border_init); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_cascade, {0x02}); !r) { // temperature from the forced-temperature register
+    if (auto r = _cmd(cmd_power_saving, {0x88}); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_forced_temp, {0x5F}); !r) {
+    if (auto r = _cmd(cmd_end_voltage, {0x00}); !r) {
+        return r;
+    }
+    if (auto r = _load_luts(lut_vcom_gray, lut_ww_gray, lut_kw_gray, lut_wk_gray, lut_kk_gray); !r) {
         return r;
     }
     _waveform = waveform::gray;
@@ -576,12 +690,20 @@ result<void> uc8179::_ensure_waveform(waveform target) {
         return {};
     }
     // Each waveform configuration leaves different sticky registers behind
-    // (PLL, VCOM DC, temperature overrides), so start the new one from a
-    // known state with a hardware reset — the image RAM survives it.
-    // Without a reset line the initialization still runs, but registers the
-    // target sequence does not set keep their previous values.
+    // (PLL, VCOM DC, temperature overrides). With a reset line every mode
+    // starts from reset defaults — the image RAM survives the reset. Without
+    // one the drive rails are powered down first, because the power and
+    // clock registers must not be written while the rails are up, and
+    // registers the target sequence does not set keep their previous values.
     if (reset_gpio().is_connected()) {
         if (auto r = hardware_reset(); !r) {
+            return r;
+        }
+    } else {
+        if (auto r = _cmd(cmd_power_off); !r) {
+            return r;
+        }
+        if (auto r = wait_busy(); !r) {
             return r;
         }
     }
