@@ -51,8 +51,8 @@ TEST_CASE("uc8179 config defaults match the 7.5\" GDEY075T7 panel", "[idfxx][epa
     TEST_ASSERT_TRUE(cfg.busy_gpio == idfxx::gpio_4);
     TEST_ASSERT_EQUAL(30'000, cfg.busy_timeout.count());
     TEST_ASSERT_EQUAL(std::to_underlying(border::white), std::to_underlying(cfg.border));
-    TEST_ASSERT_EQUAL(50, cfg.gray4_frame_rate.count());
-    TEST_ASSERT_EQUAL(10'000, cfg.gray4_source_voltage.count());
+    TEST_ASSERT_EQUAL(20, cfg.gray4_frame_rate.count());
+    TEST_ASSERT_EQUAL(15'000, cfg.gray4_source_voltage.count());
 }
 
 TEST_CASE("uc8179::spi_io_config fills the controller's SPI framing", "[idfxx][epaper][uc8179]") {

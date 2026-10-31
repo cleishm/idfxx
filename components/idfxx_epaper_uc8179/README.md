@@ -122,8 +122,8 @@ The grayscale operating point is set in the config (see Important Notes):
 ```cpp
 idfxx::epaper::uc8179 display(io, {
     .busy_gpio = idfxx::gpio_4,
-    .gray4_frame_rate = quanta::frequency::hertz{20},
-    .gray4_source_voltage = quanta::electro::millivolts{15'000},
+    .gray4_frame_rate = quanta::frequency::hertz{50},
+    .gray4_source_voltage = quanta::electro::millivolts{10'000},
 });
 ```
 
@@ -154,7 +154,7 @@ Driver-specific surface:
   general), `busy_gpio` (required), `busy_timeout` (default 30 s),
   `border` (default `border::white`; all three values supported, changeable
   later with `set_border`), `gray4_frame_rate` / `gray4_source_voltage`
-  (grayscale operating point, default 50 Hz at +/-10 V).
+  (grayscale operating point, default 20 Hz at +/-15 V).
 - `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled
   `panel_io::spi_config` (mode 0, 8-bit command/parameter framing).
 
@@ -197,14 +197,15 @@ Using a moved-from driver object is undefined behavior.
   grayscale waveform tables are the factory grayscale waveform of the
   GDEY075T7 glass (on other UC8179 glasses, validate on hardware).
   `config::gray4_frame_rate` and `config::gray4_source_voltage` select the
-  operating point. The default, 50 Hz at +/-10 V, keeps the gray levels
-  independent of the image content at the vendor's 3.6 s refresh, with a
-  slightly lighter black. The vendor's own point, 50 Hz at +/-15 V, gives a
-  deeper black, but its gray levels drop by up to ~15 % on content with
-  dense horizontal detail (the drive supplies sag under source-switching
-  load). 20 Hz at +/-15 V is also content-stable, with the deepest black and
-  widest gray spacing, at ~9 s per refresh. The gray levels move with either
-  setting, so recalibrate any gray mapping after changing them.
+  operating point. The default, 20 Hz at +/-15 V, gives the deepest black
+  and the widest gray spacing, independent of the image content, at ~9 s
+  per refresh. 50 Hz at +/-10 V keeps the vendor's 3.6 s refresh with
+  content-stable levels, but its black is lighter and both grays sit in the
+  dark end of the range. The vendor's own point, 50 Hz at +/-15 V, gives a
+  deep black at 3.6 s, but its gray levels drop by up to ~15 % on content
+  with dense horizontal detail (the drive supplies sag under
+  source-switching load). The gray levels move with either setting, so
+  recalibrate any gray mapping after changing them.
 - **Fast refresh trades contrast for durability of the image.** The
   shortened waveform under-drives the ink, leaving black pixels in a
   weakly held state: they look black on their own, but a subsequent

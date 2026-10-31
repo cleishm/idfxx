@@ -120,14 +120,15 @@ public:
         /// The gray levels themselves shift with this setting and with
         /// @ref gray4_source_voltage, so anything calibrated against the
         /// panel's gray response must be recalibrated after changing either.
-        /// The default, 50 Hz at +/-10 V, keeps the gray levels stable
-        /// whatever the image content at the vendor's refresh time, at the
-        /// cost of a slightly lighter black. The vendor's own operating
-        /// point, 50 Hz at +/-15 V, gives a deeper black, but its gray levels
-        /// drop by up to ~15 % on content with dense horizontal detail.
-        /// 20 Hz at +/-15 V gives the deepest black and widest gray spacing,
-        /// also stable whatever the content, at ~9 s per refresh.
-        quanta::frequency::hertz gray4_frame_rate{50};
+        /// The default, 20 Hz at +/-15 V, gives the deepest black and the
+        /// widest gray spacing, stable whatever the image content, at ~9 s
+        /// per refresh. 50 Hz at +/-10 V keeps the vendor's 3.6 s refresh
+        /// with content-stable levels, but its black is lighter and both
+        /// grays sit in the dark end of the range. The vendor's own operating
+        /// point, 50 Hz at +/-15 V, gives a deep black at 3.6 s, but its gray
+        /// levels drop by up to ~15 % on content with dense horizontal
+        /// detail.
+        quanta::frequency::hertz gray4_frame_rate{20};
         /// Magnitude of the positive and negative source drive voltages for
         /// the 4-level grayscale waveform (@ref color_mode::gray4 only).
         /// 2.4 V to 15 V in 0.2 V steps; any other value makes construction
@@ -135,7 +136,7 @@ public:
         /// harder but load the drive supplies more. The gray levels shift
         /// with this setting; see @ref gray4_frame_rate for the trade-offs
         /// and recommended operating points.
-        quanta::electro::millivolts gray4_source_voltage{10'000};
+        quanta::electro::millivolts gray4_source_voltage{15'000};
     };
 
     /**
