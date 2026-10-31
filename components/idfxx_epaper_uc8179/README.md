@@ -10,8 +10,8 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
   written against the abstract panel works unchanged.
 - Full, fast (register-written shortened waveform), and flicker-free
   partial refreshes.
-- 4-level grayscale (`color_mode::gray4`) using the glass's factory (OTP)
-  grayscale waveform.
+- 4-level grayscale (`color_mode::gray4`) using the glass's factory
+  grayscale waveform, with a configurable frame rate and source voltage.
 - Selectable border: driven white or black on full/fast refreshes, or held
   so it never flickers.
 - Deep sleep and wake (hardware reset + re-initialization).
@@ -117,6 +117,16 @@ display.refresh(); // gray4 supports full refresh only
 display.set_color_mode(idfxx::epaper::color_mode::mono); // back to monochrome
 ```
 
+The grayscale operating point is set in the config (see Important Notes):
+
+```cpp
+idfxx::epaper::uc8179 display(io, {
+    .busy_gpio = idfxx::gpio_4,
+    .gray4_frame_rate = quanta::frequency::hertz{20},
+    .gray4_source_voltage = quanta::electro::millivolts{15'000},
+});
+```
+
 ### Border
 
 ```cpp
@@ -143,7 +153,8 @@ Driver-specific surface:
   of 8), `reset_gpio` (required for `wake`, strongly recommended in
   general), `busy_gpio` (required), `busy_timeout` (default 30 s),
   `border` (default `border::white`; all three values supported, changeable
-  later with `set_border`).
+  later with `set_border`), `gray4_frame_rate` / `gray4_source_voltage`
+  (grayscale operating point, default 50 Hz at +/-10 V).
 - `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled
   `panel_io::spi_config` (mode 0, 8-bit command/parameter framing).
 
@@ -152,8 +163,8 @@ Driver-specific surface:
 Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 
 - `errc::invalid_arg` — unconnected `busy_gpio`, dimensions outside the
-  controller's 800x600 range, a width not a multiple of 8, or invalid
-  write placement.
+  controller's 800x600 range, a width not a multiple of 8, an unsupported
+  `gray4_frame_rate` or `gray4_source_voltage`, or invalid write placement.
 - `errc::invalid_state` — writing/refreshing while asleep, a framebuffer
   not matching the color mode, or `wake` without a `reset_gpio`.
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
@@ -182,9 +193,18 @@ Using a moved-from driver object is undefined behavior.
 - **Fast refresh uses register-written waveform tables** (from Seeed's
   driver for this glass). Quality varies by panel batch and temperature —
   validate on hardware, and prefer `full` when in doubt.
-- **Gray4 uses the glass's factory (OTP) 4-gray waveform**, selected via a
-  forced temperature (per the vendor sequence). Not every UC8179 glass
-  carries a 4-gray OTP bank — validate on hardware.
+- **Gray4 levels are tunable, and shift when you tune them.** The
+  grayscale waveform tables are the factory grayscale waveform of the
+  GDEY075T7 glass (on other UC8179 glasses, validate on hardware).
+  `config::gray4_frame_rate` and `config::gray4_source_voltage` select the
+  operating point. The default, 50 Hz at +/-10 V, keeps the gray levels
+  independent of the image content at the vendor's 3.6 s refresh, with a
+  slightly lighter black. The vendor's own point, 50 Hz at +/-15 V, gives a
+  deeper black, but its gray levels drop by up to ~15 % on content with
+  dense horizontal detail (the drive supplies sag under source-switching
+  load). 20 Hz at +/-15 V is also content-stable, with the deepest black and
+  widest gray spacing, at ~9 s per refresh. The gray levels move with either
+  setting, so recalibrate any gray mapping after changing them.
 - **Fast refresh trades contrast for durability of the image.** The
   shortened waveform under-drives the ink, leaving black pixels in a
   weakly held state: they look black on their own, but a subsequent

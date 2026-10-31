@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <quanta/electro>
 #include <quanta/frequency>
 #include <span>
 
@@ -106,6 +107,35 @@ public:
         /// @ref idfxx::epaper::border::hold keeps its color and never
         /// flickers. May be changed later with @ref set_border.
         enum border border = border::white;
+        /// Frame rate of the 4-level grayscale waveform
+        /// (@ref color_mode::gray4 only; the monochrome waveforms are
+        /// unaffected). One of 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90,
+        /// 100, 110, 130, 150 or 200 Hz; any other value makes construction
+        /// fail with `errc::invalid_arg`. The waveform has a fixed number of
+        /// frames, so lower rates lengthen the refresh (3.6 s at 50 Hz, 6 s
+        /// at 30 Hz, 9 s at 20 Hz), but they lighten the load on the drive
+        /// supplies, which deepens black and widens the spacing between the
+        /// gray levels.
+        ///
+        /// The gray levels themselves shift with this setting and with
+        /// @ref gray4_source_voltage, so anything calibrated against the
+        /// panel's gray response must be recalibrated after changing either.
+        /// The default, 50 Hz at +/-10 V, keeps the gray levels stable
+        /// whatever the image content at the vendor's refresh time, at the
+        /// cost of a slightly lighter black. The vendor's own operating
+        /// point, 50 Hz at +/-15 V, gives a deeper black, but its gray levels
+        /// drop by up to ~15 % on content with dense horizontal detail.
+        /// 20 Hz at +/-15 V gives the deepest black and widest gray spacing,
+        /// also stable whatever the content, at ~9 s per refresh.
+        quanta::frequency::hertz gray4_frame_rate{50};
+        /// Magnitude of the positive and negative source drive voltages for
+        /// the 4-level grayscale waveform (@ref color_mode::gray4 only).
+        /// 2.4 V to 15 V in 0.2 V steps; any other value makes construction
+        /// fail with `errc::invalid_arg`. Higher voltages drive the ink
+        /// harder but load the drive supplies more. The gray levels shift
+        /// with this setting; see @ref gray4_frame_rate for the trade-offs
+        /// and recommended operating points.
+        quanta::electro::millivolts gray4_source_voltage{10'000};
     };
 
     /**
@@ -148,7 +178,8 @@ public:
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
-     *         for out-of-range dimensions or an unconnected `busy_gpio`.
+     *         for out-of-range dimensions, an unconnected `busy_gpio`, or an
+     *         unsupported `gray4_frame_rate` or `gray4_source_voltage`.
      */
     [[nodiscard]] explicit uc8179(idfxx::panel_io& panel_io, config config);
 #endif
@@ -170,8 +201,9 @@ public:
      *
      * @return The new uc8179, or an error.
      * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, the
-     *         width is zero, not a multiple of 8, or over 800, or the
-     *         height is zero or over 600.
+     *         width is zero, not a multiple of 8, or over 800, the height is
+     *         zero or over 600, or `gray4_frame_rate` or
+     *         `gray4_source_voltage` is not a supported value.
      * @retval idfxx::errc::timeout if the controller's BUSY line does not
      *         release during initialization.
      */
@@ -252,6 +284,8 @@ private:
 
     esp_lcd_panel_io_handle_t _io_handle = nullptr; // nullptr after move
     waveform _waveform = waveform::full;
+    uint8_t _gray_frame_rate_code = 0; // PLL code for config::gray4_frame_rate (set by make())
+    uint8_t _gray_source_code = 0;     // VDH/VDL code for config::gray4_source_voltage (set by make())
 };
 
 } // namespace idfxx::epaper
