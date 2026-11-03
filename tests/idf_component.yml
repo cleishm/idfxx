@@ -1,3 +1,3 @@
 dependencies:
-  # Test-only: the renderer's resampler is compared byte for byte against this library.
-  cleishm/epaper-image: "^0.1.0"
+  # Test-only: the renderer's resampler and idfxx_epaper_image's output are compared byte for byte against this library.
+  cleishm/epaper-image: "^0.2.0"
