@@ -1,0 +1,19 @@
+version: "1.0.0"
+description: "Decoded images on RGB565 LCD panels and surfaces, placed, sized and oriented on the screen"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_image"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_image:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_image
+  cleishm/idfxx_lcd:
+    version: "^3.0.0"
+    public: true
+    override_path: ../idfxx_lcd
