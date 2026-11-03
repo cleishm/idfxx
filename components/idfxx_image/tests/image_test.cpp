@@ -85,7 +85,13 @@ static_assert(!std::is_convertible_v<const buffer<>&, view<rgb888>>);
 static_assert(!std::is_convertible_v<buffer<>&&, view<rgb888>>);
 static_assert(std::is_convertible_v<buffer<>&&, view<const rgb888>>);
 
-// size compares by value.
+// rect has a signed origin, and both rect and size compare by value.
+static_assert(std::is_signed_v<decltype(rect::x)>);
+static_assert(std::is_signed_v<decltype(rect::y)>);
+static_assert(rect{} == rect{0, 0, 0, 0});
+static_assert(rect{-1, 2, 3, 4} == rect{-1, 2, 3, 4});
+static_assert(rect{-1, 2, 3, 4} != rect{1, 2, 3, 4});
+static_assert(rect{-1, 2, 3, 4} != rect{-1, 2, 3, 5});
 static_assert(size{3, 4} == size{3, 4});
 static_assert(size{3, 4} != size{4, 3});
 

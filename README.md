@@ -55,7 +55,7 @@ Full API documentation is available at: **https://cleishm.github.io/idfxx/**
 | [idfxx_gfx](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gfx) | Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gfx.html) |
 | [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Fixed-cell bitmap font model and text metrics | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
 | [idfxx_font_spleen](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_spleen) | The Spleen bitmap fonts (5x8 and 8x16) as idfxx font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__spleen.html) |
-| [idfxx_image](https://github.com/cleishm/idfxx/tree/main/components/idfxx_image) | Pixel image views, owning buffers, and EXIF orientation transforms | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__image.html) |
+| [idfxx_image](https://github.com/cleishm/idfxx/tree/main/components/idfxx_image) | Pixel image views, owning buffers, EXIF orientation transforms, and placing images on a screen | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__image.html) |
 | [idfxx_jpeg](https://github.com/cleishm/idfxx/tree/main/components/idfxx_jpeg) | JPEG decoding into RGB888 images, with output scaling and EXIF orientation | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__jpeg.html) |
 | **Sensor Drivers** | | |
 | [idfxx_dht](https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht) | DHT11/DHT22 temperature and humidity sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__dht.html) |

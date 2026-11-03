@@ -6,10 +6,10 @@
 /**
  * @headerfile <idfxx/image>
  * @file image.hpp
- * @brief Pixel images: views, owning buffers, and orientation transforms.
+ * @brief Pixel images: views, owning buffers, orientation transforms and geometry.
  *
  * @defgroup idfxx_image Image Component
- * @brief In-memory pixel images and the eight EXIF orientations.
+ * @brief In-memory pixel images, the eight EXIF orientations, and placing images on a screen.
  *
  * Provides a small vocabulary for decoded images held in memory:
  *
@@ -25,11 +25,24 @@
  *   @ref idfxx::image::oriented).
  * - @ref idfxx::image::sink, the interface through which a producer such as
  *   an image decoder delivers pixels block by block.
+ * - @ref idfxx::image::rect, @ref idfxx::image::size and
+ *   @ref idfxx::image::filter, the vocabulary for placing an image on a
+ *   screen.
+ * - @ref idfxx::image::renderer, which takes the rows of an image and delivers
+ *   the rows of the picture placed on a screen: turned to its displayed
+ *   orientation, cropped, resampled to the size of its target rectangle, and
+ *   clipped to the screen. It works row by row, so an image far larger than
+ *   the available memory can be shown; memory for a whole output frame is
+ *   needed only for orientations that cannot be produced top to bottom.
+ * - @ref idfxx::image::render, which connects a decoder to a renderer: it
+ *   reads the image's orientation, picks the decode scale, and decodes through
+ *   the renderer.
  *
- * The image operations cannot fail: functions have documented preconditions
- * instead of error results, and memory allocation follows the allocator's own
- * behavior. Only a @ref idfxx::image::sink reports errors, which it returns to
- * the producer feeding it.
+ * Images, views and orientations have no failure modes: functions have
+ * documented preconditions instead of error results, and memory allocation
+ * follows the allocator's own behavior. Only a @ref idfxx::image::sink reports
+ * errors, which it returns to the producer feeding it. Rendering can fail, and
+ * returns or throws an error.
  *
  * Depends on @ref idfxx_core for error handling.
  *
@@ -41,17 +54,38 @@
  * auto o = static_cast<idfxx::image::orientation>(exif_orientation_tag);
  * idfxx::image::buffer<> upright = idfxx::image::oriented(photo, o);
  * @endcode
+ *
+ * @code
+ * idfxx::memory_source src{jpeg_bytes};
+ * idfxx::jpeg::decoder dec(src);
+ *
+ * // Fill a 320x240 screen, upright according to the image's EXIF orientation.
+ * // write_rows() stands for your own display code.
+ * idfxx::image::render(
+ *     dec,
+ *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows) -> idfxx::result<void> {
+ *         return write_rows(at, rows);
+ *     },
+ *     {},
+ *     {.screen_width = 320, .screen_height = 240}
+ * );
+ * @endcode
  * @{
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/error>
+#include <idfxx/required>
 
 #include <algorithm>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <esp_err.h>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <system_error>
@@ -913,6 +947,28 @@ struct point {
 
 /**
  * @headerfile <idfxx/image>
+ * @brief A rectangle of pixels.
+ *
+ * The origin is signed, so a rectangle can overhang the left or top edge of the
+ * area it is placed on.
+ */
+struct rect {
+    int32_t x = 0;     ///< Column of the left edge.
+    int32_t y = 0;     ///< Row of the top edge.
+    size_t width = 0;  ///< Width in pixels.
+    size_t height = 0; ///< Height in pixels.
+
+    /**
+     * @brief Compares two rectangles.
+     *
+     * @param other The rectangle to compare with.
+     * @return true if the origin and the size are both equal.
+     */
+    [[nodiscard]] constexpr bool operator==(const rect& other) const noexcept = default;
+};
+
+/**
+ * @headerfile <idfxx/image>
  * @brief A width and a height in pixels.
  */
 struct size {
@@ -946,6 +1002,25 @@ struct size {
 [[nodiscard]] constexpr size oriented_size(orientation o, size_t width, size_t height) noexcept {
     return swaps_axes(o) ? size{height, width} : size{width, height};
 }
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief A resampling filter.
+ *
+ * Listed from fastest to sharpest. When an image shrinks, every filter widens
+ * with the reduction, so it averages all the source pixels an output pixel
+ * covers.
+ */
+enum class filter : uint8_t {
+    /// @brief Averages the covered pixels; the fastest, and blocky when enlarging.
+    box,
+    /// @brief Linear interpolation.
+    bilinear,
+    /// @brief Cubic interpolation (Keys, a = -0.5).
+    bicubic,
+    /// @brief Lanczos with three lobes; the sharpest, and the slowest.
+    lanczos3,
+};
 
 /**
  * @headerfile <idfxx/image>
@@ -1186,6 +1261,641 @@ template<typename Src>
 [[nodiscard]] constexpr buffer<detail::image_value_t<const Src&>, detail::default_allocator_t<const Src&>>
 oriented(const Src& src, orientation o) {
     return oriented(src, o, detail::default_allocator(src));
+}
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief How a picture is sized to its target rectangle.
+ */
+enum class layout : uint8_t {
+    /// @brief Scales to fill the target, keeping the aspect ratio, and crops the excess equally from both sides.
+    cover,
+    /// @brief Scales to fit inside the target, keeping the aspect ratio, and centers it on the background.
+    fit,
+    /// @brief Scales each axis to the target exactly, changing the aspect ratio if they differ.
+    stretch,
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Where and how a picture appears on the screen.
+ *
+ * The default fills the whole screen, cropping the excess, upright according to
+ * the source's own orientation.
+ */
+struct placement {
+    /**
+     * @brief The rectangle the picture is placed in, in screen coordinates.
+     *
+     * It may overhang the screen: only its visible part is output, and that
+     * part is exactly what the whole rectangle would show there. `std::nullopt`
+     * is the whole screen.
+     */
+    std::optional<rect> target = std::nullopt;
+    /// @brief How the picture is sized to the target.
+    image::layout layout = image::layout::cover;
+    /// @brief An orientation applied on top of the source's own orientation.
+    image::orientation orientation = image::orientation::identity;
+    /**
+     * @brief The part of the image to show, with both orientations applied.
+     *
+     * The layout then applies to this rectangle in place of the whole image.
+     * Its coordinates are those of the full-size image, also when decoding at a
+     * reduced scale. `std::nullopt` is the whole image.
+     */
+    std::optional<rect> crop = std::nullopt;
+    /// @brief The color of the target left uncovered by @ref layout::fit, and of the gap from @ref fill_to_alignment.
+    image::rgb888 background{255, 255, 255};
+    /// @brief The resampling filter.
+    image::filter filter = image::filter::lanczos3;
+    /**
+     * @brief Extends the output to meet @ref render_config::x_alignment.
+     *
+     * When the visible part of the target is not aligned, false makes the
+     * placement an error. True rounds the output outward to the alignment,
+     * clamped to the screen: the picture stays exactly where it was placed, and
+     * the gap shows @ref background.
+     */
+    bool fill_to_alignment = false;
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief The screen a picture is rendered for, and the limits of doing so.
+ */
+struct render_config {
+    required<size_t> screen_width;  ///< Screen width in pixels.
+    required<size_t> screen_height; ///< Screen height in pixels.
+    /**
+     * @brief The column alignment the destination requires.
+     *
+     * The left edge of the output must be a multiple of this, and so must its
+     * right edge unless it reaches the right edge of the screen. For a
+     * destination that writes whole bytes of several pixels each.
+     */
+    size_t x_alignment = 1;
+    /**
+     * @brief Maximum working memory for rendering, in bytes.
+     *
+     * Bounds everything the renderer allocates: the resampling state and its
+     * row buffers, which grow with the output width and the filter's reach, and
+     * the frame for orientations that need one. The bound is checked before
+     * anything is allocated, and allocator overhead is not counted.
+     * `std::nullopt` sets no limit.
+     */
+    std::optional<size_t> memory_limit = std::nullopt;
+};
+
+class renderer;
+
+/** @cond INTERNAL */
+namespace detail {
+
+// A sink for checking what a decoder accepts.
+struct any_sink {
+    result<void> operator()(point, view<const rgb888>);
+};
+
+// What render() needs to know before it decodes anything.
+struct decode_plan {
+    bool visible;    // false: the target is fully off-screen
+    size cover_size; // the smallest stored-orientation decode that covers the output
+};
+
+[[nodiscard]] result<decode_plan>
+plan_decode(size_t width, size_t height, orientation source, const placement& where, const render_config& config);
+
+// Makes a renderer for an image of full_width x full_height decoded at
+// decoded_width x decoded_height. The crop stays in full-size coordinates.
+[[nodiscard]] result<renderer> make_decoded_renderer(
+    size_t decoded_width,
+    size_t decoded_height,
+    size_t full_width,
+    size_t full_height,
+    orientation source,
+    const placement& where,
+    const render_config& config
+);
+
+// Makes a renderer that delivers nothing, for a target fully off-screen.
+[[nodiscard]] result<renderer> make_offscreen_renderer(size_t width, size_t height);
+
+} // namespace detail
+/** @endcond */
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief An image decoder that a renderer can read from.
+ *
+ * A decoder reports the properties of an image, then delivers its pixels to a
+ * sink. A type models `decoder<D>` when an lvalue `D&` provides:
+ *
+ * - `info()`, whose result has `width` and `height` convertible to `size_t`
+ *   and an `orientation` convertible to @ref idfxx::image::orientation, the
+ *   image's size and orientation as stored.
+ * - `try_decode(sink)`, which takes an @ref idfxx::image::sink of
+ *   @ref idfxx::image::rgb888 and returns `idfxx::result<void>`. It delivers the
+ *   image to the sink in the stored orientation, as blocks of full-width rows
+ *   from the top row down (each at column zero, and starting at the row after
+ *   the previous block), and returns the sink's error unchanged if it fails.
+ *
+ * A decoder is decoded once. @ref idfxx::image::render and
+ * @ref idfxx::image::renderer take one that has not been decoded yet.
+ *
+ * @tparam D The decoder type.
+ *
+ * @see scaling_decoder, a decoder that can also decode at a reduced scale.
+ */
+template<typename D>
+concept decoder = requires(D& d, detail::any_sink& s) {
+    { d.info().width } -> std::convertible_to<size_t>;
+    { d.info().height } -> std::convertible_to<size_t>;
+    { d.info().orientation } -> std::convertible_to<orientation>;
+    { d.try_decode(s) } -> std::same_as<result<void>>;
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief A @ref idfxx::image::decoder that can decode at a reduced scale.
+ *
+ * Decoding smaller than the full image saves time and memory. A type models
+ * `scaling_decoder<D>` when it is a @ref idfxx::image::decoder and an lvalue `D&` also
+ * provides:
+ *
+ * - `scale_to_cover(width, height)`, which selects the smallest scale at which
+ *   the decoded image still covers `width` x `height` pixels, in the image's
+ *   stored orientation.
+ * - `output_width()` and `output_height()`, convertible to `size_t`: the size
+ *   the decode produces at the selected scale, which is the image's size until
+ *   `scale_to_cover` reduces it.
+ *
+ * A renderer uses these to decode no larger than its output needs. A decoder
+ * that does not model this concept is decoded at full size, so the author of a
+ * scaling decoder should assert it:
+ *
+ * @code
+ * static_assert(idfxx::image::scaling_decoder<my_decoder>);
+ * @endcode
+ *
+ * @tparam D The decoder type.
+ */
+template<typename D>
+concept scaling_decoder = decoder<D> && requires(D& d, size_t w, size_t h) {
+    d.scale_to_cover(w, h);
+    { d.output_width() } -> std::convertible_to<size_t>;
+    { d.output_height() } -> std::convertible_to<size_t>;
+};
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Turns the rows of an image into the rows of a picture placed on a screen.
+ *
+ * Source rows are pushed from top to bottom, in the image's stored orientation,
+ * in blocks of any height. Output goes to an @ref idfxx::image::sink of
+ * @ref idfxx::image::rgb888 pixels, in rows of the full width of @ref output,
+ * strictly from top to bottom, at their position on the screen.
+ *
+ * The layout works in the displayed orientation: the source's orientation
+ * composed with @ref placement::orientation. When the result is
+ * @ref orientation::identity or @ref orientation::flip_horizontal, rows are
+ * delivered as the source rows that complete them arrive, with no frame in
+ * memory. Any other orientation holds one frame of @ref output's size, and
+ * delivers its rows after the last source row. The image itself is never held,
+ * at any size.
+ *
+ * Every output pixel is computed by the same fixed-point arithmetic on every
+ * target. A clipped pixel is identical to the same pixel of the unclipped
+ * picture.
+ *
+ * This type is non-copyable and move-only. A moved-from object must not be
+ * used: any operation other than destruction or assignment is undefined
+ * behavior.
+ *
+ * Running out of memory follows the idfxx policy: `std::bad_alloc` is thrown
+ * when exceptions are enabled, otherwise the program aborts. Set
+ * @ref render_config::memory_limit to have a placement that would need too much
+ * memory fail with `idfxx::image::errc::too_large` instead.
+ *
+ * @code
+ * // A 400x300 photo, shown in the right half of a 320x240 screen and turned a
+ * // quarter turn. draw_rows() stands for your own display code.
+ * idfxx::image::renderer r(
+ *     400,
+ *     300,
+ *     idfxx::image::orientation::identity,
+ *     {
+ *         .target = idfxx::image::rect{.x = 160, .y = 0, .width = 160, .height = 240},
+ *         .orientation = idfxx::image::orientation::rotate_90,
+ *     },
+ *     {.screen_width = 320, .screen_height = 240}
+ * );
+ * for (size_t y = 0; y < 300; ++y) {
+ *     r.push({0, y}, next_source_row(), draw_rows);
+ * }
+ * @endcode
+ */
+class renderer {
+public:
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates a renderer for an image.
+     *
+     * @param width Width of the image as pushed, in pixels.
+     * @param height Height of the image as pushed, in pixels.
+     * @param source The image's own orientation.
+     * @param where Where and how to place the picture.
+     * @param config The screen, and the limits of rendering on it.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if the image, the
+     *         screen or the target is empty, `x_alignment` is zero, the crop is
+     *         empty or outside the displayed image, or the visible part of the
+     *         target is not aligned and @ref placement::fill_to_alignment is
+     *         false; idfxx::errc::invalid_size if the image is over 65535
+     *         pixels a side or 100 megapixels, or needs more working memory than
+     *         a `size_t` can count; idfxx::image::errc::too_large if
+     *         it needs more working memory than
+     *         @ref render_config::memory_limit.
+     */
+    [[nodiscard]] explicit renderer(
+        size_t width,
+        size_t height,
+        orientation source,
+        const placement& where,
+        const render_config& config
+    )
+        : renderer(unwrap(make(width, height, source, where, config))) {}
+
+    /**
+     * @brief Creates a renderer for the image of a decoder, ready for its rows.
+     *
+     * Reads the image's size and orientation from @p decoder. If the decoder can
+     * scale, this selects the decode scale, no larger than needed to cover the
+     * output. @ref output and @ref empty then say what will be delivered, before
+     * anything is decoded. See @ref make, which returns the error instead.
+     *
+     * @code
+     * idfxx::memory_source src{jpeg_bytes};
+     * idfxx::jpeg::decoder dec(src);
+     *
+     * idfxx::image::renderer r(dec, {}, {.screen_width = 320, .screen_height = 240});
+     * if (r.empty()) {
+     *     return;
+     * }
+     * prepare_destination(r.output()); // stands for your own display code
+     * dec.decode(
+     *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows) -> idfxx::result<void> {
+     *         r.push(at, rows, write_rows);
+     *         return {};
+     *     }
+     * );
+     * @endcode
+     *
+     * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+     * @param decoder The decoder, which must not have been decoded yet. It isn't
+     *                decoded here, but its scale may change.
+     * @param where Where and how to place the picture.
+     * @param config The screen, and the limits of rendering on it.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if the image, the
+     *         screen or the target is empty, `x_alignment` is zero, the crop is
+     *         empty or outside the displayed image, or the visible part of the
+     *         target is not aligned and @ref placement::fill_to_alignment is
+     *         false; idfxx::errc::invalid_size if the image as it will be decoded
+     *         is over 65535 pixels a side or 100 megapixels, or needs more working
+     *         memory than a `size_t` can count; idfxx::image::errc::too_large if
+     *         it needs more working memory than @ref render_config::memory_limit.
+     */
+    template<decoder Decoder>
+    [[nodiscard]] explicit renderer(Decoder& decoder, const placement& where, const render_config& config);
+#endif
+
+    /**
+     * @brief Creates a renderer for an image.
+     *
+     * @param width Width of the image as pushed, in pixels.
+     * @param height Height of the image as pushed, in pixels.
+     * @param source The image's own orientation.
+     * @param where Where and how to place the picture.
+     * @param config The screen, and the limits of rendering on it.
+     *
+     * @return The renderer, or an error.
+     * @retval idfxx::errc::invalid_arg The image, the screen or the target is
+     *         empty, `x_alignment` is zero, the crop is empty or outside the
+     *         displayed image, or the visible part of the target is not aligned
+     *         and @ref placement::fill_to_alignment is false.
+     * @retval idfxx::errc::invalid_size The image is over 65535 pixels a side or
+     *         100 megapixels, or needs more working memory than a `size_t` can count.
+     * @retval idfxx::image::errc::too_large The image needs more working memory
+     *         than @ref render_config::memory_limit.
+     */
+    [[nodiscard]] static result<renderer>
+    make(size_t width, size_t height, orientation source, const placement& where, const render_config& config);
+
+    /**
+     * @brief Creates a renderer for the image of a decoder, ready for its rows.
+     *
+     * Reads the image's size and orientation from @p decoder. If the decoder can
+     * scale (see @ref idfxx::image::scaling_decoder), this selects the decode
+     * scale, no larger than needed to cover the output, which saves time and
+     * memory. Use it instead of @ref try_render when the destination has to know
+     * the size of the picture before its first row: @ref output says what will be
+     * delivered, and @ref empty says that the target is fully off-screen, in
+     * which case there is no need to decode. The caller then decodes through the
+     * renderer's @ref try_push.
+     *
+     * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+     * @param decoder The decoder, which must not have been decoded yet. It isn't
+     *                decoded here, but its scale may change.
+     * @param where Where and how to place the picture.
+     * @param config The screen, and the limits of rendering on it.
+     *
+     * @return The renderer, or an error. A target fully off-screen gives an empty
+     *         renderer, not an error.
+     * @retval idfxx::errc::invalid_arg The image, the screen or the target is
+     *         empty, `x_alignment` is zero, the crop is empty or outside the displayed
+     *         image, or the visible part of the target is not aligned and
+     *         @ref placement::fill_to_alignment is false.
+     * @retval idfxx::errc::invalid_size The image as it will be decoded is over 65535
+     *         pixels a side or 100 megapixels, or needs more working memory than a
+     *         `size_t` can count.
+     * @retval idfxx::image::errc::too_large The image needs more working memory than
+     *         @ref render_config::memory_limit.
+     */
+    template<decoder Decoder>
+    [[nodiscard]] static result<renderer> make(Decoder& decoder, const placement& where, const render_config& config);
+
+    renderer(const renderer&) = delete;
+    renderer& operator=(const renderer&) = delete;
+
+    /**
+     * @brief Move-constructs a renderer, taking over its state.
+     *
+     * @param other The renderer to move from. It must not be used afterwards,
+     *              other than to be destroyed or assigned to.
+     */
+    renderer(renderer&& other) noexcept;
+
+    /**
+     * @brief Move-assigns a renderer, releasing this one's state.
+     *
+     * @param other The renderer to move from. It must not be used afterwards,
+     *              other than to be destroyed or assigned to.
+     * @return A reference to this renderer.
+     */
+    renderer& operator=(renderer&& other) noexcept;
+
+    /**
+     * @brief Destroys the renderer and releases its working memory.
+     */
+    ~renderer();
+
+    /**
+     * @brief Returns the rectangle of rows the renderer delivers.
+     *
+     * @return The visible part of the target, plus any fill to the alignment, in
+     *         screen coordinates. It is never negative, and has no pixels when
+     *         the target is fully off-screen.
+     */
+    [[nodiscard]] rect output() const noexcept { return _output; }
+
+    /**
+     * @brief Checks whether the renderer delivers nothing.
+     *
+     * @return true if the target is fully off-screen. Pushed rows are then
+     *         accepted and ignored.
+     */
+    [[nodiscard]] bool empty() const noexcept { return _output.width == 0; }
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Takes the next source rows, and delivers the output rows they complete.
+     *
+     * Calls @p out once per completed output row, from top to bottom, at the
+     * row's position on the screen, with a view of @ref output's width of pixels
+     * that is valid only during the call. The rows are all those that are
+     * ready, so the last source row delivers every remaining one.
+     *
+     * After a sink's error or exception the renderer cannot continue: a further
+     * push fails with idfxx::errc::invalid_state or, after an exception, must
+     * not be made.
+     *
+     * @tparam S The sink type; see @ref idfxx::image::sink.
+     * @param at The position of the block in the image: `{0, y}`, with `y` the
+     *           first row not yet pushed.
+     * @param rows The source rows, of the full image width and any height.
+     * @param out The destination for the output rows. Returning an error stops
+     *            the push, which then fails with that error.
+     *
+     * @note During a long operation, lower-priority tasks get to run, so this must not
+     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_state if the block is
+     *         not the next one in the image or runs past its end, or an earlier
+     *         push failed; idfxx::errc::invalid_size if the width of the rows is
+     *         not the image's; or the error returned by @p out.
+     */
+    template<sink S>
+    void push(point at, view<const rgb888> rows, S&& out) {
+        unwrap(try_push(at, rows, std::forward<S>(out)));
+    }
+#endif
+
+    /**
+     * @brief Takes the next source rows, and delivers the output rows they complete.
+     *
+     * Calls @p out once per completed output row, from top to bottom, at the
+     * row's position on the screen, with a view of @ref output's width of pixels
+     * that is valid only during the call. The rows are all those that are
+     * ready, so the last source row delivers every remaining one.
+     *
+     * After a sink's error or exception the renderer cannot continue: a further
+     * push fails with idfxx::errc::invalid_state or, after an exception, must
+     * not be made.
+     *
+     * @tparam S The sink type; see @ref idfxx::image::sink.
+     * @param at The position of the block in the image: `{0, y}`, with `y` the
+     *           first row not yet pushed.
+     * @param rows The source rows, of the full image width and any height.
+     * @param out The destination for the output rows. Returning an error stops
+     *            the push, which then fails with that error.
+     *
+     * @note During a long operation, lower-priority tasks get to run, so this must not
+     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_state The block is not the next one in the
+     *         image or runs past its end, or an earlier push failed.
+     * @retval idfxx::errc::invalid_size The width of the rows is not the image's.
+     * @retval other The error returned by @p out, unchanged.
+     */
+    template<sink S>
+    [[nodiscard]] result<void> try_push(point at, view<const rgb888> rows, S&& out) {
+        if (auto r = _check_rows(at, rows); !r) {
+            return r;
+        }
+        for (size_t y = 0; y < rows.height(); ++y) {
+            _accept_row(rows.row(y).data());
+            while (const auto row = _next_row()) {
+                result<void> r = std::invoke(out, row->at, row->pixels);
+                if (!r) {
+                    _abort();
+                    return r;
+                }
+            }
+        }
+        return {};
+    }
+
+private:
+    /** @cond INTERNAL */
+    struct state;
+
+    struct output_row {
+        point at;
+        view<const rgb888> pixels;
+    };
+
+    friend result<renderer>
+    detail::make_decoded_renderer(size_t, size_t, size_t, size_t, orientation, const placement&, const render_config&);
+    friend result<renderer> detail::make_offscreen_renderer(size_t, size_t);
+
+    renderer(std::unique_ptr<state> s, rect output) noexcept;
+
+    [[nodiscard]] result<void> _check_rows(point at, const view<const rgb888>& rows) const;
+    void _accept_row(const rgb888* row);
+    // The next output row, if it is ready.
+    [[nodiscard]] std::optional<output_row> _next_row();
+    void _abort() noexcept;
+
+    std::unique_ptr<state> _state;
+    rect _output;
+    /** @endcond */
+};
+
+template<decoder Decoder>
+result<renderer> renderer::make(Decoder& decoder, const placement& where, const render_config& config) {
+    const auto& info = decoder.info();
+    auto plan = detail::plan_decode(info.width, info.height, info.orientation, where, config);
+    if (!plan) {
+        return error(plan.error());
+    }
+    if (!plan->visible) {
+        return detail::make_offscreen_renderer(info.width, info.height);
+    }
+    size decoded{info.width, info.height};
+    if constexpr (scaling_decoder<Decoder>) {
+        decoder.scale_to_cover(plan->cover_size.width, plan->cover_size.height);
+        decoded = {decoder.output_width(), decoder.output_height()};
+    }
+    return detail::make_decoded_renderer(
+        decoded.width, decoded.height, info.width, info.height, info.orientation, where, config
+    );
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+template<decoder Decoder>
+renderer::renderer(Decoder& decoder, const placement& where, const render_config& config)
+    : renderer(unwrap(make(decoder, where, config))) {}
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Decodes an image and renders it through a sink.
+ *
+ * Reads the image's size and orientation from @p decoder. If the decoder can
+ * scale, the image is decoded no larger than needed to cover the output, which
+ * saves time and memory. A target fully off-screen returns at once, without
+ * decoding. Everything else behaves as for @ref renderer.
+ *
+ * @tparam Decoder The decoder type; see @ref idfxx::image::decoder. When it is
+ *                 an @ref idfxx::image::scaling_decoder, the image is decoded at
+ *                 a reduced scale. It has not been decoded yet.
+ * @tparam S The sink type; see @ref idfxx::image::sink.
+ * @param decoder The decoder, which the render uses up.
+ * @param out The destination for the output rows, as for @ref renderer::push.
+ * @param where Where and how to place the picture.
+ * @param config The screen, and the limits of rendering on it.
+ *
+ * @note During a long operation, lower-priority tasks get to run, so this must not
+ *       be called where blocking is not allowed (from an ISR or critical section).
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+ * @throws std::system_error with idfxx::errc::invalid_arg if the image, the
+ *         screen or the target is empty, `x_alignment` is zero, the crop is empty or
+ *         outside the displayed image, or the visible part of the target is not aligned
+ *         and @ref placement::fill_to_alignment is false; idfxx::errc::invalid_size if
+ *         the image as it will be decoded is over 65535 pixels a side or 100 megapixels,
+ *         or needs more working memory than a `size_t` can count;
+ *         idfxx::image::errc::too_large if it needs more working memory than
+ *         @ref render_config::memory_limit; the decoder's error; or the error returned
+ *         by @p out.
+ *
+ * @code
+ * idfxx::memory_source src{jpeg_bytes};
+ * idfxx::jpeg::decoder dec(src);
+ *
+ * // Fit the photo into the left half of the screen, on a black background.
+ * idfxx::image::render(
+ *     dec,
+ *     write_rows,
+ *     {
+ *         .target = idfxx::image::rect{.x = 0, .y = 0, .width = 160, .height = 240},
+ *         .layout = idfxx::image::layout::fit,
+ *         .background = {0, 0, 0},
+ *     },
+ *     {.screen_width = 320, .screen_height = 240}
+ * );
+ * @endcode
+ */
+template<decoder Decoder, sink S>
+void render(Decoder& decoder, S&& out, const placement& where, const render_config& config) {
+    unwrap(try_render(decoder, std::forward<S>(out), where, config));
+}
+#endif
+
+/**
+ * @headerfile <idfxx/image>
+ * @brief Decodes an image and renders it through a sink.
+ *
+ * Reads the image's size and orientation from @p decoder. If the decoder can
+ * scale, the image is decoded no larger than needed to cover the output, which
+ * saves time and memory. A target fully off-screen returns at once, without
+ * decoding. Everything else behaves as for @ref renderer.
+ *
+ * @tparam Decoder The decoder type; see @ref idfxx::image::decoder. When it is
+ *                 an @ref idfxx::image::scaling_decoder, the image is decoded at
+ *                 a reduced scale. It has not been decoded yet.
+ * @tparam S The sink type; see @ref idfxx::image::sink.
+ * @param decoder The decoder, which the render uses up.
+ * @param out The destination for the output rows, as for @ref renderer::try_push.
+ * @param where Where and how to place the picture.
+ * @param config The screen, and the limits of rendering on it.
+ *
+ * @note During a long operation, lower-priority tasks get to run, so this must not
+ *       be called where blocking is not allowed (from an ISR or critical section).
+ * @return Success, or an error.
+ * @retval idfxx::errc::invalid_arg The image, the screen or the target is empty,
+ *         `x_alignment` is zero, the crop is empty or outside the displayed image, or
+ *         the visible part of the target is not aligned and
+ *         @ref placement::fill_to_alignment is false.
+ * @retval idfxx::errc::invalid_size The image as it will be decoded is over 65535
+ *         pixels a side or 100 megapixels, or needs more working memory than a `size_t`
+ *         can count.
+ * @retval idfxx::image::errc::too_large The image needs more working memory than
+ *         @ref render_config::memory_limit.
+ * @retval other The decoder's error, or the error returned by @p out, unchanged.
+ */
+template<decoder Decoder, sink S>
+[[nodiscard]] result<void> try_render(Decoder& decoder, S&& out, const placement& where, const render_config& config) {
+    auto r = renderer::make(decoder, where, config);
+    if (!r) {
+        return error(r.error());
+    }
+    if (r->empty()) {
+        return {};
+    }
+    return decoder.try_decode([&](point at, view<const rgb888> rows) -> result<void> {
+        return r->try_push(at, rows, out);
+    });
 }
 
 } // namespace idfxx::image

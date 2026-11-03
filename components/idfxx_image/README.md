@@ -1,6 +1,6 @@
 # idfxx_image
 
-Pixel image views, owning buffers, and EXIF orientation transforms.
+Pixel image views, owning buffers, EXIF orientation transforms, and placing images on a screen.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__image.html)**
 
@@ -29,8 +29,18 @@ Pixel image views, owning buffers, and EXIF orientation transforms.
 - `sink<S, P>`: the concept for a destination that receives pixels block by
   block from a producer such as an image decoder, and can stop it by
   returning an error
-- No failure modes: image operations are infallible given their documented
-  preconditions
+- `renderer`: places an image on a screen in bounded memory, row by row:
+  turned to its displayed orientation, cropped, resampled to a target
+  rectangle (`cover`, `fit` or `stretch`), clipped to the screen, and aligned
+  for destinations that need it
+- `render(decoder, out, placement, config)`: decodes through a renderer, at
+  the smallest decode scale that covers the output, with any
+  `idfxx::image::decoder`
+- Four resampling filters (`box`, `bilinear`, `bicubic`, `lanczos3`), computed
+  in fixed point with the same output on every target
+- No failure modes in images, views and orientations: their operations are
+  infallible given their documented preconditions; rendering returns or throws
+  errors
 
 ## Requirements
 
@@ -118,6 +128,61 @@ auto to_screen = [&](idfxx::image::point at, idfxx::image::view<const idfxx::ima
 static_assert(idfxx::image::sink<decltype(to_screen)>);
 ```
 
+### Placing an image on a screen
+
+`render` decodes an image and delivers the rows of the placed picture to a
+sink: top to bottom, at their position on the screen, each the full width of
+the output. It works with any `idfxx::image::decoder`, not only JPEG.
+
+```cpp
+#include <idfxx/image>
+#include <idfxx/jpeg>
+
+namespace image = idfxx::image;
+
+auto to_panel = [&](image::point at, image::view<const image::rgb888> rows) -> idfxx::result<void> {
+    return write_rows(at, rows);        // your own display code
+};
+
+idfxx::memory_source src{jpeg_bytes};
+idfxx::jpeg::decoder dec(src);
+
+// Fill a 320x240 screen, upright according to the photo's EXIF orientation.
+image::render(dec, to_panel, {}, {.screen_width = 320, .screen_height = 240});
+```
+
+With the result-based API, and a rectangle, a layout and a crop:
+
+```cpp
+idfxx::jpeg::decoder dec2 = /* ... */;
+
+const image::placement where{
+    .target = image::rect{.x = 160, .y = 0, .width = 160, .height = 240},
+    .layout = image::layout::fit,
+    .orientation = image::orientation::rotate_90,     // on top of the EXIF orientation
+    .crop = image::rect{.x = 100, .y = 100, .width = 800, .height = 600},
+    .background = {0, 0, 0},
+    .filter = image::filter::bicubic,
+};
+const image::render_config config{
+    .screen_width = 320,
+    .screen_height = 240,
+    .memory_limit = 512 * 1024,
+};
+if (auto r = image::try_render(dec2, to_panel, where, config); !r) {
+    // ...
+}
+```
+
+Or feed a `renderer` yourself, with source rows from anywhere:
+
+```cpp
+image::renderer r(width, height, image::orientation::identity, where, config);
+for (size_t y = 0; y < height; ++y) {
+    r.push({0, y}, next_source_row(), to_panel);
+}
+```
+
 ## API Overview
 
 | Item | Description |
@@ -141,15 +206,27 @@ static_assert(idfxx::image::sink<decltype(to_screen)>);
 | `orient(src, dst, o)` | Copy `src` into `dst` with `o` applied. |
 | `oriented(src, o[, alloc])` | A new `buffer` holding `src` with `o` applied; allocated like `src` when it is a buffer, unless `alloc` is given. |
 | `sink<S, P = rgb888>` | Concept: `S&` is callable as `(point, view<const P>)` returning `idfxx::result<void>`. |
+| `rect` | A rectangle with a signed origin, so it can overhang: `x`, `y`, `width`, `height`. |
 | `size` | A `width` and a `height`. |
 | `oriented_size(o, w, h)` | The size of a `w` x `h` image with `o` applied. |
+| `filter` | `box`, `bilinear`, `bicubic`, `lanczos3`. |
+| `layout` | `cover` fills the target and crops the excess, `fit` fits inside it on the background, `stretch` scales each axis to it. |
+| `placement` | Where and how: `target` (default the whole screen), `layout`, `orientation`, `crop`, `background`, `filter`, `fill_to_alignment`. |
+| `render_config` | `screen_width` and `screen_height` (required), `x_alignment`, `memory_limit`. |
+| `renderer(w, h, source_orientation, placement, config)` / `renderer::make(...)` | A renderer for an image of `w` x `h`. |
+| `output()` / `empty()` | The rectangle of rows delivered, in screen coordinates; whether it has none. |
+| `push(at, rows, out)` / `try_push(at, rows, out)` | Takes the next source rows, and delivers the output rows they complete to the sink `out`. |
+| `decoder`, `scaling_decoder` | Concepts for what `render` and `renderer` read from a decoder; a `scaling_decoder` also decodes at a reduced scale. |
+| `render(decoder, out, placement, config)` / `try_render(...)` | Decodes through a renderer, at the decode scale the output needs. |
+| `renderer(decoder, placement, config)` / `renderer::make(decoder, ...)` | A renderer for a decoder's image, at the decode scale the output needs, for a destination that has to know `output()` before the first row. |
 
 ## Error Handling
 
-The image operations have no failure modes and no error codes: there are no
-`try_*` variants, and the only `result` type is the one a `sink` returns to
-the producer feeding it. Instead, functions have documented preconditions that
-the caller is responsible for meeting, and which are not checked at run time:
+Images, views and orientations have no failure modes and no error codes:
+there are no `try_*` variants for them, and the only `result` type they involve
+is the one a `sink` returns to the producer feeding it. Instead, their
+functions have documented preconditions that the caller is responsible for
+meeting, and which are not checked at run time:
 
 - Pixel coordinates and rows must be within the image (`x < width()`,
   `y < height()`), except for `set_pixel`, which ignores writes outside it, and
@@ -162,6 +239,19 @@ the caller is responsible for meeting, and which are not checked at run time:
 Memory allocation is the allocator's responsibility: with the default
 `std::allocator`, constructing a buffer that cannot be allocated throws
 `std::bad_alloc` (or aborts when exceptions are disabled).
+
+Rendering has both API styles. It uses these error codes:
+
+| Error | Meaning |
+| ----- | ------- |
+| `idfxx::errc::invalid_arg` | At creation: an empty image, screen or target, a zero `x_alignment`, a crop that is empty or outside the displayed image, or an unaligned output without `fill_to_alignment`. |
+| `idfxx::errc::invalid_size` | At creation: an image over 65535 pixels a side or 100 megapixels, or needing more working memory than a `size_t` can count. When pushing: rows of the wrong width. |
+| `idfxx::image::errc::too_large` | At creation: more working memory than `memory_limit`. |
+| `idfxx::errc::invalid_state` | When pushing: rows out of sequence or past the end of the image, or after a sink failed. |
+
+An error from the sink or the decoder is returned unchanged. Running out of
+memory throws `std::bad_alloc`, or aborts when exceptions are disabled; set
+`memory_limit` to get `image::errc::too_large` instead.
 
 ## Important Notes
 
@@ -187,6 +277,25 @@ Memory allocation is the allocator's responsibility: with the default
   allocator (a PSRAM image stays in PSRAM), or with `std::allocator` when the
   source is a view. Pass an allocator explicitly to choose otherwise, e.g.
   `oriented(view, o, idfxx::spiram_allocator<idfxx::image::rgb888>())`.
+- The renderer needs no frame when the source's orientation composed with the
+  placement's is `identity` or `flip_horizontal`. Its memory then grows with
+  the output width and the filter's reach: about 106 KB for 4000x3000 onto
+  1200x1600 with `lanczos3`, 41 KB with `bilinear`. Any other orientation also
+  holds one frame of the output at 3 bytes a pixel (5.76 MB at 1200x1600),
+  allocated with `malloc`, and delivers its rows after the last source row. The
+  image itself is never held.
+- A target and its alignment are in the coordinates of the screen, and a crop
+  in those of the full-size image with both orientations applied, also when it
+  is decoded at a reduced scale.
+- Every clipped pixel is the same as in the whole picture, but the output is
+  only the same across orientations where the arithmetic is: the resampler
+  works in the stored orientation, and its passes round in turn, so a picture
+  and the same picture stored rotated can differ by rounding.
+- `render` uses up the decoder: a decoder decodes once.
+- Pushing and `render` give way to lower-priority tasks about every half second
+  of a long operation, including while a slow sink runs, so that the idle task
+  the task watchdog looks after can run. Don't call them from an ISR or critical
+  section.
 
 ## License
 
