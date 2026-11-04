@@ -50,7 +50,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # git push uses the credentials checkout persists, not GH_TOKEN, and
           # a push that touches .github/workflows is refused unless the token
