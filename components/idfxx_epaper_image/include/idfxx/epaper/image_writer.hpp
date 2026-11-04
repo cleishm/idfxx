@@ -113,6 +113,9 @@ struct ink {
      * (0 is white and 3 is black), and the bit in a `mono_framebuffer`'s bytes on
      * a monochrome panel (1 is white). With @ref nominal or @ref measured, it is
      * what's needed to draw a framebuffer's bytes elsewhere, such as in a browser.
+     *
+     * It isn't the code in a `write_inks` frame on a gray panel: those codes run
+     * from 0 the darkest to 3 the lightest, the reverse of `gray4` values.
      */
     uint8_t value;
     image::rgb888 nominal;  ///< The ink's ideal color.

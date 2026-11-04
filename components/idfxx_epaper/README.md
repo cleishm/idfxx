@@ -35,6 +35,9 @@ Abstract ePaper panel interface, framebuffers, and shared types.
 - All framebuffers satisfy the `idfxx::gfx::pixel_surface` concept, so the
   `idfxx_gfx` drawing primitives (rectangles, lines, text) work on them
   directly.
+- `write_inks` puts a frame of panel inks, converted elsewhere and read from
+  any `idfxx::byte_source`, on a panel or in a framebuffer: a band of rows at a
+  time, checking its length and six-color values on the way.
 
 ## Requirements
 
@@ -189,6 +192,89 @@ display.write(fb);
 display.refresh();
 ```
 
+### Writing a frame of inks from a byte source
+
+A phone or browser can convert a picture to a panel's inks and push the result
+to the device, which only has to check it and put it on the panel:
+
+```cpp
+#include <idfxx/epaper/ink_writer>
+
+void show_frame(idfxx::epaper::panel& display, idfxx::byte_source auto& connection) {
+    display.set_color_mode(idfxx::epaper::color_mode::color6);
+    idfxx::epaper::write_inks(display, connection); // the whole panel
+    display.refresh();
+}
+```
+
+The same flow with the result-based API:
+
+```cpp
+idfxx::result<void> show_frame(idfxx::epaper::panel& display, idfxx::byte_source auto& connection) {
+    if (auto r = display.try_set_color_mode(idfxx::epaper::color_mode::color6); !r) {
+        return r;
+    }
+    if (auto r = idfxx::epaper::try_write_inks(display, connection); !r) {
+        return r;
+    }
+    return display.try_refresh();
+}
+```
+
+A frame is rows from top to bottom with no header, each row padded to a whole
+byte. The panel's `color_mode()`, or the framebuffer's type, picks the format,
+where `w` is the width of the rectangle being written:
+
+| Mode     | Bits per pixel | Order             | Pixel values                      | Bytes in a row |
+| -------- | -------------- | ----------------- | --------------------------------- | -------------- |
+| `color6` | 4              | high nibble first | `color6` values: 0, 1, 2, 3, 5, 6 | `(w + 1) / 2`  |
+| `gray4`  | 2              | high bits first   | 0 is darkest, 3 is lightest (the reverse of `gray4` values) | `(w + 3) / 4`  |
+| `mono`   | 1              | high bit first    | 1 is white, 0 is black            | `(w + 7) / 8`  |
+
+The `cleishm/epaper-image` library's `epi_pack_row` produces these rows.
+
+`ink_options` puts a frame on part of the destination. Without a `width` or
+`height`, it reaches the destination's edge:
+
+```cpp
+// A 400x300 frame at (80, 40).
+idfxx::epaper::write_inks(display, connection, {.x = 80, .y = 40, .width = 400, .height = 300});
+```
+
+To verify a frame, wrap the source in a `byte_source` of your own that computes
+a CRC as the bytes pass, and compare it before refreshing:
+
+```cpp
+#include <esp_rom_crc.h>
+
+template<idfxx::byte_source Source>
+class crc_source {
+public:
+    explicit crc_source(Source& source) : _source(source) {}
+
+    idfxx::result<size_t> try_read(std::span<uint8_t> buf) {
+        auto n = _source.try_read(buf);
+        if (n) {
+            _crc = esp_rom_crc32_le(_crc, buf.data(), *n);
+        }
+        return n;
+    }
+
+    uint32_t crc() const noexcept { return _crc; }
+
+private:
+    Source& _source;
+    uint32_t _crc = 0;
+};
+
+crc_source checked(connection);
+idfxx::epaper::write_inks(display, checked);
+// The bytes after the frame are still unread, so the CRC can follow it.
+if (checked.crc() == read_expected_crc(connection)) {
+    display.refresh();
+}
+```
+
 ## API Overview
 
 ### `idfxx::epaper::panel` (abstract)
@@ -250,6 +336,17 @@ constant, and raw data access (`data()` / `row(y)` on mono and color6,
 writable, e.g. to load a saved frame in one copy). Upload them with the
 panel's `write` / `write_rows`.
 
+### Writing inks from a byte source
+
+`write_inks(destination, source, options = {})` and
+`try_write_inks(destination, source, options = {})` read a frame of inks from
+any `idfxx::byte_source` and write it to a `panel`, `mono_framebuffer`,
+`gray4_framebuffer`, or `color6_framebuffer`. `ink_options` has the rectangle
+to fill (`x`, `y`, and optional `width` and `height`) and `band_rows`, the rows
+read at a time: more mean fewer panel writes and more memory.
+
+See `examples/inks_ee05` for a four-gray frame shown on the XIAO EE05.
+
 ### Types
 
 - `refresh_mode` — `full`, `fast`, `partial`.
@@ -276,6 +373,23 @@ The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
   a color mode the concrete driver doesn't support (`supports` returns
   false), or another capability it lacks.
 - `errc::timeout` — the panel's BUSY line did not release in time.
+
+`write_inks` checks everything it can before reading any byte from the source:
+
+- `errc::invalid_state` — the panel is asleep.
+- `errc::invalid_arg` — `band_rows` is zero, the rectangle's size is zero, or the
+  rectangle goes past the destination's edge: a frame has a fixed number of
+  bytes, so it is never clipped. Also a left edge that isn't a multiple of the
+  mode's `x_alignment`, or a right edge that isn't one unless it is the
+  destination's own, on a framebuffer too, because the input is packed.
+
+And while reading:
+
+- `errc::invalid_size` — the stream ended before the frame did.
+- `errc::invalid_arg` — a nibble in a `color6` frame isn't a `color6` value,
+  including a row's padding nibble. Nothing of that band is written.
+- Any error from the source or the panel stops the frame and is returned
+  unchanged.
 
 Using a moved-from driver object is undefined behavior.
 
@@ -328,6 +442,26 @@ Using a moved-from driver object is undefined behavior.
   offset, or narrower than its surface) has no whole-surface clear to call
   and fills with the value-initialized pixel, inking the window black. Use
   `canvas.fill(color6::white)` there.
+- **`write_inks` can only check so much.** A `color6` frame has invalid values,
+  but in 1 bpp and 2 bpp frames every value is a valid ink, so they can only be
+  length-checked: corruption isn't visible. Verify a frame with a CRC if it
+  matters (see Usage).
+- **A frame for other glass can't be detected.** One made for a different panel of
+  the same size and mode is accepted. Checking which panel a frame is for is the
+  application's job, for instance on connecting.
+- **`write_inks` stops at the end of the frame.** Bytes after it aren't read or
+  checked, and the end of the stream isn't looked for, so an open connection
+  doesn't block and a CRC can follow the frame.
+- **After a failed `write_inks`, write the frame again before refreshing.** Earlier
+  bands stay in the panel's memory, and after a panel error so may part of the
+  band being written. The glass doesn't change until a refresh, but any later
+  refresh shows them. The partial-refresh baseline isn't affected: it remains what
+  is on the glass, so a partial refresh after the frame has been written again is
+  correct. Writing the frame to a framebuffer first, and only then the framebuffer
+  to the panel, gives all-or-nothing at the cost of a frame's memory.
+- **A row's padding is always written as white,** whatever arrives, so a frame
+  can't break a framebuffer's padding. A `color6` padding nibble must still be a
+  valid value.
 - Drivers keep an internal shadow copy of the last-written frame to
   maintain the controller's previous-image plane for partial refreshes —
   budget roughly one frame of heap per panel (see each driver's README for
