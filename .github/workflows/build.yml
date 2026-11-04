@@ -78,7 +78,7 @@ jobs:
     container: espressif/idf:v6.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install ESP-IDF tools
         run: |
@@ -112,7 +112,7 @@ jobs:
     name: build (${{ matrix.target }}, ${{ matrix.config.name }})
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build
         run: |
@@ -133,7 +133,7 @@ jobs:
     name: build (canary-release-v6.1)
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build
         run: |
@@ -149,7 +149,7 @@ jobs:
     name: build (compat-v5.5)
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build
         run: |
@@ -167,7 +167,7 @@ jobs:
       matrix: ${{ steps.find.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Find examples
         id: find
@@ -194,7 +194,7 @@ jobs:
     name: example (${{ matrix.component }}/${{ matrix.example }})
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build
         run: |
@@ -210,7 +210,7 @@ jobs:
     container: espressif/idf:v6.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify QEMU Installation
         run: |
@@ -285,7 +285,7 @@ jobs:
 
       - name: Upload QEMU Output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qemu-test-output
           path: qemu_output.log
@@ -327,7 +327,7 @@ jobs:
 
       - name: Record the tree as tested
         if: github.event_name == 'pull_request' && needs.tested.outputs.tree != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tested-tree-${{ needs.tested.outputs.tree }}
           path: tested-tree
