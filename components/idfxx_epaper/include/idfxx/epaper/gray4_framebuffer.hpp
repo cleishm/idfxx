@@ -79,7 +79,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
      */
-    [[nodiscard]] gray4_framebuffer(size_t width, size_t height)
+    [[nodiscard]] explicit gray4_framebuffer(size_t width, size_t height)
         : gray4_framebuffer(unwrap(make(width, height))) {}
 #endif
 

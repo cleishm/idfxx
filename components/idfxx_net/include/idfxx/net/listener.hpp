@@ -108,7 +108,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(const endpoint& bind_addr);
+    [[nodiscard]] explicit listener(const endpoint& bind_addr);
 
     /**
      * @brief Creates and listens on a TCP listener with the given configuration.
@@ -121,7 +121,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(const endpoint& bind_addr, const config& cfg);
+    [[nodiscard]] explicit listener(const endpoint& bind_addr, const config& cfg);
 
     /**
      * @brief Creates a TCP listener bound to all local interfaces on the given port.
@@ -137,7 +137,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(port_number port);
+    [[nodiscard]] explicit listener(port_number port);
 
     /**
      * @brief Creates a TCP listener bound to all local interfaces on the given port.
@@ -151,7 +151,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(port_number port, const config& cfg);
+    [[nodiscard]] explicit listener(port_number port, const config& cfg);
 #endif
 
     /**

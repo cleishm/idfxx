@@ -10,6 +10,6 @@ dependencies:
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_partition:
-    version: "^1.0.0"
+    version: "^2.0.0"
     public: true
     override_path: ../idfxx_partition

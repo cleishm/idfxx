@@ -91,7 +91,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit raw_socket(ip_protocol protocol);
+    [[nodiscard]] explicit raw_socket(ip_protocol protocol);
 #endif
 
     /**
@@ -112,7 +112,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    raw_socket(ip_protocol protocol, address_family fam);
+    [[nodiscard]] explicit raw_socket(ip_protocol protocol, address_family fam);
 #endif
 
     /**
@@ -133,7 +133,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit raw_socket(const config& cfg);
+    [[nodiscard]] explicit raw_socket(const config& cfg);
 #endif
 
     /**

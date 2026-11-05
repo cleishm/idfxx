@@ -734,7 +734,7 @@ public:
      * @throws std::system_error with idfxx::errc::invalid_arg if the range
      *         extends past the end of the partition.
      */
-    [[nodiscard]] partition_source(const partition& part, size_t offset, size_t length)
+    [[nodiscard]] explicit partition_source(const partition& part, size_t offset, size_t length)
         : partition_source(unwrap(make(part, offset, length))) {}
 #endif
 

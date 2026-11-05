@@ -108,7 +108,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit stream_channel(address_family fam);
+    [[nodiscard]] explicit stream_channel(address_family fam);
 #endif
 
     /**

@@ -69,7 +69,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
      */
-    [[nodiscard]] rgb565_framebuffer(size_t width, size_t height)
+    [[nodiscard]] explicit rgb565_framebuffer(size_t width, size_t height)
         : rgb565_framebuffer(unwrap(make(width, height))) {}
 #endif
 

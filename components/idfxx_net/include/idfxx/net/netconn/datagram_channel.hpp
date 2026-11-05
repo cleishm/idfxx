@@ -85,7 +85,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit datagram_channel(address_family fam, udp_variant variant = udp_variant::standard);
+    [[nodiscard]] explicit datagram_channel(address_family fam, udp_variant variant = udp_variant::standard);
 #endif
 
     /**

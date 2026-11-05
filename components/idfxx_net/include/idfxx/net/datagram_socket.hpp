@@ -121,7 +121,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit datagram_socket(address_family fam);
+    [[nodiscard]] explicit datagram_socket(address_family fam);
 #endif
 
     /**
@@ -141,7 +141,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit datagram_socket(const config& cfg);
+    [[nodiscard]] explicit datagram_socket(const config& cfg);
 #endif
 
     /**
