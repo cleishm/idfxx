@@ -886,3 +886,37 @@ TEST_CASE("epaper panel restore_baseline failure invalidates the baseline", "[id
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
 }
+
+// =============================================================================
+// to_string / formatter tests
+// =============================================================================
+
+TEST_CASE("refresh_mode to_string and formatter", "[idfxx][epaper]") {
+    TEST_ASSERT_EQUAL_STRING("full", idfxx::to_string(refresh_mode::full).c_str());
+    TEST_ASSERT_EQUAL_STRING("partial", idfxx::to_string(refresh_mode::partial).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<refresh_mode>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", refresh_mode::fast);
+    TEST_ASSERT_EQUAL_STRING("fast", s.c_str());
+#endif
+}
+
+TEST_CASE("color_mode to_string and formatter", "[idfxx][epaper]") {
+    TEST_ASSERT_EQUAL_STRING("mono", idfxx::to_string(color_mode::mono).c_str());
+    TEST_ASSERT_EQUAL_STRING("color6", idfxx::to_string(color_mode::color6).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<color_mode>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", color_mode::gray4);
+    TEST_ASSERT_EQUAL_STRING("gray4", s.c_str());
+#endif
+}
+
+TEST_CASE("border to_string and formatter", "[idfxx][epaper]") {
+    TEST_ASSERT_EQUAL_STRING("white", idfxx::to_string(border::white).c_str());
+    TEST_ASSERT_EQUAL_STRING("hold", idfxx::to_string(border::hold).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<border>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", border::black);
+    TEST_ASSERT_EQUAL_STRING("black", s.c_str());
+#endif
+}

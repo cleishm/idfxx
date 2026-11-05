@@ -741,3 +741,17 @@ TEST_CASE("gfx draw_text renders color ink on an rgb565 surface", "[idfxx][gfx]"
     }
     TEST_ASSERT_TRUE(inked > 0); // 'A' has ink
 }
+
+// =============================================================================
+// to_string / formatter tests
+// =============================================================================
+
+TEST_CASE("rotation to_string and formatter", "[idfxx][gfx]") {
+    TEST_ASSERT_EQUAL_STRING("cw90", idfxx::to_string(rotation::cw90).c_str());
+    TEST_ASSERT_EQUAL_STRING("ccw90", idfxx::to_string(rotation::ccw90).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<rotation>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", rotation::cw90);
+    TEST_ASSERT_EQUAL_STRING("cw90", s.c_str());
+#endif
+}

@@ -10,12 +10,16 @@
  * @ingroup idfxx_radio
  */
 
+#include "sdkconfig.h"
+
 #include <idfxx/required>
 
 #include <chrono>
 #include <cstdint>
 #include <quanta/decibel>
 #include <quanta/frequency>
+#include <string>
+#include <utility>
 
 /**
  * @headerfile <idfxx/radio/types>
@@ -246,3 +250,50 @@ struct packet_status {
 };
 
 } // namespace idfxx::radio
+
+namespace idfxx {
+
+/**
+ * @headerfile <idfxx/radio/types>
+ * @brief Returns a string representation of a radio operating mode.
+ *
+ * @param m The chip mode to convert.
+ * @return The enumerator name (e.g. "stdby"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(radio::chip_mode m) {
+    switch (m) {
+    case radio::chip_mode::sleep:
+        return "sleep";
+    case radio::chip_mode::stdby:
+        return "stdby";
+    case radio::chip_mode::tx:
+        return "tx";
+    case radio::chip_mode::rx:
+        return "rx";
+    case radio::chip_mode::cad:
+        return "cad";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(m)) + ')';
+    }
+}
+
+} // namespace idfxx
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <algorithm>
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::radio::chip_mode> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::radio::chip_mode v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT

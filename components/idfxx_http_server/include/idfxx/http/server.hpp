@@ -1704,11 +1704,171 @@ private:
 
 } // namespace idfxx::http
 
+namespace idfxx {
+
+/**
+ * @headerfile <idfxx/http/server>
+ * @brief Returns a string representation of an HTTP status code.
+ *
+ * @param c The status code to convert.
+ * @return The status number and standard reason phrase for a listed code (e.g. "404 Not Found"),
+ *         or just the number (e.g. "599") for any other value.
+ */
+[[nodiscard]] inline std::string to_string(http::status_code c) {
+    switch (c) {
+    case http::status_code::continue_:
+        return "100 Continue";
+    case http::status_code::switching_protocols:
+        return "101 Switching Protocols";
+    case http::status_code::processing:
+        return "102 Processing";
+    case http::status_code::early_hints:
+        return "103 Early Hints";
+    case http::status_code::ok:
+        return "200 OK";
+    case http::status_code::created:
+        return "201 Created";
+    case http::status_code::accepted:
+        return "202 Accepted";
+    case http::status_code::non_authoritative_information:
+        return "203 Non-Authoritative Information";
+    case http::status_code::no_content:
+        return "204 No Content";
+    case http::status_code::reset_content:
+        return "205 Reset Content";
+    case http::status_code::partial_content:
+        return "206 Partial Content";
+    case http::status_code::multi_status:
+        return "207 Multi-Status";
+    case http::status_code::already_reported:
+        return "208 Already Reported";
+    case http::status_code::im_used:
+        return "226 IM Used";
+    case http::status_code::multiple_choices:
+        return "300 Multiple Choices";
+    case http::status_code::moved_permanently:
+        return "301 Moved Permanently";
+    case http::status_code::found:
+        return "302 Found";
+    case http::status_code::see_other:
+        return "303 See Other";
+    case http::status_code::not_modified:
+        return "304 Not Modified";
+    case http::status_code::use_proxy:
+        return "305 Use Proxy";
+    case http::status_code::temporary_redirect:
+        return "307 Temporary Redirect";
+    case http::status_code::permanent_redirect:
+        return "308 Permanent Redirect";
+    case http::status_code::bad_request:
+        return "400 Bad Request";
+    case http::status_code::unauthorized:
+        return "401 Unauthorized";
+    case http::status_code::payment_required:
+        return "402 Payment Required";
+    case http::status_code::forbidden:
+        return "403 Forbidden";
+    case http::status_code::not_found:
+        return "404 Not Found";
+    case http::status_code::method_not_allowed:
+        return "405 Method Not Allowed";
+    case http::status_code::not_acceptable:
+        return "406 Not Acceptable";
+    case http::status_code::proxy_authentication_required:
+        return "407 Proxy Authentication Required";
+    case http::status_code::request_timeout:
+        return "408 Request Timeout";
+    case http::status_code::conflict:
+        return "409 Conflict";
+    case http::status_code::gone:
+        return "410 Gone";
+    case http::status_code::length_required:
+        return "411 Length Required";
+    case http::status_code::precondition_failed:
+        return "412 Precondition Failed";
+    case http::status_code::content_too_large:
+        return "413 Content Too Large";
+    case http::status_code::uri_too_long:
+        return "414 URI Too Long";
+    case http::status_code::unsupported_media_type:
+        return "415 Unsupported Media Type";
+    case http::status_code::range_not_satisfiable:
+        return "416 Range Not Satisfiable";
+    case http::status_code::expectation_failed:
+        return "417 Expectation Failed";
+    case http::status_code::misdirected_request:
+        return "421 Misdirected Request";
+    case http::status_code::unprocessable_content:
+        return "422 Unprocessable Content";
+    case http::status_code::locked:
+        return "423 Locked";
+    case http::status_code::failed_dependency:
+        return "424 Failed Dependency";
+    case http::status_code::too_early:
+        return "425 Too Early";
+    case http::status_code::upgrade_required:
+        return "426 Upgrade Required";
+    case http::status_code::precondition_required:
+        return "428 Precondition Required";
+    case http::status_code::too_many_requests:
+        return "429 Too Many Requests";
+    case http::status_code::request_header_fields_too_large:
+        return "431 Request Header Fields Too Large";
+    case http::status_code::unavailable_for_legal_reasons:
+        return "451 Unavailable For Legal Reasons";
+    case http::status_code::internal_server_error:
+        return "500 Internal Server Error";
+    case http::status_code::not_implemented:
+        return "501 Not Implemented";
+    case http::status_code::bad_gateway:
+        return "502 Bad Gateway";
+    case http::status_code::service_unavailable:
+        return "503 Service Unavailable";
+    case http::status_code::gateway_timeout:
+        return "504 Gateway Timeout";
+    case http::status_code::http_version_not_supported:
+        return "505 HTTP Version Not Supported";
+    case http::status_code::variant_also_negotiates:
+        return "506 Variant Also Negotiates";
+    case http::status_code::insufficient_storage:
+        return "507 Insufficient Storage";
+    case http::status_code::loop_detected:
+        return "508 Loop Detected";
+    case http::status_code::not_extended:
+        return "510 Not Extended";
+    case http::status_code::network_authentication_required:
+        return "511 Network Authentication Required";
+    default:
+        return std::to_string(std::to_underlying(c));
+    }
+}
+
+} // namespace idfxx
+
 /** @cond INTERNAL */
 namespace std {
 template<>
 struct is_error_code_enum<idfxx::http::server::errc> : true_type {};
 } // namespace std
 /** @endcond */
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <algorithm>
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::http::status_code> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::http::status_code v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT
 
 /** @} */ // end of idfxx_http_server

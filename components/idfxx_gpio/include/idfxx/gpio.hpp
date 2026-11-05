@@ -1068,6 +1068,32 @@ inline constexpr gpio gpio_48 = gpio_constant<48>::value;
 
 /**
  * @headerfile <idfxx/gpio>
+ * @brief Returns a string representation of a GPIO direction mode.
+ *
+ * @param m The GPIO mode to convert.
+ * @return The enumerator name (e.g. "input_output_od"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(gpio::mode m) {
+    switch (m) {
+    case gpio::mode::disable:
+        return "disable";
+    case gpio::mode::input:
+        return "input";
+    case gpio::mode::output:
+        return "output";
+    case gpio::mode::output_od:
+        return "output_od";
+    case gpio::mode::input_output_od:
+        return "input_output_od";
+    case gpio::mode::input_output:
+        return "input_output";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(m)) + ')';
+    }
+}
+
+/**
+ * @headerfile <idfxx/gpio>
  * @brief Inverts a GPIO level.
  *
  * @param l The level to invert.
@@ -1103,6 +1129,16 @@ struct formatter<idfxx::gpio::level> {
     template<typename FormatContext>
     auto format(idfxx::gpio::level l, FormatContext& ctx) const {
         auto s = to_string(l);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::gpio::mode> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::gpio::mode m, FormatContext& ctx) const {
+        auto s = to_string(m);
         return std::copy(s.begin(), s.end(), ctx.out());
     }
 };

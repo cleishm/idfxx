@@ -533,6 +533,21 @@ TEST_CASE("to_string(gpio) outputs GPIO_N for valid pins", "[idfxx][gpio]") {
 }
 
 // =============================================================================
+// to_string tests
+// =============================================================================
+
+TEST_CASE("gpio mode to_string and formatter", "[idfxx][gpio]") {
+    TEST_ASSERT_EQUAL_STRING("disable", idfxx::to_string(gpio::mode::disable).c_str());
+    TEST_ASSERT_EQUAL_STRING("input", idfxx::to_string(gpio::mode::input).c_str());
+    TEST_ASSERT_EQUAL_STRING("input_output_od", idfxx::to_string(gpio::mode::input_output_od).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<gpio::mode>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", gpio::mode::output_od);
+    TEST_ASSERT_EQUAL_STRING("output_od", s.c_str());
+#endif
+}
+
+// =============================================================================
 // Formatter tests
 // =============================================================================
 

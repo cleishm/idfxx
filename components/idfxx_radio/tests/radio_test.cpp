@@ -255,3 +255,18 @@ TEST_CASE("rx_duty_cycle_for matches RadioLib reference windows", "[idfxx][radio
     // continuous receive.
     TEST_ASSERT_FALSE(rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, 16).has_value());
 }
+
+// =============================================================================
+// to_string / formatter tests
+// =============================================================================
+
+TEST_CASE("chip_mode to_string and formatter", "[idfxx][radio]") {
+    TEST_ASSERT_EQUAL_STRING("sleep", idfxx::to_string(chip_mode::sleep).c_str());
+    TEST_ASSERT_EQUAL_STRING("stdby", idfxx::to_string(chip_mode::stdby).c_str());
+    TEST_ASSERT_EQUAL_STRING("cad", idfxx::to_string(chip_mode::cad).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<chip_mode>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", chip_mode::rx);
+    TEST_ASSERT_EQUAL_STRING("rx", s.c_str());
+#endif
+}

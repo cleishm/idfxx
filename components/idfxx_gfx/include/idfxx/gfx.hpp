@@ -46,6 +46,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -949,3 +950,44 @@ template<pixel_surface Surface, typename Dest, typename DrawFn>
 /** @} */ // end of idfxx_gfx
 
 } // namespace idfxx::gfx
+
+namespace idfxx {
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Returns a string representation of a mounting rotation.
+ *
+ * @param r The rotation to convert.
+ * @return The enumerator name (e.g. "cw90"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(gfx::rotation r) {
+    switch (r) {
+    case gfx::rotation::cw90:
+        return "cw90";
+    case gfx::rotation::ccw90:
+        return "ccw90";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(r)) + ')';
+    }
+}
+
+} // namespace idfxx
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <algorithm>
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::gfx::rotation> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::gfx::rotation v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT
