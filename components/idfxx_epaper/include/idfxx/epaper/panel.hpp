@@ -1174,7 +1174,7 @@ protected:
     }
 
     /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
-    /// awake, @p mode is one @ref do_supports(refresh_mode) accepts in the
+    /// awake, @p mode is one @ref do_supports(refresh_mode) const accepts in the
     /// current color mode, and a `partial` request has already been
     /// promoted to `full` when no baseline exists.
     ///

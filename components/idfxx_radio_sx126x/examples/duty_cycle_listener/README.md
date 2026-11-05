@@ -89,5 +89,5 @@ windows it uses. Any packets it hears are logged with their RSSI and SNR.
 
 To see packets arrive, run this example on two boards with the same frequency; each logs the other's
 beacons. The long preamble on these beacons is what lets a duty-cycled listener catch them between
-sleeps. Packets with a short preamble, such as those from the [transmit_beacon](../transmit_beacon)
+sleeps. Packets with a short preamble, such as those from the [transmit_beacon](../transmit_beacon/README.md)
 example, will mostly be missed.

@@ -185,9 +185,9 @@ private:
     std::unique_ptr<state> _state;
 };
 
-/** @} */ // end of idfxx_dht
-
 } // namespace idfxx::dht
+
+/** @} */ // end of idfxx_dht
 
 namespace idfxx {
 

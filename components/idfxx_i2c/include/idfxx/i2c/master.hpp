@@ -1864,8 +1864,12 @@ public:
     /**
      * @brief Reads data from a register.
      *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
      * @param reg Register address (16-bit, MSB first).
      * @param buf Buffer for received data.
+     * @param timeout Maximum time to wait for the operation.
      *
      * @return Success, or an error.
      *
@@ -2160,9 +2164,9 @@ private:
     std::unique_ptr<std::move_only_function<bool() const>> _on_trans_done;
 };
 
-/** @} */ // end of idfxx_i2c
-
 } // namespace idfxx::i2c
+
+/** @} */ // end of idfxx_i2c
 
 namespace idfxx {
 

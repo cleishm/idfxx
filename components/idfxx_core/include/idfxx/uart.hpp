@@ -82,9 +82,9 @@ enum class uart_port : int {
     }
 }
 
-/** @} */ // end of idfxx_uart
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_uart
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

@@ -137,10 +137,10 @@ void unregister_shutdown_handler(void (*handler)());
  */
 result<void> try_unregister_shutdown_handler(void (*handler)());
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_core_system
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

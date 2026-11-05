@@ -947,8 +947,6 @@ template<pixel_surface Surface, typename Dest, typename DrawFn>
     return {};
 }
 
-/** @} */ // end of idfxx_gfx
-
 } // namespace idfxx::gfx
 
 namespace idfxx {
@@ -972,6 +970,8 @@ namespace idfxx {
 }
 
 } // namespace idfxx
+
+/** @} */ // end of idfxx_gfx
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

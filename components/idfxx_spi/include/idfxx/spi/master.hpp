@@ -5,7 +5,7 @@
 
 /**
  * @headerfile <idfxx/spi/master>
- * @file master
+ * @file master.hpp
  * @brief SPI master bus and device classes.
  *
  * @defgroup idfxx_spi SPI Component
@@ -890,9 +890,9 @@ private:
     std::unique_ptr<async_state> _async;
 };
 
-/** @} */ // end of idfxx_spi
-
 } // namespace idfxx::spi
+
+/** @} */ // end of idfxx_spi
 
 namespace idfxx {
 

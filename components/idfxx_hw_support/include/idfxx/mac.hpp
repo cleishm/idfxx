@@ -271,10 +271,10 @@ void set_interface_mac_address(const mac_address& addr, mac_type type);
  */
 [[nodiscard]] result<mac_address> try_derive_local_mac(const mac_address& universal_mac);
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_hw_support_mac
 /** @} */ // end of idfxx_hw_support
-
-} // namespace idfxx
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

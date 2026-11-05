@@ -849,6 +849,6 @@ private:
     QueueHandle_t _handle = nullptr;
 };
 
-/** @} */ // end of idfxx_queue
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_queue

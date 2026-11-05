@@ -1318,6 +1318,6 @@ private:
     context* _context = nullptr;
 };
 
-/** @} */ // end of idfxx_timer
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_timer

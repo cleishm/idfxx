@@ -13,9 +13,9 @@
  *
  * Two acquisition modes, one type per mode:
  *
- * - @ref input reads a single analog input on demand — the typical
+ * - @ref idfxx::adc::input "input" reads a single analog input on demand — the typical
  *   battery-voltage or sensor-divider case.
- * - @ref sampler converts one or more pins round-robin at a fixed rate in
+ * - @ref idfxx::adc::sampler "sampler" converts one or more pins round-robin at a fixed rate in
  *   the background, delivering results as parsed per-pin samples — the
  *   waveform-capture and signal-statistics case.
  *
@@ -599,7 +599,7 @@ public:
      *
      * Writes `out[i]` as the calibrated voltage of `in[i]`, preserving order and pin association.
      * Resolves each pin's calibration once per run of like-pinned samples, so converting a whole
-     * read is cheaper than calling @ref to_voltage(const sample&) per element.
+     * read is cheaper than calling @ref to_voltage(const sample&) const per element.
      *
      * @param in Samples previously produced by this sampler.
      * @param out Destination for the voltages; must be at least as large as `in`.
@@ -674,6 +674,6 @@ private:
     std::unique_ptr<state> _state;
 };
 
-/** @} */ // end of idfxx_adc
-
 } // namespace idfxx::adc
+
+/** @} */ // end of idfxx_adc

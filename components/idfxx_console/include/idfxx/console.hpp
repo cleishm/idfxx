@@ -622,6 +622,6 @@ inline constexpr repl::stdio_t repl::stdio{repl::_key{}};
 #endif
 /// @endcond
 
-/** @} */ // end of idfxx_console
-
 } // namespace idfxx::console
+
+/** @} */ // end of idfxx_console

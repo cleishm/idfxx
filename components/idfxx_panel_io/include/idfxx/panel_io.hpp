@@ -221,6 +221,6 @@ private:
     std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks
 };
 
-/** @} */ // end of idfxx_panel_io
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_panel_io

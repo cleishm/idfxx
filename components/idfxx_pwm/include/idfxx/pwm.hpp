@@ -1382,9 +1382,9 @@ inline void stop(enum channel ch, enum speed_mode mode, idfxx::gpio::level idle_
 }
 #endif
 
-/** @} */ // end of idfxx_pwm
-
 } // namespace idfxx::pwm
+
+/** @} */ // end of idfxx_pwm
 
 namespace idfxx {
 

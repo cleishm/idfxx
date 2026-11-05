@@ -82,7 +82,7 @@ namespace idfxx::app {
  */
 [[nodiscard]] std::string elf_sha256_hex();
 
+} // namespace idfxx::app
+
 /** @} */ // end of idfxx_core_app
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx::app

@@ -157,6 +157,6 @@ private:
     void* _context = nullptr;
 };
 
-/** @} */ // end of idfxx_button
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_button

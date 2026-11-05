@@ -104,7 +104,7 @@ public:
     result_type operator()() noexcept { return esp_random(); }
 };
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_core_random
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx

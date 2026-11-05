@@ -130,7 +130,7 @@ struct rtc_clock {
     }
 };
 
+} // namespace idfxx::chrono
+
 /** @} */ // end of idfxx_core_chrono
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx::chrono

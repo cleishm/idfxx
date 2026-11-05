@@ -1103,9 +1103,9 @@ inline constexpr gpio gpio_48 = gpio_constant<48>::value;
     return l == gpio::level::high ? gpio::level::low : gpio::level::high;
 }
 
-/** @} */ // end of idfxx_gpio
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_gpio
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

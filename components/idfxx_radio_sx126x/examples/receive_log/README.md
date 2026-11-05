@@ -76,5 +76,5 @@ idf.py -p PORT flash monitor
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
 The board listens continuously and logs each packet with its RSSI and SNR. To give it something to
-receive, run the [transmit_beacon](../transmit_beacon) example on a second board with the same
+receive, run the [transmit_beacon](../transmit_beacon/README.md) example on a second board with the same
 frequency.

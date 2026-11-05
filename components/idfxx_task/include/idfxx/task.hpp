@@ -799,9 +799,9 @@ private:
     return {std::to_underlying(e), task_category()};
 }
 
-/** @} */ // end of idfxx_task
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_task
 
 /// @cond INTERNAL
 namespace std {

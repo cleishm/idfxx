@@ -170,7 +170,7 @@ inline void yield() noexcept {
  */
 void yield_from_isr(bool higher_priority_task_woken = true) noexcept;
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_core_sched
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx

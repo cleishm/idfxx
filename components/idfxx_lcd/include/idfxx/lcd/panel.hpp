@@ -570,6 +570,6 @@ private:
     esp_lcd_panel_io_handle_t _queued_io = nullptr;
 };
 
-/** @} */ // end of idfxx_lcd
-
 } // namespace idfxx::lcd
+
+/** @} */ // end of idfxx_lcd
