@@ -194,7 +194,7 @@ public:
      * @brief Compares two error statuses for equality.
      * @return True if both hold the same status code.
      */
-    constexpr bool operator==(const error_status&) const noexcept = default;
+    [[nodiscard]] constexpr bool operator==(const error_status&) const noexcept = default;
 
 private:
     struct checked {};

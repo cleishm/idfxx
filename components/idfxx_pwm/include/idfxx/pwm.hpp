@@ -190,7 +190,7 @@ public:
     timer(timer&&) = default;
     timer& operator=(timer&&) = default;
 
-    constexpr bool operator==(const timer& other) const = default;
+    [[nodiscard]] constexpr bool operator==(const timer& other) const noexcept = default;
 
     /** @brief Returns the timer number (0-3). */
     [[nodiscard]] constexpr unsigned int num() const noexcept { return _num; }
