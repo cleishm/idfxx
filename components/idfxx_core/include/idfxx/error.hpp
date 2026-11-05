@@ -72,7 +72,8 @@ enum class errc : esp_err_t {
  *
  * This category provides human-readable error messages for IDFXX and ESP-IDF
  * error codes, enabling integration with the standard C++ error handling
- * mechanisms.
+ * mechanisms. Codes with a standard POSIX equivalent also compare equal to the
+ * corresponding `std::errc` value (see `default_error_condition()`).
  */
 class error_category : public std::error_category {
 public:
@@ -91,6 +92,32 @@ public:
      * @return A descriptive error message.
      */
     [[nodiscard]] std::string message(int ec) const override final;
+
+    /**
+     * @brief Maps an error code value to its canonical portable condition.
+     *
+     * Codes with a standard POSIX equivalent map to the corresponding `std::errc`
+     * condition, so an `std::error_code` from this category can be compared against
+     * either form:
+     * @code
+     * ec == idfxx::errc::timeout
+     * ec == std::errc::timed_out
+     * @endcode
+     *
+     * The mapped codes are:
+     * - `errc::invalid_arg` to `std::errc::invalid_argument`
+     * - `errc::not_supported` to `std::errc::not_supported`
+     * - `errc::timeout` to `std::errc::timed_out`
+     * - `errc::not_allowed` to `std::errc::operation_not_permitted`
+     *
+     * All other values (including ESP-IDF codes without an `errc` equivalent) map to
+     * a condition in this category and do not compare equal to any `std::errc` value.
+     *
+     * @param code The error code value to canonicalize.
+     *
+     * @return The canonical `std::error_condition` for `code`.
+     */
+    [[nodiscard]] std::error_condition default_error_condition(int code) const noexcept override final;
 };
 
 /**
