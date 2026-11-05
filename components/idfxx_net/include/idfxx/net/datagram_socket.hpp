@@ -60,6 +60,7 @@ namespace idfxx::net {
 class [[nodiscard]] datagram_socket : public detail::connectionless_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/datagram_socket>
      * @brief Datagram socket configuration.
      *
      * Defaults produce a blocking IPv4 UDP socket.

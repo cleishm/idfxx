@@ -137,6 +137,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/http/client>
      * @brief HTTP client configuration.
      */
     struct config {

@@ -86,6 +86,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/timer>
      * @brief Timer configuration parameters.
      */
     struct config {

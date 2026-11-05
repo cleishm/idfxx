@@ -60,6 +60,7 @@ class listener;
 class [[nodiscard]] stream_socket : public detail::ip_io_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/stream_socket>
      * @brief Stream socket configuration.
      *
      * Defaults produce a blocking IPv4 TCP socket. All fields except `family`

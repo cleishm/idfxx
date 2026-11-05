@@ -358,6 +358,7 @@ private:
 class master_device {
 public:
     /**
+     * @headerfile <idfxx/spi/master>
      * @brief SPI device configuration.
      *
      * @par Example:

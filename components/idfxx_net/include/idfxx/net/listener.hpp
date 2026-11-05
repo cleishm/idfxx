@@ -67,6 +67,7 @@ public:
     static constexpr int default_backlog = 5;
 
     /**
+     * @headerfile <idfxx/net/listener>
      * @brief Listener configuration.
      *
      * Defaults produce an IPv4 listening socket with `reuse_address = true`

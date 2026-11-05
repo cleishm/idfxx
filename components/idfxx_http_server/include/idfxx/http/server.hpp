@@ -1057,6 +1057,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/http/server>
      * @brief HTTP server configuration.
      *
      * @note If adding or modifying fields, mirror the changes in ssl_server::config.
@@ -1498,6 +1499,7 @@ public:
 
 #ifdef CONFIG_HTTPD_WS_SUPPORT
     /**
+     * @headerfile <idfxx/http/server>
      * @brief WebSocket endpoint configuration.
      */
     struct ws_config {

@@ -221,7 +221,10 @@ public:
         uint32_t _id;
     };
 
-    /** @brief Configuration parameters for idfxx::gpio_config */
+    /**
+     * @headerfile <idfxx/gpio>
+     * @brief Configuration parameters for idfxx::gpio_config
+     */
     struct config {
         enum mode mode = mode::disable;
         enum pull_mode pull_mode = pull_mode::floating;

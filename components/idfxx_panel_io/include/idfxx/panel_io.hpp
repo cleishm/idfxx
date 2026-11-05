@@ -58,6 +58,7 @@ public:
     typedef std::move_only_function<bool(esp_lcd_panel_io_event_data_t* edata)> color_transfer_done_callback;
 
     /**
+     * @headerfile <idfxx/panel_io>
      * @brief SPI-based panel I/O configuration.
      *
      * Every field other than cs_gpio, pclk_freq, lcd_cmd_bits, and lcd_param_bits has a
@@ -93,6 +94,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/panel_io>
      * @brief I2C-based panel I/O configuration.
      *
      * Every field other than device_address, scl_speed, lcd_cmd_bits, and lcd_param_bits has

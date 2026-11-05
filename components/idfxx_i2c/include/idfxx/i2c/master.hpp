@@ -155,6 +155,7 @@ struct operation {
 class master_bus {
 public:
     /**
+     * @headerfile <idfxx/i2c/master>
      * @brief I2C master bus configuration.
      *
      * Every field other than sda, scl, and frequency has a sensible default. For example:
@@ -424,6 +425,7 @@ private:
 class master_device {
 public:
     /**
+     * @headerfile <idfxx/i2c/master>
      * @brief I2C device configuration.
      *
      * Provides per-device settings for SCL speed, addressing mode, and ACK behavior.

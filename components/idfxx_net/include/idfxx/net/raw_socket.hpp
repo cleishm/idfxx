@@ -51,6 +51,7 @@ namespace idfxx::net {
 class [[nodiscard]] raw_socket : public detail::connectionless_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/raw_socket>
      * @brief Raw socket configuration.
      *
      * `protocol` has no default. The other defaults produce a blocking IPv4

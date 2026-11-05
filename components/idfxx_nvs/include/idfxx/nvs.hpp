@@ -406,6 +406,7 @@ public:
     constexpr static size_t key_size = 32; /*!< Size of each NVS encryption key in bytes */
 
     /**
+     * @headerfile <idfxx/nvs>
      * @brief Key for encryption and decryption
      */
     struct secure_config {

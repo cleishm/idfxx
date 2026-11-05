@@ -118,7 +118,10 @@ public:
         inst,     ///< Map to instruction memory, allows only 4-byte-aligned access
     };
 
-    /** @brief Options for memory-mapping a partition region. */
+    /**
+     * @headerfile <idfxx/partition>
+     * @brief Options for memory-mapping a partition region.
+     */
     struct mmap_config {
         /** @brief Memory type to map to. */
         enum mmap_memory memory = mmap_memory::data;

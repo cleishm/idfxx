@@ -359,6 +359,7 @@ public:
     // =========================================================================
 
     /**
+     * @headerfile <idfxx/event>
      * @brief Configuration for a dedicated event dispatch task.
      */
     struct task_config {
