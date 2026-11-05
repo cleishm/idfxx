@@ -122,9 +122,9 @@ private:
     return std::to_string(p.value());
 }
 
-/** @} */ // end of idfxx_cpu
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_cpu
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

@@ -21,6 +21,12 @@ typedef struct esp_lcd_touch_s esp_lcd_touch_t;
 typedef esp_lcd_touch_t* esp_lcd_touch_handle_t;
 
 /**
+ * @defgroup idfxx_lcd_touch LCD Touch Component
+ * @brief Touch controller interface and drivers for LCD panels.
+ * @{
+ */
+
+/**
  * @headerfile <idfxx/lcd/touch>
  * @brief LCD driver classes.
  */
@@ -93,3 +99,5 @@ protected:
 };
 
 } // namespace idfxx::lcd
+
+/** @} */ // end of idfxx_lcd_touch

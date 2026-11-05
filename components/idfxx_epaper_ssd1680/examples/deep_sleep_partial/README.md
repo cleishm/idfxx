@@ -41,7 +41,7 @@ display wiring:
 
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
-The panel's frame is about 4 KB, small enough for RTC memory. Frames for larger panels (a 7.5" 800x480 panel needs
+The panel's frame is about 4 KB, small enough for RTC memory. Frames for larger panels (a 7.5-inch 800x480 panel needs
 48 KB) don't fit there, and need saving to flash or an SD card instead; see the comment at the top of
 `main/main.cpp`.
 

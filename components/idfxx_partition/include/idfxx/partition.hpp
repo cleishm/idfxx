@@ -118,7 +118,10 @@ public:
         inst,     ///< Map to instruction memory, allows only 4-byte-aligned access
     };
 
-    /** @brief Options for memory-mapping a partition region. */
+    /**
+     * @headerfile <idfxx/partition>
+     * @brief Options for memory-mapping a partition region.
+     */
     struct mmap_config {
         /** @brief Memory type to map to. */
         enum mmap_memory memory = mmap_memory::data;
@@ -409,14 +412,14 @@ public:
      * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
      *               or SPI_FLASH_MMU_PAGE_SIZE for instruction memory).
      * @param size   Number of bytes to map.
-     * @param config Mapping options.
+     * @param cfg Mapping options.
      *
      * @return A handle to the mapped memory region.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] mmap_handle mmap(size_t offset, size_t size, const mmap_config& config) const;
+    [[nodiscard]] mmap_handle mmap(size_t offset, size_t size, const mmap_config& cfg) const;
 
     /**
      * @brief Memory-maps a region of the partition.
@@ -554,11 +557,11 @@ public:
      * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
      *               or SPI_FLASH_MMU_PAGE_SIZE for instruction memory).
      * @param size   Number of bytes to map.
-     * @param config Mapping options.
+     * @param cfg Mapping options.
      *
      * @return A handle to the mapped memory region, or an error.
      */
-    [[nodiscard]] result<mmap_handle> try_mmap(size_t offset, size_t size, const mmap_config& config) const;
+    [[nodiscard]] result<mmap_handle> try_mmap(size_t offset, size_t size, const mmap_config& cfg) const;
 
     /**
      * @brief Memory-maps a region of the partition.
@@ -678,8 +681,8 @@ inline partition::mmap_handle partition::mmap(size_t offset, size_t size) const 
     return unwrap(try_mmap(offset, size, mmap_config{}));
 }
 
-inline partition::mmap_handle partition::mmap(size_t offset, size_t size, const mmap_config& config) const {
-    return unwrap(try_mmap(offset, size, config));
+inline partition::mmap_handle partition::mmap(size_t offset, size_t size, const mmap_config& cfg) const {
+    return unwrap(try_mmap(offset, size, cfg));
 }
 
 inline partition::mmap_handle partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
@@ -731,7 +734,7 @@ public:
      * @throws std::system_error with idfxx::errc::invalid_arg if the range
      *         extends past the end of the partition.
      */
-    [[nodiscard]] partition_source(const partition& part, size_t offset, size_t length)
+    [[nodiscard]] explicit partition_source(const partition& part, size_t offset, size_t length)
         : partition_source(unwrap(make(part, offset, length))) {}
 #endif
 

@@ -23,7 +23,7 @@
  *
  * Two API styles are available:
  * - Free functions for ad-hoc logging with an explicit tag
- * - A @ref logger class for repeated logging with a fixed tag
+ * - A @ref idfxx::log::logger "logger" class for repeated logging with a fixed tag
  *
  * Optional convenience macros provide zero-cost elimination of filtered
  * messages, including their argument evaluation.

@@ -57,6 +57,7 @@ namespace idfxx::http {
 class ssl_server : public server {
 public:
     /**
+     * @headerfile <idfxx/http/ssl_server>
      * @brief HTTPS server configuration.
      *
      * Contains all HTTP server settings (with HTTPS-appropriate defaults) plus

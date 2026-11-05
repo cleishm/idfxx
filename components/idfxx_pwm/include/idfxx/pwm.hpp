@@ -190,7 +190,7 @@ public:
     timer(timer&&) = default;
     timer& operator=(timer&&) = default;
 
-    constexpr bool operator==(const timer& other) const = default;
+    [[nodiscard]] constexpr bool operator==(const timer& other) const noexcept = default;
 
     /** @brief Returns the timer number (0-3). */
     [[nodiscard]] constexpr unsigned int num() const noexcept { return _num; }
@@ -214,7 +214,7 @@ public:
      * tmr.configure({.frequency = 5_kHz, .resolution_bits = 13});
      * @endcode
      */
-    void configure(const struct config& cfg) { unwrap(try_configure(cfg)); }
+    void configure(const config& cfg) { unwrap(try_configure(cfg)); }
 
     /**
      * @brief Configures the timer with frequency and resolution.
@@ -243,7 +243,7 @@ public:
      * @retval invalid_arg Invalid frequency (zero) or resolution.
      * @retval fail Requested frequency cannot be achieved.
      */
-    [[nodiscard]] result<void> try_configure(const struct config& cfg);
+    [[nodiscard]] result<void> try_configure(const config& cfg);
 
     /**
      * @brief Configures the timer with frequency and resolution.
@@ -1382,9 +1382,9 @@ inline void stop(enum channel ch, enum speed_mode mode, idfxx::gpio::level idle_
 }
 #endif
 
-/** @} */ // end of idfxx_pwm
-
 } // namespace idfxx::pwm
+
+/** @} */ // end of idfxx_pwm
 
 namespace idfxx {
 

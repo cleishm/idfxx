@@ -424,16 +424,20 @@ public:
     /**
      * @brief Returns the interface key string.
      *
-     * @return The interface key, or nullptr if not set.
+     * The view refers to storage owned by the network interface and is valid only while that interface exists.
+     *
+     * @return The interface key, or an empty view if not set.
      */
-    [[nodiscard]] const char* key() const;
+    [[nodiscard]] std::string_view key() const;
 
     /**
      * @brief Returns the interface description string.
      *
-     * @return The interface description, or nullptr if not set.
+     * The view refers to storage owned by the network interface and is valid only while that interface exists.
+     *
+     * @return The interface description, or an empty view if not set.
      */
-    [[nodiscard]] const char* description() const;
+    [[nodiscard]] std::string_view description() const;
 
     /**
      * @brief Returns the route priority of this interface.

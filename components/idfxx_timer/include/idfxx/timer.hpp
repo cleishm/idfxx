@@ -86,6 +86,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/timer>
      * @brief Timer configuration parameters.
      */
     struct config {
@@ -120,7 +121,7 @@ public:
 
      * @retval invalid_arg Invalid configuration.
      */
-    [[nodiscard]] static result<timer> make(config cfg, std::move_only_function<void()> callback);
+    [[nodiscard]] static result<timer> make(const config& cfg, std::move_only_function<void()> callback);
 
     /**
      * @brief Creates a timer with a raw function pointer callback.
@@ -134,7 +135,7 @@ public:
 
      * @retval invalid_arg Invalid configuration.
      */
-    [[nodiscard]] static result<timer> make(config cfg, void (*callback)(void*), void* arg);
+    [[nodiscard]] static result<timer> make(const config& cfg, void (*callback)(void*), void* arg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -163,11 +164,11 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static timer start_once(
-        config cfg,
+        const config& cfg,
         const std::chrono::duration<Rep, Period>& timeout,
         std::move_only_function<void()> callback
     ) {
-        return unwrap(try_start_once(std::move(cfg), timeout, std::move(callback)));
+        return unwrap(try_start_once(cfg, timeout, std::move(callback)));
     }
 
     /**
@@ -189,9 +190,13 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static timer
-    start_once(config cfg, const std::chrono::duration<Rep, Period>& timeout, void (*callback)(void*), void* arg) {
-        return unwrap(try_start_once(std::move(cfg), timeout, callback, arg));
+    [[nodiscard]] static timer start_once(
+        const config& cfg,
+        const std::chrono::duration<Rep, Period>& timeout,
+        void (*callback)(void*),
+        void* arg
+    ) {
+        return unwrap(try_start_once(cfg, timeout, callback, arg));
     }
 
     /**
@@ -217,8 +222,8 @@ public:
      * @throws std::system_error on failure.
      */
     [[nodiscard]] static timer
-    start_once(config cfg, clock::time_point time, std::move_only_function<void()> callback) {
-        return unwrap(try_start_once(std::move(cfg), time, std::move(callback)));
+    start_once(const config& cfg, clock::time_point time, std::move_only_function<void()> callback) {
+        return unwrap(try_start_once(cfg, time, std::move(callback)));
     }
 
     /**
@@ -238,8 +243,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] static timer start_once(config cfg, clock::time_point time, void (*callback)(void*), void* arg) {
-        return unwrap(try_start_once(std::move(cfg), time, callback, arg));
+    [[nodiscard]] static timer
+    start_once(const config& cfg, clock::time_point time, void (*callback)(void*), void* arg) {
+        return unwrap(try_start_once(cfg, time, callback, arg));
     }
 
     /**
@@ -268,11 +274,11 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static timer start_periodic(
-        config cfg,
+        const config& cfg,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
     ) {
-        return unwrap(try_start_periodic(std::move(cfg), interval, std::move(callback)));
+        return unwrap(try_start_periodic(cfg, interval, std::move(callback)));
     }
 
     /**
@@ -294,9 +300,13 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static timer
-    start_periodic(config cfg, const std::chrono::duration<Rep, Period>& interval, void (*callback)(void*), void* arg) {
-        return unwrap(try_start_periodic(std::move(cfg), interval, callback, arg));
+    [[nodiscard]] static timer start_periodic(
+        const config& cfg,
+        const std::chrono::duration<Rep, Period>& interval,
+        void (*callback)(void*),
+        void* arg
+    ) {
+        return unwrap(try_start_periodic(cfg, interval, callback, arg));
     }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
@@ -331,12 +341,12 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static timer start_periodic(
-        config cfg,
+        const config& cfg,
         clock::time_point first,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
     ) {
-        return unwrap(try_start_periodic(std::move(cfg), first, interval, std::move(callback)));
+        return unwrap(try_start_periodic(cfg, first, interval, std::move(callback)));
     }
 
     /**
@@ -364,13 +374,13 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static timer start_periodic(
-        config cfg,
+        const config& cfg,
         clock::time_point first,
         const std::chrono::duration<Rep, Period>& interval,
         void (*callback)(void*),
         void* arg
     ) {
-        return unwrap(try_start_periodic(std::move(cfg), first, interval, callback, arg));
+        return unwrap(try_start_periodic(cfg, first, interval, callback, arg));
     }
 #endif
 
@@ -397,11 +407,11 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static result<timer> try_start_once(
-        config cfg,
+        const config& cfg,
         const std::chrono::duration<Rep, Period>& timeout,
         std::move_only_function<void()> callback
     ) {
-        auto t = make(std::move(cfg), std::move(callback));
+        auto t = make(cfg, std::move(callback));
         if (!t) {
             return t;
         }
@@ -432,9 +442,13 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<timer>
-    try_start_once(config cfg, const std::chrono::duration<Rep, Period>& timeout, void (*callback)(void*), void* arg) {
-        auto t = make(std::move(cfg), callback, arg);
+    [[nodiscard]] static result<timer> try_start_once(
+        const config& cfg,
+        const std::chrono::duration<Rep, Period>& timeout,
+        void (*callback)(void*),
+        void* arg
+    ) {
+        auto t = make(cfg, callback, arg);
         if (!t) {
             return t;
         }
@@ -464,8 +478,8 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     [[nodiscard]] static result<timer>
-    try_start_once(config cfg, clock::time_point time, std::move_only_function<void()> callback) {
-        auto t = make(std::move(cfg), std::move(callback));
+    try_start_once(const config& cfg, clock::time_point time, std::move_only_function<void()> callback) {
+        auto t = make(cfg, std::move(callback));
         if (!t) {
             return t;
         }
@@ -495,8 +509,8 @@ public:
      * @retval invalid_state Timer could not be started.
      */
     [[nodiscard]] static result<timer>
-    try_start_once(config cfg, clock::time_point time, void (*callback)(void*), void* arg) {
-        auto t = make(std::move(cfg), callback, arg);
+    try_start_once(const config& cfg, clock::time_point time, void (*callback)(void*), void* arg) {
+        auto t = make(cfg, callback, arg);
         if (!t) {
             return t;
         }
@@ -528,11 +542,11 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static result<timer> try_start_periodic(
-        config cfg,
+        const config& cfg,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
     ) {
-        auto t = make(std::move(cfg), std::move(callback));
+        auto t = make(cfg, std::move(callback));
         if (!t) {
             return t;
         }
@@ -564,12 +578,12 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static result<timer> try_start_periodic(
-        config cfg,
+        const config& cfg,
         const std::chrono::duration<Rep, Period>& interval,
         void (*callback)(void*),
         void* arg
     ) {
-        auto t = make(std::move(cfg), callback, arg);
+        auto t = make(cfg, callback, arg);
         if (!t) {
             return t;
         }
@@ -607,12 +621,12 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static result<timer> try_start_periodic(
-        config cfg,
+        const config& cfg,
         clock::time_point first,
         const std::chrono::duration<Rep, Period>& interval,
         std::move_only_function<void()> callback
     ) {
-        auto t = make(std::move(cfg), std::move(callback));
+        auto t = make(cfg, std::move(callback));
         if (!t) {
             return t;
         }
@@ -649,13 +663,13 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] static result<timer> try_start_periodic(
-        config cfg,
+        const config& cfg,
         clock::time_point first,
         const std::chrono::duration<Rep, Period>& interval,
         void (*callback)(void*),
         void* arg
     ) {
-        auto t = make(std::move(cfg), callback, arg);
+        auto t = make(cfg, callback, arg);
         if (!t) {
             return t;
         }
@@ -1304,6 +1318,6 @@ private:
     context* _context = nullptr;
 };
 
-/** @} */ // end of idfxx_timer
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_timer

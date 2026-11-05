@@ -52,23 +52,23 @@ static result<void> map_xfer_error(esp_err_t err, const char* op, uint16_t addre
 }
 
 static result<i2c_master_dev_handle_t>
-make_device(master_bus& bus, uint16_t address, const master_device::config& config) {
-    if ((config.scl_speed && config.scl_speed->count() <= 0) || config.scl_wait_us == 0u) {
+make_device(master_bus& bus, uint16_t address, const master_device::config& cfg) {
+    if ((cfg.scl_speed && cfg.scl_speed->count() <= 0) || cfg.scl_wait_us == 0u) {
         return error(errc::invalid_arg);
     }
-    auto scl_speed = config.scl_speed.value_or(bus.frequency());
+    auto scl_speed = cfg.scl_speed.value_or(bus.frequency());
 
     i2c_device_config_t dev_config{
 #if SOC_I2C_SUPPORT_10BIT_ADDR
-        .dev_addr_length = config.addr_10bit ? I2C_ADDR_BIT_LEN_10 : I2C_ADDR_BIT_LEN_7,
+        .dev_addr_length = cfg.addr_10bit ? I2C_ADDR_BIT_LEN_10 : I2C_ADDR_BIT_LEN_7,
 #else
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
 #endif
         .device_address = address,
         .scl_speed_hz = static_cast<uint32_t>(scl_speed.count()),
-        .scl_wait_us = config.scl_wait_us.value_or(0), // 0 selects the driver default
+        .scl_wait_us = cfg.scl_wait_us.value_or(0), // 0 selects the driver default
         .flags = {
-            .disable_ack_check = config.disable_ack_check ? 1u : 0u,
+            .disable_ack_check = cfg.disable_ack_check ? 1u : 0u,
         },
     };
 
@@ -96,19 +96,17 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& conf
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_device::master_device(master_bus& bus, uint16_t address, const struct config& config)
+master_device::master_device(master_bus& bus, uint16_t address, const config& cfg)
     : _bus(&bus)
-    , _handle(unwrap(make_device(bus, address, config)))
+    , _handle(unwrap(make_device(bus, address, cfg)))
     , _address(address) {}
 
 master_device::master_device(master_bus& bus, uint16_t address)
     : master_device(bus, address, config{}) {}
 #endif
 
-result<master_device> master_device::make(master_bus& bus, uint16_t address, const struct config& config) {
-    return make_device(bus, address, config).transform([&](auto handle) {
-        return master_device(&bus, handle, address);
-    });
+result<master_device> master_device::make(master_bus& bus, uint16_t address, const config& cfg) {
+    return make_device(bus, address, cfg).transform([&](auto handle) { return master_device(&bus, handle, address); });
 }
 
 result<master_device> master_device::make(master_bus& bus, uint16_t address) {

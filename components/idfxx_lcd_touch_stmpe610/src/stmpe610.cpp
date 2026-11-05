@@ -41,36 +41,36 @@ stmpe610::stmpe610(esp_lcd_touch_handle_t handle, std::unique_ptr<callback_state
     : _handle(handle)
     , _callbacks(std::move(callbacks)) {}
 
-result<stmpe610> stmpe610::make(idfxx::panel_io& panel_io, config config) {
-    if (config.x_max == 0) {
+result<stmpe610> stmpe610::make(idfxx::panel_io& panel_io, config cfg) {
+    if (cfg.x_max == 0) {
         ESP_LOGD(TAG, "Field 'x_max' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.y_max == 0) {
+    if (cfg.y_max == 0) {
         ESP_LOGD(TAG, "Field 'y_max' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     std::unique_ptr<callback_state> cbs;
-    if (config.process_coordinates) {
-        cbs = std::make_unique<callback_state>(std::move(config.process_coordinates));
+    if (cfg.process_coordinates) {
+        cbs = std::make_unique<callback_state>(std::move(cfg.process_coordinates));
     }
 
     esp_lcd_touch_config_t touch_config{
-        .x_max = config.x_max,
-        .y_max = config.y_max,
-        .rst_gpio_num = config.rst_gpio.idf_num(),
-        .int_gpio_num = config.int_gpio.idf_num(),
+        .x_max = cfg.x_max,
+        .y_max = cfg.y_max,
+        .rst_gpio_num = cfg.rst_gpio.idf_num(),
+        .int_gpio_num = cfg.int_gpio.idf_num(),
         .levels =
             {
-                .reset = static_cast<unsigned int>(std::to_underlying(config.reset_level)),
-                .interrupt = static_cast<unsigned int>(std::to_underlying(config.interrupt_level)),
+                .reset = static_cast<unsigned int>(std::to_underlying(cfg.reset_level)),
+                .interrupt = static_cast<unsigned int>(std::to_underlying(cfg.interrupt_level)),
             },
         .flags =
             {
-                .swap_xy = config.swap_xy,
-                .mirror_x = config.mirror_x,
-                .mirror_y = config.mirror_y,
+                .swap_xy = cfg.swap_xy,
+                .mirror_x = cfg.mirror_x,
+                .mirror_y = cfg.mirror_y,
             },
         .process_coordinates = cbs ? process_coordinates : nullptr,
         .interrupt_callback = nullptr,
@@ -88,8 +88,8 @@ result<stmpe610> stmpe610::make(idfxx::panel_io& panel_io, config config) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-stmpe610::stmpe610(idfxx::panel_io& panel_io, config config)
-    : stmpe610(unwrap(make(panel_io, std::move(config)))) {}
+stmpe610::stmpe610(idfxx::panel_io& panel_io, config cfg)
+    : stmpe610(unwrap(make(panel_io, std::move(cfg)))) {}
 #endif
 
 stmpe610::stmpe610(stmpe610&& other) noexcept

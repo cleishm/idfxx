@@ -368,9 +368,9 @@ private:
     onewire::address _addr;
 };
 
-/** @} */ // end of idfxx_ds18x20
-
 } // namespace idfxx::ds18x20
+
+/** @} */ // end of idfxx_ds18x20
 
 namespace idfxx {
 

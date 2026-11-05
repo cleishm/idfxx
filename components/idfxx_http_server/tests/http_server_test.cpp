@@ -135,6 +135,18 @@ static_assert(std::is_same_v<decltype(server::config::keep_alive_count), std::op
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
+// -- status_code to_string tests ---------------------------------------------
+
+TEST_CASE("http status_code to_string and formatter", "[idfxx][http]") {
+    TEST_ASSERT_EQUAL_STRING("200 OK", idfxx::to_string(status_code::ok).c_str());
+    TEST_ASSERT_EQUAL_STRING("404 Not Found", idfxx::to_string(status_code::not_found).c_str());
+    TEST_ASSERT_EQUAL_STRING("599", idfxx::to_string(static_cast<status_code>(599)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", status_code::not_found);
+    TEST_ASSERT_EQUAL_STRING("404 Not Found", s.c_str());
+#endif
+}
+
 // -- Error category tests ----------------------------------------------------
 
 TEST_CASE("http server error_category has correct name", "[idfxx][http]") {

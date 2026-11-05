@@ -51,6 +51,7 @@ namespace idfxx::net {
 class [[nodiscard]] raw_socket : public detail::connectionless_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/raw_socket>
      * @brief Raw socket configuration.
      *
      * `protocol` has no default. The other defaults produce a blocking IPv4
@@ -90,7 +91,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit raw_socket(ip_protocol protocol);
+    [[nodiscard]] explicit raw_socket(ip_protocol protocol);
 #endif
 
     /**
@@ -111,7 +112,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    raw_socket(ip_protocol protocol, address_family fam);
+    [[nodiscard]] explicit raw_socket(ip_protocol protocol, address_family fam);
 #endif
 
     /**
@@ -132,7 +133,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit raw_socket(const config& cfg);
+    [[nodiscard]] explicit raw_socket(const config& cfg);
 #endif
 
     /**

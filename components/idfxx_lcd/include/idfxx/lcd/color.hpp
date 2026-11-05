@@ -91,7 +91,7 @@ public:
     [[nodiscard]] constexpr uint16_t value() const noexcept { return _to_panel_order(_repr); }
 
     /** @brief Compares two colors for equality. */
-    friend constexpr bool operator==(rgb565, rgb565) noexcept = default;
+    [[nodiscard]] friend constexpr bool operator==(rgb565, rgb565) noexcept = default;
 
 private:
     // Byte-swaps a packed value into big-endian panel order (an involution,

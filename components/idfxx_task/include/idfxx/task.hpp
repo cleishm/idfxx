@@ -273,9 +273,11 @@ public:
         /**
          * @brief Returns the current task name.
          *
+         * The view refers to storage owned by the task and is valid only while the task exists.
+         *
          * @return The task name.
          */
-        [[nodiscard]] std::string name() const;
+        [[nodiscard]] std::string_view name() const;
 
         /**
          * @brief Returns the FreeRTOS handle of the current task.
@@ -328,7 +330,7 @@ public:
      *                  the function had returned.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    static void spawn(config cfg, std::move_only_function<void(self&)> task_func);
+    static void spawn(const config& cfg, std::move_only_function<void(self&)> task_func);
 
     /**
      * @brief Destroys the task, requesting stop and blocking until the task function completes.
@@ -758,9 +760,11 @@ public:
     /**
      * @brief Returns the name of the currently executing task.
      *
+     * The view refers to storage owned by the task and is valid only while the task exists.
+     *
      * @return The current task's name.
      */
-    [[nodiscard]] static std::string current_name() { return pcTaskGetName(nullptr); }
+    [[nodiscard]] static std::string_view current_name() { return pcTaskGetName(nullptr); }
 
 private:
     static void trampoline(void* arg);
@@ -795,9 +799,9 @@ private:
     return {std::to_underlying(e), task_category()};
 }
 
-/** @} */ // end of idfxx_task
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_task
 
 /// @cond INTERNAL
 namespace std {

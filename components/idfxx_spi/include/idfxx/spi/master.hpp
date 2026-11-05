@@ -5,7 +5,7 @@
 
 /**
  * @headerfile <idfxx/spi/master>
- * @file master
+ * @file master.hpp
  * @brief SPI master bus and device classes.
  *
  * @defgroup idfxx_spi SPI Component
@@ -276,13 +276,13 @@ public:
      *
      * @param host     SPI host device (e.g., SPI2_HOST).
      * @param dma_chan DMA channel, or idfxx::spi::dma_chan::disabled.
-     * @param config   Bus configuration.
+     * @param cfg      Bus configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure. In particular, `errc::invalid_arg` if the driver rejects
-     *         `config.intr_flags` or `config.intr_levels` (see ::idfxx::spi::bus_config).
+     *         `cfg.intr_flags` or `cfg.intr_levels` (see ::idfxx::spi::bus_config).
      */
-    [[nodiscard]] explicit master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
+    [[nodiscard]] explicit master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg);
 #endif
 
     /**
@@ -290,14 +290,13 @@ public:
      *
      * @param host     SPI host device (e.g., SPI2_HOST).
      * @param dma_chan DMA channel, or idfxx::spi::dma_chan::disabled.
-     * @param config   Bus configuration.
+     * @param cfg      Bus configuration.
      *
      * @return The new bus, or an error.
      * @retval errc::invalid_arg The driver rejected the configuration, including interrupt flags or levels
      *         that are not allowed (see `bus_config::intr_flags` and `bus_config::intr_levels`).
      */
-    [[nodiscard]] static result<master_bus>
-    make(enum host_device host, enum dma_chan dma_chan, struct bus_config config);
+    [[nodiscard]] static result<master_bus> make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg);
 
     ~master_bus();
 
@@ -358,6 +357,7 @@ private:
 class master_device {
 public:
     /**
+     * @headerfile <idfxx/spi/master>
      * @brief SPI device configuration.
      *
      * @par Example:
@@ -395,7 +395,7 @@ public:
      * this device does not outlive the bus.
      *
      * @param bus    The parent SPI master bus.
-     * @param config Device configuration.
+     * @param cfg Device configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -408,7 +408,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] explicit master_device(master_bus& bus, const struct config& config);
+    [[nodiscard]] explicit master_device(master_bus& bus, const config& cfg);
 #endif
 
     /**
@@ -418,7 +418,7 @@ public:
      * this device does not outlive the bus.
      *
      * @param bus    The parent SPI master bus.
-     * @param config Device configuration.
+     * @param cfg Device configuration.
      *
      * @return The new master_device, or an error.
      *
@@ -430,7 +430,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] static result<master_device> make(master_bus& bus, const struct config& config);
+    [[nodiscard]] static result<master_device> make(master_bus& bus, const config& cfg);
 
     ~master_device();
 
@@ -890,9 +890,9 @@ private:
     std::unique_ptr<async_state> _async;
 };
 
-/** @} */ // end of idfxx_spi
-
 } // namespace idfxx::spi
+
+/** @} */ // end of idfxx_spi
 
 namespace idfxx {
 

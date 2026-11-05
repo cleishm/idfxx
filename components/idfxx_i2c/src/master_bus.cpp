@@ -54,37 +54,37 @@ lp_i2c_clock_source_t to_idf(lp_clk_source src) {
 
 namespace idfxx::i2c {
 
-static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus::config& config) {
-    if (!config.sda->is_connected()) {
+static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus::config& cfg) {
+    if (!cfg.sda->is_connected()) {
         ESP_LOGD(TAG, "Field 'sda' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (!config.scl->is_connected()) {
+    if (!cfg.scl->is_connected()) {
         ESP_LOGD(TAG, "Field 'scl' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.frequency->count() == 0) {
+    if (cfg.frequency->count() == 0) {
         ESP_LOGD(TAG, "Field 'frequency' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     i2c_master_bus_config_t bus_config{
         .i2c_port = std::to_underlying(port),
-        .sda_io_num = config.sda->idf_num(),
-        .scl_io_num = config.scl->idf_num(),
-        .clk_source = to_idf(config.clk_source),
-        .glitch_ignore_cnt = config.glitch_ignore_cnt,
+        .sda_io_num = cfg.sda->idf_num(),
+        .scl_io_num = cfg.scl->idf_num(),
+        .clk_source = to_idf(cfg.clk_source),
+        .glitch_ignore_cnt = cfg.glitch_ignore_cnt,
         .intr_priority =
-            config.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*config.intr_level))) : 0,
-        .trans_queue_depth = config.trans_queue_depth,
+            cfg.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*cfg.intr_level))) : 0,
+        .trans_queue_depth = cfg.trans_queue_depth,
         .flags = {
-            .enable_internal_pullup = config.enable_internal_pullup ? 1u : 0u,
-            .allow_pd = config.allow_pd ? 1u : 0u,
+            .enable_internal_pullup = cfg.enable_internal_pullup ? 1u : 0u,
+            .allow_pd = cfg.allow_pd ? 1u : 0u,
         },
     };
 #if SOC_LP_I2C_SUPPORTED
     if (port == port::lp_i2c0) {
-        bus_config.lp_source_clk = to_idf(config.lp_source_clk);
+        bus_config.lp_source_clk = to_idf(cfg.lp_source_clk);
     }
 #endif
 
@@ -94,9 +94,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
             TAG,
             "Failed to create I2C master bus on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz): %s",
             std::to_underlying(port),
-            config.sda->num(),
-            config.scl->num(),
-            static_cast<int>(config.frequency->count()),
+            cfg.sda->num(),
+            cfg.scl->num(),
+            static_cast<int>(cfg.frequency->count()),
             esp_err_to_name(err)
         );
         switch (err) {
@@ -113,23 +113,23 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         TAG,
         "I2C master bus created on port %d (SDA: GPIO%d, SCL: GPIO%d, Frequency: %d Hz)",
         std::to_underlying(port),
-        config.sda->num(),
-        config.scl->num(),
-        static_cast<int>(config.frequency->count())
+        cfg.sda->num(),
+        cfg.scl->num(),
+        static_cast<int>(cfg.frequency->count())
     );
     return handle;
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_bus::master_bus(enum port port, const struct config& config)
-    : master_bus(unwrap(make_bus(port, config)), port, config.frequency) {}
+master_bus::master_bus(enum port port, const config& cfg)
+    : master_bus(unwrap(make_bus(port, cfg)), port, cfg.frequency) {}
 
 master_bus::master_bus(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency)
     : master_bus(port, config{.sda = sda, .scl = scl, .frequency = frequency}) {}
 #endif
 
-result<master_bus> master_bus::make(enum port port, const struct config& config) {
-    return make_bus(port, config).transform([&](auto handle) { return master_bus{handle, port, config.frequency}; });
+result<master_bus> master_bus::make(enum port port, const config& cfg) {
+    return make_bus(port, cfg).transform([&](auto handle) { return master_bus{handle, port, cfg.frequency}; });
 }
 
 result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency) {

@@ -112,7 +112,7 @@ namespace idfxx::pwm {
 // timer
 // ======================================================================
 
-result<void> timer::try_configure(const struct config& cfg) {
+result<void> timer::try_configure(const config& cfg) {
     if (cfg.frequency->count() <= 0) {
         ESP_LOGD(TAG, "Field 'frequency' has an invalid value");
         return error(errc::invalid_arg);

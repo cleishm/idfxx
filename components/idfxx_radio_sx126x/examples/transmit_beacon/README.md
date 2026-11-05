@@ -75,4 +75,4 @@ idf.py -p PORT flash monitor
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
 The board sends `beacon 0000`, `beacon 0001` and so on every two seconds. To see the beacons arrive,
-run the [receive_log](../receive_log) example on a second board with the same frequency.
+run the [receive_log](../receive_log/README.md) example on a second board with the same frequency.

@@ -60,6 +60,7 @@ namespace idfxx::net {
 class [[nodiscard]] datagram_socket : public detail::connectionless_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/datagram_socket>
      * @brief Datagram socket configuration.
      *
      * Defaults produce a blocking IPv4 UDP socket.
@@ -120,7 +121,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit datagram_socket(address_family fam);
+    [[nodiscard]] explicit datagram_socket(address_family fam);
 #endif
 
     /**
@@ -140,7 +141,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit datagram_socket(const config& cfg);
+    [[nodiscard]] explicit datagram_socket(const config& cfg);
 #endif
 
     /**

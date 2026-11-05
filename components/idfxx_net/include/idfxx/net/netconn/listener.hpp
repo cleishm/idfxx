@@ -85,7 +85,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(address_family fam);
+    [[nodiscard]] explicit listener(address_family fam);
 #endif
 
     /**
@@ -110,7 +110,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(const endpoint& bind_addr, int backlog = default_backlog);
+    [[nodiscard]] explicit listener(const endpoint& bind_addr, int backlog = default_backlog);
 
     /**
      * @brief Creates a TCP listening netconn bound to all local interfaces on @p port.
@@ -124,7 +124,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit listener(port_number port, int backlog = default_backlog);
+    [[nodiscard]] explicit listener(port_number port, int backlog = default_backlog);
 #endif
 
     /**

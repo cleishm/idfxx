@@ -60,6 +60,7 @@ class listener;
 class [[nodiscard]] stream_socket : public detail::ip_io_socket_base {
 public:
     /**
+     * @headerfile <idfxx/net/stream_socket>
      * @brief Stream socket configuration.
      *
      * Defaults produce a blocking IPv4 TCP socket. All fields except `family`
@@ -125,7 +126,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit stream_socket(address_family fam);
+    [[nodiscard]] explicit stream_socket(address_family fam);
 
     /**
      * @brief Creates a new TCP socket with the given configuration.
@@ -135,7 +136,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit stream_socket(const config& cfg);
+    [[nodiscard]] explicit stream_socket(const config& cfg);
 #endif
 
     /**
@@ -179,7 +180,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit stream_socket(const endpoint& peer);
+    [[nodiscard]] explicit stream_socket(const endpoint& peer);
 
     /**
      * @brief Creates a TCP socket with the given configuration and connects to the peer.
@@ -195,7 +196,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit stream_socket(const endpoint& peer, const config& cfg);
+    [[nodiscard]] explicit stream_socket(const endpoint& peer, const config& cfg);
 #endif
 
     /**
@@ -236,7 +237,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on resolution failure or if every candidate fails to connect.
      */
-    explicit stream_socket(std::string_view host, port_number port);
+    [[nodiscard]] explicit stream_socket(std::string_view host, port_number port);
 
     /**
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint.
@@ -257,7 +258,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on resolution failure or if every candidate fails to connect.
      */
-    explicit stream_socket(
+    [[nodiscard]] explicit stream_socket(
         std::string_view host,
         port_number port,
         const config& cfg,
@@ -322,7 +323,11 @@ public:
      * @throws std::system_error on resolution failure or if every candidate fails to connect.
      */
     template<typename Rep, typename Period>
-    explicit stream_socket(std::string_view host, port_number port, const std::chrono::duration<Rep, Period>& timeout);
+    [[nodiscard]] explicit stream_socket(
+        std::string_view host,
+        port_number port,
+        const std::chrono::duration<Rep, Period>& timeout
+    );
 
     /**
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint,
@@ -347,7 +352,7 @@ public:
      * @throws std::system_error on resolution failure or if every candidate fails to connect.
      */
     template<typename Rep, typename Period>
-    explicit stream_socket(
+    [[nodiscard]] explicit stream_socket(
         std::string_view host,
         port_number port,
         const std::chrono::duration<Rep, Period>& timeout,

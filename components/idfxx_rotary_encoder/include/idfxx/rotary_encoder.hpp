@@ -145,6 +145,6 @@ private:
     void* _context = nullptr;
 };
 
-/** @} */ // end of idfxx_rotary_encoder
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_rotary_encoder

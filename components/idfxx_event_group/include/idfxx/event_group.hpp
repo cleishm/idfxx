@@ -663,6 +663,6 @@ private:
     EventGroupHandle_t _handle = nullptr;
 };
 
-/** @} */ // end of idfxx_event_group
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_event_group

@@ -133,7 +133,7 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
     _context = ctx;
 }
 
-void task::spawn(config cfg, std::move_only_function<void(self&)> task_func) {
+void task::spawn(const config& cfg, std::move_only_function<void(self&)> task_func) {
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
@@ -362,7 +362,7 @@ void task::self::set_priority(task_priority new_priority) noexcept {
     vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(new_priority.value()));
 }
 
-std::string task::self::name() const {
+std::string_view task::self::name() const {
     return pcTaskGetName(nullptr);
 }
 

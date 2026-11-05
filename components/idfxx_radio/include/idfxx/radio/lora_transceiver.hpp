@@ -713,7 +713,7 @@ public:
     /**
      * @brief Starts a transmit and returns a future tracking its completion.
      *
-     * The companion to the blocking @ref transmit: the call returns as soon
+     * The companion to the blocking @ref transmit. The call returns as soon
      * as the packet is staged and transmission has started, so the caller's
      * task is free to do other work and can await the returned future when it
      * needs the result. When an event loop is configured, completion is also
@@ -1036,7 +1036,7 @@ protected:
     /// Hook for @ref try_current_rssi.
     [[nodiscard]] virtual result<quanta::electro::centi_dbm> do_current_rssi() = 0;
 
-    /// Hook for @ref rx_duty_cycle_for: the shortest sleep window worth
+    /// Hook for @ref rx_duty_cycle_for, returning the shortest sleep window worth
     /// duty-cycling for on this chip. Drivers add any per-wake oscillator
     /// start-up cost to the generic default (e.g. the SX126x adds its
     /// configured TCXO start-up delay).

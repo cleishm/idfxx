@@ -76,7 +76,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
      */
-    [[nodiscard]] mono_framebuffer(size_t width, size_t height)
+    [[nodiscard]] explicit mono_framebuffer(size_t width, size_t height)
         : mono_framebuffer(unwrap(make(width, height))) {}
 #endif
 

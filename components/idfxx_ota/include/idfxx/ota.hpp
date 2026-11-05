@@ -28,7 +28,9 @@
 #include <esp_app_desc.h>
 #include <esp_idf_version.h>
 #include <span>
+#include <string>
 #include <string_view>
+#include <utility>
 
 typedef uint32_t esp_ota_handle_t;
 
@@ -954,11 +956,60 @@ void invalidate_inactive_ota_data_slot();
 
 } // namespace idfxx::ota
 
+namespace idfxx {
+
+/**
+ * @headerfile <idfxx/ota>
+ * @brief Returns a string representation of an OTA image state.
+ *
+ * @param s The image state to convert.
+ * @return The enumerator name (e.g. "pending_verify"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(ota::image_state s) {
+    switch (s) {
+    case ota::image_state::new_image:
+        return "new_image";
+    case ota::image_state::pending_verify:
+        return "pending_verify";
+    case ota::image_state::valid:
+        return "valid";
+    case ota::image_state::invalid:
+        return "invalid";
+    case ota::image_state::aborted:
+        return "aborted";
+    case ota::image_state::undefined:
+        return "undefined";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(s)) + ')';
+    }
+}
+
+} // namespace idfxx
+
 /** @cond INTERNAL */
 namespace std {
 template<>
 struct is_error_code_enum<idfxx::ota::errc> : true_type {};
 } // namespace std
 /** @endcond */
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <algorithm>
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::ota::image_state> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::ota::image_state v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT
 
 /** @} */ // end of idfxx_ota

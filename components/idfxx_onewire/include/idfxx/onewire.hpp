@@ -449,9 +449,9 @@ private:
     mutable std::unique_ptr<std::recursive_mutex> _mux;
 };
 
-/** @} */ // end of idfxx_onewire
-
 } // namespace idfxx::onewire
+
+/** @} */ // end of idfxx_onewire
 
 namespace idfxx {
 

@@ -53,7 +53,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    explicit raw_channel(ip_protocol protocol);
+    [[nodiscard]] explicit raw_channel(ip_protocol protocol);
 #endif
 
     /**
@@ -74,7 +74,7 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    raw_channel(ip_protocol protocol, address_family fam);
+    [[nodiscard]] explicit raw_channel(ip_protocol protocol, address_family fam);
 #endif
 
     /**

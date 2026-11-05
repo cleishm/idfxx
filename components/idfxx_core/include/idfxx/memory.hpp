@@ -524,7 +524,7 @@ using aligned_spiram_allocator = allocator<T, memory::capabilities::spiram, Alig
 template<typename T, size_t Alignment>
 using aligned_dma_allocator = allocator<T, memory::capabilities::dma, Alignment>;
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_core_memory
 /** @} */ // end of idfxx_core
-
-} // namespace idfxx

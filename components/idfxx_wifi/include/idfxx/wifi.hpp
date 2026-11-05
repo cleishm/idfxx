@@ -758,7 +758,7 @@ struct ap_record {
     uint8_t vht_ch_freq1;                      /*!< VHT channel center frequency segment 1. */
     uint8_t vht_ch_freq2;                      /*!< VHT channel center frequency segment 2. */
 
-    [[nodiscard]] bool operator==(const ap_record&) const = default;
+    [[nodiscard]] bool operator==(const ap_record&) const noexcept = default;
 };
 
 /**
@@ -900,7 +900,7 @@ struct sta_config {
     enum sae_pk_mode sae_pk_mode = sae_pk_mode::automatic; /*!< SAE-PK mode. */
     uint8_t failure_retry_cnt = 0;                         /*!< Connection failure retry count (0 = no retry). */
 
-    [[nodiscard]] bool operator==(const sta_config&) const = default;
+    [[nodiscard]] bool operator==(const sta_config&) const noexcept = default;
 };
 
 /**
@@ -920,7 +920,7 @@ struct ap_config {
     struct pmf_config pmf = {};                                /*!< PMF configuration. */
     flags<sae_pwe_method> sae_pwe_h2e = {};                    /*!< SAE PWE derivation methods (empty = auto). */
 
-    [[nodiscard]] bool operator==(const ap_config&) const = default;
+    [[nodiscard]] bool operator==(const ap_config&) const noexcept = default;
 };
 
 /**
@@ -933,7 +933,7 @@ struct scan_config {
     bool show_hidden = false;                     /*!< Include hidden networks. */
     enum scan_type scan_type = scan_type::active; /*!< Active or passive scan. */
 
-    [[nodiscard]] bool operator==(const scan_config&) const = default;
+    [[nodiscard]] bool operator==(const scan_config&) const noexcept = default;
 };
 
 /**
@@ -1178,7 +1178,7 @@ struct connected_event_data {
     static connected_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] bool operator==(const connected_event_data&) const = default;
+    [[nodiscard]] bool operator==(const connected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1196,7 +1196,7 @@ struct disconnected_event_data {
     static disconnected_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] bool operator==(const disconnected_event_data&) const = default;
+    [[nodiscard]] bool operator==(const disconnected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1339,7 +1339,7 @@ struct ftm_report_event_data {
     static ftm_report_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] bool operator==(const ftm_report_event_data&) const = default;
+    [[nodiscard]] bool operator==(const ftm_report_event_data&) const noexcept = default;
 };
 
 // =============================================================================

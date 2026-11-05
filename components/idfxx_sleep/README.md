@@ -122,8 +122,8 @@ while (running) {
 idfxx::sleep::disable_all_wakeup_sources();
 ```
 
-See [examples/light_sleep_demo](examples/light_sleep_demo) and
-[examples/deep_sleep_demo](examples/deep_sleep_demo) for complete programs.
+See [examples/light_sleep_demo](examples/light_sleep_demo/README.md) and
+[examples/deep_sleep_demo](examples/deep_sleep_demo/README.md) for complete programs.
 
 ## API Overview
 

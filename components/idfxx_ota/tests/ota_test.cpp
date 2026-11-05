@@ -209,6 +209,21 @@ TEST_CASE("ota try_check_image_validity accepts the running app's leading bytes"
 #endif // ESP_IDF_VERSION >= 6.1
 
 // =============================================================================
+// to_string / formatter tests
+// =============================================================================
+
+TEST_CASE("image_state to_string and formatter", "[idfxx][ota]") {
+    TEST_ASSERT_EQUAL_STRING("new_image", idfxx::to_string(image_state::new_image).c_str());
+    TEST_ASSERT_EQUAL_STRING("pending_verify", idfxx::to_string(image_state::pending_verify).c_str());
+    TEST_ASSERT_EQUAL_STRING("undefined", idfxx::to_string(image_state::undefined).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<image_state>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", image_state::valid);
+    TEST_ASSERT_EQUAL_STRING("valid", s.c_str());
+#endif
+}
+
+// =============================================================================
 // Exception-based API tests
 // =============================================================================
 

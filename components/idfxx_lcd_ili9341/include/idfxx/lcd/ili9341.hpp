@@ -37,12 +37,12 @@ public:
      * this panel does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   panel configuration.
+     * @param cfg      panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit ili9341(idfxx::panel_io& panel_io, panel::config config);
+    [[nodiscard]] explicit ili9341(idfxx::panel_io& panel_io, panel::config cfg);
 #endif
 
     /**
@@ -52,11 +52,11 @@ public:
      * this panel does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   panel configuration.
+     * @param cfg      panel configuration.
      *
      * @return The new ili9341, or an error.
      */
-    [[nodiscard]] static result<ili9341> make(idfxx::panel_io& panel_io, panel::config config);
+    [[nodiscard]] static result<ili9341> make(idfxx::panel_io& panel_io, panel::config cfg);
 
     ~ili9341();
 

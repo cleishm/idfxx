@@ -87,7 +87,7 @@ struct mono_font {
      * @param c The character.
      * @return The advance in pixels.
      */
-    [[nodiscard]] constexpr size_t advance(char /*c*/) const noexcept { return width; }
+    [[nodiscard]] constexpr size_t advance([[maybe_unused]] char c) const noexcept { return width; }
 };
 
 /**
@@ -112,6 +112,6 @@ struct mono_font {
     return width * scale;
 }
 
-/** @} */ // end of idfxx_font
-
 } // namespace idfxx::font
+
+/** @} */ // end of idfxx_font

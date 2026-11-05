@@ -44,6 +44,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
 
 /**
  * @headerfile <idfxx/epaper/panel>
@@ -1172,7 +1174,7 @@ protected:
     }
 
     /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
-    /// awake, @p mode is one @ref do_supports(refresh_mode) accepts in the
+    /// awake, @p mode is one @ref do_supports(refresh_mode) const accepts in the
     /// current color mode, and a `partial` request has already been
     /// promoted to `full` when no baseline exists.
     ///
@@ -1321,4 +1323,107 @@ private:
 
 } // namespace idfxx::epaper
 
+namespace idfxx {
+
+/**
+ * @headerfile <idfxx/epaper/panel>
+ * @brief Returns a string representation of a refresh mode.
+ *
+ * @param m The refresh mode to convert.
+ * @return The enumerator name (e.g. "full"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(epaper::refresh_mode m) {
+    switch (m) {
+    case epaper::refresh_mode::full:
+        return "full";
+    case epaper::refresh_mode::fast:
+        return "fast";
+    case epaper::refresh_mode::partial:
+        return "partial";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(m)) + ')';
+    }
+}
+
+/**
+ * @headerfile <idfxx/epaper/panel>
+ * @brief Returns a string representation of a pixel format.
+ *
+ * @param m The color mode to convert.
+ * @return The enumerator name (e.g. "gray4"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(epaper::color_mode m) {
+    switch (m) {
+    case epaper::color_mode::mono:
+        return "mono";
+    case epaper::color_mode::gray4:
+        return "gray4";
+    case epaper::color_mode::color6:
+        return "color6";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(m)) + ')';
+    }
+}
+
+/**
+ * @headerfile <idfxx/epaper/panel>
+ * @brief Returns a string representation of a border drive mode.
+ *
+ * @param b The border mode to convert.
+ * @return The enumerator name (e.g. "hold"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(epaper::border b) {
+    switch (b) {
+    case epaper::border::white:
+        return "white";
+    case epaper::border::black:
+        return "black";
+    case epaper::border::hold:
+        return "hold";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(b)) + ')';
+    }
+}
+
+} // namespace idfxx
+
 /** @} */ // end of idfxx_epaper
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <algorithm>
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::epaper::refresh_mode> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::epaper::refresh_mode v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::epaper::color_mode> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::epaper::color_mode v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::epaper::border> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::epaper::border v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT

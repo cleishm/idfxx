@@ -164,10 +164,10 @@ private:
     esp_chip_info_t _info{};
 };
 
+} // namespace idfxx
+
 /** @} */ // end of idfxx_hw_support_chip
 /** @} */ // end of idfxx_hw_support
-
-} // namespace idfxx
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */

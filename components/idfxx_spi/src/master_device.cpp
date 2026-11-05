@@ -60,26 +60,26 @@ struct master_device::async_state {
     }
 };
 
-static result<spi_device_handle_t> add_device(master_bus& bus, const master_device::config& config) {
-    if (config.duty_cycle_pos == 0) {
+static result<spi_device_handle_t> add_device(master_bus& bus, const master_device::config& cfg) {
+    if (cfg.duty_cycle_pos == 0) {
         return error(errc::invalid_arg);
     }
 
     spi_device_interface_config_t dev_config{
-        .command_bits = config.command_bits,
-        .address_bits = config.address_bits,
-        .dummy_bits = config.dummy_bits,
-        .mode = config.mode,
+        .command_bits = cfg.command_bits,
+        .address_bits = cfg.address_bits,
+        .dummy_bits = cfg.dummy_bits,
+        .mode = cfg.mode,
         .clock_source = SPI_CLK_SRC_DEFAULT,
-        .duty_cycle_pos = config.duty_cycle_pos.value_or(0), // 0 selects the driver default
-        .cs_ena_pretrans = config.cs_ena_pretrans,
-        .cs_ena_posttrans = config.cs_ena_posttrans,
-        .clock_speed_hz = static_cast<int>(config.clock_speed.count()),
-        .input_delay_ns = static_cast<int>(config.input_delay.count()),
+        .duty_cycle_pos = cfg.duty_cycle_pos.value_or(0), // 0 selects the driver default
+        .cs_ena_pretrans = cfg.cs_ena_pretrans,
+        .cs_ena_posttrans = cfg.cs_ena_posttrans,
+        .clock_speed_hz = static_cast<int>(cfg.clock_speed.count()),
+        .input_delay_ns = static_cast<int>(cfg.input_delay.count()),
         .sample_point = {},
-        .spics_io_num = config.cs.idf_num(),
-        .flags = to_underlying(config.flags),
-        .queue_size = config.queue_size,
+        .spics_io_num = cfg.cs.idf_num(),
+        .flags = to_underlying(cfg.flags),
+        .queue_size = cfg.queue_size,
         .pre_cb = nullptr,
         .post_cb = nullptr,
     };
@@ -95,13 +95,13 @@ static result<spi_device_handle_t> add_device(master_bus& bus, const master_devi
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_device::master_device(master_bus& bus, const struct config& config)
-    : master_device(&bus, unwrap(add_device(bus, config)), static_cast<size_t>(config.queue_size)) {}
+master_device::master_device(master_bus& bus, const config& cfg)
+    : master_device(&bus, unwrap(add_device(bus, cfg)), static_cast<size_t>(cfg.queue_size)) {}
 #endif
 
-result<master_device> master_device::make(master_bus& bus, const struct config& config) {
-    return add_device(bus, config).transform([&](auto handle) {
-        return master_device(&bus, handle, static_cast<size_t>(config.queue_size));
+result<master_device> master_device::make(master_bus& bus, const config& cfg) {
+    return add_device(bus, cfg).transform([&](auto handle) {
+        return master_device(&bus, handle, static_cast<size_t>(cfg.queue_size));
     });
 }
 

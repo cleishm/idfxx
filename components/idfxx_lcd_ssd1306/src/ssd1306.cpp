@@ -16,15 +16,15 @@ namespace {
 const char* TAG = "idfxx::lcd::ssd1306";
 
 idfxx::result<esp_lcd_panel_handle_t>
-make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::config& config) {
-    if (config.height != 64 && config.height != 32) {
+make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::config& cfg) {
+    if (cfg.height != 64 && cfg.height != 32) {
         ESP_LOGD(TAG, "Field 'height' has an invalid value");
         return idfxx::error(idfxx::errc::invalid_arg);
     }
 
     // The driver copies this during panel creation, so a stack instance is fine.
     esp_lcd_panel_ssd1306_config_t ssd1306_config{
-        .height = static_cast<uint8_t>(config.height),
+        .height = static_cast<uint8_t>(cfg.height),
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
         .contrast = 0, // overwritten by send_contrast() in make()
 #endif
@@ -34,9 +34,9 @@ make_handle(esp_lcd_panel_io_handle_t io_handle, const idfxx::lcd::ssd1306::conf
         esp_lcd_new_panel_ssd1306,
         io_handle,
         {
-            .reset_gpio = config.reset_gpio,
+            .reset_gpio = cfg.reset_gpio,
             .bits_per_pixel = 1,
-            .reset_active_level = config.reset_active_level,
+            .reset_active_level = cfg.reset_active_level,
             .vendor_config = &ssd1306_config,
         }
     );
@@ -51,13 +51,13 @@ idfxx::result<void> send_contrast(esp_lcd_panel_io_handle_t io_handle, uint8_t l
 
 namespace idfxx::lcd {
 
-result<ssd1306> ssd1306::make(idfxx::panel_io& panel_io, ssd1306::config config) {
+result<ssd1306> ssd1306::make(idfxx::panel_io& panel_io, ssd1306::config cfg) {
     auto queued_io = panel_io.queues_color_transfers() ? panel_io.idf_handle() : nullptr;
-    return make_handle(panel_io.idf_handle(), config)
-        .transform([&](auto handle) { return ssd1306{panel_io.idf_handle(), handle, config.height, queued_io}; })
+    return make_handle(panel_io.idf_handle(), cfg)
+        .transform([&](auto handle) { return ssd1306{panel_io.idf_handle(), handle, cfg.height, queued_io}; })
         .and_then([&](ssd1306 panel) -> result<ssd1306> {
             // On failure, `panel` is destroyed here, which deletes the panel handle.
-            return send_contrast(panel._io_handle, config.contrast).transform([&] { return std::move(panel); });
+            return send_contrast(panel._io_handle, cfg.contrast).transform([&] { return std::move(panel); });
         });
 }
 
@@ -69,8 +69,8 @@ result<void> ssd1306::try_set_contrast(uint8_t level) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-ssd1306::ssd1306(idfxx::panel_io& panel_io, ssd1306::config config)
-    : ssd1306(unwrap(make(panel_io, std::move(config)))) {}
+ssd1306::ssd1306(idfxx::panel_io& panel_io, ssd1306::config cfg)
+    : ssd1306(unwrap(make(panel_io, std::move(cfg)))) {}
 #endif
 
 ssd1306::ssd1306(ssd1306&& other) noexcept

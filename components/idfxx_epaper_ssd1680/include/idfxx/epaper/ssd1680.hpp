@@ -133,13 +133,13 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration.
+     * @param cfg   Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
      *         for out-of-range dimensions or an unconnected `busy_gpio`.
      */
-    [[nodiscard]] explicit ssd1680(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] explicit ssd1680(idfxx::panel_io& panel_io, config cfg);
 #endif
 
     /**
@@ -154,7 +154,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration.
+     * @param cfg   Panel configuration.
      *
      * @return The new ssd1680, or an error.
      * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, or
@@ -162,7 +162,7 @@ public:
      * @retval idfxx::errc::timeout if the controller's BUSY line does not
      *         release during initialization.
      */
-    [[nodiscard]] static result<ssd1680> make(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] static result<ssd1680> make(idfxx::panel_io& panel_io, config cfg);
 
     ~ssd1680() override;
 
@@ -180,18 +180,11 @@ private:
         size_t height;
     };
 
-    explicit ssd1680(idfxx::panel_io& panel_io, config config, std::vector<uint8_t, dram_allocator<uint8_t>> shadow)
-        : panel(
-              config.width,
-              config.height,
-              config.busy_gpio,
-              gpio::level::high,
-              config.busy_timeout,
-              config.reset_gpio
-          )
+    explicit ssd1680(idfxx::panel_io& panel_io, config cfg, std::vector<uint8_t, dram_allocator<uint8_t>> shadow)
+        : panel(cfg.width, cfg.height, cfg.busy_gpio, gpio::level::high, cfg.busy_timeout, cfg.reset_gpio)
         , _io_handle(panel_io.idf_handle())
-        , _mirror_x(config.mirror_x)
-        , _mirror_y(config.mirror_y)
+        , _mirror_x(cfg.mirror_x)
+        , _mirror_y(cfg.mirror_y)
         , _shadow(std::move(shadow)) {}
 
     // epaper::panel customization hooks.

@@ -33,6 +33,6 @@ extern const mono_font spleen_5x8;
 /// Spleen 8x16 — headline text; scale 2 gives 16x32 digits.
 extern const mono_font spleen_8x16;
 
-/** @} */ // end of idfxx_font_spleen
-
 } // namespace idfxx::font
+
+/** @} */ // end of idfxx_font_spleen

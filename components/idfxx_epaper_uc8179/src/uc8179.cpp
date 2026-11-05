@@ -243,29 +243,28 @@ panel_io::spi_config uc8179::spi_io_config(gpio cs, gpio dc, quanta::frequency::
     };
 }
 
-result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config config) {
-    if (config.width == 0 || config.width % 8 != 0 || config.width > max_width || config.height == 0 ||
-        config.height > max_height) {
+result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config cfg) {
+    if (cfg.width == 0 || cfg.width % 8 != 0 || cfg.width > max_width || cfg.height == 0 || cfg.height > max_height) {
         return error(errc::invalid_arg);
     }
-    const auto gray_frame_rate_code = pll_code(config.gray4_frame_rate);
-    const auto gray_source_code = source_code(config.gray4_source_voltage);
+    const auto gray_frame_rate_code = pll_code(cfg.gray4_frame_rate);
+    const auto gray_source_code = source_code(cfg.gray4_source_voltage);
     if (!gray_frame_rate_code || !gray_source_code) {
         return error(errc::invalid_arg);
     }
-    if (auto r = configure_control_lines(config.busy_gpio, config.reset_gpio); !r) {
+    if (auto r = configure_control_lines(cfg.busy_gpio, cfg.reset_gpio); !r) {
         return error(r.error());
     }
 
-    uc8179 display(raw_tag{}, panel_io, config);
+    uc8179 display(raw_tag{}, panel_io, cfg);
     display._gray_frame_rate_code = *gray_frame_rate_code;
     display._gray_source_code = *gray_source_code;
     // Store the configured border drive before any controller I/O; it is
     // applied by do_refresh.
-    if (auto r = display.try_set_border(config.border); !r) {
+    if (auto r = display.try_set_border(cfg.border); !r) {
         return error(r.error());
     }
-    if (config.reset_gpio.is_connected()) {
+    if (cfg.reset_gpio.is_connected()) {
         if (auto r = display.hardware_reset(); !r) {
             return error(r.error());
         }
@@ -282,8 +281,8 @@ result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config config) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-uc8179::uc8179(idfxx::panel_io& panel_io, uc8179::config config)
-    : uc8179(unwrap(make(panel_io, config))) {}
+uc8179::uc8179(idfxx::panel_io& panel_io, uc8179::config cfg)
+    : uc8179(unwrap(make(panel_io, cfg))) {}
 #endif
 
 uc8179::uc8179(uc8179&& other) noexcept

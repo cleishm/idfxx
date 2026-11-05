@@ -359,6 +359,7 @@ public:
     // =========================================================================
 
     /**
+     * @headerfile <idfxx/event>
      * @brief Configuration for a dedicated event dispatch task.
      */
     struct task_config {
@@ -996,6 +997,6 @@ event_loop::try_listener_add(event_base<IdEnum> base, opaque_event_handler<std::
     return register_listener<IdEnum>(_handle, base.idf_base(), ESP_EVENT_ANY_ID, std::move(callback));
 }
 
-/** @} */ // end of idfxx_event
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_event

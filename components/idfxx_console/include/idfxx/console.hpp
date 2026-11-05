@@ -314,6 +314,7 @@ class repl {
 
 public:
     /**
+     * @headerfile <idfxx/console>
      * @brief REPL configuration parameters.
      */
     struct config {
@@ -338,6 +339,7 @@ public:
     static constexpr uart_port default_uart_port = static_cast<uart_port>(CONFIG_ESP_CONSOLE_UART_NUM);
 
     /**
+     * @headerfile <idfxx/console>
      * @brief UART-specific configuration.
      */
     struct uart_config {
@@ -620,6 +622,6 @@ inline constexpr repl::stdio_t repl::stdio{repl::_key{}};
 #endif
 /// @endcond
 
-/** @} */ // end of idfxx_console
-
 } // namespace idfxx::console
+
+/** @} */ // end of idfxx_console

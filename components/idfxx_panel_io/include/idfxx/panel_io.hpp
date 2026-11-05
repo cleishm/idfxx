@@ -58,6 +58,7 @@ public:
     typedef std::move_only_function<bool(esp_lcd_panel_io_event_data_t* edata)> color_transfer_done_callback;
 
     /**
+     * @headerfile <idfxx/panel_io>
      * @brief SPI-based panel I/O configuration.
      *
      * Every field other than cs_gpio, pclk_freq, lcd_cmd_bits, and lcd_param_bits has a
@@ -93,6 +94,7 @@ public:
     };
 
     /**
+     * @headerfile <idfxx/panel_io>
      * @brief I2C-based panel I/O configuration.
      *
      * Every field other than device_address, scl_speed, lcd_cmd_bits, and lcd_param_bits has
@@ -125,12 +127,12 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param spi_bus The SPI bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit panel_io(idfxx::spi::master_bus& spi_bus, spi_config config);
+    [[nodiscard]] explicit panel_io(idfxx::spi::master_bus& spi_bus, spi_config cfg);
 #endif
 
     /**
@@ -140,11 +142,11 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param spi_bus The SPI bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @return The new panel_io, or an error.
      */
-    [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config config);
+    [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config cfg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -154,12 +156,12 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param i2c_bus The I2C bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
+    [[nodiscard]] explicit panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config cfg);
 #endif
 
     /**
@@ -169,11 +171,11 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param i2c_bus The I2C bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @return The new panel_io, or an error.
      */
-    [[nodiscard]] static result<panel_io> make(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
+    [[nodiscard]] static result<panel_io> make(idfxx::i2c::master_bus& i2c_bus, i2c_config cfg);
 
     ~panel_io();
 
@@ -219,6 +221,6 @@ private:
     std::unique_ptr<callback_state> _callbacks; // heap-stable state for ESP-IDF callbacks
 };
 
-/** @} */ // end of idfxx_panel_io
-
 } // namespace idfxx
+
+/** @} */ // end of idfxx_panel_io

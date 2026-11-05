@@ -63,18 +63,20 @@ bool interface::is_up() const {
     return esp_netif_is_netif_up(_handle);
 }
 
-const char* interface::key() const {
+std::string_view interface::key() const {
     if (_handle == nullptr) {
-        return nullptr;
+        return {};
     }
-    return esp_netif_get_ifkey(_handle);
+    const char* key = esp_netif_get_ifkey(_handle);
+    return key != nullptr ? std::string_view{key} : std::string_view{};
 }
 
-const char* interface::description() const {
+std::string_view interface::description() const {
     if (_handle == nullptr) {
-        return nullptr;
+        return {};
     }
-    return esp_netif_get_desc(_handle);
+    const char* description = esp_netif_get_desc(_handle);
+    return description != nullptr ? std::string_view{description} : std::string_view{};
 }
 
 int interface::get_route_priority() const {
