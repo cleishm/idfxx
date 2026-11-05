@@ -62,6 +62,8 @@ if (result) {
 }
 ```
 
+Codes with a standard POSIX equivalent (`invalid_arg`, `not_supported`, `timeout`, `not_allowed`) also compare equal to the matching `std::errc` value, so portable checks such as `result.error() == std::errc::timed_out` work across components.
+
 ### Chrono Utilities
 
 ```cpp
