@@ -120,12 +120,12 @@ public:
      * Resolves the ADC unit/channel from the pin, claims the unit, and sets
      * up factory calibration when the chip provides it.
      *
-     * @param config Input configuration.
+     * @param cfg Input configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure (e.g. the pin is not ADC-capable
      *         or the unit is already claimed).
      */
-    [[nodiscard]] explicit input(config config);
+    [[nodiscard]] explicit input(config cfg);
 #endif
 
     /**
@@ -134,12 +134,12 @@ public:
      * Resolves the ADC unit/channel from the pin, claims the unit, and sets
      * up factory calibration when the chip provides it.
      *
-     * @param config Input configuration.
+     * @param cfg Input configuration.
      * @return The input, or an error.
      * @retval idfxx::errc::invalid_arg The pin is not connected or not
      *         ADC-capable, or the divider ratio is not positive.
      */
-    [[nodiscard]] static result<input> make(config config);
+    [[nodiscard]] static result<input> make(config cfg);
 
     ~input();
 
@@ -289,13 +289,13 @@ public:
      * controller for round-robin conversion, and sets up factory calibration
      * when the chip provides it. Sampling does not begin until @ref start.
      *
-     * @param config Sampler configuration.
+     * @param cfg Sampler configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure (e.g. a pin is not ADC1-capable,
      *         the pin list is empty or has duplicates, or the sizes/rate are
      *         invalid).
      */
-    [[nodiscard]] explicit sampler(config config);
+    [[nodiscard]] explicit sampler(config cfg);
 #endif
 
     /**
@@ -305,7 +305,7 @@ public:
      * controller for round-robin conversion, and sets up factory calibration
      * when the chip provides it. Sampling does not begin until @ref try_start.
      *
-     * @param config Sampler configuration.
+     * @param cfg Sampler configuration.
      * @return The sampler, or an error.
      * @retval idfxx::errc::invalid_arg The pin list is empty, exceeds the
      *         chip's conversion-pattern length, contains duplicates or
@@ -313,7 +313,7 @@ public:
      *         `frame_samples` is zero, `buffer_samples` is smaller than
      *         `frame_samples`, or `sample_rate` is not positive.
      */
-    [[nodiscard]] static result<sampler> make(config config);
+    [[nodiscard]] static result<sampler> make(config cfg);
 
     /**
      * @brief Destroys the sampler, stopping conversion and releasing ADC1.

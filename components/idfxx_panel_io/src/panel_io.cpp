@@ -30,59 +30,59 @@ panel_io::panel_io(esp_lcd_panel_io_handle_t handle, transport kind, std::unique
     , _transport(kind)
     , _callbacks(std::move(callbacks)) {}
 
-result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config config) {
-    if (!config.cs_gpio->is_connected()) {
+result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_config cfg) {
+    if (!cfg.cs_gpio->is_connected()) {
         ESP_LOGD(TAG, "Field 'cs_gpio' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.pclk_freq->count() == 0) {
+    if (cfg.pclk_freq->count() == 0) {
         ESP_LOGD(TAG, "Field 'pclk_freq' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.trans_queue_depth == 0) {
+    if (cfg.trans_queue_depth == 0) {
         ESP_LOGD(TAG, "Field 'trans_queue_depth' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.lcd_cmd_bits == 0) {
+    if (cfg.lcd_cmd_bits == 0) {
         ESP_LOGD(TAG, "Field 'lcd_cmd_bits' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.lcd_param_bits == 0) {
+    if (cfg.lcd_param_bits == 0) {
         ESP_LOGD(TAG, "Field 'lcd_param_bits' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     std::unique_ptr<callback_state> cbs;
-    if (config.on_color_transfer_done) {
-        cbs = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
+    if (cfg.on_color_transfer_done) {
+        cbs = std::make_unique<callback_state>(std::move(cfg.on_color_transfer_done));
     }
 
     esp_lcd_panel_io_spi_config_t lcd_config{
-        .cs_gpio_num = config.cs_gpio->idf_num(),
-        .dc_gpio_num = config.dc_gpio.idf_num(),
-        .spi_mode = config.spi_mode,
-        .pclk_hz = static_cast<uint32_t>(config.pclk_freq->count()),
-        .trans_queue_depth = config.trans_queue_depth,
+        .cs_gpio_num = cfg.cs_gpio->idf_num(),
+        .dc_gpio_num = cfg.dc_gpio.idf_num(),
+        .spi_mode = cfg.spi_mode,
+        .pclk_hz = static_cast<uint32_t>(cfg.pclk_freq->count()),
+        .trans_queue_depth = cfg.trans_queue_depth,
         .on_color_trans_done = cbs ? on_color_transfer_done : nullptr,
         .user_ctx = cbs ? static_cast<void*>(cbs.get()) : nullptr,
-        .lcd_cmd_bits = config.lcd_cmd_bits,
-        .lcd_param_bits = config.lcd_param_bits,
-        .cs_ena_pretrans = config.cs_enable_pretrans,
-        .cs_ena_posttrans = config.cs_enable_posttrans,
+        .lcd_cmd_bits = cfg.lcd_cmd_bits,
+        .lcd_param_bits = cfg.lcd_param_bits,
+        .cs_ena_pretrans = cfg.cs_enable_pretrans,
+        .cs_ena_posttrans = cfg.cs_enable_posttrans,
         .flags{},
     };
     // Assign the bitfield flags individually rather than via a designated
     // initializer: value-initializing the struct above zeroes every flag bit,
     // so this stays forward-compatible as ESP-IDF adds new flags (which would
     // otherwise trip -Werror=missing-field-initializers).
-    lcd_config.flags.dc_high_on_cmd = config.flags.dc_high_on_cmd;
-    lcd_config.flags.dc_low_on_data = config.flags.dc_low_on_data;
-    lcd_config.flags.dc_low_on_param = config.flags.dc_low_on_param;
-    lcd_config.flags.octal_mode = config.flags.octal_mode;
-    lcd_config.flags.quad_mode = config.flags.quad_mode;
-    lcd_config.flags.sio_mode = config.flags.sio_mode;
-    lcd_config.flags.lsb_first = config.flags.lsb_first;
-    lcd_config.flags.cs_high_active = config.flags.cs_high_active;
+    lcd_config.flags.dc_high_on_cmd = cfg.flags.dc_high_on_cmd;
+    lcd_config.flags.dc_low_on_data = cfg.flags.dc_low_on_data;
+    lcd_config.flags.dc_low_on_param = cfg.flags.dc_low_on_param;
+    lcd_config.flags.octal_mode = cfg.flags.octal_mode;
+    lcd_config.flags.quad_mode = cfg.flags.quad_mode;
+    lcd_config.flags.sio_mode = cfg.flags.sio_mode;
+    lcd_config.flags.lsb_first = cfg.flags.lsb_first;
+    lcd_config.flags.cs_high_active = cfg.flags.cs_high_active;
 
     esp_lcd_panel_io_handle_t handle = nullptr;
     auto err = esp_lcd_new_panel_io_spi(static_cast<spi_host_device_t>(spi_bus.host()), &lcd_config, &handle);
@@ -94,31 +94,31 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config config)
-    : panel_io(unwrap(make(spi_bus, std::move(config)))) {}
+panel_io::panel_io(idfxx::spi::master_bus& spi_bus, spi_config cfg)
+    : panel_io(unwrap(make(spi_bus, std::move(cfg)))) {}
 #endif
 
-result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_config config) {
-    if (config.device_address == 0) {
+result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_config cfg) {
+    if (cfg.device_address == 0) {
         ESP_LOGD(TAG, "Field 'device_address' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.scl_speed->count() == 0) {
+    if (cfg.scl_speed->count() == 0) {
         ESP_LOGD(TAG, "Field 'scl_speed' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.lcd_cmd_bits == 0) {
+    if (cfg.lcd_cmd_bits == 0) {
         ESP_LOGD(TAG, "Field 'lcd_cmd_bits' has an invalid value");
         return error(errc::invalid_arg);
     }
-    if (config.lcd_param_bits == 0) {
+    if (cfg.lcd_param_bits == 0) {
         ESP_LOGD(TAG, "Field 'lcd_param_bits' has an invalid value");
         return error(errc::invalid_arg);
     }
 
     std::unique_ptr<callback_state> cbs;
-    if (config.on_color_transfer_done) {
-        cbs = std::make_unique<callback_state>(std::move(config.on_color_transfer_done));
+    if (cfg.on_color_transfer_done) {
+        cbs = std::make_unique<callback_state>(std::move(cfg.on_color_transfer_done));
     }
 
     // Assign members individually rather than via a designated initializer:
@@ -126,16 +126,16 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
     // 5.5 and 6.0, and value-initializing the struct first zeroes every field
     // including any flags ESP-IDF adds later.
     esp_lcd_panel_io_i2c_config_t lcd_config{};
-    lcd_config.dev_addr = config.device_address;
-    lcd_config.scl_speed_hz = static_cast<uint32_t>(config.scl_speed->count());
-    lcd_config.control_phase_bytes = config.control_phase_bytes;
-    lcd_config.dc_bit_offset = config.dc_bit_offset;
-    lcd_config.lcd_cmd_bits = config.lcd_cmd_bits;
-    lcd_config.lcd_param_bits = config.lcd_param_bits;
+    lcd_config.dev_addr = cfg.device_address;
+    lcd_config.scl_speed_hz = static_cast<uint32_t>(cfg.scl_speed->count());
+    lcd_config.control_phase_bytes = cfg.control_phase_bytes;
+    lcd_config.dc_bit_offset = cfg.dc_bit_offset;
+    lcd_config.lcd_cmd_bits = cfg.lcd_cmd_bits;
+    lcd_config.lcd_param_bits = cfg.lcd_param_bits;
     lcd_config.on_color_trans_done = cbs ? on_color_transfer_done : nullptr;
     lcd_config.user_ctx = cbs ? static_cast<void*>(cbs.get()) : nullptr;
-    lcd_config.flags.dc_low_on_data = config.flags.dc_low_on_data;
-    lcd_config.flags.disable_control_phase = config.flags.disable_control_phase;
+    lcd_config.flags.dc_low_on_data = cfg.flags.dc_low_on_data;
+    lcd_config.flags.disable_control_phase = cfg.flags.disable_control_phase;
 
     esp_lcd_panel_io_handle_t handle = nullptr;
     auto err = esp_lcd_new_panel_io_i2c(i2c_bus.handle(), &lcd_config, &handle);
@@ -147,8 +147,8 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-panel_io::panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config)
-    : panel_io(unwrap(make(i2c_bus, std::move(config)))) {}
+panel_io::panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config cfg)
+    : panel_io(unwrap(make(i2c_bus, std::move(cfg)))) {}
 #endif
 
 panel_io::panel_io(panel_io&& other) noexcept

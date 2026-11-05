@@ -113,19 +113,19 @@ panel_io::spi_config ssd1680::spi_io_config(gpio cs, gpio dc, quanta::frequency:
     };
 }
 
-result<ssd1680> ssd1680::make(idfxx::panel_io& panel_io, ssd1680::config config) {
-    if (config.width == 0 || config.width > max_width || config.height == 0 || config.height > max_height) {
+result<ssd1680> ssd1680::make(idfxx::panel_io& panel_io, ssd1680::config cfg) {
+    if (cfg.width == 0 || cfg.width > max_width || cfg.height == 0 || cfg.height > max_height) {
         return error(errc::invalid_arg);
     }
-    if (auto r = configure_control_lines(config.busy_gpio, config.reset_gpio); !r) {
+    if (auto r = configure_control_lines(cfg.busy_gpio, cfg.reset_gpio); !r) {
         return error(r.error());
     }
 
-    const size_t stride = (config.width + 7) / 8;
-    std::vector<uint8_t, dram_allocator<uint8_t>> shadow(stride * config.height, 0xFF);
+    const size_t stride = (cfg.width + 7) / 8;
+    std::vector<uint8_t, dram_allocator<uint8_t>> shadow(stride * cfg.height, 0xFF);
 
-    ssd1680 display(panel_io, config, std::move(shadow));
-    if (config.reset_gpio.is_connected()) {
+    ssd1680 display(panel_io, cfg, std::move(shadow));
+    if (cfg.reset_gpio.is_connected()) {
         if (auto r = display.hardware_reset(); !r) {
             return error(r.error());
         }
@@ -137,8 +137,8 @@ result<ssd1680> ssd1680::make(idfxx::panel_io& panel_io, ssd1680::config config)
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-ssd1680::ssd1680(idfxx::panel_io& panel_io, ssd1680::config config)
-    : ssd1680(unwrap(make(panel_io, config))) {}
+ssd1680::ssd1680(idfxx::panel_io& panel_io, ssd1680::config cfg)
+    : ssd1680(unwrap(make(panel_io, cfg))) {}
 #endif
 
 ssd1680::ssd1680(ssd1680&& other) noexcept

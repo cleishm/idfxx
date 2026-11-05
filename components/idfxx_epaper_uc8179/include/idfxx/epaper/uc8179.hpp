@@ -175,14 +175,14 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration.
+     * @param cfg   Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
      *         for out-of-range dimensions, an unconnected `busy_gpio`, or an
      *         unsupported `gray4_frame_rate` or `gray4_source_voltage`.
      */
-    [[nodiscard]] explicit uc8179(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] explicit uc8179(idfxx::panel_io& panel_io, config cfg);
 #endif
 
     /**
@@ -198,7 +198,7 @@ public:
      * I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Panel configuration.
+     * @param cfg   Panel configuration.
      *
      * @return The new uc8179, or an error.
      * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, the
@@ -208,7 +208,7 @@ public:
      * @retval idfxx::errc::timeout if the controller's BUSY line does not
      *         release during initialization.
      */
-    [[nodiscard]] static result<uc8179> make(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] static result<uc8179> make(idfxx::panel_io& panel_io, config cfg);
 
     ~uc8179() override;
 
@@ -237,8 +237,8 @@ private:
     // the public throwing constructor with the same argument list.
     struct raw_tag {};
 
-    explicit uc8179(raw_tag, idfxx::panel_io& panel_io, config config)
-        : panel(config.width, config.height, config.busy_gpio, gpio::level::low, config.busy_timeout, config.reset_gpio)
+    explicit uc8179(raw_tag, idfxx::panel_io& panel_io, config cfg)
+        : panel(cfg.width, cfg.height, cfg.busy_gpio, gpio::level::low, cfg.busy_timeout, cfg.reset_gpio)
         , _io_handle(panel_io.idf_handle()) {}
 
     // epaper::panel customization hooks.

@@ -251,11 +251,11 @@ public:
      * outlives this driver.
      *
      * @param bus    Parent SPI master bus.
-     * @param config Driver configuration.
+     * @param cfg    Driver configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit sx126x(spi::master_bus& bus, config config);
+    [[nodiscard]] explicit sx126x(spi::master_bus& bus, config cfg);
 #endif
 
     /**
@@ -265,10 +265,10 @@ public:
      * outlives this driver.
      *
      * @param bus    Parent SPI master bus.
-     * @param config Driver configuration.
+     * @param cfg    Driver configuration.
      * @return The new driver, or an error.
      */
-    [[nodiscard]] static result<sx126x> make(spi::master_bus& bus, config config);
+    [[nodiscard]] static result<sx126x> make(spi::master_bus& bus, config cfg);
 
     ~sx126x() override;
 

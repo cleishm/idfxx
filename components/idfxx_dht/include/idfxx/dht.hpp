@@ -95,11 +95,11 @@ public:
      * Claims an RMT receive channel for the data line and configures the pin
      * as an open-drain input/output.
      *
-     * @param config Sensor configuration.
+     * @param cfg Sensor configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure (e.g. no free RMT channel).
      */
-    [[nodiscard]] explicit sensor(config config);
+    [[nodiscard]] explicit sensor(config cfg);
 #endif
 
     /**
@@ -108,11 +108,11 @@ public:
      * Claims an RMT receive channel for the data line and configures the pin
      * as an open-drain input/output.
      *
-     * @param config Sensor configuration.
+     * @param cfg Sensor configuration.
      * @return The driver, or an error.
      * @retval idfxx::errc::invalid_arg If the pin is not connected.
      */
-    [[nodiscard]] static result<sensor> make(config config);
+    [[nodiscard]] static result<sensor> make(config cfg);
 
     ~sensor();
 

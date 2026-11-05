@@ -39,12 +39,12 @@ public:
      * this controller does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Configuration.
+     * @param cfg      Configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit stmpe610(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] explicit stmpe610(idfxx::panel_io& panel_io, config cfg);
 #endif
 
     /**
@@ -54,11 +54,11 @@ public:
      * this controller does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   Configuration.
+     * @param cfg      Configuration.
      *
      * @return The new stmpe610, or an error.
      */
-    [[nodiscard]] static result<stmpe610> make(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] static result<stmpe610> make(idfxx::panel_io& panel_io, config cfg);
 
     ~stmpe610();
 

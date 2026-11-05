@@ -14,42 +14,41 @@ const char* TAG = "idfxx::spi::bus";
 
 namespace idfxx::spi {
 
-static result<void> init_bus(enum host_device host, const struct bus_config& config, enum dma_chan dma_chan) {
+static result<void> init_bus(enum host_device host, const bus_config& cfg, enum dma_chan dma_chan) {
     if (static_cast<spi_host_device_t>(host) >= SPI_HOST_MAX) {
         return error(errc::invalid_arg);
     }
-    if (config.max_transfer_sz == 0u ||
-        config.max_transfer_sz.value_or(0) > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    if (cfg.max_transfer_sz == 0u ||
+        cfg.max_transfer_sz.value_or(0) > static_cast<size_t>(std::numeric_limits<int>::max())) {
         return error(errc::invalid_arg);
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-    if (config.dma_burst_size == 0u) {
+    if (cfg.dma_burst_size == 0u) {
         return error(errc::invalid_arg);
     }
 #endif
 
     spi_bus_config_t spi_config{
-        .mosi_io_num = config.mosi.idf_num(),
-        .miso_io_num = config.miso.idf_num(),
-        .sclk_io_num = config.sclk.idf_num(),
-        .quadwp_io_num = config.quadwp.idf_num(),
-        .quadhd_io_num = config.quadhd.idf_num(),
-        .data4_io_num = config.data4.idf_num(),
-        .data5_io_num = config.data5.idf_num(),
-        .data6_io_num = config.data6.idf_num(),
-        .data7_io_num = config.data7.idf_num(),
-        .data_io_default_level = config.data_idle_level == gpio::level::high,
-        .max_transfer_sz = static_cast<int>(config.max_transfer_sz.value_or(0)), // 0 selects the driver default
+        .mosi_io_num = cfg.mosi.idf_num(),
+        .miso_io_num = cfg.miso.idf_num(),
+        .sclk_io_num = cfg.sclk.idf_num(),
+        .quadwp_io_num = cfg.quadwp.idf_num(),
+        .quadhd_io_num = cfg.quadhd.idf_num(),
+        .data4_io_num = cfg.data4.idf_num(),
+        .data5_io_num = cfg.data5.idf_num(),
+        .data6_io_num = cfg.data6.idf_num(),
+        .data7_io_num = cfg.data7.idf_num(),
+        .data_io_default_level = cfg.data_idle_level == gpio::level::high,
+        .max_transfer_sz = static_cast<int>(cfg.max_transfer_sz.value_or(0)), // 0 selects the driver default
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-        .dma_burst_size = config.dma_burst_size.value_or(0), // 0 selects the driver default
+        .dma_burst_size = cfg.dma_burst_size.value_or(0), // 0 selects the driver default
 #endif
-        .flags = to_underlying(config.flags),
+        .flags = to_underlying(cfg.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
         // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.
-        .isr_cpu_id = config.isr_cpu_id
-            ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*config.isr_cpu_id) + 1)
-            : ESP_INTR_CPU_AFFINITY_AUTO,
-        .intr_flags = to_underlying(config.intr_levels) | to_underlying(config.intr_flags),
+        .isr_cpu_id = cfg.isr_cpu_id ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*cfg.isr_cpu_id) + 1)
+                                     : ESP_INTR_CPU_AFFINITY_AUTO,
+        .intr_flags = to_underlying(cfg.intr_levels) | to_underlying(cfg.intr_flags),
     };
 
     esp_err_t res =
@@ -73,15 +72,15 @@ static result<void> init_bus(enum host_device host, const struct bus_config& con
     return {};
 }
 
-result<master_bus> master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config config) {
-    return init_bus(host, config, dma_chan).transform([&] { return master_bus{host}; });
+result<master_bus> master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg) {
+    return init_bus(host, cfg, dma_chan).transform([&] { return master_bus{host}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-master_bus::master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config config)
+master_bus::master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg)
     : _host(host)
     , _initialized(false) {
-    unwrap(init_bus(host, config, dma_chan));
+    unwrap(init_bus(host, cfg, dma_chan));
     _initialized = true;
 }
 #endif

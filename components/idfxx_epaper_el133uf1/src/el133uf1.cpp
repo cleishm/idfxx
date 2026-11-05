@@ -131,24 +131,23 @@ result<void> configure_cs(gpio cs) {
 
 } // namespace
 
-result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
-    if (!config.master_cs_gpio->is_connected() || !config.slave_cs_gpio->is_connected() ||
-        !config.dc_gpio->is_connected()) {
+result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config cfg) {
+    if (!cfg.master_cs_gpio->is_connected() || !cfg.slave_cs_gpio->is_connected() || !cfg.dc_gpio->is_connected()) {
         return error(errc::invalid_arg);
     }
-    if (config.master_cs_gpio == config.slave_cs_gpio) {
+    if (cfg.master_cs_gpio == cfg.slave_cs_gpio) {
         return error(errc::invalid_arg);
     }
-    if (auto r = configure_control_lines(config.busy_gpio, config.reset_gpio); !r) {
+    if (auto r = configure_control_lines(cfg.busy_gpio, cfg.reset_gpio); !r) {
         return error(r.error());
     }
-    if (auto r = configure_cs(config.master_cs_gpio); !r) {
+    if (auto r = configure_cs(cfg.master_cs_gpio); !r) {
         return error(r.error());
     }
-    if (auto r = configure_cs(config.slave_cs_gpio); !r) {
+    if (auto r = configure_cs(cfg.slave_cs_gpio); !r) {
         return error(r.error());
     }
-    gpio dc = config.dc_gpio;
+    gpio dc = cfg.dc_gpio;
     dc.set_level(gpio::level::low);
     if (auto r = dc.try_set_direction(gpio::mode::output); !r) {
         return error(r.error());
@@ -160,7 +159,7 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
         bus,
         {
             .mode = 0,
-            .clock_speed = config.pclk,
+            .clock_speed = cfg.pclk,
             .cs = gpio::nc(),
             .flags = spi::device_flags::halfduplex,
             .queue_size = 1,
@@ -170,14 +169,14 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
         return error(device.error());
     }
 
-    el133uf1 display(std::move(*device), config);
+    el133uf1 display(std::move(*device), cfg);
     // MALLOC_CAP_DMA memory is always internal RAM. Allocation failure
     // follows the project's OOM policy (bad_alloc / abort).
     display._chunk.resize(std::min(max_chunk_bytes, bus.max_transaction_length()));
     // The shadow starts as blank paper, matching what a fresh
     // color6_framebuffer holds. PSRAM is a hard requirement.
     display._shadow.assign(shadow_bytes, pair_white);
-    if (config.reset_gpio.is_connected()) {
+    if (cfg.reset_gpio.is_connected()) {
         // The vendor reset timing is longer than the base's default pulse.
         if (auto r = display.hardware_reset(20ms); !r) {
             return error(r.error());
@@ -200,8 +199,8 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config config) {
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-el133uf1::el133uf1(spi::master_bus& bus, el133uf1::config config)
-    : el133uf1(unwrap(make(bus, config))) {}
+el133uf1::el133uf1(spi::master_bus& bus, el133uf1::config cfg)
+    : el133uf1(unwrap(make(bus, cfg))) {}
 #endif
 
 el133uf1::el133uf1(el133uf1&& other) noexcept

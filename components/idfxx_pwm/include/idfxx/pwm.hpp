@@ -214,7 +214,7 @@ public:
      * tmr.configure({.frequency = 5_kHz, .resolution_bits = 13});
      * @endcode
      */
-    void configure(const struct config& cfg) { unwrap(try_configure(cfg)); }
+    void configure(const config& cfg) { unwrap(try_configure(cfg)); }
 
     /**
      * @brief Configures the timer with frequency and resolution.
@@ -243,7 +243,7 @@ public:
      * @retval invalid_arg Invalid frequency (zero) or resolution.
      * @retval fail Requested frequency cannot be achieved.
      */
-    [[nodiscard]] result<void> try_configure(const struct config& cfg);
+    [[nodiscard]] result<void> try_configure(const config& cfg);
 
     /**
      * @brief Configures the timer with frequency and resolution.

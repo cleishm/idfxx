@@ -190,7 +190,7 @@ public:
      * @brief Creates a new I2C master bus.
      *
      * @param port   I2C port number.
-     * @param config Bus configuration.
+     * @param cfg Bus configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -204,7 +204,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] explicit master_bus(enum port port, const struct config& config);
+    [[nodiscard]] explicit master_bus(enum port port, const config& cfg);
 
     /**
      * @brief Creates a new I2C master bus with default settings.
@@ -224,7 +224,7 @@ public:
      * @brief Creates a new I2C master bus.
      *
      * @param port   I2C port number.
-     * @param config Bus configuration.
+     * @param cfg Bus configuration.
      *
      * @return The new master_bus, or an error.
      *
@@ -237,7 +237,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] static result<master_bus> make(enum port port, const struct config& config);
+    [[nodiscard]] static result<master_bus> make(enum port port, const config& cfg);
 
     /**
      * @brief Creates a new I2C master bus with default settings.
@@ -459,7 +459,7 @@ public:
      *
      * @param bus     The parent bus.
      * @param address Device address.
-     * @param config  Device configuration.
+     * @param cfg     Device configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -470,7 +470,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] explicit master_device(master_bus& bus, uint16_t address, const struct config& config);
+    [[nodiscard]] explicit master_device(master_bus& bus, uint16_t address, const config& cfg);
 
     /**
      * @brief Creates a new device on the specified bus.
@@ -495,7 +495,7 @@ public:
      *
      * @param bus     The parent bus.
      * @param address Device address.
-     * @param config  Device configuration.
+     * @param cfg     Device configuration.
      *
      * @return The new master_device, or an error.
      *
@@ -505,7 +505,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] static result<master_device> make(master_bus& bus, uint16_t address, const struct config& config);
+    [[nodiscard]] static result<master_device> make(master_bus& bus, uint16_t address, const config& cfg);
 
     /**
      * @brief Creates a new device on the specified bus.

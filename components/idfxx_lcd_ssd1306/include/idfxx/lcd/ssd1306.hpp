@@ -88,12 +88,12 @@ public:
      * this panel does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   panel configuration.
+     * @param cfg      panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] explicit ssd1306(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] explicit ssd1306(idfxx::panel_io& panel_io, config cfg);
 #endif
 
     /**
@@ -103,12 +103,12 @@ public:
      * this panel does not outlive the panel I/O interface.
      *
      * @param panel_io The panel I/O interface.
-     * @param config   panel configuration.
+     * @param cfg      panel configuration.
      *
      * @return The new ssd1306, or an error.
      * @retval idfxx::errc::invalid_arg if the configured height is not 64 or 32.
      */
-    [[nodiscard]] static result<ssd1306> make(idfxx::panel_io& panel_io, config config);
+    [[nodiscard]] static result<ssd1306> make(idfxx::panel_io& panel_io, config cfg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

@@ -223,12 +223,12 @@ result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size) c
     return try_mmap(offset, size, mmap_config{});
 }
 
-result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, const mmap_config& config) const {
+result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, const mmap_config& cfg) const {
     const void* ptr = nullptr;
     esp_partition_mmap_handle_t handle = 0;
-    auto flags = static_cast<int>(config.memory);
+    auto flags = static_cast<int>(cfg.memory);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-    if (config.blocks_write) {
+    if (cfg.blocks_write) {
         flags |= ESP_PARTITION_MMAP_BLOCKS_WRITE;
     }
 #endif

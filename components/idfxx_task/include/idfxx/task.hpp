@@ -328,7 +328,7 @@ public:
      *                  the function had returned.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    static void spawn(config cfg, std::move_only_function<void(self&)> task_func);
+    static void spawn(const config& cfg, std::move_only_function<void(self&)> task_func);
 
     /**
      * @brief Destroys the task, requesting stop and blocking until the task function completes.

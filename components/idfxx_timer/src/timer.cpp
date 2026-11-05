@@ -42,7 +42,7 @@ void timer::trampoline(void* arg) {
     xSemaphoreGive(ctx->mutex);
 }
 
-result<timer> timer::make(config cfg, std::move_only_function<void()> callback) {
+result<timer> timer::make(const config& cfg, std::move_only_function<void()> callback) {
 #ifdef CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD
     if (cfg.dispatch == dispatch_method::isr) {
         return error(ESP_ERR_INVALID_ARG);
@@ -77,7 +77,7 @@ result<timer> timer::make(config cfg, std::move_only_function<void()> callback) 
     return t;
 }
 
-result<timer> timer::make(config cfg, void (*callback)(void*), void* arg) {
+result<timer> timer::make(const config& cfg, void (*callback)(void*), void* arg) {
     std::string name{cfg.name};
 
     esp_timer_create_args_t args{
@@ -99,7 +99,7 @@ result<timer> timer::make(config cfg, void (*callback)(void*), void* arg) {
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 timer::timer(const config& cfg, std::move_only_function<void()> callback)
-    : timer(unwrap(make(config{cfg}, std::move(callback)))) {}
+    : timer(unwrap(make(cfg, std::move(callback)))) {}
 #endif
 
 timer::timer(esp_timer_handle_t handle, std::string name, context* ctx)

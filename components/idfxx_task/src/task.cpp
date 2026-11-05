@@ -133,7 +133,7 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
     _context = ctx;
 }
 
-void task::spawn(config cfg, std::move_only_function<void(self&)> task_func) {
+void task::spawn(const config& cfg, std::move_only_function<void(self&)> task_func) {
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);

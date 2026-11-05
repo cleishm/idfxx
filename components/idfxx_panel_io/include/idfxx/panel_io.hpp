@@ -127,12 +127,12 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param spi_bus The SPI bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit panel_io(idfxx::spi::master_bus& spi_bus, spi_config config);
+    [[nodiscard]] explicit panel_io(idfxx::spi::master_bus& spi_bus, spi_config cfg);
 #endif
 
     /**
@@ -142,11 +142,11 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param spi_bus The SPI bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @return The new panel_io, or an error.
      */
-    [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config config);
+    [[nodiscard]] static result<panel_io> make(idfxx::spi::master_bus& spi_bus, spi_config cfg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -156,12 +156,12 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param i2c_bus The I2C bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
+    [[nodiscard]] explicit panel_io(idfxx::i2c::master_bus& i2c_bus, i2c_config cfg);
 #endif
 
     /**
@@ -171,11 +171,11 @@ public:
      * this panel_io does not outlive the bus.
      *
      * @param i2c_bus The I2C bus.
-     * @param config  Panel I/O configuration.
+     * @param cfg     Panel I/O configuration.
      *
      * @return The new panel_io, or an error.
      */
-    [[nodiscard]] static result<panel_io> make(idfxx::i2c::master_bus& i2c_bus, i2c_config config);
+    [[nodiscard]] static result<panel_io> make(idfxx::i2c::master_bus& i2c_bus, i2c_config cfg);
 
     ~panel_io();
 

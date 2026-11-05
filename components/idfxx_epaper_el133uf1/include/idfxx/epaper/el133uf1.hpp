@@ -164,8 +164,8 @@ public:
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
      * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (or, without a `config.reset_gpio`, waits for BUSY to release),
-     * confirms that both answer if `config.check_presence` is set, runs the
+     * (or, without a `cfg.reset_gpio`, waits for BUSY to release),
+     * confirms that both answer if `cfg.check_presence` is set, runs the
      * full initialization sequence, and allocates the PSRAM shadow frame
      * (blank white), leaving the panel awake in @ref color_mode::color6 and
      * ready for writes.
@@ -175,15 +175,15 @@ public:
      *
      * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
      *               always used; MISO is used only when
-     *               `config.check_presence` is set.
-     * @param config Panel configuration.
+     *               `cfg.check_presence` is set.
+     * @param cfg Panel configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg`
      *         if the two chip-select GPIOs are the same or a required GPIO
      *         is unconnected, `errc::timeout` if the BUSY line does not
      *         release during initialization, and `errc::not_found` if
-     *         `config.check_presence` is set and a controller does not
+     *         `cfg.check_presence` is set and a controller does not
      *         answer.
      *
      * @code
@@ -196,7 +196,7 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] explicit el133uf1(spi::master_bus& bus, config config);
+    [[nodiscard]] explicit el133uf1(spi::master_bus& bus, config cfg);
 #endif
 
     /**
@@ -204,8 +204,8 @@ public:
      *
      * Adds a device for the panel to @p bus, configures the chip-select,
      * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (or, without a `config.reset_gpio`, waits for BUSY to release),
-     * confirms that both answer if `config.check_presence` is set, runs the
+     * (or, without a `cfg.reset_gpio`, waits for BUSY to release),
+     * confirms that both answer if `cfg.check_presence` is set, runs the
      * full initialization sequence, and allocates the PSRAM shadow frame
      * (blank white), leaving the panel awake in @ref color_mode::color6 and
      * ready for writes.
@@ -215,8 +215,8 @@ public:
      *
      * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
      *               always used; MISO is used only when
-     *               `config.check_presence` is set.
-     * @param config Panel configuration.
+     *               `cfg.check_presence` is set.
+     * @param cfg Panel configuration.
      *
      * @return The new el133uf1, or an error. Errors adding the panel's
      *         device to @p bus are passed through.
@@ -225,7 +225,7 @@ public:
      *         `slave_cs_gpio`, `dc_gpio` and `busy_gpio` is not connected.
      * @retval idfxx::errc::timeout if the controllers' BUSY line does not
      *         release during initialization.
-     * @retval idfxx::errc::not_found if `config.check_presence` is set and
+     * @retval idfxx::errc::not_found if `cfg.check_presence` is set and
      *         either controller does not answer.
      *
      * @code
@@ -241,7 +241,7 @@ public:
      * }
      * @endcode
      */
-    [[nodiscard]] static result<el133uf1> make(spi::master_bus& bus, config config);
+    [[nodiscard]] static result<el133uf1> make(spi::master_bus& bus, config cfg);
 
     ~el133uf1() override;
 
@@ -257,13 +257,13 @@ private:
 
     // Non-initializing constructor make() uses: takes ownership of the
     // panel's SPI device.
-    explicit el133uf1(spi::master_device device, const config& config)
-        : panel(native_width, native_height, config.busy_gpio, gpio::level::low, config.busy_timeout, config.reset_gpio)
+    explicit el133uf1(spi::master_device device, const config& cfg)
+        : panel(native_width, native_height, cfg.busy_gpio, gpio::level::low, cfg.busy_timeout, cfg.reset_gpio)
         , _device(std::move(device))
-        , _master_cs(config.master_cs_gpio)
-        , _slave_cs(config.slave_cs_gpio)
-        , _dc(config.dc_gpio)
-        , _check_presence(config.check_presence) {}
+        , _master_cs(cfg.master_cs_gpio)
+        , _slave_cs(cfg.slave_cs_gpio)
+        , _dc(cfg.dc_gpio)
+        , _check_presence(cfg.check_presence) {}
 
     // epaper::panel customization hooks.
     [[nodiscard]] result<void>
