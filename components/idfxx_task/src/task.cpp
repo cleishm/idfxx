@@ -362,7 +362,7 @@ void task::self::set_priority(task_priority new_priority) noexcept {
     vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(new_priority.value()));
 }
 
-std::string task::self::name() const {
+std::string_view task::self::name() const {
     return pcTaskGetName(nullptr);
 }
 

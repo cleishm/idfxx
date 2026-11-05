@@ -27,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_task:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_task` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -376,7 +376,7 @@ idfxx::yield();
 
 // Get current task info
 TaskHandle_t handle = idfxx::task::current_handle();
-std::string name = idfxx::task::current_name();
+std::string_view name = idfxx::task::current_name();
 ```
 
 ## API Overview

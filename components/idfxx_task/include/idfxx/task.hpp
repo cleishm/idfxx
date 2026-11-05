@@ -273,9 +273,11 @@ public:
         /**
          * @brief Returns the current task name.
          *
+         * The view refers to storage owned by the task and is valid only while the task exists.
+         *
          * @return The task name.
          */
-        [[nodiscard]] std::string name() const;
+        [[nodiscard]] std::string_view name() const;
 
         /**
          * @brief Returns the FreeRTOS handle of the current task.
@@ -758,9 +760,11 @@ public:
     /**
      * @brief Returns the name of the currently executing task.
      *
+     * The view refers to storage owned by the task and is valid only while the task exists.
+     *
      * @return The current task's name.
      */
-    [[nodiscard]] static std::string current_name() { return pcTaskGetName(nullptr); }
+    [[nodiscard]] static std::string_view current_name() { return pcTaskGetName(nullptr); }
 
 private:
     static void trampoline(void* arg);

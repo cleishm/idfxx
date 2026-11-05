@@ -568,7 +568,7 @@ TEST_CASE("task::current_handle returns valid handle", "[idfxx][task]") {
 }
 
 TEST_CASE("task::current_name returns non-empty", "[idfxx][task]") {
-    std::string name = task::current_name();
+    std::string name{task::current_name()};
     TEST_ASSERT_FALSE(name.empty());
 }
 
