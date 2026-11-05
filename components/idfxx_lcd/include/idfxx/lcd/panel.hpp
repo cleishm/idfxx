@@ -110,6 +110,30 @@ public:
      */
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
+    /**
+     * @brief Returns the panel's width in pixels as currently addressed.
+     *
+     * Equal to @ref width, except that the native width and height are
+     * exchanged while the axes are swapped by a successful @ref swap_xy. This
+     * is the width of the area that coordinates passed to the write methods
+     * span. @ref mirror does not affect it.
+     *
+     * @return The width in pixels, or 0 if the driver does not report dimensions.
+     */
+    [[nodiscard]] size_t display_width() const noexcept { return _swapped ? _height : _width; }
+
+    /**
+     * @brief Returns the panel's height in pixels as currently addressed.
+     *
+     * Equal to @ref height, except that the native width and height are
+     * exchanged while the axes are swapped by a successful @ref swap_xy. This
+     * is the height of the area that coordinates passed to the write methods
+     * span. @ref mirror does not affect it.
+     *
+     * @return The height in pixels, or 0 if the driver does not report dimensions.
+     */
+    [[nodiscard]] size_t display_height() const noexcept { return _swapped ? _width : _height; }
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Draws an RGB565 framebuffer to the display.
@@ -497,10 +521,20 @@ public:
 
     /**
      * @brief Swaps the X and Y axes.
+     *
+     * After a successful call, @ref display_width and @ref display_height
+     * report the dimensions with the axes exchanged.
+     *
      * @param swap true to swap, false for normal.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_swap_xy(bool swap) { return do_swap_xy(swap); }
+    [[nodiscard]] result<void> try_swap_xy(bool swap) {
+        auto r = do_swap_xy(swap);
+        if (r) {
+            _swapped = swap;
+        }
+        return r;
+    }
 
     /**
      * @brief Mirrors the display.
@@ -567,6 +601,7 @@ protected:
 private:
     size_t _width = 0;
     size_t _height = 0;
+    bool _swapped = false;
     esp_lcd_panel_io_handle_t _queued_io = nullptr;
 };
 

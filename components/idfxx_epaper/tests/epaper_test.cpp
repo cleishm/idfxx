@@ -887,6 +887,14 @@ TEST_CASE("epaper panel restore_baseline failure invalidates the baseline", "[id
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
 }
 
+TEST_CASE("epaper panel display dimensions equal the panel dimensions", "[idfxx][epaper]") {
+    recording_epaper_panel display(122, 250);
+    TEST_ASSERT_EQUAL(122, display.display_width());
+    TEST_ASSERT_EQUAL(250, display.display_height());
+    TEST_ASSERT_EQUAL(display.width(), display.display_width());
+    TEST_ASSERT_EQUAL(display.height(), display.display_height());
+}
+
 // =============================================================================
 // to_string / formatter tests
 // =============================================================================

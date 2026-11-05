@@ -274,3 +274,32 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
     TEST_ASSERT_FALSE(overflow.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), overflow.error().value());
 }
+
+TEST_CASE("panel display dimensions follow swap_xy", "[idfxx][lcd]") {
+    recording_panel display(240, 320);
+
+    // The native dimensions are reported until the axes are swapped.
+    TEST_ASSERT_EQUAL(240, display.width());
+    TEST_ASSERT_EQUAL(320, display.height());
+    TEST_ASSERT_EQUAL(240, display.display_width());
+    TEST_ASSERT_EQUAL(320, display.display_height());
+
+    // Swapping exchanges the addressed dimensions; the native ones stay put.
+    TEST_ASSERT_TRUE(display.try_swap_xy(true).has_value());
+    TEST_ASSERT_EQUAL(240, display.width());
+    TEST_ASSERT_EQUAL(320, display.height());
+    TEST_ASSERT_EQUAL(320, display.display_width());
+    TEST_ASSERT_EQUAL(240, display.display_height());
+
+    // A failed change leaves them as they were.
+    display.fail_swap_xy = true;
+    TEST_ASSERT_FALSE(display.try_swap_xy(false).has_value());
+    TEST_ASSERT_EQUAL(320, display.display_width());
+    TEST_ASSERT_EQUAL(240, display.display_height());
+
+    // Swapping back restores them.
+    display.fail_swap_xy = false;
+    TEST_ASSERT_TRUE(display.try_swap_xy(false).has_value());
+    TEST_ASSERT_EQUAL(240, display.display_width());
+    TEST_ASSERT_EQUAL(320, display.display_height());
+}

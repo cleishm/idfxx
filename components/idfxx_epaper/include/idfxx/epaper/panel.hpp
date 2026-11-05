@@ -172,6 +172,26 @@ public:
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
     /**
+     * @brief Returns the panel's width in pixels as currently addressed.
+     *
+     * E-paper panels have no axis swap, so this equals @ref width. It exists
+     * so code can address LCD and e-paper panels alike.
+     *
+     * @return The width in pixels.
+     */
+    [[nodiscard]] size_t display_width() const noexcept { return _width; }
+
+    /**
+     * @brief Returns the panel's height in pixels as currently addressed.
+     *
+     * E-paper panels have no axis swap, so this equals @ref height. It exists
+     * so code can address LCD and e-paper panels alike.
+     *
+     * @return The height in pixels.
+     */
+    [[nodiscard]] size_t display_height() const noexcept { return _height; }
+
+    /**
      * @brief Returns the panel's current pixel format.
      *
      * Reflects the most recent successful @ref try_set_color_mode /

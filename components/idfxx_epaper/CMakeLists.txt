@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "src/panel.cpp"
+    SRCS "src/panel.cpp" "src/ink_writer.cpp"
     INCLUDE_DIRS "include"
 )
 

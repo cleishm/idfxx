@@ -15,6 +15,10 @@ namespace idfxx_lcd_test {
 // behaviour without hardware.
 class recording_panel : public idfxx::lcd::panel {
 public:
+    recording_panel() = default;
+    recording_panel(size_t width, size_t height)
+        : idfxx::lcd::panel(width, height) {}
+
     struct draw {
         int x_start;
         int y_start;
@@ -24,6 +28,8 @@ public:
     };
 
     std::vector<draw> draws;
+    // When set, swap_xy fails instead of succeeding.
+    bool fail_swap_xy = false;
 
 private:
     [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override { return nullptr; }
@@ -31,6 +37,13 @@ private:
     [[nodiscard]] idfxx::result<void>
     do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) override {
         draws.push_back({x_start, y_start, x_end, y_end, color_data});
+        return {};
+    }
+
+    [[nodiscard]] idfxx::result<void> do_swap_xy(bool) override {
+        if (fail_swap_xy) {
+            return idfxx::error(idfxx::errc::fail);
+        }
         return {};
     }
 };
