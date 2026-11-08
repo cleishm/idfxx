@@ -259,6 +259,22 @@ size_t covering_side(uint32_t side, uint32_t dst, float extent) {
     return static_cast<size_t>(std::ceil(std::min(needed, static_cast<double>(side)) - 1.0 / 1024));
 }
 
+struct frame_deleter {
+    void operator()(rgb888* p) const noexcept { idfxx::free(p); }
+};
+
+using frame_ptr = std::unique_ptr<rgb888[], frame_deleter>;
+
+frame_ptr allocate_frame(size_t pixels, rgb888 fill, flags<memory::capabilities> caps) {
+    // The caller's check against SIZE_MAX bounds pixels * sizeof(rgb888).
+    auto* p = static_cast<rgb888*>(idfxx::malloc(pixels * sizeof(rgb888), caps));
+    if (p == nullptr) {
+        raise_no_mem();
+    }
+    std::uninitialized_fill_n(p, pixels, fill);
+    return frame_ptr(p);
+}
+
 } // namespace
 
 struct renderer::state {
@@ -267,7 +283,7 @@ struct renderer::state {
     uint32_t source_height;
     std::optional<resampler> resampling; // absent when no picture is visible
     std::vector<rgb888> row;             // the row being delivered, or the resampled row bound for the frame
-    std::vector<rgb888> frame;           // output-sized, for orientations that need one
+    frame_ptr frame;                     // output-sized, for orientations that need one
     rgb888 background;
     uint32_t next_source_row = 0;
     uint32_t next_output_row = 0;
@@ -275,7 +291,7 @@ struct renderer::state {
     bool failed = false;
     std::chrono::steady_clock::time_point last_yield = std::chrono::steady_clock::now();
 
-    [[nodiscard]] bool buffered() const { return !frame.empty(); }
+    [[nodiscard]] bool buffered() const { return frame != nullptr; }
     [[nodiscard]] const rgb888* next_streamed_row();
     [[nodiscard]] const rgb888* next_frame_row();
     void store_resampled_row();
@@ -303,7 +319,7 @@ const rgb888* renderer::state::next_frame_row() {
     if (next_source_row < source_height) {
         return nullptr;
     }
-    return frame.data() + static_cast<size_t>(next_output_row) * static_cast<size_t>(geometry.output.width());
+    return frame.get() + static_cast<size_t>(next_output_row) * static_cast<size_t>(geometry.output.width());
 }
 
 // Copies a resampled row, in the stored orientation, to where it is displayed.
@@ -406,7 +422,9 @@ result<renderer> make_decoded_renderer(
         s->resampling.emplace(*plan);
     }
     s->row.assign(static_cast<size_t>(row_pixels), where.background);
-    s->frame.assign(static_cast<size_t>(frame_pixels), where.background);
+    if (frame_pixels > 0) {
+        s->frame = allocate_frame(static_cast<size_t>(frame_pixels), where.background, config.frame_mem);
+    }
 
     const rect output{
         .x = static_cast<int32_t>(g.output.x0),

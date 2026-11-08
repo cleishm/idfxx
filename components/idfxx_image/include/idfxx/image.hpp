@@ -76,6 +76,8 @@
 #include "sdkconfig.h"
 
 #include <idfxx/error>
+#include <idfxx/flags>
+#include <idfxx/memory>
 #include <idfxx/required>
 
 #include <algorithm>
@@ -1344,6 +1346,17 @@ struct render_config {
      * `std::nullopt` sets no limit.
      */
     std::optional<size_t> memory_limit = std::nullopt;
+    /**
+     * @brief The memory the frame is allocated from.
+     *
+     * Orientations other than @ref orientation::identity and
+     * @ref orientation::flip_horizontal hold one frame of the output's size,
+     * 3 bytes a pixel: over 1 MB for an 800x480 screen. Use e.g.
+     * `idfxx::memory::capabilities::spiram` to place it in PSRAM. The rest of
+     * the working memory grows only with the output width, and comes from the
+     * default heap.
+     */
+    flags<memory::capabilities> frame_mem = memory::capabilities::default_heap;
 };
 
 class renderer;
@@ -1459,8 +1472,8 @@ concept scaling_decoder = decoder<D> && requires(D& d, size_t w, size_t h) {
  * composed with @ref placement::orientation. When the result is
  * @ref orientation::identity or @ref orientation::flip_horizontal, rows are
  * delivered as the source rows that complete them arrive, with no frame in
- * memory. Any other orientation holds one frame of @ref output's size, and
- * delivers its rows after the last source row. The image itself is never held,
+ * memory. Any other orientation holds one frame of @ref output's size, from
+ * @ref render_config::frame_mem, and delivers its rows after the last source row. The image itself is never held,
  * at any size.
  *
  * Every output pixel is computed by the same fixed-point arithmetic on every
@@ -1805,7 +1818,9 @@ renderer::renderer(Decoder& decoder, const placement& where, const render_config
  * Reads the image's size and orientation from @p decoder. If the decoder can
  * scale, the image is decoded no larger than needed to cover the output, which
  * saves time and memory. A target fully off-screen returns at once, without
- * decoding. Everything else behaves as for @ref renderer.
+ * decoding. A target whose visible part shows only background, such as
+ * @ref layout::fit with the picture off-screen, is still decoded, at the
+ * smallest scale the decoder offers. Everything else behaves as for @ref renderer.
  *
  * @tparam Decoder The decoder type; see @ref idfxx::image::decoder. When it is
  *                 an @ref idfxx::image::scaling_decoder, the image is decoded at
@@ -1859,7 +1874,9 @@ void render(Decoder& decoder, S&& out, const placement& where, const render_conf
  * Reads the image's size and orientation from @p decoder. If the decoder can
  * scale, the image is decoded no larger than needed to cover the output, which
  * saves time and memory. A target fully off-screen returns at once, without
- * decoding. Everything else behaves as for @ref renderer.
+ * decoding. A target whose visible part shows only background, such as
+ * @ref layout::fit with the picture off-screen, is still decoded, at the
+ * smallest scale the decoder offers. Everything else behaves as for @ref renderer.
  *
  * @tparam Decoder The decoder type; see @ref idfxx::image::decoder. When it is
  *                 an @ref idfxx::image::scaling_decoder, the image is decoded at

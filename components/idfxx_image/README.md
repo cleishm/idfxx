@@ -212,7 +212,7 @@ for (size_t y = 0; y < height; ++y) {
 | `filter` | `box`, `bilinear`, `bicubic`, `lanczos3`. |
 | `layout` | `cover` fills the target and crops the excess, `fit` fits inside it on the background, `stretch` scales each axis to it. |
 | `placement` | Where and how: `target` (default the whole screen), `layout`, `orientation`, `crop`, `background`, `filter`, `fill_to_alignment`. |
-| `render_config` | `screen_width` and `screen_height` (required), `x_alignment`, `memory_limit`. |
+| `render_config` | `screen_width` and `screen_height` (required), `x_alignment`, `memory_limit`, `frame_mem`. |
 | `renderer(w, h, source_orientation, placement, config)` / `renderer::make(...)` | A renderer for an image of `w` x `h`. |
 | `output()` / `empty()` | The rectangle of rows delivered, in screen coordinates; whether it has none. |
 | `push(at, rows, out)` / `try_push(at, rows, out)` | Takes the next source rows, and delivers the output rows they complete to the sink `out`. |
@@ -282,8 +282,12 @@ memory throws `std::bad_alloc`, or aborts when exceptions are disabled; set
   the output width and the filter's reach: about 106 KB for 4000x3000 onto
   1200x1600 with `lanczos3`, 41 KB with `bilinear`. Any other orientation also
   holds one frame of the output at 3 bytes a pixel (5.76 MB at 1200x1600),
-  allocated with `malloc`, and delivers its rows after the last source row. The
-  image itself is never held.
+  allocated from `render_config::frame_mem` (the default heap unless set, e.g.
+  to `idfxx::memory::capabilities::spiram`), and delivers its rows after the
+  last source row. The image itself is never held.
+- `render` decodes nothing when the target is fully off-screen. A target whose
+  visible part shows only background, such as `fit` with the picture
+  off-screen, is still decoded, at the smallest scale the decoder offers.
 - A target and its alignment are in the coordinates of the screen, and a crop
   in those of the full-size image with both orientations applied, also when it
   is decoded at a reduced scale.
