@@ -85,11 +85,12 @@ struct rendering_intent {
     required<float> detail;
     /// @brief The adaptation to the paper's white below the highlights, 0 to 1. Has no effect on a gray panel.
     required<float> adapt;
-    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off, and 1.3 is Vivid. Has no effect on a
-    /// gray panel.
+    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off. Has no effect on a gray panel.
     required<float> vibrance;
     /// @brief How far below the paper's white the source's white is placed, in L*, 0 to 3: 0 is off.
     required<float> veil;
+    /// @brief The L* added to lower midtones, fading out by L* 82 and sparing saturated colors, 0 to 20: 0 is off.
+    required<float> lift;
 };
 
 /**

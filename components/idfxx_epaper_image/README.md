@@ -137,7 +137,7 @@ idfxx::result<void> show(idfxx::epaper::panel& display, idfxx::byte_source auto&
 | `calibration::name()`, `width()`, `height()`, `color_mode()` | What the calibration is for. |
 | `calibration::presets()` | The panel's named `rendering_intent`s. The first is its default. |
 | `calibration::inks()` | The panel's inks: the framebuffer's pixel `value`, and its `nominal` and `measured` colors. |
-| `rendering_intent` | `tone`, `detail`, `adapt`, `vibrance`, `veil` (all required). |
+| `rendering_intent` | `tone`, `detail`, `adapt`, `vibrance`, `veil`, `lift` (all required). |
 
 The decoder is anything that models `idfxx::image::decoder`. The placement (`target`, `layout`, `orientation`, `crop`,
 `background`, `filter`, `fill_to_alignment`) is described by `idfxx::image::placement`.

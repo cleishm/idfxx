@@ -113,6 +113,7 @@ std::vector<preset> calibration::presets() const {
                 .adapt = from.intent->adapt,
                 .vibrance = from.intent->vibrance,
                 .veil = from.intent->veil,
+                .lift = from.intent->lift,
             },
         });
     }
