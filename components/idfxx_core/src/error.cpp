@@ -52,21 +52,6 @@ std::string error_category::message(int ec) const {
     }
 }
 
-std::error_condition error_category::default_error_condition(int code) const noexcept {
-    switch (errc(code)) {
-    case errc::invalid_arg:
-        return std::make_error_condition(std::errc::invalid_argument);
-    case errc::not_supported:
-        return std::make_error_condition(std::errc::not_supported);
-    case errc::timeout:
-        return std::make_error_condition(std::errc::timed_out);
-    case errc::not_allowed:
-        return std::make_error_condition(std::errc::operation_not_permitted);
-    default:
-        return std::error_condition(code, *this);
-    }
-}
-
 static errc make_errc(esp_err_t e) noexcept {
     switch (e) {
     case ESP_ERR_INVALID_ARG:

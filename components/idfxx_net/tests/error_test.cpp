@@ -61,12 +61,6 @@ TEST_CASE("net default_error_condition canonicalizes codes", "[net]") {
     TEST_ASSERT_TRUE(closed.default_error_condition().category() == idfxx::net_category());
 }
 
-TEST_CASE("core and net timeout codes share a default_error_condition", "[net]") {
-    auto core_timeout = make_error_code(idfxx::errc::timeout);
-    auto net_timeout = make_error_code(idfxx::net::errc::timed_out);
-    TEST_ASSERT_TRUE(core_timeout.default_error_condition() == net_timeout.default_error_condition());
-}
-
 TEST_CASE("net netconn error codes map to std::errc", "[net]") {
     // Netconn-path codes that have a clean POSIX synonym must compare equal to
     // it, exactly like the socket-path code for the same logical condition —
