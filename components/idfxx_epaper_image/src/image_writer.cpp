@@ -256,6 +256,7 @@ result<image_stream> image_stream::make(
             .adapt = options.intent->adapt,
             .vibrance = options.intent->vibrance,
             .veil = options.intent->veil,
+            .lift = options.intent->lift,
         };
     }
     const epi_config_t config = converter_config(cal, options.intent ? &intent : nullptr, output.width, output.height);

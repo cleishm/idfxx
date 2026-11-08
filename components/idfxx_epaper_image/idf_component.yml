@@ -18,5 +18,5 @@ dependencies:
     public: true
     override_path: ../idfxx_epaper
   cleishm/epaper-image:
-    version: "^0.2.0"
+    version: "^0.3.0"
     public: true

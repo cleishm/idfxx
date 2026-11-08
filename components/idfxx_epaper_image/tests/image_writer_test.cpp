@@ -483,13 +483,14 @@ constexpr epi_ink_t four_levels[] = {
     {3, {255, 255, 255}, {200, 200, 200}},
 };
 
-constexpr epi_intent_t library_intent{0.25f, 0.5f, 0.75f, 1.2f, 1.0f};
+constexpr epi_intent_t library_intent{0.25f, 0.5f, 0.75f, 1.2f, 1.0f, 12.0f};
 constexpr epaper::rendering_intent our_intent{
     .tone = 0.25f,
     .detail = 0.5f,
     .adapt = 0.75f,
     .vibrance = 1.2f,
     .veil = 1.0f,
+    .lift = 12.0f,
 };
 
 } // namespace
@@ -650,6 +651,7 @@ TEST_CASE("calibration presets match the library's", "[epaper_image]") {
             TEST_ASSERT_TRUE(from.intent->adapt == presets[i].intent.adapt);
             TEST_ASSERT_TRUE(from.intent->vibrance == presets[i].intent.vibrance);
             TEST_ASSERT_TRUE(from.intent->veil == presets[i].intent.veil);
+            TEST_ASSERT_TRUE(from.intent->lift == presets[i].intent.lift);
         }
     }
 }
@@ -716,7 +718,24 @@ TEST_CASE("calibration::make rejects ink codes it cannot map", "[epaper_image]")
 }
 
 TEST_CASE("calibration::make takes a color panel built from measured inks", "[epaper_image]") {
-    // The built-in panel's inks, so its pictures are the expected ones.
+    // The built-in panel's inks and neutral-cast knots, so its pictures are the expected ones. The knots are those
+    // of the library's tools/panelgen/measurements/el133uf1-neutral-2026-11-05.json.
+    constexpr epi_neutral_knot_t neutral[] = {
+        {36.0f, 0.0f, 0.0f},
+        {39.4f, 0.0f, -1.2f},
+        {42.7f, 0.6f, -5.1f},
+        {46.8f, 1.0f, -6.5f},
+        {51.9f, 1.6f, -9.7f},
+        {57.7f, 4.7f, -13.5f},
+        {61.0f, 6.5f, -11.7f},
+        {64.4f, 4.3f, -9.8f},
+        {71.3f, 3.8f, -8.6f},
+        {78.2f, 2.7f, -8.5f},
+        {81.0f, 2.0f, -6.2f},
+        {86.0f, 2.0f, -4.8f},
+        {91.0f, 0.8f, -2.3f},
+        {93.4f, 0.0f, 0.0f},
+    };
     const epi_colour_panel_config_t config{
         .name = "measured",
         .width = epi_panel_el133uf1.width,
@@ -729,6 +748,8 @@ TEST_CASE("calibration::make takes a color panel built from measured inks", "[ep
             return true;
         },
         .progress_ctx = nullptr,
+        .neutral = neutral,
+        .neutral_count = std::size(neutral),
     };
     std::vector<uint8_t> storage(epi_colour_panel_size(&config));
     const epi_panel_t* panel = nullptr;
@@ -1485,11 +1506,12 @@ TEST_CASE("epaper write_image rejects zero band rows", "[epaper_image]") {
 
 TEST_CASE("epaper write_image rejects a rendering intent out of range, before decoding", "[epaper_image]") {
     const epaper::rendering_intent bad[] = {
-        {.tone = 2.0f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 0.0f},
-        {.tone = 0.5f, .detail = -1.0f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 0.0f},
-        {.tone = 0.5f, .detail = 0.5f, .adapt = 2.0f, .vibrance = 1.0f, .veil = 0.0f},
-        {.tone = 0.5f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 4.0f, .veil = 0.0f},
-        {.tone = 0.5f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 4.0f},
+        {.tone = 2.0f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 0.0f, .lift = 0.0f},
+        {.tone = 0.5f, .detail = -1.0f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 0.0f, .lift = 0.0f},
+        {.tone = 0.5f, .detail = 0.5f, .adapt = 2.0f, .vibrance = 1.0f, .veil = 0.0f, .lift = 0.0f},
+        {.tone = 0.5f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 4.0f, .veil = 0.0f, .lift = 0.0f},
+        {.tone = 0.5f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 4.0f, .lift = 0.0f},
+        {.tone = 0.5f, .detail = 0.5f, .adapt = 0.5f, .vibrance = 1.0f, .veil = 0.0f, .lift = 25.0f},
     };
     const auto invalid = std::to_underlying(errc::invalid_arg);
     for (const auto& intent : bad) {
