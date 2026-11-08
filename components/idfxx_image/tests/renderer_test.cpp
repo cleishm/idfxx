@@ -19,6 +19,7 @@
 #include <idfxx/error>
 #include <idfxx/image>
 #include <idfxx/jpeg>
+#include <idfxx/memory>
 #include <unity.h>
 
 #include <algorithm>
@@ -28,6 +29,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <new>
 #include <optional>
 #include <span>
 #include <system_error>
@@ -1047,6 +1049,28 @@ TEST_CASE("renderer memory_limit is the exact working memory", "[idfxx][image]")
         TEST_ASSERT_TRUE(r->try_push({0, 0}, src, out).has_value());
         TEST_ASSERT_EQUAL(13, out.next_row);
     }
+}
+
+TEST_CASE("renderer allocates only the frame from frame_mem", "[idfxx][image]") {
+    const buffer<> src = noise(24, 16);
+    const placement rotated{.orientation = orientation::rotate_90};
+    render_config config{.screen_width = 12, .screen_height = 16};
+    const buffer<> want = rendered(src, orientation::identity, rotated, config);
+    config.frame_mem = idfxx::memory::capabilities::dram;
+    TEST_ASSERT_TRUE(same_pixels(want, rendered(src, orientation::identity, rotated, config)));
+
+    // No heap is both internal and PSRAM. Only a frame is allocated from there.
+    config.frame_mem = idfxx::memory::capabilities::internal | idfxx::memory::capabilities::spiram;
+    TEST_ASSERT_TRUE(renderer::make(24, 16, orientation::identity, {}, config).has_value());
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    bool threw = false;
+    try {
+        (void)renderer::make(24, 16, orientation::identity, rotated, config);
+    } catch (const std::bad_alloc&) {
+        threw = true;
+    }
+    TEST_ASSERT_TRUE(threw);
+#endif
 }
 
 // =============================================================================
