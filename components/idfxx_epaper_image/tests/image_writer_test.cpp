@@ -36,6 +36,7 @@
 #include <cstring>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <utility>
@@ -655,6 +656,49 @@ TEST_CASE("calibration presets match the library's", "[epaper_image]") {
         }
     }
 }
+
+TEST_CASE("calibration::try_preset finds the panel's presets by name", "[epaper_image]") {
+    for (const auto& kind : all_panels()) {
+        for (const auto& p : kind.cal->presets()) {
+            const auto found = kind.cal->try_preset(p.name);
+            TEST_ASSERT_TRUE(found.has_value());
+            TEST_ASSERT_TRUE(found->tone == p.intent.tone);
+            TEST_ASSERT_TRUE(found->detail == p.intent.detail);
+            TEST_ASSERT_TRUE(found->adapt == p.intent.adapt);
+            TEST_ASSERT_TRUE(found->vibrance == p.intent.vibrance);
+            TEST_ASSERT_TRUE(found->veil == p.intent.veil);
+            TEST_ASSERT_TRUE(found->lift == p.intent.lift);
+        }
+        TEST_ASSERT_TRUE(kind.cal->try_preset("Vivid").error() == errc::not_found);
+        TEST_ASSERT_TRUE(kind.cal->try_preset("").error() == errc::not_found);
+    }
+
+    // Presets are the panel's own: Bright is a color panel's. Names ignore ASCII case, but not a trailing NUL.
+    const auto& color = epaper::calibration::el133uf1();
+    const auto bright = color.try_preset("Bright");
+    TEST_ASSERT_TRUE(bright.has_value());
+    TEST_ASSERT_TRUE(bright->lift == 16.0f);
+    const auto lower = color.try_preset("bRIGHT");
+    TEST_ASSERT_TRUE(lower.has_value());
+    TEST_ASSERT_TRUE(lower->lift == 16.0f);
+    TEST_ASSERT_TRUE(color.try_preset(std::string_view("Bright\0", 7)).error() == errc::not_found);
+    TEST_ASSERT_TRUE(color.try_preset("Bright ").error() == errc::not_found);
+    TEST_ASSERT_TRUE(epaper::calibration::gdey075t7_gray4().try_preset("Bright").error() == errc::not_found);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+TEST_CASE("calibration::preset throws for a name the panel has no preset for", "[epaper_image]") {
+    const auto& color = epaper::calibration::el133uf1();
+    TEST_ASSERT_TRUE(color.preset("Bright").lift == 16.0f);
+    bool thrown = false;
+    try {
+        (void)color.preset("Vivid");
+    } catch (const std::system_error& e) {
+        thrown = e.code() == errc::not_found;
+    }
+    TEST_ASSERT_TRUE(thrown);
+}
+#endif
 
 TEST_CASE("calibration::make takes gray panels of 2 and 4 levels only", "[epaper_image]") {
     const auto two = make_gray_panel(two_levels, 122, 250);

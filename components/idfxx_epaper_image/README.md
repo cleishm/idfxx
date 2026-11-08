@@ -136,6 +136,7 @@ idfxx::result<void> show(idfxx::epaper::panel& display, idfxx::byte_source auto&
 | `calibration::make(panel)` / `calibration(panel)` | A calibration from a panel of the [`cleishm/epaper-image`](https://components.espressif.com/components/cleishm/epaper-image) library, such as a gray or color panel you have measured. |
 | `calibration::name()`, `width()`, `height()`, `color_mode()` | What the calibration is for. |
 | `calibration::presets()` | The panel's named `rendering_intent`s. The first is its default. |
+| `calibration::preset(name)` / `try_preset(name)` | The `rendering_intent` of one of the panel's presets, such as `"Bright"`, ignoring ASCII case. |
 | `calibration::inks()` | The panel's inks: the framebuffer's pixel `value`, and its `nominal` and `measured` colors. |
 | `rendering_intent` | `tone`, `detail`, `adapt`, `vibrance`, `veil`, `lift` (all required). |
 
@@ -147,6 +148,7 @@ The decoder is anything that models `idfxx::image::decoder`. The placement (`tar
 | Error | Meaning |
 | ----- | ------- |
 | `idfxx::errc::invalid_arg` | The panel's size isn't the calibration's; a surface's pixel type or an overlay's band doesn't match the calibration's color mode; `band_rows` is zero; the rendering intent is out of range; or the placement isn't aligned. |
+| `idfxx::errc::not_found` | `preset` or `try_preset` was given a name the panel has no preset for. |
 | `idfxx::image::errc::too_large` | `memory_limit` is too small for the band, the conversion and the rendering. Reported before anything is allocated. |
 | `idfxx::errc::invalid_size` | The image is too large to render, or the surface is over 65535 pixels a side. |
 | `idfxx::errc::invalid_state` | The panel's color mode isn't the calibration's, or the panel is asleep. Reported before anything is decoded. |

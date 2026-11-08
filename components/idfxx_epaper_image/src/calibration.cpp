@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <epaper_image.h>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace idfxx::epaper {
@@ -39,6 +41,17 @@ std::optional<uint8_t> ink_value(enum color_mode mode, size_t index, uint8_t cod
 
 image::rgb888 to_rgb888(epi_rgb_t c) {
     return {c.r, c.g, c.b};
+}
+
+rendering_intent to_rendering_intent(const epi_intent_t& from) {
+    return {
+        .tone = from.tone,
+        .detail = from.detail,
+        .adapt = from.adapt,
+        .vibrance = from.vibrance,
+        .veil = from.veil,
+        .lift = from.lift,
+    };
 }
 
 } // namespace
@@ -101,23 +114,25 @@ size_t calibration::height() const noexcept {
 }
 
 std::vector<preset> calibration::presets() const {
-    std::vector<preset> out;
+    std::vector<epaper::preset> out;
     out.reserve(_panel->preset_count);
     for (size_t i = 0; i < _panel->preset_count; ++i) {
         const epi_preset_t& from = _panel->presets[i];
-        out.push_back({
-            .name = from.name,
-            .intent = {
-                .tone = from.intent->tone,
-                .detail = from.intent->detail,
-                .adapt = from.intent->adapt,
-                .vibrance = from.intent->vibrance,
-                .veil = from.intent->veil,
-                .lift = from.intent->lift,
-            },
-        });
+        out.push_back({.name = from.name, .intent = to_rendering_intent(*from.intent)});
     }
     return out;
+}
+
+result<rendering_intent> calibration::try_preset(std::string_view name) const {
+    // The library takes a C string, and no preset's name holds a NUL.
+    if (name.find('\0') != std::string_view::npos) {
+        return error(errc::not_found);
+    }
+    const epi_intent_t* intent = epi_panel_preset(_panel, std::string(name).c_str());
+    if (intent == nullptr) {
+        return error(errc::not_found);
+    }
+    return to_rendering_intent(*intent);
 }
 
 } // namespace idfxx::epaper
