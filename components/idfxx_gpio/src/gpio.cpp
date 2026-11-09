@@ -303,7 +303,7 @@ result<void> gpio::try_hold_disable() {
     return wrap(gpio_hold_dis(_num));
 }
 
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP && !CONFIG_IDF_TARGET_ESP32P4
 void gpio::deep_sleep_hold_enable() {
     gpio_deep_sleep_hold_en();
 }
