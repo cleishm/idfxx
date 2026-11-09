@@ -369,10 +369,12 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
   Never use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which
   always blocks until the next tick. Longer delays block and never return early, but may
   overshoot by up to one tick
-- **Out-of-memory is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
-  `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. OOM is never
-  returned as a recoverable error in `result<T>`. Use the ESP-IDF and FreeRTOS APIs directly
-  if you need to handle potential out-of-memory conditions gracefully.
+- **Heap exhaustion is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
+  `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. It is never
+  returned as a recoverable error in `result<T>`. An `ESP_ERR_NO_MEM` that means a fixed-size
+  resource is used up (a full table, no free handle) is not heap exhaustion, and is reported as
+  an ordinary error. Use the ESP-IDF and FreeRTOS APIs directly if you need to handle potential
+  out-of-memory conditions gracefully.
 - **Heap walkers run under the heap lock**: the callback passed to `memory::walk()` runs with
   the heap's lock held, inside a critical section, so it must not allocate or free memory,
   block, or throw

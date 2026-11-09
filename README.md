@@ -116,15 +116,21 @@ All idfxx components provide two API styles:
 
 ### Out-of-Memory
 
-All out-of-memory conditions are treated as **fatal** — the same as a failed C++ `operator new`. When
+Running out of heap memory is treated as **fatal** — the same as a failed C++ `operator new`. When
 any allocation fails (whether from C++, ESP-IDF, or FreeRTOS), idfxx will:
 
 - **Throw `std::bad_alloc`** if exceptions are enabled (`CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - **Call `abort()`** if exceptions are disabled
 
-This applies uniformly to both API styles. OOM is never returned as a recoverable error code in
-`idfxx::result<T>`. Code that uses idfxx does not need to check for out-of-memory errors — either
-the call succeeds or the program terminates (or an exception propagates).
+This applies uniformly to both API styles. Heap exhaustion is never returned as a recoverable error
+code in `idfxx::result<T>`: a program can't recover from it in general, since the standard library
+already throws or aborts when an allocation fails. Code that uses idfxx does not need to check for
+out-of-memory errors — either the call succeeds or the program terminates (or an exception
+propagates).
+
+This covers heap exhaustion only. Some ESP-IDF calls also return `ESP_ERR_NO_MEM` when a fixed-size
+resource is used up, such as a full table or no free handle. That is a limit the caller can handle,
+and idfxx reports it as an ordinary error.
 
 If you need to handle potential out-of-memory conditions gracefully (e.g. pre-checking available
 heap before a large allocation), use the ESP-IDF and FreeRTOS APIs directly.
