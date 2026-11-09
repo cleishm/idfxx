@@ -21,31 +21,140 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # The upload action fetches a single GitHub OIDC token when it starts and
+      # reuses it for every component, but the token expires after ~5 minutes.
+      # Uploading in batches, one action step each, gives every batch a fresh
+      # token. At ~10 s per component, a batch of 8 finishes well inside that
+      # window. UPLOAD_SLOTS must match the number of upload steps below.
       - name: Discover components in topological order
         id: discover
+        env:
+          BATCH_SIZE: 8
+          UPLOAD_SLOTS: 10
         run: |
           list=$(python3 scripts/component-order.py --paths)
-          echo "list<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$list" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          paths=($list)
+          batches=$(( (${#paths[@]} + BATCH_SIZE - 1) / BATCH_SIZE ))
+          if (( batches > UPLOAD_SLOTS )); then
+            echo "::error::${#paths[@]} components need $batches upload batches, but only $UPLOAD_SLOTS upload steps exist; add more"
+            exit 1
+          fi
+          for (( i = 0; i < batches; i++ )); do
+            echo "batch$(( i + 1 ))<<EOF"
+            printf '%s\n' "${paths[@]:i * BATCH_SIZE:BATCH_SIZE}"
+            echo "EOF"
+          done >> "$GITHUB_OUTPUT"
 
       # The registry processes uploads asynchronously and the upload tool gives up
       # polling early under load, reporting "an unknown error happened during
       # processing" for uploads that in fact succeed moments later. On a real
       # upload the verify step below is the authority on whether the job passed,
       # so a false failure here is tolerated. In dry-run mode nothing is published
-      # and there is nothing to verify, so this step stays fatal.
-      - name: Upload components to ESP Component Registry
-        id: upload
+      # and there is nothing to verify, so these steps stay fatal. Every batch
+      # runs even after an earlier one fails, so a single run reports all
+      # failures.
+      - name: Upload batch 1 to ESP Component Registry
+        id: upload_1
+        if: ${{ !cancelled() && steps.discover.outputs.batch1 != '' }}
         continue-on-error: ${{ !inputs.dry_run }}
         uses: espressif/upload-components-ci-action@v2
         with:
           namespace: cleishm
-          components: ${{ steps.discover.outputs.list }}
+          components: ${{ steps.discover.outputs.batch1 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 2 to ESP Component Registry
+        id: upload_2
+        if: ${{ !cancelled() && steps.discover.outputs.batch2 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch2 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 3 to ESP Component Registry
+        id: upload_3
+        if: ${{ !cancelled() && steps.discover.outputs.batch3 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch3 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 4 to ESP Component Registry
+        id: upload_4
+        if: ${{ !cancelled() && steps.discover.outputs.batch4 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch4 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 5 to ESP Component Registry
+        id: upload_5
+        if: ${{ !cancelled() && steps.discover.outputs.batch5 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch5 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 6 to ESP Component Registry
+        id: upload_6
+        if: ${{ !cancelled() && steps.discover.outputs.batch6 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch6 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 7 to ESP Component Registry
+        id: upload_7
+        if: ${{ !cancelled() && steps.discover.outputs.batch7 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch7 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 8 to ESP Component Registry
+        id: upload_8
+        if: ${{ !cancelled() && steps.discover.outputs.batch8 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch8 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 9 to ESP Component Registry
+        id: upload_9
+        if: ${{ !cancelled() && steps.discover.outputs.batch9 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch9 }}
+          dry_run: ${{ inputs.dry_run || '' }}
+
+      - name: Upload batch 10 to ESP Component Registry
+        id: upload_10
+        if: ${{ !cancelled() && steps.discover.outputs.batch10 != '' }}
+        continue-on-error: ${{ !inputs.dry_run }}
+        uses: espressif/upload-components-ci-action@v2
+        with:
+          namespace: cleishm
+          components: ${{ steps.discover.outputs.batch10 }}
           dry_run: ${{ inputs.dry_run || '' }}
 
       - name: Verify components reached the registry
         if: ${{ !inputs.dry_run }}
         run: |
-          echo "Upload step outcome: ${{ steps.upload.outcome }}"
+          echo "Upload batch outcomes: ${{ steps.upload_1.outcome }} ${{ steps.upload_2.outcome }} ${{ steps.upload_3.outcome }} ${{ steps.upload_4.outcome }} ${{ steps.upload_5.outcome }} ${{ steps.upload_6.outcome }} ${{ steps.upload_7.outcome }} ${{ steps.upload_8.outcome }} ${{ steps.upload_9.outcome }} ${{ steps.upload_10.outcome }}"
           python3 scripts/verify-registry.py --namespace cleishm
