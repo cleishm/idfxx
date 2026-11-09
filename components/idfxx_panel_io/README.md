@@ -27,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_panel_io:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_panel_io` to the `REQUIRES` list in your component's `CMakeLists.txt`.

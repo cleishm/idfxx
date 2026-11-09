@@ -26,7 +26,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd_ili9341:
-    version: "^3.0.0"
+    version: "^4.0.0"
 ```
 
 Or add `idfxx_lcd_ili9341` to the `REQUIRES` list in your component's `CMakeLists.txt`.
