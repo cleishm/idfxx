@@ -6,6 +6,170 @@ The repository follows [calendar versioning](https://calver.org/); individual
 components follow [semantic versioning](https://semver.org/) independently. A
 component's version only bumps when that component changes.
 
+## v2026.11.08
+
+Five new components add an image pipeline (JPEG decoding, and showing images
+on LCD and ePaper panels) and an EL133UF1 Spectra 6 ePaper driver. ESP-IDF 6.1
+is supported, and many components take breaking API changes; those shared
+across components are summarized under Upgrading. Only components that changed
+since v2026.08.07 are listed, each with its new version.
+
+### Upgrading
+
+These changes apply across many of the components listed below:
+
+- **Panels write framebuffers.** LCD and ePaper framebuffers and gfx canvases
+  no longer flush themselves; pass them to the panel's `write` / `write_rows`.
+- **Required config fields.** Fields with no safe default are
+  `idfxx::required<T>`, so leaving one out of a designated initializer is a
+  compile error.
+- **Driver defaults are `std::optional`.** Fields that used 0 to mean "driver
+  default" are `std::optional`, with `std::nullopt` letting the driver choose.
+  Explicit meaningless values fail with `errc::invalid_arg`.
+- **quanta.** The thermo, frequency and electro dependencies are replaced by
+  `cleishm/quanta` `^0.1.0`. Types move to `quanta::thermo::`,
+  `quanta::frequency::` and `quanta::electro::`, and headers to
+  `<quanta/...>`. Format specs render a quantity in its own unit; use
+  `{:b.1f}` for the base unit.
+- **Throwing callbacks.** A user callback that throws, when run from an
+  ESP-IDF task or C code, is logged instead of terminating the program.
+- **`explicit` constructors.** Multi-argument throwing constructors are
+  `explicit`, so copy-list-initialization no longer compiles.
+
+### New components
+
+- `idfxx_image` `1.0.0` — pixel image views and buffers, EXIF orientation, and
+  a `renderer` that crops, scales and rotates a decoded image onto a screen
+  area in bounded memory
+- `idfxx_jpeg` `1.0.0` — baseline and progressive JPEG decoding from any
+  `idfxx::byte_source`, with M/8 scaling, EXIF orientation and an optional
+  memory limit
+- `idfxx_lcd_image` `1.0.0` — `write_image()` shows a decoded image on an
+  RGB565 LCD panel, streamed in bands, with an optional overlay callback
+- `idfxx_epaper_image` `1.0.0` — `write_image()` shows a decoded image on an
+  ePaper panel, dithered using a calibration of the panel's real inks;
+  includes calibrations for the EL133UF1 and GDEY075T7
+- `idfxx_epaper_el133uf1` `1.0.0` — EL133UF1 13.3" Spectra 6 ePaper driver
+  (Seeed T133A01, as in the reTerminal E1004), in six-color and monochrome
+
+### Breaking changes
+
+- `idfxx_lcd` `3.0.0` — `panel::write`, `write_rows` and `write_region` replace
+  the framebuffers' `flush*` methods. The deprecated `idfxx::lcd::panel_io`
+  alias is removed; use `idfxx::panel_io` and depend on idfxx_panel_io
+  directly. Over SPI, draws wait for the transfer to finish, so the buffer can
+  be reused at once
+- `idfxx_lcd_ili9341` `3.0.0` — requires idfxx_lcd `^3.0.0`
+- `idfxx_lcd_ssd1306` `2.0.0` — requires idfxx_lcd `^3.0.0`; adds
+  `config::contrast`
+- `idfxx_gfx` `2.0.0` — `canvas::flush` is removed, and `render_banded` writes
+  each band with `dest.try_write`. Adds `gfx::rotated` for drawing on a surface
+  mounted a quarter turn
+- `idfxx_epaper` `2.0.0` — `start_refresh()` returns a future, replacing the
+  `wait*` methods. Adds Spectra 6 (`color6`), selectable border drive,
+  `restore_baseline` (keeps partial refreshes working after a wake or a
+  deep-sleep reboot) and `write_inks`. Unsupported color or refresh modes fail
+  with `errc::not_supported`; drivers implement new `do_supports` hooks
+- `idfxx_epaper_ssd1680` `2.0.0` — a refresh returns once the update starts.
+  Grayscale fast and partial refreshes fail with `errc::not_supported`. Adds
+  `restore_baseline`, with a `deep_sleep_partial` example
+- `idfxx_epaper_uc8179` `2.0.0` — a refresh returns once the update starts.
+  Adds border drive and the `gray4_frame_rate` / `gray4_source_voltage`
+  settings. Gray levels differ from before, so redo existing gray
+  calibrations. Grayscale fast and partial refreshes fail with
+  `errc::not_supported`. Adds `restore_baseline`
+- `idfxx_panel_io` `2.0.0` — required fields in `spi_config` and
+  `i2c_config`. `spi_config::trans_queue_depth` defaults to 10; the old
+  default of 0 aborted. Requires idfxx_spi and idfxx_i2c `^2.0.0`
+- `idfxx_spi` `2.0.0` — `max_transfer_sz` and `duty_cycle_pos` are optional.
+  Adds `dma_burst_size` (ESP-IDF 6.1)
+- `idfxx_i2c` `2.0.0` — the bus's `sda`, `scl` and `frequency` are required, and
+  the device's `scl_speed` and `scl_wait_us` are optional. Register-access
+  delays are honored in full
+- `idfxx_console` `2.0.0` — transports without settings are selected by tag:
+  `repl(cfg, repl::usb_cdc)`, `repl::usb_serial_jtag`, or the new
+  `repl::stdio` (ESP-IDF 6.1). `command::name` is required
+- `idfxx_http_client` `2.0.0` — fields the driver defaults are optional.
+  Timeouts report `client::errc::eagain`, and a timed-out write no longer
+  reports success. Adds `open_chunked()` for streamed request bodies and
+  `get_response_header()` (ESP-IDF 6.0)
+- `idfxx_http_server` `2.0.0` — config defaults come from Kconfig or are
+  optional, and the protected `_populate_httpd_config` returns
+  `result<void>`. Adds error handlers (`on_error`, `http::status_code`), plus
+  `bind_to_device` and incremental WebSocket reads on ESP-IDF 6.1. The
+  WebSocket API now compiles, and a session's socket is no longer leaked when
+  `on_session_close` is set
+- `idfxx_https_server` `3.0.0` — requires idfxx_http_server `^2.0.0`;
+  `handshake_timeout` is optional. An `on_session_open` error now rejects the
+  session
+- `idfxx_wifi` `3.0.0` — FTM fields use typed units (`picoseconds`,
+  `nanoseconds`, `quanta::spatial::centimeters`), and
+  `sta_config::listen_interval` is optional. Replacing a sniffer callback no
+  longer races with packets in flight. Adds ESP-IDF 6.1 options
+- `idfxx_net` `2.0.0` — `raw_socket::config::protocol` is required. Timeouts on
+  blocking sockets fail with `errc::timed_out`, as documented. Stream sockets
+  and channels are byte sources
+- `idfxx_netif` `2.0.0` — `key()` and `description()` return
+  `std::string_view`. Adds static IPv6 neighbor entries (ESP-IDF 6.1)
+- `idfxx_task` `2.0.0` — `name()` and `current_name()` return
+  `std::string_view`
+- `idfxx_adc` `2.0.0` — uses quanta; `pin` and `pins` are required
+- `idfxx_dht` `2.0.0` — uses quanta; `pin` is required
+- `idfxx_ds18x20` `3.0.0` — uses quanta
+- `idfxx_pwm` `3.0.0` — uses quanta; `timer::config::frequency` is required
+- `idfxx_button` `2.0.0` — `pin` and `callback` are required. Adds an
+  extended-press event
+- `idfxx_rotary_encoder` `2.0.0` — `pin_a`, `pin_b` and `callback` are required
+- `idfxx_lcd_touch` `3.0.0` — `x_max` and `y_max` are required
+- `idfxx_lcd_touch_stmpe610` `3.0.0` — requires idfxx_lcd_touch `^3.0.0` and
+  idfxx_panel_io `^2.0.0`
+- `idfxx_radio` `2.0.0` — adds `probe()`, and implementers must provide
+  `do_probe()`. Uses quanta, and `lora_link::frequency` is required. An
+  oversized packet fails with `errc::invalid_size` instead of being truncated
+- `idfxx_radio_sx126x` `2.0.0` — `cs`, `busy` and `dio1` are required.
+  Construction fails with `errc::not_found` if no chip answers. Fixes missed
+  IRQs at SPI clocks of 10 MHz and above, and a slow wake from sleep that
+  logged a false BUSY timeout
+
+### Enhancements
+
+- `idfxx_core` `1.2.0` — adds `required<T>`, the `byte_source` concept (with
+  memory and `FILE*` sources), `chrono::rtc_clock` and `chrono::picoseconds`.
+  `invalid_arg`, `not_supported`, `timeout` and `not_allowed` compare equal to
+  their `std::errc` counterparts. `delay()` never returns early
+- `idfxx_partition` `1.1.0` — adds `partition_source` and `mmap_config`; the
+  `mmap` overloads taking a bare `mmap_memory` are deprecated
+- `idfxx_timer` `1.1.0` — adds `stop_and_wait`, absolute-time starts and
+  `restart`
+- `idfxx_sleep` `1.1.0` — adds GPIO wake edges and
+  `deep_sleep_gpio_wakeup_status()` (ESP-IDF 6.1). On ESP-IDF 6.1, deep sleep
+  is refused when the calling task's stack is in PSRAM
+- `idfxx_nvs` `1.1.0` — stores `float` and `double` values (ESP-IDF 6.1)
+- `idfxx_ota` `1.1.0` — adds ESP-IDF 6.1 error codes,
+  `set_boot_partition(skip_validation)`, `check_image_validity` and
+  `image_flash_mode`
+- `idfxx_gpio` `1.1.0` — adds a formatter for `gpio::mode`. Control functions
+  are placed in IRAM with `CONFIG_GPIO_CTRL_FUNC_IN_IRAM`
+- `idfxx_hw_support` `1.1.0` — adds `intr_flag::shared_private` and new chip
+  models
+
+### Fixes
+
+- `idfxx_event` `1.0.2` — a listener that throws no longer stops event
+  dispatch
+- `idfxx_event_group` `1.0.2`, `idfxx_queue` `1.0.2`, `idfxx_onewire` `1.0.2`,
+  `idfxx_http` `1.0.2` — headers include `sdkconfig.h` themselves
+- `idfxx_log` `1.0.2`, `idfxx_font` `1.0.1`, `idfxx_font_spleen` `1.0.1` —
+  documentation fixes
+
+### Other changes
+
+- CI builds against ESP-IDF v6.1; v5.5 remains the minimum.
+- Every example has a README, shown on the ESP Component Registry.
+- CI cancels superseded builds, and skips rebuilding main when a pull request
+  already built the same tree.
+- The API docs include conditionally compiled APIs.
+
 ## v2026.08.07
 
 Four new components: the panel I/O transport is now a component of its own, and a

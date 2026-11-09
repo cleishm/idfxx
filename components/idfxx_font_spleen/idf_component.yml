@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "The Spleen bitmap fonts (5x8 and 8x16) as idfxx font data"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_spleen"
 repository: "https://github.com/cleishm/idfxx.git"
