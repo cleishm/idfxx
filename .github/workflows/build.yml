@@ -6,19 +6,26 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+  # Weekly full build of main. Most merges skip their build (see the tested job
+  # below), so this is what keeps main's ccache caches current, and it stops
+  # them expiring after GitHub's 7 days without access.
+  schedule:
+    - cron: '0 6 * * 1'
 
 # A new push to a PR supersedes its in-flight run, and a new push to main
 # supersedes main's: the newest main commit contains every earlier one, so after
 # a burst of merges only it is built (docs.yml deploys from the latest passing
-# run). Manual runs each get their own group and are never replaced.
+# run). Manual and scheduled runs each get their own group and are never
+# replaced.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 # The espressif/idf image compiles through ccache (IDF_CCACHE_ENABLE=1), and each
-# build job keeps its ccache directory between runs under its own key. Only
-# pushes to main save; pull requests restore main's latest copy and never write,
-# which keeps the number of caches bounded. Before saving, entries this build
+# build job keeps its ccache directory between runs under its own key. Only runs
+# on main (pushes that build, manual and scheduled runs) save; pull requests
+# restore main's latest copy and never write, which keeps the number of caches
+# bounded. Before saving, entries this build
 # didn't touch are evicted (ccache refreshes an entry's mtime on every hit), so
 # each saved cache holds just one build's working set rather than growing.
 
@@ -139,7 +146,7 @@ jobs:
           ccache -sv
 
       - name: Save ccache
-        if: github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
@@ -178,7 +185,7 @@ jobs:
           ccache -sv
 
       - name: Save ccache
-        if: github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
@@ -214,7 +221,7 @@ jobs:
           ccache -sv
 
       - name: Save ccache
-        if: github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
@@ -315,7 +322,7 @@ jobs:
           ccache -sv
 
       - name: Save ccache
-        if: github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
