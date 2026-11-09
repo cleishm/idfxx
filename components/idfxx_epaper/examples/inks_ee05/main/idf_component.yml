@@ -1,6 +1,6 @@
 dependencies:
   cleishm/idfxx_epaper_uc8179:
-    version: "^2.0.0"
+    version: "^3.0.0"
     override_path: ../../../../idfxx_epaper_uc8179
   cleishm/idfxx_epaper:
     version: "^2.0.0"
@@ -9,7 +9,7 @@ dependencies:
     version: "^1.2.0"
     override_path: ../../../../idfxx_core
   cleishm/idfxx_panel_io:
-    version: "^2.0.0"
+    version: "^3.0.0"
     override_path: ../../../../idfxx_panel_io
   cleishm/idfxx_spi:
     version: "^2.0.0"

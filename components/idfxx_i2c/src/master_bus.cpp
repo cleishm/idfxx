@@ -76,7 +76,7 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         .glitch_ignore_cnt = cfg.glitch_ignore_cnt,
         .intr_priority =
             cfg.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*cfg.intr_level))) : 0,
-        .trans_queue_depth = cfg.trans_queue_depth,
+        .trans_queue_depth = 0, // Transfers finish before the driver call returns
         .flags = {
             .enable_internal_pullup = cfg.enable_internal_pullup ? 1u : 0u,
             .allow_pd = cfg.allow_pd ? 1u : 0u,
@@ -99,14 +99,10 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
             static_cast<int>(cfg.frequency->count()),
             esp_err_to_name(err)
         );
-        switch (err) {
-        case ESP_ERR_NO_MEM:
+        if (err == ESP_ERR_NO_MEM) {
             raise_no_mem();
-        case ESP_ERR_NOT_FOUND:
-            return error(errc::not_found);
-        default:
-            return error(errc::invalid_arg);
         }
+        return error(err);
     }
 
     ESP_LOGD(
@@ -137,7 +133,7 @@ result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, quanta::
 }
 
 master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, quanta::frequency::hertz frequency)
-    : _mux(std::make_unique<std::recursive_mutex>())
+    : _mux(std::make_unique<std::recursive_timed_mutex>())
     , _handle(handle)
     , _port(port)
     , _frequency(frequency) {}
@@ -168,6 +164,17 @@ void master_bus::_delete() noexcept {
         i2c_del_master_bus(_handle);
         _handle = nullptr;
     }
+}
+
+std::unique_lock<std::recursive_timed_mutex> master_bus::_lock_for(std::chrono::milliseconds timeout) const {
+    std::unique_lock lock(*_mux, std::defer_lock);
+    if (timeout.count() < 0) {
+        // The driver treats a negative timeout as waiting indefinitely, so the bus lock does too
+        lock.lock();
+    } else {
+        (void)lock.try_lock_for(timeout);
+    }
+    return lock;
 }
 
 std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout) const {
@@ -202,38 +209,30 @@ std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout
     return devices;
 }
 
+// The driver reports ESP_ERR_NOT_FOUND for an absent device, and ESP_ERR_TIMEOUT both for a probe that times out
+// on the bus and for failing to take its own bus lock in time.
 result<void> master_bus::_probe(uint16_t address, std::chrono::milliseconds timeout) const {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
     esp_err_t err;
     {
-        std::scoped_lock lock(*_mux);
+        auto lock = _lock_for(timeout);
+        if (!lock.owns_lock()) {
+            ESP_LOGD(TAG, "Timed out acquiring I2C bus %d to probe address 0x%02X", std::to_underlying(_port), address);
+            return error(errc::timeout);
+        }
         err = i2c_master_probe(_handle, address, timeout.count());
     }
-    if (err == ESP_OK) {
-        return {};
-    }
-    if (err == ESP_ERR_NOT_FOUND) {
-        return error(errc::not_found);
-    }
-    if (err == ESP_ERR_TIMEOUT) {
-        ESP_LOGD(TAG, "Timeout probing address 0x%02X on I2C bus %d", address, std::to_underlying(_port));
-        return error(errc::timeout);
-    }
-    ESP_LOGD(
-        TAG, "Error probing address 0x%02X on I2C bus %d: %s", address, std::to_underlying(_port), esp_err_to_name(err)
-    );
-    return error(errc::invalid_arg);
-}
-
-result<void> master_bus::_try_wait_all_done(std::chrono::milliseconds timeout) const {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    auto err = i2c_master_bus_wait_all_done(_handle, timeout.count());
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "wait_all_done on bus %d failed: %s", std::to_underlying(_port), esp_err_to_name(err));
+    // An absent device (ESP_ERR_NOT_FOUND) is the common case during a scan, so it isn't logged
+    if (err != ESP_OK && err != ESP_ERR_NOT_FOUND) {
+        ESP_LOGD(
+            TAG,
+            "Error probing address 0x%02X on I2C bus %d: %s",
+            address,
+            std::to_underlying(_port),
+            esp_err_to_name(err)
+        );
     }
     return wrap(err);
 }

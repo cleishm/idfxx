@@ -2,8 +2,8 @@
 // Copyright 2026 Chris Leishman
 
 #include <idfxx/i2c/master>
-#include <idfxx/sched>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <driver/i2c_master.h>
@@ -18,8 +18,6 @@ const char* TAG = "idfxx::i2c::master_device";
 
 namespace idfxx::i2c {
 
-using namespace std::chrono_literals;
-
 // Verify operation_command values match ESP-IDF constants
 static_assert(std::to_underlying(operation_command::start) == I2C_MASTER_CMD_START);
 static_assert(std::to_underlying(operation_command::write) == I2C_MASTER_CMD_WRITE);
@@ -30,25 +28,20 @@ static_assert(std::to_underlying(operation_command::stop) == I2C_MASTER_CMD_STOP
 static_assert(std::to_underlying(ack_value::ack) == I2C_ACK_VAL);
 static_assert(std::to_underlying(ack_value::nack) == I2C_NACK_VAL);
 
-static result<void> map_xfer_error(esp_err_t err, const char* op, uint16_t address, enum port port) {
-    if (err == ESP_OK) {
-        return {};
+// Returns true if reg can be sent with the given register address size.
+static bool register_fits(register_address_size size, uint16_t reg) {
+    return size == register_address_size::two_bytes || reg <= 0xFF;
+}
+
+// Encodes reg into out (big-endian for two-byte addresses) and returns the number of bytes used.
+static size_t encode_register(register_address_size size, uint16_t reg, uint8_t* out) {
+    if (size == register_address_size::two_bytes) {
+        out[0] = static_cast<uint8_t>((reg >> 8) & 0xFF);
+        out[1] = static_cast<uint8_t>(reg & 0xFF);
+        return 2;
     }
-    if (err == ESP_ERR_TIMEOUT) {
-        ESP_LOGD(
-            TAG, "I2C %s timeout on device at address 0x%04X on bus port %d", op, address, std::to_underlying(port)
-        );
-        return error(errc::timeout);
-    }
-    ESP_LOGD(
-        TAG,
-        "I2C %s error on device at address 0x%04X on bus port %d: %s",
-        op,
-        address,
-        std::to_underlying(port),
-        esp_err_to_name(err)
-    );
-    return error(errc::invalid_arg);
+    out[0] = static_cast<uint8_t>(reg & 0xFF);
+    return 1;
 }
 
 static result<i2c_master_dev_handle_t>
@@ -81,12 +74,10 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& cfg)
             std::to_underlying(bus.port()),
             esp_err_to_name(err)
         );
-        switch (err) {
-        case ESP_ERR_NO_MEM:
+        if (err == ESP_ERR_NO_MEM) {
             raise_no_mem();
-        default:
-            return error(errc::invalid_arg);
         }
+        return error(err);
     }
 
     ESP_LOGD(
@@ -95,34 +86,56 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& cfg)
     return handle;
 }
 
+// Returns true if the device was configured for 10-bit addressing.
+static bool uses_10bit_addresses([[maybe_unused]] const master_device::config& cfg) {
+#if SOC_I2C_SUPPORT_10BIT_ADDR
+    return cfg.addr_10bit;
+#else
+    return false;
+#endif
+}
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 master_device::master_device(master_bus& bus, uint16_t address, const config& cfg)
     : _bus(&bus)
     , _handle(unwrap(make_device(bus, address, cfg)))
-    , _address(address) {}
+    , _address(address)
+    , _addr_10bit(uses_10bit_addresses(cfg))
+    , _register_address(cfg.register_address) {}
 
 master_device::master_device(master_bus& bus, uint16_t address)
     : master_device(bus, address, config{}) {}
 #endif
 
 result<master_device> master_device::make(master_bus& bus, uint16_t address, const config& cfg) {
-    return make_device(bus, address, cfg).transform([&](auto handle) { return master_device(&bus, handle, address); });
+    return make_device(bus, address, cfg).transform([&](auto handle) {
+        return master_device(&bus, handle, address, uses_10bit_addresses(cfg), cfg.register_address);
+    });
 }
 
 result<master_device> master_device::make(master_bus& bus, uint16_t address) {
     return make(bus, address, config{});
 }
 
-master_device::master_device(master_bus* bus, i2c_master_dev_handle_t handle, uint16_t address)
+master_device::master_device(
+    master_bus* bus,
+    i2c_master_dev_handle_t handle,
+    uint16_t address,
+    bool addr_10bit,
+    register_address_size register_address
+)
     : _bus(bus)
     , _handle(handle)
-    , _address(address) {}
+    , _address(address)
+    , _addr_10bit(addr_10bit)
+    , _register_address(register_address) {}
 
 master_device::master_device(master_device&& other) noexcept
     : _bus(std::exchange(other._bus, nullptr))
     , _handle(std::exchange(other._handle, nullptr))
     , _address(other._address)
-    , _on_trans_done(std::move(other._on_trans_done)) {}
+    , _addr_10bit(other._addr_10bit)
+    , _register_address(other._register_address) {}
 
 master_device& master_device::operator=(master_device&& other) noexcept {
     if (this != &other) {
@@ -130,7 +143,8 @@ master_device& master_device::operator=(master_device&& other) noexcept {
         _bus = std::exchange(other._bus, nullptr);
         _handle = std::exchange(other._handle, nullptr);
         _address = other._address;
-        _on_trans_done = std::move(other._on_trans_done);
+        _addr_10bit = other._addr_10bit;
+        _register_address = other._register_address;
     }
     return *this;
 }
@@ -141,26 +155,59 @@ master_device::~master_device() {
 
 void master_device::_delete() noexcept {
     if (_handle != nullptr) {
-        if (_on_trans_done) {
-            i2c_master_event_callbacks_t cbs{.on_trans_done = nullptr};
-            (void)i2c_master_register_event_callbacks(_handle, &cbs, nullptr);
-        }
         i2c_master_bus_rm_device(_handle);
         _handle = nullptr;
     }
-    _on_trans_done.reset();
+}
+
+// Maps a transfer result to idfxx errors. Driver errors pass through, except that ESP_ERR_INVALID_STATE is reported
+// as errc::invalid_response. A transfer that fails on the bus (a NACK, a bus timeout, or not finishing within the
+// caller's timeout) is reported as ESP_ERR_INVALID_RESPONSE by ESP-IDF 6.0+ and as ESP_ERR_INVALID_STATE by earlier
+// versions, and a failed bus clear reports ESP_ERR_INVALID_STATE on every version. The transfer queue that would
+// make ESP_ERR_INVALID_STATE mean "queue full" is never enabled, since buses are always created with a zero
+// trans_queue_depth.
+result<void> master_device::_map_xfer_error(esp_err_t err, const char* op) const {
+    if (err == ESP_OK) {
+        return {};
+    }
+    if (err == ESP_ERR_INVALID_STATE) {
+        err = ESP_ERR_INVALID_RESPONSE;
+    }
+    ESP_LOGD(
+        TAG,
+        "I2C %s error on device at address 0x%04X on bus port %d: %s",
+        op,
+        _address,
+        std::to_underlying(_bus->port()),
+        esp_err_to_name(err)
+    );
+    return error(err);
+}
+
+// Takes the bus lock for a transfer, waiting at most the transfer's timeout. The driver call that follows is given
+// the caller's timeout unchanged.
+std::unique_lock<std::recursive_timed_mutex> master_device::_lock_bus(std::chrono::milliseconds timeout) const {
+    auto lock = _bus->_lock_for(timeout);
+    if (!lock.owns_lock()) {
+        ESP_LOGD(
+            TAG,
+            "Timed out acquiring bus port %d for device at address 0x%04X",
+            std::to_underlying(_bus->port()),
+            _address
+        );
+    }
+    return lock;
 }
 
 result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    esp_err_t err;
-    {
-        std::scoped_lock lock(*_bus);
-        err = i2c_master_transmit(_handle, buf, size, timeout.count());
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
     }
-    return map_xfer_error(err, "transmit", _address, _bus->port());
+    return _map_xfer_error(i2c_master_transmit(_handle, buf, size, timeout.count()), "transmit");
 }
 
 result<void> master_device::_try_multi_buffer_transmit(
@@ -170,7 +217,10 @@ result<void> master_device::_try_multi_buffer_transmit(
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
+    }
 
     constexpr size_t SBO_SIZE = 8;
     std::array<i2c_master_transmit_multi_buffer_info_t, SBO_SIZE> stack_info;
@@ -191,11 +241,8 @@ result<void> master_device::_try_multi_buffer_transmit(
         info[i].buffer_size = buffers[i].size();
     }
 
-    return map_xfer_error(
-        i2c_master_multi_buffer_transmit(_handle, info, buffers.size(), timeout.count()),
-        "multi_buffer_transmit",
-        _address,
-        _bus->port()
+    return _map_xfer_error(
+        i2c_master_multi_buffer_transmit(_handle, info, buffers.size(), timeout.count()), "multi_buffer_transmit"
     );
 }
 
@@ -203,13 +250,23 @@ result<void> master_device::_try_change_address(uint16_t new_address, std::chron
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
-    auto r = map_xfer_error(
-        i2c_master_device_change_address(_handle, new_address, timeout.count()),
-        "change_address",
-        _address,
-        _bus->port()
-    );
+    // The driver checks this too, but returns without releasing its own bus lock, which stalls every later
+    // transfer on the bus, so it's checked here first.
+    if (_addr_10bit ? new_address <= 0x7F : new_address > 0x7F) {
+        ESP_LOGD(
+            TAG,
+            "Address 0x%04X doesn't fit the %d-bit addressing of the device at address 0x%04X",
+            new_address,
+            _addr_10bit ? 10 : 7,
+            _address
+        );
+        return error(errc::invalid_arg);
+    }
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
+    }
+    auto r = _map_xfer_error(i2c_master_device_change_address(_handle, new_address, timeout.count()), "change_address");
     if (r) {
         _address = new_address;
     }
@@ -220,7 +277,10 @@ result<void> master_device::_try_execute_operations(std::span<const operation> o
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
+    }
 
     constexpr size_t SBO_SIZE = 8;
     std::array<i2c_operation_job_t, SBO_SIZE> stack_jobs{};
@@ -255,75 +315,25 @@ result<void> master_device::_try_execute_operations(std::span<const operation> o
         }
     }
 
-    return map_xfer_error(
-        i2c_master_execute_defined_operations(_handle, jobs, ops.size(), timeout.count()),
-        "execute_operations",
-        _address,
-        _bus->port()
+    return _map_xfer_error(
+        i2c_master_execute_defined_operations(_handle, jobs, ops.size(), timeout.count()), "execute_operations"
     );
-}
-
-namespace {
-
-bool IRAM_ATTR trans_done_trampoline(i2c_master_dev_handle_t, const i2c_master_event_data_t*, void* user_arg) {
-    auto* cb = static_cast<const std::move_only_function<bool() const>*>(user_arg);
-    return (*cb)();
-}
-
-} // namespace
-
-result<void> master_device::try_register_event_callbacks(std::move_only_function<bool() const> on_trans_done) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    auto new_cb = std::make_unique<std::move_only_function<bool() const>>(std::move(on_trans_done));
-    i2c_master_event_callbacks_t cbs{.on_trans_done = trans_done_trampoline};
-    if (auto err = i2c_master_register_event_callbacks(_handle, &cbs, new_cb.get()); err != ESP_OK) {
-        return error(err);
-    }
-    _on_trans_done = std::move(new_cb);
-    return {};
 }
 
 result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    esp_err_t err;
-    {
-        std::scoped_lock lock(*_bus);
-        err = i2c_master_receive(_handle, buf, size, timeout.count());
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
     }
-    return map_xfer_error(err, "receive", _address, _bus->port());
+    return _map_xfer_error(i2c_master_receive(_handle, buf, size, timeout.count()), "receive");
 }
 
 result<void>
 master_device::_try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
-    return _try_write_register(
-        static_cast<uint8_t>((reg >> 8) & 0xFF), static_cast<uint8_t>(reg & 0xFF), buf, size, timeout
-    );
-}
-
-result<void> master_device::_try_write_register(
-    uint8_t high,
-    uint8_t low,
-    const uint8_t* buf,
-    size_t size,
-    std::chrono::milliseconds timeout
-) {
-    // Combine register address and data into single buffer
-#ifdef __GNUC__
-    uint8_t buffer[2 + size];
-#else
-    std::vector<uint8_t> buf_storage(2 + size);
-    auto* buffer = buf_storage.data();
-#endif
-    buffer[0] = high;
-    buffer[1] = low;
-    if (buf && size > 0) {
-        memcpy(buffer + 2, buf, size);
-    }
-    return _try_transmit(buffer, 2 + size, timeout);
+    return _try_write_registers(std::span<const uint16_t>(&reg, 1), buf, size, timeout);
 }
 
 result<void> master_device::_try_write_registers(
@@ -335,42 +345,49 @@ result<void> master_device::_try_write_registers(
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
+    if (!std::ranges::all_of(registers, [this](uint16_t reg) { return register_fits(_register_address, reg); })) {
+        return error(errc::invalid_arg);
+    }
+    if (buf == nullptr && size > 0) {
+        return error(errc::invalid_arg);
+    }
+    // Held across every register so the writes go out back to back
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
+    }
 
+    // Each register is sent with the data as one write transaction. The driver skips zero-length buffers, so a
+    // register-only write sends just the register address.
     for (const auto& reg : registers) {
-        auto result = _try_write_register(reg, buf, size, timeout);
-        if (!result.has_value()) {
-            return result;
+        uint8_t reg_bytes[2];
+        auto reg_size = encode_register(_register_address, reg, reg_bytes);
+        const std::array<std::span<const uint8_t>, 2> buffers{{{reg_bytes, reg_size}, {buf, size}}};
+        if (auto r = _try_multi_buffer_transmit(buffers, timeout); !r) {
+            return r;
         }
-        delay(4ms); // Small delay between writes
     }
     return {};
 }
 
 result<void>
 master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
-    return _try_read_register(
-        static_cast<uint8_t>((reg >> 8) & 0xFF), static_cast<uint8_t>(reg & 0xFF), buf, size, timeout
-    );
-}
-
-result<void> master_device::_try_read_register(
-    uint8_t high,
-    uint8_t low,
-    uint8_t* buf,
-    size_t size,
-    std::chrono::milliseconds timeout
-) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    std::scoped_lock lock(*_bus);
+    if (!register_fits(_register_address, reg) || buf == nullptr || size == 0) {
+        return error(errc::invalid_arg);
+    }
 
-    uint8_t buffer[2]{high, low};
-    return _try_transmit(buffer, 2, timeout).and_then([&]() {
-        delay(20ms); // Delay between write and read for device processing
-        return _try_receive(buf, size, timeout);
-    });
+    uint8_t reg_bytes[2];
+    auto reg_size = encode_register(_register_address, reg, reg_bytes);
+    auto lock = _lock_bus(timeout);
+    if (!lock.owns_lock()) {
+        return error(errc::timeout);
+    }
+    return _map_xfer_error(
+        i2c_master_transmit_receive(_handle, reg_bytes, reg_size, buf, size, timeout.count()), "read_register"
+    );
 }
 
 } // namespace idfxx::i2c
