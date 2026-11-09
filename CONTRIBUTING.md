@@ -34,6 +34,21 @@ just qemu-test
 This builds an isolated QEMU image in `build-qemu/` from `sdkconfig.qemu`, runs the Unity suite,
 and reports the pass/fail summary. Tests tagged `[hw]` are excluded.
 
+While working on a component, run just its tests instead (the `idfxx_` prefix is optional):
+
+```bash
+just test dht gpio
+```
+
+This builds only the named components' tests, and the components they depend on, in
+`build-test/`. The image is a fraction of the full suite's size, so rebuilds after an edit take
+seconds. When a component's tests use other idfxx components it doesn't depend on itself, list
+them in `components/<name>/tests/requires.cmake`:
+
+```cmake
+set(test_requires idfxx_task)
+```
+
 ### Running Tests on Hardware
 
 The full suite, including hardware tests, runs on an ESP32-S3 development board:

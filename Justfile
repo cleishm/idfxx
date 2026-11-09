@@ -84,6 +84,34 @@ qemu-build:
 
 # Run the Unity test suite in QEMU (builds first; log in qemu_output.log)
 qemu-test timeout="300": qemu-build
+    @just qemu-run build-qemu {{timeout}}
+
+# Run only some components' tests in QEMU (`just test dht gpio`; isolated build-test/)
+test +components:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{env_setup}}
+    cd "{{justfile_directory()}}"
+    tests=
+    for c in {{components}}; do
+        case "$c" in idfxx_*) ;; *) c="idfxx_$c" ;; esac
+        [ -d "components/$c" ] || { echo "ERROR: no component named $c"; exit 1; }
+        tests="${tests:+$tests;}$c"
+    done
+    mkdir -p build-test
+    # sdkconfig.qemu supplies the values for options that are new to the
+    # filtered set; regenerate the config when it changes.
+    if [ -f build-test/sdkconfig ] && [ sdkconfig.qemu -nt build-test/sdkconfig ]; then
+        rm build-test/sdkconfig
+    fi
+    args=(-B build-test -D SDKCONFIG="$PWD/build-test/sdkconfig" -D SDKCONFIG_DEFAULTS=sdkconfig.qemu)
+    idf.py "${args[@]}" -D IDF_TARGET=esp32s3 -D IDFXX_TESTS="$tests" build
+    idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB -o "$PWD/build-test/qemu_flash.bin"
+    just qemu-run build-test 120
+
+# Run a merged QEMU flash image from a build dir and check the Unity summary
+[private]
+qemu-run dir timeout:
     #!/usr/bin/env bash
     set -euo pipefail
     {{env_setup}}
@@ -95,7 +123,7 @@ qemu-test timeout="300": qemu-build
     pipe=$(mktemp -u)
     mkfifo "$pipe"
     qemu-system-xtensa -machine esp32s3 -nographic \
-        -drive file=build-qemu/qemu_flash.bin,if=mtd,format=raw > "$pipe" 2>&1 &
+        -drive file={{dir}}/qemu_flash.bin,if=mtd,format=raw > "$pipe" 2>&1 &
     qpid=$!
     ( sleep {{timeout}}; kill "$qpid" 2>/dev/null ) & wpid=$!
     : > qemu_output.log
@@ -120,4 +148,4 @@ qemu-test timeout="300": qemu-build
 
 # Remove all build directories
 clean:
-    rm -rf build build-noexc build-noipv6 build-qemu qemu_output.log
+    rm -rf build build-noexc build-noipv6 build-qemu build-test qemu_output.log

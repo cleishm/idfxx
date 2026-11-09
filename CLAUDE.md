@@ -37,7 +37,14 @@ just qemu-build
 
 # Build (if needed) and run the Unity suite in QEMU
 just qemu-test [timeout]
+
+# Build and run only some components' tests (isolated build-test/; seconds per rebuild)
+just test dht gpio
 ```
+
+A component whose tests use idfxx components outside its own dependencies lists them in
+`components/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise
+`just test <name>` fails to build while the full suite still passes.
 
 CI runs a matrix of builds: with-exceptions, no-exceptions, no-ipv6, and qemu-test configurations.
 

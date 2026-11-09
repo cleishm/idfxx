@@ -18,7 +18,16 @@ if(NOT DEFINED ENV{IDF_PATH} OR "$ENV{IDF_PATH}" STREQUAL "")
     message(FATAL_ERROR "IDF_PATH is not set. Source ESP-IDF export.sh before configuring.")
 endif()
 
+# Filtered test app: -D IDFXX_TESTS="idfxx_dht;idfxx_gpio" builds only those
+# components' tests, and the components they need, instead of the whole suite
+# (`just test` drives it). tests/CMakeLists.txt reads the list as a build
+# property, since IDF's requirements pass doesn't see ordinary variables.
+if(IDFXX_TESTS)
+    set(COMPONENTS tests)
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+idf_build_set_property(IDFXX_TESTS "${IDFXX_TESTS}")
 project(idfxx)
 
 # Formatting
