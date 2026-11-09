@@ -85,6 +85,13 @@ All idfxx components, grouped by area. Each component is published separately on
 | [idfxx_dht](https://github.com/cleishm/idfxx/tree/main/components/idfxx_dht) | DHT11/DHT22 temperature and humidity sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__dht.html) |
 | [idfxx_ds18x20](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ds18x20) | DS18x20 1-Wire temperature sensor driver | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ds18x20.html) |
 
+## Real-Time Clocks
+
+| Component | Description | Documentation |
+|-----------|-------------|---------------|
+| [idfxx_rtc](https://github.com/cleishm/idfxx/tree/main/components/idfxx_rtc) | Abstract interface for external real-time-clock chips | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__rtc.html) |
+| [idfxx_rtc_pcf8563](https://github.com/cleishm/idfxx/tree/main/components/idfxx_rtc_pcf8563) | NXP PCF8563 real-time clock driver, with alarm, countdown timer and clock output | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__rtc.html) |
+
 ## Application Protocols
 
 | Component | Description | Documentation |

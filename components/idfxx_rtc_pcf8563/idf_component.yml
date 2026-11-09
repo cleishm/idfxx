@@ -1,0 +1,22 @@
+version: "1.0.0"
+description: "NXP PCF8563 real-time clock driver"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_rtc_pcf8563"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_rtc:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_rtc
+  cleishm/idfxx_i2c:
+    version: "^3.0.0"
+    public: true
+    override_path: ../idfxx_i2c
+  cleishm/quanta:
+    version: "^0.1.0"
+    public: true

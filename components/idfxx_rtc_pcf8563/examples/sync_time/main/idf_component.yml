@@ -1,0 +1,16 @@
+dependencies:
+  cleishm/idfxx_rtc_pcf8563:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_rtc:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_rtc
+  cleishm/idfxx_core:
+    version: "^1.3.0"
+    override_path: ../../../../idfxx_core
+  cleishm/idfxx_i2c:
+    version: "^3.0.0"
+    override_path: ../../../../idfxx_i2c
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log
