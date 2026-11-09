@@ -5,6 +5,7 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "idfxx/chrono"
+#include "idfxx/error"
 #include "idfxx/sched"
 #include "unity.h"
 
@@ -13,6 +14,7 @@
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <type_traits>
+#include <utility>
 
 using namespace idfxx::chrono;
 using namespace std::chrono_literals;
@@ -169,3 +171,61 @@ TEST_CASE("rtc_clock time_point round-trips through RTC memory", "[idfxx][chrono
     TEST_ASSERT_TRUE(rtc_saved_time_point == now);
     TEST_ASSERT_TRUE(rtc_clock::now() - rtc_saved_time_point >= rtc_clock::duration::zero());
 }
+
+// =============================================================================
+// System time
+// =============================================================================
+
+// set_system_time accepts any sys_time duration
+static_assert(std::is_same_v<decltype(try_set_system_time(std::chrono::sys_seconds{})), idfxx::result<void>>);
+static_assert(std::is_same_v<
+              decltype(try_set_system_time(std::chrono::sys_time<std::chrono::nanoseconds>{})),
+              idfxx::result<void>>);
+
+TEST_CASE("try_set_system_time() sets system_clock", "[idfxx][chrono]") {
+    using namespace std::chrono;
+    const auto original = system_clock::now();
+    const auto steady_start = steady_clock::now();
+
+    // 2024-02-29T12:34:56.789
+    const auto target = sys_days{2024y / February / 29} + 12h + 34min + 56s + 789ms;
+    TEST_ASSERT_TRUE(try_set_system_time(target).has_value());
+    const auto now = system_clock::now();
+
+    // Restore the original time, adjusted for the time spent in this test
+    TEST_ASSERT_TRUE(try_set_system_time(original + (steady_clock::now() - steady_start)).has_value());
+
+    const auto diff_ms = static_cast<int32_t>(duration_cast<milliseconds>(now - target).count());
+    TEST_ASSERT_INT32_WITHIN(1000, 0, diff_ms);
+}
+
+TEST_CASE("try_set_system_time() rejects times before 1970", "[idfxx][chrono]") {
+    using namespace std::chrono;
+    const auto before = system_clock::now();
+
+    auto r = try_set_system_time(sys_days{1970y / January / 1} - 1us);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), r.error().value());
+
+    // The system time is left unchanged
+    const auto diff_ms = static_cast<int32_t>(duration_cast<milliseconds>(system_clock::now() - before).count());
+    TEST_ASSERT_INT32_WITHIN(1000, 0, diff_ms);
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+TEST_CASE("set_system_time() sets system_clock", "[idfxx][chrono]") {
+    using namespace std::chrono;
+    const auto original = system_clock::now();
+    const auto steady_start = steady_clock::now();
+
+    // 2099-12-31T23:59:59
+    const auto target = sys_days{2099y / December / 31} + 23h + 59min + 59s;
+    set_system_time(target);
+    const auto now = system_clock::now();
+
+    set_system_time(original + (steady_clock::now() - steady_start));
+
+    const auto diff_ms = static_cast<int32_t>(duration_cast<milliseconds>(now - target).count());
+    TEST_ASSERT_INT32_WITHIN(1000, 0, diff_ms);
+}
+#endif

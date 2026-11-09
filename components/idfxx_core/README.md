@@ -8,7 +8,7 @@ Core utilities for the idfxx component family, providing foundational error hand
 
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
-- **Chrono utilities** — FreeRTOS tick conversions, `std::chrono` clocks over the tick count and the RTC timer, and a `picoseconds` duration alias
+- **Chrono utilities** — FreeRTOS tick conversions, `std::chrono` clocks over the tick count and the RTC timer, setting the system wall-clock time, and a `picoseconds` duration alias
 - **Scheduling utilities** — `delay()`, `delay_until()`, `delay(next_tick)`, `yield()`
 - **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
 - **System information** — reset reason, restart, shutdown handlers
@@ -34,7 +34,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_core:
-    version: "^1.2.0"
+    version: "^1.3.0"
 ```
 
 Or add `idfxx_core` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -98,6 +98,20 @@ if (rtc_clock::now() - last_report >= 1h) {
     send_report();
     last_report = rtc_clock::now();
 }
+```
+
+### System Time
+
+`set_system_time()` sets the wall-clock time that `std::chrono::system_clock`, `time()` and
+`gettimeofday()` report, for example from a battery-backed real-time clock at boot:
+
+```cpp
+#include <idfxx/chrono>
+#include <chrono>
+
+using namespace std::chrono;
+
+idfxx::chrono::set_system_time(sys_days{2026y / November / 9} + 12h);
 ```
 
 ### Scheduling
@@ -267,6 +281,7 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 - `ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
 - `tick_clock` - `std::chrono` clock over the FreeRTOS tick count
 - `rtc_clock` - `std::chrono` clock over the RTC timer: microsecond resolution, counts from power-on, keeps running through deep sleep and resets
+- `set_system_time(time_point)` / `try_set_system_time(time_point)` - Set the system wall-clock time (`std::chrono::system_clock`), truncated to microseconds
 
 ### Scheduling (`<idfxx/sched>`)
 
