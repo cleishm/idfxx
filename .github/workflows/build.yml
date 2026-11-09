@@ -28,6 +28,12 @@ concurrency:
 # bounded. Before saving, entries this build
 # didn't touch are evicted (ccache refreshes an entry's mtime on every hit), so
 # each saved cache holds just one build's working set rather than growing.
+#
+# ccache hashes a -specs= file the way it checks the compiler, and IDF 6 passes
+# one that every build generates afresh (build/specs/picolibc.specs). The
+# default mtime check would then miss on every run, so compare contents.
+env:
+  CCACHE_COMPILERCHECK: content
 
 jobs:
   # Decides whether this run can skip the build. all-checks records each tree
