@@ -1,0 +1,19 @@
+version: "1.0.0"
+description: "FAT filesystems on SD cards and flash partitions, used through standard file I/O"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_fatfs"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core
+  cleishm/idfxx_partition:
+    version: "^1.1.0"
+    public: true
+    override_path: ../idfxx_partition
+  cleishm/idfxx_sdcard:
+    version: "^1.0.0"
+    public: true
+    override_path: ../idfxx_sdcard

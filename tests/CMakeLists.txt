@@ -2,7 +2,7 @@
 get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 
 set(IDFXX_TEST_REQUIRES
-    unity idfxx_core idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_sdcard esp_driver_sdspi idfxx_panel_io idfxx_lcd
+    unity idfxx_core idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_sdcard esp_driver_sdspi idfxx_fatfs idfxx_panel_io idfxx_lcd
     idfxx_lcd_ili9341 idfxx_lcd_ssd1306 idfxx_lcd_touch idfxx_lcd_touch_stmpe610 idfxx_onewire idfxx_ds18x20
     idfxx_timer idfxx_event
     idfxx_event_group idfxx_task idfxx_queue idfxx_log idfxx_http idfxx_http_client idfxx_http_server
@@ -79,3 +79,10 @@ endif()
 target_sources(${COMPONENT_LIB} PRIVATE ${IDFXX_TEST_SOURCES})
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++23)
+
+# Raw FAT image for the idfxx_fatfs image tests, written to the fatimg partition by `idf.py flash`
+# (and included in the merged QEMU flash image). Only defined when the fatfs component is in the
+# build, which a filtered test app may leave out.
+if(COMMAND fatfs_create_rawflash_image)
+    fatfs_create_rawflash_image(fatimg "${CMAKE_CURRENT_SOURCE_DIR}/../components/idfxx_fatfs/tests/fatimg" FLASH_IN_PROJECT)
+endif()
