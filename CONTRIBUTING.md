@@ -15,6 +15,10 @@ just build-noipv6 [target]  # IPv6 disabled
 Each config builds in its own directory (`build-noexc/`, `build-noipv6/`) from its own sdkconfig
 defaults, so they don't disturb the default `build/`.
 
+The recipes compile through [ccache](https://ccache.dev) when it is installed (e.g.
+`brew install ccache`), which makes fresh build directories and config switches much faster. Set
+`IDF_CCACHE_ENABLE=0` to opt out.
+
 ## Testing
 
 Tests use the ESP-IDF Unity framework and live alongside each component in `components/*/tests/`.

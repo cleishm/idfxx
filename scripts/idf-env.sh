@@ -139,6 +139,19 @@ if _idfxx_setup; then
     # Which ESP-IDF a build used is not otherwise visible, and discovery can
     # pick a different one than expected.
     [ -n "${IDF_PATH:-}" ] && echo "esp-idf: $IDF_PATH" >&2
+    # Compile through ccache when it is installed and can write its cache
+    # (a sandboxed shell may not), unless IDF_CCACHE_ENABLE is already set
+    # either way.
+    if [ -z "${IDF_CCACHE_ENABLE+x}" ] && command -v ccache >/dev/null 2>&1; then
+        _idfxx_ccache_dir=$(ccache -k cache_dir 2>/dev/null)
+        _idfxx_probe="$_idfxx_ccache_dir/.idfxx-probe.$$"
+        if [ -n "$_idfxx_ccache_dir" ] && mkdir -p "$_idfxx_ccache_dir" 2>/dev/null &&
+            (: > "$_idfxx_probe") 2>/dev/null; then
+            rm -f "$_idfxx_probe"
+            export IDF_CCACHE_ENABLE=1
+        fi
+        unset _idfxx_ccache_dir _idfxx_probe
+    fi
 else
     _idfxx_rc=1
 fi
