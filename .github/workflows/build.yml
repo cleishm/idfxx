@@ -115,7 +115,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [esp32s3, esp32c6, esp32p4]
+        target: [esp32, esp32s3, esp32c6, esp32p4]
         config:
           - name: with-exceptions
             defaults: sdkconfig.defaults
@@ -196,7 +196,11 @@ jobs:
     if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v5.5
-    name: build (compat-v5.5)
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32s3, esp32p4]
+    name: build (compat-v5.5, ${{ matrix.target }})
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -205,15 +209,15 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-compat-${{ github.run_id }}
-          restore-keys: ccache-compat-
+          key: ccache-compat-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: ccache-compat-${{ matrix.target }}-
 
       - name: Build
         run: |
           . $IDF_PATH/export.sh
           start=$(date +%s)
           ccache -z
-          idf.py set-target esp32s3
+          idf.py set-target ${{ matrix.target }}
           cp sdkconfig.defaults sdkconfig
           idf.py reconfigure
           idf.py build
@@ -225,7 +229,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-compat-${{ github.run_id }}
+          key: ccache-compat-${{ matrix.target }}-${{ github.run_id }}
 
   discover-examples:
     needs: tested
