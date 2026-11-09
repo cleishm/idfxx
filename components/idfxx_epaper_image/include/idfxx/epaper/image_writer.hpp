@@ -52,6 +52,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -85,11 +86,12 @@ struct rendering_intent {
     required<float> detail;
     /// @brief The adaptation to the paper's white below the highlights, 0 to 1. Has no effect on a gray panel.
     required<float> adapt;
-    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off, and 1.3 is Vivid. Has no effect on a
-    /// gray panel.
+    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off. Has no effect on a gray panel.
     required<float> vibrance;
     /// @brief How far below the paper's white the source's white is placed, in L*, 0 to 3: 0 is off.
     required<float> veil;
+    /// @brief The L* added to lower midtones, fading out by L* 82 and sparing saturated colors, 0 to 20: 0 is off.
+    required<float> lift;
 };
 
 /**
@@ -231,7 +233,40 @@ public:
      *
      * @return The presets; the first one is the panel's default.
      */
-    [[nodiscard]] std::vector<preset> presets() const;
+    [[nodiscard]] std::vector<epaper::preset> presets() const;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Returns the rendering intent of one of this panel's presets, by name.
+     *
+     * Each panel offers its own presets, listed by @ref presets. See @ref try_preset.
+     *
+     * @param name The preset's name, such as "Bright", ignoring the case of ASCII letters.
+     *
+     * @return The preset's rendering intent.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::not_found if the panel has no preset of that name.
+     *
+     * @code
+     * const auto& cal = idfxx::epaper::calibration::el133uf1();
+     * idfxx::epaper::write_image(panel, cal, decoder, {}, {.intent = cal.preset("Bright")});
+     * @endcode
+     */
+    [[nodiscard]] rendering_intent preset(std::string_view name) const { return unwrap(try_preset(name)); }
+#endif
+
+    /**
+     * @brief Returns the rendering intent of one of this panel's presets, by name.
+     *
+     * Each panel offers its own presets, listed by @ref presets.
+     *
+     * @param name The preset's name, such as "Bright", ignoring the case of ASCII letters.
+     *
+     * @return The preset's rendering intent, or an error.
+     * @retval idfxx::errc::not_found The panel has no preset of that name.
+     */
+    [[nodiscard]] result<rendering_intent> try_preset(std::string_view name) const;
 
     /**
      * @brief Returns the panel's inks.
