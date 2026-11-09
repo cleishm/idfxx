@@ -121,12 +121,28 @@ TEST_CASE("sdcard formatters", "[idfxx][sdcard]") {
 
 // =============================================================================
 // SPI configuration validation
-// These fail before the bus is used, so they run without a card (and in QEMU).
+// These fail before the bus is used, so they run without a card (and in QEMU),
+// on an SPI2 bus with no pins.
 // =============================================================================
 
 namespace {
 
 namespace rig = idfxx::sdcard::test;
+
+// Pins used only as values: every configuration they appear in is rejected before any pin is configured. Should one
+// ever be configured, none of them is a flash, PSRAM, USB, UART0 console, JTAG or strapping pin on its target.
+#if CONFIG_IDF_TARGET_ESP32
+constexpr gpio spare_pin_a = gpio_21;
+constexpr gpio spare_pin_b = gpio_22;
+#elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
+constexpr gpio spare_pin_a = gpio_4;
+constexpr gpio spare_pin_b = gpio_5;
+#elif CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
+constexpr gpio spare_pin_a = gpio_0;
+constexpr gpio spare_pin_b = gpio_1;
+#else
+#error "sdcard tests: choose spare pins for this target"
+#endif
 
 void assert_invalid_arg(const result<card>& r) {
     TEST_ASSERT_FALSE(r.has_value());
@@ -136,30 +152,38 @@ void assert_invalid_arg(const result<card>& r) {
 } // namespace
 
 TEST_CASE("sdcard make over SPI rejects an unconnected cs", "[idfxx][sdcard]") {
-    auto bus = rig::make_bus();
-    assert_invalid_arg(card::make(bus, {.cs = gpio::nc()}));
+    rig::unwired_bus_fixture bus;
+    assert_invalid_arg(card::make(bus.get(), {.cs = gpio::nc()}));
 }
 
 TEST_CASE("sdcard make over SPI rejects shared pins", "[idfxx][sdcard]") {
-    auto bus = rig::make_bus();
-    assert_invalid_arg(card::make(bus, {.cs = rig::cs, .card_detect = rig::cs}));
-    assert_invalid_arg(card::make(bus, {.cs = rig::cs, .write_protect = rig::cs}));
-    // Rejected before any pin is configured, so any pin other than cs will do
-    assert_invalid_arg(card::make(bus, {.cs = rig::cs, .card_detect = gpio_15, .write_protect = gpio_15}));
+    rig::unwired_bus_fixture bus;
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .card_detect = spare_pin_a}));
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .write_protect = spare_pin_a}));
+    assert_invalid_arg(
+        card::make(bus.get(), {.cs = spare_pin_a, .card_detect = spare_pin_b, .write_protect = spare_pin_b})
+    );
 }
 
 TEST_CASE("sdcard make over SPI rejects a max_frequency below 400 kHz", "[idfxx][sdcard]") {
-    auto bus = rig::make_bus();
-    assert_invalid_arg(card::make(bus, {.cs = rig::cs, .max_frequency = 0_Hz}));
-    assert_invalid_arg(card::make(bus, {.cs = rig::cs, .max_frequency = 399_kHz}));
+    rig::unwired_bus_fixture bus;
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .max_frequency = 0_Hz}));
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .max_frequency = 399_kHz}));
+}
+
+TEST_CASE("sdcard make over SPI rejects a bus without DMA", "[idfxx][sdcard]") {
+    rig::unwired_bus_fixture bus(spi::dma_chan::disabled);
+    // Without DMA, a transaction is limited to the SPI peripheral's own buffer, shorter than a data block
+    TEST_ASSERT_LESS_THAN_UINT32(512, bus.get().max_transaction_length());
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a}));
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 TEST_CASE("sdcard constructor over SPI throws on an invalid config", "[idfxx][sdcard]") {
-    auto bus = rig::make_bus();
+    rig::unwired_bus_fixture bus;
     bool threw = false;
     try {
-        card c(bus, {.cs = gpio::nc()});
+        card c(bus.get(), {.cs = gpio::nc()});
     } catch (const std::system_error& e) {
         threw = true;
         TEST_ASSERT_TRUE(e.code() == errc::invalid_arg);
@@ -294,14 +318,27 @@ TEST_CASE("sdcard constructor over SDMMC throws on an invalid config", "[idfxx][
 }
 #endif
 
+#else // !SOC_SDMMC_USE_GPIO_MATRIX
+
+// Only slot 1 is used: should a configuration ever get past validation, slot 0's pins are the SPI flash pins.
+TEST_CASE("sdcard make over SDMMC rejects the slot's pins as card-detect or write-protect", "[idfxx][sdcard]") {
+    // Slot 1: CLK 14, CMD 15, D0 2, D1 4, D2 12, D3 13
+    assert_invalid_arg(card::make({.card_detect = gpio_14}));
+    assert_invalid_arg(card::make({.card_detect = gpio_15}));
+    assert_invalid_arg(card::make({.write_protect = gpio_2}));
+    assert_invalid_arg(card::make({.write_protect = gpio_13}));
+    // D1 is in use on a 4-bit bus (on a 1-bit bus it is free)
+    assert_invalid_arg(card::make({.width = bus_width::four, .card_detect = gpio_4}));
+}
+
 #endif // SOC_SDMMC_USE_GPIO_MATRIX
 #endif // SOC_SDMMC_HOST_SUPPORTED
 
 // =============================================================================
 // Hardware-dependent tests
 // These need a card in the SD slot of the board chosen in tests/Kconfig.projbuild
-// (see tests/sd_test_rig.hpp), and are ignored when its card-detect line
-// reports an empty slot.
+// (see tests/sd_test_rig.hpp). They are ignored when no board is chosen, or
+// when its card-detect line reports an empty slot.
 // =============================================================================
 
 namespace {
@@ -315,180 +352,191 @@ size_t scratch_sector(const card& c) {
 
 TEST_CASE("sdcard reports identity and geometry", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
+    rig::card_fixture f;
+    auto& c = f.get();
 
-        // MMC is not supported over SPI
-        TEST_ASSERT_TRUE(c.type() == card_type::sdsc || c.type() == card_type::sdhc || c.type() == card_type::sdxc);
-        TEST_ASSERT_EQUAL_UINT32(512, c.sector_size());
-        TEST_ASSERT_GREATER_THAN_UINT32(0, c.sector_count());
-        TEST_ASSERT_TRUE(c.size() == uint64_t{c.sector_count()} * c.sector_size());
-        if (c.type() == card_type::sdxc) {
-            TEST_ASSERT_TRUE(c.size() >= (uint64_t{32} << 30));
-        } else if (c.type() == card_type::sdhc) {
-            TEST_ASSERT_TRUE(c.size() < (uint64_t{32} << 30));
-        }
-
-        TEST_ASSERT_TRUE(c.width() == bus_width::one);
-        TEST_ASSERT_GREATER_THAN_INT32(0, static_cast<int32_t>(c.frequency().count()));
-        TEST_ASSERT_LESS_OR_EQUAL_INT32(20'000'000, static_cast<int32_t>(c.frequency().count()));
-
-        auto id = c.id();
-        TEST_ASSERT_GREATER_THAN_UINT32(0, id.product_name().size());
-        TEST_ASSERT_LESS_OR_EQUAL_UINT32(5, id.product_name().size());
-        auto date = id.manufacture_date();
-        TEST_ASSERT_TRUE(date.has_value());
-        TEST_ASSERT_GREATER_OR_EQUAL_INT32(2000, static_cast<int>(date->year()));
-
-        TEST_ASSERT_NOT_NULL(c.idf_handle());
-        TEST_ASSERT_EQUAL_INT32(static_cast<int32_t>(c.sector_count()), c.idf_handle()->csd.capacity);
-        TEST_ASSERT_FALSE(c.supports_sanitize());
+    // MMC is not supported over SPI
+    TEST_ASSERT_TRUE(c.type() == card_type::sdsc || c.type() == card_type::sdhc || c.type() == card_type::sdxc);
+    TEST_ASSERT_EQUAL_UINT32(512, c.sector_size());
+    TEST_ASSERT_GREATER_THAN_UINT32(0, c.sector_count());
+    TEST_ASSERT_TRUE(c.size() == uint64_t{c.sector_count()} * c.sector_size());
+    if (c.type() == card_type::sdxc) {
+        TEST_ASSERT_TRUE(c.size() >= (uint64_t{32} << 30));
+    } else if (c.type() == card_type::sdhc) {
+        TEST_ASSERT_TRUE(c.size() < (uint64_t{32} << 30));
     }
-    rig::slot_power(false);
+
+    TEST_ASSERT_TRUE(c.width() == bus_width::one);
+    TEST_ASSERT_GREATER_THAN_INT32(0, static_cast<int32_t>(c.frequency().count()));
+    TEST_ASSERT_LESS_OR_EQUAL_INT32(20'000'000, static_cast<int32_t>(c.frequency().count()));
+
+    auto id = c.id();
+    TEST_ASSERT_GREATER_THAN_UINT32(0, id.product_name().size());
+    TEST_ASSERT_LESS_OR_EQUAL_UINT32(5, id.product_name().size());
+    auto date = id.manufacture_date();
+    TEST_ASSERT_TRUE(date.has_value());
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(2000, static_cast<int>(date->year()));
+
+    TEST_ASSERT_NOT_NULL(c.idf_handle());
+    TEST_ASSERT_EQUAL_INT32(static_cast<int32_t>(c.sector_count()), c.idf_handle()->csd.capacity);
+    TEST_ASSERT_FALSE(c.supports_sanitize());
 }
 
 TEST_CASE("sdcard is_present and is_write_protected read the slot pins", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
-        TEST_ASSERT_TRUE(c.is_present());
-        TEST_ASSERT_FALSE(c.is_write_protected()); // no write-protect pin
-    }
-    rig::slot_power(false);
+    rig::card_fixture f;
+    auto& c = f.get();
+    TEST_ASSERT_TRUE(c.is_present());
+    TEST_ASSERT_FALSE(c.is_write_protected()); // no write-protect pin
 }
 
 TEST_CASE("sdcard probe succeeds while the card responds", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
-        TEST_ASSERT_TRUE(c.try_probe().has_value());
+    rig::card_fixture f;
+    auto& c = f.get();
+    TEST_ASSERT_TRUE(c.try_probe().has_value());
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-        c.probe();
+    c.probe();
 #endif
-    }
-    rig::slot_power(false);
 }
 
 TEST_CASE("sdcard move keeps the card structure in place", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
-        sdmmc_card_t* handle = c.idf_handle();
-        card moved = std::move(c);
-        TEST_ASSERT_TRUE(moved.idf_handle() == handle);
-        TEST_ASSERT_TRUE(moved.try_probe().has_value());
-    }
-    rig::slot_power(false);
+    rig::card_fixture f;
+    auto& c = f.get();
+    sdmmc_card_t* handle = c.idf_handle();
+    card moved = std::move(c);
+    const bool same_handle = moved.idf_handle() == handle;
+    const bool responds = moved.try_probe().has_value();
+    // Back into the fixture before asserting, so that a failure doesn't leave the card on the stack
+    c = std::move(moved);
+    TEST_ASSERT_TRUE(same_handle);
+    TEST_ASSERT_TRUE(responds);
+    TEST_ASSERT_TRUE(c.idf_handle() == handle);
 }
 
 TEST_CASE("sdcard raw read and write round-trip", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
-        const size_t first = scratch_sector(c);
-        const size_t bytes = 2 * c.sector_size();
+    rig::card_fixture f;
+    auto& c = f.get();
+    const size_t first = scratch_sector(c);
+    const size_t bytes = 2 * c.sector_size();
 
-        std::vector<uint8_t> original(bytes);
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, original).has_value());
+    std::vector<uint8_t> original(bytes);
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, original).has_value());
 
-        std::vector<uint8_t> pattern(bytes);
-        for (size_t i = 0; i < bytes; ++i) {
-            pattern[i] = static_cast<uint8_t>(i * 7 + 3);
-        }
-        TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
-
-        std::vector<uint8_t> readback(bytes);
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, readback.data(), readback.size()).has_value());
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(pattern.data(), readback.data(), bytes);
-
-        // Restore the original contents
-        TEST_ASSERT_TRUE(c.try_write_sectors(first, original.data(), original.size()).has_value());
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, readback).has_value());
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), readback.data(), bytes);
+    std::vector<uint8_t> pattern(bytes);
+    for (size_t i = 0; i < bytes; ++i) {
+        pattern[i] = static_cast<uint8_t>(i * 7 + 3);
     }
-    rig::slot_power(false);
+    TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
+
+    std::vector<uint8_t> readback(bytes);
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, readback.data(), readback.size()).has_value());
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(pattern.data(), readback.data(), bytes);
+
+    // Restore the original contents
+    TEST_ASSERT_TRUE(c.try_write_sectors(first, original.data(), original.size()).has_value());
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, readback).has_value());
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), readback.data(), bytes);
 }
 
 TEST_CASE("sdcard raw I/O rejects partial sectors and out-of-range sectors", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
-    {
-        auto bus = rig::make_bus();
-        auto c = rig::make_card(bus);
-        std::vector<uint8_t> buf(2 * c.sector_size());
+    rig::card_fixture f;
+    auto& c = f.get();
+    std::vector<uint8_t> buf(2 * c.sector_size());
 
-        auto r = c.try_read_sectors(0, buf.data(), c.sector_size() + 1);
-        TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
-        r = c.try_write_sectors(0, buf.data(), 100);
-        TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
+    auto r = c.try_read_sectors(0, buf.data(), c.sector_size() + 1);
+    TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
+    r = c.try_write_sectors(0, buf.data(), 100);
+    TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
 
-        // The last sector is readable; one past it is not
-        TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() - 1, buf.data(), c.sector_size()).has_value());
-        r = c.try_read_sectors(c.sector_count() - 1, buf);
-        TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
-        r = c.try_erase_sectors(c.sector_count(), 1);
-        TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
+    // The last sector is readable; one past it is not
+    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() - 1, buf.data(), c.sector_size()).has_value());
+    r = c.try_read_sectors(c.sector_count() - 1, buf);
+    TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
+    r = c.try_erase_sectors(c.sector_count(), 1);
+    TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
 
-        // Empty operations succeed without contacting the card
-        TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() + 10, buf.data(), 0).has_value());
-        TEST_ASSERT_TRUE(c.try_erase_sectors(c.sector_count() + 10, 0).has_value());
+    // Empty operations succeed without contacting the card
+    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() + 10, buf.data(), 0).has_value());
+    TEST_ASSERT_TRUE(c.try_erase_sectors(c.sector_count() + 10, 0).has_value());
 
-        // Sanitize is MMC-only, and the timeout must be positive
-        auto s = c.try_sanitize(0ms);
-        TEST_ASSERT_TRUE(!s && s.error() == errc::invalid_arg);
-        s = c.try_sanitize(1s);
-        TEST_ASSERT_TRUE(!s && s.error() == errc::not_supported);
-    }
-    rig::slot_power(false);
+    // Sanitize is MMC-only, and the timeout must be positive
+    auto s = c.try_sanitize(0ms);
+    TEST_ASSERT_TRUE(!s && s.error() == errc::invalid_arg);
+    s = c.try_sanitize(1s);
+    TEST_ASSERT_TRUE(!s && s.error() == errc::not_supported);
 }
 
 TEST_CASE("sdcard erase and discard", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
-    rig::slot_power(true);
+    rig::card_fixture f;
+    std::vector<uint8_t> original;
+    size_t first = 0;
     {
-        auto bus = rig::make_bus();
-        std::vector<uint8_t> original;
-        size_t first = 0;
-        {
-            auto c = rig::make_card(bus);
-            first = scratch_sector(c);
-            original.resize(c.sector_size());
-            TEST_ASSERT_TRUE(c.try_read_sectors(first, original).has_value());
+        auto& c = f.get();
+        first = scratch_sector(c);
+        original.resize(c.sector_size());
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, original).has_value());
 
-            // Make sure the erase has something to clear
-            std::vector<uint8_t> pattern(c.sector_size(), 0x5A);
-            TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
+        // Make sure the erase has something to clear
+        std::vector<uint8_t> pattern(c.sector_size(), 0x5A);
+        TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
 
-            // SD cards support discard only on an SDMMC host
-            TEST_ASSERT_FALSE(c.supports_discard());
-            auto r = c.try_erase_sectors(first, 1, discard);
-            TEST_ASSERT_TRUE(!r && r.error() == errc::not_supported);
+        // SD cards support discard only on an SDMMC host
+        TEST_ASSERT_FALSE(c.supports_discard());
+        auto r = c.try_erase_sectors(first, 1, discard);
+        TEST_ASSERT_TRUE(!r && r.error() == errc::not_supported);
 
-            TEST_ASSERT_TRUE(c.try_erase_sectors(first, 1).has_value());
-        }
-        // Cards on an SPI bus may need initializing again after an erase
-        {
-            auto c = rig::make_card(bus);
-            std::vector<uint8_t> erased(c.sector_size());
-            TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-            const uint8_t fill = erased[0];
-            TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
-            TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
-
-            TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
-            TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-            TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), original.size());
-        }
+        TEST_ASSERT_TRUE(c.try_erase_sectors(first, 1).has_value());
     }
-    rig::slot_power(false);
+    // Cards on an SPI bus may need initializing again after an erase
+    {
+        auto& c = f.reopen();
+        std::vector<uint8_t> erased(c.sector_size());
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+        const uint8_t fill = erased[0];
+        TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
+        TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
+
+        TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), original.size());
+    }
+}
+
+TEST_CASE("sdcard erase across an erase chunk boundary", "[idfxx][sdcard][hw]") {
+    IDFXX_REQUIRE_SD_CARD();
+    rig::card_fixture f;
+    // Erases are sent in chunks on multiples of 2^21 sectors, so a range across the last such boundary on the card
+    // takes two erase commands in one call
+    constexpr size_t chunk = size_t{1} << 21;
+    if (f.get().sector_count() <= chunk) {
+        return; // the card is a single chunk
+    }
+    const size_t first = (f.get().sector_count() - 1) / chunk * chunk - 1;
+    const size_t bytes = 2 * f.get().sector_size();
+    std::vector<uint8_t> original(bytes);
+    {
+        auto& c = f.get();
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, original).has_value());
+        std::vector<uint8_t> pattern(bytes, 0x5A);
+        TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
+        TEST_ASSERT_TRUE(c.try_erase_sectors(first, 2).has_value());
+    }
+    // Cards on an SPI bus may need initializing again after an erase
+    {
+        auto& c = f.reopen();
+        std::vector<uint8_t> erased(bytes);
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+        const uint8_t fill = erased[0];
+        TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
+        TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
+
+        TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
+        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+        TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), bytes);
+    }
 }

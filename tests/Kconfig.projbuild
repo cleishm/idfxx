@@ -9,16 +9,20 @@ menu "IDFXX Configuration"
 
     choice IDFXX_TEST_SD_RIG
         prompt "SD card test board"
-        default IDFXX_TEST_SD_RIG_TFT_FEATHERWING
+        default IDFXX_TEST_SD_RIG_NONE
         help
             The board whose SD card wiring the idfxx_sdcard and idfxx_fatfs
             tests use. The [hw] tests need a card in its slot; one of them
-            erases the card.
+            erases the card. With no board, the [hw] SD tests are ignored.
 
+        config IDFXX_TEST_SD_RIG_NONE
+            bool "No SD card board"
         config IDFXX_TEST_SD_RIG_TFT_FEATHERWING
             bool "Unexpected Maker FeatherS3 + Adafruit 2.4\" TFT FeatherWing"
+            depends on IDF_TARGET_ESP32S3
         config IDFXX_TEST_SD_RIG_E1004
             bool "Seeed Studio reTerminal E1004"
+            depends on IDF_TARGET_ESP32S3
     endchoice
 
 endmenu

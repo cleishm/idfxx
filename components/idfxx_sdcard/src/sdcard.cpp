@@ -17,7 +17,7 @@
 #if SOC_SDMMC_HOST_SUPPORTED
 #include <driver/sdmmc_host.h>
 #endif
-#if CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32P4
 #include <soc/sdmmc_pins.h>
 #endif
 #if SOC_SDMMC_IO_POWER_EXTERNAL
@@ -34,6 +34,16 @@ namespace {
 
 // The largest SDHC card is (0xFF5F + 1) * 512 KiB, just under 32 GiB; SDXC cards start at 32 GiB.
 constexpr uint64_t sdxc_min_size = uint64_t{32} << 30;
+
+// The longest single SPI transaction the SD SPI driver issues: a 512-byte data block read together with its CRC
+// and the start of the next block's response.
+constexpr size_t sdspi_max_transaction_length = 512 + 4;
+
+// Erases are issued in chunks that start and end on multiples of this many sectors (1 GiB with 512-byte sectors).
+// sdmmc_erase_sectors() computes the erase timeout from the range's size with 32-bit arithmetic, which overflows on
+// larger ranges: the byte count does at 2^23 sectors, and so can the card-estimated timeout in milliseconds at 2^22
+// sectors (an SD card can report up to 63 s per 16 KiB allocation unit).
+constexpr size_t erase_chunk_sectors = size_t{1} << 21;
 
 // Validates a configured max_frequency and converts it for sdmmc_host_t::max_freq_khz. The card is identified at
 // SDMMC_FREQ_PROBING, so a lower bound could not be honored.
@@ -108,10 +118,36 @@ bool valid_width(bus_width w) {
 
 #if !SOC_SDMMC_USE_GPIO_MATRIX
 #if CONFIG_IDF_TARGET_ESP32
-// Each slot's data lines are fixed: slot 0 has eight, slot 1 has four.
+// Each slot's pins are fixed, in the order CLK, CMD, D0-D7: slot 0 has eight data lines, slot 1 four.
+constexpr std::array<std::array<idfxx::gpio, 10>, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_pins{{
+    {
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_CLK>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_CMD>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D0>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D1>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D2>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D3>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D4>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D5>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D6>::value,
+        gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D7>::value,
+    },
+    {
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_CLK>::value,
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_CMD>::value,
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_D0>::value,
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_D1>::value,
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_D2>::value,
+        gpio_constant<SDMMC_SLOT1_IOMUX_PIN_NUM_D3>::value,
+        gpio::nc(),
+        gpio::nc(),
+        gpio::nc(),
+        gpio::nc(),
+    },
+}};
 constexpr std::array<bus_width, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_max_width{bus_width::eight, bus_width::four};
 #else
-#error "idfxx_sdcard: slot widths are not known for this target's dedicated SDMMC pins"
+#error "idfxx_sdcard: slot pins are not known for this target's dedicated SDMMC pins"
 #endif
 #endif
 
@@ -134,9 +170,6 @@ constexpr std::array<int, 10> p4_slot0_pins{
 // Validates the slot's pins and returns the bus width to configure it with.
 result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
     if (cfg.width && !valid_width(*cfg.width)) {
-        return error(errc::invalid_arg);
-    }
-    if (!distinct(std::array{cfg.card_detect, cfg.write_protect})) {
         return error(errc::invalid_arg);
     }
 
@@ -170,24 +203,27 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         }
 #endif
     }
-    const std::array<idfxx::gpio, 12> all{
-        cfg.clk,
-        cfg.cmd,
-        cfg.d0,
-        cfg.d1,
-        cfg.d2,
-        cfg.d3,
-        cfg.d4,
-        cfg.d5,
-        cfg.d6,
-        cfg.d7,
-        cfg.card_detect,
-        cfg.write_protect,
-    };
+#else
+    const bus_width available = sdmmc_slot_max_width[std::to_underlying(cfg.slot)];
+    if (cfg.width && std::to_underlying(*cfg.width) > std::to_underlying(available)) {
+        return error(errc::invalid_arg);
+    }
+    const bus_width width = cfg.width.value_or(available);
+    // The slot's pins that the bus uses. The driver leaves the data lines above the bus width untouched, so they
+    // are free for card detect or write protect.
+    auto signals = sdmmc_slot_pins[std::to_underlying(cfg.slot)];
+    std::fill(signals.begin() + 2 + std::to_underlying(width), signals.end(), idfxx::gpio::nc());
+#endif
+
+    std::array<idfxx::gpio, 12> all{};
+    std::ranges::copy(signals, all.begin());
+    all[10] = cfg.card_detect;
+    all[11] = cfg.write_protect;
     if (!distinct(all)) {
         return error(errc::invalid_arg);
     }
 
+#if SOC_SDMMC_USE_GPIO_MATRIX
     // Data lines come in groups: D1-D3 for a 4-bit bus, D4-D7 (with D1-D3) for an 8-bit bus.
     const auto connected = [&](size_t from, size_t to) {
         return static_cast<size_t>(std::count_if(signals.begin() + from, signals.begin() + to + 1, [](auto g) {
@@ -200,10 +236,6 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         return error(errc::invalid_arg);
     }
     const bus_width available = d4_d7 == 4 ? bus_width::eight : d1_d3 == 3 ? bus_width::four : bus_width::one;
-#else
-    const bus_width available = sdmmc_slot_max_width[std::to_underlying(cfg.slot)];
-#endif
-
     if (cfg.width) {
         if (std::to_underlying(*cfg.width) > std::to_underlying(available)) {
             return error(errc::invalid_arg);
@@ -211,6 +243,9 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         return *cfg.width;
     }
     return available;
+#else
+    return width;
+#endif
 }
 #endif // SOC_SDMMC_HOST_SUPPORTED
 
@@ -286,6 +321,9 @@ struct card::state {
             if (auto err = sdspi_host_remove_device(*spi_device); err != ESP_OK) {
                 ESP_LOGW(TAG, "Failed to remove SD SPI device: %s", esp_err_to_name(err));
             }
+            // The removal leaves the chip select an input without a pull-up, floating on a bus that may still be in
+            // use. Resetting it again enables its pull-up, which keeps the card deselected.
+            spi_cs.reset();
         }
 #if SOC_SDMMC_HOST_SUPPORTED
 #if SOC_SDMMC_IO_POWER_EXTERNAL
@@ -347,6 +385,30 @@ struct card::state {
     [[nodiscard]] bool is_write_protected() const {
         return write_protect.is_connected() && write_protect.get_level() == write_protect_active_level;
     }
+
+    // Erases or discards a range of sectors in chunks on multiples of erase_chunk_sectors, stopping at the first
+    // error. The card stays locked throughout.
+    [[nodiscard]] result<void> erase(size_t first, size_t count, sdmmc_erase_arg_t arg) {
+        if (count == 0) {
+            return {};
+        }
+        if (auto r = check_range(first, count); !r) {
+            return r;
+        }
+        std::lock_guard lock(mtx);
+        if (is_write_protected()) {
+            return error(errc::invalid_state);
+        }
+        while (count > 0) {
+            const size_t n = std::min(count, erase_chunk_sectors - (first & (erase_chunk_sectors - 1)));
+            if (auto r = wrap(sdmmc_erase_sectors(&card, first, n, arg)); !r) {
+                return r;
+            }
+            first += n;
+            count -= n;
+        }
+        return {};
+    }
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -365,6 +427,11 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     auto max_freq_khz = to_max_freq_khz(cfg.max_frequency);
     if (!max_freq_khz) {
         return error(max_freq_khz.error());
+    }
+    // A bus without DMA would fail the card's data transfers. (With DMA, transactions can be at least 4092 bytes
+    // long, whatever the bus's max_transfer_sz.)
+    if (bus.max_transaction_length() < sdspi_max_transaction_length) {
+        return error(errc::invalid_arg);
     }
 
     auto s = std::make_unique<state>();
@@ -678,40 +745,16 @@ void card::sanitize(std::chrono::milliseconds timeout) {
 #endif
 
 result<void> card::try_erase_sectors(size_t first, size_t count) {
-    if (count == 0) {
-        return {};
-    }
-    if (auto r = _state->check_range(first, count); !r) {
-        return r;
-    }
-    std::lock_guard lock(_state->mtx);
-    if (_state->is_write_protected()) {
-        return error(errc::invalid_state);
-    }
     // On MMC/eMMC, ESP-IDF sends this as a trim.
-    return wrap(sdmmc_erase_sectors(&_state->card, first, count, SDMMC_ERASE_ARG));
+    return _state->erase(first, count, SDMMC_ERASE_ARG);
 }
 
 result<void> card::try_erase_sectors(size_t first, size_t count, discard_t) {
-    if (count == 0) {
-        return {};
-    }
-    if (auto r = _state->check_range(first, count); !r) {
-        return r;
-    }
-    std::lock_guard lock(_state->mtx);
-    if (_state->is_write_protected()) {
-        return error(errc::invalid_state);
-    }
-    return wrap(sdmmc_erase_sectors(&_state->card, first, count, SDMMC_DISCARD_ARG));
+    return _state->erase(first, count, SDMMC_DISCARD_ARG);
 }
 
 result<void> card::try_erase_all() {
-    std::lock_guard lock(_state->mtx);
-    if (_state->is_write_protected()) {
-        return error(errc::invalid_state);
-    }
-    return wrap(sdmmc_full_erase(&_state->card));
+    return _state->erase(0, capacity_of(_state->card), SDMMC_ERASE_ARG);
 }
 
 result<void> card::try_sanitize(std::chrono::milliseconds timeout) {

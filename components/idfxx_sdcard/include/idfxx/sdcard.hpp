@@ -230,9 +230,10 @@ public:
      * @brief Configuration for a card on an SPI bus.
      *
      * The bus must already be initialized, with DMA enabled
-     * (spi::dma_chan::ch_auto or a specific channel). The card adds its own
-     * device to the bus and drives its chip select itself, so the bus can be
-     * shared with other devices.
+     * (spi::dma_chan::ch_auto or a specific channel): card::make() rejects a
+     * bus without DMA with `errc::invalid_arg`. The card adds its own device
+     * to the bus and drives its chip select itself, so the bus can be shared
+     * with other devices.
      *
      * `cs`, `card_detect` and `write_protect` must not be any of the bus's
      * own SCLK, MOSI or MISO pins; this is not checked.
@@ -396,7 +397,8 @@ public:
      *
      * @return The initialized card, or an error.
      * @retval errc::invalid_arg The configuration is invalid: `cs` is not connected or not output-capable, two of
-     *         the pins are the same, or `max_frequency` is below 400 kHz. Checked before the bus is used.
+     *         the pins are the same, `max_frequency` is below 400 kHz, or the bus has no DMA. Checked before the bus
+     *         is used.
      * @retval errc::invalid_state The SPI bus has no free device slot for the card (each bus has a limited
      *         number of devices, shared with its other users).
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
@@ -443,7 +445,8 @@ public:
      *
      * @return The initialized card, or an error.
      * @retval errc::invalid_arg The configuration is invalid: a required pin is not connected or a pin is not
-     *         usable for its signal, two of the pins are the same, the data pins are not supplied in the groups
+     *         usable for its signal, two of the pins are the same (on esp32, `card_detect` or `write_protect` is one
+     *         of the slot's dedicated pins that the bus width uses), the data pins are not supplied in the groups
      *         D0, D0-D3 or D0-D7, `width` is wider than the pins or the slot allow, the pins are not the slot's
      *         dedicated pins on esp32p4 slot 0, `max_frequency` is below 400 kHz, or `uhs1` is set without
      *         `io_power_ldo`. Checked before the host is used. Also returned, once the slot is set up, when
@@ -793,6 +796,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
+     * @note A large range is erased in several steps, so after a failure part of it may already be erased.
      * @throws std::system_error on failure, with the error codes listed for try_erase_sectors(size_t, size_t).
      *
      * @code
@@ -814,6 +818,7 @@ public:
      * the card.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @note A large range is discarded in several steps, so after a failure part of it may already be discarded.
      * @throws std::system_error on failure, with the error codes listed for
      *         try_erase_sectors(size_t, size_t, discard_t).
      *
@@ -828,9 +833,12 @@ public:
     /**
      * @brief Erases the whole card.
      *
-     * On SD cards every sector is erased. On MMC/eMMC devices that support
-     * sanitize, every sector is discarded and then sanitized; on other
-     * MMC/eMMC devices every sector is trimmed.
+     * Erases every sector, as erase_sectors(0, sector_count()) does. On SD
+     * cards, erased sectors read back as all zeros or all ones, depending on
+     * the card. On MMC/eMMC devices every sector is trimmed, which requires
+     * the device to support it (`errc::not_supported` otherwise). The device
+     * may keep old data in internal blocks it no longer maps; on MMC/eMMC
+     * devices that support it, sanitize() removes it.
      *
      * Must not be used while a filesystem is mounted on the card. Destroys
      * all data on the card, including any partition table and filesystem.
@@ -838,6 +846,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
+     * @note A large card is erased in several steps, so after a failure part of it may already be erased.
      * @throws std::system_error on failure, with the error codes listed for try_erase_all().
      */
     void erase_all();
@@ -880,6 +889,7 @@ public:
      *
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
+     * @note A large range is erased in several steps, so after a failure part of it may already be erased.
      *
      * @return Success, or an error.
      * @retval errc::invalid_size The range extends past the end of the card.
@@ -903,6 +913,8 @@ public:
      * @param count Number of sectors to discard. Discarding no sectors succeeds without checking @p first or contacting
      * the card.
      *
+     * @note A large range is discarded in several steps, so after a failure part of it may already be discarded.
+     *
      * @return Success, or an error.
      * @retval errc::invalid_size The range extends past the end of the card.
      * @retval errc::invalid_state The write-protect pin reports that the card is write-protected.
@@ -916,20 +928,23 @@ public:
     /**
      * @brief Erases the whole card.
      *
-     * On SD cards every sector is erased. On MMC/eMMC devices that support
-     * sanitize, every sector is discarded and then sanitized; on other
-     * MMC/eMMC devices every sector is trimmed.
+     * Erases every sector, as erase_sectors(0, sector_count()) does. On SD
+     * cards, erased sectors read back as all zeros or all ones, depending on
+     * the card. On MMC/eMMC devices every sector is trimmed, which requires
+     * the device to support it (`errc::not_supported` otherwise). The device
+     * may keep old data in internal blocks it no longer maps; on MMC/eMMC
+     * devices that support it, sanitize() removes it.
      *
      * Must not be used while a filesystem is mounted on the card. Destroys
      * all data on the card, including any partition table and filesystem.
      *
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
+     * @note A large card is erased in several steps, so after a failure part of it may already be erased.
      *
      * @return Success, or an error.
      * @retval errc::invalid_state The write-protect pin reports that the card is write-protected.
-     * @retval errc::not_supported An MMC/eMMC device that supports sanitize but not discard, or that supports
-     *         neither sanitize nor trim.
+     * @retval errc::not_supported An MMC/eMMC device that does not support trim.
      * @retval errc::not_found The card-detect pin reports that the card has been removed.
      * @retval errc::timeout The card did not respond, or did not finish the erase in time.
      * @retval errc::invalid_response The card sent an invalid response or reported an erase error.

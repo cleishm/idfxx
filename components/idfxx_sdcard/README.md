@@ -142,7 +142,7 @@ if (auto r = card.try_read_sectors(0, sector); !r) {
 **Erase:**
 - `erase_sectors(first, count)` - Erase (trim on MMC/eMMC)
 - `erase_sectors(first, count, idfxx::sdcard::discard)` - Discard, when `supports_discard()`
-- `erase_all()` - Erase the whole card
+- `erase_all()` - Erase the whole card (trim on MMC/eMMC)
 - `sanitize(timeout)` - Purge discarded data, when `supports_sanitize()` (MMC/eMMC)
 
 **ESP-IDF interop:**
@@ -157,7 +157,7 @@ The component uses `idfxx::errc` codes:
 
 | Error | Meaning |
 |-------|---------|
-| `errc::invalid_arg` | Invalid configuration (checked before the bus or host is used), or a non-positive sanitize timeout |
+| `errc::invalid_arg` | Invalid configuration, including an SPI bus without DMA (checked before the bus or host is used), or a non-positive sanitize timeout |
 | `errc::invalid_size` | A byte count that is not whole sectors, or a sector range past the end of the card |
 | `errc::invalid_state` | The SDMMC slot is already in use, the SPI bus has no free device slot for the card, or a write or erase on a write-protected card |
 | `errc::not_found` | The card-detect pin reports an empty slot |
@@ -167,10 +167,11 @@ The component uses `idfxx::errc` codes:
 
 ## Important Notes
 
-- **SPI bus needs DMA.** Create the `spi::master_bus` with `dma_chan::ch_auto` (or a specific channel). The card
-  adds its own device to the bus and drives its chip select itself, acquiring the bus for each command, so the bus
-  can be shared with other devices. The bus must outlive the card. The card's `cs`, `card_detect` and
-  `write_protect` pins must not be any of the bus's SCLK, MOSI or MISO pins (this is not checked).
+- **SPI bus needs DMA.** Create the `spi::master_bus` with `dma_chan::ch_auto` (or a specific channel); `make()`
+  rejects a bus without DMA with `errc::invalid_arg`. The card adds its own device to the bus and drives its chip
+  select itself, acquiring the bus for each command, so the bus can be shared with other devices. The bus must
+  outlive the card. The card's `cs`, `card_detect` and `write_protect` pins must not be any of the bus's SCLK, MOSI
+  or MISO pins (this is not checked).
 - **Raw I/O and filesystems don't mix.** While a filesystem is mounted on the card, only the identity and geometry
   accessors (`type()`, `id()`, `size()`, `sector_size()`, `sector_count()`, `frequency()`, `width()`),
   `is_present()`, `is_write_protected()` and `idf_handle()` may be used. `probe()`, the raw sector reads and writes
@@ -186,7 +187,9 @@ The component uses `idfxx::errc` codes:
   On esp32s3 every pin is routed through the GPIO matrix. On esp32p4, slot 1 uses the GPIO matrix but slot 0 only
   works on its dedicated pins (CLK 43, CMD 44, D0-D3 39-42, D4-D7 45-48). On esp32 both slots use fixed pins, so
   `sdmmc_config` has no pin fields; slot 0's pins (GPIO 6-11) are the SPI flash pins on most modules, which leaves
-  slot 1 (CLK 14, CMD 15, D0 2, D1 4, D2 12, D3 13). The CMD and data lines need external pull-ups.
+  slot 1 (CLK 14, CMD 15, D0 2, D1 4, D2 12, D3 13). On esp32, `card_detect` and `write_protect` must not be any of
+  the slot's pins that the bus width uses (a 1-bit bus leaves D1-D3 free). The CMD and data lines need external
+  pull-ups.
 - **SDMMC bus width** follows the data pins supplied: D0 alone, D0-D3 or D0-D7. A `width` wider than the pins
   allow is rejected; a narrower one leaves the extra pins unused.
 - **SPI erase quirks.** SD cards on an SPI bus don't support discard. Some SPI-mode cards don't respond correctly
