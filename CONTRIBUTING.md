@@ -15,6 +15,10 @@ just build-noipv6 [target]  # IPv6 disabled
 Each config builds in its own directory (`build-noexc/`, `build-noipv6/`) from its own sdkconfig
 defaults, so they don't disturb the default `build/`.
 
+The recipes compile through [ccache](https://ccache.dev) when it is installed (e.g.
+`brew install ccache`), which makes fresh build directories and config switches much faster. Set
+`IDF_CCACHE_ENABLE=0` to opt out.
+
 ## Testing
 
 Tests use the ESP-IDF Unity framework and live alongside each component in `components/*/tests/`.
@@ -33,6 +37,21 @@ just qemu-test
 
 This builds an isolated QEMU image in `build-qemu/` from `sdkconfig.qemu`, runs the Unity suite,
 and reports the pass/fail summary. Tests tagged `[hw]` are excluded.
+
+While working on a component, run just its tests instead (the `idfxx_` prefix is optional):
+
+```bash
+just test dht gpio
+```
+
+This builds only the named components' tests, and the components they depend on, in
+`build-test/`. The image is a fraction of the full suite's size, so rebuilds after an edit take
+seconds. When a component's tests use other idfxx components it doesn't depend on itself, list
+them in `components/<name>/tests/requires.cmake`:
+
+```cmake
+set(test_requires idfxx_task)
+```
 
 ### Running Tests on Hardware
 

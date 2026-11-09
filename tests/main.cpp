@@ -1,11 +1,5 @@
 #include <unity.h>
 #include <unity_test_runner.h>
-#include <idfxx/error>
-#include <idfxx/chrono>
-#include <idfxx/memory>
-#include <idfxx/gpio>
-#include <idfxx/nvs>
-#include <idfxx/spi/master>
 
 #include <idfxx/log>
 

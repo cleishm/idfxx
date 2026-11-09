@@ -29,6 +29,24 @@ if(idfxx_test_target IN_LIST IDFXX_WIFI_TARGETS)
     list(APPEND IDFXX_TEST_REQUIRES idfxx_wifi)
 endif()
 
+# Filtered test app (IDFXX_TESTS, see the top-level CMakeLists.txt): require only
+# the selected components, plus whatever their tests use beyond the components'
+# own dependencies, declared in components/<name>/tests/requires.cmake. This has
+# to happen before idf_component_register: in IDF's requirements pass, the code
+# after it never runs.
+idf_build_get_property(idfxx_tests IDFXX_TESTS)
+if(idfxx_tests)
+    set(IDFXX_TEST_REQUIRES unity idfxx_core idfxx_log esp_netif ${idfxx_tests})
+    foreach(_component ${idfxx_tests})
+        set(_requires_file "${CMAKE_CURRENT_LIST_DIR}/../components/${_component}/tests/requires.cmake")
+        if(EXISTS "${_requires_file}")
+            set(test_requires)
+            include("${_requires_file}")
+            list(APPEND IDFXX_TEST_REQUIRES ${test_requires})
+        endif()
+    endforeach()
+endif()
+
 idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
@@ -38,6 +56,25 @@ idf_component_register(
 
 # Add test sources via target_sources to avoid ESP-IDF 6.0 component validation warnings.
 # The validation only checks idf_component_register(SRCS ...), not target_sources.
+if(idfxx_tests)
+    # Only the selected components' tests; their dependencies are in the build
+    # but their tests are not. Tests also see the component's private
+    # requirements, as they exercise its internals.
+    set(_selected_sources)
+    foreach(_component ${idfxx_tests})
+        foreach(_source ${IDFXX_TEST_SOURCES})
+            if(_source MATCHES "/components/${_component}/tests/")
+                list(APPEND _selected_sources ${_source})
+            endif()
+        endforeach()
+        idf_component_get_property(_priv ${_component} PRIV_REQUIRES)
+        foreach(_req ${_priv})
+            idf_component_get_property(_lib ${_req} COMPONENT_LIB)
+            target_link_libraries(${COMPONENT_LIB} PRIVATE ${_lib})
+        endforeach()
+    endforeach()
+    set(IDFXX_TEST_SOURCES ${_selected_sources})
+endif()
 target_sources(${COMPONENT_LIB} PRIVATE ${IDFXX_TEST_SOURCES})
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++23)
