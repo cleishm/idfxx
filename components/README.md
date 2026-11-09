@@ -52,6 +52,7 @@ All idfxx components, grouped by area. Each component is published separately on
 | [idfxx_nvs](https://github.com/cleishm/idfxx/tree/main/components/idfxx_nvs) | Non-Volatile Storage (NVS) wrapper | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__nvs.html) |
 | [idfxx_ota](https://github.com/cleishm/idfxx/tree/main/components/idfxx_ota) | OTA firmware update session management with rollback support | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__ota.html) |
 | [idfxx_partition](https://github.com/cleishm/idfxx/tree/main/components/idfxx_partition) | Flash partition discovery, reading, writing, and memory mapping | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__partition.html) |
+| [idfxx_sdcard](https://github.com/cleishm/idfxx/tree/main/components/idfxx_sdcard) | SD and MMC/eMMC memory cards over SPI or SDMMC, with raw sector access | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__sdcard.html) |
 | [idfxx_pwm](https://github.com/cleishm/idfxx/tree/main/components/idfxx_pwm) | PWM output with automatic or explicit timer and channel allocation | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__pwm.html) |
 | [idfxx_adc](https://github.com/cleishm/idfxx/tree/main/components/idfxx_adc) | One-shot and continuous ADC reads with calibrated voltages | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__adc.html) |
 

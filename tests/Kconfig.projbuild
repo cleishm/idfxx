@@ -7,4 +7,18 @@ menu "IDFXX Configuration"
             Enable this when building for QEMU emulation.
             When enabled, hardware-dependent tests will be skipped.
 
+    choice IDFXX_TEST_SD_RIG
+        prompt "SD card test board"
+        default IDFXX_TEST_SD_RIG_TFT_FEATHERWING
+        help
+            The board whose SD card wiring the idfxx_sdcard and idfxx_fatfs
+            tests use. The [hw] tests need a card in its slot; one of them
+            erases the card.
+
+        config IDFXX_TEST_SD_RIG_TFT_FEATHERWING
+            bool "Unexpected Maker FeatherS3 + Adafruit 2.4\" TFT FeatherWing"
+        config IDFXX_TEST_SD_RIG_E1004
+            bool "Seeed Studio reTerminal E1004"
+    endchoice
+
 endmenu
