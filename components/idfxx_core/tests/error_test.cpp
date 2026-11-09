@@ -382,3 +382,30 @@ TEST_CASE("has_factory make returns error on failure", "[idfxx][error]") {
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(errc::invalid_arg), r.error().value());
 }
+
+TEST_CASE("core errc codes compare equal to std::errc equivalents", "[idfxx][error]") {
+    TEST_ASSERT_TRUE(make_error_code(errc::invalid_arg) == std::errc::invalid_argument);
+    TEST_ASSERT_TRUE(make_error_code(errc::not_supported) == std::errc::not_supported);
+    TEST_ASSERT_TRUE(make_error_code(errc::timeout) == std::errc::timed_out);
+    TEST_ASSERT_TRUE(make_error_code(errc::not_allowed) == std::errc::operation_not_permitted);
+}
+
+TEST_CASE("core errc codes without a std::errc equivalent do not match unrelated conditions", "[idfxx][error]") {
+    auto ec = make_error_code(errc::invalid_state);
+    TEST_ASSERT_FALSE(ec == std::errc::invalid_argument);
+    TEST_ASSERT_FALSE(ec == std::errc::timed_out);
+    TEST_ASSERT_TRUE(ec.default_error_condition().category() == default_category());
+}
+
+TEST_CASE("core errc codes still compare equal to errc values", "[idfxx][error]") {
+    auto ec = make_error_code(errc::timeout);
+    TEST_ASSERT_TRUE(ec == errc::timeout);
+    TEST_ASSERT_FALSE(ec == errc::invalid_arg);
+    TEST_ASSERT_TRUE(make_error_code(errc::invalid_state) == errc::invalid_state);
+}
+
+TEST_CASE("core category handles arbitrary ESP-IDF codes", "[idfxx][error]") {
+    std::error_code ec{ESP_ERR_NO_MEM, default_category()};
+    TEST_ASSERT_FALSE(ec == std::errc::invalid_argument);
+    TEST_ASSERT_TRUE(ec.default_error_condition().category() == default_category());
+}
