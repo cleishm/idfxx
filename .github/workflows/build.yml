@@ -15,6 +15,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
+# The espressif/idf image compiles through ccache (IDF_CCACHE_ENABLE=1), and each
+# build job keeps its ccache directory between runs under its own key. Only
+# pushes to main save; pull requests restore main's latest copy and never write,
+# which keeps the number of caches bounded. Before saving, entries this build
+# didn't touch are evicted (ccache refreshes an entry's mtime on every hit), so
+# each saved cache holds just one build's working set rather than growing.
+
 jobs:
   # Decides whether this run can skip the build. all-checks records each tree
   # that passes on a pull request, and a push to main whose tree matches one of
@@ -114,11 +121,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ matrix.target }}-${{ matrix.config.name }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.target }}-${{ matrix.config.name }}-
+
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          start=$(date +%s)
+          ccache -z
           idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.config.defaults }}" set-target ${{ matrix.target }}
           idf.py build
+          ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
+          ccache -sv
+
+      - name: Save ccache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ matrix.target }}-${{ matrix.config.name }}-${{ github.run_id }}
 
   # Early-warning canary: builds against the moving release/v6.1 branch tip to
   # surface upstream ESP-IDF changes before they land in a tagged point release.
@@ -135,11 +160,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-canary-${{ github.run_id }}
+          restore-keys: ccache-canary-
+
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          start=$(date +%s)
+          ccache -z
           idf.py set-target esp32s3
           idf.py build
+          ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
+          ccache -sv
+
+      - name: Save ccache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-canary-${{ github.run_id }}
 
   build-compat:
     needs: tested
@@ -151,13 +194,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-compat-${{ github.run_id }}
+          restore-keys: ccache-compat-
+
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          start=$(date +%s)
+          ccache -z
           idf.py set-target esp32s3
           cp sdkconfig.defaults sdkconfig
           idf.py reconfigure
           idf.py build
+          ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
+          ccache -sv
+
+      - name: Save ccache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-compat-${{ github.run_id }}
 
   discover-examples:
     needs: tested
@@ -196,12 +257,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # Examples only read a cache: dozens of them run at once and would race to
+      # save. They start from the esp32s3 test-app build, which shares most of
+      # their IDF objects.
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-esp32s3-with-exceptions-${{ github.run_id }}
+          restore-keys: ccache-esp32s3-with-exceptions-
+
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          ccache -z
           cd ${{ matrix.path }}
           idf.py set-target esp32s3
           idf.py build
+          ccache -sv
 
   qemu-test:
     needs: tested
@@ -222,13 +295,31 @@ jobs:
           fi
           qemu-system-xtensa --version
 
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-qemu-${{ github.run_id }}
+          restore-keys: ccache-qemu-
+
       - name: Build for QEMU
         run: |
           . $IDF_PATH/export.sh
+          start=$(date +%s)
+          ccache -z
           idf.py set-target esp32s3
           cp sdkconfig.qemu sdkconfig
           idf.py reconfigure
           idf.py build
+          ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
+          ccache -sv
+
+      - name: Save ccache
+        if: github.event_name == 'push'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-qemu-${{ github.run_id }}
 
       - name: Create Flash Image for QEMU
         run: |
