@@ -15,7 +15,10 @@
 #include <utility>
 
 #if SOC_SDMMC_HOST_SUPPORTED
+#include "sdcard_dma.hpp"
+
 #include <driver/sdmmc_host.h>
+#include <esp_heap_caps.h>
 #endif
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32P4
 #include <soc/sdmmc_pins.h>
@@ -310,6 +313,28 @@ result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) 
         return error(errc::invalid_arg);
     }
 }
+
+// The most sectors copied at a time through a temporary DMA-capable buffer: the chunk size ESP-IDF itself uses for
+// misaligned buffers from 6.0 (SDMMC_HOST_DEFAULT()'s unaligned_multi_block_rw_max_chunk_size).
+constexpr size_t dma_copy_chunk_sectors = 16;
+
+struct heap_caps_deleter {
+    void operator()(uint8_t* p) const noexcept { heap_caps_free(p); }
+};
+
+using dma_buffer = std::unique_ptr<uint8_t, heap_caps_deleter>;
+
+// Allocates a DMA-capable buffer for up to max_sectors sectors, as ESP-IDF does for a misaligned buffer: the size is
+// halved while the allocation fails, down to a single sector. Returns the buffer and the number of sectors it holds.
+// Failing to allocate even one sector follows the OOM policy.
+std::pair<dma_buffer, size_t> allocate_dma_copy_buffer(size_t sector_size, size_t max_sectors) {
+    for (size_t n = max_sectors; n > 0; n /= 2) {
+        if (auto* p = static_cast<uint8_t*>(heap_caps_malloc(n * sector_size, MALLOC_CAP_DMA))) {
+            return {dma_buffer{p}, n};
+        }
+    }
+    raise_no_mem();
+}
 #endif // SOC_SDMMC_HOST_SUPPORTED
 
 } // namespace
@@ -449,6 +474,50 @@ struct card::state {
         return write_protect.is_connected() && write_protect.get_level() == write_protect_active_level;
     }
 
+#if SOC_SDMMC_HOST_SUPPORTED
+    // True if the card is on an SDMMC host slot and a sector read or write must copy the buffer through a DMA-capable
+    // one. ESP-IDF's own copying covers every buffer on an SPI bus.
+    [[nodiscard]] bool needs_dma_copy(const void* buf, size_t bytes) const {
+        return sdmmc_slot && internal::sdmmc_needs_dma_copy(buf, bytes);
+    }
+
+    // Reads sectors into dst through a temporary DMA-capable buffer, a chunk at a time, stopping at the first error.
+    // Called with the card locked.
+    [[nodiscard]] result<void> read_through_dma_buffer(size_t first, uint8_t* dst, size_t count) {
+        const auto sector_size = static_cast<size_t>(card.csd.sector_size);
+        auto [buf, chunk] = allocate_dma_copy_buffer(sector_size, std::min(count, dma_copy_chunk_sectors));
+        while (count > 0) {
+            const size_t n = std::min(count, chunk);
+            if (auto r = wrap(sdmmc_read_sectors(&card, buf.get(), first, n)); !r) {
+                return r;
+            }
+            std::memcpy(dst, buf.get(), n * sector_size);
+            first += n;
+            dst += n * sector_size;
+            count -= n;
+        }
+        return {};
+    }
+
+    // Writes sectors from src through a temporary DMA-capable buffer, a chunk at a time, stopping at the first error.
+    // Called with the card locked.
+    [[nodiscard]] result<void> write_through_dma_buffer(size_t first, const uint8_t* src, size_t count) {
+        const auto sector_size = static_cast<size_t>(card.csd.sector_size);
+        auto [buf, chunk] = allocate_dma_copy_buffer(sector_size, std::min(count, dma_copy_chunk_sectors));
+        while (count > 0) {
+            const size_t n = std::min(count, chunk);
+            std::memcpy(buf.get(), src, n * sector_size);
+            if (auto r = wrap(sdmmc_write_sectors(&card, buf.get(), first, n)); !r) {
+                return r;
+            }
+            first += n;
+            src += n * sector_size;
+            count -= n;
+        }
+        return {};
+    }
+#endif
+
     // Erases or discards a range of sectors in chunks on multiples of erase_chunk_sectors, stopping at the first
     // error. The card stays locked throughout.
     [[nodiscard]] result<void> erase(size_t first, size_t count, sdmmc_erase_arg_t arg) {
@@ -491,11 +560,6 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     if (!max_freq_khz) {
         return error(max_freq_khz.error());
     }
-    // A bus without DMA would fail the card's data transfers. (With DMA, transactions can be at least 4092 bytes
-    // long, whatever the bus's max_transfer_sz.)
-    if (bus.max_transaction_length() < sdspi_max_transaction_length) {
-        return error(errc::invalid_arg);
-    }
 
     auto s = std::make_unique<state>();
     s->card_detect = cfg.card_detect;
@@ -523,6 +587,14 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     }
     s->spi_device = handle;
     s->spi_cs = cs;
+
+    // A bus without DMA would fail the card's data transfers. (With DMA, transactions can be at least 4092 bytes
+    // long, whatever the bus's max_transfer_sz.) Checked once the card's device is on the bus, since ESP-IDF reports
+    // the length only for a bus with a device, and before the card is contacted. On failure, destroying the state
+    // removes the device again.
+    if (bus.max_transaction_length() < sdspi_max_transaction_length) {
+        return error(errc::invalid_arg);
+    }
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = handle;
@@ -600,8 +672,8 @@ result<card> card::make(const sdmmc_config& cfg) {
         // Zero-initialized: ESP-IDF 6.x leaves the struct untouched when the host is not initialized.
         sdmmc_host_state_t host_state{};
         (void)sdmmc_host_get_state(&host_state);
-        // The host is shared between slots, and may already be initialized by other code (ESP-IDF 5.5 then
-        // reports ESP_ERR_INVALID_STATE, later versions ESP_OK).
+        // The host is shared between slots, and may already be initialized by other code. ESP-IDF then returns
+        // ESP_OK; ESP_ERR_INVALID_STATE is tolerated too.
         if (auto err = sdmmc_host_init(); err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
             ESP_LOGE(TAG, "Failed to initialize SDMMC host: %s", esp_err_to_name(err));
             return error(err);
@@ -742,6 +814,11 @@ result<void> card::try_read_sectors(size_t first, void* dst, size_t size) const 
         return error(count.error());
     }
     std::lock_guard lock(_state->mtx);
+#if SOC_SDMMC_HOST_SUPPORTED
+    if (_state->needs_dma_copy(dst, size)) {
+        return _state->read_through_dma_buffer(first, static_cast<uint8_t*>(dst), *count);
+    }
+#endif
     return wrap(sdmmc_read_sectors(&_state->card, dst, first, *count));
 }
 
@@ -771,6 +848,11 @@ result<void> card::try_write_sectors(size_t first, const void* src, size_t size)
     if (_state->is_write_protected()) {
         return error(errc::invalid_state);
     }
+#if SOC_SDMMC_HOST_SUPPORTED
+    if (_state->needs_dma_copy(src, size)) {
+        return _state->write_through_dma_buffer(first, static_cast<const uint8_t*>(src), *count);
+    }
+#endif
     return wrap(sdmmc_write_sectors(&_state->card, src, first, *count));
 }
 

@@ -276,9 +276,9 @@ public:
      *
      * The bus must already be initialized, with DMA enabled
      * (spi::dma_chan::ch_auto or a specific channel): card::make() rejects a
-     * bus without DMA with `errc::invalid_arg`. The card adds its own device
-     * to the bus and drives its chip select itself, so the bus can be shared
-     * with other devices.
+     * bus without DMA with `errc::invalid_arg`, before the card is contacted.
+     * The card adds its own device to the bus and drives its chip select
+     * itself, so the bus can be shared with other devices.
      *
      * `cs`, `card_detect` and `write_protect` must not be any of the bus's
      * own SCLK, MOSI or MISO pins; this is not checked.
@@ -324,7 +324,12 @@ public:
      * @brief Configuration for a card on an SDMMC host slot.
      *
      * The SDMMC host is initialized on first use and shared between slots
-     * (and with other code that uses it); each card owns its slot.
+     * (and with other code that uses it); each card owns its slot. A card
+     * and other code (such as esp_vfs_fat_sdmmc_mount()) can use different
+     * slots of the host at the same time, but not the same slot: ESP-IDF 6.0
+     * and later reject a slot that other code has already set up with
+     * `errc::invalid_state`; ESP-IDF 5.5 does not detect it, so it must not
+     * be done there.
      *
      * The bus width is the number of data lines supplied: D0 alone gives a
      * 1-bit bus, D0-D3 a 4-bit bus and D0-D7 an 8-bit bus (data lines must be
@@ -440,8 +445,9 @@ public:
      *
      * @return The initialized card, or an error.
      * @retval errc::invalid_arg The configuration is invalid: `cs` is not connected or not output-capable, two of
-     *         the pins are the same, `max_frequency` is below 400 kHz, or the bus has no DMA. Checked before the bus
-     *         is used.
+     *         the pins are the same, `max_frequency` is below 400 kHz, or the bus has no DMA. Checked before the card
+     *         is contacted: the pins and `max_frequency` before the bus is used, and the bus once the card's device
+     *         is added to it (the device is then removed again).
      * @retval errc::invalid_state The SPI bus has no free device slot for the card (each bus has a limited
      *         number of devices, shared with its other users).
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
@@ -495,7 +501,11 @@ public:
      *         400 kHz or is set with a UHS-I `speed`, or a UHS-I `speed` is selected without `io_power_ldo`.
      *         Checked before the host is used. Also returned, once the slot is set up, when `io_power_ldo` is not
      *         an LDO channel or is already in use by other code.
-     * @retval errc::invalid_state The slot is already in use by another card.
+     * @retval errc::invalid_state The slot is already in use by another card or, with ESP-IDF 6.0 and later, has
+     *         already been set up by other code (for example esp_vfs_fat_sdmmc_mount()). ESP-IDF 5.5 does not detect
+     *         a slot set up by other code: there, the card takes the slot over, and destroying the card releases the
+     *         slot (and the host, if no other slot is counted as in use) from under the other code, so the caller
+     *         must not pass such a slot. A slot other than the ones other code uses works with either version.
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response.
@@ -650,8 +660,10 @@ public:
     // =========================================================================
     //
     // Sizes are in bytes and must be whole sectors. Buffers may be anywhere in
-    // memory, at any alignment: data in memory that DMA can't reach is copied
-    // through an internal buffer. Must not be used while a filesystem is
+    // memory, at any alignment: a buffer that DMA can't use directly (a
+    // misaligned one, or one in memory the DMA can't reach, such as flash,
+    // IRAM, RTC memory or, on most targets, PSRAM) is copied through a
+    // temporary DMA-capable buffer. Must not be used while a filesystem is
     // mounted on the card.
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

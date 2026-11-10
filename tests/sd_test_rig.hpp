@@ -168,7 +168,7 @@ public:
     }
 };
 
-/// An SPI2 bus with no pins, for tests whose card configurations are rejected before the bus is used. Held in the
+/// An SPI2 bus with no pins, for tests whose card configurations are rejected, or fail for lack of a card. Held in the
 /// same storage as card_fixture's bus, so that a failed test doesn't leave SPI2 initialized.
 class unwired_bus_fixture {
 public:

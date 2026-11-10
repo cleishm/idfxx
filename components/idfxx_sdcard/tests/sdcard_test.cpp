@@ -4,6 +4,7 @@
 // Unit tests for idfxx sdcard
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
+#include "../src/sdcard_dma.hpp"
 #include "idfxx/sdcard"
 #include "sd_test_rig.hpp"
 #include "unity.h"
@@ -14,7 +15,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <esp_attr.h>
+#include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
 #include <optional>
+#include <soc/soc.h>
 #include <system_error>
 #include <type_traits>
 #include <utility>
@@ -155,16 +161,18 @@ TEST_CASE("sdcard formatters", "[idfxx][sdcard]") {
 
 // =============================================================================
 // SPI configuration validation
-// These fail before the bus is used, so they run without a card (and in QEMU),
-// on an SPI2 bus with no pins.
+// These fail before the card is contacted, or fail for lack of a card, so they
+// run without a card (and, unless tagged [hw], in QEMU), on an SPI2 bus with
+// no pins.
 // =============================================================================
 
 namespace {
 
 namespace rig = idfxx::sdcard::test;
 
-// Pins used only as values: every configuration they appear in is rejected before any pin is configured. Should one
-// ever be configured, none of them is a flash, PSRAM, USB, UART0 console, JTAG or strapping pin on its target.
+// Pins for configurations that are rejected or that fail without a card. Most configurations are rejected before any
+// pin is configured; those that pass the pin checks make spare_pin_a the card's chip select. None of them is a flash,
+// PSRAM, USB, UART0 console, JTAG or strapping pin on its target.
 #if CONFIG_IDF_TARGET_ESP32
 constexpr gpio spare_pin_a = gpio_21;
 constexpr gpio spare_pin_b = gpio_22;
@@ -209,7 +217,25 @@ TEST_CASE("sdcard make over SPI rejects a bus without DMA", "[idfxx][sdcard]") {
     rig::unwired_bus_fixture bus(spi::dma_chan::disabled);
     // Without DMA, a transaction is limited to the SPI peripheral's own buffer, shorter than a data block
     TEST_ASSERT_LESS_THAN_UINT32(512, bus.get().max_transaction_length());
-    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a}));
+    // The check is made once the card's device is on the bus, and the device is removed again: were it left behind,
+    // the bus would run out of device slots (six) and make() fail with invalid_state instead
+    for (int i = 0; i < 8; ++i) {
+        assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a}));
+    }
+}
+
+// Needs no card, but runs on hardware only: QEMU reads the pulled-up card-detect pin as low, and never completes the
+// card initialization's SPI transfers on a DMA bus.
+TEST_CASE("sdcard make over SPI accepts a bus with DMA", "[idfxx][sdcard][hw]") {
+    rig::unwired_bus_fixture bus;
+    // The configuration is accepted, so make() goes on to initialize the card, which fails: there is none. (The
+    // card-detect pin, unconnected and pulled up, normally reports an empty slot before any bus traffic.)
+    bool accepted = false;
+    {
+        auto r = card::make(bus.get(), {.cs = spare_pin_a, .card_detect = spare_pin_b});
+        accepted = r.has_value() || r.error() != errc::invalid_arg;
+    }
+    TEST_ASSERT_TRUE(accepted);
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -225,6 +251,91 @@ TEST_CASE("sdcard constructor over SPI throws on an invalid config", "[idfxx][sd
     TEST_ASSERT_TRUE_MESSAGE(threw, "Expected std::system_error to be thrown");
 }
 #endif
+
+// =============================================================================
+// SDMMC buffer classification
+// Which raw I/O buffers are copied through a DMA-capable buffer on an SDMMC
+// host slot, checked against real addresses.
+// =============================================================================
+
+namespace {
+
+namespace dma = idfxx::sdcard::internal;
+
+// In flash, which DMA can't reach. Initialized so that it is kept in .rodata.
+const uint8_t rodata_sector[512] = {1, 2, 3, 4};
+
+// In RTC memory, which DMA can't reach.
+RTC_DATA_ATTR uint8_t rtc_buffer[64];
+
+#if SOC_DIRAM_IRAM_LOW != SOC_DIRAM_DRAM_LOW
+// In IRAM, which DMA can't reach where IRAM has addresses of its own.
+IRAM_ATTR void iram_function() {}
+#endif
+
+// A synthetic address, for ranges at the edges of DMA-capable memory. Never dereferenced.
+const void* address(uintptr_t a) {
+    return reinterpret_cast<const void*>(a);
+}
+
+} // namespace
+
+TEST_CASE("sdcard SDMMC I/O uses DMA-capable internal RAM directly", "[idfxx][sdcard]") {
+    uint8_t stack_buffer[512] = {};
+    TEST_ASSERT_TRUE(esp_ptr_dma_capable(stack_buffer));
+    TEST_ASSERT_FALSE(dma::sdmmc_needs_dma_copy(stack_buffer, sizeof(stack_buffer)));
+    // Misaligned buffers are left to ESP-IDF, which copies them itself
+    TEST_ASSERT_FALSE(dma::sdmmc_needs_dma_copy(stack_buffer + 1, sizeof(stack_buffer) - 1));
+
+    void* heap_buffer = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    TEST_ASSERT_NOT_NULL(heap_buffer);
+    const bool heap_dma_capable = esp_ptr_dma_capable(heap_buffer);
+    const bool heap_copied = dma::sdmmc_needs_dma_copy(heap_buffer, 4096);
+    heap_caps_free(heap_buffer);
+    TEST_ASSERT_TRUE(heap_dma_capable);
+    TEST_ASSERT_FALSE(heap_copied);
+}
+
+#if CONFIG_SPIRAM
+TEST_CASE("sdcard SDMMC I/O leaves PSRAM buffers to ESP-IDF", "[idfxx][sdcard]") {
+    if (heap_caps_get_total_size(MALLOC_CAP_SPIRAM) == 0) {
+        TEST_IGNORE_MESSAGE("no PSRAM available");
+    }
+    void* psram_buffer = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
+    TEST_ASSERT_NOT_NULL(psram_buffer);
+    const bool external = esp_ptr_external_ram(psram_buffer);
+    const bool copied = dma::sdmmc_needs_dma_copy(psram_buffer, 4096);
+    heap_caps_free(psram_buffer);
+    TEST_ASSERT_TRUE(external);
+    TEST_ASSERT_FALSE(copied);
+}
+#endif
+
+TEST_CASE("sdcard SDMMC I/O copies buffers that DMA can't reach", "[idfxx][sdcard]") {
+    TEST_ASSERT_TRUE(esp_ptr_in_drom(rodata_sector));
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(rodata_sector, sizeof(rodata_sector)));
+
+    TEST_ASSERT_TRUE(esp_ptr_in_rtc_slow(rtc_buffer) || esp_ptr_in_rtc_dram_fast(rtc_buffer));
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(rtc_buffer, sizeof(rtc_buffer)));
+
+#if SOC_DIRAM_IRAM_LOW != SOC_DIRAM_DRAM_LOW
+    const void* iram = reinterpret_cast<const void*>(&iram_function);
+    TEST_ASSERT_TRUE(esp_ptr_in_iram(iram));
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(iram, 4));
+#endif
+}
+
+TEST_CASE("sdcard SDMMC I/O checks both ends of a buffer", "[idfxx][sdcard]") {
+    // Inside DMA-capable memory, up to its last byte
+    TEST_ASSERT_FALSE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_HIGH - 16), 16));
+    TEST_ASSERT_FALSE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_LOW), 16));
+    // Running past the end, or starting before the start
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_HIGH - 16), 17));
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_LOW - 1), 16));
+    // A single byte on either side of the boundary
+    TEST_ASSERT_FALSE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_HIGH - 1), 1));
+    TEST_ASSERT_TRUE(dma::sdmmc_needs_dma_copy(address(SOC_DMA_HIGH), 1));
+}
 
 // =============================================================================
 // SDMMC configuration validation

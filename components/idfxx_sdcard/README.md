@@ -166,9 +166,9 @@ The component uses `idfxx::errc` codes:
 
 | Error | Meaning |
 |-------|---------|
-| `errc::invalid_arg` | Invalid configuration, including an SPI bus without DMA, or a UHS-I speed without `io_power_ldo` or with `max_frequency` (checked before the bus or host is used), or a non-positive sanitize timeout |
+| `errc::invalid_arg` | Invalid configuration, including an SPI bus without DMA, or a UHS-I speed without `io_power_ldo` or with `max_frequency` (checked before the card is contacted), or a non-positive sanitize timeout |
 | `errc::invalid_size` | A byte count that is not whole sectors, or a sector range past the end of the card |
-| `errc::invalid_state` | The SDMMC slot is already in use, the SPI bus has no free device slot for the card, or a write or erase on a write-protected card |
+| `errc::invalid_state` | The SDMMC slot is already in use by another card (or, with ESP-IDF 6.0 and later, by other code), the SPI bus has no free device slot for the card, or a write or erase on a write-protected card |
 | `errc::not_found` | The card-detect pin reports an empty slot |
 | `errc::timeout` | The card did not respond (how a missing card shows up when there is no card-detect pin) |
 | `errc::invalid_response`, `errc::invalid_crc` | Communication errors |
@@ -177,10 +177,10 @@ The component uses `idfxx::errc` codes:
 ## Important Notes
 
 - **SPI bus needs DMA.** Create the `spi::master_bus` with `dma_chan::ch_auto` (or a specific channel); `make()`
-  rejects a bus without DMA with `errc::invalid_arg`. The card adds its own device to the bus and drives its chip
-  select itself, acquiring the bus for each command, so the bus can be shared with other devices. The bus must
-  outlive the card. The card's `cs`, `card_detect` and `write_protect` pins must not be any of the bus's SCLK, MOSI
-  or MISO pins (this is not checked).
+  rejects a bus without DMA with `errc::invalid_arg`, before contacting the card. The card adds its own device to
+  the bus and drives its chip select itself, acquiring the bus for each command, so the bus can be shared with other
+  devices. The bus must outlive the card. The card's `cs`, `card_detect` and `write_protect` pins must not be any of
+  the bus's SCLK, MOSI or MISO pins (this is not checked).
 - **Raw I/O and filesystems don't mix.** While a filesystem is mounted on the card, only the identity and geometry
   accessors (`type()`, `id()`, `size()`, `sector_size()`, `sector_count()`, `frequency()`, `width()`),
   `is_present()`, `is_write_protected()` and `idf_handle()` may be used. `probe()`, the raw sector reads and writes
@@ -199,6 +199,10 @@ The component uses `idfxx::errc` codes:
   slot 1 (CLK 14, CMD 15, D0 2, D1 4, D2 12, D3 13). On esp32, `card_detect` and `write_protect` must not be any of
   the slot's pins that the bus width uses (a 1-bit bus leaves D1-D3 free). The CMD and data lines need external
   pull-ups.
+- **Sharing the SDMMC host.** The host is initialized on first use and shared between slots, also with other code:
+  a card and, say, `esp_vfs_fat_sdmmc_mount` can use different slots at the same time, with any ESP-IDF version. A
+  slot that other code has already set up must not be used for a card. ESP-IDF 6.0 and later reject it with
+  `errc::invalid_state`; ESP-IDF 5.5 doesn't detect it, and the card takes the slot over from the other code.
 - **SDMMC bus width** follows the data pins supplied: D0 alone, D0-D3 or D0-D7. A `width` wider than the pins
   allow is rejected; a narrower one leaves the extra pins unused.
 - **SDMMC speed is a mode, not just a clock.** `speed` picks the timing the card is switched to, and with it the
