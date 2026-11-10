@@ -7,6 +7,14 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "test_cleanup.hpp"
+
+// Unity calls this after each test, including one that failed an assertion.
+extern "C" void tearDown()
+{
+    idfxx::test::run_cleanups();
+}
+
 extern "C" void app_main()
 {
     ESP_ERROR_CHECK(esp_netif_init());
