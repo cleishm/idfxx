@@ -27,7 +27,7 @@
 namespace idfxx::radio {
 
 /// @cond INTERNAL
-namespace airtime_detail {
+namespace detail {
 
 /// Channel bandwidth. The two fractional bandwidths return their exact LoRa
 /// values — 15.625 kHz and 31.25 kHz — rather than the rounded kHz that name
@@ -92,7 +92,7 @@ namespace airtime_detail {
     return 8u + static_cast<uint32_t>(ceil_term) * static_cast<uint32_t>(cr_n + 4);
 }
 
-} // namespace airtime_detail
+} // namespace detail
 /// @endcond
 
 /**
@@ -134,11 +134,10 @@ namespace airtime_detail {
  */
 [[nodiscard]] constexpr std::chrono::microseconds
 time_on_air(const lora_modulation& mod, const lora_packet_params& pkt, size_t payload_length) noexcept {
-    const uint64_t bw = static_cast<uint64_t>(airtime_detail::channel_bandwidth(mod.bw).count());
+    const uint64_t bw = static_cast<uint64_t>(detail::channel_bandwidth(mod.bw).count());
     const uint64_t sf = std::to_underlying(mod.sf);
-    const uint32_t n_payload = airtime_detail::payload_symbols(
-        mod.sf, mod.cr, pkt.header, pkt.crc_on, mod.low_data_rate_optimize, payload_length
-    );
+    const uint32_t n_payload =
+        detail::payload_symbols(mod.sf, mod.cr, pkt.header, pkt.crc_on, mod.low_data_rate_optimize, payload_length);
 
     // Total symbol count scaled ×4 so the 4.25-symbol preamble offset (×4 = 17)
     // stays integral.

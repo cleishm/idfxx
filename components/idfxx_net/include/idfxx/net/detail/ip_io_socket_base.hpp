@@ -3,8 +3,6 @@
 
 #pragma once
 
-/// @cond INTERNAL
-
 // Internal base class shared by `stream_socket` and `connectionless_socket_base`
 // (i.e. by every socket type on which peer-oriented I/O makes sense: stream,
 // datagram, raw). Adds `connect`, `peer_endpoint`, `recv`, the send-side
@@ -25,6 +23,7 @@
 
 namespace idfxx::net::detail {
 
+/// @brief Connection, receive and send-side operations common to stream, datagram and raw sockets.
 class ip_io_socket_base : public ip_socket_base {
 public:
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -165,12 +164,12 @@ public:
     [[nodiscard]] size_t get_send_buffer() const noexcept;
 
 protected:
+    /// @cond INTERNAL
     using ip_socket_base::ip_socket_base;
 
     void _set_send_timeout(std::chrono::milliseconds t) noexcept;
     [[nodiscard]] result<void> _try_wait_writable(std::chrono::milliseconds timeout);
+    /// @endcond
 };
 
 } // namespace idfxx::net::detail
-
-/// @endcond

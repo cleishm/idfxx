@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "Decoded images on e-paper panels and surfaces, in a panel's measured colors, placed, sized and oriented on the screen"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_image"
 repository: "https://github.com/cleishm/idfxx.git"

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "detail/netconn.hpp"
+
 #include <idfxx/net/netconn/raw_channel>
 
 #include <lwip/api.h>

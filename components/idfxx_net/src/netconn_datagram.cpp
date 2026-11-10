@@ -2,6 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 #include "detail/ip_addr.hpp"
+#include "detail/netconn.hpp"
 
 #include <idfxx/net/netconn/datagram_channel>
 

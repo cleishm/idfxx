@@ -31,11 +31,11 @@ struct netbuf;
 namespace idfxx::net::netconn {
 
 class stream_channel;
-class datagram_channel;
-class raw_channel;
+/// @cond INTERNAL
 namespace detail {
 class connectionless_channel;
 }
+/// @endcond
 
 /**
  * @headerfile <idfxx/net/netconn/buffer>
@@ -229,10 +229,10 @@ public:
     [[nodiscard]] result<void> try_attach(std::span<const std::byte> data);
 
 private:
+    /// @cond INTERNAL
     friend class stream_channel;
-    friend class datagram_channel;
-    friend class raw_channel;
     friend class detail::connectionless_channel;
+    /// @endcond
 
     explicit buffer(::netbuf* buf) noexcept
         : _buf(buf) {}

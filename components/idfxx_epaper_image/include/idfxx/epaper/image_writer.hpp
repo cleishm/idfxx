@@ -389,9 +389,7 @@ struct destination {
     size_t surface_height = 0;
 };
 
-[[nodiscard]] inline destination to_panel(panel& display) noexcept {
-    return {.display = &display};
-}
+[[nodiscard]] destination to_panel(panel& display) noexcept;
 
 template<typename Framebuffer, typename Overlay>
 [[nodiscard]] destination to_panel(panel& display, Overlay& draw) noexcept {

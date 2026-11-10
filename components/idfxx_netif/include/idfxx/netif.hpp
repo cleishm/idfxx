@@ -1028,7 +1028,7 @@ namespace detail {
  */
 template<typename Rep, typename Period>
 [[nodiscard]] bool sync_wait(const std::chrono::duration<Rep, Period>& timeout) {
-    return detail::sync_wait_ms(std::chrono::duration_cast<std::chrono::milliseconds>(timeout));
+    return detail::sync_wait_ms(std::chrono::ceil<std::chrono::milliseconds>(timeout));
 }
 
 } // namespace sntp

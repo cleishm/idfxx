@@ -325,4 +325,8 @@ result<void> image_stream::try_finish() {
     return _state->flush();
 }
 
+destination to_panel(panel& display) noexcept {
+    return {.display = &display};
+}
+
 } // namespace idfxx::epaper::detail

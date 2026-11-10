@@ -73,7 +73,7 @@ Supported targets: esp32, esp32s2, esp32s3, esp32c3, esp32c6, esp32h2
 - `error(esp_err_t)` - Creates `std::unexpected` from an ESP-IDF error code
 - `error(std::error_code)` - Creates `std::unexpected` from a `std::error_code` (for propagating errors between result types)
 - `wrap(esp_err_t)` - Converts ESP-IDF error codes to `result<void>`
-- `unwrap(result<T>)` - Extracts value or throws on error (internal use only, see documentation note below)
+- `unwrap(result<T>)` - Extracts value or throws `std::system_error` on error. Public: lets users give their own result-returning code a throwing variant, or call result-only APIs from exception-style code (see documentation note below)
 
 **Guarded Operations**: Internal pattern that validates object state before making ESP-IDF calls.
 
@@ -122,7 +122,7 @@ This ordering applies to both declarations and implementations, ensuring a predi
 
 Exception-based methods should not have abbreviated documentation. Inline implementations within class definitions still require full documentation blocks.
 
-**Documentation Examples**: Use the exception-based API (methods without `try_` prefix) in documentation examples, as it's cleaner and more readable. Do not use `unwrap()` in examples - it's an internal helper for implementing exception-based methods from result-based ones, not part of the public API style.
+**Documentation Examples**: Use the exception-based API (methods without `try_` prefix) in documentation examples, as it's cleaner and more readable. Do not use `unwrap()` in examples where a throwing method exists - call the throwing method instead. `unwrap()` is public (for users' own result-based code), but it is not how idfxx APIs are meant to be called.
 
 **Doxygen** with consistent tags:
 - `@headerfile`, `@file`, `@brief` on all public items

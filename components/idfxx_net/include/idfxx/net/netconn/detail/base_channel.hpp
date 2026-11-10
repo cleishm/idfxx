@@ -3,8 +3,6 @@
 
 #pragma once
 
-/// @cond INTERNAL
-
 // Internal base class shared by the netconn channel types
 // (`stream_channel`, `datagram_channel`, `raw_channel`, `listener`). Holds
 // the owning `::netconn*` pointer, the address family, and the family-generic
@@ -16,7 +14,6 @@
 #include <idfxx/net/error>
 
 #include <chrono>
-#include <cstdint>
 #include <optional>
 
 // Forward declaration from lwIP.
@@ -24,18 +21,7 @@ struct netconn;
 
 namespace idfxx::net::netconn::detail {
 
-/**
- * @brief Allocates a netconn of the given base type (`NETCONN_TCP`, `NETCONN_UDP`, etc.)
- *        and address family. Returns `errc::no_buffer_space` on lwIP allocation failure.
- */
-[[nodiscard]] result<::netconn*> make_netconn(int base_type, address_family fam);
-
-/**
- * @brief Allocates a raw netconn of the given base type, IP protocol, and address family.
- *        Returns `errc::no_buffer_space` on lwIP allocation failure.
- */
-[[nodiscard]] result<::netconn*> make_netconn_with_proto(int base_type, uint8_t proto, address_family fam);
-
+/// @brief Lifecycle, binding and options common to every netconn channel type.
 class base_channel {
 public:
     /** @brief Deletes the netconn if owned. */
@@ -106,6 +92,7 @@ public:
     [[nodiscard]] int get_recv_timeout() const noexcept;
 
 protected:
+    /// @cond INTERNAL
     base_channel() noexcept = default;
     base_channel(::netconn* conn, address_family fam) noexcept
         : _conn(conn)
@@ -120,8 +107,7 @@ protected:
 
     ::netconn* _conn = nullptr;
     address_family _family = address_family::ipv4;
+    /// @endcond
 };
 
 } // namespace idfxx::net::netconn::detail
-
-/// @endcond
