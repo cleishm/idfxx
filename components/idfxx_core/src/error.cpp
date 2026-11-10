@@ -6,8 +6,6 @@
 #include <esp_err.h>
 #include <esp_log.h>
 
-static_assert(idfxx::detail::esp_err_no_mem == ESP_ERR_NO_MEM);
-
 namespace idfxx {
 
 const error_category& default_category() noexcept {
