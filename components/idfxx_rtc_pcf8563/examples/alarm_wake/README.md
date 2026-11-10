@@ -7,7 +7,8 @@ Wakes the ESP32 from deep sleep with a PCF8563 real-time clock alarm, through th
 - Setting up an I2C bus with `idfxx::i2c::master_bus`
 - Creating an `idfxx::rtc::pcf8563` on the bus with the default address (0x51)
 - Reading the time with `now()`, and seeding a clock that has lost track with `set_time()`
-- Telling an alarm wake from other resets with `events()`, and releasing INT with `clear_events()`
+- Telling an alarm wake from other resets with `idfxx::sleep::wakeup_cause()` and `events()`, and
+  releasing INT with `clear_events()`
 - Setting the next alarm with `set_alarm()`, with its interrupt enabled to drive INT
 - Sleeping until INT goes low with `idfxx::sleep::deep_sleep()` and `idfxx::sleep::ext0_wake`
 - Reporting failures by catching `std::system_error`

@@ -55,8 +55,11 @@ extern "C" void app_main() {
             now = SEED_TIME;
         }
 
+        // An EXT0 wake means INT woke the chip, and the alarm flag says the alarm drove it. The flag
+        // alone isn't enough: an alarm that fires while the chip is awake, or before a reset, also sets it.
         auto events = rtc.events();
-        if (events.contains(pcf8563::event::alarm)) {
+        if (idfxx::sleep::wakeup_cause() == idfxx::sleep::wakeup_source::ext0 &&
+            events.contains(pcf8563::event::alarm)) {
             logger.info("woke on the RTC alarm at {:%F %T} UTC", *now);
         } else {
             logger.info("first boot or another reset, at {:%F %T} UTC", *now);
