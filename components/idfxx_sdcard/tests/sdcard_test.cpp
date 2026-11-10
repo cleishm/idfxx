@@ -65,12 +65,27 @@ static_assert(std::to_underlying(bus_width::one) == 1);
 static_assert(std::to_underlying(bus_width::four) == 4);
 static_assert(std::to_underlying(bus_width::eight) == 8);
 
+// bus_speed values are fixed, whichever modes the target has
+static_assert(std::to_underlying(bus_speed::default_speed) == 0);
+static_assert(std::to_underlying(bus_speed::high_speed) == 1);
+#if SOC_SDMMC_UHS_I_SUPPORTED
+static_assert(std::to_underlying(bus_speed::sdr50) == 2);
+static_assert(std::to_underlying(bus_speed::ddr50) == 3);
+#endif
+#if SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+static_assert(std::to_underlying(bus_speed::sdr104) == 4);
+#endif
+
 #if SOC_SDMMC_HOST_SUPPORTED
 // slot values are the SDMMC host slot numbers
 static_assert(std::to_underlying(card::slot::slot_0) == 0);
 static_assert(std::to_underlying(card::slot::slot_1) == 1);
 
 static_assert(std::is_same_v<decltype(card::make(std::declval<const card::sdmmc_config&>())), result<card>>);
+
+// sdmmc_config selects a speed mode, with an optional clock limit
+static_assert(std::is_same_v<decltype(card::sdmmc_config::speed), bus_speed>);
+static_assert(std::is_same_v<decltype(card::sdmmc_config::max_frequency), std::optional<quanta::frequency::hertz>>);
 
 #if SOC_SDMMC_USE_GPIO_MATRIX
 // clk, cmd and d0 are required where the pins are routed through the GPIO matrix
@@ -109,10 +124,29 @@ TEST_CASE("sdcard to_string(bus_width)", "[idfxx][sdcard]") {
     TEST_ASSERT_EQUAL_STRING("unknown(2)", to_string(static_cast<bus_width>(2)).c_str());
 }
 
+TEST_CASE("sdcard to_string(bus_speed)", "[idfxx][sdcard]") {
+    TEST_ASSERT_EQUAL_STRING("default speed", to_string(bus_speed::default_speed).c_str());
+    TEST_ASSERT_EQUAL_STRING("high speed", to_string(bus_speed::high_speed).c_str());
+#if SOC_SDMMC_UHS_I_SUPPORTED
+    TEST_ASSERT_EQUAL_STRING("SDR50", to_string(bus_speed::sdr50).c_str());
+    TEST_ASSERT_EQUAL_STRING("DDR50", to_string(bus_speed::ddr50).c_str());
+#else
+    // The UHS-I modes don't exist without UHS-I support
+    TEST_ASSERT_EQUAL_STRING("unknown(2)", to_string(static_cast<bus_speed>(2)).c_str());
+#endif
+#if SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    TEST_ASSERT_EQUAL_STRING("SDR104", to_string(bus_speed::sdr104).c_str());
+#else
+    TEST_ASSERT_EQUAL_STRING("unknown(4)", to_string(static_cast<bus_speed>(4)).c_str());
+#endif
+    TEST_ASSERT_EQUAL_STRING("unknown(42)", to_string(static_cast<bus_speed>(42)).c_str());
+}
+
 #ifdef CONFIG_IDFXX_STD_FORMAT
 TEST_CASE("sdcard formatters", "[idfxx][sdcard]") {
     TEST_ASSERT_EQUAL_STRING("SDHC", std::format("{}", card_type::sdhc).c_str());
     TEST_ASSERT_EQUAL_STRING("4-bit", std::format("{}", bus_width::four).c_str());
+    TEST_ASSERT_EQUAL_STRING("high speed", std::format("{}", bus_speed::high_speed).c_str());
 #if SOC_SDMMC_HOST_SUPPORTED
     TEST_ASSERT_EQUAL_STRING("slot_1", std::format("{}", card::slot::slot_1).c_str());
 #endif
@@ -225,7 +259,8 @@ TEST_CASE("sdcard sdmmc_config default initialization", "[idfxx][sdcard]") {
 #if SOC_SDMMC_IO_POWER_EXTERNAL
     TEST_ASSERT_FALSE(cfg.io_power_ldo.has_value());
 #endif
-    TEST_ASSERT_EQUAL_INT32(20'000'000, static_cast<int32_t>(cfg.max_frequency.count()));
+    TEST_ASSERT_TRUE(cfg.speed == bus_speed::default_speed);
+    TEST_ASSERT_FALSE(cfg.max_frequency.has_value());
 }
 
 TEST_CASE("sdcard make over SDMMC rejects unconnected required pins", "[idfxx][sdcard]") {
@@ -293,13 +328,53 @@ TEST_CASE("sdcard make over SDMMC rejects an invalid slot or max_frequency", "[i
     cfg = four_bit_config();
     cfg.max_frequency = 100_kHz;
     assert_invalid_arg(card::make(cfg));
+    cfg = four_bit_config();
+    cfg.speed = bus_speed::high_speed;
+    cfg.max_frequency = 399_kHz;
+    assert_invalid_arg(card::make(cfg));
+}
+
+TEST_CASE("sdcard make over SDMMC rejects an invalid speed", "[idfxx][sdcard]") {
+    auto cfg = four_bit_config();
+    cfg.speed = static_cast<bus_speed>(42);
+    assert_invalid_arg(card::make(cfg));
+#if !SOC_SDMMC_UHS_I_SUPPORTED
+    // The value of a UHS-I mode, which the target doesn't have
+    cfg = four_bit_config();
+    cfg.speed = static_cast<bus_speed>(2);
+    assert_invalid_arg(card::make(cfg));
+#endif
 }
 
 #if SOC_SDMMC_UHS_I_SUPPORTED && SOC_SDMMC_IO_POWER_EXTERNAL
-TEST_CASE("sdcard make over SDMMC rejects uhs1 without io_power_ldo", "[idfxx][sdcard]") {
-    auto cfg = four_bit_config();
-    cfg.uhs1 = true;
-    assert_invalid_arg(card::make(cfg));
+namespace {
+
+const bus_speed uhs1_speeds[] = {
+    bus_speed::sdr50,
+    bus_speed::ddr50,
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    bus_speed::sdr104,
+#endif
+};
+
+} // namespace
+
+TEST_CASE("sdcard make over SDMMC rejects a UHS-I speed without io_power_ldo", "[idfxx][sdcard]") {
+    for (auto speed : uhs1_speeds) {
+        auto cfg = four_bit_config();
+        cfg.speed = speed;
+        assert_invalid_arg(card::make(cfg));
+    }
+}
+
+TEST_CASE("sdcard make over SDMMC rejects max_frequency with a UHS-I speed", "[idfxx][sdcard]") {
+    for (auto speed : uhs1_speeds) {
+        auto cfg = four_bit_config();
+        cfg.speed = speed;
+        cfg.io_power_ldo = 4; // so that only max_frequency is wrong
+        cfg.max_frequency = 50_MHz;
+        assert_invalid_arg(card::make(cfg));
+    }
 }
 #endif
 

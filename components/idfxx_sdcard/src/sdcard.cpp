@@ -247,6 +247,69 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
     return width;
 #endif
 }
+
+// The sdmmc_host_t and slot settings that select a bus speed mode.
+struct sdmmc_speed_settings {
+    int max_freq_khz;
+    bool ddr;
+    bool uhs1;
+};
+
+#if SOC_SDMMC_UHS_I_SUPPORTED
+// A UHS-I mode is selected by its exact clock, which the mode's timing tuning also needs, so no limit can be applied.
+// The switch to 1.8 V goes through the power control.
+result<sdmmc_speed_settings> uhs1_speed(const card::sdmmc_config& cfg, int freq_khz, bool ddr) {
+    if (cfg.max_frequency) {
+        return error(errc::invalid_arg);
+    }
+#if SOC_SDMMC_IO_POWER_EXTERNAL
+    if (!cfg.io_power_ldo) {
+        return error(errc::invalid_arg);
+    }
+#endif
+    return sdmmc_speed_settings{freq_khz, ddr, true};
+}
+#endif
+
+// Validates the configured speed mode and clock limit, and returns the settings that select them. ESP-IDF reads
+// sdmmc_host_t::max_freq_khz as a mode selector, not a limit: at or below SDMMC_FREQ_DEFAULT the card stays in
+// default speed; above it an SD card is switched to high speed and clocked at max_freq_khz, whatever its own
+// maximum; SDMMC_FREQ_SDR50 and SDMMC_FREQ_SDR104 select those UHS-I modes; and with SDMMC_HOST_FLAG_DDR, a UHS-I SD
+// card is switched to DDR50 at any clock, and an MMC device that supports it to dual data rate on a 4-bit bus at
+// 26 MHz or more.
+result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) {
+    switch (cfg.speed) {
+    case bus_speed::default_speed:
+    case bus_speed::high_speed: {
+        const bool high_speed = cfg.speed == bus_speed::high_speed;
+        // Both are below every UHS-I selector value, and so is any lower limit.
+        int freq_khz = high_speed ? SDMMC_FREQ_HIGHSPEED : SDMMC_FREQ_DEFAULT;
+        if (cfg.max_frequency) {
+            auto limit = to_max_freq_khz(*cfg.max_frequency);
+            if (!limit) {
+                return error(limit.error());
+            }
+            freq_khz = std::min(freq_khz, *limit);
+        }
+        // Without a UHS-I slot an SD card is never switched to DDR50, so the flag only lets an MMC device use dual
+        // data rate in high speed. ESP-IDF enables that at 26 MHz but high-speed timing only above it, so the flag
+        // is left clear at or below 26 MHz.
+        return sdmmc_speed_settings{freq_khz, high_speed && freq_khz > SDMMC_FREQ_26M, false};
+    }
+#if SOC_SDMMC_UHS_I_SUPPORTED
+    case bus_speed::sdr50:
+        return uhs1_speed(cfg, SDMMC_FREQ_SDR50, false);
+    case bus_speed::ddr50:
+        return uhs1_speed(cfg, SDMMC_FREQ_DDR50, true);
+#endif
+#if SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case bus_speed::sdr104:
+        return uhs1_speed(cfg, SDMMC_FREQ_SDR104, false);
+#endif
+    default:
+        return error(errc::invalid_arg);
+    }
+}
 #endif // SOC_SDMMC_HOST_SUPPORTED
 
 } // namespace
@@ -485,16 +548,10 @@ result<card> card::make(const sdmmc_config& cfg) {
     if (!width) {
         return error(width.error());
     }
-    auto max_freq_khz = to_max_freq_khz(cfg.max_frequency);
-    if (!max_freq_khz) {
-        return error(max_freq_khz.error());
+    auto speed = resolve_sdmmc_speed(cfg);
+    if (!speed) {
+        return error(speed.error());
     }
-#if SOC_SDMMC_UHS_I_SUPPORTED && SOC_SDMMC_IO_POWER_EXTERNAL
-    // The switch to 1.8 V goes through the power control.
-    if (cfg.uhs1 && !cfg.io_power_ldo) {
-        return error(errc::invalid_arg);
-    }
-#endif
 
     auto s = std::make_unique<state>();
     s->card_detect = cfg.card_detect;
@@ -530,11 +587,9 @@ result<card> card::make(const sdmmc_config& cfg) {
     if (cfg.write_protect_active_level == gpio::level::high) {
         slot_cfg.flags |= SDMMC_SLOT_FLAG_WP_ACTIVE_HIGH;
     }
-#if SOC_SDMMC_UHS_I_SUPPORTED
-    if (cfg.uhs1) {
+    if (speed->uhs1) {
         slot_cfg.flags |= SDMMC_SLOT_FLAG_UHS1;
     }
-#endif
 
     {
         std::lock_guard lock(sdmmc_mutex);
@@ -570,7 +625,12 @@ result<card> card::make(const sdmmc_config& cfg) {
 
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.slot = slot_num;
-    host.max_freq_khz = *max_freq_khz;
+    host.max_freq_khz = speed->max_freq_khz;
+    if (speed->ddr) {
+        host.flags |= SDMMC_HOST_FLAG_DDR;
+    } else {
+        host.flags &= ~SDMMC_HOST_FLAG_DDR;
+    }
 #if SOC_SDMMC_IO_POWER_EXTERNAL
     if (cfg.io_power_ldo) {
         const sd_pwr_ctrl_ldo_config_t ldo_cfg{.ldo_chan_id = *cfg.io_power_ldo};
@@ -804,6 +864,27 @@ std::string to_string(sdcard::bus_width w) {
         return "8-bit";
     default:
         return "unknown(" + std::to_string(std::to_underlying(w)) + ')';
+    }
+}
+
+std::string to_string(sdcard::bus_speed s) {
+    switch (s) {
+    case sdcard::bus_speed::default_speed:
+        return "default speed";
+    case sdcard::bus_speed::high_speed:
+        return "high speed";
+#if SOC_SDMMC_UHS_I_SUPPORTED
+    case sdcard::bus_speed::sdr50:
+        return "SDR50";
+    case sdcard::bus_speed::ddr50:
+        return "DDR50";
+#endif
+#if SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case sdcard::bus_speed::sdr104:
+        return "SDR104";
+#endif
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(s)) + ')';
     }
 }
 

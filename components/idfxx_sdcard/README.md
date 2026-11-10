@@ -9,6 +9,7 @@ SD and MMC/eMMC memory cards over SPI or SDMMC, with raw sector access.
 - One `card` class for cards on an SPI bus (any target) or an SDMMC host slot (esp32, esp32s3, esp32p4)
 - Card type (SDSC, SDHC, SDXC, MMC), identification (product name, manufacturer, serial number, manufacturing
   date), capacity, sector size, bus width and clock
+- SDMMC bus speed modes: default speed and high speed, plus UHS-I SDR50, DDR50 and SDR104 on esp32p4
 - Card-detect and write-protect pins
 - Raw sector reads and writes, serialized per card, with buffers anywhere in memory
 - Erase, discard and whole-card erase; sanitize on MMC/eMMC
@@ -86,7 +87,7 @@ idfxx::sdcard::card card({
     .d1 = idfxx::gpio_4,
     .d2 = idfxx::gpio_12,
     .d3 = idfxx::gpio_13, // D0-D3: a 4-bit bus
-    .max_frequency = 40_MHz,
+    .speed = idfxx::sdcard::bus_speed::high_speed, // 40 MHz, if the card supports it
 });
 ```
 
@@ -123,6 +124,14 @@ if (auto r = card.try_read_sectors(0, sector); !r) {
 - `make(bus, spi_config)` / `card(bus, spi_config)` - Card on an SPI bus
 - `make(sdmmc_config)` / `card(sdmmc_config)` - Card on an SDMMC host slot (targets with an SDMMC host)
 
+**SDMMC speed** (`sdmmc_config::speed`, a `bus_speed`):
+- `default_speed` (the default) - 20 MHz
+- `high_speed` - 40 MHz: SD high speed, or MMC high-speed timing (dual data rate on a 4-bit bus, when the device
+  supports it)
+- `sdr50`, `ddr50`, `sdr104` - UHS-I at 100, 50 (dual data rate) and 200 MHz, on esp32p4 with `io_power_ldo`
+  set (`sdr104` needs ESP-IDF 6.0 or later)
+- `sdmmc_config::max_frequency` - Optional lower clock for `default_speed` and `high_speed`
+
 **Identity and geometry:**
 - `type()` - `card_type::sdsc`, `sdhc`, `sdxc` or `mmc`
 - `id()` - `card_id` with `product_name()`, `manufacturer_id()`, `oem_id()`, `revision()`, `serial_number()`,
@@ -157,13 +166,13 @@ The component uses `idfxx::errc` codes:
 
 | Error | Meaning |
 |-------|---------|
-| `errc::invalid_arg` | Invalid configuration, including an SPI bus without DMA (checked before the bus or host is used), or a non-positive sanitize timeout |
+| `errc::invalid_arg` | Invalid configuration, including an SPI bus without DMA, or a UHS-I speed without `io_power_ldo` or with `max_frequency` (checked before the bus or host is used), or a non-positive sanitize timeout |
 | `errc::invalid_size` | A byte count that is not whole sectors, or a sector range past the end of the card |
 | `errc::invalid_state` | The SDMMC slot is already in use, the SPI bus has no free device slot for the card, or a write or erase on a write-protected card |
 | `errc::not_found` | The card-detect pin reports an empty slot |
 | `errc::timeout` | The card did not respond (how a missing card shows up when there is no card-detect pin) |
 | `errc::invalid_response`, `errc::invalid_crc` | Communication errors |
-| `errc::not_supported` | SDIO-only card, or an erase mode the card doesn't support |
+| `errc::not_supported` | SDIO-only card, an erase mode the card doesn't support, `bus_speed::sdr104` with an SDR104 card on an ESP32-P4 before revision 3.0, or `bus_speed::ddr50` with a DDR50 card on eight data lines |
 
 ## Important Notes
 
@@ -192,6 +201,13 @@ The component uses `idfxx::errc` codes:
   pull-ups.
 - **SDMMC bus width** follows the data pins supplied: D0 alone, D0-D3 or D0-D7. A `width` wider than the pins
   allow is rejected; a narrower one leaves the extra pins unused.
+- **SDMMC speed is a mode, not just a clock.** `speed` picks the timing the card is switched to, and with it the
+  clock; `max_frequency` can only lower the clock of `default_speed` or `high_speed` (in high speed, 20 MHz or less
+  keeps an SD card in default speed). A card that doesn't support the mode runs in a slower one, without an error:
+  an SD card without high speed, or without the UHS-I mode requested, runs in default speed at 20 MHz (with
+  `ddr50`, an SD card that isn't UHS-I runs in high speed at 50 MHz instead). In the UHS-I modes, MMC/eMMC devices
+  run as in `high_speed`, but at up to 50 MHz and with dual data rate only in `ddr50`. Check `frequency()` for the
+  clock in use. The UHS-I modes signal at 1.8 V through `io_power_ldo` (channel 4 on Espressif's ESP32-P4 boards).
 - **SPI erase quirks.** SD cards on an SPI bus don't support discard. Some SPI-mode cards don't respond correctly
   after an erase until they are initialized again, by destroying the card object and creating a new one.
 - **Shared buses.** If the card shares its bus with other devices, those devices must not hold

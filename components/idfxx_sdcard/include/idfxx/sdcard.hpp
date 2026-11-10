@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <esp_idf_version.h>
 #include <memory>
 #include <optional>
 #include <quanta/frequency>
@@ -74,6 +75,50 @@ enum class bus_width : uint8_t {
     one = 1,   ///< 1-bit bus (DAT0 only, or SPI).
     four = 4,  ///< 4-bit bus (DAT0-DAT3).
     eight = 8, ///< 8-bit bus (DAT0-DAT7, MMC/eMMC only).
+};
+
+/**
+ * @headerfile <idfxx/sdcard>
+ * @brief Bus speed mode for a card on an SDMMC host slot.
+ *
+ * Selects the timing the card is switched to during initialization, and with
+ * it the bus clock. A card that doesn't support the requested mode is run in
+ * a slower one instead, as described for each mode; card::frequency()
+ * reports the clock that results. Select the mode with
+ * card::sdmmc_config::speed. (Over SPI, the clock is set by
+ * card::spi_config::max_frequency.)
+ *
+ * The UHS-I modes (`sdr50`, `ddr50` and `sdr104`) signal at 1.8 V, switched
+ * through card::sdmmc_config::io_power_ldo, which must be set.
+ */
+enum class bus_speed : uint8_t {
+    /// Default speed, with a 20 MHz clock: SD default speed, or MMC backward-compatible timing.
+    default_speed = 0,
+    /// High speed, with a 40 MHz clock. SD cards use SD high speed; a card without it runs in default speed at
+    /// 20 MHz. MMC/eMMC devices use high-speed timing, with dual data rate on a 4-bit bus when the device supports
+    /// it; a device limited to 26 MHz runs in backward-compatible timing, at up to 26 MHz.
+    high_speed = 1,
+#if SOC_SDMMC_UHS_I_SUPPORTED || defined(__DOXYGEN__)
+    /// UHS-I SDR50, with a 100 MHz clock. An SD card that isn't UHS-I, or doesn't support SDR50, runs in default
+    /// speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, without dual data rate, but at up to 50 MHz.
+    /// @note Only available on targets that support UHS-I (esp32p4).
+    sdr50 = 2,
+    /// UHS-I DDR50: dual data rate, with a 50 MHz clock. An SD card that isn't UHS-I runs in SD high speed at
+    /// 50 MHz (or, without high speed, in default speed at 20 MHz); a UHS-I card that doesn't support DDR50 runs in
+    /// default speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, but at up to 50 MHz. The host doesn't
+    /// support dual data rate on an 8-bit slot: with eight data lines, a card that supports DDR50 fails
+    /// initialization with `errc::not_supported`.
+    /// @note Only available on targets that support UHS-I (esp32p4).
+    ddr50 = 3,
+#endif
+#if (SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)) || defined(__DOXYGEN__)
+    /// UHS-I SDR104, with a 200 MHz clock. An SD card that isn't UHS-I, or doesn't support SDR104, runs in default
+    /// speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, without dual data rate, but at up to 50 MHz.
+    /// ESP32-P4 chips before revision 3.0 don't support SDR104: a card that supports it fails initialization there
+    /// with `errc::not_supported`.
+    /// @note Only available on targets that support UHS-I (esp32p4), with ESP-IDF 6.0 or later.
+    sdr104 = 4,
+#endif
 };
 
 /**
@@ -291,8 +336,6 @@ public:
      * @note Only available on targets with an SDMMC host (esp32, esp32s3, esp32p4).
      *
      * @code
-     * using namespace quanta::frequency_literals;
-     *
      * idfxx::sdcard::card card({
      *     .slot = idfxx::sdcard::card::slot::slot_1,
      *     .clk = idfxx::gpio_14,
@@ -301,7 +344,7 @@ public:
      *     .d1 = idfxx::gpio_4,
      *     .d2 = idfxx::gpio_12,
      *     .d3 = idfxx::gpio_13,
-     *     .max_frequency = 40_MHz,
+     *     .speed = idfxx::sdcard::bus_speed::high_speed,
      * });
      * @endcode
      */
@@ -339,10 +382,16 @@ public:
         /// Enables the weak internal pull-ups on the CMD and data lines. These are no substitute for external
         /// pull-ups, but can be enough for short connections at low clock rates.
         bool internal_pullups = false;
-        /// Upper bound on the bus clock once the card is initialized: for example 20 MHz (default speed), 40 MHz
-        /// (SD high speed) or 52 MHz (MMC high speed). The clock used is the lower of this and the card's own
-        /// maximum; see card::frequency(). Must be at least 400 kHz, the card identification clock.
-        quanta::frequency::hertz max_frequency{20'000'000};
+        /// Bus speed mode, which sets the bus clock. The clock that results, and how a card that doesn't support
+        /// the mode is run instead, are described for each bus_speed value; see also card::frequency(). The UHS-I
+        /// modes need `io_power_ldo`: `errc::invalid_arg` otherwise.
+        enum bus_speed speed = bus_speed::default_speed;
+        /// Upper limit on the bus clock in bus_speed::default_speed and bus_speed::high_speed, or std::nullopt for
+        /// the mode's own clock. A limit above the mode's clock has no effect. Must be at least 400 kHz, the card
+        /// identification clock. In high speed, a limit of 20 MHz or less leaves an SD card in default speed, and a
+        /// limit of 26 MHz or less leaves an MMC/eMMC device in backward-compatible timing. Must not be set with a
+        /// UHS-I mode, which needs its own clock: `errc::invalid_arg` otherwise.
+        std::optional<quanta::frequency::hertz> max_frequency = std::nullopt;
 #if SOC_SDMMC_IO_POWER_EXTERNAL || defined(__DOXYGEN__)
         /// The on-chip LDO channel that supplies the card's I/O voltage, or std::nullopt if the board supplies it
         /// otherwise. On Espressif's ESP32-P4 boards the SD slot is powered from channel 4. The card takes the
@@ -350,12 +399,6 @@ public:
         /// is already in use by other code, fails the card's creation with `errc::invalid_arg`.
         /// @note Only available on targets whose SD I/O can be supplied by an on-chip LDO (esp32p4).
         std::optional<int> io_power_ldo = std::nullopt;
-#endif
-#if SOC_SDMMC_UHS_I_SUPPORTED || defined(__DOXYGEN__)
-        /// Allows UHS-I bus modes, which signal at 1.8 V. The switch to 1.8 V goes through `io_power_ldo`, which
-        /// must be set: `errc::invalid_arg` otherwise.
-        /// @note Only available on targets that support UHS-I (esp32p4).
-        bool uhs1 = false;
 #endif
     };
 #endif
@@ -448,15 +491,18 @@ public:
      *         usable for its signal, two of the pins are the same (on esp32, `card_detect` or `write_protect` is one
      *         of the slot's dedicated pins that the bus width uses), the data pins are not supplied in the groups
      *         D0, D0-D3 or D0-D7, `width` is wider than the pins or the slot allow, the pins are not the slot's
-     *         dedicated pins on esp32p4 slot 0, `max_frequency` is below 400 kHz, or `uhs1` is set without
-     *         `io_power_ldo`. Checked before the host is used. Also returned, once the slot is set up, when
-     *         `io_power_ldo` is not an LDO channel or is already in use by other code.
+     *         dedicated pins on esp32p4 slot 0, `speed` is not a bus_speed value, `max_frequency` is below
+     *         400 kHz or is set with a UHS-I `speed`, or a UHS-I `speed` is selected without `io_power_ldo`.
+     *         Checked before the host is used. Also returned, once the slot is set up, when `io_power_ldo` is not
+     *         an LDO channel or is already in use by other code.
      * @retval errc::invalid_state The slot is already in use by another card.
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response.
      * @retval errc::invalid_crc A response failed its CRC check.
-     * @retval errc::not_supported The card is an SDIO-only card, without memory.
+     * @retval errc::not_supported The card is an SDIO-only card, without memory; `speed` is bus_speed::sdr104 on an
+     *         ESP32-P4 chip before revision 3.0, and the card supports SDR104; or `speed` is bus_speed::ddr50 with
+     *         eight data lines, and the card supports DDR50.
      * @note Only available on targets with an SDMMC host (esp32, esp32s3, esp32p4).
      */
     [[nodiscard]] static result<card> make(const sdmmc_config& cfg);
@@ -520,8 +566,12 @@ public:
     /**
      * @brief Returns the bus clock in use.
      *
-     * The lower of the configured `max_frequency` and the card's maximum,
-     * rounded down to a frequency the host can generate.
+     * On an SDMMC host slot, the clock of the bus speed mode the card runs
+     * in (see bus_speed: a card that doesn't support the configured mode runs
+     * in a slower one), limited by sdmmc_config::max_frequency when that is
+     * set, and rounded down to a frequency the host can generate. Over SPI,
+     * the clock the bus generates for spi_config::max_frequency, or for
+     * 20 MHz if that is higher and the card is not switched to high speed.
      *
      * @return The actual clock frequency.
      */
@@ -1016,6 +1066,16 @@ namespace idfxx {
  */
 [[nodiscard]] std::string to_string(sdcard::bus_width w);
 
+/**
+ * @headerfile <idfxx/sdcard>
+ * @brief Returns a string representation of a bus speed mode.
+ *
+ * @param s The bus speed mode to convert.
+ * @return "default speed", "high speed", "SDR50", "DDR50", "SDR104", or "unknown(N)" for unrecognized values
+ *         (including UHS-I modes that are not available on the target).
+ */
+[[nodiscard]] std::string to_string(sdcard::bus_speed s);
+
 #if SOC_SDMMC_HOST_SUPPORTED || defined(__DOXYGEN__)
 /**
  * @headerfile <idfxx/sdcard>
@@ -1055,6 +1115,17 @@ struct formatter<idfxx::sdcard::bus_width> {
     auto format(idfxx::sdcard::bus_width w, FormatContext& ctx) const {
         auto s = idfxx::to_string(w);
         return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+
+template<>
+struct formatter<idfxx::sdcard::bus_speed> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::sdcard::bus_speed s, FormatContext& ctx) const {
+        auto str = idfxx::to_string(s);
+        return std::copy(str.begin(), str.end(), ctx.out());
     }
 };
 
