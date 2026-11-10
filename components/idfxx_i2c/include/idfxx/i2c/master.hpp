@@ -26,6 +26,7 @@
 #include <idfxx/required>
 
 #include <array>
+#include <bit>
 #include <cassert>
 #include <chrono>
 #include <concepts>
@@ -36,6 +37,7 @@
 #include <quanta/frequency>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -465,6 +467,47 @@ enum class register_address_size : uint8_t {
     two_bytes, ///< Two-byte register address, sent most significant byte first.
 };
 
+/** @cond INTERNAL */
+namespace detail {
+
+// Unsigned integer types that can be read from or written to a register as a whole value. bool and the
+// character types are excluded: they hold truth values or text, not register contents.
+template<typename T>
+concept register_value =
+    std::unsigned_integral<T> && !std::same_as<std::remove_cv_t<T>, bool> && !std::same_as<std::remove_cv_t<T>, char> &&
+    !std::same_as<std::remove_cv_t<T>, char8_t> && !std::same_as<std::remove_cv_t<T>, char16_t> &&
+    !std::same_as<std::remove_cv_t<T>, char32_t> && !std::same_as<std::remove_cv_t<T>, wchar_t>;
+
+// Shift (in bits) of the byte at index i of a sizeof(T)-byte value sent in the given order.
+template<register_value T>
+constexpr unsigned register_value_shift(size_t i, std::endian order) noexcept {
+    return static_cast<unsigned>((order == std::endian::big ? sizeof(T) - 1 - i : i) * 8);
+}
+
+// Encodes value into out in the given byte order.
+template<register_value T>
+constexpr void encode_register_value(T value, std::endian order, std::span<uint8_t, sizeof(T)> out) noexcept {
+    for (size_t i = 0; i < sizeof(T); ++i) {
+        out[i] = static_cast<uint8_t>(value >> register_value_shift<T>(i, order));
+    }
+}
+
+// Decodes a value sent in the given byte order.
+template<register_value T>
+[[nodiscard]] constexpr std::remove_cv_t<T>
+decode_register_value(std::span<const uint8_t, sizeof(T)> in, std::endian order) noexcept {
+    std::remove_cv_t<T> value = 0;
+    for (size_t i = 0; i < sizeof(T); ++i) {
+        value = static_cast<std::remove_cv_t<T>>(
+            value | (static_cast<std::remove_cv_t<T>>(in[i]) << register_value_shift<T>(i, order))
+        );
+    }
+    return value;
+}
+
+} // namespace detail
+/** @endcond */
+
 /**
  * @headerfile <idfxx/i2c/master>
  * @brief I2C device at a specific address with register operations.
@@ -625,6 +668,15 @@ public:
      * @return The size set by config::register_address when the device was created.
      */
     [[nodiscard]] register_address_size register_address() const noexcept { return _register_address; }
+
+    /**
+     * @brief Returns the SCL speed the device was configured with.
+     *
+     * This is the configured speed, not a measurement of the clock generated on the bus.
+     *
+     * @return config::scl_speed when it was set, or else the bus frequency when the device was created.
+     */
+    [[nodiscard]] quanta::frequency::hertz scl_speed() const noexcept { return _scl_speed; }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -1373,6 +1425,108 @@ public:
     write_register(uint16_t reg, const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_write_register(reg, buf, size, timeout));
     }
+
+    /**
+     * @brief Writes a single byte to a register.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param value Byte to write.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     */
+    void write_register(uint16_t reg, uint8_t value) { unwrap(try_write_register(reg, value)); }
+
+    /**
+     * @brief Writes a single byte to a register.
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param value   Byte to write.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     */
+    template<typename Rep, typename Period>
+    void write_register(uint16_t reg, uint8_t value, const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_write_register(reg, value, timeout));
+    }
+
+    /**
+     * @brief Writes a multi-byte integer value to a register.
+     *
+     * The value is sent as sizeof(T) bytes in the given byte order.
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param value Value to write.
+     * @param order Byte order the device expects: std::endian::big (most significant byte first)
+     *              or std::endian::little.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * // Set the top bit of a 16-bit configuration register sent most significant byte first
+     * auto config = sensor.read_register<uint16_t>(0x01, std::endian::big);
+     * sensor.write_register<uint16_t>(0x01, config | 0x8000, std::endian::big);
+     * @endcode
+     */
+    template<detail::register_value T>
+    void write_register(uint16_t reg, T value, std::endian order) {
+        unwrap(try_write_register(reg, value, order));
+    }
+
+    /**
+     * @brief Writes a multi-byte integer value to a register.
+     *
+     * The value is sent as sizeof(T) bytes in the given byte order.
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param value   Value to write.
+     * @param order   Byte order the device expects: std::endian::big (most significant byte first)
+     *                or std::endian::little.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     *
+     * sensor.write_register<uint16_t>(0x01, 0x8583, std::endian::big, 100ms);
+     * @endcode
+     */
+    template<detail::register_value T, typename Rep, typename Period>
+    void write_register(uint16_t reg, T value, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+        unwrap(try_write_register(reg, value, order, timeout));
+    }
+
+    /** @cond INTERNAL */
+    // A value wider than a byte without a byte order would otherwise convert to the uint8_t overload and
+    // write only its low byte. Pass the byte order, or a uint8_t for a single byte. The check is by type, so
+    // wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected too; use uint8_t register constants.
+    template<detail::register_value T>
+        requires(sizeof(T) > 1)
+    void write_register(uint16_t, T) = delete;
+    template<detail::register_value T, typename Rep, typename Period>
+        requires(sizeof(T) > 1)
+    void write_register(uint16_t, T, const std::chrono::duration<Rep, Period>&) = delete;
+    /** @endcond */
 #endif
 
     /**
@@ -1448,6 +1602,102 @@ public:
     ) {
         return _try_write_register(reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
+
+    /**
+     * @brief Writes a single byte to a register.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param value Byte to write.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     */
+    [[nodiscard]] result<void> try_write_register(uint16_t reg, uint8_t value) {
+        return try_write_register(reg, value, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Writes a single byte to a register.
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param value   Byte to write.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_write_register(uint16_t reg, uint8_t value, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_write_register(reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    /**
+     * @brief Writes a multi-byte integer value to a register.
+     *
+     * The value is sent as sizeof(T) bytes in the given byte order.
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param value Value to write.
+     * @param order Byte order the device expects: std::endian::big (most significant byte first)
+     *              or std::endian::little.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     */
+    template<detail::register_value T>
+    [[nodiscard]] result<void> try_write_register(uint16_t reg, T value, std::endian order) {
+        return try_write_register(reg, value, order, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Writes a multi-byte integer value to a register.
+     *
+     * The value is sent as sizeof(T) bytes in the given byte order.
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param value   Value to write.
+     * @param order   Byte order the device expects: std::endian::big (most significant byte first)
+     *                or std::endian::little.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     */
+    template<detail::register_value T, typename Rep, typename Period>
+    [[nodiscard]] result<void>
+    try_write_register(uint16_t reg, T value, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+        std::array<uint8_t, sizeof(T)> buf;
+        detail::encode_register_value<T>(value, order, buf);
+        return _try_write_register(reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    /** @cond INTERNAL */
+    // A value wider than a byte without a byte order would otherwise convert to the uint8_t overload and
+    // write only its low byte. Pass the byte order, or a uint8_t for a single byte. The check is by type, so
+    // wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected too; use uint8_t register constants.
+    template<detail::register_value T>
+        requires(sizeof(T) > 1)
+    void try_write_register(uint16_t, T) = delete;
+    template<detail::register_value T, typename Rep, typename Period>
+        requires(sizeof(T) > 1)
+    void try_write_register(uint16_t, T, const std::chrono::duration<Rep, Period>&) = delete;
+    /** @endcond */
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -1985,6 +2235,121 @@ public:
         unwrap(try_read_register(reg, buf, size, timeout));
     }
 
+    /**
+     * @brief Reads a single byte from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @param reg Register address, sent in the size set by config::register_address.
+     *
+     * @return The byte read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     */
+    [[nodiscard]] uint8_t read_register(uint16_t reg) { return unwrap(try_read_register(reg)); }
+
+    /**
+     * @brief Reads a single byte from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The byte read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] uint8_t read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+        return unwrap(try_read_register(reg, timeout));
+    }
+
+    /**
+     * @brief Reads a multi-byte integer value from a register.
+     *
+     * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param order Byte order the device sends: std::endian::big (most significant byte first)
+     *              or std::endian::little.
+     *
+     * @return The value read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * // A 16-bit configuration register sent most significant byte first
+     * uint16_t config = sensor.read_register<uint16_t>(0x01, std::endian::big);
+     * @endcode
+     */
+    template<detail::register_value T>
+    [[nodiscard]] T read_register(uint16_t reg, std::endian order) {
+        return unwrap(try_read_register<T>(reg, order));
+    }
+
+    /**
+     * @brief Reads a multi-byte integer value from a register.
+     *
+     * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param order   Byte order the device sends: std::endian::big (most significant byte first)
+     *                or std::endian::little.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The value read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * using namespace std::chrono_literals;
+     *
+     * uint32_t counter = sensor.read_register<uint32_t>(0x10, std::endian::little, 100ms);
+     * @endcode
+     */
+    template<detail::register_value T, typename Rep, typename Period>
+    [[nodiscard]] T read_register(uint16_t reg, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+        return unwrap(try_read_register<T>(reg, order, timeout));
+    }
+
     /** @cond INTERNAL */
     // The (high, low) register overloads were removed in 3.0.0: pass the register as a single uint16_t and set
     // config::register_address for two-byte devices. These keep an old read_register(high, 0x00, size) call
@@ -2147,6 +2512,111 @@ public:
         return _try_read_register(reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
+    /**
+     * @brief Reads a single byte from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @param reg Register address, sent in the size set by config::register_address.
+     *
+     * @return The byte read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg) { return try_read_register(reg, DEFAULT_TIMEOUT); }
+
+    /**
+     * @brief Reads a single byte from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The byte read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+        uint8_t value = 0;
+        return _try_read_register(reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout))
+            .transform([&]() { return value; });
+    }
+
+    /**
+     * @brief Reads a multi-byte integer value from a register.
+     *
+     * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     *
+     * @param reg   Register address, sent in the size set by config::register_address.
+     * @param order Byte order the device sends: std::endian::big (most significant byte first)
+     *              or std::endian::little.
+     *
+     * @return The value read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<detail::register_value T>
+    [[nodiscard]] result<T> try_read_register(uint16_t reg, std::endian order) {
+        return try_read_register<T>(reg, order, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Reads a multi-byte integer value from a register.
+     *
+     * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
+     *
+     * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
+     *           character types are not accepted.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param order   Byte order the device sends: std::endian::big (most significant byte first)
+     *                or std::endian::little.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The value read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
+     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<detail::register_value T, typename Rep, typename Period>
+    [[nodiscard]] result<T>
+    try_read_register(uint16_t reg, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+        std::array<uint8_t, sizeof(T)> buf{};
+        return _try_read_register(reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout))
+            .transform([&]() -> T { return detail::decode_register_value<T>(buf, order); });
+    }
+
     /** @cond INTERNAL */
     // The (high, low) register overloads were removed in 3.0.0: pass the register as a single uint16_t and set
     // config::register_address for two-byte devices. These keep an old try_read_register(high, 0x00, size) call
@@ -2163,7 +2633,8 @@ private:
         i2c_master_dev_handle_t handle,
         uint16_t address,
         bool addr_10bit,
-        register_address_size register_address
+        register_address_size register_address,
+        quanta::frequency::hertz scl_speed
     );
 
     void _delete() noexcept;
@@ -2196,6 +2667,7 @@ private:
     uint16_t _address = 0;
     bool _addr_10bit = false;
     register_address_size _register_address = register_address_size::one_byte;
+    quanta::frequency::hertz _scl_speed{};
 };
 
 } // namespace idfxx::i2c

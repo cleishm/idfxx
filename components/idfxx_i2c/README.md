@@ -9,7 +9,8 @@ Type-safe I2C master bus driver for ESP32.
 - I2C bus and device lifecycle management
 - Thread-safe bus access with a `TimedLockable` interface; transfers wait at most their timeout for the bus
 - Device scanning and probing
-- Register-based read/write operations (one-byte or two-byte register addresses)
+- Register-based read/write operations (one-byte or two-byte register addresses), including single bytes
+  and multi-byte integer values in a chosen byte order
 - Raw transmit/receive, multi-buffer transmit, and custom operation sequences
 - `std::chrono` timeout support
 
@@ -305,7 +306,13 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
 
 **Register I/O** (register address size set by `config.register_address`):
 - `write_register(reg, data, [timeout])` / `try_write_register(...)` - Write to register
+- `write_register(reg, value, [timeout])` / `try_write_register(...)` - Write a single `uint8_t`
+- `write_register<T>(reg, value, order, [timeout])` / `try_write_register<T>(...)` - Write an unsigned integer
+  in `std::endian` byte `order`
 - `read_register(reg, size, [timeout])` / `try_read_register(...)` - Read from register
+- `read_register(reg, [timeout])` / `try_read_register(...)` - Read a single `uint8_t`
+- `read_register<T>(reg, order, [timeout])` / `try_read_register<T>(...)` - Read an unsigned integer in
+  `std::endian` byte `order`
 - `write_registers(regs, data, [timeout])` / `try_write_registers(...)` - Write to multiple registers
 
 **Addressing:**
@@ -315,6 +322,7 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
 - `bus()` - Parent bus
 - `address()` - Device address
 - `register_address()` - Register address size
+- `scl_speed()` - Configured SCL speed (`config.scl_speed`, or the bus frequency when unset)
 - `handle()` - ESP-IDF device handle
 
 ## Error Handling
@@ -356,6 +364,7 @@ See the [Installation](#installation) section above for details on adding `idfxx
 
 - Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via `config.addr_10bit` on targets with `SOC_I2C_SUPPORT_10BIT_ADDR` (e.g., esp32, esp32s3, esp32c3/c6, esp32h2, esp32p4). The field is not present on targets without this capability (e.g., esp32s2).
 - Register addresses are one byte by default; set `config.register_address` to `register_address_size::two_bytes` for devices with 16-bit register addresses, which are then sent MSB first. With one-byte register addresses, a register above 0xFF fails with `idfxx::errc::invalid_arg` before anything is sent
+- Multi-byte integer register values always take a byte order. `write_register(reg, value)` writes one byte from a `uint8_t` or an `int` such as a plain literal; an unsigned value of any wider type doesn't compile, rather than writing only its low byte. That includes wide unsigned masks such as `0x80u` or ESP-IDF's `BIT(n)`, so declare single-byte register bits as `uint8_t` constants (`constexpr uint8_t ctrl_enable = 0x80;`)
 - The bus must remain alive while devices using it exist; the caller is responsible for ensuring this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)
 - Bus scanning probes addresses 0x08-0x77

@@ -6,6 +6,8 @@
 
 #include "idfxx/i2c/master"
 
+#include <array>
+#include <bit>
 #include <chrono>
 #include <concepts>
 #include <mutex>
@@ -113,6 +115,154 @@ concept read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> s) {
     { d.read_register(uint16_t{0x10}, s, std::chrono::milliseconds(100)) } -> std::same_as<void>;
 };
 static_assert(read_register_forms<master_device>);
+#endif
+
+// The configured SCL speed is readable from the device
+template<typename D>
+concept has_scl_speed = requires(const D& d) {
+    { d.scl_speed() } -> std::same_as<quanta::frequency::hertz>;
+};
+static_assert(has_scl_speed<master_device>);
+
+// Register values: unsigned integers only, excluding bool and the character types
+static_assert(idfxx::i2c::detail::register_value<uint8_t>);
+static_assert(idfxx::i2c::detail::register_value<uint16_t>);
+static_assert(idfxx::i2c::detail::register_value<uint32_t>);
+static_assert(idfxx::i2c::detail::register_value<uint64_t>);
+static_assert(idfxx::i2c::detail::register_value<unsigned int>);
+static_assert(idfxx::i2c::detail::register_value<unsigned long>);
+static_assert(idfxx::i2c::detail::register_value<unsigned char>);
+static_assert(!idfxx::i2c::detail::register_value<int>);
+static_assert(!idfxx::i2c::detail::register_value<int16_t>);
+static_assert(!idfxx::i2c::detail::register_value<bool>);
+static_assert(!idfxx::i2c::detail::register_value<const bool>);
+static_assert(!idfxx::i2c::detail::register_value<char>);
+static_assert(!idfxx::i2c::detail::register_value<char8_t>);
+static_assert(!idfxx::i2c::detail::register_value<char16_t>);
+static_assert(!idfxx::i2c::detail::register_value<char32_t>);
+static_assert(!idfxx::i2c::detail::register_value<wchar_t>);
+
+// Register value byte order: exact layout and round trips
+template<typename T>
+constexpr std::array<uint8_t, sizeof(T)> encoded(T value, std::endian order) {
+    std::array<uint8_t, sizeof(T)> out{};
+    idfxx::i2c::detail::encode_register_value<T>(value, order, out);
+    return out;
+}
+template<typename T>
+constexpr T decoded(std::array<uint8_t, sizeof(T)> in, std::endian order) {
+    return idfxx::i2c::detail::decode_register_value<T>(in, order);
+}
+static_assert(encoded<uint8_t>(0xA5, std::endian::big) == std::array<uint8_t, 1>{0xA5});
+static_assert(encoded<uint8_t>(0xA5, std::endian::little) == std::array<uint8_t, 1>{0xA5});
+static_assert(encoded<uint16_t>(0x1234, std::endian::big) == std::array<uint8_t, 2>{0x12, 0x34});
+static_assert(encoded<uint16_t>(0x1234, std::endian::little) == std::array<uint8_t, 2>{0x34, 0x12});
+static_assert(encoded<uint32_t>(0x12345678, std::endian::big) == std::array<uint8_t, 4>{0x12, 0x34, 0x56, 0x78});
+static_assert(encoded<uint32_t>(0x12345678, std::endian::little) == std::array<uint8_t, 4>{0x78, 0x56, 0x34, 0x12});
+static_assert(decoded<uint16_t>({0x12, 0x34}, std::endian::big) == 0x1234);
+static_assert(decoded<uint16_t>({0x12, 0x34}, std::endian::little) == 0x3412);
+static_assert(decoded<uint32_t>({0x12, 0x34, 0x56, 0x78}, std::endian::big) == 0x12345678);
+static_assert(decoded<uint32_t>({0x12, 0x34, 0x56, 0x78}, std::endian::little) == 0x78563412);
+static_assert(decoded<uint16_t>(encoded<uint16_t>(0xBEEF, std::endian::big), std::endian::big) == 0xBEEF);
+static_assert(decoded<uint16_t>(encoded<uint16_t>(0xBEEF, std::endian::little), std::endian::little) == 0xBEEF);
+static_assert(decoded<uint32_t>(encoded<uint32_t>(0xDEADBEEF, std::endian::big), std::endian::big) == 0xDEADBEEF);
+static_assert(decoded<uint32_t>(encoded<uint32_t>(0xDEADBEEF, std::endian::little), std::endian::little) == 0xDEADBEEF);
+static_assert(decoded<uint64_t>(encoded<uint64_t>(0x0123456789ABCDEF, std::endian::big), std::endian::big) == 0x0123456789ABCDEF);
+
+// The single-byte and multi-byte value forms resolve, alongside the sized read
+template<typename D>
+concept try_register_value_forms = requires(D& d) {
+    { d.try_read_register(uint16_t{0x10}, size_t{1}) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
+    { d.try_read_register(uint16_t{0x10}, 1) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
+    { d.try_read_register(uint16_t{0x10}) } -> std::same_as<idfxx::result<uint8_t>>;
+    { d.try_read_register(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<uint8_t>>;
+    { d.template try_read_register<uint16_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<idfxx::result<uint16_t>>;
+    { d.template try_read_register<uint32_t>(uint16_t{0x10}, std::endian::little, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<uint32_t>>;
+    { d.try_write_register(uint16_t{0x10}, 0) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, 0x80) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, uint8_t{0x80}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.template try_write_register<uint16_t>(uint16_t{0x10}, 0x8583, std::endian::big) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, uint16_t{0x8583}, std::endian::big) } -> std::same_as<idfxx::result<void>>;
+    { d.template try_write_register<uint32_t>(uint16_t{0x10}, 1, std::endian::little, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+};
+static_assert(try_register_value_forms<master_device>);
+
+// A value wider than a byte needs a byte order, rather than silently writing its low byte
+template<typename D>
+concept try_write_wide_value_without_order = requires(D& d) { d.try_write_register(uint16_t{0x10}, uint16_t{1}); };
+template<typename D>
+concept try_write_wide_value_without_order_timeout = requires(D& d) {
+    d.try_write_register(uint16_t{0x10}, uint16_t{1}, std::chrono::milliseconds(10));
+};
+template<typename D>
+concept try_write_explicit_wide_value_without_order = requires(D& d) {
+    d.template try_write_register<uint16_t>(uint16_t{0x10}, 1);
+};
+// An int literal deduces int, which is not a register value: name the width explicitly
+template<typename D>
+concept try_write_int_literal_with_order = requires(D& d) {
+    d.try_write_register(uint16_t{0x10}, 0x8583, std::endian::big);
+};
+template<typename D>
+concept try_read_bool_value = requires(D& d) { d.template try_read_register<bool>(uint16_t{0x10}, std::endian::big); };
+// The guard is by type: wide unsigned masks are rejected even when the value fits in a byte
+template<typename D>
+concept try_write_unsigned_literal = requires(D& d) { d.try_write_register(uint16_t{0x10}, 0x80u); };
+template<typename D>
+concept try_write_unsigned_long_mask = requires(D& d) { d.try_write_register(uint16_t{0x10}, 1UL << 3); };
+static_assert(!try_write_unsigned_literal<master_device>);
+static_assert(!try_write_unsigned_long_mask<master_device>);
+static_assert(!try_write_wide_value_without_order<master_device>);
+static_assert(!try_write_wide_value_without_order_timeout<master_device>);
+static_assert(!try_write_explicit_wide_value_without_order<master_device>);
+static_assert(!try_write_int_literal_with_order<master_device>);
+static_assert(!try_read_bool_value<master_device>);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+template<typename D>
+concept register_value_forms = requires(D& d) {
+    { d.read_register(uint16_t{0x10}, size_t{1}) } -> std::same_as<std::vector<uint8_t>>;
+    { d.read_register(uint16_t{0x10}, 1) } -> std::same_as<std::vector<uint8_t>>;
+    { d.read_register(uint16_t{0x10}) } -> std::same_as<uint8_t>;
+    { d.read_register(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<uint8_t>;
+    { d.template read_register<uint16_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<uint16_t>;
+    { d.template read_register<uint32_t>(uint16_t{0x10}, std::endian::little, std::chrono::milliseconds(100)) } -> std::same_as<uint32_t>;
+    { d.write_register(uint16_t{0x10}, 0) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, 0x80) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, uint8_t{0x80}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.template write_register<uint16_t>(uint16_t{0x10}, 0x8583, std::endian::big) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, uint16_t{0x8583}, std::endian::big) } -> std::same_as<void>;
+    { d.template write_register<uint32_t>(uint16_t{0x10}, 1, std::endian::little, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+};
+static_assert(register_value_forms<master_device>);
+
+template<typename D>
+concept write_wide_value_without_order = requires(D& d) { d.write_register(uint16_t{0x10}, uint16_t{1}); };
+template<typename D>
+concept write_wide_value_without_order_timeout = requires(D& d) {
+    d.write_register(uint16_t{0x10}, uint16_t{1}, std::chrono::milliseconds(10));
+};
+template<typename D>
+concept write_explicit_wide_value_without_order = requires(D& d) {
+    d.template write_register<uint16_t>(uint16_t{0x10}, 1);
+};
+template<typename D>
+concept write_int_literal_with_order = requires(D& d) {
+    d.write_register(uint16_t{0x10}, 0x8583, std::endian::big);
+};
+template<typename D>
+concept read_bool_value = requires(D& d) { d.template read_register<bool>(uint16_t{0x10}, std::endian::big); };
+template<typename D>
+concept write_unsigned_literal = requires(D& d) { d.write_register(uint16_t{0x10}, 0x80u); };
+template<typename D>
+concept write_unsigned_long_mask = requires(D& d) { d.write_register(uint16_t{0x10}, 1UL << 3); };
+static_assert(!write_unsigned_literal<master_device>);
+static_assert(!write_unsigned_long_mask<master_device>);
+static_assert(!write_wide_value_without_order<master_device>);
+static_assert(!write_wide_value_without_order_timeout<master_device>);
+static_assert(!write_explicit_wide_value_without_order<master_device>);
+static_assert(!write_int_literal_with_order<master_device>);
+static_assert(!read_bool_value<master_device>);
 #endif
 
 // =============================================================================
@@ -260,6 +410,33 @@ TEST_CASE("master_device register_address accessor reflects the config", "[idfxx
     TEST_ASSERT_TRUE_MESSAGE(device_created, "Failed to create I2C bus or devices");
     TEST_ASSERT_TRUE(default_size == register_address_size::one_byte);
     TEST_ASSERT_TRUE(two_byte_size == register_address_size::two_bytes);
+}
+
+TEST_CASE("master_device scl_speed accessor reflects the config or the bus frequency", "[idfxx][i2c][master_device]") {
+    bool device_created = false;
+    int32_t default_hz = 0;
+    int32_t configured_hz = 0;
+    int32_t moved_hz = 0;
+    {
+        auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
+        if (bus_result.has_value()) {
+            auto default_device = master_device::make(*bus_result, 0x50);
+            auto configured_device = master_device::make(*bus_result, 0x51, {
+                .scl_speed = quanta::frequency::kilohertz(400),
+            });
+            if (default_device.has_value() && configured_device.has_value()) {
+                device_created = true;
+                default_hz = static_cast<int32_t>(default_device->scl_speed().count());
+                configured_hz = static_cast<int32_t>(configured_device->scl_speed().count());
+                master_device moved = std::move(*configured_device);
+                moved_hz = static_cast<int32_t>(moved.scl_speed().count());
+            }
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(device_created, "Failed to create I2C bus or devices");
+    TEST_ASSERT_EQUAL_INT32(100000, default_hz);
+    TEST_ASSERT_EQUAL_INT32(400000, configured_hz);
+    TEST_ASSERT_EQUAL_INT32(400000, moved_hz);
 }
 
 TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") {
