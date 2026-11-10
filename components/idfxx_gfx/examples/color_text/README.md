@@ -62,6 +62,6 @@ idf.py -p PORT flash monitor
 
 Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
-The display shows a dark blue header with a large "idfxx gfx", then six framed color swatches, each labelled in
+The display shows a dark blue header with a large "idfxx gfx", then six framed color swatches, each labeled in
 its own color (red, orange, yellow, green, azure and violet). At the bottom, under a white line, a green
 "-72dBm 45s" status line is right-aligned.

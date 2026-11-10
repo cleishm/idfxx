@@ -582,7 +582,7 @@ public:
          *
          * Sends the terminating zero-length chunk, blocking until it has been
          * sent or the timeout expires. Call this before client::fetch_headers().
-         * No further data can be written afterwards.
+         * No further data can be written afterward.
          *
          * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
          * @throws std::system_error with client::errc::eagain if the timeout expired, or
@@ -599,7 +599,7 @@ public:
          *
          * Sends the terminating zero-length chunk, blocking until it has been
          * sent or the timeout expires. Call this before client::fetch_headers().
-         * No further data can be written afterwards.
+         * No further data can be written afterward.
          *
          * @return Success, or an error.
          * @retval client::errc::eagain if the timeout expired before the terminating chunk was

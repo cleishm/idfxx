@@ -105,6 +105,10 @@ struct config {
 
 **Focus on API purpose, not implementation**: Documentation should describe what the API provides and how to use it, not how it's implemented or what it wraps. Avoid phrases like "C++ wrapper for ESP-IDF X" or "wraps the underlying Y API". Instead, describe functionality from the user's perspective. Implementation details are appropriate only when exposed through the API (e.g., `idf_handle()` methods).
 
+**American English**: All wording uses American spelling: docs, comments, READMEs, examples, log strings and
+identifiers (`color`, `gray`, `center`, `behavior`, `initialize`, `canceled`, `labeled`, `toward`, `afterward`). Third-party
+symbols keep their own spelling (e.g. the `epaper-image` library's `epi_colour_panel_init`, `epi_grey_panel_init`).
+
 **Method Ordering**: Within each functional group (construction, listener registration, event posting, etc.), methods must be ordered consistently:
 1. Exception-based methods (guarded by `#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS`) appear first
 2. Result-based (`try_*`) methods follow immediately after

@@ -168,7 +168,7 @@ enabled, and the program aborts otherwise. Set `memory_limit` to the memory that
   columns in `color6`, or 8 in `mono` and `gray4`, and so must its right edge unless it reaches the right edge of the
   screen. Otherwise `write_image` returns `invalid_arg`, before decoding, unless `placement::fill_to_alignment` is
   set: the picture then lands exactly where it was placed, and the write extends to the alignment with `background`.
-  A framebuffer or other surface has no such rule, whether or not it is written to a panel afterwards at an aligned
+  A framebuffer or other surface has no such rule, whether or not it is written to a panel afterward at an aligned
   position.
 - **Time.** A full EL133UF1 frame takes 70 to 90 s to convert when built with `-O2` at 240 MHz, as measured on the E1004,
   over twice that with ESP-IDF's default `-Og` at 160 MHz, and about 30 s to refresh.

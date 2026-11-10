@@ -286,7 +286,7 @@ result<void> pcf8563::do_set_time(sys_seconds t) {
     if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_seconds, *regs); !r) {
         return error(r.error());
     }
-    // Then restart a stopped clock, so the time is valid afterwards. Only
+    // Then restart a stopped clock, so the time is valid afterward. Only
     // Control_status_1 is touched, and only written if it changes: STOP is
     // cleared, TESTC kept. A clock stopped beforehand starts counting from
     // here, so stop() then set_time() sets the time on a precise second.

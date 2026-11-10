@@ -19,7 +19,7 @@
 namespace idfxx::net::detail {
 
 /// Convert a populated sockaddr (and its size) to a public endpoint. Returns
-/// std::nullopt if the family is not one we recognise (v4 or v6).
+/// std::nullopt if the family is not one we recognize (v4 or v6).
 [[nodiscard]] std::optional<endpoint> from_sockaddr(const sockaddr* sa, socklen_t len) noexcept;
 
 /// Convert an endpoint into a sockaddr_storage. Returns the populated length,

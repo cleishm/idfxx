@@ -37,7 +37,7 @@ namespace idfxx::lcd {
  * @brief Abstract base class for touch controllers.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::lcd::stmpe610`) customize behaviour by overriding the protected
+ * `idfxx::lcd::stmpe610`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  */

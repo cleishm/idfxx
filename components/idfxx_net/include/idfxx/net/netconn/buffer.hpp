@@ -108,7 +108,7 @@ public:
      * Each element is a `std::span<const std::byte>` referencing one segment of
      * the received data, in order. Iteration does not modify the buffer, so the
      * range may be traversed more than once and the buffer remains usable
-     * afterwards.
+     * afterward.
      *
      * Obtained from `buffer::segments()`; not constructed directly.
      */

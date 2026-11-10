@@ -109,7 +109,7 @@ auto info = rx.wait();               // rx_info once it arrives
 ```
 
 The buffer passed to single-shot `start_receive` must stay valid until the
-future completes (or the operation is cancelled with `standby()`/`sleep()`,
+future completes (or the operation is canceled with `standby()`/`sleep()`,
 which completes outstanding futures with `errc::not_finished`). Dropping a
 future without waiting is safe — the operation continues and still posts its
 event when `config::loop` is set.
@@ -240,7 +240,7 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 - `errc::invalid_crc` — received packet failed its CRC check.
 - `errc::invalid_size` — received packet was larger than the buffer supplied
   to `receive`/`start_receive`/`read_received`; it is discarded, not truncated.
-- `errc::not_finished` — the future's operation was cancelled by
+- `errc::not_finished` — the future's operation was canceled by
   `standby()`/`sleep()` (or driver teardown) before it completed.
 
 ## Important Notes
@@ -272,7 +272,7 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
   `time_on_air`-sized `try_wait_for` and call `standby()` to recover (the
   `duty_cycle_listener` example shows the pattern).
 - The buffer passed to single-shot `start_receive(buffer)` must remain valid
-  until its future completes or the operation is cancelled
+  until its future completes or the operation is canceled
   (`standby()`/`sleep()`); transmit payloads are staged on-chip before
   `start_transmit` returns.
 - Pin allocation for ESP32-S3 modules with embedded flash/PSRAM must avoid

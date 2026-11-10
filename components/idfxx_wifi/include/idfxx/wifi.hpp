@@ -621,7 +621,7 @@ namespace idfxx::wifi {
  * @headerfile <idfxx/wifi>
  * @brief Error codes for WiFi operations.
  *
- * The category's `equivalent()` member recognises codes that map to standard
+ * The category's `equivalent()` member recognizes codes that map to standard
  * `std::errc` synonyms (e.g. `value_too_large`), so callers can compare error
  * codes against either the domain-specific `errc` value or the portable POSIX
  * name.
@@ -840,7 +840,7 @@ struct init_config {
      * @brief Privacy enhancements for the station interface.
      *
      * When enabled, the station uses a random MAC address, randomized sequence
-     * numbers, and randomized dialogue token numbers. Applies to the station
+     * numbers, and randomized dialog token numbers. Applies to the station
      * interface only.
      *
      * @note Only available when building with ESP-IDF 6.1 or later.

@@ -47,7 +47,7 @@ class rgb565_framebuffer;
  * @brief Abstract base class for LCD panels.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::lcd::ili9341`) customize behaviour by overriding the protected
+ * `idfxx::lcd::ili9341`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  *

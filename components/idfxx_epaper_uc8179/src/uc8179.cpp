@@ -40,7 +40,7 @@ constexpr uint8_t cmd_lut_kw = 0x22;         // Black-to-white LUT
 constexpr uint8_t cmd_lut_wk = 0x23;         // White-to-black LUT
 constexpr uint8_t cmd_lut_kk = 0x24;         // Black-to-black LUT
 constexpr uint8_t cmd_pll = 0x30;            // PLL control (frame rate)
-constexpr uint8_t cmd_vcom_interval = 0x50;  // VCOM and data interval (border behaviour)
+constexpr uint8_t cmd_vcom_interval = 0x50;  // VCOM and data interval (border behavior)
 constexpr uint8_t cmd_end_voltage = 0x52;    // End voltage setting (VCOM/border level after the LUTs)
 constexpr uint8_t cmd_tcon = 0x60;           // TCON (gate/source non-overlap)
 constexpr uint8_t cmd_resolution = 0x61;     // Resolution setting
@@ -53,7 +53,7 @@ constexpr uint8_t cmd_power_saving = 0xE3;   // Power saving (PWS)
 constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform bank selection)
 
 // VCOM and data interval values (cmd_vcom_interval parameters). The first
-// parameter's low bits matter beyond the border behaviour: DDX (bits 1:0)
+// parameter's low bits matter beyond the border behavior: DDX (bits 1:0)
 // selects the image-data polarity (01 = bit 1 is white, matching the
 // framebuffer encoding) and N2OCP (bit 3) makes the controller copy the
 // new-image RAM into the previous-image RAM when a refresh completes, which

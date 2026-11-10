@@ -151,7 +151,7 @@ result<box> aligned_output(const box& visible, const placement& where, const ren
 source_rect to_stored(orientation transform, const source_rect& r, const source_image& src) {
     const bool swap = swaps_axes(transform);
     source_rect stored = swap ? source_rect{r.y, r.x, r.h, r.w} : r;
-    // Which stored axes run backwards: where the displayed origin comes from.
+    // Which stored axes run backward: where the displayed origin comes from.
     const point origin = source_point(transform, {0, 0}, 2, 2);
     if (origin.x != 0) {
         stored.x = std::max(static_cast<float>(src.width) - (stored.x + stored.w), 0.0f);

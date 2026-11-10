@@ -111,7 +111,7 @@ public:
      * Writes the time and leaves the clock running and its time valid: it
      * clears the chip's record that it lost track of time, in the same
      * operation that writes the time, and restarts a stopped clock (on chips
-     * that can be stopped). So now() returns the time afterwards.
+     * that can be stopped). So now() returns the time afterward.
      *
      * @param t The new time (UTC), to the second.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -144,7 +144,7 @@ public:
      * Writes the time and leaves the clock running and its time valid: it
      * clears the chip's record that it lost track of time, in the same
      * operation that writes the time, and restarts a stopped clock (on chips
-     * that can be stopped). So try_now() returns the time afterwards.
+     * that can be stopped). So try_now() returns the time afterward.
      *
      * @param t The new time (UTC), to the second.
      * @return Success, or an error. Any other error means a transfer with the

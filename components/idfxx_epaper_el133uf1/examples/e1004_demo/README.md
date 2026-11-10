@@ -68,7 +68,7 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 The panel shows three screens, 10 seconds apart. Each refresh takes 25-30 seconds (longer when the panel is cold),
 and the panel flashes through several colors while it updates.
 
-1. Six vertical color bars (black, white, yellow, red, blue and green), each labelled with its color name, above
+1. Six vertical color bars (black, white, yellow, red, blue and green), each labeled with its color name, above
    "idfxx epaper" and, in red, "EL133UF1 1200x1600 Spectra 6", drawn in landscape
 2. A black-and-white page in portrait, with "idfxx epaper" on a black banner, a large "hello" in a box,
    "monochrome, banded", and twelve numbered lines

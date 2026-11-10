@@ -13,7 +13,7 @@ Abstract interface for external real-time-clock chips.
   failure), not stopped, and holding a time the chip can represent — and returns `std::nullopt`
   otherwise, never a time that isn't valid
 - Setting the time clears the chip's lost-time indication in the same operation and restarts a
-  stopped clock, so the time is valid afterwards
+  stopped clock, so the time is valid afterward
 - Dual API: exception-based and result-based error handling
 
 `idfxx::rtc` is for external real-time-clock chips only. It is unrelated to
@@ -119,7 +119,7 @@ Drivers implement the protected `do_now()` and `do_set_time()` hooks.
 - **Time that is not valid**: not an error. `now()` returns `std::nullopt` while the chip has lost
   track of the time (such as on first boot or after a battery change), the clock is stopped, or it
   holds a time the chip can't represent. Reseed the clock with `set_time()`, which also restarts a
-  stopped clock; the time is valid afterwards
+  stopped clock; the time is valid afterward
 - **Error codes**:
   - `errc::invalid_arg` - `set_time()` with a time outside the range the chip can hold; nothing is
     written

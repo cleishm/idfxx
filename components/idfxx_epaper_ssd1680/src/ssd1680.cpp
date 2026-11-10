@@ -245,7 +245,7 @@ result<void> ssd1680::do_restore_baseline(const mono_framebuffer& fb) {
     // RAM planes: a partial refresh diffs the new-image plane against the
     // previous-image plane, and identical planes also sidestep the plane
     // ping-pong described in do_refresh. _settle keeps the previous-image
-    // plane current from the shadow afterwards. The shadow is updated
+    // plane current from the shadow afterward. The shadow is updated
     // first and doubles as the (DRAM) transfer source, so a later full
     // refresh re-sends the intended frame even if this upload fails. The
     // framebuffer is panel-sized, so its stride matches _stride().

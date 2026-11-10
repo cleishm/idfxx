@@ -432,7 +432,7 @@ public:
     /**
      * @brief Initializes the default NVS partition.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * When "NVS_ENCRYPTION" is enabled in the menuconfig, this API enables
@@ -455,7 +455,7 @@ public:
     /**
      * @brief Initialize the default NVS partition with encryption.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * @param cfg Security configuration (keys) to be used for NVS encryption/decryption.
@@ -470,7 +470,7 @@ public:
      *
      * Selected by passing idfxx::nvs::flash::insecure.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -550,7 +550,7 @@ public:
     /**
      * @brief Initializes the default NVS partition.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * When "NVS_ENCRYPTION" is enabled in the menuconfig, this API enables
@@ -577,7 +577,7 @@ public:
     /**
      * @brief Initialize the default NVS partition with encryption.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * @param cfg Security configuration (keys) to be used for NVS encryption/decryption.
@@ -596,7 +596,7 @@ public:
      *
      * Selected by passing idfxx::nvs::flash::insecure.
      *
-     * This API initialises the default NVS partition. The default NVS partition
+     * This API initializes the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
      * @return Success, or an error.

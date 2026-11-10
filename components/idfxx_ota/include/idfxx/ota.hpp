@@ -788,7 +788,7 @@ void check_image_validity(enum partition::type type, std::span<const uint8_t> im
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Marks the running app as valid, cancelling any pending rollback.
+ * @brief Marks the running app as valid, canceling any pending rollback.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on failure.
@@ -819,7 +819,7 @@ void mark_valid();
 #endif
 
 /**
- * @brief Marks the running app as valid, cancelling any pending rollback.
+ * @brief Marks the running app as valid, canceling any pending rollback.
  *
  * @return Success, or an error.
  */

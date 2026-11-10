@@ -52,7 +52,7 @@ public:
          * @brief Initial display contrast (0x00 dimmest .. 0xFF brightest).
          *
          * Applied once when the panel is created, on the same scale as set_contrast(),
-         * which can change it at any time afterwards.
+         * which can change it at any time afterward.
          */
         uint8_t contrast = 128;
     };

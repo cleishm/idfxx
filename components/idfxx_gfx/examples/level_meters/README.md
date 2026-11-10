@@ -62,6 +62,6 @@ idf.py -p PORT flash monitor
 
 Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
-The display shows a dark blue "level meters" header above six horizontal bars labelled 60Hz, 250Hz, 1kHz, 4kHz,
+The display shows a dark blue "level meters" header above six horizontal bars labeled 60Hz, 250Hz, 1kHz, 4kHz,
 8kHz and 16kHz. The bars rise and fall at random. Each bar is green below 60%, amber from 60% to 84%, and red at
 85% and above.

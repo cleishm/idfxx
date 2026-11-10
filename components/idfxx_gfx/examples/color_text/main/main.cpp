@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Draws on an ILI9341 color LCD: a header with scaled text, labelled
+// Draws on an ILI9341 color LCD: a header with scaled text, labeled
 // color swatches, and a right-aligned footer. The whole 240x320 frame is
 // authored once in screen coordinates in draw_frame(); render_banded runs
 // it once per 240x40 band and writes each slice, so the framebuffer

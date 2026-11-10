@@ -267,7 +267,7 @@ if (!r) {
 }
 ```
 
-Error codes are organised into two groups:
+Error codes are organized into two groups:
 - Socket-level errors (`operation_would_block`, `timed_out`, `connection_refused`,
   `address_in_use`, `name_not_found`, `wrong_protocol_type`, …)
 - Netconn-level errors (`netconn_aborted`, `netconn_reset`, `netconn_closed`,

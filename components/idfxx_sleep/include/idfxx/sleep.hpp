@@ -157,7 +157,7 @@ constexpr uint64_t pin_mask_of(std::initializer_list<idfxx::gpio> pins) noexcept
  * **all** selected pins are low (`ext1_mode::all_low`), whereas every other
  * EXT1-capable chip wakes when **any** selected pin is low
  * (@ref ext1_mode::any_low). Selecting the wrong one for the target is a
- * compile error rather than a silent change in behaviour; portable code picks
+ * compile error rather than a silent change in behavior; portable code picks
  * the enumerator under `#if CONFIG_IDF_TARGET_ESP32`. For a single wake pin
  * the two are equivalent.
  */
@@ -233,7 +233,7 @@ private:
  * ~136 kHz RC oscillator, or about 30.5 us with a 32.768 kHz crystal.
  *
  * Unless `CONFIG_ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS` is disabled, the
- * selected pins are biased towards their idle state while sleeping: pulled up
+ * selected pins are biased toward their idle state while sleeping: pulled up
  * for `wake_low` and `wake_negedge`, pulled down for `wake_high` and
  * `wake_posedge`, and left floating for `wake_anyedge`.
  */
@@ -391,7 +391,7 @@ template<wake_spec... Sources>
  * after waking.
  *
  * With no arguments, sleeps on the wake-up sources previously armed with the
- * `enable_*` functions. Such sources stay armed afterwards, unless a source
+ * `enable_*` functions. Such sources stay armed afterward, unless a source
  * of the same kind (or the same pin, for pin-level sources) is passed here,
  * in which case it is replaced for this sleep and disarmed on return.
  *
@@ -432,7 +432,7 @@ template<wake_spec... Sources>
  * after waking.
  *
  * With no arguments, sleeps on the wake-up sources previously armed with the
- * `try_enable_*` functions. Such sources stay armed afterwards, unless a
+ * `try_enable_*` functions. Such sources stay armed afterward, unless a
  * source of the same kind (or the same pin, for pin-level sources) is passed
  * here, in which case it is replaced for this sleep and disarmed on return.
  *

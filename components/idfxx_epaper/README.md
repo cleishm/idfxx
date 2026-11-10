@@ -290,7 +290,7 @@ byte-packed along the row), 2 for `color6_framebuffer` (two pixels per
 byte). Rows are written in whole bytes too, so a framebuffer whose width is
 not a multiple of the `x_alignment` also writes its white row padding over
 the panel columns up to the next byte boundary; size partial framebuffers
-to a multiple of it to leave the neighbouring columns untouched. `clear()` fills the RAM with white without needing a framebuffer,
+to a multiple of it to leave the neighboring columns untouched. `clear()` fills the RAM with white without needing a framebuffer,
 and promotes the next partial refresh to full.
 
 **Partial-refresh baseline:** `restore_baseline(fb)` /

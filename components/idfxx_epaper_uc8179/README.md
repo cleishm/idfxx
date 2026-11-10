@@ -220,7 +220,7 @@ Using a moved-from driver object is undefined behavior.
   `border::hold` leaves the border undriven, keeping its last color — once
   the border is white, switching to `hold` stops it flashing. Whether a
   floating border stays clean across many full refreshes depends on the
-  glass; drive it white again now and then if it greys. In
+  glass; drive it white again now and then if it grays. In
   `color_mode::gray4` white is not drivable, so a white setting holds the
   border (black is still driven). Partial refreshes and deep sleep always
   float the border, whatever the setting.

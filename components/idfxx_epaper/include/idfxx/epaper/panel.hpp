@@ -125,7 +125,7 @@ enum class border : uint8_t {
  * @brief Abstract base class for ePaper display panels.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::epaper::ssd1680`) customize behaviour by overriding the protected
+ * `idfxx::epaper::ssd1680`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  *
@@ -1231,7 +1231,7 @@ protected:
     /// rejects a value this reports as unsupported. There is no matching
     /// setter hook: the base class stores the setting, and drivers consult
     /// @ref border() in @ref do_refresh. A driver that reports support must
-    /// honour the documented contract there: drive the border as selected
+    /// honor the documented contract there: drive the border as selected
     /// on full and fast refreshes, never drive it on a
     /// @ref refresh_mode::partial refresh, and never drive it while
     /// @ref border::hold is selected. The default reports every value as

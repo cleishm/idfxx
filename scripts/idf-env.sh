@@ -30,7 +30,7 @@ _idfxx_is_eim() {
 }
 
 # Source an export.sh. These are not written to survive `set -e`/`set -u`, so
-# both are relaxed for the duration and restored afterwards.
+# both are relaxed for the duration and restored afterward.
 _idfxx_use_export() {
     [ -r "$1" ] || return 1
     _idfxx_opts=$-

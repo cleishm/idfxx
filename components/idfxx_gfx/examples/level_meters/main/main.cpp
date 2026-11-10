@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Animates level meters on an ILI9341 color LCD: six channels drawn as
-// labelled horizontal bars that fill proportionally to a simulated level
+// labeled horizontal bars that fill proportionally to a simulated level
 // and change color at thresholds (green / amber / red). The whole 240x320
 // frame is authored in screen coordinates in draw_frame(); each tick
 // updates the levels and re-renders via render_banded, so the framebuffer
@@ -93,7 +93,7 @@ static void draw_frame(band_canvas& canvas, const std::array<int, CHANNELS.size(
     canvas.fill_rect(0, 0, DISPLAY_W, HEADER_H, {0, 0, 96});
     canvas.draw_text(idfxx::font::spleen_8x16, 8, 10, "level meters", white, 2);
 
-    // One labelled meter per channel. The 44-pixel pitch means every bar
+    // One labeled meter per channel. The 44-pixel pitch means every bar
     // straddles a band boundary.
     for (size_t i = 0; i < CHANNELS.size(); ++i) {
         const size_t top = METER_TOP + i * METER_PITCH;

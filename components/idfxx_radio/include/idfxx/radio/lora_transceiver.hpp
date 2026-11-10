@@ -47,7 +47,7 @@ namespace idfxx::radio {
  * @brief Abstract base class for LoRa radio transceivers.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::radio::sx126x`) customize behaviour by overriding the protected
+ * `idfxx::radio::sx126x`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  *
@@ -377,7 +377,7 @@ public:
      * The returned future completes with the scan result (@ref cad_info);
      * when an event loop is configured the result is also posted as a
      * `cad_done` event. The future completes with `errc::not_finished` if the
-     * scan is cancelled by a mode change (@ref try_standby or @ref try_sleep).
+     * scan is canceled by a mode change (@ref try_standby or @ref try_sleep).
      *
      * Dropping the future without waiting is safe: the scan continues and
      * the result remains observable through the `cad_done` event.
@@ -752,7 +752,7 @@ public:
      * instead.
      *
      * @p buffer must remain valid until the future completes or the
-     * operation is cancelled by a mode change (@ref standby or @ref sleep).
+     * operation is canceled by a mode change (@ref standby or @ref sleep).
      *
      * The packet is delivered exactly once, into @p buffer: it is not queued
      * for @ref read_received. Dropping the future without waiting is safe: the
@@ -801,7 +801,7 @@ public:
      *
      * The call returns as soon as the packet is staged and transmission has
      * started; the returned future completes when the packet has been sent
-     * (or with `errc::not_finished` if the operation is cancelled by a mode
+     * (or with `errc::not_finished` if the operation is canceled by a mode
      * change). When an event loop is configured, completion is also posted as
      * a `tx_done` event. Only one data-path operation may be in flight at a
      * time.
@@ -833,11 +833,11 @@ public:
      * `errc::invalid_size` if the packet was larger than @p buffer (nothing is
      * written and the packet is discarded — size the buffer for the largest
      * packet expected, at most @ref max_payload_length bytes), and with
-     * `errc::not_finished` if the operation is cancelled by a mode change
+     * `errc::not_finished` if the operation is canceled by a mode change
      * (@ref try_standby or @ref try_sleep).
      *
      * @p buffer must remain valid until the future completes or the
-     * operation is cancelled.
+     * operation is canceled.
      *
      * The packet is delivered exactly once, into @p buffer: it is not queued
      * for @ref try_read_received. Dropping the future without waiting is safe:
@@ -952,7 +952,7 @@ public:
     /// Guard window for the blocking @ref scan_channel. Channel-activity
     /// detection completes within a few symbol times even at the slowest
     /// modulation, so it takes no caller-supplied timeout; the blocking form
-    /// waits at most this long before cancelling the scan and reporting
+    /// waits at most this long before canceling the scan and reporting
     /// `errc::timeout`.
     static constexpr std::chrono::milliseconds scan_guard_window{1000};
 
@@ -991,7 +991,7 @@ protected:
     }
     /// Hook for @ref try_start_channel_scan. The returned future must
     /// complete with the scan result, or with `errc::not_finished` if the
-    /// operation is cancelled (standby, sleep, or driver teardown).
+    /// operation is canceled (standby, sleep, or driver teardown).
     [[nodiscard]] virtual result<idfxx::future<cad_info>> do_start_channel_scan() = 0;
 
     /// Hook for @ref try_set_frequency.
@@ -1009,14 +1009,14 @@ protected:
     /// @ref max_payload_length bytes, and is staged before the hook returns
     /// (the caller's buffer need not outlive the call). The returned future
     /// must complete when the packet has been sent, or with
-    /// `errc::not_finished` if the operation is cancelled (standby, sleep, or
+    /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown).
     [[nodiscard]] virtual result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) = 0;
     /// Hook for @ref try_start_receive(std::span<uint8_t>) (single-shot
     /// receive). The returned future must complete with the received packet's
     /// info (`errc::invalid_crc` on CRC failure, `errc::invalid_size` if the
     /// packet is larger than the buffer — never truncate), or with
-    /// `errc::not_finished` if the operation is cancelled (standby, sleep, or
+    /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown); the buffer must never be written after the future
     /// completes.
     [[nodiscard]] virtual result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) = 0;
@@ -1052,7 +1052,7 @@ private:
     lora_packet_params _packet_params{};
 
     // Shared tail of the blocking compositions (try_transmit / try_receive /
-    // try_scan_channel): waits for the operation's future, cancelling the
+    // try_scan_channel): waits for the operation's future, canceling the
     // operation via try_standby if it does not complete in time and masking
     // the resulting cancellation error back to `errc::timeout`.
     template<typename T>

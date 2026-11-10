@@ -60,7 +60,7 @@ public:
      * @headerfile <idfxx/task>
      * @brief Error codes for task operations.
      *
-     * The category's `equivalent()` member recognises these codes as
+     * The category's `equivalent()` member recognizes these codes as
      * equivalent to the corresponding `std::errc` synonyms, so callers can
      * compare against either the domain-specific `errc` value or the
      * portable POSIX name. For example

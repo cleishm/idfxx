@@ -106,7 +106,7 @@ void draw_static_layout(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& can
 }
 
 // The parts that change on every wake: the counter, and a bar filling up
-// towards the next full refresh.
+// toward the next full refresh.
 void draw_wake_count(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas, uint32_t count) {
     canvas.fill_rect(0, counter_y, canvas.width(), counter_h, false);
     canvas.draw_text(idfxx::font::spleen_8x16, 8, counter_y, std::format("{}", count), true, 2);

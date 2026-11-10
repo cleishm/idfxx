@@ -221,7 +221,7 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
   the STOP bit, the alarm or timer flags, or change the clock output.
 - **Stopped clock**: While the STOP bit is set, the time is not valid: `now()` returns
   `std::nullopt`. `set_time()` writes the time, then clears STOP, so
-  the time is valid afterwards; if clearing STOP fails, the time is already written and
+  the time is valid afterward; if clearing STOP fails, the time is already written and
   `set_time()` reports the transfer error.
 - **Event flags**: The alarm and timer flags stay set until cleared. `clear_events()` clears only the
   flags it is given, and no other operation clears either. Clearing the events that `events()`

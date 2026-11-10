@@ -68,7 +68,7 @@ idf.py -p PORT flash monitor
 
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
-The board wakes every 30 seconds. Each wake updates a wake counter and a progress bar towards the next full
+The board wakes every 30 seconds. Each wake updates a wake counter and a progress bar toward the next full
 refresh, then goes back to deep sleep. The USB Serial/JTAG port disconnects while the board sleeps, so the monitor
 loses the connection and picks it up again on the next wake. A power-on or reset starts the counter from zero with
 a full refresh.

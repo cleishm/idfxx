@@ -17,7 +17,7 @@
  * awaiting the result of an asynchronous operation. Components producing
  * async results can expose them through a uniform interface regardless of
  * the underlying completion mechanism (polling queues, condition variables,
- * event groups, ...), and callers get a single, recognisable async API.
+ * event groups, ...), and callers get a single, recognizable async API.
  * @{
  */
 
@@ -71,7 +71,7 @@ public:
      *
      * Intended for producers exposing an async operation via @ref future. The
      * waiter is called to service `wait()` / `try_wait()` / `try_wait_for()`
-     * and must honour the timeout argument:
+     * and must honor the timeout argument:
      * - `std::nullopt` — wait indefinitely;
      * - an explicit duration — wait at most that long;
      * - `std::chrono::milliseconds{0}` — non-blocking check, returning

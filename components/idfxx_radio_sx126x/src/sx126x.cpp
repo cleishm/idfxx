@@ -47,7 +47,7 @@ constexpr uint16_t sync_word_private = 0x1424;
 
 // Completes and detaches the in-flight async-op latch (if any) with `err`,
 // dropping the reference to the caller's receive buffer first so the worker
-// can never write to it afterwards. Must be called with s.mu held.
+// can never write to it afterward. Must be called with s.mu held.
 void cancel_active_op(sx126x::state& s, errc err) {
     if (auto latch = std::move(s.active_op)) {
         latch->rx_target = {};
@@ -108,7 +108,7 @@ result<std::shared_ptr<internal::op_latch>> claim_data_path(
 // warm-start sensitivity loss), points the RF switch at the receiver, issues
 // the command, and records the rx bookkeeping. Duty-cycled receive shares
 // rx_continuous: the worker already posts rx_done and never completes a
-// blocking waiter for it, which is exactly the duty-cycle behaviour.
+// blocking waiter for it, which is exactly the duty-cycle behavior.
 // `sleep_period` is the duty cycle's sleep window (zero for continuous).
 result<void> arm_stream_receive(
     sx126x::state& s,
@@ -850,7 +850,7 @@ result<void> sx126x::try_standby(standby_clock clock) {
     auto cmd = _state->command1(internal::op_set_standby, cfg); // SetStandby, §13.1.2
     if (cmd) {
         // Clear all chip IRQs (ClearIrqStatus, §13.3.4) so an operation
-        // cancelled mid-flight can't leave a stale DIO1 edge behind for the
+        // canceled mid-flight can't leave a stale DIO1 edge behind for the
         // next operation to misread.
         (void)_state->clear_irq_status(0xFFFF);
     }

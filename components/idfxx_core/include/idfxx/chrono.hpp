@@ -91,11 +91,11 @@ struct tick_clock {
  * Provides a std::chrono-compatible clock with microsecond resolution that counts from
  * the last power-on reset. The RTC timer keeps running through light sleep, deep sleep,
  * and every kind of reset other than power-on, so time points taken before a deep sleep
- * or a software reset remain comparable with those taken afterwards. By contrast,
+ * or a software reset remain comparable with those taken afterward. By contrast,
  * `std::chrono::steady_clock` restarts from zero at every boot (including wake-up from
  * deep sleep), and `std::chrono::system_clock` jumps whenever the wall-clock time is set.
  *
- * The clock never runs backwards. Its accuracy follows the RTC slow clock source selected
+ * The clock never runs backward. Its accuracy follows the RTC slow clock source selected
  * in the project configuration: the default internal RC oscillator drifts with
  * temperature, while an external 32 kHz crystal keeps time well. Recalibrating the slow
  * clock changes only the rate at which the clock advances from that point on.

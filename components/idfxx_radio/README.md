@@ -95,7 +95,7 @@ auto info = rx.wait();                 // rx_info once it arrives
 ```
 
 The buffer passed to single-shot `start_receive` must stay valid until the
-future completes (or the operation is cancelled with `standby()`/`sleep()`).
+future completes (or the operation is canceled with `standby()`/`sleep()`).
 Dropping a future without waiting is safe — the operation continues and its
 completion event still posts when an event loop is configured.
 
@@ -208,7 +208,7 @@ supplied to `receive`/`start_receive`/`read_received` is discarded, never
 truncated, and reported as `errc::invalid_size`; timed-out blocking operations
 return `errc::timeout`. Out-of-range parameters (e.g. an unsupported output power for
 a particular chip variant) return `errc::invalid_arg`. A future whose
-operation is cancelled by a mode change (`standby`/`sleep`) before completing
+operation is canceled by a mode change (`standby`/`sleep`) before completing
 reports `errc::not_finished`. `probe` reports `errc::not_found` when no chip
 answers, as does `read_received` when no packet is queued. Using a moved-from
 driver object is undefined behavior.
@@ -218,7 +218,7 @@ driver object is undefined behavior.
 - `idfxx_radio` itself ships no register-level details: enum values are
   semantic, not chip-register encodings. Each driver translates internally.
 - Single-shot `start_receive(buffer)`: the buffer must remain valid until the
-  returned future completes or the operation is cancelled (`standby`/`sleep`);
+  returned future completes or the operation is canceled (`standby`/`sleep`);
   the radio returns to standby after the packet. Transmit buffers are staged
   before `start_transmit` returns and need not outlive the call.
 - Dropping a future mid-flight is safe: the operation continues, and its

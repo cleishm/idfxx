@@ -29,7 +29,7 @@ using namespace std::chrono_literals;
 constexpr size_t rx_buffer_symbols = 64;
 
 // End of frame: nothing on the wire is quieter than ~200 us mid-frame, and
-// the line idles high afterwards.
+// the line idles high afterward.
 constexpr uint32_t signal_range_min_ns = 1'000;     // glitch filter
 constexpr uint32_t signal_range_max_ns = 1'000'000; // 1 ms idle terminates
 

@@ -41,7 +41,7 @@ static void register_error_handlers(idfxx::http::server& srv) {
     );
 
     // httpd itself detects this one (a registered URI requested with the wrong method), so on_error()
-    // also customises errors the server raises on its own.
+    // also customizes errors the server raises on its own.
     srv.on_error(
         idfxx::http::status_code::method_not_allowed,
         [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {

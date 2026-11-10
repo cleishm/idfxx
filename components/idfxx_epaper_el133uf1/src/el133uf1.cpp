@@ -257,7 +257,7 @@ result<void> el133uf1::do_write(const mono_framebuffer& fb, size_t row_start, si
     // each source byte expands to 4 consecutive shadow bytes, and since the
     // plane split (byte 300) is a multiple of 4, those never straddle it.
     // An odd-width framebuffer's last pixel shares its byte with a
-    // neighbour outside the band, which is preserved.
+    // neighbor outside the band, which is preserved.
     const size_t width = fb.width();
     const size_t whole = width / 8; // full source bytes per row
     const size_t rem = width % 8;   // pixels in a trailing partial byte
@@ -294,7 +294,7 @@ result<void> el133uf1::do_write(const color6_framebuffer& fb, size_t row_start, 
     // The framebuffer's nibble packing matches the shadow's, and x is even,
     // so each row is a byte copy split at the master/slave boundary (byte
     // 300 of the panel row). An odd-width framebuffer's last byte carries a
-    // padding nibble that must not clobber the neighbouring pixel.
+    // padding nibble that must not clobber the neighboring pixel.
     const size_t width = fb.width();
     const size_t whole = width / 2;   // full bytes per row
     const bool tail = width % 2 != 0; // trailing single pixel

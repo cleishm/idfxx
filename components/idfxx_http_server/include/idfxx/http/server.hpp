@@ -459,7 +459,7 @@ public:
     /**
      * @brief Finalizes a chunked response.
      *
-     * Sends the terminal empty chunk, signalling end of response.
+     * Sends the terminal empty chunk, signaling end of response.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -507,7 +507,7 @@ public:
     /**
      * @brief Finalizes a chunked response.
      *
-     * Sends the terminal empty chunk, signalling end of response.
+     * Sends the terminal empty chunk, signaling end of response.
      *
      * @return Success, or an error.
      */
@@ -1462,7 +1462,7 @@ public:
     /**
      * @brief Unregisters the handler for an HTTP error.
      *
-     * The default error response is sent for @p status afterwards.
+     * The default error response is sent for @p status afterward.
      *
      * @param status The error whose handler to remove.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -1484,7 +1484,7 @@ public:
     /**
      * @brief Unregisters the handler for an HTTP error.
      *
-     * The default error response is sent for @p status afterwards.
+     * The default error response is sent for @p status afterward.
      *
      * @param status The error whose handler to remove.
      * @return Success, or an error.

@@ -130,7 +130,7 @@ namespace idfxx::rtc {
  * time; while the clock is stopped (see stop()); or while the time registers
  * hold something other than a time from 2000 to 2099. While it is not valid,
  * now() returns `std::nullopt`. set_time() writes the time, which clears VL,
- * then restarts a stopped clock, so the time is valid afterwards: it recovers
+ * then restarts a stopped clock, so the time is valid afterward: it recovers
  * every case. If the restart fails, the time has already been written and
  * set_time() reports the transfer error; call it again.
  *
@@ -346,7 +346,7 @@ public:
     /**
      * @brief Move constructor.
      *
-     * @param other The driver to move from; it must not be used afterwards.
+     * @param other The driver to move from; it must not be used afterward.
      */
     pcf8563(pcf8563&& other) noexcept;
 
@@ -355,7 +355,7 @@ public:
      *
      * Releases this driver's I2C device, then takes over @p other's.
      *
-     * @param other The driver to move from; it must not be used afterwards.
+     * @param other The driver to move from; it must not be used afterward.
      * @return A reference to this driver.
      */
     pcf8563& operator=(pcf8563&& other) noexcept;
@@ -374,7 +374,7 @@ public:
      *
      * Clears the chip's STOP bit, continuing from the time the clock held when
      * it stopped. The first one-second increment comes about 0.508 s
-     * afterwards. Does nothing to a clock that is already running. To set the
+     * afterward. Does nothing to a clock that is already running. To set the
      * time as well, call set_time() instead, which also restarts the clock.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -422,7 +422,7 @@ public:
      *
      * Clears the chip's STOP bit, continuing from the time the clock held when
      * it stopped. The first one-second increment comes about 0.508 s
-     * afterwards. Does nothing to a clock that is already running. To set the
+     * afterward. Does nothing to a clock that is already running. To set the
      * time as well, call try_set_time() instead, which also restarts the clock.
      *
      * @return Success, or an error on I2C failure.

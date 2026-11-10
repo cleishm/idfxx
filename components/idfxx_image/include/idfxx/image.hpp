@@ -1645,7 +1645,7 @@ public:
     /**
      * @brief Move-constructs a renderer, taking over its state.
      *
-     * @param other The renderer to move from. It must not be used afterwards,
+     * @param other The renderer to move from. It must not be used afterward,
      *              other than to be destroyed or assigned to.
      */
     renderer(renderer&& other) noexcept;
@@ -1653,7 +1653,7 @@ public:
     /**
      * @brief Move-assigns a renderer, releasing this one's state.
      *
-     * @param other The renderer to move from. It must not be used afterwards,
+     * @param other The renderer to move from. It must not be used afterward,
      *              other than to be destroyed or assigned to.
      * @return A reference to this renderer.
      */
