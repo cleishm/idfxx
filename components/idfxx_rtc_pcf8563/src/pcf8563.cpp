@@ -179,31 +179,13 @@ constexpr bool valid(E v, E last) noexcept {
 struct pcf8563::state {
     i2c::master_device dev;
 
-    // Reads consecutive registers from @p reg in one burst.
-    [[nodiscard]] result<void> read(uint8_t reg, std::span<uint8_t> data) { return dev.try_read_register(reg, data); }
-
-    [[nodiscard]] result<uint8_t> read(uint8_t reg) {
-        std::array<uint8_t, 1> buf{};
-        return read(reg, buf).transform([&]() { return buf[0]; });
-    }
-
-    // Writes consecutive registers from @p reg in one transfer.
-    [[nodiscard]] result<void> write(uint8_t reg, std::span<const uint8_t> data) {
-        return dev.try_write_register(reg, data);
-    }
-
-    [[nodiscard]] result<void> write(uint8_t reg, uint8_t value) {
-        const std::array<uint8_t, 1> buf{value};
-        return write(reg, buf);
-    }
-
     // The one place that writes Control_status_2. Replaces the interrupt bits
     // selected by @p mask with @p bits, keeps the others as read, and clears
     // only the flags named in @p clear: AF and TF are otherwise written as 1,
     // which leaves them unchanged. Writes nothing if the interrupt bits would
     // not change and no flag to clear is set.
     [[nodiscard]] result<void> modify_control2(uint8_t mask, uint8_t bits, pcf8563_internal::control2_clear clear) {
-        auto current = read(pcf8563_internal::reg_control2);
+        auto current = dev.try_read_register(pcf8563_internal::reg_control2);
         if (!current) {
             return error(current.error());
         }
@@ -215,13 +197,15 @@ struct pcf8563::state {
         if (!interrupts_change && !flag_to_clear) {
             return {};
         }
-        return write(pcf8563_internal::reg_control2, pcf8563_internal::make_control2(interrupts, clear));
+        return dev.try_write_register(
+            pcf8563_internal::reg_control2, pcf8563_internal::make_control2(interrupts, clear)
+        );
     }
 
     // Sets or clears STOP in Control_status_1, writing nothing if the register
     // would not change.
     [[nodiscard]] result<void> set_stop(bool stop) {
-        auto current = read(pcf8563_internal::reg_control1);
+        auto current = dev.try_read_register(pcf8563_internal::reg_control1);
         if (!current) {
             return error(current.error());
         }
@@ -229,7 +213,7 @@ struct pcf8563::state {
         if (control1 == *current) {
             return {};
         }
-        return write(pcf8563_internal::reg_control1, control1);
+        return dev.try_write_register(pcf8563_internal::reg_control1, control1);
     }
 };
 
@@ -253,15 +237,15 @@ result<pcf8563> pcf8563::make(i2c::master_bus& bus) {
 }
 
 result<pcf8563> pcf8563::make(i2c::master_bus& bus, const config& cfg) {
-    const auto speed = cfg.scl_speed.value_or(bus.frequency());
-    if (speed > pcf8563_internal::max_scl_speed) {
-        ESP_LOGE(TAG, "I2C clock must be at most 400 kHz");
-        return error(errc::invalid_arg);
-    }
-
     auto dev = i2c::master_device::make(bus, cfg.address, {.scl_speed = cfg.scl_speed});
     if (!dev) {
         return error(dev.error());
+    }
+
+    // Check the clock before anything is sent to the chip.
+    if (dev->scl_speed() > pcf8563_internal::max_scl_speed) {
+        ESP_LOGE(TAG, "I2C clock must be at most 400 kHz");
+        return error(errc::invalid_arg);
     }
 
     // Probe the address; nothing is written to the chip.
@@ -286,7 +270,7 @@ pcf8563& pcf8563::operator=(pcf8563&& other) noexcept = default;
 result<std::optional<sys_seconds>> pcf8563::do_now() {
     // The control and time registers in one burst, so they are consistent.
     pcf8563_internal::clock_registers regs{};
-    if (auto r = _state->read(pcf8563_internal::reg_control1, regs); !r) {
+    if (auto r = _state->dev.try_read_register(pcf8563_internal::reg_control1, regs); !r) {
         return error(r.error());
     }
     return pcf8563_internal::decode_clock(regs);
@@ -299,7 +283,7 @@ result<void> pcf8563::do_set_time(sys_seconds t) {
         return error(regs.error());
     }
     // One burst, which also clears VL in the seconds register.
-    if (auto r = _state->write(pcf8563_internal::reg_seconds, *regs); !r) {
+    if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_seconds, *regs); !r) {
         return error(r.error());
     }
     // Then restart a stopped clock, so the time is valid afterwards. Only
@@ -322,7 +306,7 @@ result<void> pcf8563::try_stop() {
 }
 
 result<bool> pcf8563::try_running() {
-    return _state->read(pcf8563_internal::reg_control1).transform([](uint8_t control1) {
+    return _state->dev.try_read_register(pcf8563_internal::reg_control1).transform([](uint8_t control1) {
         return (control1 & pcf8563_internal::control1_stop) == 0;
     });
 }
@@ -337,7 +321,7 @@ result<void> pcf8563::try_set_alarm(const alarm_config& alarm) {
         return error(regs.error());
     }
     // The alarm fields first, in one burst, then the interrupt enable.
-    if (auto r = _state->write(pcf8563_internal::reg_minute_alarm, *regs); !r) {
+    if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_minute_alarm, *regs); !r) {
         return r;
     }
     return _state->modify_control2(
@@ -349,10 +333,10 @@ result<void> pcf8563::try_set_alarm(const alarm_config& alarm) {
 
 result<pcf8563::alarm_config> pcf8563::try_alarm() {
     pcf8563_internal::alarm_registers regs{};
-    if (auto r = _state->read(pcf8563_internal::reg_minute_alarm, regs); !r) {
+    if (auto r = _state->dev.try_read_register(pcf8563_internal::reg_minute_alarm, regs); !r) {
         return error(r.error());
     }
-    auto control2 = _state->read(pcf8563_internal::reg_control2);
+    auto control2 = _state->dev.try_read_register(pcf8563_internal::reg_control2);
     if (!control2) {
         return error(control2.error());
     }
@@ -374,7 +358,7 @@ result<void> pcf8563::try_start_timer(timer_source source, uint8_t count, const 
     // Disable the timer with its new source and count in one burst (0Eh then
     // 0Fh), set the interrupt mode, then enable it.
     const std::array<uint8_t, 2> disabled{pcf8563_internal::make_timer_control(false, source), count};
-    if (auto r = _state->write(pcf8563_internal::reg_timer_control, disabled); !r) {
+    if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_timer_control, disabled); !r) {
         return r;
     }
     if (auto r = _state->modify_control2(
@@ -385,7 +369,9 @@ result<void> pcf8563::try_start_timer(timer_source source, uint8_t count, const 
         !r) {
         return r;
     }
-    return _state->write(pcf8563_internal::reg_timer_control, pcf8563_internal::make_timer_control(true, source));
+    return _state->dev.try_write_register(
+        pcf8563_internal::reg_timer_control, pcf8563_internal::make_timer_control(true, source)
+    );
 }
 
 result<void> pcf8563::_try_start_timer(timer_duration period, const timer_config& cfg) {
@@ -402,7 +388,7 @@ result<pcf8563::timer_duration> pcf8563::try_timer_remaining() {
     std::array<uint8_t, 2> previous{};
     for (int attempt = 0; attempt < timer_read_attempts; ++attempt) {
         std::array<uint8_t, 2> current{};
-        if (auto r = _state->read(pcf8563_internal::reg_timer_control, current); !r) {
+        if (auto r = _state->dev.try_read_register(pcf8563_internal::reg_timer_control, current); !r) {
             return error(r.error());
         }
         if (attempt > 0 && current == previous) {
@@ -414,7 +400,9 @@ result<pcf8563::timer_duration> pcf8563::try_timer_remaining() {
 }
 
 result<void> pcf8563::try_stop_timer() {
-    if (auto r = _state->write(pcf8563_internal::reg_timer_control, pcf8563_internal::timer_td_low_power); !r) {
+    if (auto r =
+            _state->dev.try_write_register(pcf8563_internal::reg_timer_control, pcf8563_internal::timer_td_low_power);
+        !r) {
         return r;
     }
     return _state->modify_control2(pcf8563_internal::control2_tie, 0, {.alarm_flag = false, .timer_flag = false});
@@ -425,7 +413,7 @@ result<void> pcf8563::try_stop_timer() {
 // =============================================================================
 
 result<flags<pcf8563::event>> pcf8563::try_events() {
-    return _state->read(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
+    return _state->dev.try_read_register(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
         flags<event> events;
         if ((control2 & pcf8563_internal::control2_af) != 0) {
             events |= event::alarm;
@@ -451,11 +439,11 @@ result<void> pcf8563::try_set_clkout(std::optional<clkout_frequency> frequency) 
     if (frequency && !valid(*frequency, clkout_frequency::hz_1)) {
         return error(errc::invalid_arg);
     }
-    return _state->write(pcf8563_internal::reg_clkout, pcf8563_internal::encode_clkout(frequency));
+    return _state->dev.try_write_register(pcf8563_internal::reg_clkout, pcf8563_internal::encode_clkout(frequency));
 }
 
 result<std::optional<pcf8563::clkout_frequency>> pcf8563::try_clkout() {
-    return _state->read(pcf8563_internal::reg_clkout).transform(pcf8563_internal::decode_clkout);
+    return _state->dev.try_read_register(pcf8563_internal::reg_clkout).transform(pcf8563_internal::decode_clkout);
 }
 
 } // namespace idfxx::rtc
