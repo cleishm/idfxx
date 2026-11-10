@@ -121,15 +121,12 @@ enum class bus_speed : uint8_t {
 #endif
 };
 
-/**
- * @headerfile <idfxx/sdcard>
- * @brief Tag type selecting discard rather than erase in card::erase_sectors().
- *
- * Use the `discard` constant rather than constructing this directly.
- */
+/** @cond INTERNAL */
+// The type of `discard`, selecting the discard overloads of card::erase_sectors() and card::try_erase_sectors().
 struct discard_t {
     explicit discard_t() = default;
 };
+/** @endcond */
 
 /**
  * @headerfile <idfxx/sdcard>
@@ -137,8 +134,6 @@ struct discard_t {
  *
  * Discarded sectors are marked as unused without being cleared, so their
  * contents are undefined until they are rewritten.
- *
- * @see discard_t
  */
 inline constexpr discard_t discard{};
 
@@ -870,8 +865,9 @@ public:
     /**
      * @brief Discards a range of sectors.
      *
-     * The sectors are marked as unused without being cleared: their contents
-     * are undefined until they are rewritten. Requires supports_discard().
+     * Selected by passing idfxx::sdcard::discard. The sectors are marked as
+     * unused without being cleared: their contents are undefined until they
+     * are rewritten. Requires supports_discard().
      *
      * Must not be used while a filesystem is mounted on the card.
      *
@@ -966,8 +962,9 @@ public:
     /**
      * @brief Discards a range of sectors.
      *
-     * The sectors are marked as unused without being cleared: their contents
-     * are undefined until they are rewritten. Requires supports_discard().
+     * Selected by passing idfxx::sdcard::discard. The sectors are marked as
+     * unused without being cleared: their contents are undefined until they
+     * are rewritten. Requires supports_discard().
      *
      * Must not be used while a filesystem is mounted on the card.
      *
