@@ -13,6 +13,7 @@
 
 using namespace idfxx;
 using namespace idfxx::spi;
+using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
@@ -199,6 +200,54 @@ TEST_CASE("master_bus destructor frees bus", "[idfxx][spi]") {
     // Should be able to create a new bus on the same host after destruction
     auto result2 = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
     TEST_ASSERT_TRUE(result2.has_value());
+}
+
+// No pins are connected, so creating the bus and device drives no GPIO.
+TEST_CASE("master_bus max_transaction_length with DMA does not depend on devices", "[idfxx][spi]") {
+    bus_config cfg{};
+    cfg.max_transfer_sz = 4096;
+
+    auto bus = master_bus::make(host_device::spi2, dma_chan::ch_auto, cfg);
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    size_t without_devices = bus->max_transaction_length();
+    TEST_ASSERT_GREATER_OR_EQUAL(4096, without_devices);
+
+    {
+        master_device::config dev_cfg{};
+        dev_cfg.clock_speed = 1000000_Hz;
+        auto device = master_device::make(*bus, dev_cfg);
+        TEST_ASSERT_TRUE(device.has_value());
+
+        TEST_ASSERT_EQUAL(without_devices, bus->max_transaction_length());
+
+        size_t idf_max = 0;
+        TEST_ASSERT_EQUAL(ESP_OK, spi_bus_get_max_transaction_len(SPI2_HOST, &idf_max));
+        TEST_ASSERT_EQUAL(idf_max, bus->max_transaction_length());
+    }
+
+    // All devices removed
+    TEST_ASSERT_EQUAL(without_devices, bus->max_transaction_length());
+}
+
+TEST_CASE("master_bus max_transaction_length without DMA is the FIFO size", "[idfxx][spi]") {
+    auto bus = master_bus::make(host_device::spi2, dma_chan::disabled, bus_config{});
+    TEST_ASSERT_TRUE(bus.has_value());
+
+    TEST_ASSERT_EQUAL(SOC_SPI_MAXIMUM_BUFFER_SIZE, bus->max_transaction_length());
+
+    {
+        master_device::config dev_cfg{};
+        dev_cfg.clock_speed = 1000000_Hz;
+        auto device = master_device::make(*bus, dev_cfg);
+        TEST_ASSERT_TRUE(device.has_value());
+
+        size_t idf_max = 0;
+        TEST_ASSERT_EQUAL(ESP_OK, spi_bus_get_max_transaction_len(SPI2_HOST, &idf_max));
+        TEST_ASSERT_EQUAL(idf_max, bus->max_transaction_length());
+    }
+
+    TEST_ASSERT_EQUAL(SOC_SPI_MAXIMUM_BUFFER_SIZE, bus->max_transaction_length());
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

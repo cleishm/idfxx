@@ -142,6 +142,7 @@ idfxx::panel_io panel_io(
 
 **Properties:**
 - `host()` - Get SPI host device
+- `max_transaction_length()` - Largest transaction the bus accepts, in bytes (with or without devices attached)
 
 **Lifetime:**
 - Non-copyable and move-only
