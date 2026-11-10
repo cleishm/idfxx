@@ -36,39 +36,34 @@ typedef uint32_t esp_ota_handle_t;
 
 namespace idfxx::ota {
 
-/**
- * @brief Tag type for sequential (incremental) flash erase mode.
- *
- * When passed to the update constructor or make(), the flash is erased
- * incrementally as data is written, rather than all at once.
- */
+/** @cond INTERNAL */
+// The type of `sequential_erase`, selecting the sequential-erase overloads of update.
 struct sequential_erase_tag {};
+/** @endcond */
 
 /**
- * @brief Tag value for sequential (incremental) flash erase mode.
+ * @brief Tag requesting sequential (incremental) flash erase:
+ *        `idfxx::ota::update u(part, idfxx::ota::sequential_erase)`.
  *
- * @see sequential_erase_tag
+ * When passed to the update constructor, make(), resume() or try_resume(),
+ * the flash is erased incrementally as data is written, rather than all at
+ * once.
  */
 inline constexpr sequential_erase_tag sequential_erase{};
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-/**
- * @brief Tag type selecting the overloads that skip image validation.
- *
- * Use the `skip_validation` constant rather than constructing this directly.
- *
- * @note Requires ESP-IDF 6.1 or later.
- */
+/** @cond INTERNAL */
+// The type of `skip_validation`, selecting the overloads that skip image validation.
 struct skip_validation_t {
     explicit skip_validation_t() = default;
 };
+/** @endcond */
 
 /**
  * @brief Tag requesting that the image is not validated before it is selected:
  *        `idfxx::ota::set_boot_partition(part, idfxx::ota::skip_validation)`.
  *
  * @note Requires ESP-IDF 6.1 or later.
- * @see skip_validation_t
  */
 inline constexpr skip_validation_t skip_validation{};
 #endif
@@ -235,6 +230,8 @@ public:
     /**
      * @brief Begins an OTA update with sequential (incremental) flash erase.
      *
+     * Selected by passing idfxx::ota::sequential_erase.
+     *
      * Flash is erased incrementally as data is written, rather than all at once.
      *
      * @param part Target partition for the update.
@@ -280,6 +277,8 @@ public:
     /**
      * @brief Resumes an interrupted OTA update with sequential (incremental) flash erase.
      *
+     * Selected by passing idfxx::ota::sequential_erase.
+     *
      * Continues writing to the partition from the specified offset without
      * re-erasing already-written data. Flash is erased incrementally as data is written.
      *
@@ -320,6 +319,8 @@ public:
 
     /**
      * @brief Begins an OTA update with sequential (incremental) flash erase.
+     *
+     * Selected by passing idfxx::ota::sequential_erase.
      *
      * Flash is erased incrementally as data is written, rather than all at once.
      *
@@ -363,6 +364,8 @@ public:
 
     /**
      * @brief Resumes an interrupted OTA update with sequential (incremental) flash erase.
+     *
+     * Selected by passing idfxx::ota::sequential_erase.
      *
      * Continues writing to the partition from the specified offset without
      * re-erasing already-written data. Flash is erased incrementally as data is written.
@@ -589,6 +592,8 @@ void set_boot_partition(const partition& part);
 /**
  * @brief Sets the boot partition for the next reboot without validating the app image.
  *
+ * Selected by passing idfxx::ota::skip_validation.
+ *
  * Use when the image has already been validated, for example by a completed
  * OTA update session.
  *
@@ -685,6 +690,8 @@ void check_image_validity(enum partition::type type, std::span<const uint8_t> im
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 /**
  * @brief Sets the boot partition for the next reboot without validating the app image.
+ *
+ * Selected by passing idfxx::ota::skip_validation.
  *
  * @param part Partition containing the app image to boot.
  *
