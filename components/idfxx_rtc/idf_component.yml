@@ -1,0 +1,11 @@
+version: "1.0.0"
+description: "Abstract interface for external real-time-clock chips"
+url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_rtc"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../idfxx_core

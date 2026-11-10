@@ -23,6 +23,7 @@ idfxx is a family of independently installable components covering:
 - **[Peripherals](components/README.md#peripherals):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons, rotary encoders, NVS, flash partitions, and OTA updates
 - **[Displays](components/README.md#displays):** LCD and e-paper panels, touch controllers, drawing primitives, bitmap fonts, and JPEG images
 - **[Sensors](components/README.md#sensors):** temperature and humidity sensors
+- **[Real-time clocks](components/README.md#real-time-clocks):** external RTC chips, with alarms and timers
 - **[Application protocols](components/README.md#application-protocols):** HTTP client, and HTTP and HTTPS servers
 
 The [component catalog](components/README.md) lists every component with a description and links

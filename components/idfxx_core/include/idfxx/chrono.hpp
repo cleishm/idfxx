@@ -13,16 +13,22 @@
  * @defgroup idfxx_core_chrono Chrono Utilities
  * @brief std::chrono clocks and FreeRTOS tick conversions.
  *
- * Provides utilities for converting `std::chrono::duration` to FreeRTOS ticks, and
- * std::chrono-compatible clocks over the FreeRTOS tick count and the RTC timer.
+ * Provides utilities for converting `std::chrono::duration` to FreeRTOS ticks,
+ * std::chrono-compatible clocks over the FreeRTOS tick count and the RTC timer, and
+ * setting the system wall-clock time.
  * @{
  */
+
+#include "sdkconfig.h"
+
+#include <idfxx/error>
 
 #include <chrono>
 #include <cstdint>
 #include <esp_rtc_time.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <system_error>
 
 /**
  * @brief ESP-IDF C++ chrono utilities.
@@ -129,6 +135,70 @@ struct rtc_clock {
         return time_point{duration{static_cast<rep>(esp_rtc_get_time_us())}};
     }
 };
+
+// =============================================================================
+// System time
+// =============================================================================
+
+/** @cond INTERNAL */
+namespace detail {
+[[nodiscard]] result<void> try_set_system_time_us(std::chrono::sys_time<std::chrono::microseconds> us);
+} // namespace detail
+/** @endcond */
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+/**
+ * @headerfile <idfxx/chrono>
+ * @brief Sets the system wall-clock time.
+ *
+ * Sets the time reported by `std::chrono::system_clock`, `time()` and `gettimeofday()`.
+ * The time is truncated to whole microseconds, rounding toward the past. The new time takes
+ * effect immediately and does not survive a reset; to keep time across power loss,
+ * restore it at boot from a battery-backed source such as an external real-time clock.
+ *
+ * @tparam Duration The duration type of the time point; any `std::chrono` duration.
+ * @param t The new wall-clock time (UTC), no earlier than 1970-01-01T00:00:00.
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+ * @throws std::system_error with `idfxx::errc::invalid_arg` if @p t is before 1970, or
+ *         with an error code in `std::generic_category()` holding the `errno` value
+ *         (`idfxx::errc::fail` if none was reported) if the time cannot be set.
+ *
+ * @code
+ * // At boot, restore the system time from a battery-backed real-time clock
+ * idfxx::chrono::set_system_time(rtc.now());
+ * @endcode
+ */
+template<typename Duration>
+void set_system_time(std::chrono::sys_time<Duration> t);
+#endif
+
+/**
+ * @headerfile <idfxx/chrono>
+ * @brief Sets the system wall-clock time.
+ *
+ * Sets the time reported by `std::chrono::system_clock`, `time()` and `gettimeofday()`.
+ * The time is truncated to whole microseconds, rounding toward the past. The new time takes
+ * effect immediately and does not survive a reset; to keep time across power loss,
+ * restore it at boot from a battery-backed source such as an external real-time clock.
+ *
+ * @tparam Duration The duration type of the time point; any `std::chrono` duration.
+ * @param t The new wall-clock time (UTC), no earlier than 1970-01-01T00:00:00.
+ * @return Success, or an error.
+ * @retval idfxx::errc::invalid_arg @p t is before 1970.
+ * @retval std::generic_category() The time cannot be set; the code holds the `errno`
+ *         value (`idfxx::errc::fail` if none was reported).
+ */
+template<typename Duration>
+[[nodiscard]] result<void> try_set_system_time(std::chrono::sys_time<Duration> t) {
+    return detail::try_set_system_time_us(std::chrono::floor<std::chrono::microseconds>(t));
+}
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+template<typename Duration>
+void set_system_time(std::chrono::sys_time<Duration> t) {
+    unwrap(try_set_system_time(t));
+}
+#endif
 
 } // namespace idfxx::chrono
 
