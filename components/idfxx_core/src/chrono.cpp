@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-#include "errno_error.hpp"
-
 #include <idfxx/chrono>
 
 #include <cerrno>
 #include <sys/time.h>
+#include <system_error>
 
 namespace idfxx::chrono::detail {
 
@@ -20,9 +19,15 @@ result<void> try_set_system_time_us(std::chrono::sys_time<std::chrono::microseco
         .tv_sec = static_cast<time_t>(s.time_since_epoch().count()),
         .tv_usec = static_cast<suseconds_t>((us - s).count()),
     };
+    // Clear errno so a stale value from an earlier call is not reported as
+    // the cause of a failure that set none.
     errno = 0;
     if (settimeofday(&tv, nullptr) != 0) {
-        return idfxx::detail::errno_error();
+        const int err = errno;
+        if (err == 0) {
+            return error(errc::fail);
+        }
+        return error(std::error_code(err, std::generic_category()));
     }
     return {};
 }
