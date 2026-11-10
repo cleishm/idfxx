@@ -220,7 +220,9 @@ public:
      *
      * @return A new flags object with all bits inverted.
      */
-    [[nodiscard]] constexpr flags operator~() const noexcept { return flags{static_cast<underlying>(~bits)}; }
+    [[nodiscard]] constexpr flags operator~() const noexcept {
+        return flags{static_cast<underlying>(~bits)};
+    }
 
     /**
      * @brief Checks if all specified flags are set.
@@ -245,7 +247,9 @@ public:
      *
      * @return True if any specified flags are set, false otherwise.
      */
-    [[nodiscard]] constexpr bool contains_any(flags other) const noexcept { return (bits & other.bits) != 0; }
+    [[nodiscard]] constexpr bool contains_any(flags other) const noexcept {
+        return (bits & other.bits) != 0;
+    }
 
     /**
      * @brief Checks if no flags are set.
@@ -275,7 +279,9 @@ public:
      *
      * @return True if this flags object equals the single enum value.
      */
-    [[nodiscard]] constexpr bool operator==(E e) const noexcept { return bits == std::to_underlying(e); }
+    [[nodiscard]] constexpr bool operator==(E e) const noexcept {
+        return bits == std::to_underlying(e);
+    }
 };
 
 /**

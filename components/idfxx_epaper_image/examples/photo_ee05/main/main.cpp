@@ -50,7 +50,8 @@ static void show_full_screen(epaper::panel& panel, std::span<const uint8_t> jpeg
     epaper::write_image(panel, epaper::calibration::gdey075t7_gray4(), decoder);
 }
 
-// 3. Writes the whole photo inside a rectangle over the first one, with a caption drawn over its bottom edge.
+// 3. Writes the whole photo inside a rectangle over the first one, with a caption drawn over its
+// bottom edge.
 static void show_in_rectangle(epaper::panel& panel, std::span<const uint8_t> jpeg) {
     idfxx::memory_source source{jpeg};
     idfxx::jpeg::decoder decoder(source);
@@ -59,11 +60,13 @@ static void show_in_rectangle(epaper::panel& panel, std::span<const uint8_t> jpe
     const image::rect frame{.x = 400, .y = 120, .width = 360, .height = 240};
     const image::placement where{
         .target = frame,
-        .layout = image::layout::fit, // all of the photo, with white where it doesn't reach the frame
+        // all of the photo, with white where it doesn't reach the frame
+        .layout = image::layout::fit,
     };
 
-    // The overlay is called with each band just before it is written. It draws in screen coordinates, and the
-    // canvas clips to the band, so the caption appears in whichever bands it falls in.
+    // The overlay is called with each band just before it is written. It draws in screen
+    // coordinates, and the canvas clips to the band, so the caption appears in whichever bands it
+    // falls in.
     epaper::write_image<epaper::gray4_framebuffer>(
         panel,
         epaper::calibration::gdey075t7_gray4(),
@@ -71,9 +74,15 @@ static void show_in_rectangle(epaper::panel& panel, std::span<const uint8_t> jpe
         where,
         [&](epaper::gray4_framebuffer& band, size_t x, size_t y) {
             idfxx::gfx::canvas canvas(band, x, y);
-            canvas.fill_rect(frame.x, frame.y + frame.height - 20, frame.width, 20, epaper::gray4::white);
+            canvas.fill_rect(
+                frame.x, frame.y + frame.height - 20, frame.width, 20, epaper::gray4::white
+            );
             canvas.draw_text(
-                idfxx::font::spleen_8x16, frame.x + 4, frame.y + frame.height - 18, "idfxx", epaper::gray4::black
+                idfxx::font::spleen_8x16,
+                frame.x + 4,
+                frame.y + frame.height - 18,
+                "idfxx",
+                epaper::gray4::black
             );
         }
     );

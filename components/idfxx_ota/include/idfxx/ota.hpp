@@ -360,7 +360,8 @@ public:
      * @retval idfxx::errc::invalid_arg if erase_size is a reserved sentinel value.
      * @retval ota::errc::partition_conflict if the partition is the currently running partition.
      */
-    [[nodiscard]] static result<update> try_resume(const partition& part, size_t offset, size_t erase_size);
+    [[nodiscard]] static result<update>
+    try_resume(const partition& part, size_t offset, size_t erase_size);
 
     /**
      * @brief Resumes an interrupted OTA update with sequential (incremental) flash erase.
@@ -376,7 +377,8 @@ public:
      * @return The resumed update session, or an error.
      * @retval ota::errc::partition_conflict if the partition is the currently running partition.
      */
-    [[nodiscard]] static result<update> try_resume(const partition& part, size_t offset, sequential_erase_tag);
+    [[nodiscard]] static result<update>
+    try_resume(const partition& part, size_t offset, sequential_erase_tag);
 
     ~update();
 
@@ -420,7 +422,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_final_partition(const partition& final_part, bool copy = true);
+    [[nodiscard]] result<void>
+    try_set_final_partition(const partition& final_part, bool copy = true);
 
     // =========================================================================
     // Write
@@ -511,7 +514,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_with_offset(uint32_t offset, const void* data, size_t size);
+    [[nodiscard]] result<void>
+    try_write_with_offset(uint32_t offset, const void* data, size_t size);
 
     /**
      * @brief Writes data at a specific offset in the OTA partition.
@@ -524,7 +528,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_with_offset(uint32_t offset, std::span<const uint8_t> data);
+    [[nodiscard]] result<void>
+    try_write_with_offset(uint32_t offset, std::span<const uint8_t> data);
 
     // =========================================================================
     // End / Abort
@@ -722,7 +727,8 @@ void check_image_validity(enum partition::type type, std::span<const uint8_t> im
  *
  * @note Requires ESP-IDF 6.1 or later.
  */
-[[nodiscard]] result<void> try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
+[[nodiscard]] result<void>
+try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
 #endif
 
 /**
@@ -788,7 +794,7 @@ void check_image_validity(enum partition::type type, std::span<const uint8_t> im
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Marks the running app as valid, cancelling any pending rollback.
+ * @brief Marks the running app as valid, canceling any pending rollback.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on failure.
@@ -819,7 +825,7 @@ void mark_valid();
 #endif
 
 /**
- * @brief Marks the running app as valid, cancelling any pending rollback.
+ * @brief Marks the running app as valid, canceling any pending rollback.
  *
  * @return Success, or an error.
  */
@@ -951,7 +957,8 @@ void invalidate_inactive_ota_data_slot();
 
 /**
  * @headerfile <idfxx/ota>
- * @brief Creates an unexpected error from an ESP-IDF error code, mapping to OTA error codes where possible.
+ * @brief Creates an unexpected error from an ESP-IDF error code, mapping to OTA error codes where
+ * possible.
  *
  * Converts the ESP-IDF error code to an OTA-specific error code if a mapping exists,
  * otherwise falls back to the default IDFXX error category.

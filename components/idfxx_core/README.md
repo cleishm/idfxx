@@ -1,6 +1,7 @@
 # idfxx_core
 
-Core utilities for the idfxx component family, providing foundational error handling, memory allocators, and chrono utilities for modern C++ ESP-IDF development.
+Core utilities for the idfxx component family, providing foundational error handling, memory
+allocators, and chrono utilities for modern C++ ESP-IDF development.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__core.html)**
 
@@ -8,7 +9,8 @@ Core utilities for the idfxx component family, providing foundational error hand
 
 - **Result-based error handling** with `idfxx::result<T>` (C++23 `std::expected`)
 - **ESP-IDF error code integration** via `idfxx::errc` enum
-- **Chrono utilities** — FreeRTOS tick conversions, `std::chrono` clocks over the tick count and the RTC timer, setting the system wall-clock time, and a `picoseconds` duration alias
+- **Chrono utilities** — FreeRTOS tick conversions, `std::chrono` clocks over the tick count and the
+  RTC timer, setting the system wall-clock time, and a `picoseconds` duration alias
 - **Scheduling utilities** — `delay()`, `delay_until()`, `delay(next_tick)`, `yield()`
 - **Memory utilities** — capability flags, allocators, heap queries, walking, integrity checking
 - **System information** — reset reason, restart, shutdown handlers
@@ -16,8 +18,8 @@ Core utilities for the idfxx component family, providing foundational error hand
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
   in-memory and `FILE*` sources
-- **Required config fields** — `required<T>` makes a configuration-struct field mandatory at
-  compile time
+- **Required config fields** — `required<T>` makes a configuration-struct field mandatory at compile
+  time
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
 
 ## Requirements
@@ -62,7 +64,9 @@ if (result) {
 }
 ```
 
-Codes with a standard POSIX equivalent (`invalid_arg`, `not_supported`, `timeout`, `not_allowed`) also compare equal to the matching `std::errc` value, so portable checks such as `result.error() == std::errc::timed_out` work across components.
+Codes with a standard POSIX equivalent (`invalid_arg`, `not_supported`, `timeout`, `not_allowed`)
+also compare equal to the matching `std::errc` value, so portable checks such as
+`result.error() == std::errc::timed_out` work across components.
 
 ### Chrono Utilities
 
@@ -78,9 +82,9 @@ xQueueReceive(queue, &item, timeout);
 
 ### RTC Clock
 
-`rtc_clock` counts from the last power-on reset and keeps running through deep sleep and
-every other kind of reset, so time points survive where `std::chrono::steady_clock` (which
-restarts at every boot) does not:
+`rtc_clock` counts from the last power-on reset and keeps running through deep sleep and every other
+kind of reset, so time points survive where `std::chrono::steady_clock` (which restarts at every
+boot) does not:
 
 ```cpp
 #include <idfxx/chrono>
@@ -193,10 +197,9 @@ bool ok = memory::check_integrity();
 
 ### Byte Sources
 
-`idfxx::byte_source` is satisfied by anything with
-`result<size_t> try_read(std::span<uint8_t>)`, so a consumer written against it accepts
-in-memory data, files, partitions (`idfxx::partition_source`), network streams, and HTTP
-response bodies alike:
+`idfxx::byte_source` is satisfied by anything with `result<size_t> try_read(std::span<uint8_t>)`, so
+a consumer written against it accepts in-memory data, files, partitions (`idfxx::partition_source`),
+network streams, and HTTP response bodies alike:
 
 ```cpp
 #include <idfxx/byte_source>
@@ -259,10 +262,10 @@ sensor_config bad{.retries = 5}; // compile error: settle_time is required
 ```
 
 A braced list does not initialize a `required<T>` directly; name the type instead, as in
-`.pins = std::vector<idfxx::gpio>{...}`. The value is read with `get()`, `*`, `->`, or the
-implicit conversion to `const T&`; `get()` and `*` return a mutable reference on a non-const
-`required<T>` and an rvalue reference on an rvalue, so a move-only value such as a
-`std::move_only_function` can be moved out with `std::move(cfg.callback).get()`.
+`.pins = std::vector<idfxx::gpio>{...}`. The value is read with `get()`, `*`, `->`, or the implicit
+conversion to `const T&`; `get()` and `*` return a mutable reference on a non-const `required<T>`
+and an rvalue reference on an rvalue, so a move-only value such as a `std::move_only_function` can
+be moved out with `std::move(cfg.callback).get()`.
 
 ## API Overview
 
@@ -272,7 +275,8 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 - `errc` - Enum of ESP-IDF compatible error codes
 - `error(errc)` - Create `std::unexpected` from an error code enum
 - `error(esp_err_t)` - Create `std::unexpected` from an ESP-IDF error code
-- `error(std::error_code)` - Create `std::unexpected` from a `std::error_code` (for error propagation)
+- `error(std::error_code)` - Create `std::unexpected` from a `std::error_code` (for error
+  propagation)
 - `unwrap(result)` - Extract value or throw `std::system_error` (requires exceptions)
 
 ### Chrono Utilities (`<idfxx/chrono>`)
@@ -280,8 +284,10 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 - `picoseconds` - `std::chrono::duration` with picosecond resolution
 - `ticks(duration)` - Convert `std::chrono::duration` to `TickType_t`
 - `tick_clock` - `std::chrono` clock over the FreeRTOS tick count
-- `rtc_clock` - `std::chrono` clock over the RTC timer: microsecond resolution, counts from power-on, keeps running through deep sleep and resets
-- `set_system_time(time_point)` / `try_set_system_time(time_point)` - Set the system wall-clock time (`std::chrono::system_clock`), truncated to microseconds
+- `rtc_clock` - `std::chrono` clock over the RTC timer: microsecond resolution, counts from
+  power-on, keeps running through deep sleep and resets
+- `set_system_time(time_point)` / `try_set_system_time(time_point)` - Set the system wall-clock time
+  (`std::chrono::system_clock`), truncated to microseconds
 
 ### Scheduling (`<idfxx/sched>`)
 
@@ -293,7 +299,8 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 
 ### Memory (`<idfxx/memory>`)
 
-- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`,
+  `dma`, `dram`, etc.)
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
 - `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
@@ -306,7 +313,8 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 - `free(ptr)` - Free memory allocated by allocation functions
 - `aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
 - `aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
-- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`, `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`,
+  `dma`, `dram`, etc.)
 - `memory::info` - Struct containing heap region statistics
 - `memory::total_size(caps)` - Total size of heap regions matching capabilities
 - `memory::free_size(caps)` - Current free size of matching heap regions
@@ -342,18 +350,21 @@ implicit conversion to `const T&`; `get()` and `*` return a mutable reference on
 
 ### Byte Sources (`<idfxx/byte_source>`)
 
-- `byte_source` - Concept for types with `try_read(std::span<uint8_t>)` → `result<size_t>`;
-  returns the bytes read, with 0 (for a non-empty buffer) meaning end of stream, after which
-  callers stop reading
-- `memory_source` - Reads a caller-owned `std::span<const uint8_t>`; `remaining()` reports the bytes left
+- `byte_source` - Concept for types with `try_read(std::span<uint8_t>)` → `result<size_t>`; returns
+  the bytes read, with 0 (for a non-empty buffer) meaning end of stream, after which callers stop
+  reading
+- `memory_source` - Reads a caller-owned `std::span<const uint8_t>`; `remaining()` reports the bytes
+  left
 - `file_source` - Reads an open `FILE*` (not owned) from its current position
 - `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
 
 ### Required Fields (`<idfxx/required>`)
 
 - `required<T>` - Holds a `T` with no default constructor; initialized from any value implicitly
-  convertible to `T` without narrowing (an integer constant that fits in an integral `T` is accepted)
-- `get()` / `*` / `->` - Access the stored value (const, mutable, or rvalue to match the `required<T>`)
+  convertible to `T` without narrowing (an integer constant that fits in an integral `T` is
+  accepted)
+- `get()` / `*` / `->` - Access the stored value (const, mutable, or rvalue to match the
+  `required<T>`)
 - Implicit conversion to `const T&`
 - `==` / `!=` - Compare with another `required<T>` or with any value `T` compares equal to
 
@@ -367,7 +378,8 @@ The `idfxx::errc` enum provides common error codes compatible with ESP-IDF:
 - `timeout` - Operation timed out
 - And more...
 
-See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.html) for complete API reference.
+See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.html) for complete
+API reference.
 
 ## Important Notes
 
@@ -375,29 +387,28 @@ See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__core.
 - `result<T>` is the standard return type for fallible operations across idfxx
 - Memory allocators are stateless and can be used with standard containers
 - Chrono conversions handle overflow by clamping to `portMAX_DELAY`
-- **`rtc_clock` accuracy follows the RTC slow clock source**: the default internal RC
-  oscillator drifts with temperature, so long intervals measured across sleep drift with it.
-  Select an external 32 kHz crystal in the project configuration when timing across sleep
-  needs to be accurate
+- **`rtc_clock` accuracy follows the RTC slow clock source**: the default internal RC oscillator
+  drifts with temperature, so long intervals measured across sleep drift with it. Select an external
+  32 kHz crystal in the project configuration when timing across sleep needs to be accurate
 - **`delay()` busy-waits below one tick**: durations shorter than the scheduler tick
-  (`1 / CONFIG_FREERTOS_HZ`, 10 ms by default) spin the CPU for precision instead of blocking.
-  Never use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which
-  always blocks until the next tick. Longer delays block and never return early, but may
-  overshoot by up to one tick
+  (`1 / CONFIG_FREERTOS_HZ`, 10 ms by default) spin the CPU for precision instead of blocking. Never
+  use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which always
+  blocks until the next tick. Longer delays block and never return early, but may overshoot by up to
+  one tick
 - **Heap exhaustion is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
-  `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. It is never
-  returned as a recoverable error in `result<T>`. An `ESP_ERR_NO_MEM` that means a fixed-size
-  resource is used up (a full table, no free handle) is not heap exhaustion, and is reported as
-  an ordinary error. Use the ESP-IDF and FreeRTOS APIs directly if you need to handle potential
-  out-of-memory conditions gracefully.
-- **Heap walkers run under the heap lock**: the callback passed to `memory::walk()` runs with
-  the heap's lock held, inside a critical section, so it must not allocate or free memory,
-  block, or throw
-- **Byte sources do not own what they read**: the buffer behind a `memory_source` must stay
-  valid and unchanged, and the `FILE*` behind a `file_source` must stay open, for as long as
-  the source is read from. A short read does not mean the end of the stream — only a return of
-  0 for a non-empty buffer does. Once a source has returned that 0, stop reading: the result of
-  further reads is unspecified (some sources keep returning 0, others return an error)
+  `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. It is never returned
+  as a recoverable error in `result<T>`. An `ESP_ERR_NO_MEM` that means a fixed-size resource is
+  used up (a full table, no free handle) is not heap exhaustion, and is reported as an ordinary
+  error. Use the ESP-IDF and FreeRTOS APIs directly if you need to handle potential out-of-memory
+  conditions gracefully.
+- **Heap walkers run under the heap lock**: the callback passed to `memory::walk()` runs with the
+  heap's lock held, inside a critical section, so it must not allocate or free memory, block, or
+  throw
+- **Byte sources do not own what they read**: the buffer behind a `memory_source` must stay valid
+  and unchanged, and the `FILE*` behind a `file_source` must stay open, for as long as the source is
+  read from. A short read does not mean the end of the stream — only a return of 0 for a non-empty
+  buffer does. Once a source has returned that 0, stop reading: the result of further reads is
+  unspecified (some sources keep returning 0, others return an error)
 
 ## License
 

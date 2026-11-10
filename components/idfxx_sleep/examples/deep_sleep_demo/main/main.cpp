@@ -46,7 +46,10 @@ extern "C" void app_main() {
             break;
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
         case idfxx::sleep::wakeup_source::ext1:
-            logger.info("woke from deep sleep on button (ext1 status {:#x})", idfxx::sleep::ext1_wakeup_status());
+            logger.info(
+                "woke from deep sleep on button (ext1 status {:#x})",
+                idfxx::sleep::ext1_wakeup_status()
+            );
             break;
 #endif
         case idfxx::sleep::wakeup_source::gpio:
@@ -67,7 +70,9 @@ extern "C" void app_main() {
     // pull-up enabled during deep sleep, so the pin idles high and a press
     // pulls it low.
     idfxx::sleep::deep_sleep(
-        idfxx::sleep::deep_sleep_gpio_wake{{WAKE_PIN}, idfxx::sleep::deep_sleep_gpio_mode::wake_low},
+        idfxx::sleep::deep_sleep_gpio_wake{
+            {WAKE_PIN}, idfxx::sleep::deep_sleep_gpio_mode::wake_low
+        },
         idfxx::sleep::timer_wake{SLEEP_INTERVAL}
     );
 #elif SOC_PM_SUPPORT_EXT1_WAKEUP
@@ -80,7 +85,9 @@ extern "C" void app_main() {
 #else
     constexpr auto ext1_low = idfxx::sleep::ext1_mode::any_low;
 #endif
-    idfxx::sleep::deep_sleep(idfxx::sleep::ext1_wake{{WAKE_PIN}, ext1_low}, idfxx::sleep::timer_wake{SLEEP_INTERVAL});
+    idfxx::sleep::deep_sleep(
+        idfxx::sleep::ext1_wake{{WAKE_PIN}, ext1_low}, idfxx::sleep::timer_wake{SLEEP_INTERVAL}
+    );
 #else
     idfxx::sleep::deep_sleep(SLEEP_INTERVAL);
 #endif

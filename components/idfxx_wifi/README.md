@@ -39,9 +39,9 @@ Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ### Quick Station Connect
 
-`connect_sta` composes the common station bring-up — it enables the station
-role, applies the configuration, starts WiFi, connects, and blocks until an
-IPv4 address is acquired (or the timeout elapses):
+`connect_sta` composes the common station bring-up — it enables the station role, applies the
+configuration, starts WiFi, connects, and blocks until an IPv4 address is acquired (or the timeout
+elapses):
 
 ```cpp
 #include <idfxx/wifi>
@@ -63,8 +63,8 @@ auto ip = idfxx::wifi::connect_sta({
 
 ### Basic Station Example
 
-For full control over the sequence, use the step-by-step API. If
-`CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
+For full control over the sequence, use the step-by-step API. If `CONFIG_COMPILER_CXX_EXCEPTIONS` is
+enabled:
 
 ```cpp
 #include <idfxx/wifi>
@@ -223,7 +223,8 @@ idfxx::wifi::scan_start({.channel = 6, .show_hidden = true});
 ## API Overview
 
 The component provides two API styles:
-- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) — functions throw `std::system_error` on error
+- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) — functions throw
+  `std::system_error` on error
 - **Result-based API** (always available) — functions prefixed with `try_*` return `result<T>`
 
 All functions listed below have a corresponding `try_*` variant that returns `result<T>`.
@@ -232,33 +233,49 @@ All functions listed below have a corresponding `try_*` variant that returns `re
 
 `init(init_config)`, `deinit()`, `start()`, `stop()`, `restore()`
 
-`init_config` also exposes `privacy_enhancements` and `rmac_auto_reset_interval` (1-24 hours) for station privacy; these are available on ESP-IDF 6.1 and later only.
+`init_config` also exposes `privacy_enhancements` and `rmac_auto_reset_interval` (1-24 hours) for
+station privacy; these are available on ESP-IDF 6.1 and later only.
 
 ### Roles & Configuration
 
-`set_roles(flags<role>)` / `get_roles()`, `set_sta_config(sta_config)` / `get_sta_config()`, `set_ap_config(ap_config)` / `get_ap_config()`
+`set_roles(flags<role>)` / `get_roles()`, `set_sta_config(sta_config)` / `get_sta_config()`,
+`set_ap_config(ap_config)` / `get_ap_config()`
 
 ### Connection
 
-`connect()`, `connect_sta(sta_config, timeout)` (composed bring-up, returns the acquired IPv4 info), `disconnect()`, `deauth_sta(aid)`, `get_sta_list()`, `ap_get_sta_aid(mac)`, `sta_get_aid()`, `get_negotiated_phymode()`, `get_ap_info()`
+`connect()`, `connect_sta(sta_config, timeout)` (composed bring-up, returns the acquired IPv4 info),
+`disconnect()`, `deauth_sta(aid)`, `get_sta_list()`, `ap_get_sta_aid(mac)`, `sta_get_aid()`,
+`get_negotiated_phymode()`, `get_ap_info()`
 
 ### Scanning
 
-`scan(scan_config)` (blocking), `scan_start(scan_config)` / `scan_get_results()` (non-blocking), `scan_stop()`, `scan_get_ap_num()`, `clear_ap_list()`, `set_scan_parameters(scan_default_params)` / `get_scan_parameters()`
+`scan(scan_config)` (blocking), `scan_start(scan_config)` / `scan_get_results()` (non-blocking),
+`scan_stop()`, `scan_get_ap_num()`, `clear_ap_list()`, `set_scan_parameters(scan_default_params)` /
+`get_scan_parameters()`
 
 ### Network Configuration
 
-`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` / `get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` / `get_channel()`, `set_max_tx_power(quanta::electro::centi_dbm)` / `get_max_tx_power()`, `set_rssi_threshold(quanta::electro::dbm)` / `get_rssi()`, `set_country(country_config)` / `get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`, `set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`, `set_storage(storage)`
+`set_power_save(power_save)` / `get_power_save()`, `set_bandwidth(role, bandwidth)` /
+`get_bandwidth(role)`, `set_mac(role, mac)` / `get_mac(role)`, `set_channel(primary, second)` /
+`get_channel()`, `set_max_tx_power(quanta::electro::centi_dbm)` / `get_max_tx_power()`,
+`set_rssi_threshold(quanta::electro::dbm)` / `get_rssi()`, `set_country(country_config)` /
+`get_country()`, `set_country_code(string_view, ieee80211d_enabled)` / `get_country_code()`,
+`set_protocol(role, flags<protocol>)` / `get_protocol(role)`, `set_band(band)` / `get_band()`,
+`set_storage(storage)`
 
 ### Advanced Features
 
-- **Promiscuous mode**: `set_promiscuous(bool)`, `set_promiscuous_rx_cb(callback)`, `set_promiscuous_filter(flags)` / `set_promiscuous_ctrl_filter(flags)`
-- **CSI**: `set_csi(bool)`, `set_csi_config(csi_config)`, `set_csi_rx_cb(callback, ctx)` (fields of `csi_config` vary by target: Wi-Fi 4/5 vs Wi-Fi 6 HE)
-- **FTM**: `ftm_initiate_session(config)`, `ftm_end_session()`, `ftm_resp_set_offset(quanta::spatial::centimeters)`, `ftm_get_report(max_entries)`
+- **Promiscuous mode**: `set_promiscuous(bool)`, `set_promiscuous_rx_cb(callback)`,
+  `set_promiscuous_filter(flags)` / `set_promiscuous_ctrl_filter(flags)`
+- **CSI**: `set_csi(bool)`, `set_csi_config(csi_config)`, `set_csi_rx_cb(callback, ctx)` (fields of
+  `csi_config` vary by target: Wi-Fi 4/5 vs Wi-Fi 6 HE)
+- **FTM**: `ftm_initiate_session(config)`, `ftm_end_session()`,
+  `ftm_resp_set_offset(quanta::spatial::centimeters)`, `ftm_get_report(max_entries)`
 - **Raw 802.11**: `tx_80211(role, span, en_sys_seq)`, `register_80211_tx_cb(callback)`
 - **Vendor IE**: `set_vendor_ie(enable, type, id, data)`, `set_vendor_ie_cb(callback, ctx)`
 
-See the [full API documentation](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) for complete details.
+See the [full API documentation](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) for
+complete details.
 
 ## Error Handling
 
@@ -295,10 +312,14 @@ The `idfxx::wifi::errc` enum provides WiFi-specific error codes:
 
 WiFi and IP events are available via the idfxx event loop using type-safe typed events:
 
-- `wifi::events` — WiFi event base (station start/stop, connect/disconnect, scan, AP events, FTM, TWT, NAN)
-- `netif::ip_events` — IP event base (got IP, lost IP, AP station IP assigned, got IPv6) — defined in `idfxx_netif`
+- `wifi::events` — WiFi event base (station start/stop, connect/disconnect, scan, AP events, FTM,
+  TWT, NAN)
+- `netif::ip_events` — IP event base (got IP, lost IP, AP station IP assigned, got IPv6) — defined
+  in `idfxx_netif`
 
-Typed event constants (e.g., `wifi::sta_connected`, `netif::sta_got_ip4`) pair an event ID with its data type, enabling type-safe listener registration where callbacks receive the correct data type directly:
+Typed event constants (e.g., `wifi::sta_connected`, `netif::sta_got_ip4`) pair an event ID with its
+data type, enabling type-safe listener registration where callbacks receive the correct data type
+directly:
 
 ```cpp
 // WiFi events with data - callback receives const reference
@@ -315,14 +336,25 @@ loop.listener_add(netif::sta_got_ip4,
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs. Exception-based functions require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
-- **Procedural API**: WiFi is managed through namespace-level free functions rather than class instances, reflecting the global nature of the WiFi subsystem.
-- **Prerequisites**: Create the system event loop before using WiFi functions. Most applications will also need to initialize `idfxx::netif::init()` and create the appropriate default netif (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
+- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs.
+  Exception-based functions require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
+- **Procedural API**: WiFi is managed through namespace-level free functions rather than class
+  instances, reflecting the global nature of the WiFi subsystem.
+- **Prerequisites**: Create the system event loop before using WiFi functions. Most applications
+  will also need to initialize `idfxx::netif::init()` and create the appropriate default netif
+  (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
-- **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `quanta::electro` levels (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power in 0.25 dBm steps (`quanta::electro::centi_dbm` carries the exact value), and may clamp to a lower supported level, so the value read back can differ from the value set.
-- **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep processing minimal or defer work to another task.
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a promiscuous-mode, vendor IE, or CSI callback is logged and otherwise ignored, and WiFi keeps delivering later packets and records
-- **FTM support**: Requires both initiator and responder to support FTM. Check `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.
+- **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `quanta::electro` levels
+  (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power
+  in 0.25 dBm steps (`quanta::electro::centi_dbm` carries the exact value), and may clamp to a lower
+  supported level, so the value read back can differ from the value set.
+- **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep
+  processing minimal or defer work to another task.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a promiscuous-mode,
+  vendor IE, or CSI callback is logged and otherwise ignored, and WiFi keeps delivering later
+  packets and records
+- **FTM support**: Requires both initiator and responder to support FTM. Check
+  `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.
 
 ## License
 

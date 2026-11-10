@@ -108,7 +108,7 @@ public:
      * Each element is a `std::span<const std::byte>` referencing one segment of
      * the received data, in order. Iteration does not modify the buffer, so the
      * range may be traversed more than once and the buffer remains usable
-     * afterwards.
+     * afterward.
      *
      * Obtained from `buffer::segments()`; not constructed directly.
      */
@@ -141,7 +141,9 @@ public:
             }
 
             /// @brief Compares two iterators; equal iff they reference the same segment.
-            [[nodiscard]] bool operator==(const iterator& other) const noexcept { return _seg == other._seg; }
+            [[nodiscard]] bool operator==(const iterator& other) const noexcept {
+                return _seg == other._seg;
+            }
 
         private:
             friend class segment_view;
@@ -249,7 +251,8 @@ private:
 // temporary's segments through a view adaptor — `buf.segments() | views::…` —
 // does not dangle.
 template<>
-inline constexpr bool std::ranges::enable_borrowed_range<idfxx::net::netconn::buffer::segment_view> = true;
+inline constexpr bool
+    std::ranges::enable_borrowed_range<idfxx::net::netconn::buffer::segment_view> = true;
 /// @endcond
 
 /** @} */ // end of idfxx_net_netconn_buffer

@@ -15,8 +15,11 @@ const char* TAG = "idfxx::lcd";
 
 namespace idfxx::lcd::detail {
 
-result<esp_lcd_panel_handle_t>
-make_panel_handle(panel_factory factory, esp_lcd_panel_io_handle_t io_handle, const panel::config& cfg) {
+result<esp_lcd_panel_handle_t> make_panel_handle(
+    panel_factory factory,
+    esp_lcd_panel_io_handle_t io_handle,
+    const panel::config& cfg
+) {
     // The field order of esp_lcd_panel_dev_config_t differs between IDF 5.5
     // and 6.0, so assign member-wise rather than using designated initializers.
     esp_lcd_panel_dev_config_t panel_config{};
@@ -24,7 +27,8 @@ make_panel_handle(panel_factory factory, esp_lcd_panel_io_handle_t io_handle, co
     panel_config.rgb_ele_order = static_cast<lcd_rgb_element_order_t>(cfg.rgb_element_order);
     panel_config.data_endian = static_cast<lcd_rgb_data_endian_t>(cfg.data_endian);
     panel_config.bits_per_pixel = cfg.bits_per_pixel;
-    panel_config.flags.reset_active_high = static_cast<unsigned int>(std::to_underlying(cfg.reset_active_level));
+    panel_config.flags.reset_active_high =
+        static_cast<unsigned int>(std::to_underlying(cfg.reset_active_level));
     panel_config.vendor_config = cfg.vendor_config;
 
     esp_lcd_panel_handle_t handle = nullptr;

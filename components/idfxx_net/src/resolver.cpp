@@ -61,7 +61,12 @@ using addrinfo_ptr = std::unique_ptr<addrinfo, addrinfo_deleter>;
 // Iterates getaddrinfo results, calling `sink(endpoint)` for each. Sink returns
 // true to keep iterating, false to stop early.
 template<typename Sink>
-result<void> for_each_addrinfo(const char* host, const char* service, const resolver_options& opts, Sink&& sink) {
+result<void> for_each_addrinfo(
+    const char* host,
+    const char* service,
+    const resolver_options& opts,
+    Sink&& sink
+) {
     addrinfo hints{};
     fill_hints(hints, opts);
 
@@ -104,7 +109,8 @@ template<size_t N>
     return true;
 }
 
-result<std::vector<endpoint>> resolve_all(const char* host, const char* service, const resolver_options& opts) {
+result<std::vector<endpoint>>
+resolve_all(const char* host, const char* service, const resolver_options& opts) {
     std::vector<endpoint> out;
     auto r = for_each_addrinfo(host, service, opts, [&out](endpoint ep) {
         out.push_back(ep);
@@ -116,7 +122,8 @@ result<std::vector<endpoint>> resolve_all(const char* host, const char* service,
     return out;
 }
 
-result<endpoint> resolve_first(const char* host, const char* service, const resolver_options& opts) {
+result<endpoint>
+resolve_first(const char* host, const char* service, const resolver_options& opts) {
     std::optional<endpoint> first;
     auto r = for_each_addrinfo(host, service, opts, [&first](endpoint ep) {
         first = ep;
@@ -133,7 +140,8 @@ result<endpoint> resolve_first(const char* host, const char* service, const reso
 
 } // namespace
 
-result<std::vector<endpoint>> try_resolve(std::string_view host, port_number port, const resolver_options& opts) {
+result<std::vector<endpoint>>
+try_resolve(std::string_view host, port_number port, const resolver_options& opts) {
     char host_buf[host_buf_size];
     if (!copy_to_cstr(host, host_buf)) {
         return error(errc::invalid_argument);
@@ -155,7 +163,8 @@ try_resolve(std::string_view host, std::string_view service, const resolver_opti
     return resolve_all(host_buf, service_buf, opts);
 }
 
-result<endpoint> try_resolve_one(std::string_view host, port_number port, const resolver_options& opts) {
+result<endpoint>
+try_resolve_one(std::string_view host, port_number port, const resolver_options& opts) {
     char host_buf[host_buf_size];
     if (!copy_to_cstr(host, host_buf)) {
         return error(errc::invalid_argument);
@@ -167,7 +176,8 @@ result<endpoint> try_resolve_one(std::string_view host, port_number port, const 
     return resolve_first(host_buf, port_buf, o);
 }
 
-result<endpoint> try_resolve_one(std::string_view host, std::string_view service, const resolver_options& opts) {
+result<endpoint>
+try_resolve_one(std::string_view host, std::string_view service, const resolver_options& opts) {
     char host_buf[host_buf_size];
     char service_buf[service_buf_size];
     if (!copy_to_cstr(host, host_buf) || !copy_to_cstr(service, service_buf)) {
@@ -193,7 +203,9 @@ result<void> resolve_for_each(
     format_port(port_buf, port);
     resolver_options o = opts;
     o.numeric_port = true;
-    return for_each_addrinfo(host_buf, port_buf, o, [sink, ctx](endpoint ep) { return sink(ctx, ep); });
+    return for_each_addrinfo(host_buf, port_buf, o, [sink, ctx](endpoint ep) {
+        return sink(ctx, ep);
+    });
 }
 
 result<void> resolve_for_each(
@@ -208,17 +220,21 @@ result<void> resolve_for_each(
     if (!copy_to_cstr(host, host_buf) || !copy_to_cstr(service, service_buf)) {
         return error(errc::invalid_argument);
     }
-    return for_each_addrinfo(host_buf, service_buf, opts, [sink, ctx](endpoint ep) { return sink(ctx, ep); });
+    return for_each_addrinfo(host_buf, service_buf, opts, [sink, ctx](endpoint ep) {
+        return sink(ctx, ep);
+    });
 }
 
 } // namespace detail
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-std::vector<endpoint> resolve(std::string_view host, port_number port, const resolver_options& opts) {
+std::vector<endpoint>
+resolve(std::string_view host, port_number port, const resolver_options& opts) {
     return idfxx::unwrap(try_resolve(host, port, opts));
 }
 
-std::vector<endpoint> resolve(std::string_view host, std::string_view service, const resolver_options& opts) {
+std::vector<endpoint>
+resolve(std::string_view host, std::string_view service, const resolver_options& opts) {
     return idfxx::unwrap(try_resolve(host, service, opts));
 }
 
@@ -226,7 +242,8 @@ endpoint resolve_one(std::string_view host, port_number port, const resolver_opt
     return idfxx::unwrap(try_resolve_one(host, port, opts));
 }
 
-endpoint resolve_one(std::string_view host, std::string_view service, const resolver_options& opts) {
+endpoint
+resolve_one(std::string_view host, std::string_view service, const resolver_options& opts) {
     return idfxx::unwrap(try_resolve_one(host, service, opts));
 }
 #endif

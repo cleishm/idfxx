@@ -9,9 +9,8 @@ Panel I/O interface for SPI- and I2C-connected displays.
 - Panel I/O lifecycle management
 - SPI- and I2C-based communication interfaces
 - Integration with `idfxx_spi` and `idfxx_i2c` buses
-- Communication layer for LCD, OLED, and ePaper panel drivers and touch
-  controllers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`,
-  `idfxx_epaper_ssd1680`, `idfxx_lcd_touch_stmpe610`)
+- Communication layer for LCD, OLED, and ePaper panel drivers and touch controllers (e.g.
+  `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`, `idfxx_lcd_touch_stmpe610`)
 
 ## Requirements
 
@@ -79,8 +78,8 @@ try {
 
 ### I2C Displays
 
-Monochrome OLEDs and other I2C-connected panels use the same `panel_io` class with an
-`i2c_config` and an `idfxx::i2c::master_bus`:
+Monochrome OLEDs and other I2C-connected panels use the same `panel_io` class with an `i2c_config`
+and an `idfxx::i2c::master_bus`:
 
 ```cpp
 #include <idfxx/i2c/master>
@@ -107,9 +106,9 @@ idfxx::panel_io panel_io(
 );
 ```
 
-Panel driver components typically provide a pre-filled configuration for their
-controller (e.g. `idfxx_lcd_ssd1306`'s `ssd1306::i2c_io_config()`), so the raw
-struct is only needed for panels without one.
+Panel driver components typically provide a pre-filled configuration for their controller (e.g.
+`idfxx_lcd_ssd1306`'s `ssd1306::i2c_io_config()`), so the raw struct is only needed for panels
+without one.
 
 ### Result-based API
 
@@ -144,8 +143,8 @@ auto panel_io = std::move(*panel_io_result);
 
 ### Using a Named Config Variable
 
-When storing the config in a variable before passing it, use `std::move()` since the config
-struct is move-only:
+When storing the config in a variable before passing it, use `std::move()` since the config struct
+is move-only:
 
 ```cpp
 idfxx::panel_io::spi_config io_config{
@@ -187,7 +186,8 @@ idfxx::lcd::ili9341 display(panel_io, std::move(panel_config));
 
 ### With Touch Controller
 
-The same SPI bus can be shared with touch controllers (using different CS pins and separate `panel_io` instances).
+The same SPI bus can be shared with touch controllers (using different CS pins and separate
+`panel_io` instances).
 
 ```cpp
 #include <idfxx/panel_io>
@@ -211,12 +211,13 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 
 **Creation:**
 - `make(spi_bus, config)` / `make(i2c_bus, config)` - Create panel I/O (result-based)
-- `panel_io(spi_bus, config)` / `panel_io(i2c_bus, config)` - Constructors (exception-based, if enabled)
+- `panel_io(spi_bus, config)` / `panel_io(i2c_bus, config)` - Constructors (exception-based, if
+  enabled)
 
 **Properties:**
 - `idf_handle()` - Get ESP-IDF panel I/O handle
-- `queues_color_transfers()` - Whether color data transfers continue in the background
-  after a write returns (true for SPI, false for I2C)
+- `queues_color_transfers()` - Whether color data transfers continue in the background after a write
+  returns (true for SPI, false for I2C)
 
 **Lifetime:**
 - Destructor automatically calls `esp_lcd_panel_io_del()`
@@ -260,9 +261,9 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
   - `dc_low_on_data` - DC bit = 0 indicates data transfer (vice versa otherwise)
   - `disable_control_phase` - Don't use the control phase
 
-The control-phase framing is a property of the panel controller; panel driver
-components typically provide a pre-filled configuration (e.g. `ssd1306::i2c_io_config()`)
-or document the values they require.
+The control-phase framing is a property of the panel controller; panel driver components typically
+provide a pre-filled configuration (e.g. `ssd1306::i2c_io_config()`) or document the values they
+require.
 
 ### Typical Values
 
@@ -285,19 +286,21 @@ idfxx::panel_io::spi_config io_config{
 
 - The bus (SPI or I2C) must be created before the panel I/O
 - The caller must ensure the bus outlives the panel I/O
-- Multiple panel I/O instances can share the same SPI bus (with different CS pins) or
-  I2C bus (with different device addresses)
-- For SPI, the `dc_gpio` (Data/Command) is required for most display controllers; for I2C,
-  the D/C selection is encoded in the control phase (`control_phase_bytes`/`dc_bit_offset`)
+- Multiple panel I/O instances can share the same SPI bus (with different CS pins) or I2C bus (with
+  different device addresses)
+- For SPI, the `dc_gpio` (Data/Command) is required for most display controllers; for I2C, the D/C
+  selection is encoded in the control phase (`control_phase_bytes`/`dc_bit_offset`)
 - Clock frequency (`pclk_freq`/`scl_speed`) affects display performance
 - Transaction queue depth affects how many operations can be queued
-- **Exceptions in callbacks**: `on_color_transfer_done` must not throw. For SPI it runs in ISR context, where throwing is not permitted; for I2C it runs inside the driver in the transferring task, which an exception cannot propagate out of
-- The `lcd_cmd_bits`/`lcd_param_bits` field names follow the underlying ESP-IDF
-  configuration and apply equally to non-LCD panels
-- This component provides only the I/O layer; use a concrete driver
-  (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`) for panel control
-- Prior to its extraction into this component, this class was available as
-  `idfxx::lcd::panel_io` in `idfxx_lcd` 2.x
+- **Exceptions in callbacks**: `on_color_transfer_done` must not throw. For SPI it runs in ISR
+  context, where throwing is not permitted; for I2C it runs inside the driver in the transferring
+  task, which an exception cannot propagate out of
+- The `lcd_cmd_bits`/`lcd_param_bits` field names follow the underlying ESP-IDF configuration and
+  apply equally to non-LCD panels
+- This component provides only the I/O layer; use a concrete driver (e.g. `idfxx_lcd_ili9341`,
+  `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`) for panel control
+- Prior to its extraction into this component, this class was available as `idfxx::lcd::panel_io` in
+  `idfxx_lcd` 2.x
 
 ## License
 

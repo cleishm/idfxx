@@ -128,8 +128,8 @@ idfxx::log::info("TOUCH", "Touch controller initialized successfully");
 
 ### Using a Named Config Variable
 
-When storing the config in a variable before passing it, use `std::move()` since the config
-struct is move-only:
+When storing the config in a variable before passing it, use `std::move()` since the config struct
+is move-only:
 
 ```cpp
 idfxx::lcd::touch::config touch_config{
@@ -143,7 +143,8 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 
 ### Sharing SPI Bus with Display
 
-STMPE610 can share the same SPI bus as the display (using different CS pins). This example uses the exception-based API:
+STMPE610 can share the same SPI bus as the display (using different CS pins). This example uses the
+exception-based API:
 
 ```cpp
 using namespace quanta::frequency_literals;
@@ -307,7 +308,8 @@ Adjust these values to match your specific display module and mounting orientati
 - Touch and display can share SPI bus but need different CS pins
 - Reset and interrupt pins are optional (default to `idfxx::gpio::nc()`)
 - Orientation flags should match your display orientation
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the `process_coordinates` callback is logged, and that read reports no touch points
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the
+  `process_coordinates` callback is logged, and that read reports no touch points
 - The touch handle can be used with LVGL or other touch input libraries
 - The `stmpe610` class inherits from the `touch` base class provided by `idfxx_lcd_touch`
 - Polling mode (no interrupt) is simpler but uses more CPU
@@ -315,7 +317,8 @@ Adjust these values to match your specific display module and mounting orientati
 
 ## Using with LVGL
 
-The touch handle integrates with LVGL's input device system. Refer to LVGL documentation for details on:
+The touch handle integrates with LVGL's input device system. Refer to LVGL documentation for details
+on:
 - Creating input device descriptors
 - Reading touch coordinates
 - Handling touch events

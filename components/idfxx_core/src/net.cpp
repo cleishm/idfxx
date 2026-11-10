@@ -262,7 +262,8 @@ std::string to_string(net::ipv6_addr addr) {
 }
 
 std::string to_string(net::ipv4_info info) {
-    return "ip=" + to_string(info.ip) + ", netmask=" + to_string(info.netmask) + ", gw=" + to_string(info.gateway);
+    return "ip=" + to_string(info.ip) + ", netmask=" + to_string(info.netmask) +
+        ", gw=" + to_string(info.gateway);
 }
 
 std::string to_string(net::ipv6_info info) {

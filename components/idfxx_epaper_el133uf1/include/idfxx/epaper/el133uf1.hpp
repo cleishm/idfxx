@@ -30,7 +30,8 @@
 #include <vector>
 
 #ifndef CONFIG_SPIRAM
-#error "idfxx_epaper_el133uf1 requires PSRAM: enable CONFIG_SPIRAM (menuconfig -> Component config -> ESP PSRAM)"
+#error                                                                                             \
+    "idfxx_epaper_el133uf1 requires PSRAM: enable CONFIG_SPIRAM (menuconfig -> Component config -> ESP PSRAM)"
 #endif
 
 /**
@@ -258,7 +259,14 @@ private:
     // Non-initializing constructor make() uses: takes ownership of the
     // panel's SPI device.
     explicit el133uf1(spi::master_device device, const config& cfg)
-        : panel(native_width, native_height, cfg.busy_gpio, gpio::level::low, cfg.busy_timeout, cfg.reset_gpio)
+        : panel(
+              native_width,
+              native_height,
+              cfg.busy_gpio,
+              gpio::level::low,
+              cfg.busy_timeout,
+              cfg.reset_gpio
+          )
         , _device(std::move(device))
         , _master_cs(cfg.master_cs_gpio)
         , _slave_cs(cfg.slave_cs_gpio)
@@ -266,10 +274,20 @@ private:
         , _check_presence(cfg.check_presence) {}
 
     // epaper::panel customization hooks.
-    [[nodiscard]] result<void>
-    do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
-    [[nodiscard]] result<void>
-    do_write(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
+    [[nodiscard]] result<void> do_write(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
+    [[nodiscard]] result<void> do_write(
+        const color6_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
     [[nodiscard]] result<void> do_clear() override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
     [[nodiscard]] bool do_supports(enum color_mode mode) const noexcept override;
@@ -287,7 +305,8 @@ private:
     [[nodiscard]] result<void> _confirm_presence();
     [[nodiscard]] result<void> _init();
     [[nodiscard]] result<void> _upload();
-    [[nodiscard]] result<void> _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+    [[nodiscard]] result<void>
+    _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
     [[nodiscard]] result<void> _enter_deep_sleep();
 
     // Shadow-frame addressing: each controller's plane is native_height
@@ -316,8 +335,10 @@ private:
     /// updates; _settle (reached through do_wait) completes it before the
     /// next controller command.
     enum class pending : uint8_t {
-        none,      ///< Controllers idle; nothing deferred.
-        power_off, ///< The drive rails are up (an update may be driving); wait for BUSY, then power them off.
+        /// Controllers idle; nothing deferred.
+        none,
+        /// The drive rails are up (an update may be driving); wait for BUSY, then power them off.
+        power_off,
     };
     pending _pending = pending::none;
 

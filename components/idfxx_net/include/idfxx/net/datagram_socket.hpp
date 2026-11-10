@@ -280,7 +280,9 @@ public:
      * @throws std::system_error with `errc::wrong_protocol_type` if the socket family is
      *         not IPv4.
      */
-    void set_multicast_interface_v4(ipv4_addr addr) { idfxx::unwrap(try_set_multicast_interface_v4(addr)); }
+    void set_multicast_interface_v4(ipv4_addr addr) {
+        idfxx::unwrap(try_set_multicast_interface_v4(addr));
+    }
 #endif
 
     /**
@@ -374,7 +376,9 @@ public:
      * @throws std::system_error with `errc::wrong_protocol_type` if the socket family is
      *         not IPv6.
      */
-    void set_multicast_interface_v6(uint8_t if_index) { idfxx::unwrap(try_set_multicast_interface_v6(if_index)); }
+    void set_multicast_interface_v6(uint8_t if_index) {
+        idfxx::unwrap(try_set_multicast_interface_v6(if_index));
+    }
 #endif
 
     /**

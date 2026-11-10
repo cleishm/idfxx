@@ -53,7 +53,8 @@ static int next_reading() {
 // Maps a reading to a chart row, larger values higher up.
 static size_t sample_y(int reading) {
     constexpr size_t usable = CHART_H - 3;
-    return CHART_Y + 1 + usable - static_cast<size_t>(reading - READING_MIN) * usable / (READING_MAX - READING_MIN);
+    return CHART_Y + 1 + usable -
+        static_cast<size_t>(reading - READING_MIN) * usable / (READING_MAX - READING_MIN);
 }
 
 extern "C" void app_main() {
@@ -84,7 +85,8 @@ extern "C" void app_main() {
             canvas.clear();
 
             // Text readout above the chart.
-            const auto readout = std::format("temp {}.{}C", samples.back() / 10, samples.back() % 10);
+            const auto readout =
+                std::format("temp {}.{}C", samples.back() / 10, samples.back() % 10);
             canvas.draw_text(idfxx::font::spleen_5x8, 0, 1, readout);
 
             // Chart frame with a dotted midline.
@@ -95,7 +97,9 @@ extern "C" void app_main() {
 
             // The samples, joined into a polyline.
             for (size_t i = 1; i < samples.size(); ++i) {
-                canvas.draw_line(2 * i - 1, sample_y(samples[i - 1]), 2 * i + 1, sample_y(samples[i]), true);
+                canvas.draw_line(
+                    2 * i - 1, sample_y(samples[i - 1]), 2 * i + 1, sample_y(samples[i]), true
+                );
             }
 
             display.write(fb);

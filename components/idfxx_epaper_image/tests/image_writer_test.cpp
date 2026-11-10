@@ -1668,7 +1668,7 @@ void check_overlay() {
     const auto kind = panel_of<Framebuffer>();
     const image::placement where{.target = image::rect{.x = tx, .y = ty, .width = w, .height = h}};
 
-    // The same picture in a framebuffer, drawn on afterwards.
+    // The same picture in a framebuffer, drawn on afterward.
     auto expected = make_framebuffer<Framebuffer>(w, h);
     fake_decoder plain(source());
     TEST_ASSERT_TRUE(epaper::try_write_image(expected, *kind.cal, plain).has_value());

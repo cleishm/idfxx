@@ -12,7 +12,9 @@
 namespace idfxx::log {
 
 void log(level lvl, const char* tag, std::string_view msg) {
-    ESP_LOG_LEVEL(static_cast<esp_log_level_t>(lvl), tag, "%.*s", static_cast<int>(msg.size()), msg.data());
+    ESP_LOG_LEVEL(
+        static_cast<esp_log_level_t>(lvl), tag, "%.*s", static_cast<int>(msg.size()), msg.data()
+    );
 }
 
 void set_level(const char* tag, level lvl) {

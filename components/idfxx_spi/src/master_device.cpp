@@ -143,7 +143,12 @@ void master_device::_delete() noexcept {
                 spi_transaction_t* idf_trans = nullptr;
                 auto err = spi_device_get_trans_result(_handle, &idf_trans, portMAX_DELAY);
                 if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "Drain failed, %zu slot(s) still pending: %s", pending, esp_err_to_name(err));
+                    ESP_LOGE(
+                        TAG,
+                        "Drain failed, %zu slot(s) still pending: %s",
+                        pending,
+                        esp_err_to_name(err)
+                    );
                     break;
                 }
                 auto* drained = static_cast<pool_slot*>(idf_trans->user);
@@ -191,7 +196,10 @@ void master_device::_prepare_idf_trans(spi_transaction_t& idf_trans, const trans
     idf_trans.rx_buffer = trans.rx_buffer.data();
 }
 
-void master_device::_prepare_idf_trans_ext(spi_transaction_ext_t& idf_ext, const transaction& trans) {
+void master_device::_prepare_idf_trans_ext(
+    spi_transaction_ext_t& idf_ext,
+    const transaction& trans
+) {
     _prepare_idf_trans(idf_ext.base, trans);
     idf_ext.command_bits = trans.command_bits;
     idf_ext.address_bits = trans.address_bits;
@@ -231,7 +239,8 @@ static result<void> validate_trans_buffers(const transaction& trans) {
 // Shared dispatch helpers
 // =============================================================================
 
-result<void> master_device::_simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn) {
+result<void>
+master_device::_simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -287,7 +296,8 @@ result<std::vector<uint8_t>> master_device::try_receive(size_t size) {
     return try_receive(std::span<uint8_t>(buf)).transform([&]() { return std::move(buf); });
 }
 
-result<void> master_device::try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+result<void>
+master_device::try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
     return _simple_trans(tx_data, rx_data, spi_device_transmit);
 }
 
@@ -327,7 +337,8 @@ result<std::vector<uint8_t>> master_device::try_polling_receive(size_t size) {
     return try_polling_receive(std::span<uint8_t>(buf)).transform([&]() { return std::move(buf); });
 }
 
-result<void> master_device::try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+result<void>
+master_device::try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -351,7 +362,9 @@ result<uint16_t> master_device::_acquire_slot(std::optional<std::chrono::millise
     std::unique_lock lk(_async->pool_mtx);
     if (timeout) {
         auto deadline = std::chrono::steady_clock::now() + *timeout;
-        if (!_async->pool_cv.wait_until(lk, deadline, [&]() { return !_async->free_list.empty(); })) {
+        if (!_async->pool_cv.wait_until(lk, deadline, [&]() {
+                return !_async->free_list.empty();
+            })) {
             return error(errc::timeout);
         }
     } else {
@@ -374,8 +387,10 @@ result<idfxx::future<void>> master_device::try_queue_trans(const transaction& tr
     return _try_queue_trans(trans, std::nullopt);
 }
 
-result<idfxx::future<void>>
-master_device::_try_queue_trans(const transaction& trans, std::optional<std::chrono::milliseconds> timeout) {
+result<idfxx::future<void>> master_device::_try_queue_trans(
+    const transaction& trans,
+    std::optional<std::chrono::milliseconds> timeout
+) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -418,7 +433,8 @@ result<void> master_device::_try_wait_for(
         return error(errc::invalid_state);
     }
     using clock = std::chrono::steady_clock;
-    std::optional<clock::time_point> deadline = timeout.transform([](auto t) { return clock::now() + t; });
+    std::optional<clock::time_point> deadline =
+        timeout.transform([](auto t) { return clock::now() + t; });
 
     if (done_flag->load(std::memory_order_acquire)) {
         return {};

@@ -45,7 +45,10 @@ namespace {
 // Stages 1 and 3: a title screen drawn through a band-sized framebuffer with
 // idfxx::gfx::render_banded — the draw function is invoked once per band
 // and describes the complete 800x480 frame each time.
-void draw_title_screen(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas, bool fast_note) {
+void draw_title_screen(
+    idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas,
+    bool fast_note
+) {
     canvas.fill_rect(0, 0, 800, 48, true);
     canvas.draw_text(idfxx::font::spleen_8x16, 16, 8, "idfxx epaper", false, 2);
     canvas.draw_rect(16, 72, 380, 160, true);
@@ -71,7 +74,9 @@ extern "C" void app_main() {
         idfxx::spi::bus_config bus_cfg{};
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O and driver ---
         idfxx::panel_io io(bus, idfxx::epaper::uc8179::spi_io_config(PIN_CS, PIN_DC));
@@ -151,11 +156,14 @@ extern "C" void app_main() {
         idfxx::future<void> update;
         for (int i = 0; i <= 20; ++i) {
             counter_canvas.clear();
-            counter_canvas.draw_text(idfxx::font::spleen_8x16, 0, 0, std::format("{:02}", i), true, 4);
+            counter_canvas.draw_text(
+                idfxx::font::spleen_8x16, 0, 0, std::format("{:02}", i), true, 4
+            );
             display.write(counter_fb, 16, 360);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
-            update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
+            update =
+                display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
         }
         update.wait();
         logger.info("stage 5: partial refresh loop done");

@@ -60,7 +60,8 @@ result<::netconn*> make_netconn_with_proto(int base_type, uint8_t proto, address
     if (!t) {
         return error(t.error());
     }
-    ::netconn* conn = ::netconn_new_with_proto_and_callback(static_cast<::netconn_type>(*t), proto, nullptr);
+    ::netconn* conn =
+        ::netconn_new_with_proto_and_callback(static_cast<::netconn_type>(*t), proto, nullptr);
     if (conn == nullptr) {
         return error(errc::no_buffer_space);
     }

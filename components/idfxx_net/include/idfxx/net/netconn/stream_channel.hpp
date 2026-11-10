@@ -227,7 +227,7 @@ public:
      *          flash-resident data).
      *
      * @param data  Data to send.
-     * @param flags Flags controlling copy behaviour and PSH suppression.
+     * @param flags Flags controlling copy behavior and PSH suppression.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
@@ -253,10 +253,11 @@ public:
      *          flash-resident data).
      *
      * @param data  Data to send.
-     * @param flags Flags controlling copy behaviour and PSH suppression.
+     * @param flags Flags controlling copy behavior and PSH suppression.
      * @return Number of bytes accepted, or an error.
      */
-    [[nodiscard]] result<size_t> try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags = {});
+    [[nodiscard]] result<size_t>
+    try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags = {});
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -276,7 +277,7 @@ public:
      *          by the peer — not merely until this call returns.
      *
      * @param data  Data to send.
-     * @param flags Flags controlling copy behaviour and PSH suppression.
+     * @param flags Flags controlling copy behavior and PSH suppression.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
@@ -300,10 +301,11 @@ public:
      *          by the peer — not merely until this call returns.
      *
      * @param data  Data to send.
-     * @param flags Flags controlling copy behaviour and PSH suppression.
+     * @param flags Flags controlling copy behavior and PSH suppression.
      * @return Number of bytes accepted, or an error.
      */
-    [[nodiscard]] result<size_t> try_send(std::string_view data, idfxx::flags<write_flag> flags = {});
+    [[nodiscard]] result<size_t>
+    try_send(std::string_view data, idfxx::flags<write_flag> flags = {});
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -343,7 +345,9 @@ public:
      * @return Sub-span of @p buf covering the bytes actually received, or an
      *         empty span on graceful close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) { return idfxx::unwrap(try_recv(buf)); }
+    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv(buf));
+    }
 #endif
 
     /**

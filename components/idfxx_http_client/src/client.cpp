@@ -20,8 +20,12 @@ static_assert(std::to_underlying(idfxx::http::event_id::on_connected) == HTTP_EV
 static_assert(std::to_underlying(idfxx::http::event_id::headers_sent) == HTTP_EVENT_HEADERS_SENT);
 static_assert(std::to_underlying(idfxx::http::event_id::on_header) == HTTP_EVENT_ON_HEADER);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-static_assert(std::to_underlying(idfxx::http::event_id::on_headers_complete) == HTTP_EVENT_ON_HEADERS_COMPLETE);
-static_assert(std::to_underlying(idfxx::http::event_id::on_status_code) == HTTP_EVENT_ON_STATUS_CODE);
+static_assert(
+    std::to_underlying(idfxx::http::event_id::on_headers_complete) == HTTP_EVENT_ON_HEADERS_COMPLETE
+);
+static_assert(
+    std::to_underlying(idfxx::http::event_id::on_status_code) == HTTP_EVENT_ON_STATUS_CODE
+);
 #endif
 static_assert(std::to_underlying(idfxx::http::event_id::on_data) == HTTP_EVENT_ON_DATA);
 static_assert(std::to_underlying(idfxx::http::event_id::on_finish) == HTTP_EVENT_ON_FINISH);
@@ -34,34 +38,71 @@ static_assert(std::to_underlying(idfxx::http::client::state::uninit) == HTTP_STA
 static_assert(std::to_underlying(idfxx::http::client::state::init) == HTTP_STATE_INIT);
 static_assert(std::to_underlying(idfxx::http::client::state::connecting) == HTTP_STATE_CONNECTING);
 static_assert(std::to_underlying(idfxx::http::client::state::connected) == HTTP_STATE_CONNECTED);
-static_assert(std::to_underlying(idfxx::http::client::state::req_complete_header) == HTTP_STATE_REQ_COMPLETE_HEADER);
-static_assert(std::to_underlying(idfxx::http::client::state::req_complete_data) == HTTP_STATE_REQ_COMPLETE_DATA);
-static_assert(std::to_underlying(idfxx::http::client::state::res_complete_header) == HTTP_STATE_RES_COMPLETE_HEADER);
-static_assert(std::to_underlying(idfxx::http::client::state::res_on_data_start) == HTTP_STATE_RES_ON_DATA_START);
-static_assert(std::to_underlying(idfxx::http::client::state::res_complete_data) == HTTP_STATE_RES_COMPLETE_DATA);
+static_assert(
+    std::to_underlying(idfxx::http::client::state::req_complete_header) ==
+    HTTP_STATE_REQ_COMPLETE_HEADER
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::state::req_complete_data) ==
+    HTTP_STATE_REQ_COMPLETE_DATA
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::state::res_complete_header) ==
+    HTTP_STATE_RES_COMPLETE_HEADER
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::state::res_on_data_start) ==
+    HTTP_STATE_RES_ON_DATA_START
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::state::res_complete_data) ==
+    HTTP_STATE_RES_COMPLETE_DATA
+);
 static_assert(std::to_underlying(idfxx::http::client::state::close) == HTTP_STATE_CLOSE);
 #endif
 
 // Verify errc enum values match ESP-IDF constants
-static_assert(std::to_underlying(idfxx::http::client::errc::max_redirect) == ESP_ERR_HTTP_MAX_REDIRECT);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::max_redirect) == ESP_ERR_HTTP_MAX_REDIRECT
+);
 static_assert(std::to_underlying(idfxx::http::client::errc::connect) == ESP_ERR_HTTP_CONNECT);
 static_assert(std::to_underlying(idfxx::http::client::errc::write_data) == ESP_ERR_HTTP_WRITE_DATA);
-static_assert(std::to_underlying(idfxx::http::client::errc::fetch_header) == ESP_ERR_HTTP_FETCH_HEADER);
-static_assert(std::to_underlying(idfxx::http::client::errc::invalid_transport) == ESP_ERR_HTTP_INVALID_TRANSPORT);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::fetch_header) == ESP_ERR_HTTP_FETCH_HEADER
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::invalid_transport) ==
+    ESP_ERR_HTTP_INVALID_TRANSPORT
+);
 static_assert(std::to_underlying(idfxx::http::client::errc::connecting) == ESP_ERR_HTTP_CONNECTING);
 static_assert(std::to_underlying(idfxx::http::client::errc::eagain) == ESP_ERR_HTTP_EAGAIN);
-static_assert(std::to_underlying(idfxx::http::client::errc::connection_closed) == ESP_ERR_HTTP_CONNECTION_CLOSED);
-static_assert(std::to_underlying(idfxx::http::client::errc::not_modified) == ESP_ERR_HTTP_NOT_MODIFIED);
 static_assert(
-    std::to_underlying(idfxx::http::client::errc::range_not_satisfiable) == ESP_ERR_HTTP_RANGE_NOT_SATISFIABLE
+    std::to_underlying(idfxx::http::client::errc::connection_closed) ==
+    ESP_ERR_HTTP_CONNECTION_CLOSED
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::not_modified) == ESP_ERR_HTTP_NOT_MODIFIED
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::range_not_satisfiable) ==
+    ESP_ERR_HTTP_RANGE_NOT_SATISFIABLE
 );
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
-static_assert(std::to_underlying(idfxx::http::client::errc::read_timeout) == ESP_ERR_HTTP_READ_TIMEOUT);
-static_assert(std::to_underlying(idfxx::http::client::errc::incomplete_data) == ESP_ERR_HTTP_INCOMPLETE_DATA);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::read_timeout) == ESP_ERR_HTTP_READ_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::incomplete_data) == ESP_ERR_HTTP_INCOMPLETE_DATA
+);
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-static_assert(std::to_underlying(idfxx::http::client::errc::redirect_downgrade) == ESP_ERR_HTTP_REDIRECT_DOWNGRADE);
-static_assert(std::to_underlying(idfxx::http::client::errc::header_too_long) == ESP_ERR_HTTP_HEADER_TOO_LONG);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::redirect_downgrade) ==
+    ESP_ERR_HTTP_REDIRECT_DOWNGRADE
+);
+static_assert(
+    std::to_underlying(idfxx::http::client::errc::header_too_long) == ESP_ERR_HTTP_HEADER_TOO_LONG
+);
 #endif
 
 namespace {
@@ -120,7 +161,9 @@ std::unexpected<std::error_code> http_client_error(esp_err_t e) {
     }
     return std::unexpected(make_errc(e)
                                .transform([](client::errc ec) {
-                                   return std::error_code{std::to_underlying(ec), http_client_category()};
+                                   return std::error_code{
+                                       std::to_underlying(ec), http_client_category()
+                                   };
                                })
                                .value_or(idfxx::make_error_code(e)));
 }
@@ -243,7 +286,8 @@ esp_err_t client::_http_event_handler(esp_http_client_event* evt) {
                 ? std::span<const uint8_t>(static_cast<const uint8_t*>(evt->data), evt->data_len)
                 : std::span<const uint8_t>{},
             .header_key = evt->header_key ? std::string_view(evt->header_key) : std::string_view{},
-            .header_value = evt->header_value ? std::string_view(evt->header_value) : std::string_view{},
+            .header_value =
+                evt->header_value ? std::string_view(evt->header_value) : std::string_view{},
         };
         // An exception is logged and otherwise ignored
         (void)invoke_guarded(TAG, "Event callback", [&] { self->_on_event(data); });
@@ -277,11 +321,12 @@ result<esp_http_client_handle_t> client::_init_client(
     const std::string& client_cert_pem,
     const std::string& client_key_pem
 ) {
-    if (set_and_not_positive(cfg.port) || (cfg.path && cfg.path->empty()) || set_and_not_positive(cfg.timeout) ||
-        set_and_not_positive(cfg.max_redirection_count) ||
+    if (set_and_not_positive(cfg.port) || (cfg.path && cfg.path->empty()) ||
+        set_and_not_positive(cfg.timeout) || set_and_not_positive(cfg.max_redirection_count) ||
         (cfg.max_authorization_retries && *cfg.max_authorization_retries < 0) ||
         set_and_not_positive(cfg.buffer_size) || set_and_not_positive(cfg.buffer_size_tx) ||
-        set_and_not_positive(cfg.keep_alive_idle) || set_and_not_positive(cfg.keep_alive_interval) ||
+        set_and_not_positive(cfg.keep_alive_idle) ||
+        set_and_not_positive(cfg.keep_alive_interval) ||
         set_and_not_positive(cfg.keep_alive_count)) {
         return error(idfxx::errc::invalid_arg);
     }
@@ -303,7 +348,8 @@ result<esp_http_client_handle_t> client::_init_client(
     }
     esp_cfg.method = static_cast<esp_http_client_method_t>(cfg.method);
     esp_cfg.transport_type = static_cast<esp_http_client_transport_t>(cfg.transport_type);
-    esp_cfg.timeout_ms = static_cast<int>(cfg.timeout.value_or(std::chrono::milliseconds{0}).count());
+    esp_cfg.timeout_ms =
+        static_cast<int>(cfg.timeout.value_or(std::chrono::milliseconds{0}).count());
 
     if (!cfg.username.empty()) {
         esp_cfg.username = cfg.username.c_str();
@@ -345,8 +391,10 @@ result<esp_http_client_handle_t> client::_init_client(
     esp_cfg.buffer_size_tx = cfg.buffer_size_tx.value_or(0);
 
     esp_cfg.keep_alive_enable = cfg.keep_alive_enable;
-    esp_cfg.keep_alive_idle = static_cast<int>(cfg.keep_alive_idle.value_or(std::chrono::seconds{0}).count());
-    esp_cfg.keep_alive_interval = static_cast<int>(cfg.keep_alive_interval.value_or(std::chrono::seconds{0}).count());
+    esp_cfg.keep_alive_idle =
+        static_cast<int>(cfg.keep_alive_idle.value_or(std::chrono::seconds{0}).count());
+    esp_cfg.keep_alive_interval =
+        static_cast<int>(cfg.keep_alive_interval.value_or(std::chrono::seconds{0}).count());
     esp_cfg.keep_alive_count = cfg.keep_alive_count.value_or(0);
 
     esp_cfg.use_global_ca_store = cfg.use_global_ca_store;
@@ -525,7 +573,9 @@ void client::set_post_field(std::string_view data) {
         return;
     }
     _post_data = std::string(data);
-    esp_err_t err = esp_http_client_set_post_field(_handle, _post_data.c_str(), static_cast<int>(_post_data.size()));
+    esp_err_t err = esp_http_client_set_post_field(
+        _handle, _post_data.c_str(), static_cast<int>(_post_data.size())
+    );
     if (err != ESP_OK) {
         idfxx::raise_no_mem();
     }
@@ -661,7 +711,9 @@ result<size_t> client::try_write(std::span<const uint8_t> data) {
 }
 
 result<size_t> client::try_write(std::string_view data) {
-    return try_write(std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()});
+    return try_write(
+        std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()}
+    );
 }
 
 result<int64_t> client::try_fetch_headers() {
@@ -794,7 +846,9 @@ result<void> client::chunk_writer::try_write(std::span<const uint8_t> data) {
 }
 
 result<void> client::chunk_writer::try_write(std::string_view data) {
-    return try_write(std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()});
+    return try_write(
+        std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()}
+    );
 }
 
 result<void> client::chunk_writer::try_finish() {
@@ -802,7 +856,9 @@ result<void> client::chunk_writer::try_finish() {
         return error(idfxx::errc::invalid_state);
     }
     constexpr std::string_view terminator = "0\r\n\r\n";
-    return _send(terminator.data(), terminator.size()).transform([this] { _stage = stage::finished; });
+    return _send(terminator.data(), terminator.size()).transform([this] {
+        _stage = stage::finished;
+    });
 }
 
 // =========================================================================

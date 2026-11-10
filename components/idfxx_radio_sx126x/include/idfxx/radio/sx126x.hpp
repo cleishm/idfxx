@@ -206,19 +206,32 @@ public:
      * reset at construction and is assumed to be in its power-on state).
      */
     struct config {
-        chip_variant variant = chip_variant::sx1262;      ///< Chip family member.
-        idfxx::required<idfxx::gpio> cs;                  ///< SPI chip-select pin.
-        idfxx::required<idfxx::gpio> busy;                ///< BUSY input from chip.
-        idfxx::required<idfxx::gpio> dio1;                ///< DIO1 IRQ input from chip.
-        idfxx::gpio nreset = gpio::nc();                  ///< Active-low reset to chip; nc() skips the hardware reset.
-        quanta::frequency::hertz clock_speed{10'000'000}; ///< SPI clock; datasheet max is 16 MHz.
-        bool dio2_as_rf_switch = true;                    ///< Use DIO2 as the antenna T/R switch.
-        idfxx::gpio rxen = gpio::nc();                  ///< Optional external RF-switch RX-enable pin; nc() if unused.
-        idfxx::gpio txen = gpio::nc();                  ///< Optional external RF-switch TX-enable pin; nc() if unused.
-        std::optional<tcxo_config> tcxo = std::nullopt; ///< Optional TCXO; leave unset for crystal.
-        enum regulator regulator = regulator::ldo;      ///< Voltage regulator selection.
-        bool rx_boost = false;                          ///< Use boosted-RX gain (more sensitive, higher current).
-        std::chrono::milliseconds busy_timeout{100};    ///< Max wait for BUSY to go low.
+        /// Chip family member.
+        chip_variant variant = chip_variant::sx1262;
+        /// SPI chip-select pin.
+        idfxx::required<idfxx::gpio> cs;
+        /// BUSY input from chip.
+        idfxx::required<idfxx::gpio> busy;
+        /// DIO1 IRQ input from chip.
+        idfxx::required<idfxx::gpio> dio1;
+        /// Active-low reset to chip; nc() skips the hardware reset.
+        idfxx::gpio nreset = gpio::nc();
+        /// SPI clock; datasheet max is 16 MHz.
+        quanta::frequency::hertz clock_speed{10'000'000};
+        /// Use DIO2 as the antenna T/R switch.
+        bool dio2_as_rf_switch = true;
+        /// Optional external RF-switch RX-enable pin; nc() if unused.
+        idfxx::gpio rxen = gpio::nc();
+        /// Optional external RF-switch TX-enable pin; nc() if unused.
+        idfxx::gpio txen = gpio::nc();
+        /// Optional TCXO; leave unset for crystal.
+        std::optional<tcxo_config> tcxo = std::nullopt;
+        /// Voltage regulator selection.
+        enum regulator regulator = regulator::ldo;
+        /// Use boosted-RX gain (more sensitive, higher current).
+        bool rx_boost = false;
+        /// Max wait for BUSY to go low.
+        std::chrono::milliseconds busy_timeout{100};
         /// IRQ flags latched by the chip and routed to DIO1. Leave unset for
         /// the driver default (tx_done, rx_done, preamble_detected, crc_err,
         /// cad_done, cad_detected). Wake-on-radio designs that sleep the host
@@ -233,10 +246,14 @@ public:
         /// listening. Use @ref try_adopt_pending after construction to
         /// recover a packet the chip received while no driver was running.
         bool warm_start = false;
-        event_loop* loop = nullptr;        ///< Event loop to post radio events on; nullptr disables posting.
-        task_priority worker_priority{18}; ///< Worker task priority.
-        size_t worker_stack_size = 4096;   ///< Worker task stack size in bytes.
-        std::optional<core_id> worker_core = std::nullopt; ///< Worker task core affinity.
+        /// Event loop to post radio events on; nullptr disables posting.
+        event_loop* loop = nullptr;
+        /// Worker task priority.
+        task_priority worker_priority{18};
+        /// Worker task stack size in bytes.
+        size_t worker_stack_size = 4096;
+        /// Worker task core affinity.
+        std::optional<core_id> worker_core = std::nullopt;
     };
 
     // =========================================================================
@@ -484,7 +501,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_command(uint8_t opcode, std::span<const uint8_t> params) { unwrap(try_write_command(opcode, params)); }
+    void write_command(uint8_t opcode, std::span<const uint8_t> params) {
+        unwrap(try_write_command(opcode, params));
+    }
 
     /**
      * @brief Sends a command opcode and reads the response bytes.
@@ -493,7 +512,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_command(uint8_t opcode, std::span<uint8_t> response) { unwrap(try_read_command(opcode, response)); }
+    void read_command(uint8_t opcode, std::span<uint8_t> response) {
+        unwrap(try_read_command(opcode, response));
+    }
 
     /**
      * @brief Writes one or more chip registers.
@@ -502,7 +523,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_register(uint16_t addr, std::span<const uint8_t> data) { unwrap(try_write_register(addr, data)); }
+    void write_register(uint16_t addr, std::span<const uint8_t> data) {
+        unwrap(try_write_register(addr, data));
+    }
 
     /**
      * @brief Reads one or more chip registers.
@@ -511,7 +534,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_register(uint16_t addr, std::span<uint8_t> data) { unwrap(try_read_register(addr, data)); }
+    void read_register(uint16_t addr, std::span<uint8_t> data) {
+        unwrap(try_read_register(addr, data));
+    }
 
     /**
      * @brief Writes the chip's data buffer at the specified offset.
@@ -520,7 +545,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_buffer(uint8_t offset, std::span<const uint8_t> data) { unwrap(try_write_buffer(offset, data)); }
+    void write_buffer(uint8_t offset, std::span<const uint8_t> data) {
+        unwrap(try_write_buffer(offset, data));
+    }
 
     /**
      * @brief Reads the chip's data buffer at the specified offset.
@@ -529,7 +556,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_buffer(uint8_t offset, std::span<uint8_t> data) { unwrap(try_read_buffer(offset, data)); }
+    void read_buffer(uint8_t offset, std::span<uint8_t> data) {
+        unwrap(try_read_buffer(offset, data));
+    }
 #endif
 
     /** @brief Result variant of @ref write_command. */
@@ -557,16 +586,21 @@ private:
     [[nodiscard]] result<void> do_standby() override;
     [[nodiscard]] result<void> do_sleep() override;
     [[nodiscard]] result<void> do_start_listening() override;
-    [[nodiscard]] result<void>
-    do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) override;
-    [[nodiscard]] result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) override;
+    [[nodiscard]] result<void> do_start_listening(
+        std::chrono::microseconds rx_period,
+        std::chrono::microseconds sleep_period
+    ) override;
+    [[nodiscard]] result<idfxx::future<rx_info>>
+    do_start_receive(std::span<uint8_t> buffer) override;
     [[nodiscard]] result<idfxx::future<cad_info>> do_start_channel_scan() override;
     [[nodiscard]] result<void> do_set_frequency(quanta::frequency::hertz hz) override;
-    [[nodiscard]] result<void> do_set_output_power(quanta::electro::dbm power, ramp_time ramp) override;
+    [[nodiscard]] result<void>
+    do_set_output_power(quanta::electro::dbm power, ramp_time ramp) override;
     [[nodiscard]] result<void> do_set_modulation(lora_modulation mod) override;
     [[nodiscard]] result<void> do_set_packet_params(lora_packet_params params) override;
     [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
-    [[nodiscard]] result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) override;
+    [[nodiscard]] result<idfxx::future<void>>
+    do_start_transmit(std::span<const uint8_t> data) override;
     [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;
     [[nodiscard]] result<void> do_probe() override;
     [[nodiscard]] result<packet_status> do_last_packet_status() override;

@@ -394,7 +394,7 @@ TEST_CASE("sdcard SPI clock on this target's bus is at or below max_frequency", 
         bool chosen;
         uint32_t request_khz;
         uint32_t hz;
-        int left_khz; // the device's clock afterwards
+        int left_khz; // the device's clock afterward
     };
     outcome outcomes[std::size(caps)]{};
     for (size_t i = 0; i < std::size(caps); ++i) {

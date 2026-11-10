@@ -5,7 +5,8 @@
 
 #include "sdkconfig.h"
 #ifndef CONFIG_IDFXX_STD_FORMAT
-#error "idfxx_log requires CONFIG_IDFXX_STD_FORMAT to be enabled (menuconfig -> IDFXX -> Enable std::format support)"
+#error                                                                                             \
+    "idfxx_log requires CONFIG_IDFXX_STD_FORMAT to be enabled (menuconfig -> IDFXX -> Enable std::format support)"
 #endif
 
 /**
@@ -272,7 +273,12 @@ template<std::ranges::contiguous_range R>
     requires(sizeof(std::ranges::range_value_t<R>) == 1)
 void buffer_hex(level lvl, const char* tag, const R& data) {
     auto sp = std::span(data);
-    buffer_hex(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+    buffer_hex(
+        lvl,
+        tag,
+        sp.data(),
+        static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX)))
+    );
 }
 
 /**
@@ -306,7 +312,12 @@ template<std::ranges::contiguous_range R>
     requires(sizeof(std::ranges::range_value_t<R>) == 1)
 void buffer_char(level lvl, const char* tag, const R& data) {
     auto sp = std::span(data);
-    buffer_char(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+    buffer_char(
+        lvl,
+        tag,
+        sp.data(),
+        static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX)))
+    );
 }
 
 /**
@@ -340,7 +351,12 @@ template<std::ranges::contiguous_range R>
     requires(sizeof(std::ranges::range_value_t<R>) == 1)
 void buffer_hex_dump(level lvl, const char* tag, const R& data) {
     auto sp = std::span(data);
-    buffer_hex_dump(lvl, tag, sp.data(), static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX))));
+    buffer_hex_dump(
+        lvl,
+        tag,
+        sp.data(),
+        static_cast<uint16_t>(std::min(sp.size(), static_cast<size_t>(UINT16_MAX)))
+    );
 }
 
 /**
@@ -597,7 +613,8 @@ namespace idfxx {
  * @brief Returns a string representation of a log level.
  *
  * @param lvl The log level to convert.
- * @return "NONE", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE", or "unknown(N)" for unrecognized values.
+ * @return "NONE", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE", or "unknown(N)" for unrecognized
+ * values.
  */
 [[nodiscard]] inline std::string to_string(log::level lvl) {
     switch (lvl) {
@@ -649,11 +666,11 @@ struct formatter<idfxx::log::level> {
  * @param fmt A std::format format string.
  * @param ... Arguments to format into the message.
  */
-#define IDFXX_LOGE(tag, fmt, ...)                                                                                      \
-    do {                                                                                                               \
-        if (LOG_LOCAL_LEVEL >= ESP_LOG_ERROR) {                                                                        \
-            idfxx::log::error(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                                    \
-        }                                                                                                              \
+#define IDFXX_LOGE(tag, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (LOG_LOCAL_LEVEL >= ESP_LOG_ERROR) {                                                    \
+            idfxx::log::error(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                \
+        }                                                                                          \
     } while (0)
 
 /**
@@ -663,11 +680,11 @@ struct formatter<idfxx::log::level> {
  * @param fmt A std::format format string.
  * @param ... Arguments to format into the message.
  */
-#define IDFXX_LOGW(tag, fmt, ...)                                                                                      \
-    do {                                                                                                               \
-        if (LOG_LOCAL_LEVEL >= ESP_LOG_WARN) {                                                                         \
-            idfxx::log::warn(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                                     \
-        }                                                                                                              \
+#define IDFXX_LOGW(tag, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (LOG_LOCAL_LEVEL >= ESP_LOG_WARN) {                                                     \
+            idfxx::log::warn(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                 \
+        }                                                                                          \
     } while (0)
 
 /**
@@ -677,11 +694,11 @@ struct formatter<idfxx::log::level> {
  * @param fmt A std::format format string.
  * @param ... Arguments to format into the message.
  */
-#define IDFXX_LOGI(tag, fmt, ...)                                                                                      \
-    do {                                                                                                               \
-        if (LOG_LOCAL_LEVEL >= ESP_LOG_INFO) {                                                                         \
-            idfxx::log::info(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                                     \
-        }                                                                                                              \
+#define IDFXX_LOGI(tag, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (LOG_LOCAL_LEVEL >= ESP_LOG_INFO) {                                                     \
+            idfxx::log::info(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                 \
+        }                                                                                          \
     } while (0)
 
 /**
@@ -691,11 +708,11 @@ struct formatter<idfxx::log::level> {
  * @param fmt A std::format format string.
  * @param ... Arguments to format into the message.
  */
-#define IDFXX_LOGD(tag, fmt, ...)                                                                                      \
-    do {                                                                                                               \
-        if (LOG_LOCAL_LEVEL >= ESP_LOG_DEBUG) {                                                                        \
-            idfxx::log::debug(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                                    \
-        }                                                                                                              \
+#define IDFXX_LOGD(tag, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (LOG_LOCAL_LEVEL >= ESP_LOG_DEBUG) {                                                    \
+            idfxx::log::debug(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                \
+        }                                                                                          \
     } while (0)
 
 /**
@@ -705,11 +722,11 @@ struct formatter<idfxx::log::level> {
  * @param fmt A std::format format string.
  * @param ... Arguments to format into the message.
  */
-#define IDFXX_LOGV(tag, fmt, ...)                                                                                      \
-    do {                                                                                                               \
-        if (LOG_LOCAL_LEVEL >= ESP_LOG_VERBOSE) {                                                                      \
-            idfxx::log::verbose(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                                                  \
-        }                                                                                                              \
+#define IDFXX_LOGV(tag, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (LOG_LOCAL_LEVEL >= ESP_LOG_VERBOSE) {                                                  \
+            idfxx::log::verbose(tag, fmt __VA_OPT__(, ) __VA_ARGS__);                              \
+        }                                                                                          \
     } while (0)
 
 // NOLINTEND(cppcoreguidelines-macro-usage)

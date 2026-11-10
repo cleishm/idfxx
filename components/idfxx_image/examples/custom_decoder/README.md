@@ -1,10 +1,10 @@
 # Custom Decoder
 
-Makes a new kind of image source work with the renderer by implementing `idfxx::image::decoder`, then
-scales its picture to fit a small screen and prints it as ASCII art.
+Makes a new kind of image source work with the renderer by implementing `idfxx::image::decoder`,
+then scales its picture to fit a small screen and prints it as ASCII art.
 
-The same decoder also works with anything else that takes an `idfxx::image::decoder`, such as the writers
-in `idfxx_lcd_image` and `idfxx_epaper_image`.
+The same decoder also works with anything else that takes an `idfxx::image::decoder`, such as the
+writers in `idfxx_lcd_image` and `idfxx_epaper_image`.
 
 ## What it demonstrates
 
@@ -14,11 +14,12 @@ in `idfxx_lcd_image` and `idfxx_epaper_image`.
 - Fitting the picture to a screen with `idfxx::image::render()`, `idfxx::image::placement` and
   `idfxx::image::render_config`
 - Writing a sink that receives the output as it is produced, so the picture is never held in memory
-- Stopping a decode early by returning an error from a sink, which `idfxx::image::try_render()` returns
-  to its caller
+- Stopping a decode early by returning an error from a sink, which `idfxx::image::try_render()`
+  returns to its caller
 
-The example uses the exception-based `render()` for its main path, and the result-based `try_render()`
-where it needs to look at the error. Sinks and decoders return `idfxx::result<void>` either way.
+The example uses the exception-based `render()` for its main path, and the result-based
+`try_render()` where it needs to look at the error. Sinks and decoders return `idfxx::result<void>`
+either way.
 
 ## Hardware required
 
@@ -42,4 +43,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

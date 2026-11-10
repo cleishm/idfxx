@@ -68,7 +68,8 @@ void poll_encoder(encoder_context* ctx) {
     uint16_t coeff = ctx->accel_coeff.load(std::memory_order_relaxed);
     if (coeff > 0) {
         auto now = timer::clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - ctx->last_motion_time);
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - ctx->last_motion_time);
         ctx->last_motion_time = now;
 
         if (elapsed < ctx->cfg.acceleration_threshold) {

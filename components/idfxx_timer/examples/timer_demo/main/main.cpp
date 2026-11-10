@@ -56,8 +56,9 @@ extern "C" void app_main() {
     // --- Static start_once ---
     logger.info("=== Static start_once ===");
     std::atomic<bool> static_fired{false};
-    auto static_timer =
-        idfxx::timer::start_once({.name = "static_once"}, 300ms, [&static_fired]() { static_fired = true; });
+    auto static_timer = idfxx::timer::start_once({.name = "static_once"}, 300ms, [&static_fired]() {
+        static_fired = true;
+    });
     idfxx::delay(500ms);
     logger.info("Static one-shot fired={}", static_fired.load());
 
@@ -65,7 +66,9 @@ extern "C" void app_main() {
     logger.info("=== Static start_periodic ===");
     std::atomic<int> static_count{0};
     auto static_periodic =
-        idfxx::timer::start_periodic({.name = "static_periodic"}, 200ms, [&static_count]() { static_count++; });
+        idfxx::timer::start_periodic({.name = "static_periodic"}, 200ms, [&static_count]() {
+            static_count++;
+        });
     idfxx::delay(1s);
     static_periodic.stop();
     logger.info("Static periodic ticks: {}", static_count.load());

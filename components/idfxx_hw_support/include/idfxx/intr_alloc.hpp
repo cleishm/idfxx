@@ -57,7 +57,8 @@ namespace idfxx {
 using intr_levels = flags<intr_level>;
 
 /// Low and medium priority levels (1-3). These can be handled in C / C++.
-inline constexpr intr_levels intr_level_lowmed = intr_level::level_1 | intr_level::level_2 | intr_level::level_3;
+inline constexpr intr_levels intr_level_lowmed =
+    intr_level::level_1 | intr_level::level_2 | intr_level::level_3;
 
 /// High priority levels (4-6 and NMI). These require assembly handlers.
 inline constexpr intr_levels intr_level_high =

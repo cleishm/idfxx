@@ -1,7 +1,7 @@
 # PCF8563 Sync Time
 
-Sets the system time from a PCF8563 real-time clock at boot, or seeds the clock with a fixed time if it
-has lost track.
+Sets the system time from a PCF8563 real-time clock at boot, or seeds the clock with a fixed time if
+it has lost track.
 
 ## What it demonstrates
 
@@ -12,13 +12,14 @@ has lost track.
 - Seeding a clock that has lost track with `set_time()`
 - Reporting failures by catching `std::system_error`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
 - An ESP32-S2 or ESP32-S3 development board (see the note below for other targets)
-- A PCF8563 module (with its 32.768 kHz crystal and a backup battery or supercapacitor), powered from
-  3.3 V, at address 0x51
+- A PCF8563 module (with its 32.768 kHz crystal and a backup battery or supercapacitor), powered
+  from 3.3 V, at address 0x51
 
 Wire the module to the board as follows, plus power and ground:
 
@@ -54,4 +55,5 @@ idf.py set-target esp32s3
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

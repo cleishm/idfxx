@@ -45,14 +45,17 @@ public:
      * @brief Configuration structure for SSD1306 panels.
      */
     struct config {
-        gpio reset_gpio = gpio::nc(); ///< GPIO number for hardware reset, or idfxx::gpio::nc() if not used
-        uint32_t height = 64;         ///< Display height in pixels (64 or 32)
-        gpio::level reset_active_level = gpio::level::low; ///< Active level for the panel reset signal
+        /// GPIO number for hardware reset, or idfxx::gpio::nc() if not used
+        gpio reset_gpio = gpio::nc();
+        /// Display height in pixels (64 or 32)
+        uint32_t height = 64;
+        /// Active level for the panel reset signal
+        gpio::level reset_active_level = gpio::level::low;
         /**
          * @brief Initial display contrast (0x00 dimmest .. 0xFF brightest).
          *
          * Applied once when the panel is created, on the same scale as set_contrast(),
-         * which can change it at any time afterwards.
+         * which can change it at any time afterward.
          */
         uint8_t contrast = 128;
     };

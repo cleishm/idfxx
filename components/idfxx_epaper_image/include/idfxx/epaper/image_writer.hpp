@@ -80,17 +80,22 @@ struct calibration_access;
  * calibration's @ref calibration::presets.
  */
 struct rendering_intent {
-    /// @brief The tone curve, 0 to 1: 0 is black-point-compensated lightness (Soft), and 1 a midtone curve (Deep).
+    /// @brief The tone curve, 0 to 1: 0 is black-point-compensated lightness (Soft), and 1 a
+    /// midtone curve (Deep).
     required<float> tone;
     /// @brief The share of local detail kept around the blurred base, 0 to 1.
     required<float> detail;
-    /// @brief The adaptation to the paper's white below the highlights, 0 to 1. Has no effect on a gray panel.
+    /// @brief The adaptation to the paper's white below the highlights, 0 to 1. Has no effect on a
+    /// gray panel.
     required<float> adapt;
-    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off. Has no effect on a gray panel.
+    /// @brief The chroma boost, sparing skin and near-neutrals, 0 to 3: 1 is off. Has no effect on
+    /// a gray panel.
     required<float> vibrance;
-    /// @brief How far below the paper's white the source's white is placed, in L*, 0 to 3: 0 is off.
+    /// @brief How far below the paper's white the source's white is placed, in L*, 0 to 3: 0 is
+    /// off.
     required<float> veil;
-    /// @brief The L* added to lower midtones, fading out by L* 82 and sparing saturated colors, 0 to 20: 0 is off.
+    /// @brief The L* added to lower midtones, fading out by L* 82 and sparing saturated colors, 0
+    /// to 20: 0 is off.
     required<float> lift;
 };
 
@@ -246,14 +251,17 @@ public:
      * @return The preset's rendering intent.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::not_found if the panel has no preset of that name.
+     * @throws std::system_error with idfxx::errc::not_found if the panel has no preset of that
+     * name.
      *
      * @code
      * const auto& cal = idfxx::epaper::calibration::el133uf1();
      * idfxx::epaper::write_image(panel, cal, decoder, {}, {.intent = cal.preset("Bright")});
      * @endcode
      */
-    [[nodiscard]] rendering_intent preset(std::string_view name) const { return unwrap(try_preset(name)); }
+    [[nodiscard]] rendering_intent preset(std::string_view name) const {
+        return unwrap(try_preset(name));
+    }
 #endif
 
     /**
@@ -275,7 +283,9 @@ public:
      *
      * @return The inks, stored in this object and valid as long as it is.
      */
-    [[nodiscard]] std::span<const ink> inks() const noexcept { return std::span<const ink>(_inks).first(_ink_count); }
+    [[nodiscard]] std::span<const ink> inks() const noexcept {
+        return std::span<const ink>(_inks).first(_ink_count);
+    }
 
 private:
     /** @cond INTERNAL */
@@ -346,30 +356,35 @@ template<>
 struct pixel_traits<gray4> {
     static constexpr enum color_mode mode = color_mode::gray4;
 
-    [[nodiscard]] static constexpr gray4 from_code(uint8_t code) noexcept { return static_cast<gray4>(3 - code); }
+    [[nodiscard]] static constexpr gray4 from_code(uint8_t code) noexcept {
+        return static_cast<gray4>(3 - code);
+    }
 };
 
 template<>
 struct pixel_traits<color6> {
     static constexpr enum color_mode mode = color_mode::color6;
 
-    [[nodiscard]] static constexpr color6 from_code(uint8_t code) noexcept { return static_cast<color6>(code); }
+    [[nodiscard]] static constexpr color6 from_code(uint8_t code) noexcept {
+        return static_cast<color6>(code);
+    }
 };
 
 // A surface that image writing can draw to: a framebuffer, and views of one such as
 // gfx::rotated and gfx::canvas.
 template<typename S>
-concept image_surface = requires(S& s, const S& cs, size_t x, size_t y, typename S::pixel_type pixel) {
-    pixel_traits<typename S::pixel_type>::mode;
-    { s.set_pixel(x, y, pixel) } noexcept;
-    { cs.width() } -> std::convertible_to<size_t>;
-    { cs.height() } -> std::convertible_to<size_t>;
-};
+concept image_surface =
+    requires(S& s, const S& cs, size_t x, size_t y, typename S::pixel_type pixel) {
+        pixel_traits<typename S::pixel_type>::mode;
+        { s.set_pixel(x, y, pixel) } noexcept;
+        { cs.width() } -> std::convertible_to<size_t>;
+        { cs.height() } -> std::convertible_to<size_t>;
+    };
 
 // The framebuffers a panel can be written from.
 template<typename F>
-concept image_framebuffer =
-    std::same_as<F, mono_framebuffer> || std::same_as<F, gray4_framebuffer> || std::same_as<F, color6_framebuffer>;
+concept image_framebuffer = std::same_as<F, mono_framebuffer> ||
+    std::same_as<F, gray4_framebuffer> || std::same_as<F, color6_framebuffer>;
 
 // Where a picture is written: a panel, with an optional overlay, or a surface.
 struct destination {
@@ -383,7 +398,12 @@ struct destination {
     void* overlay = nullptr;
 
     // Writes a row of ink codes at a surface's (x, y).
-    void (*set_surface_row)(void* surface, size_t x, size_t y, std::span<const uint8_t> codes) noexcept = nullptr;
+    void (*set_surface_row)(
+        void* surface,
+        size_t x,
+        size_t y,
+        std::span<const uint8_t> codes
+    ) noexcept = nullptr;
     void* surface = nullptr;
     size_t surface_width = 0;
     size_t surface_height = 0;
@@ -396,9 +416,12 @@ template<typename Framebuffer, typename Overlay>
     return {
         .display = &display,
         .pixels = pixel_traits<typename Framebuffer::pixel_type>::mode,
-        .draw_overlay = [](
-                            void* overlay, void* band, size_t x, size_t y
-                        ) { std::invoke(*static_cast<Overlay*>(overlay), *static_cast<Framebuffer*>(band), x, y); },
+        .draw_overlay =
+            [](void* overlay, void* band, size_t x, size_t y) {
+                std::invoke(
+                    *static_cast<Overlay*>(overlay), *static_cast<Framebuffer*>(band), x, y
+                );
+            },
         .overlay = const_cast<void*>(static_cast<const void*>(std::addressof(draw))),
     };
 }
@@ -430,8 +453,12 @@ public:
     plan(const destination& to, const calibration& cal, const write_options& options);
 
     // A stream for a picture delivered to the given rectangle of rows.
-    [[nodiscard]] static result<image_stream>
-    make(const destination& to, const calibration& cal, const image::rect& output, const write_options& options);
+    [[nodiscard]] static result<image_stream> make(
+        const destination& to,
+        const calibration& cal,
+        const image::rect& output,
+        const write_options& options
+    );
 
     image_stream(image_stream&& other) noexcept;
     image_stream& operator=(image_stream&& other) noexcept;
@@ -475,9 +502,11 @@ template<image::decoder Decoder>
     if (!stream) {
         return error(stream.error());
     }
-    auto decoded = decoder.try_decode([&](image::point at, image::view<const image::rgb888> rows) -> result<void> {
-        return picture->try_push(at, rows, *stream);
-    });
+    auto decoded = decoder.try_decode(
+        [&](image::point at, image::view<const image::rgb888> rows) -> result<void> {
+            return picture->try_push(at, rows, *stream);
+        }
+    );
     if (!decoded) {
         return decoded;
     }
@@ -596,7 +625,8 @@ void write_image(
  *         error from the decoder, the placement or the panel.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
 void write_image(panel& display, const calibration& cal, Decoder& decoder, Overlay&& draw) {
     unwrap(detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, {}, {}));
 }
@@ -656,7 +686,8 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
  *         decoder, the placement or the panel.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
 void write_image(
     panel& display,
     const calibration& cal,
@@ -664,7 +695,9 @@ void write_image(
     const image::placement& where,
     Overlay&& draw
 ) {
-    unwrap(detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, {}));
+    unwrap(
+        detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, {})
+    );
 }
 
 /**
@@ -724,7 +757,8 @@ void write_image(
  *         and any error from the decoder, the placement or the panel.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
 void write_image(
     panel& display,
     const calibration& cal,
@@ -733,7 +767,11 @@ void write_image(
     const write_options& options,
     Overlay&& draw
 ) {
-    unwrap(detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, options));
+    unwrap(
+        detail::try_write(
+            detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, options
+        )
+    );
 }
 
 /**
@@ -852,8 +890,10 @@ template<image::decoder Decoder>
  * @retval other An error from the decoder, the placement or the panel, unchanged.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
-[[nodiscard]] result<void> try_write_image(panel& display, const calibration& cal, Decoder& decoder, Overlay&& draw) {
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+[[nodiscard]] result<void>
+try_write_image(panel& display, const calibration& cal, Decoder& decoder, Overlay&& draw) {
     return detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, {}, {});
 }
 
@@ -897,7 +937,8 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * @retval other An error from the decoder, the placement or the panel, unchanged.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
 [[nodiscard]] result<void> try_write_image(
     panel& display,
     const calibration& cal,
@@ -947,7 +988,8 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * @retval other An error from the decoder, the placement or the panel, unchanged.
  */
 template<typename Framebuffer, image::decoder Decoder, typename Overlay>
-    requires detail::image_framebuffer<Framebuffer> && std::invocable<Overlay&, Framebuffer&, size_t, size_t>
+    requires detail::image_framebuffer<Framebuffer> &&
+    std::invocable<Overlay&, Framebuffer&, size_t, size_t>
 [[nodiscard]] result<void> try_write_image(
     panel& display,
     const calibration& cal,
@@ -956,7 +998,9 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
     const write_options& options,
     Overlay&& draw
 ) {
-    return detail::try_write(detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, options);
+    return detail::try_write(
+        detail::to_panel<Framebuffer>(display, draw), cal, decoder, where, options
+    );
 }
 
 /**

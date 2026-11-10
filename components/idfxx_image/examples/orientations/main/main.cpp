@@ -74,12 +74,16 @@ extern "C" void app_main() {
     // Find the photo pixel under a touch on the screen. The position must be inside the photo, so
     // a real application would check that first.
     const image::point touch{8, 6};
-    const image::point hit = image::source_point(o, {touch.x - left, touch.y - top}, photo.width(), photo.height());
-    logger.info("Touch at screen ({}, {}) is on photo pixel ({}, {})", touch.x, touch.y, hit.x, hit.y);
+    const image::point hit =
+        image::source_point(o, {touch.x - left, touch.y - top}, photo.width(), photo.height());
+    logger.info(
+        "Touch at screen ({}, {}) is on photo pixel ({}, {})", touch.x, touch.y, hit.x, hit.y
+    );
 
     // Going the other way, find where a photo pixel landed, to mark its top-left corner. The
     // displayed image is the source here, and the inverse orientation leads back to the photo.
-    const image::point corner = image::source_point(image::inverse(o), {0, 0}, shown.width, shown.height);
+    const image::point corner =
+        image::source_point(image::inverse(o), {0, 0}, shown.width, shown.height);
     screen[left + corner.x, top + corner.y] = MARKER;
     print_image("Screen, with the photo's top-left corner marked", screen);
 

@@ -49,10 +49,14 @@ struct mono_font {
     [[nodiscard]] constexpr size_t bytes_per_row() const noexcept { return (width + 7u) / 8u; }
 
     /** @brief Returns the number of bytes in one glyph. */
-    [[nodiscard]] constexpr size_t bytes_per_glyph() const noexcept { return bytes_per_row() * height; }
+    [[nodiscard]] constexpr size_t bytes_per_glyph() const noexcept {
+        return bytes_per_row() * height;
+    }
 
     /** @brief Returns true if the font has a glyph for @p c. */
-    [[nodiscard]] constexpr bool contains(char c) const noexcept { return c >= first_char && c <= last_char; }
+    [[nodiscard]] constexpr bool contains(char c) const noexcept {
+        return c >= first_char && c <= last_char;
+    }
 
     /**
      * @brief Returns a pointer to the glyph bitmap for @p c.
@@ -101,7 +105,8 @@ struct mono_font {
  * @param scale Integer magnification factor (>= 1; 0 is treated as 1).
  * @return The rendered width in pixels.
  */
-[[nodiscard]] constexpr size_t text_width(const mono_font& font, std::string_view text, unsigned scale = 1) noexcept {
+[[nodiscard]] constexpr size_t
+text_width(const mono_font& font, std::string_view text, unsigned scale = 1) noexcept {
     if (scale == 0) {
         scale = 1;
     }

@@ -38,7 +38,8 @@ std::optional<uint8_t> decode_field(uint8_t reg, uint8_t mask, uint8_t lo, uint8
 
 // An alarm field's register value: AE set if @p value is empty, otherwise the
 // BCD of a value that must lie in [lo, hi]. invalid_arg if it doesn't.
-result<uint8_t> encode_alarm_field(std::optional<long long> value, long long lo, long long hi) noexcept {
+result<uint8_t>
+encode_alarm_field(std::optional<long long> value, long long lo, long long hi) noexcept {
     if (!value) {
         return alarm_disable;
     }
@@ -50,7 +51,8 @@ result<uint8_t> encode_alarm_field(std::optional<long long> value, long long lo,
 
 // An alarm field's value: std::nullopt if AE disables it, otherwise its masked
 // BCD value, which must lie in [lo, hi]. invalid_state if it doesn't.
-result<std::optional<uint8_t>> decode_alarm_field(uint8_t reg, uint8_t mask, uint8_t lo, uint8_t hi) noexcept {
+result<std::optional<uint8_t>>
+decode_alarm_field(uint8_t reg, uint8_t mask, uint8_t lo, uint8_t hi) noexcept {
     if ((reg & alarm_disable) != 0) {
         return std::optional<uint8_t>{};
     }
@@ -102,7 +104,8 @@ std::optional<sys_seconds> decode_time(std::span<const uint8_t, time_size> regs)
     if (!ymd.ok()) {
         return std::nullopt;
     }
-    return sys_days{ymd} + std::chrono::hours{*hour} + std::chrono::minutes{*min} + std::chrono::seconds{*sec};
+    return sys_days{ymd} + std::chrono::hours{*hour} + std::chrono::minutes{*min} +
+        std::chrono::seconds{*sec};
 }
 
 std::optional<sys_seconds> decode_clock(const clock_registers& regs) {
@@ -113,13 +116,21 @@ std::optional<sys_seconds> decode_clock(const clock_registers& regs) {
 }
 
 result<alarm_registers> encode_alarm(const pcf8563::alarm_config& alarm) {
-    const auto minute = encode_alarm_field(alarm.minute.transform([](auto m) { return m.count(); }), 0, 59);
-    const auto hour = encode_alarm_field(alarm.hour.transform([](auto h) { return h.count(); }), 0, 23);
+    const auto minute =
+        encode_alarm_field(alarm.minute.transform([](auto m) { return m.count(); }), 0, 59);
+    const auto hour =
+        encode_alarm_field(alarm.hour.transform([](auto h) { return h.count(); }), 0, 23);
     const auto day = encode_alarm_field(
-        alarm.day.transform([](auto d) { return static_cast<long long>(static_cast<unsigned>(d)); }), 1, 31
+        alarm.day.transform([](auto d) {
+            return static_cast<long long>(static_cast<unsigned>(d));
+        }),
+        1,
+        31
     );
     const auto weekday = encode_alarm_field(
-        alarm.weekday.transform([](auto wd) { return static_cast<long long>(wd.c_encoding()); }), 0, 6
+        alarm.weekday.transform([](auto wd) { return static_cast<long long>(wd.c_encoding()); }),
+        0,
+        6
     );
     if (!minute || !hour || !day || !weekday) {
         return error(errc::invalid_arg);
@@ -184,7 +195,8 @@ struct pcf8563::state {
     // only the flags named in @p clear: AF and TF are otherwise written as 1,
     // which leaves them unchanged. Writes nothing if the interrupt bits would
     // not change and no flag to clear is set.
-    [[nodiscard]] result<void> modify_control2(uint8_t mask, uint8_t bits, pcf8563_internal::control2_clear clear) {
+    [[nodiscard]] result<void>
+    modify_control2(uint8_t mask, uint8_t bits, pcf8563_internal::control2_clear clear) {
         auto current = dev.try_read_register(pcf8563_internal::reg_control2);
         if (!current) {
             return error(current.error());
@@ -192,7 +204,8 @@ struct pcf8563::state {
         const auto interrupts = static_cast<uint8_t>((*current & ~mask) | (bits & mask));
         const bool interrupts_change = (interrupts & pcf8563_internal::control2_interrupt_mask) !=
             (*current & pcf8563_internal::control2_interrupt_mask);
-        const bool flag_to_clear = (clear.alarm_flag && (*current & pcf8563_internal::control2_af) != 0) ||
+        const bool flag_to_clear =
+            (clear.alarm_flag && (*current & pcf8563_internal::control2_af) != 0) ||
             (clear.timer_flag && (*current & pcf8563_internal::control2_tf) != 0);
         if (!interrupts_change && !flag_to_clear) {
             return {};
@@ -286,7 +299,7 @@ result<void> pcf8563::do_set_time(sys_seconds t) {
     if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_seconds, *regs); !r) {
         return error(r.error());
     }
-    // Then restart a stopped clock, so the time is valid afterwards. Only
+    // Then restart a stopped clock, so the time is valid afterward. Only
     // Control_status_1 is touched, and only written if it changes: STOP is
     // cleared, TESTC kept. A clock stopped beforehand starts counting from
     // here, so stop() then set_time() sets the time on a precise second.
@@ -306,9 +319,10 @@ result<void> pcf8563::try_stop() {
 }
 
 result<bool> pcf8563::try_running() {
-    return _state->dev.try_read_register(pcf8563_internal::reg_control1).transform([](uint8_t control1) {
-        return (control1 & pcf8563_internal::control1_stop) == 0;
-    });
+    return _state->dev.try_read_register(pcf8563_internal::reg_control1)
+        .transform([](uint8_t control1) {
+            return (control1 & pcf8563_internal::control1_stop) == 0;
+        });
 }
 
 // =============================================================================
@@ -352,13 +366,17 @@ result<void> pcf8563::try_start_timer(timer_source source, uint8_t count) {
 }
 
 result<void> pcf8563::try_start_timer(timer_source source, uint8_t count, const timer_config& cfg) {
-    if (count == 0 || !valid(source, timer_source::hz_1_60) || !valid(cfg.interrupt, timer_interrupt::pulse)) {
+    if (count == 0 || !valid(source, timer_source::hz_1_60) ||
+        !valid(cfg.interrupt, timer_interrupt::pulse)) {
         return error(errc::invalid_arg);
     }
     // Disable the timer with its new source and count in one burst (0Eh then
     // 0Fh), set the interrupt mode, then enable it.
-    const std::array<uint8_t, 2> disabled{pcf8563_internal::make_timer_control(false, source), count};
-    if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_timer_control, disabled); !r) {
+    const std::array<uint8_t, 2> disabled{
+        pcf8563_internal::make_timer_control(false, source), count
+    };
+    if (auto r = _state->dev.try_write_register(pcf8563_internal::reg_timer_control, disabled);
+        !r) {
         return r;
     }
     if (auto r = _state->modify_control2(
@@ -388,7 +406,8 @@ result<pcf8563::timer_duration> pcf8563::try_timer_remaining() {
     std::array<uint8_t, 2> previous{};
     for (int attempt = 0; attempt < timer_read_attempts; ++attempt) {
         std::array<uint8_t, 2> current{};
-        if (auto r = _state->dev.try_read_register(pcf8563_internal::reg_timer_control, current); !r) {
+        if (auto r = _state->dev.try_read_register(pcf8563_internal::reg_timer_control, current);
+            !r) {
             return error(r.error());
         }
         if (attempt > 0 && current == previous) {
@@ -400,12 +419,15 @@ result<pcf8563::timer_duration> pcf8563::try_timer_remaining() {
 }
 
 result<void> pcf8563::try_stop_timer() {
-    if (auto r =
-            _state->dev.try_write_register(pcf8563_internal::reg_timer_control, pcf8563_internal::timer_td_low_power);
+    if (auto r = _state->dev.try_write_register(
+            pcf8563_internal::reg_timer_control, pcf8563_internal::timer_td_low_power
+        );
         !r) {
         return r;
     }
-    return _state->modify_control2(pcf8563_internal::control2_tie, 0, {.alarm_flag = false, .timer_flag = false});
+    return _state->modify_control2(
+        pcf8563_internal::control2_tie, 0, {.alarm_flag = false, .timer_flag = false}
+    );
 }
 
 // =============================================================================
@@ -413,21 +435,24 @@ result<void> pcf8563::try_stop_timer() {
 // =============================================================================
 
 result<flags<pcf8563::event>> pcf8563::try_events() {
-    return _state->dev.try_read_register(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
-        flags<event> events;
-        if ((control2 & pcf8563_internal::control2_af) != 0) {
-            events |= event::alarm;
-        }
-        if ((control2 & pcf8563_internal::control2_tf) != 0) {
-            events |= event::timer;
-        }
-        return events;
-    });
+    return _state->dev.try_read_register(pcf8563_internal::reg_control2)
+        .transform([](uint8_t control2) {
+            flags<event> events;
+            if ((control2 & pcf8563_internal::control2_af) != 0) {
+                events |= event::alarm;
+            }
+            if ((control2 & pcf8563_internal::control2_tf) != 0) {
+                events |= event::timer;
+            }
+            return events;
+        });
 }
 
 result<void> pcf8563::try_clear_events(flags<event> events) {
     return _state->modify_control2(
-        0, 0, {.alarm_flag = events.contains(event::alarm), .timer_flag = events.contains(event::timer)}
+        0,
+        0,
+        {.alarm_flag = events.contains(event::alarm), .timer_flag = events.contains(event::timer)}
     );
 }
 
@@ -439,11 +464,14 @@ result<void> pcf8563::try_set_clkout(std::optional<clkout_frequency> frequency) 
     if (frequency && !valid(*frequency, clkout_frequency::hz_1)) {
         return error(errc::invalid_arg);
     }
-    return _state->dev.try_write_register(pcf8563_internal::reg_clkout, pcf8563_internal::encode_clkout(frequency));
+    return _state->dev.try_write_register(
+        pcf8563_internal::reg_clkout, pcf8563_internal::encode_clkout(frequency)
+    );
 }
 
 result<std::optional<pcf8563::clkout_frequency>> pcf8563::try_clkout() {
-    return _state->dev.try_read_register(pcf8563_internal::reg_clkout).transform(pcf8563_internal::decode_clkout);
+    return _state->dev.try_read_register(pcf8563_internal::reg_clkout)
+        .transform(pcf8563_internal::decode_clkout);
 }
 
 } // namespace idfxx::rtc

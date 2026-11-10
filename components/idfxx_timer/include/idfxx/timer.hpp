@@ -66,7 +66,9 @@ public:
          * @brief Returns the current time.
          * @return Current time as a time_point.
          */
-        [[nodiscard]] static time_point now() noexcept { return time_point{duration{esp_timer_get_time()}}; }
+        [[nodiscard]] static time_point now() noexcept {
+            return time_point{duration{esp_timer_get_time()}};
+        }
     };
 
     /**
@@ -112,7 +114,8 @@ public:
     /**
      * @brief Creates a timer with a std::move_only_function callback.
      *
-     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
+     overload for ISR
      * dispatch.
      *
      * @param cfg Timer configuration.
@@ -121,7 +124,8 @@ public:
 
      * @retval invalid_arg Invalid configuration.
      */
-    [[nodiscard]] static result<timer> make(const config& cfg, std::move_only_function<void()> callback);
+    [[nodiscard]] static result<timer>
+    make(const config& cfg, std::move_only_function<void()> callback);
 
     /**
      * @brief Creates a timer with a raw function pointer callback.
@@ -200,7 +204,8 @@ public:
     }
 
     /**
-     * @brief Creates and starts a one-shot timer at an absolute time with a std::move_only_function callback.
+     * @brief Creates and starts a one-shot timer at an absolute time with a std::move_only_function
+     * callback.
      *
      * Combines timer creation and one-shot start into a single operation. The timer
      * fires at the specified time point. If the time point is in the past, the timer
@@ -221,13 +226,17 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] static timer
-    start_once(const config& cfg, clock::time_point time, std::move_only_function<void()> callback) {
+    [[nodiscard]] static timer start_once(
+        const config& cfg,
+        clock::time_point time,
+        std::move_only_function<void()> callback
+    ) {
         return unwrap(try_start_once(cfg, time, std::move(callback)));
     }
 
     /**
-     * @brief Creates and starts a one-shot timer at an absolute time with a raw function pointer callback.
+     * @brief Creates and starts a one-shot timer at an absolute time with a raw function pointer
+     * callback.
      *
      * Combines timer creation and one-shot start into a single operation. The timer
      * fires at the specified time point. If the time point is in the past, the timer
@@ -311,7 +320,8 @@ public:
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     /**
-     * @brief Creates and starts a periodic timer with an absolute first time and a std::move_only_function callback.
+     * @brief Creates and starts a periodic timer with an absolute first time and a
+     * std::move_only_function callback.
      *
      * Combines timer creation and periodic start into a single operation. The callback
      * is first invoked at the specified time point and then repeatedly at the given
@@ -350,7 +360,8 @@ public:
     }
 
     /**
-     * @brief Creates and starts a periodic timer with an absolute first time and a raw function pointer callback.
+     * @brief Creates and starts a periodic timer with an absolute first time and a raw function
+     * pointer callback.
      *
      * Combines timer creation and periodic start into a single operation. The callback
      * is first invoked at the specified time point and then repeatedly at the given
@@ -392,7 +403,8 @@ public:
      * Combines timer creation and one-shot start into a single operation. If creation
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
-     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
+     overload for ISR
      * dispatch.
      *
      * @tparam Rep Duration representation type.
@@ -460,13 +472,15 @@ public:
     }
 
     /**
-     * @brief Creates and starts a one-shot timer at an absolute time with a std::move_only_function callback.
+     * @brief Creates and starts a one-shot timer at an absolute time with a std::move_only_function
+     callback.
      *
      * Combines timer creation and one-shot start into a single operation. The timer
      * fires at the specified time point. If the time point is in the past, the timer
      * fires as soon as possible.
      *
-     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
+     overload for ISR
      * dispatch.
      *
      * @param cfg Timer configuration.
@@ -477,8 +491,11 @@ public:
      * @retval invalid_arg Invalid configuration.
      * @retval invalid_state Timer could not be started.
      */
-    [[nodiscard]] static result<timer>
-    try_start_once(const config& cfg, clock::time_point time, std::move_only_function<void()> callback) {
+    [[nodiscard]] static result<timer> try_start_once(
+        const config& cfg,
+        clock::time_point time,
+        std::move_only_function<void()> callback
+    ) {
         auto t = make(cfg, std::move(callback));
         if (!t) {
             return t;
@@ -491,7 +508,8 @@ public:
     }
 
     /**
-     * @brief Creates and starts a one-shot timer at an absolute time with a raw function pointer callback.
+     * @brief Creates and starts a one-shot timer at an absolute time with a raw function pointer
+     * callback.
      *
      * Combines timer creation and one-shot start into a single operation. The timer
      * fires at the specified time point. If the time point is in the past, the timer
@@ -527,7 +545,8 @@ public:
      * Combines timer creation and periodic start into a single operation. If creation
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
-     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
+     overload for ISR
      * dispatch.
      *
      * @tparam Rep Duration representation type.
@@ -596,7 +615,8 @@ public:
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     /**
-     * @brief Creates and starts a periodic timer with an absolute first time and a std::move_only_function callback.
+     * @brief Creates and starts a periodic timer with an absolute first time and a
+     * std::move_only_function callback.
      *
      * Combines timer creation and periodic start into a single operation. The callback
      * is first invoked at the specified time point and then repeatedly at the given
@@ -604,8 +624,8 @@ public:
      * as possible. If creation succeeds but starting fails, the timer is automatically
      * cleaned up via RAII.
      *
-     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer overload for ISR
-     * dispatch.
+     * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
+     * overload for ISR dispatch.
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
@@ -638,7 +658,8 @@ public:
     }
 
     /**
-     * @brief Creates and starts a periodic timer with an absolute first time and a raw function pointer callback.
+     * @brief Creates and starts a periodic timer with an absolute first time and a raw function
+     * pointer callback.
      *
      * Combines timer creation and periodic start into a single operation. The callback
      * is first invoked at the specified time point and then repeatedly at the given
@@ -780,7 +801,8 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    void start_periodic(clock::time_point first, const std::chrono::duration<Rep, Period>& interval) {
+    void
+    start_periodic(clock::time_point first, const std::chrono::duration<Rep, Period>& interval) {
         unwrap(try_start_periodic(first, interval));
     }
 #endif
@@ -851,7 +873,8 @@ public:
      * @retval invalid_arg Invalid interval value.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_start_periodic(const std::chrono::duration<Rep, Period>& interval) {
+    [[nodiscard]] result<void>
+    try_start_periodic(const std::chrono::duration<Rep, Period>& interval) {
         if (_handle == nullptr) {
             return error(errc::invalid_state);
         }
@@ -876,8 +899,10 @@ public:
      * @retval invalid_arg @p first kept slipping into the past before the timer could be started.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_start_periodic(clock::time_point first, const std::chrono::duration<Rep, Period>& interval) {
+    [[nodiscard]] result<void> try_start_periodic(
+        clock::time_point first,
+        const std::chrono::duration<Rep, Period>& interval
+    ) {
         return _try_start_periodic_at(first, to_us(interval));
     }
 #endif
@@ -1027,7 +1052,8 @@ public:
      * @retval invalid_arg @p next kept slipping into the past before the timer could be rearmed.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_restart(clock::time_point next, const std::chrono::duration<Rep, Period>& period) {
+    [[nodiscard]] result<void>
+    try_restart(clock::time_point next, const std::chrono::duration<Rep, Period>& period) {
         return _try_restart_at(next, to_us(period));
     }
 #endif
@@ -1202,7 +1228,8 @@ public:
      * @retval invalid_state The timer service is not initialized.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_stop_and_wait(const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_stop_and_wait(const std::chrono::duration<Rep, Period>& timeout) {
         if (_handle == nullptr) {
             return error(errc::invalid_state);
         }
@@ -1302,7 +1329,8 @@ private:
     void _stop_and_delete() noexcept;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-    [[nodiscard]] result<void> _try_start_periodic_at(clock::time_point first, uint64_t interval_us);
+    [[nodiscard]] result<void>
+    _try_start_periodic_at(clock::time_point first, uint64_t interval_us);
     [[nodiscard]] result<void> _try_restart_at(clock::time_point next, uint64_t period_us);
 #endif
 

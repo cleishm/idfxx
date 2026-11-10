@@ -25,9 +25,10 @@ static constexpr idfxx::log::logger logger{"example"};
 extern const uint8_t photo_jpg_start[] asm("_binary_photo_jpg_start");
 extern const uint8_t photo_jpg_end[] asm("_binary_photo_jpg_end");
 
-// Turns the photo a quarter turn counter-clockwise on the panel's native portrait layout, so it shows upright with
-// the E1004 in landscape. This one is stored on its side, so the turn cancels its EXIF orientation: it is written
-// exactly as stored, row by row, with no frame in memory. A photo stored upright would take a 5.76 MB frame.
+// Turns the photo a quarter turn counter-clockwise on the panel's native portrait layout, so it
+// shows upright with the E1004 in landscape. This one is stored on its side, so the turn cancels
+// its EXIF orientation: it is written exactly as stored, row by row, with no frame in memory. A
+// photo stored upright would take a 5.76 MB frame.
 static constexpr image::orientation TURN = image::orientation::rotate_270;
 
 extern "C" void app_main() {
@@ -43,7 +44,9 @@ extern "C" void app_main() {
 
         // By default the picture covers the screen.
         logger.info("Converting the photo, which takes over a minute");
-        epaper::write_image(display, epaper::calibration::el133uf1(), decoder, {.orientation = TURN});
+        epaper::write_image(
+            display, epaper::calibration::el133uf1(), decoder, {.orientation = TURN}
+        );
 
         logger.info("Refreshing, which takes about 30 seconds");
         display.refresh();

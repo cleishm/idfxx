@@ -35,8 +35,8 @@ Software tests run in the QEMU ESP32-S3 emulator, without physical hardware:
 just qemu-test
 ```
 
-This builds an isolated QEMU image in `build-qemu/` from `sdkconfig.qemu`, runs the Unity suite,
-and reports the pass/fail summary. Tests tagged `[hw]` are excluded.
+This builds an isolated QEMU image in `build-qemu/` from `sdkconfig.qemu`, runs the Unity suite, and
+reports the pass/fail summary. Tests tagged `[hw]` are excluded.
 
 While working on a component, run just its tests instead (the `idfxx_` prefix is optional):
 
@@ -44,10 +44,10 @@ While working on a component, run just its tests instead (the `idfxx_` prefix is
 just test dht gpio
 ```
 
-This builds only the named components' tests, and the components they depend on, in
-`build-test/`. The image is a fraction of the full suite's size, so rebuilds after an edit take
-seconds. When a component's tests use other idfxx components it doesn't depend on itself, list
-them in `components/<name>/tests/requires.cmake`:
+This builds only the named components' tests, and the components they depend on, in `build-test/`.
+The image is a fraction of the full suite's size, so rebuilds after an edit take seconds. When a
+component's tests use other idfxx components it doesn't depend on itself, list them in
+`components/<name>/tests/requires.cmake`:
 
 ```cmake
 set(test_requires idfxx_task)
@@ -82,5 +82,5 @@ All components share one clang-format configuration. Format code with:
 just format          # or: cmake --build build --target format
 ```
 
-This covers component headers, sources, and examples. Tests under `components/*/tests/` are
-neither formatted nor checked, so match the surrounding style by hand.
+This covers component headers, sources, and examples. Tests under `components/*/tests/` are neither
+formatted nor checked, so match the surrounding style by hand.

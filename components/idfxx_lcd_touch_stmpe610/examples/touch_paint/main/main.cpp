@@ -72,7 +72,9 @@ extern "C" void app_main() {
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
         bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(uint16_t);
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Display (ILI9341) on LCD_CS, 40 MHz ---
         idfxx::panel_io lcd_io(
@@ -130,7 +132,8 @@ extern "C" void app_main() {
             if (esp_lcd_touch_read_data(touch_handle) == ESP_OK) {
                 std::array<esp_lcd_touch_point_data_t, 1> data{};
                 uint8_t count = 0;
-                if (esp_lcd_touch_get_data(touch_handle, data.data(), &count, 1) == ESP_OK && count > 0) {
+                if (esp_lcd_touch_get_data(touch_handle, data.data(), &count, 1) == ESP_OK &&
+                    count > 0) {
                     if (!have_last || data[0].x != last_x || data[0].y != last_y) {
                         draw_dot(panel, data[0].x, data[0].y, COLOR_FG);
                         last_x = data[0].x;

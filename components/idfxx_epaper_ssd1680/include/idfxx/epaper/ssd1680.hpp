@@ -55,7 +55,9 @@ namespace idfxx::epaper {
  * behavior. The destructor puts an awake controller into deep sleep.
  *
  * @code
- * idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+ * idfxx::spi::master_bus bus(
+ *     idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+ * );
  * idfxx::panel_io io(bus, idfxx::epaper::ssd1680::spi_io_config(PIN_CS, PIN_DC));
  * idfxx::epaper::ssd1680 display(io, {.reset_gpio = PIN_RST, .busy_gpio = PIN_BUSY});
  *
@@ -117,8 +119,11 @@ public:
      * idfxx::epaper::ssd1680 display(io, {.busy_gpio = PIN_BUSY});
      * @endcode
      */
-    [[nodiscard]] static panel_io::spi_config
-    spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk = quanta::frequency::hertz{10'000'000}) noexcept;
+    [[nodiscard]] static panel_io::spi_config spi_io_config(
+        gpio cs,
+        gpio dc,
+        quanta::frequency::hertz pclk = quanta::frequency::hertz{10'000'000}
+    ) noexcept;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -180,18 +185,39 @@ private:
         size_t height;
     };
 
-    explicit ssd1680(idfxx::panel_io& panel_io, config cfg, std::vector<uint8_t, dram_allocator<uint8_t>> shadow)
-        : panel(cfg.width, cfg.height, cfg.busy_gpio, gpio::level::high, cfg.busy_timeout, cfg.reset_gpio)
+    explicit ssd1680(
+        idfxx::panel_io& panel_io,
+        config cfg,
+        std::vector<uint8_t, dram_allocator<uint8_t>> shadow
+    )
+        : panel(
+              cfg.width,
+              cfg.height,
+              cfg.busy_gpio,
+              gpio::level::high,
+              cfg.busy_timeout,
+              cfg.reset_gpio
+          )
         , _io_handle(panel_io.idf_handle())
         , _mirror_x(cfg.mirror_x)
         , _mirror_y(cfg.mirror_y)
         , _shadow(std::move(shadow)) {}
 
     // epaper::panel customization hooks.
-    [[nodiscard]] result<void>
-    do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
-    [[nodiscard]] result<void>
-    do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
+    [[nodiscard]] result<void> do_write(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
+    [[nodiscard]] result<void> do_write(
+        const gray4_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
     [[nodiscard]] result<void> do_clear() override;
     [[nodiscard]] result<void> do_restore_baseline(const mono_framebuffer& fb) override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
@@ -212,10 +238,14 @@ private:
     [[nodiscard]] result<void> _init_gray();
     [[nodiscard]] result<void> _init_scan();
     [[nodiscard]] result<void> _set_ram_window(region r);
-    [[nodiscard]] result<void>
-    _write_planes(region window, std::span<const uint8_t> new_plane, std::span<const uint8_t> old_plane);
+    [[nodiscard]] result<void> _write_planes(
+        region window,
+        std::span<const uint8_t> new_plane,
+        std::span<const uint8_t> old_plane
+    );
     [[nodiscard]] result<void> _sync_old_plane();
-    [[nodiscard]] result<void> _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+    [[nodiscard]] result<void>
+    _settle(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
     [[nodiscard]] size_t _stride() const noexcept { return (width() + 7) / 8; }
 
     esp_lcd_panel_io_handle_t _io_handle = nullptr; // nullptr after move

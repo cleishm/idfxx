@@ -18,8 +18,14 @@ namespace idfxx::epaper {
 // range must be a valid band of the framebuffer, and the placed band must
 // fit within the panel.
 template<typename FB>
-result<void>
-panel::_try_write_rows(const FB& fb, enum color_mode expected, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::_try_write_rows(
+    const FB& fb,
+    enum color_mode expected,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_asleep || _color_mode != expected) {
         return error(errc::invalid_state);
     }
@@ -47,15 +53,33 @@ result<void> panel::try_write(const color6_framebuffer& fb, size_t x, size_t y) 
     return _try_write_rows(fb, color_mode::color6, 0, fb.height(), x, y);
 }
 
-result<void> panel::try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::try_write_rows(
+    const mono_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     return _try_write_rows(fb, color_mode::mono, row_start, row_end, x, y);
 }
 
-result<void> panel::try_write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::try_write_rows(
+    const gray4_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     return _try_write_rows(fb, color_mode::gray4, row_start, row_end, x, y);
 }
 
-result<void> panel::try_write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::try_write_rows(
+    const color6_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     return _try_write_rows(fb, color_mode::color6, row_start, row_end, x, y);
 }
 

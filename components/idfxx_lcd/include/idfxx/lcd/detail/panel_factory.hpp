@@ -23,8 +23,11 @@ namespace idfxx::lcd::detail {
 /**
  * @brief Signature of esp_lcd vendor panel factories (`esp_lcd_new_panel_*`).
  */
-using panel_factory =
-    esp_err_t (*)(esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t* cfg, esp_lcd_panel_handle_t* ret);
+using panel_factory = esp_err_t (*)(
+    esp_lcd_panel_io_handle_t io,
+    const esp_lcd_panel_dev_config_t* cfg,
+    esp_lcd_panel_handle_t* ret
+);
 
 /**
  * @brief Creates, resets, and initializes an esp_lcd panel.
@@ -41,8 +44,11 @@ using panel_factory =
  *
  * @return The initialized panel handle, or an error.
  */
-[[nodiscard]] result<esp_lcd_panel_handle_t>
-make_panel_handle(panel_factory factory, esp_lcd_panel_io_handle_t io_handle, const panel::config& cfg);
+[[nodiscard]] result<esp_lcd_panel_handle_t> make_panel_handle(
+    panel_factory factory,
+    esp_lcd_panel_io_handle_t io_handle,
+    const panel::config& cfg
+);
 
 } // namespace idfxx::lcd::detail
 

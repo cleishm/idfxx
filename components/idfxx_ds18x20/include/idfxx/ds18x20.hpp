@@ -93,7 +93,8 @@ class device;
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on failure.
  */
-[[nodiscard]] inline std::vector<quanta::thermo::millicelsius> measure_and_read_multi(std::span<const device> devices);
+[[nodiscard]] inline std::vector<quanta::thermo::millicelsius>
+measure_and_read_multi(std::span<const device> devices);
 #endif
 
 /**
@@ -128,7 +129,8 @@ inline std::vector<device> scan_devices(idfxx::gpio pin, size_t max_devices) {
     return unwrap(try_scan_devices(pin, max_devices));
 }
 
-inline std::vector<quanta::thermo::millicelsius> measure_and_read_multi(std::span<const device> devices) {
+inline std::vector<quanta::thermo::millicelsius>
+measure_and_read_multi(std::span<const device> devices) {
     return unwrap(try_measure_and_read_multi(devices));
 }
 #endif
@@ -176,7 +178,8 @@ public:
      * @return The device, or an error if the pin is not connected.
      * @retval invalid_state If the pin is not connected.
      */
-    [[nodiscard]] static result<device> make(idfxx::gpio pin, onewire::address addr = onewire::address::any());
+    [[nodiscard]] static result<device>
+    make(idfxx::gpio pin, onewire::address addr = onewire::address::any());
 
     // Copyable and movable
     device(const device&) = default;
@@ -212,7 +215,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] quanta::thermo::millicelsius read_temperature() const { return unwrap(try_read_temperature()); }
+    [[nodiscard]] quanta::thermo::millicelsius read_temperature() const {
+        return unwrap(try_read_temperature());
+    }
 
     /**
      * @brief Measures and reads the temperature in a single operation.
@@ -223,7 +228,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] quanta::thermo::millicelsius measure_and_read() { return unwrap(try_measure_and_read()); }
+    [[nodiscard]] quanta::thermo::millicelsius measure_and_read() {
+        return unwrap(try_measure_and_read());
+    }
 #endif
 
     /**
@@ -302,11 +309,14 @@ public:
     /**
      * @brief Reads the 9-byte scratchpad memory.
      *
-     * @return The scratchpad contents [temp_lsb, temp_msb, th, tl, config, reserved, reserved, reserved, crc].
+     * @return The scratchpad contents [temp_lsb, temp_msb, th, tl, config, reserved, reserved,
+     * reserved, crc].
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] std::array<uint8_t, 9> read_scratchpad() const { return unwrap(try_read_scratchpad()); }
+    [[nodiscard]] std::array<uint8_t, 9> read_scratchpad() const {
+        return unwrap(try_read_scratchpad());
+    }
 
     /**
      * @brief Writes 3 bytes to the scratchpad (TH, TL, configuration register).

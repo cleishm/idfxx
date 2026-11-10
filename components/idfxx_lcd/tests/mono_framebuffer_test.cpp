@@ -87,7 +87,7 @@ TEST_CASE("mono_framebuffer set/get pixel round trip", "[idfxx][lcd]") {
     fb->set_pixel(5, 9, true);
     TEST_ASSERT_TRUE(fb->get_pixel(5, 9));
 
-    // Neighbouring pixels are unaffected.
+    // Neighboring pixels are unaffected.
     TEST_ASSERT_FALSE(fb->get_pixel(4, 9));
     TEST_ASSERT_FALSE(fb->get_pixel(6, 9));
     TEST_ASSERT_FALSE(fb->get_pixel(5, 8));

@@ -63,7 +63,8 @@
  * // write_rows() stands for your own display code.
  * idfxx::image::render(
  *     dec,
- *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows) -> idfxx::result<void> {
+ *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows)
+ *         -> idfxx::result<void> {
  *         return write_rows(at, rows);
  *     },
  *     {},
@@ -309,7 +310,9 @@ public:
      * @pre `y < height()`.
      * @return A span of `width()` pixels, left to right.
      */
-    [[nodiscard]] constexpr std::span<P> row(size_t y) const noexcept { return {_data + y * _stride, _width}; }
+    [[nodiscard]] constexpr std::span<P> row(size_t y) const noexcept {
+        return {_data + y * _stride, _width};
+    }
 
     /**
      * @brief Accesses the pixel at column x, row y.
@@ -319,7 +322,9 @@ public:
      * @pre `x < width()` and `y < height()`.
      * @return A reference to the pixel.
      */
-    [[nodiscard]] constexpr P& operator[](size_t x, size_t y) const noexcept { return _data[y * _stride + x]; }
+    [[nodiscard]] constexpr P& operator[](size_t x, size_t y) const noexcept {
+        return _data[y * _stride + x];
+    }
 
     /**
      * @brief Writes the pixel at column x, row y, if it is inside the view.
@@ -334,8 +339,9 @@ public:
      * @param y Row index.
      * @param pixel The pixel value to write.
      */
-    constexpr void
-    set_pixel(size_t x, size_t y, value_type pixel) const noexcept(std::is_nothrow_copy_assignable_v<value_type>)
+    constexpr void set_pixel(size_t x, size_t y, value_type pixel) const noexcept(
+        std::is_nothrow_copy_assignable_v<value_type>
+    )
         requires(!std::is_const_v<P>)
     {
         if (x < _width && y < _height) {
@@ -354,7 +360,8 @@ public:
      *         @ref rgb888) if the coordinates are outside the view.
      */
     [[nodiscard]] constexpr value_type get_pixel(size_t x, size_t y) const noexcept(
-        std::is_nothrow_default_constructible_v<value_type> && std::is_nothrow_copy_constructible_v<value_type>
+        std::is_nothrow_default_constructible_v<value_type> &&
+        std::is_nothrow_copy_constructible_v<value_type>
     ) {
         if (x >= _width || y >= _height) {
             return value_type{};
@@ -370,7 +377,8 @@ public:
      *
      * @param pixel The value to fill with.
      */
-    constexpr void fill(value_type pixel) const noexcept(std::is_nothrow_copy_assignable_v<value_type>)
+    constexpr void
+    fill(value_type pixel) const noexcept(std::is_nothrow_copy_assignable_v<value_type>)
         requires(!std::is_const_v<P>)
     {
         for (size_t y = 0; y < _height; ++y) {
@@ -379,12 +387,14 @@ public:
     }
 
     /**
-     * @brief Sets every pixel of the view to a value-initialized pixel (equivalent to `fill(value_type{})`).
+     * @brief Sets every pixel of the view to a value-initialized pixel (equivalent to
+     * `fill(value_type{})`).
      *
      * For @ref rgb888 every pixel becomes black (0, 0, 0).
      */
     constexpr void clear() const noexcept(
-        std::is_nothrow_default_constructible_v<value_type> && std::is_nothrow_copy_assignable_v<value_type>
+        std::is_nothrow_default_constructible_v<value_type> &&
+        std::is_nothrow_copy_assignable_v<value_type>
     )
         requires(!std::is_const_v<P>)
     {
@@ -441,7 +451,8 @@ private:
  * img[10, 20] = {255, 255, 255};
  *
  * // PSRAM-backed buffer on ESP-IDF.
- * idfxx::image::buffer<idfxx::image::rgb888, idfxx::spiram_allocator<idfxx::image::rgb888>> big(1024, 768);
+ * using idfxx::image::rgb888;
+ * idfxx::image::buffer<rgb888, idfxx::spiram_allocator<rgb888>> big(1024, 768);
  * @endcode
  */
 template<typename P = rgb888, typename Allocator = std::allocator<P>>
@@ -470,7 +481,11 @@ public:
      * @param height Height in pixels.
      * @param alloc The allocator for the pixel storage.
      */
-    [[nodiscard]] constexpr buffer(size_t width, size_t height, const Allocator& alloc = Allocator())
+    [[nodiscard]] constexpr buffer(
+        size_t width,
+        size_t height,
+        const Allocator& alloc = Allocator()
+    )
         : _pixels(_pixel_count(width, height), alloc)
         , _width(width)
         , _height(height) {}
@@ -486,7 +501,12 @@ public:
      * @param fill The value of every pixel.
      * @param alloc The allocator for the pixel storage.
      */
-    [[nodiscard]] constexpr buffer(size_t width, size_t height, const P& fill, const Allocator& alloc = Allocator())
+    [[nodiscard]] constexpr buffer(
+        size_t width,
+        size_t height,
+        const P& fill,
+        const Allocator& alloc = Allocator()
+    )
         : _pixels(_pixel_count(width, height), fill, alloc)
         , _width(width)
         , _height(height) {}
@@ -595,7 +615,9 @@ public:
      * @pre `y < height()`.
      * @return A span of `width()` pixels, left to right.
      */
-    [[nodiscard]] constexpr std::span<P> row(size_t y) & noexcept { return {_pixels.data() + y * _width, _width}; }
+    [[nodiscard]] constexpr std::span<P> row(size_t y) & noexcept {
+        return {_pixels.data() + y * _width, _width};
+    }
 
     /**
      * @brief Returns the read-only pixels of one row.
@@ -616,7 +638,9 @@ public:
      * @pre `x < width()` and `y < height()`.
      * @return A reference to the pixel.
      */
-    [[nodiscard]] constexpr P& operator[](size_t x, size_t y) noexcept { return _pixels[y * _width + x]; }
+    [[nodiscard]] constexpr P& operator[](size_t x, size_t y) noexcept {
+        return _pixels[y * _width + x];
+    }
 
     /**
      * @brief Accesses the pixel at column x, row y (read-only).
@@ -626,7 +650,9 @@ public:
      * @pre `x < width()` and `y < height()`.
      * @return A const reference to the pixel.
      */
-    [[nodiscard]] constexpr const P& operator[](size_t x, size_t y) const noexcept { return _pixels[y * _width + x]; }
+    [[nodiscard]] constexpr const P& operator[](size_t x, size_t y) const noexcept {
+        return _pixels[y * _width + x];
+    }
 
     /**
      * @brief Writes the pixel at column x, row y, if it is inside the buffer.
@@ -639,7 +665,8 @@ public:
      * @param y Row index.
      * @param pixel The pixel value to write.
      */
-    constexpr void set_pixel(size_t x, size_t y, P pixel) noexcept(std::is_nothrow_copy_assignable_v<P>) {
+    constexpr void
+    set_pixel(size_t x, size_t y, P pixel) noexcept(std::is_nothrow_copy_assignable_v<P>) {
         if (x < _width && y < _height) {
             _pixels[y * _width + x] = pixel;
         }
@@ -669,15 +696,18 @@ public:
      *
      * @param pixel The value to fill with.
      */
-    constexpr void fill(P pixel) noexcept(std::is_nothrow_copy_assignable_v<P>) { std::ranges::fill(_pixels, pixel); }
+    constexpr void fill(P pixel) noexcept(std::is_nothrow_copy_assignable_v<P>) {
+        std::ranges::fill(_pixels, pixel);
+    }
 
     /**
      * @brief Sets every pixel to a value-initialized pixel (equivalent to `fill(P{})`).
      *
      * For @ref rgb888 every pixel becomes black (0, 0, 0).
      */
-    constexpr void
-    clear() noexcept(std::is_nothrow_default_constructible_v<P> && std::is_nothrow_copy_assignable_v<P>) {
+    constexpr void clear() noexcept(
+        std::is_nothrow_default_constructible_v<P> && std::is_nothrow_copy_assignable_v<P>
+    ) {
         fill(P{});
     }
 
@@ -705,7 +735,8 @@ public:
      * @pre `x + w <= width()` and `y + h <= height()`.
      * @return A read-only view of the region with stride `width()`.
      */
-    [[nodiscard]] constexpr view<const P> subview(size_t x, size_t y, size_t w, size_t h) const& noexcept {
+    [[nodiscard]] constexpr view<const P>
+    subview(size_t x, size_t y, size_t w, size_t h) const& noexcept {
         return view<const P>(*this).subview(x, y, w, h);
     }
 
@@ -714,7 +745,9 @@ public:
      *
      * @return The allocator used for the pixel storage.
      */
-    [[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return _pixels.get_allocator(); }
+    [[nodiscard]] constexpr allocator_type get_allocator() const noexcept {
+        return _pixels.get_allocator();
+    }
 
     /**
      * @brief Returns a view of all pixels.
@@ -728,7 +761,9 @@ public:
      *
      * @return A read-only view of the whole buffer.
      */
-    constexpr operator view<const P>() const noexcept { return view<const P>(_pixels.data(), _width, _height); }
+    constexpr operator view<const P>() const noexcept {
+        return view<const P>(_pixels.data(), _width, _height);
+    }
 
 private:
     static constexpr size_t _pixel_count(size_t width, size_t height) {
@@ -754,7 +789,8 @@ private:
  * @ref orient or @ref oriented. Rotations are clockwise.
  *
  * Orientations @ref orientation::transpose, @ref orientation::rotate_90,
- * @ref orientation::transverse, and @ref orientation::rotate_270 exchange width and height (see @ref swaps_axes).
+ * @ref orientation::transverse, and @ref orientation::rotate_270 exchange width and height (see
+ @ref swaps_axes).
  *
  * The result of applying each orientation to an image of the letter F, numbered
  * by EXIF value:
@@ -786,11 +822,14 @@ enum class orientation : uint8_t {
     rotate_180 = 3,
     /// @brief EXIF 4: stored mirrored top-to-bottom; flip vertically to display.
     flip_vertical = 4,
-    /// @brief EXIF 5: stored mirrored across the main diagonal; transpose (swap rows and columns) to display.
+    /// @brief EXIF 5: stored mirrored across the main diagonal; transpose (swap rows and columns)
+    /// to display.
     transpose = 5,
-    /// @brief EXIF 6: stored rotated 90 degrees counter-clockwise; rotate 90 degrees clockwise to display.
+    /// @brief EXIF 6: stored rotated 90 degrees counter-clockwise; rotate 90 degrees clockwise to
+    /// display.
     rotate_90 = 6,
-    /// @brief EXIF 7: stored mirrored across the anti-diagonal; transverse (flip across the anti-diagonal) to display.
+    /// @brief EXIF 7: stored mirrored across the anti-diagonal; transverse (flip across the
+    /// anti-diagonal) to display.
     transverse = 7,
     /// @brief EXIF 8: stored rotated 90 degrees clockwise; rotate 270 degrees clockwise to display.
     rotate_270 = 8,
@@ -887,8 +926,12 @@ constexpr uint8_t swap_negations(uint8_t bits) noexcept {
  *
  * @code
  * using idfxx::image::orientation;
- * static_assert(compose(orientation::rotate_90, orientation::rotate_90) == orientation::rotate_180);
- * static_assert(compose(orientation::flip_horizontal, orientation::rotate_90) == orientation::transverse);
+ * static_assert(
+ *     compose(orientation::rotate_90, orientation::rotate_90) == orientation::rotate_180
+ * );
+ * static_assert(
+ *     compose(orientation::flip_horizontal, orientation::rotate_90) == orientation::transverse
+ * );
  * @endcode
  */
 [[nodiscard]] constexpr orientation compose(orientation first, orientation second) noexcept {
@@ -897,7 +940,9 @@ constexpr uint8_t swap_negations(uint8_t bits) noexcept {
     // second is (negate N2) after (swap S2); moving swap S2 past first's
     // negations N1 exchanges N1's axes, giving N2 * S2(N1) * S2 * S1.
     const uint8_t n1 = (b & 0b100) != 0 ? detail::swap_negations(a) : a;
-    return detail::orientation_from_bits(static_cast<uint8_t>(((a ^ b) & 0b100) | ((n1 ^ b) & 0b011)));
+    return detail::orientation_from_bits(
+        static_cast<uint8_t>(((a ^ b) & 0b100) | ((n1 ^ b) & 0b011))
+    );
 }
 
 /**
@@ -998,7 +1043,8 @@ struct size {
  *
  * @code
  * using idfxx::image::orientation;
- * static_assert(idfxx::image::oriented_size(orientation::rotate_90, 640, 480) == idfxx::image::size{480, 640});
+ * constexpr auto rotated = idfxx::image::oriented_size(orientation::rotate_90, 640, 480);
+ * static_assert(rotated == idfxx::image::size{480, 640});
  * @endcode
  */
 [[nodiscard]] constexpr size oriented_size(orientation o, size_t width, size_t height) noexcept {
@@ -1046,8 +1092,9 @@ enum class filter : uint8_t {
  *
  * @code
  * idfxx::image::buffer<> screen(320, 240);
- * auto to_screen = [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> block)
- *     -> idfxx::result<void> {
+ * auto to_screen = [&](
+ *     idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> block
+ * ) -> idfxx::result<void> {
  *     if (at.x + block.width() > screen.width() || at.y + block.height() > screen.height()) {
  *         return idfxx::error(idfxx::errc::invalid_size); // stops the producer
  *     }
@@ -1087,7 +1134,8 @@ concept sink = std::invocable<S&, point, view<const P>> &&
  * // s == {0, 479}
  * @endcode
  */
-[[nodiscard]] constexpr point source_point(orientation o, point p, size_t src_width, size_t src_height) noexcept {
+[[nodiscard]] constexpr point
+source_point(orientation o, point p, size_t src_width, size_t src_height) noexcept {
     switch (o) {
     case orientation::identity:
         break;
@@ -1174,7 +1222,9 @@ using default_allocator_t = decltype(detail::default_allocator(std::declval<T>()
  *
  * // Or into a region of a larger image.
  * idfxx::image::buffer<> screen(800, 800);
- * idfxx::image::orient(photo, screen.subview(160, 80, 480, 640), idfxx::image::orientation::rotate_90);
+ * idfxx::image::orient(
+ *     photo, screen.subview(160, 80, 480, 640), idfxx::image::orientation::rotate_90
+ * );
  * @endcode
  *
  * @tparam Src A @ref buffer or @ref view type.
@@ -1224,7 +1274,8 @@ constexpr void orient(const Src& src, Dst&& dst, orientation o) noexcept(
  */
 template<typename Src, typename Allocator>
     requires detail::image_like<const Src&> &&
-    std::same_as<typename std::allocator_traits<Allocator>::value_type, detail::image_value_t<const Src&>>
+    std::same_as<typename std::allocator_traits<Allocator>::value_type,
+                 detail::image_value_t<const Src&>>
 [[nodiscard]] constexpr buffer<detail::image_value_t<const Src&>, Allocator>
 oriented(const Src& src, orientation o, const Allocator& alloc) {
     const view<const detail::image_value_t<const Src&>> s = detail::as_view(src);
@@ -1260,7 +1311,9 @@ oriented(const Src& src, orientation o, const Allocator& alloc) {
  */
 template<typename Src>
     requires detail::image_like<const Src&>
-[[nodiscard]] constexpr buffer<detail::image_value_t<const Src&>, detail::default_allocator_t<const Src&>>
+[[nodiscard]] constexpr buffer<
+    detail::image_value_t<const Src&>,
+    detail::default_allocator_t<const Src&>>
 oriented(const Src& src, orientation o) {
     return oriented(src, o, detail::default_allocator(src));
 }
@@ -1270,9 +1323,11 @@ oriented(const Src& src, orientation o) {
  * @brief How a picture is sized to its target rectangle.
  */
 enum class layout : uint8_t {
-    /// @brief Scales to fill the target, keeping the aspect ratio, and crops the excess equally from both sides.
+    /// @brief Scales to fill the target, keeping the aspect ratio, and crops the excess equally
+    /// from both sides.
     cover,
-    /// @brief Scales to fit inside the target, keeping the aspect ratio, and centers it on the background.
+    /// @brief Scales to fit inside the target, keeping the aspect ratio, and centers it on the
+    /// background.
     fit,
     /// @brief Scales each axis to the target exactly, changing the aspect ratio if they differ.
     stretch,
@@ -1306,7 +1361,8 @@ struct placement {
      * reduced scale. `std::nullopt` is the whole image.
      */
     std::optional<rect> crop = std::nullopt;
-    /// @brief The color of the target left uncovered by @ref layout::fit, and of the gap from @ref fill_to_alignment.
+    /// @brief The color of the target left uncovered by @ref layout::fit, and of the gap
+    /// from @ref fill_to_alignment.
     image::rgb888 background{255, 255, 255};
     /// @brief The resampling filter.
     image::filter filter = image::filter::lanczos3;
@@ -1375,8 +1431,13 @@ struct decode_plan {
     size cover_size; // the smallest stored-orientation decode that covers the output
 };
 
-[[nodiscard]] result<decode_plan>
-plan_decode(size_t width, size_t height, orientation source, const placement& where, const render_config& config);
+[[nodiscard]] result<decode_plan> plan_decode(
+    size_t width,
+    size_t height,
+    orientation source,
+    const placement& where,
+    const render_config& config
+);
 
 // Makes a renderer for an image of full_width x full_height decoded at
 // decoded_width x decoded_height. The crop stays in full-size coordinates.
@@ -1473,8 +1534,8 @@ concept scaling_decoder = decoder<D> && requires(D& d, size_t w, size_t h) {
  * @ref orientation::identity or @ref orientation::flip_horizontal, rows are
  * delivered as the source rows that complete them arrive, with no frame in
  * memory. Any other orientation holds one frame of @ref output's size, from
- * @ref render_config::frame_mem, and delivers its rows after the last source row. The image itself is never held,
- * at any size.
+ * @ref render_config::frame_mem, and delivers its rows after the last source row. The image itself
+ * is never held, at any size.
  *
  * Every output pixel is computed by the same fixed-point arithmetic on every
  * target. A clipped pixel is identical to the same pixel of the unclipped
@@ -1557,7 +1618,8 @@ public:
      * }
      * prepare_destination(r.output()); // stands for your own display code
      * dec.decode(
-     *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows) -> idfxx::result<void> {
+     *     [&](idfxx::image::point at, idfxx::image::view<const idfxx::image::rgb888> rows)
+     *         -> idfxx::result<void> {
      *         r.push(at, rows, write_rows);
      *         return {};
      *     }
@@ -1581,7 +1643,11 @@ public:
      *         it needs more working memory than @ref render_config::memory_limit.
      */
     template<decoder Decoder>
-    [[nodiscard]] explicit renderer(Decoder& decoder, const placement& where, const render_config& config);
+    [[nodiscard]] explicit renderer(
+        Decoder& decoder,
+        const placement& where,
+        const render_config& config
+    );
 #endif
 
     /**
@@ -1603,8 +1669,13 @@ public:
      * @retval idfxx::image::errc::too_large The image needs more working memory
      *         than @ref render_config::memory_limit.
      */
-    [[nodiscard]] static result<renderer>
-    make(size_t width, size_t height, orientation source, const placement& where, const render_config& config);
+    [[nodiscard]] static result<renderer> make(
+        size_t width,
+        size_t height,
+        orientation source,
+        const placement& where,
+        const render_config& config
+    );
 
     /**
      * @brief Creates a renderer for the image of a decoder, ready for its rows.
@@ -1637,7 +1708,8 @@ public:
      *         @ref render_config::memory_limit.
      */
     template<decoder Decoder>
-    [[nodiscard]] static result<renderer> make(Decoder& decoder, const placement& where, const render_config& config);
+    [[nodiscard]] static result<renderer>
+    make(Decoder& decoder, const placement& where, const render_config& config);
 
     renderer(const renderer&) = delete;
     renderer& operator=(const renderer&) = delete;
@@ -1645,7 +1717,7 @@ public:
     /**
      * @brief Move-constructs a renderer, taking over its state.
      *
-     * @param other The renderer to move from. It must not be used afterwards,
+     * @param other The renderer to move from. It must not be used afterward,
      *              other than to be destroyed or assigned to.
      */
     renderer(renderer&& other) noexcept;
@@ -1653,7 +1725,7 @@ public:
     /**
      * @brief Move-assigns a renderer, releasing this one's state.
      *
-     * @param other The renderer to move from. It must not be used afterwards,
+     * @param other The renderer to move from. It must not be used afterward,
      *              other than to be destroyed or assigned to.
      * @return A reference to this renderer.
      */
@@ -1769,8 +1841,15 @@ private:
         view<const rgb888> pixels;
     };
 
-    friend result<renderer>
-    detail::make_decoded_renderer(size_t, size_t, size_t, size_t, orientation, const placement&, const render_config&);
+    friend result<renderer> detail::make_decoded_renderer(
+        size_t,
+        size_t,
+        size_t,
+        size_t,
+        orientation,
+        const placement&,
+        const render_config&
+    );
     friend result<renderer> detail::make_offscreen_renderer(size_t, size_t);
 
     renderer(std::unique_ptr<state> s, rect output) noexcept;
@@ -1787,7 +1866,8 @@ private:
 };
 
 template<decoder Decoder>
-result<renderer> renderer::make(Decoder& decoder, const placement& where, const render_config& config) {
+result<renderer>
+renderer::make(Decoder& decoder, const placement& where, const render_config& config) {
     const auto& info = decoder.info();
     auto plan = detail::plan_decode(info.width, info.height, info.orientation, where, config);
     if (!plan) {
@@ -1902,7 +1982,8 @@ void render(Decoder& decoder, S&& out, const placement& where, const render_conf
  * @retval other The decoder's error, or the error returned by @p out, unchanged.
  */
 template<decoder Decoder, sink S>
-[[nodiscard]] result<void> try_render(Decoder& decoder, S&& out, const placement& where, const render_config& config) {
+[[nodiscard]] result<void>
+try_render(Decoder& decoder, S&& out, const placement& where, const render_config& config) {
     auto r = renderer::make(decoder, where, config);
     if (!r) {
         return error(r.error());

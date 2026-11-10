@@ -29,7 +29,7 @@ using namespace std::chrono_literals;
 constexpr size_t rx_buffer_symbols = 64;
 
 // End of frame: nothing on the wire is quieter than ~200 us mid-frame, and
-// the line idles high afterwards.
+// the line idles high afterward.
 constexpr uint32_t signal_range_min_ns = 1'000;     // glitch filter
 constexpr uint32_t signal_range_max_ns = 1'000'000; // 1 ms idle terminates
 
@@ -81,7 +81,8 @@ struct sensor::state {
 
 namespace {
 
-bool IRAM_ATTR on_recv_done(rmt_channel_handle_t, const rmt_rx_done_event_data_t* edata, void* user_ctx) {
+bool IRAM_ATTR
+on_recv_done(rmt_channel_handle_t, const rmt_rx_done_event_data_t* edata, void* user_ctx) {
     auto* queue = static_cast<QueueHandle_t>(user_ctx);
     BaseType_t high_task_wakeup = pdFALSE;
     xQueueSendFromISR(queue, edata, &high_task_wakeup);
@@ -170,7 +171,8 @@ result<reading> sensor::try_read() {
     auto& s = *_state;
 
     const int64_t now_us = esp_timer_get_time();
-    const int64_t min_gap_us = std::chrono::duration_cast<std::chrono::microseconds>(min_read_interval()).count();
+    const int64_t min_gap_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(min_read_interval()).count();
     if (s.last_read_us != 0 && now_us - s.last_read_us < min_gap_us) {
         return error(errc::invalid_state);
     }
@@ -211,7 +213,9 @@ result<reading> sensor::try_read() {
 
     auto frame = internal::decode_frame({done.received_symbols, done.num_symbols});
     if (!frame) {
-        ESP_LOGD("idfxx::dht", "undecodable reply: %u symbols", static_cast<unsigned>(done.num_symbols));
+        ESP_LOGD(
+            "idfxx::dht", "undecodable reply: %u symbols", static_cast<unsigned>(done.num_symbols)
+        );
         for (size_t i = 0; i < done.num_symbols && i < 8; ++i) {
             const auto& sym = done.received_symbols[i];
             ESP_LOGD(

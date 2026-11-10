@@ -16,18 +16,25 @@ API documentation: **https://cleishm.github.io/idfxx/**
 
 idfxx is a family of independently installable components covering:
 
-- **[Core infrastructure](components/README.md#core-infrastructure):** error handling, memory allocators, chrono, logging, and chip information
-- **[System services](components/README.md#system-services):** tasks, timers, queues, event loops and event groups, sleep, and an interactive console
-- **[Networking](components/README.md#networking):** TCP/UDP sockets and DNS, network interfaces, and WiFi
+- **[Core infrastructure](components/README.md#core-infrastructure):** error handling, memory
+  allocators, chrono, logging, and chip information
+- **[System services](components/README.md#system-services):** tasks, timers, queues, event loops
+  and event groups, sleep, and an interactive console
+- **[Networking](components/README.md#networking):** TCP/UDP sockets and DNS, network interfaces,
+  and WiFi
 - **[Radio](components/README.md#radio):** LoRa transceivers
-- **[Peripherals](components/README.md#peripherals):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons, rotary encoders, NVS, flash partitions, and OTA updates
-- **[Displays](components/README.md#displays):** LCD and e-paper panels, touch controllers, drawing primitives, bitmap fonts, and JPEG images
+- **[Peripherals](components/README.md#peripherals):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons,
+  rotary encoders, NVS, flash partitions, and OTA updates
+- **[Displays](components/README.md#displays):** LCD and e-paper panels, touch controllers, drawing
+  primitives, bitmap fonts, and JPEG images
 - **[Sensors](components/README.md#sensors):** temperature and humidity sensors
-- **[Real-time clocks](components/README.md#real-time-clocks):** external RTC chips, with alarms and timers
-- **[Application protocols](components/README.md#application-protocols):** HTTP client, and HTTP and HTTPS servers
+- **[Real-time clocks](components/README.md#real-time-clocks):** external RTC chips, with alarms and
+  timers
+- **[Application protocols](components/README.md#application-protocols):** HTTP client, and HTTP and
+  HTTPS servers
 
-The [component catalog](components/README.md) lists every component with a description and links
-to its source and API documentation.
+The [component catalog](components/README.md) lists every component with a description and links to
+its source and API documentation.
 
 ## Requirements
 
@@ -112,8 +119,10 @@ Each component's README has a fuller usage guide, and most components ship runna
 
 All idfxx components provide two API styles:
 
-- **Exception-based** — Methods throw `std::system_error` on failure (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
-- **Result-based** — `try_*` methods return `idfxx::result<T>` (`std::expected<T, std::error_code>`), always available
+- **Exception-based** — Methods throw `std::system_error` on failure (requires
+  `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Result-based** — `try_*` methods return `idfxx::result<T>`
+  (`std::expected<T, std::error_code>`), always available
 
 ### Out-of-Memory
 
@@ -144,21 +153,21 @@ Several idfxx types provide `std::formatter` specializations (e.g. `gpio`, `i2c:
 `spi::host_device`, `core_id`, `flags<E>`). These are controlled by the `CONFIG_IDFXX_STD_FORMAT`
 Kconfig option (under **IDFXX** menu), which is enabled by default.
 
-Disabling this option prevents component headers from pulling in `<format>`, which can
-significantly reduce image size. Note that `idfxx_log` requires `CONFIG_IDFXX_STD_FORMAT` and
-will produce a build error if included without it.
+Disabling this option prevents component headers from pulling in `<format>`, which can significantly
+reduce image size. Note that `idfxx_log` requires `CONFIG_IDFXX_STD_FORMAT` and will produce a build
+error if included without it.
 
 ## Versioning
 
 Repository releases use [calendar versioning](https://calver.org/) (e.g., `v2026.02.10`). Individual
-components follow [semantic versioning](https://semver.org/) independently — a component's version is
-only bumped when that component changes. Use caret constraints (e.g., `^1.0.0`) in your
+components follow [semantic versioning](https://semver.org/) independently — a component's version
+is only bumped when that component changes. Use caret constraints (e.g., `^1.0.0`) in your
 `idf_component.yml` to receive compatible updates.
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/cleishm/idfxx/blob/main/CONTRIBUTING.md) for building, testing, and
-code style.
+See [CONTRIBUTING.md](https://github.com/cleishm/idfxx/blob/main/CONTRIBUTING.md) for building,
+testing, and code style.
 
 ## License
 

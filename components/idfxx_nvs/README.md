@@ -7,7 +7,8 @@ Type-safe persistent key-value storage in flash memory.
 ## Features
 
 - NVS namespace lifecycle management
-- Type-safe storage for integers (8-64 bits), `float`/`double` (ESP-IDF 6.1+), strings, and binary blobs
+- Type-safe storage for integers (8-64 bits), `float`/`double` (ESP-IDF 6.1+), strings, and binary
+  blobs
 - Explicit commit model for atomic updates
 - Read-only mode support
 - Partition-based APIs for multi-partition NVS configurations
@@ -205,7 +206,8 @@ idfxx::nvs::flash::init(nvs_part, cfg);
 ## API Overview
 
 The component provides two API styles:
-- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) - Methods throw `std::system_error` on error
+- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) - Methods throw
+  `std::system_error` on error
 - **Result-based API** (always available) - Methods prefixed with `try_*` return `result<T>`
 
 ### Opening a Namespace
@@ -302,8 +304,10 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 - Each namespace is independent
 - Call `nvs::flash::init()` or `nvs::flash::try_init()` once before using NVS
 - Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
-- Supported integer types: `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`, `uint64_t`, `int64_t`
-- With ESP-IDF 6.1 or later, `float` and `double` are also supported; storing NaN fails with `idfxx::errc::invalid_arg`. On earlier versions these overloads do not exist
+- Supported integer types: `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`,
+  `uint64_t`, `int64_t`
+- With ESP-IDF 6.1 or later, `float` and `double` are also supported; storing NaN fails with
+  `idfxx::errc::invalid_arg`. On earlier versions these overloads do not exist
 
 ## License
 

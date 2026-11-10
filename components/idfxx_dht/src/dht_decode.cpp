@@ -27,14 +27,14 @@ constexpr half half_at(std::span<const rmt_symbol_word_t> symbols, size_t h) {
 
 // Sensor response preamble: ~80 us low, then ~80 us high.
 constexpr bool is_preamble(const half& lo, const half& hi) {
-    return lo.level == 0 && hi.level == 1 && lo.duration >= 60 && lo.duration <= 100 && hi.duration >= 60 &&
-        hi.duration <= 100;
+    return lo.level == 0 && hi.level == 1 && lo.duration >= 60 && lo.duration <= 100 &&
+        hi.duration >= 60 && hi.duration <= 100;
 }
 
 // Data bit: ~50 us low, then ~26–28 us high (0) or ~70 us high (1).
 constexpr bool is_bit(const half& lo, const half& hi) {
-    return lo.level == 0 && hi.level == 1 && lo.duration >= 30 && lo.duration <= 70 && hi.duration >= 10 &&
-        hi.duration <= 100;
+    return lo.level == 0 && hi.level == 1 && lo.duration >= 30 && lo.duration <= 70 &&
+        hi.duration >= 10 && hi.duration <= 100;
 }
 
 } // namespace
@@ -45,7 +45,8 @@ result<std::array<uint8_t, 5>> decode_frame(std::span<const rmt_symbol_word_t> s
     // Find the response preamble at any phase, skipping anything the capture
     // picked up from the host's own start pulse.
     size_t start = 0;
-    while (start + 1 < halves && !is_preamble(half_at(symbols, start), half_at(symbols, start + 1))) {
+    while (start + 1 < halves &&
+           !is_preamble(half_at(symbols, start), half_at(symbols, start + 1))) {
         ++start;
     }
     if (start + 1 >= halves) {

@@ -125,7 +125,7 @@ enum class border : uint8_t {
  * @brief Abstract base class for ePaper display panels.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::epaper::ssd1680`) customize behaviour by overriding the protected
+ * `idfxx::epaper::ssd1680`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  *
@@ -248,7 +248,9 @@ public:
      *         `errc::invalid_state` if the panel is asleep or in
      *         @ref color_mode::gray4.
      */
-    void write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+    void write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0) {
+        unwrap(try_write(fb, x, y));
+    }
 
     /**
      * @brief Uploads a grayscale framebuffer to the controller's RAM.
@@ -271,7 +273,9 @@ public:
      *         `errc::invalid_state` if the panel is asleep or in
      *         @ref color_mode::mono.
      */
-    void write(const gray4_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+    void write(const gray4_framebuffer& fb, size_t x = 0, size_t y = 0) {
+        unwrap(try_write(fb, x, y));
+    }
 
     /**
      * @brief Uploads a six-color framebuffer to the controller's RAM.
@@ -294,7 +298,9 @@ public:
      *         `errc::invalid_state` if the panel is asleep or not in
      *         @ref color_mode::color6.
      */
-    void write(const color6_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+    void write(const color6_framebuffer& fb, size_t x = 0, size_t y = 0) {
+        unwrap(try_write(fb, x, y));
+    }
 
     /**
      * @brief Uploads a horizontal band of a monochrome framebuffer.
@@ -321,7 +327,13 @@ public:
      *         out-of-bounds placement, and `errc::invalid_state` if the
      *         panel is asleep or in @ref color_mode::gray4.
      */
-    void write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+    void write_rows(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    ) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -349,7 +361,13 @@ public:
      *         out-of-bounds placement, and `errc::invalid_state` if the
      *         panel is asleep or in @ref color_mode::mono.
      */
-    void write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+    void write_rows(
+        const gray4_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    ) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -377,7 +395,13 @@ public:
      *         out-of-bounds placement, and `errc::invalid_state` if the
      *         panel is asleep or not in @ref color_mode::color6.
      */
-    void write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+    void write_rows(
+        const color6_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    ) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -495,8 +519,13 @@ public:
      * @retval invalid_state The panel is asleep, or is operating in
      *         @ref color_mode::gray4.
      */
-    [[nodiscard]] result<void>
-    try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+    [[nodiscard]] result<void> try_write_rows(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    );
 
     /**
      * @brief Uploads a horizontal band of a grayscale framebuffer.
@@ -522,8 +551,13 @@ public:
      * @retval invalid_state The panel is asleep, or is operating in
      *         @ref color_mode::mono.
      */
-    [[nodiscard]] result<void>
-    try_write_rows(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+    [[nodiscard]] result<void> try_write_rows(
+        const gray4_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    );
 
     /**
      * @brief Uploads a horizontal band of a six-color framebuffer.
@@ -549,8 +583,13 @@ public:
      * @retval invalid_state The panel is asleep, or is not operating in
      *         @ref color_mode::color6.
      */
-    [[nodiscard]] result<void>
-    try_write_rows(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+    [[nodiscard]] result<void> try_write_rows(
+        const color6_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    );
 
     /**
      * @brief Clears the controller's RAM to white, without a framebuffer.
@@ -799,7 +838,8 @@ public:
      * @retval not_supported The driver does not support @p mode in the
      *         current color mode, checked before any promotion to full.
      */
-    [[nodiscard]] result<idfxx::future<void>> try_start_refresh(refresh_mode mode = refresh_mode::full) {
+    [[nodiscard]] result<idfxx::future<void>>
+    try_start_refresh(refresh_mode mode = refresh_mode::full) {
         if (auto r = _start_refresh(mode); !r) {
             return error(r.error());
         }
@@ -1231,7 +1271,7 @@ protected:
     /// rejects a value this reports as unsupported. There is no matching
     /// setter hook: the base class stores the setting, and drivers consult
     /// @ref border() in @ref do_refresh. A driver that reports support must
-    /// honour the documented contract there: drive the border as selected
+    /// honor the documented contract there: drive the border as selected
     /// on full and fast refreshes, never drive it on a
     /// @ref refresh_mode::partial refresh, and never drive it while
     /// @ref border::hold is selected. The default reports every value as
@@ -1296,7 +1336,8 @@ protected:
      * @return Success, or an error.
      * @retval timeout The BUSY line did not release in time.
      */
-    [[nodiscard]] result<void> wait_busy(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
+    [[nodiscard]] result<void>
+    wait_busy(std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
     /**
      * @brief Pulses the reset line and waits for the controller to settle.
@@ -1310,12 +1351,19 @@ protected:
      * @retval invalid_state No reset pin is configured.
      * @retval timeout The BUSY line did not release after the reset.
      */
-    [[nodiscard]] result<void> hardware_reset(std::chrono::milliseconds pulse = std::chrono::milliseconds{10});
+    [[nodiscard]] result<void>
+    hardware_reset(std::chrono::milliseconds pulse = std::chrono::milliseconds{10});
 
 private:
     template<typename FB>
-    [[nodiscard]] result<void>
-    _try_write_rows(const FB& fb, enum color_mode expected, size_t row_start, size_t row_end, size_t x, size_t y);
+    [[nodiscard]] result<void> _try_write_rows(
+        const FB& fb,
+        enum color_mode expected,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    );
 
     // Shared body of try_refresh / try_start_refresh: validates, settles the
     // previous update, starts this one, and records the baseline.

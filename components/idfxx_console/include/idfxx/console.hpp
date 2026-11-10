@@ -318,15 +318,21 @@ public:
      * @brief REPL configuration parameters.
      */
     struct config {
-        size_t max_history_len = 32;                         ///< Maximum command history length
-        std::filesystem::path history_save_path = {};        ///< File path for history persistence (empty = no save)
-        size_t task_stack_size = 4096;                       ///< REPL task stack size in bytes
-        task_priority priority = 2;                          ///< REPL task priority
-        std::optional<core_id> core_affinity = std::nullopt; ///< Core affinity (nullopt = any core)
-        /// Prompt string, or std::nullopt to let the driver choose. An explicit empty string gives a blank prompt.
+        /// Maximum command history length
+        size_t max_history_len = 32;
+        /// File path for history persistence (empty = no save)
+        std::filesystem::path history_save_path = {};
+        /// REPL task stack size in bytes
+        size_t task_stack_size = 4096;
+        /// REPL task priority
+        task_priority priority = 2;
+        /// Core affinity (nullopt = any core)
+        std::optional<core_id> core_affinity = std::nullopt;
+        /// Prompt string, or std::nullopt to let the driver choose. An explicit empty string gives
+        /// a blank prompt.
         std::optional<std::string_view> prompt = std::nullopt;
-        /// Maximum command line length, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 is
-        /// rejected with `errc::invalid_arg` when the REPL is created.
+        /// Maximum command line length, in bytes, or std::nullopt to let the driver choose. An
+        /// explicit value of 0 is rejected with `errc::invalid_arg` when the REPL is created.
         std::optional<size_t> max_cmdline_length = std::nullopt;
     };
 
@@ -336,7 +342,8 @@ public:
 
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM || defined(__DOXYGEN__)
     /// @brief The default UART port, as configured by `CONFIG_ESP_CONSOLE_UART_NUM`.
-    static constexpr uart_port default_uart_port = static_cast<uart_port>(CONFIG_ESP_CONSOLE_UART_NUM);
+    static constexpr uart_port default_uart_port =
+        static_cast<uart_port>(CONFIG_ESP_CONSOLE_UART_NUM);
 
     /**
      * @headerfile <idfxx/console>
@@ -345,11 +352,11 @@ public:
     struct uart_config {
         uart_port port = default_uart_port;               ///< UART port
         int baud_rate = CONFIG_ESP_CONSOLE_UART_BAUDRATE; ///< Communication baud rate
-        /// TX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is rejected with
-        /// `errc::invalid_arg` when the REPL is created.
+        /// TX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is
+        /// rejected with `errc::invalid_arg` when the REPL is created.
         std::optional<gpio> tx_gpio = std::nullopt;
-        /// RX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is rejected with
-        /// `errc::invalid_arg` when the REPL is created.
+        /// RX GPIO, or std::nullopt to keep the port's default pin. An explicit `gpio::nc()` is
+        /// rejected with `errc::invalid_arg` when the REPL is created.
         std::optional<gpio> rx_gpio = std::nullopt;
     };
 
@@ -426,7 +433,8 @@ public:
      *
      * @param cfg REPL configuration.
      * @param transport The @ref usb_cdc tag.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_ESP_CONSOLE_USB_CDC are enabled.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_ESP_CONSOLE_USB_CDC are
+     * enabled.
      * @throws std::system_error on failure.
      */
     [[nodiscard]] explicit repl(const config& cfg, usb_cdc_t transport);
@@ -488,7 +496,8 @@ public:
      *
      * @param cfg REPL configuration.
      * @param transport The @ref usb_serial_jtag tag.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG are enabled.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and
+     * CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG are enabled.
      * @throws std::system_error on failure.
      */
     [[nodiscard]] explicit repl(const config& cfg, usb_serial_jtag_t transport);
@@ -552,7 +561,8 @@ public:
      *
      * @param cfg REPL configuration.
      * @param transport The @ref stdio tag.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled and building with ESP-IDF 6.1 or later.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled and building with
+     * ESP-IDF 6.1 or later.
      * @throws std::system_error on failure.
      */
     [[nodiscard]] explicit repl(const config& cfg, stdio_t transport);

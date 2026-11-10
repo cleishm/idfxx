@@ -1,6 +1,7 @@
 # Duty-Cycle Listener
 
-Listens for LoRa packets in a low-power duty-cycled mode, and sends a beacon every few seconds after checking that the channel is clear.
+Listens for LoRa packets in a low-power duty-cycled mode, and sends a beacon every few seconds after
+checking that the channel is clear.
 
 ## What it demonstrates
 
@@ -12,8 +13,8 @@ Listens for LoRa packets in a low-power duty-cycled mode, and sends a beacon eve
 - Creating an `idfxx::radio::sx126x` from a config with its control pins and TCXO settings
 - Setting the frequency, transmit power, LoRa modulation and a long 64-symbol preamble with
   `configure()`
-- Handling `idfxx::radio::rx_done` and `idfxx::radio::cad_done` with `listener_add()`, and reading the
-  packet with `try_read_received()`
+- Handling `idfxx::radio::rx_done` and `idfxx::radio::cad_done` with `listener_add()`, and reading
+  the packet with `try_read_received()`
 - Working out listen and sleep windows from the modulation with `rx_duty_cycle_for()`
 - Listening in low-power duty-cycled mode with `start_listening()`
 - Stopping with `standby()` and checking the channel is clear with `channel_busy()` before sending
@@ -22,8 +23,9 @@ Listens for LoRa packets in a low-power duty-cycled mode, and sends a beacon eve
   `try_wait_for()`, using `time_on_air()` to size the wait
 - Catching `std::system_error` to log radio errors
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`),
-with `try_read_received()` and `try_wait_for()` where it handles failures and carries on.
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`), with `try_read_received()` and `try_wait_for()` where it handles failures and
+carries on.
 
 ## Hardware required
 
@@ -56,9 +58,10 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 
 ## Configuration
 
-Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
-to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
+Before building, set the radio frequency to one that's allowed in your region and that your module
+and antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for
+example to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power
+(`output_power = 14_dBm`).
 
 ## How to use
 
@@ -89,5 +92,5 @@ windows it uses. Any packets it hears are logged with their RSSI and SNR.
 
 To see packets arrive, run this example on two boards with the same frequency; each logs the other's
 beacons. The long preamble on these beacons is what lets a duty-cycled listener catch them between
-sleeps. Packets with a short preamble, such as those from the [transmit_beacon](../transmit_beacon/README.md)
-example, will mostly be missed.
+sleeps. Packets with a short preamble, such as those from the
+[transmit_beacon](../transmit_beacon/README.md) example, will mostly be missed.

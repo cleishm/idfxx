@@ -83,7 +83,8 @@ bool source_too_large(size_t width, size_t height) {
 }
 
 // The part of the displayed image to show, in pixels of the pushed image.
-result<source_rect> displayed_crop(const std::optional<rect>& crop, const source_image& src, orientation transform) {
+result<source_rect>
+displayed_crop(const std::optional<rect>& crop, const source_image& src, orientation transform) {
     const size pushed = oriented_size(transform, src.width, src.height);
     const float pushed_w = static_cast<float>(pushed.width);
     const float pushed_h = static_cast<float>(pushed.height);
@@ -133,7 +134,8 @@ picture_layout lay_out(layout how, const source_rect& crop, size_t area_width, s
 }
 
 // Applies the destination's alignment to the visible part of the target.
-result<box> aligned_output(const box& visible, const placement& where, const render_config& config) {
+result<box>
+aligned_output(const box& visible, const placement& where, const render_config& config) {
     const int64_t a = static_cast<int64_t>(config.x_alignment);
     const int64_t screen_w = static_cast<int64_t>(config.screen_width);
     box aligned = visible;
@@ -151,7 +153,7 @@ result<box> aligned_output(const box& visible, const placement& where, const ren
 source_rect to_stored(orientation transform, const source_rect& r, const source_image& src) {
     const bool swap = swaps_axes(transform);
     source_rect stored = swap ? source_rect{r.y, r.x, r.h, r.w} : r;
-    // Which stored axes run backwards: where the displayed origin comes from.
+    // Which stored axes run backward: where the displayed origin comes from.
     const point origin = source_point(transform, {0, 0}, 2, 2);
     if (origin.x != 0) {
         stored.x = std::max(static_cast<float>(src.width) - (stored.x + stored.w), 0.0f);
@@ -173,10 +175,16 @@ resampler_config stored_resampling(
 ) {
     const size dst = oriented_size(transform, picture.width, picture.height);
     const point a = source_point(
-        transform, {static_cast<size_t>(window.x0), static_cast<size_t>(window.y0)}, dst.width, dst.height
+        transform,
+        {static_cast<size_t>(window.x0), static_cast<size_t>(window.y0)},
+        dst.width,
+        dst.height
     );
     const point b = source_point(
-        transform, {static_cast<size_t>(window.x1 - 1), static_cast<size_t>(window.y1 - 1)}, dst.width, dst.height
+        transform,
+        {static_cast<size_t>(window.x1 - 1), static_cast<size_t>(window.y1 - 1)},
+        dst.width,
+        dst.height
     );
     return {
         .src_width = static_cast<uint32_t>(src.width),
@@ -192,12 +200,14 @@ resampler_config stored_resampling(
     };
 }
 
-result<render_geometry> compute_geometry(const source_image& src, const placement& where, const render_config& config) {
-    if (src.width == 0 || src.height == 0 || config.screen_width == 0 || config.screen_height == 0 ||
-        config.x_alignment == 0) {
+result<render_geometry>
+compute_geometry(const source_image& src, const placement& where, const render_config& config) {
+    if (src.width == 0 || src.height == 0 || config.screen_width == 0 ||
+        config.screen_height == 0 || config.x_alignment == 0) {
         return error(idfxx::errc::invalid_arg);
     }
-    const rect target = where.target.value_or(rect{0, 0, config.screen_width, config.screen_height});
+    const rect target =
+        where.target.value_or(rect{0, 0, config.screen_width, config.screen_height});
     if (target.width == 0 || target.height == 0) {
         return error(idfxx::errc::invalid_arg);
     }
@@ -211,7 +221,9 @@ result<render_geometry> compute_geometry(const source_image& src, const placemen
         return error(crop.error());
     }
 
-    const box screen{0, 0, static_cast<int64_t>(config.screen_width), static_cast<int64_t>(config.screen_height)};
+    const box screen{
+        0, 0, static_cast<int64_t>(config.screen_width), static_cast<int64_t>(config.screen_height)
+    };
     const box visible_target = intersect(to_box(target), screen);
     if (visible_target.empty()) {
         return g;
@@ -281,9 +293,12 @@ struct renderer::state {
     render_geometry geometry;
     uint32_t source_width;
     uint32_t source_height;
-    std::optional<resampler> resampling; // absent when no picture is visible
-    std::vector<rgb888> row;             // the row being delivered, or the resampled row bound for the frame
-    frame_ptr frame;                     // output-sized, for orientations that need one
+    // Absent when no picture is visible.
+    std::optional<resampler> resampling;
+    // The row being delivered, or the resampled row bound for the frame.
+    std::vector<rgb888> row;
+    // Output-sized, for orientations that need one.
+    frame_ptr frame;
     rgb888 background;
     uint32_t next_source_row = 0;
     uint32_t next_output_row = 0;
@@ -319,7 +334,8 @@ const rgb888* renderer::state::next_frame_row() {
     if (next_source_row < source_height) {
         return nullptr;
     }
-    return frame.get() + static_cast<size_t>(next_output_row) * static_cast<size_t>(geometry.output.width());
+    return frame.get() +
+        static_cast<size_t>(next_output_row) * static_cast<size_t>(geometry.output.width());
 }
 
 // Copies a resampled row, in the stored orientation, to where it is displayed.
@@ -351,8 +367,13 @@ void renderer::state::yield_if_due() {
 
 namespace detail {
 
-result<decode_plan>
-plan_decode(size_t width, size_t height, orientation source, const placement& where, const render_config& config) {
+result<decode_plan> plan_decode(
+    size_t width,
+    size_t height,
+    orientation source,
+    const placement& where,
+    const render_config& config
+) {
     auto geometry = compute_geometry({width, height, width, height, source}, where, config);
     if (!geometry) {
         return error(geometry.error());
@@ -383,7 +404,9 @@ result<renderer> make_decoded_renderer(
     const placement& where,
     const render_config& config
 ) {
-    auto geometry = compute_geometry({decoded_width, decoded_height, full_width, full_height, source}, where, config);
+    auto geometry = compute_geometry(
+        {decoded_width, decoded_height, full_width, full_height, source}, where, config
+    );
     if (!geometry) {
         return error(geometry.error());
     }
@@ -394,8 +417,10 @@ result<renderer> make_decoded_renderer(
     const render_geometry& g = *geometry;
     const bool has_picture = !g.visible.empty();
     const bool has_frame = has_picture && needs_frame(g.transform);
-    const uint64_t output_pixels = static_cast<uint64_t>(g.output.width()) * static_cast<uint64_t>(g.output.height());
-    const uint64_t row_pixels = has_frame ? g.resample.vis_w : static_cast<uint64_t>(g.output.width());
+    const uint64_t output_pixels =
+        static_cast<uint64_t>(g.output.width()) * static_cast<uint64_t>(g.output.height());
+    const uint64_t row_pixels =
+        has_frame ? g.resample.vis_w : static_cast<uint64_t>(g.output.width());
     const uint64_t frame_pixels = has_frame ? output_pixels : 0;
 
     std::optional<resampler_plan> plan;
@@ -403,8 +428,9 @@ result<renderer> make_decoded_renderer(
         plan = resampler::plan(g.resample);
     }
     // An off-screen target allocates nothing to speak of, so no limit rejects it.
-    const uint64_t bytes = g.output.empty() ? 0
-                                            : sizeof(renderer::state) + (plan ? resampler::memory_bytes(*plan) : 0) +
+    const uint64_t bytes = g.output.empty()
+        ? 0
+        : sizeof(renderer::state) + (plan ? resampler::memory_bytes(*plan) : 0) +
             (row_pixels + frame_pixels) * sizeof(rgb888);
     if (config.memory_limit && bytes > *config.memory_limit) {
         return error(errc::too_large);
@@ -423,7 +449,8 @@ result<renderer> make_decoded_renderer(
     }
     s->row.assign(static_cast<size_t>(row_pixels), where.background);
     if (frame_pixels > 0) {
-        s->frame = allocate_frame(static_cast<size_t>(frame_pixels), where.background, config.frame_mem);
+        s->frame =
+            allocate_frame(static_cast<size_t>(frame_pixels), where.background, config.frame_mem);
     }
 
     const rect output{
@@ -444,8 +471,13 @@ result<renderer> make_offscreen_renderer(size_t width, size_t height) {
 
 } // namespace detail
 
-result<renderer>
-renderer::make(size_t width, size_t height, orientation source, const placement& where, const render_config& config) {
+result<renderer> renderer::make(
+    size_t width,
+    size_t height,
+    orientation source,
+    const placement& where,
+    const render_config& config
+) {
     return detail::make_decoded_renderer(width, height, width, height, source, where, config);
 }
 
@@ -464,7 +496,8 @@ result<void> renderer::_check_rows(point at, const view<const rgb888>& rows) con
     if (rows.width() != _state->source_width) {
         return error(idfxx::errc::invalid_size);
     }
-    if (at.x != 0 || at.y != _state->next_source_row || rows.height() > _state->source_height - at.y) {
+    if (at.x != 0 || at.y != _state->next_source_row ||
+        rows.height() > _state->source_height - at.y) {
         return error(idfxx::errc::invalid_state);
     }
     return {};
@@ -495,7 +528,9 @@ std::optional<renderer::output_row> renderer::_next_row() {
         return std::nullopt;
     }
     s.yield_if_due();
-    const point at{static_cast<size_t>(_output.x), static_cast<size_t>(_output.y) + s.next_output_row};
+    const point at{
+        static_cast<size_t>(_output.x), static_cast<size_t>(_output.y) + s.next_output_row
+    };
     ++s.next_output_row;
     return output_row{at, view<const rgb888>(pixels, _output.width, 1)};
 }

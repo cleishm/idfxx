@@ -10,12 +10,14 @@ cause on each boot.
 - Finding out which pin woke the chip with `idfxx::sleep::ext1_wakeup_status()`
 - Entering deep sleep with `idfxx::sleep::deep_sleep()`, armed with two wake-up sources: a pin and a
   timer (`idfxx::sleep::timer_wake`)
-- Choosing the pin wake-up source for each chip: `idfxx::sleep::deep_sleep_gpio_wake` on the ESP32-C3 and
-  ESP32-C6, which keeps the pin's internal pull-up on during sleep, and `idfxx::sleep::ext1_wake` on the others
-- Selecting the EXT1 low-level trigger by target: `ext1_mode::all_low` on the ESP32, `ext1_mode::any_low`
-  on the others
+- Choosing the pin wake-up source for each chip: `idfxx::sleep::deep_sleep_gpio_wake` on the
+  ESP32-C3 and ESP32-C6, which keeps the pin's internal pull-up on during sleep, and
+  `idfxx::sleep::ext1_wake` on the others
+- Selecting the EXT1 low-level trigger by target: `ext1_mode::all_low` on the ESP32,
+  `ext1_mode::any_low` on the others
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -49,8 +51,8 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the
-monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
 After a cold boot, the chip reports the boot and goes to deep sleep. Press the button to wake it, or
 wait 30 seconds for the timer. Waking from deep sleep restarts the application, so each wake prints

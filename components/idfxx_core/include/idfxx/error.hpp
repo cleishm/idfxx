@@ -117,7 +117,8 @@ public:
      *
      * @return The canonical `std::error_condition` for `code`.
      */
-    [[nodiscard]] std::error_condition default_error_condition(int code) const noexcept override final;
+    [[nodiscard]] std::error_condition
+    default_error_condition(int code) const noexcept override final;
 };
 
 /**
@@ -332,7 +333,9 @@ template<typename E>
  */
 template<typename T>
 [[nodiscard]] inline T unwrap(result<T> result) {
-    return std::move(result).transform_error([](auto ec) -> std::error_code { throw std::system_error(ec); }).value();
+    return std::move(result)
+        .transform_error([](auto ec) -> std::error_code { throw std::system_error(ec); })
+        .value();
 }
 
 // Specialization for void
@@ -364,7 +367,8 @@ struct guarded_result<result<T>> {
 };
 
 template<typename F>
-using guarded_result_t = typename guarded_result<std::remove_cvref_t<std::invoke_result_t<F>>>::type;
+using guarded_result_t =
+    typename guarded_result<std::remove_cvref_t<std::invoke_result_t<F>>>::type;
 
 template<typename F>
 guarded_result_t<F> invoke_as_result(F&& fn) {
@@ -378,11 +382,17 @@ guarded_result_t<F> invoke_as_result(F&& fn) {
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /// Logs an exception caught by invoke_guarded. `subject` and `what` may be null.
-void log_guarded_exception(const char* tag, const char* context, const char* subject, const char* what) noexcept;
+void log_guarded_exception(
+    const char* tag,
+    const char* context,
+    const char* subject,
+    const char* what
+) noexcept;
 #endif
 
 template<typename F>
-guarded_result_t<F> invoke_guarded_impl(const char* tag, const char* context, const char* subject, F&& fn) noexcept {
+guarded_result_t<F>
+invoke_guarded_impl(const char* tag, const char* context, const char* subject, F&& fn) noexcept {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     try {
         return invoke_as_result(std::forward<F>(fn));
@@ -440,7 +450,8 @@ guarded_result_t<F> invoke_guarded_impl(const char* tag, const char* context, co
  */
 template<typename F>
     requires std::invocable<F>
-[[nodiscard]] detail::guarded_result_t<F> invoke_guarded(const char* tag, const char* context, F&& fn) noexcept {
+[[nodiscard]] detail::guarded_result_t<F>
+invoke_guarded(const char* tag, const char* context, F&& fn) noexcept {
     return detail::invoke_guarded_impl(tag, context, nullptr, std::forward<F>(fn));
 }
 

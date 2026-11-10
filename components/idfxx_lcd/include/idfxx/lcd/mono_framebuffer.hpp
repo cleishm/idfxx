@@ -74,7 +74,8 @@ public:
      * @param height Height in pixels; must be non-zero and a multiple of 8.
      *
      * @return The new mono_framebuffer, or an error.
-     * @retval idfxx::errc::invalid_arg if @p width is zero, or @p height is zero or not a multiple of 8.
+     * @retval idfxx::errc::invalid_arg if @p width is zero, or @p height is zero or not a multiple
+     * of 8.
      */
     [[nodiscard]] static result<mono_framebuffer> make(size_t width, size_t height) {
         if (width == 0 || height == 0 || height % 8 != 0) {

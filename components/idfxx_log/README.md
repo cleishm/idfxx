@@ -148,11 +148,19 @@ void configure_logging() {
 
 ## Important Notes
 
-- **Requires `CONFIG_IDFXX_STD_FORMAT`**: This component depends on `<format>` and requires the `CONFIG_IDFXX_STD_FORMAT` Kconfig option to be enabled (the default). A build error is generated if the option is disabled. If you need logging without `std::format` overhead, use ESP-IDF's `ESP_LOGx` macros directly.
-- **std::format allocates on the heap**: Do not use this component in ISR context, DRAM-only contexts, or early boot. Use ESP-IDF's `ESP_DRAM_LOGx` and `ESP_EARLY_LOGx` macros for those cases.
-- **Tag lifetime**: The `logger` class stores a pointer to the tag string. Use string literals or static storage duration strings.
-- **Three filtering layers**: Macros provide compile-time filtering, template functions check `LOG_LOCAL_LEVEL`, and runtime filtering checks `esp_log_level_get()` before formatting.
-- **Format string safety**: Unlike printf-style `ESP_LOGx` macros, format errors are caught at compile time.
+- **Requires `CONFIG_IDFXX_STD_FORMAT`**: This component depends on `<format>` and requires the
+  `CONFIG_IDFXX_STD_FORMAT` Kconfig option to be enabled (the default). A build error is generated
+  if the option is disabled. If you need logging without `std::format` overhead, use ESP-IDF's
+  `ESP_LOGx` macros directly.
+- **std::format allocates on the heap**: Do not use this component in ISR context, DRAM-only
+  contexts, or early boot. Use ESP-IDF's `ESP_DRAM_LOGx` and `ESP_EARLY_LOGx` macros for those
+  cases.
+- **Tag lifetime**: The `logger` class stores a pointer to the tag string. Use string literals or
+  static storage duration strings.
+- **Three filtering layers**: Macros provide compile-time filtering, template functions check
+  `LOG_LOCAL_LEVEL`, and runtime filtering checks `esp_log_level_get()` before formatting.
+- **Format string safety**: Unlike printf-style `ESP_LOGx` macros, format errors are caught at
+  compile time.
 
 ## License
 

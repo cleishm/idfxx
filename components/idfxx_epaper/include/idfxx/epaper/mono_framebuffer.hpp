@@ -93,7 +93,9 @@ public:
         if (width == 0 || height == 0) {
             return error(errc::invalid_arg);
         }
-        return mono_framebuffer{width, height, std::vector<uint8_t>(((width + 7) / 8) * height, 0xFF)};
+        return mono_framebuffer{
+            width, height, std::vector<uint8_t>(((width + 7) / 8) * height, 0xFF)
+        };
     }
 
     /** @brief Returns the width in pixels. */

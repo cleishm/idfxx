@@ -140,7 +140,7 @@ TEST_CASE("rtc_clock::now() has advanced since power-on", "[idfxx][chrono]") {
     TEST_ASSERT_TRUE(rtc_clock::now().time_since_epoch() > rtc_clock::duration::zero());
 }
 
-TEST_CASE("rtc_clock::now() never runs backwards", "[idfxx][chrono]") {
+TEST_CASE("rtc_clock::now() never runs backward", "[idfxx][chrono]") {
     auto previous = rtc_clock::now();
     for (int i = 0; i < 1000; ++i) {
         auto current = rtc_clock::now();

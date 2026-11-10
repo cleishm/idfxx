@@ -6,22 +6,20 @@ SSD1680 ePaper panel driver (up to 176x296, e.g. 2.13" 122x250).
 
 ## Features
 
-- Implements the full `idfxx::epaper::panel` interface — application code
-  written against the abstract panel works unchanged.
-- Full, fast (temperature-forced shortened waveform), and flicker-free
-  partial refreshes.
-- 4-level grayscale (`color_mode::gray4`) using an explicitly loaded
-  grayscale waveform (the Good Display reference recipe for this glass).
+- Implements the full `idfxx::epaper::panel` interface — application code written against the
+  abstract panel works unchanged.
+- Full, fast (temperature-forced shortened waveform), and flicker-free partial refreshes.
+- 4-level grayscale (`color_mode::gray4`) using an explicitly loaded grayscale waveform (the Good
+  Display reference recipe for this glass).
 - Deep sleep and wake (hardware reset + re-initialization).
-- `restore_baseline()` support, to keep partial refreshes across a wake or
-  an ESP32 deep sleep (in `color_mode::mono`).
-- Automatic previous-image plane maintenance: after every refresh the driver
-  re-sends the displayed frame to the controller's old-image RAM, so partial
-  refreshes diff against exactly what is on the glass.
-- Configurable dimensions covering all SSD1680 glasses (up to 176 sources x
-  296 gates); defaults match the Seeed Studio 2.13" 122x250 panel.
-- `spi_io_config()` helper pre-fills the controller's SPI framing for
-  `idfxx::panel_io`.
+- `restore_baseline()` support, to keep partial refreshes across a wake or an ESP32 deep sleep (in
+  `color_mode::mono`).
+- Automatic previous-image plane maintenance: after every refresh the driver re-sends the displayed
+  frame to the controller's old-image RAM, so partial refreshes diff against exactly what is on the
+  glass.
+- Configurable dimensions covering all SSD1680 glasses (up to 176 sources x 296 gates); defaults
+  match the Seeed Studio 2.13" 122x250 panel.
+- `spi_io_config()` helper pre-fills the controller's SPI framing for `idfxx::panel_io`.
 
 ## Requirements
 
@@ -44,13 +42,11 @@ dependencies:
     version: "^3.0.0"
 ```
 
-Or add `idfxx_epaper_ssd1680` to the `REQUIRES` list in your component's
-`CMakeLists.txt`.
+Or add `idfxx_epaper_ssd1680` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ## Usage
 
-Wiring for the Seeed Studio XIAO ePaper Display Board EE05 (ESP32-S3 Plus)
-with the 2.13" panel:
+Wiring for the Seeed Studio XIAO ePaper Display Board EE05 (ESP32-S3 Plus) with the 2.13" panel:
 
 ```cpp
 #include <idfxx/epaper/mono_framebuffer>
@@ -115,35 +111,33 @@ display.refresh(); // gray4 supports full refresh only
 display.set_color_mode(idfxx::epaper::color_mode::mono); // back to monochrome
 ```
 
-See `examples/ee05_demo` for a complete application exercising all refresh
-modes on the EE05 board, and `examples/deep_sleep_partial` for keeping
-partial refreshes across ESP32 deep sleep with `restore_baseline`.
+See `examples/ee05_demo` for a complete application exercising all refresh modes on the EE05 board,
+and `examples/deep_sleep_partial` for keeping partial refreshes across ESP32 deep sleep with
+`restore_baseline`.
 
 ## API Overview
 
-The panel API (`write`, `write_rows`, `clear`, `restore_baseline`,
-`refresh`, `start_refresh`, `set_color_mode`, `sleep`, `wake`, and their
-`try_*` forms) is inherited from `idfxx::epaper::panel` — see the
-`idfxx_epaper` documentation.
+The panel API (`write`, `write_rows`, `clear`, `restore_baseline`, `refresh`, `start_refresh`,
+`set_color_mode`, `sleep`, `wake`, and their `try_*` forms) is inherited from `idfxx::epaper::panel`
+— see the `idfxx_epaper` documentation.
 
 Driver-specific surface:
 
-- `ssd1680(panel_io&, config)` / `ssd1680::make(panel_io&, config)` —
-  construction; resets and initializes the controller.
-- `config` — `width`/`height` (default 122x250), `reset_gpio`
-  (required for `wake`), `busy_gpio` (required), `busy_timeout` (default
-  15 s), `mirror_x`/`mirror_y`.
-- `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled
-  `panel_io::spi_config` (mode 0, 8-bit command/parameter framing).
+- `ssd1680(panel_io&, config)` / `ssd1680::make(panel_io&, config)` — construction; resets and
+  initializes the controller.
+- `config` — `width`/`height` (default 122x250), `reset_gpio` (required for `wake`), `busy_gpio`
+  (required), `busy_timeout` (default 15 s), `mirror_x`/`mirror_y`.
+- `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled `panel_io::spi_config` (mode 0, 8-bit
+  command/parameter framing).
 
 ## Error Handling
 
 Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 
-- `errc::invalid_arg` — unconnected `busy_gpio`, dimensions outside the
-  controller's 176x296 range, or invalid write placement.
-- `errc::invalid_state` — writing/refreshing while asleep, a framebuffer
-  not matching the color mode, or `wake` without a `reset_gpio`.
+- `errc::invalid_arg` — unconnected `busy_gpio`, dimensions outside the controller's 176x296 range,
+  or invalid write placement.
+- `errc::invalid_state` — writing/refreshing while asleep, a framebuffer not matching the color
+  mode, or `wake` without a `reset_gpio`.
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
 - `errc::not_supported` — `fast`/`partial` refresh in gray4 mode.
 
@@ -151,33 +145,28 @@ Using a moved-from driver object is undefined behavior.
 
 ## Important Notes
 
-- **BUSY is required.** The SSD1680 holds BUSY high for hundreds of
-  milliseconds to seconds during refreshes; `refresh` blocks on it (with a
-  tick-sleep poll, not a busy-spin). `start_refresh` returns while the glass
-  is still driving: the driver then waits for BUSY and re-arms the
+- **BUSY is required.** The SSD1680 holds BUSY high for hundreds of milliseconds to seconds during
+  refreshes; `refresh` blocks on it (with a tick-sleep poll, not a busy-spin). `start_refresh`
+  returns while the glass is still driving: the driver then waits for BUSY and re-arms the
   previous-image plane before the next controller command.
-- **Shadow frame memory**: the driver keeps `(width + 7) / 8 * height`
-  bytes of DRAM (~4 KB at 122x250) mirroring the last-written frame, used
-  to refresh the controller's previous-image plane after each update.
-- **Fast refresh is a waveform trick** (temperature-register forcing
-  selecting a shortened OTP waveform, following Seeed's driver for this
-  glass); **gray4 loads an explicit grayscale waveform** (the Good Display
-  reference recipe). Quality varies by panel batch and temperature —
-  validate on hardware, and prefer `full` refreshes when in doubt.
-- **Fast refresh trades contrast for durability of the image.** The
-  shortened waveform under-drives the ink, leaving black pixels in a
-  weakly held state: they look black on their own, but the first
-  subsequent partial refresh settles them to a visibly gray level (a
-  one-time step, not progressive fading). Start a long partial-refresh
-  sequence from a `full` refresh, which drives pixels to their stable
-  extremes.
-- **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean
-  accumulated ghosting.
-- **`mirror_x`/`mirror_y`** use the controller's address-decrement modes;
-  on glasses whose width is not a multiple of 8 (e.g. 122), `mirror_x`
-  shifts the image by the row-padding bits — verify on hardware.
-- The destructor puts an awake controller into deep sleep; call `wake()`
-  after re-constructing a driver on a previously slept panel.
+- **Shadow frame memory**: the driver keeps `(width + 7) / 8 * height` bytes of DRAM (~4 KB at
+  122x250) mirroring the last-written frame, used to refresh the controller's previous-image plane
+  after each update.
+- **Fast refresh is a waveform trick** (temperature-register forcing selecting a shortened OTP
+  waveform, following Seeed's driver for this glass); **gray4 loads an explicit grayscale waveform**
+  (the Good Display reference recipe). Quality varies by panel batch and temperature — validate on
+  hardware, and prefer `full` refreshes when in doubt.
+- **Fast refresh trades contrast for durability of the image.** The shortened waveform under-drives
+  the ink, leaving black pixels in a weakly held state: they look black on their own, but the first
+  subsequent partial refresh settles them to a visibly gray level (a one-time step, not progressive
+  fading). Start a long partial-refresh sequence from a `full` refresh, which drives pixels to their
+  stable extremes.
+- **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean accumulated ghosting.
+- **`mirror_x`/`mirror_y`** use the controller's address-decrement modes; on glasses whose width is
+  not a multiple of 8 (e.g. 122), `mirror_x` shifts the image by the row-padding bits — verify on
+  hardware.
+- The destructor puts an awake controller into deep sleep; call `wake()` after re-constructing a
+  driver on a previously slept panel.
 
 ## License
 

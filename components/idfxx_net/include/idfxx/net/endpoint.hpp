@@ -79,14 +79,14 @@ enum class direction : int {
  * @brief Differentiated Services Code Point — the top 6 bits of the IPv4/IPv6
  *        traffic-class byte, per RFC 2474 / RFC 4594.
  *
- * Named values cover the standard per-hop behaviours (default, class selectors,
+ * Named values cover the standard per-hop behaviors (default, class selectors,
  * assured-forwarding classes, expedited forwarding, voice-admit). Custom 6-bit
  * values can be passed as `static_cast<dscp>(n)`; only the low 6 bits are used.
  */
 enum class dscp : uint8_t {
     default_ = 0, ///< CS0 — best-effort (default).
 
-    // Class selectors (RFC 2474 §4.2.2 — backwards-compat with legacy IP precedence).
+    // Class selectors (RFC 2474 §4.2.2 — backward-compat with legacy IP precedence).
     cs1 = 8,
     cs2 = 16,
     cs3 = 24,

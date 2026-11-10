@@ -10,7 +10,8 @@ Finds DS18x20 temperature sensors on a 1-Wire bus and reads their temperatures.
 - Reading all sensors together with `idfxx::ds18x20::measure_and_read_multi()`
 - Reading and changing a DS18B20's resolution with `get_resolution()` and `set_resolution()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 

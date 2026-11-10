@@ -44,7 +44,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
         bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(rgb565);
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O ---
         idfxx::panel_io io(

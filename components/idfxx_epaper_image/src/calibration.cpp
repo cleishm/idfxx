@@ -96,7 +96,11 @@ result<calibration> calibration::make(const epi_panel_t& panel) {
         if (!value) {
             return error(errc::invalid_arg);
         }
-        inks[i] = {.value = *value, .nominal = to_rgb888(from.nominal), .measured = to_rgb888(from.measured)};
+        inks[i] = {
+            .value = *value,
+            .nominal = to_rgb888(from.nominal),
+            .measured = to_rgb888(from.measured)
+        };
     }
     return calibration(&panel, mode, inks, panel.ink_count);
 }

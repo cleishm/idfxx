@@ -40,8 +40,8 @@ constexpr uint8_t cmd_lut_kw = 0x22;         // Black-to-white LUT
 constexpr uint8_t cmd_lut_wk = 0x23;         // White-to-black LUT
 constexpr uint8_t cmd_lut_kk = 0x24;         // Black-to-black LUT
 constexpr uint8_t cmd_pll = 0x30;            // PLL control (frame rate)
-constexpr uint8_t cmd_vcom_interval = 0x50;  // VCOM and data interval (border behaviour)
-constexpr uint8_t cmd_end_voltage = 0x52;    // End voltage setting (VCOM/border level after the LUTs)
+constexpr uint8_t cmd_vcom_interval = 0x50;  // VCOM and data interval (border behavior)
+constexpr uint8_t cmd_end_voltage = 0x52;    // End voltage setting (VCOM/border after the LUTs)
 constexpr uint8_t cmd_tcon = 0x60;           // TCON (gate/source non-overlap)
 constexpr uint8_t cmd_resolution = 0x61;     // Resolution setting
 constexpr uint8_t cmd_vcom_dc = 0x82;        // VCOM DC level
@@ -53,7 +53,7 @@ constexpr uint8_t cmd_power_saving = 0xE3;   // Power saving (PWS)
 constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform bank selection)
 
 // VCOM and data interval values (cmd_vcom_interval parameters). The first
-// parameter's low bits matter beyond the border behaviour: DDX (bits 1:0)
+// parameter's low bits matter beyond the border behavior: DDX (bits 1:0)
 // selects the image-data polarity (01 = bit 1 is white, matching the
 // framebuffer encoding) and N2OCP (bit 3) makes the controller copy the
 // new-image RAM into the previous-image RAM when a refresh completes, which
@@ -196,7 +196,9 @@ constexpr size_t max_height = 600;
 // Returns the PLL control (frame rate) code for `rate`, or nullopt if the
 // controller has no such frame rate.
 constexpr std::optional<uint8_t> pll_code(quanta::frequency::hertz rate) noexcept {
-    constexpr std::array<int64_t, 16> rates{5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 200};
+    constexpr std::array<int64_t, 16> rates{
+        5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 130, 150, 200
+    };
     for (size_t i = 0; i < rates.size(); ++i) {
         if (rates[i] == rate.count()) {
             return static_cast<uint8_t>(i);
@@ -231,7 +233,8 @@ static_assert(source_code(quanta::electro::millivolts{2'200}) == std::nullopt);
 
 } // namespace
 
-panel_io::spi_config uc8179::spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk) noexcept {
+panel_io::spi_config
+uc8179::spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk) noexcept {
     return {
         .cs_gpio = cs,
         .dc_gpio = dc,
@@ -244,7 +247,8 @@ panel_io::spi_config uc8179::spi_io_config(gpio cs, gpio dc, quanta::frequency::
 }
 
 result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config cfg) {
-    if (cfg.width == 0 || cfg.width % 8 != 0 || cfg.width > max_width || cfg.height == 0 || cfg.height > max_height) {
+    if (cfg.width == 0 || cfg.width % 8 != 0 || cfg.width > max_width || cfg.height == 0 ||
+        cfg.height > max_height) {
         return error(errc::invalid_arg);
     }
     const auto gray_frame_rate_code = pll_code(cfg.gray4_frame_rate);
@@ -322,7 +326,8 @@ uc8179::~uc8179() {
 // epaper::panel hooks
 // =============================================================================
 
-result<void> uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void>
+uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -338,7 +343,13 @@ result<void> uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size
     });
 }
 
-result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> uc8179::do_write(
+    const gray4_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -361,9 +372,13 @@ result<void> uc8179::do_write(const gray4_framebuffer& fb, size_t row_start, siz
         for (size_t row = row_start; row < row_end; row += band_rows) {
             const size_t rows = std::min(band_rows, row_end - row);
             const auto band = plane.subspan(row * stride, rows * stride);
-            std::ranges::transform(band, staging.begin(), [](uint8_t b) { return static_cast<uint8_t>(~b); });
+            std::ranges::transform(band, staging.begin(), [](uint8_t b) {
+                return static_cast<uint8_t>(~b);
+            });
             const auto data = std::span(staging).first(band.size());
-            if (auto r = _in_window({x, y + row, fb.width(), rows}, [&] { return _stream(cmd, data); }); !r) {
+            if (auto r =
+                    _in_window({x, y + row, fb.width(), rows}, [&] { return _stream(cmd, data); });
+                !r) {
                 return r;
             }
         }
@@ -429,7 +444,9 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
     }
     // Drive the border as configured, but always hold it on differential
     // updates so it does not flicker.
-    if (auto r = _cmd(cmd_vcom_interval, border_params(border(), false, mode == refresh_mode::partial)); !r) {
+    if (auto r =
+            _cmd(cmd_vcom_interval, border_params(border(), false, mode == refresh_mode::partial));
+        !r) {
         return r;
     }
     return _update();
@@ -550,7 +567,8 @@ result<void> uc8179::_load_luts(
 
 result<void> uc8179::_init_full() {
     // OTP-waveform initialization for full refreshes.
-    if (auto r = _cmd(cmd_power_setting, {0x07, 0x07, 0x3F, 0x3F}); !r) { // VGH/VGL 20V, VDH/VDL 15V
+    if (auto r = _cmd(cmd_power_setting, {0x07, 0x07, 0x3F, 0x3F});
+        !r) { // VGH/VGL 20V, VDH/VDL 15V
         return r;
     }
     if (auto r = _cmd(cmd_booster, {0x17, 0x17, 0x28, 0x17}); !r) {
@@ -608,7 +626,8 @@ result<void> uc8179::_init_fast() {
     if (auto r = _cmd(cmd_vcom_interval, border_init); !r) {
         return r;
     }
-    if (auto r = _load_luts(lut_vcom_fast, lut_ww_fast, lut_kw_fast, lut_wk_fast, lut_kk_fast); !r) {
+    if (auto r = _load_luts(lut_vcom_fast, lut_ww_fast, lut_kw_fast, lut_wk_fast, lut_kk_fast);
+        !r) {
         return r;
     }
     _waveform = waveform::fast;
@@ -628,7 +647,8 @@ result<void> uc8179::_init_partial() {
     if (auto r = _power_on(); !r) {
         return r;
     }
-    if (auto r = _cmd(cmd_cascade, {0x02}); !r) { // temperature from the forced-temperature register
+    if (auto r = _cmd(cmd_cascade, {0x02});
+        !r) { // temperature from the forced-temperature register
         return r;
     }
     if (auto r = _cmd(cmd_forced_temp, {0x6E}); !r) {
@@ -677,7 +697,8 @@ result<void> uc8179::_init_gray() {
     if (auto r = _cmd(cmd_end_voltage, {0x00}); !r) {
         return r;
     }
-    if (auto r = _load_luts(lut_vcom_gray, lut_ww_gray, lut_kw_gray, lut_wk_gray, lut_kk_gray); !r) {
+    if (auto r = _load_luts(lut_vcom_gray, lut_ww_gray, lut_kw_gray, lut_wk_gray, lut_kk_gray);
+        !r) {
         return r;
     }
     _waveform = waveform::gray;
@@ -777,10 +798,12 @@ result<void> uc8179::_clear_ram(bool include_old_plane) {
     white.fill(0xFF);
     const size_t plane_bytes = (width() + 7) / 8 * height();
     return _in_window({0, 0, width(), height()}, [&]() -> result<void> {
-        for (const uint8_t cmd : include_old_plane ? std::initializer_list<uint8_t>{cmd_data_old, cmd_data_new}
-                                                   : std::initializer_list<uint8_t>{cmd_data_new}) {
+        for (const uint8_t cmd : include_old_plane
+                 ? std::initializer_list<uint8_t>{cmd_data_old, cmd_data_new}
+                 : std::initializer_list<uint8_t>{cmd_data_new}) {
             for (size_t sent = 0; sent < plane_bytes; sent += white.size()) {
-                const auto chunk = std::span(white).first(std::min(white.size(), plane_bytes - sent));
+                const auto chunk =
+                    std::span(white).first(std::min(white.size(), plane_bytes - sent));
                 if (auto r = _stream(sent == 0 ? cmd : -1, chunk); !r) {
                     return r;
                 }

@@ -14,7 +14,8 @@ second.
   active
 - Counting dropped data with `overruns()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -30,8 +31,8 @@ The example samples an ADC1 pin that depends on the target:
 | ESP32-C3                     | GPIO 3  |
 | ESP32-C6                     | GPIO 2  |
 
-Any source works, for example a potentiometer with its ends on 3.3 V and GND and its wiper on that pin.
-Connect the source's ground to the board's GND. The sampler only works with ADC1 pins. To use a
+Any source works, for example a potentiometer with its ends on 3.3 V and GND and its wiper on that
+pin. Connect the source's ground to the board's GND. The sampler only works with ADC1 pins. To use a
 different pin, change `signal_pin` in `main/main.cpp`.
 
 ## How to use

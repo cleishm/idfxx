@@ -190,7 +190,9 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    void set_bind_to_device(std::string_view ifname) { idfxx::unwrap(try_set_bind_to_device(ifname)); }
+    void set_bind_to_device(std::string_view ifname) {
+        idfxx::unwrap(try_set_bind_to_device(ifname));
+    }
 #endif
 
     /**
@@ -226,7 +228,8 @@ public:
      * @return Success when readable, `errc::timed_out` when not.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_wait_readable(const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_wait_readable(const std::chrono::duration<Rep, Period>& timeout) {
         return _try_wait_readable(std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 

@@ -74,8 +74,9 @@ static result<i2c_master_bus_handle_t> make_bus(enum port port, const master_bus
         .scl_io_num = cfg.scl->idf_num(),
         .clk_source = to_idf(cfg.clk_source),
         .glitch_ignore_cnt = cfg.glitch_ignore_cnt,
-        .intr_priority =
-            cfg.intr_level ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*cfg.intr_level))) : 0,
+        .intr_priority = cfg.intr_level
+            ? std::countr_zero(static_cast<unsigned>(std::to_underlying(*cfg.intr_level)))
+            : 0,
         .trans_queue_depth = 0, // Transfers finish before the driver call returns
         .flags = {
             .enable_internal_pullup = cfg.enable_internal_pullup ? 1u : 0u,
@@ -125,14 +126,21 @@ master_bus::master_bus(enum port port, gpio sda, gpio scl, quanta::frequency::he
 #endif
 
 result<master_bus> master_bus::make(enum port port, const config& cfg) {
-    return make_bus(port, cfg).transform([&](auto handle) { return master_bus{handle, port, cfg.frequency}; });
+    return make_bus(port, cfg).transform([&](auto handle) {
+        return master_bus{handle, port, cfg.frequency};
+    });
 }
 
-result<master_bus> master_bus::make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency) {
+result<master_bus>
+master_bus::make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency) {
     return make(port, config{.sda = sda, .scl = scl, .frequency = frequency});
 }
 
-master_bus::master_bus(i2c_master_bus_handle_t handle, enum port port, quanta::frequency::hertz frequency)
+master_bus::master_bus(
+    i2c_master_bus_handle_t handle,
+    enum port port,
+    quanta::frequency::hertz frequency
+)
     : _mux(std::make_unique<std::recursive_timed_mutex>())
     , _handle(handle)
     , _port(port)
@@ -166,7 +174,8 @@ void master_bus::_delete() noexcept {
     }
 }
 
-std::unique_lock<std::recursive_timed_mutex> master_bus::_lock_for(std::chrono::milliseconds timeout) const {
+std::unique_lock<std::recursive_timed_mutex>
+master_bus::_lock_for(std::chrono::milliseconds timeout) const {
     std::unique_lock lock(*_mux, std::defer_lock);
     if (timeout.count() < 0) {
         // The driver treats a negative timeout as waiting indefinitely, so the bus lock does too
@@ -204,13 +213,15 @@ std::vector<uint8_t> master_bus::_scan_devices(std::chrono::milliseconds timeout
     if (devices.empty()) {
         ESP_LOGD(TAG, "  No devices found on I2C bus %d", std::to_underlying(_port));
     } else {
-        ESP_LOGD(TAG, "  Found %zu device(s) on I2C bus %d", devices.size(), std::to_underlying(_port));
+        ESP_LOGD(
+            TAG, "  Found %zu device(s) on I2C bus %d", devices.size(), std::to_underlying(_port)
+        );
     }
     return devices;
 }
 
-// The driver reports ESP_ERR_NOT_FOUND for an absent device, and ESP_ERR_TIMEOUT both for a probe that times out
-// on the bus and for failing to take its own bus lock in time.
+// The driver reports ESP_ERR_NOT_FOUND for an absent device, and ESP_ERR_TIMEOUT both for a probe
+// that times out on the bus and for failing to take its own bus lock in time.
 result<void> master_bus::_probe(uint16_t address, std::chrono::milliseconds timeout) const {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
@@ -219,7 +230,12 @@ result<void> master_bus::_probe(uint16_t address, std::chrono::milliseconds time
     {
         auto lock = _lock_for(timeout);
         if (!lock.owns_lock()) {
-            ESP_LOGD(TAG, "Timed out acquiring I2C bus %d to probe address 0x%02X", std::to_underlying(_port), address);
+            ESP_LOGD(
+                TAG,
+                "Timed out acquiring I2C bus %d to probe address 0x%02X",
+                std::to_underlying(_port),
+                address
+            );
             return error(errc::timeout);
         }
         err = i2c_master_probe(_handle, address, timeout.count());

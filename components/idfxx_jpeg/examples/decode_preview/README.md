@@ -1,12 +1,12 @@
 # Decode preview
 
-Decodes a JPEG photo and prints a color preview of it in the serial monitor, with no display or other
-hardware.
+Decodes a JPEG photo and prints a color preview of it in the serial monitor, with no display or
+other hardware.
 
 ## What it demonstrates
 
-- Reading a JPEG's size, EXIF orientation and coding from its headers with `idfxx::jpeg::decoder`, over
-  an `idfxx::memory_source`
+- Reading a JPEG's size, EXIF orientation and coding from its headers with `idfxx::jpeg::decoder`,
+  over an `idfxx::memory_source`
 - Decoding at a reduced scale with `scale_to_cover()`, with the target turned back to the stored
   orientation by `idfxx::image::oriented_size()`
 - Decoding into an `idfxx::image::buffer<>`, then turning the image upright with
@@ -19,16 +19,16 @@ hardware.
 The decoder has fixed scales, so the preview's size is only approximate. For an exact size, use
 `idfxx::image::render()`.
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`),
-except for the error handling section, which uses the result-based API.
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`), except for the error handling section, which uses the result-based API.
 
 ## Hardware required
 
 - Any ESP32-series development board; no PSRAM is needed
 
 The serial terminal must support 24-bit color and UTF-8. Most do, and `idf.py monitor` passes both
-through. The preview of the embedded photo is 96 columns wide, so the terminal should be at least that
-wide.
+through. The preview of the embedded photo is 96 columns wide, so the terminal should be at least
+that wide.
 
 ## How to use
 
@@ -46,8 +46,9 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-The photo is `kodim23` from the [Kodak Lossless True Color Image Suite](https://r0k.us/graphics/kodak/),
-photographed by Steve Kelly. That page states its understanding that Kodak released the suite for
-unrestricted usage.
+The photo is `kodim23` from the [Kodak Lossless True Color Image
+Suite](https://r0k.us/graphics/kodak/), photographed by Steve Kelly. That page states its
+understanding that Kodak released the suite for unrestricted usage.

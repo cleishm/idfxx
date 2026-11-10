@@ -230,7 +230,10 @@ private:
  * @code
  * using namespace quanta::frequency_literals;
  *
- * idfxx::adc::sampler mic({.pins = std::vector<idfxx::gpio>{idfxx::gpio_3}, .sample_rate = 20_kHz});
+ * idfxx::adc::sampler mic({
+ *     .pins = std::vector<idfxx::gpio>{idfxx::gpio_3},
+ *     .sample_rate = 20_kHz,
+ * });
  * mic.start();
  *
  * std::array<idfxx::adc::sampler::sample, 256> buf;
@@ -431,7 +434,8 @@ public:
      *         the sampler is not running.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] size_t read(std::span<sample> out, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] size_t
+    read(std::span<sample> out, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_read(out, timeout));
     }
 
@@ -452,7 +456,9 @@ public:
      *         idfxx::errc::invalid_arg if `out` is empty, or idfxx::errc::not_supported if a
      *         sampled pin has no usable calibration data (check @ref calibrated).
      */
-    [[nodiscard]] size_t read(std::span<quanta::electro::millivolts> out) { return unwrap(try_read(out)); }
+    [[nodiscard]] size_t read(std::span<quanta::electro::millivolts> out) {
+        return unwrap(try_read(out));
+    }
 
     /**
      * @brief Reads samples as calibrated voltages, blocking until at least one is available or the
@@ -473,8 +479,10 @@ public:
      *         idfxx::errc::not_supported if a sampled pin has no usable calibration data.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] size_t
-    read(std::span<quanta::electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] size_t read(
+        std::span<quanta::electro::millivolts> out,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return unwrap(try_read(out, timeout));
     }
 #endif
@@ -492,7 +500,9 @@ public:
      * @retval idfxx::errc::invalid_state The sampler is not running.
      * @retval idfxx::errc::invalid_arg `out` is empty.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<sample> out) { return _try_read(out, std::nullopt); }
+    [[nodiscard]] result<size_t> try_read(std::span<sample> out) {
+        return _try_read(out, std::nullopt);
+    }
 
     /**
      * @brief Reads samples, blocking until at least one is available or the timeout expires.
@@ -512,7 +522,8 @@ public:
      * @retval idfxx::errc::invalid_arg `out` is empty.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<size_t> try_read(std::span<sample> out, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<size_t>
+    try_read(std::span<sample> out, const std::chrono::duration<Rep, Period>& timeout) {
         return _try_read(out, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -556,8 +567,10 @@ public:
      * @retval idfxx::errc::not_supported A sampled pin has no usable calibration data.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<size_t>
-    try_read(std::span<quanta::electro::millivolts> out, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<size_t> try_read(
+        std::span<quanta::electro::millivolts> out,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return _read_voltage(out, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -573,7 +586,9 @@ public:
      *         idfxx::errc::not_supported if the chip has no usable
      *         calibration data (check @ref calibrated).
      */
-    [[nodiscard]] quanta::electro::millivolts to_voltage(const sample& s) const { return unwrap(try_to_voltage(s)); }
+    [[nodiscard]] quanta::electro::millivolts to_voltage(const sample& s) const {
+        return unwrap(try_to_voltage(s));
+    }
 
     /**
      * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
@@ -592,7 +607,9 @@ public:
      * @retval idfxx::errc::timeout The conversion result was invalid, or the
      *         ADC unit is in use by another reader. The read may be retried.
      */
-    [[nodiscard]] quanta::electro::millivolts to_voltage(int raw) const { return unwrap(try_to_voltage(raw)); }
+    [[nodiscard]] quanta::electro::millivolts to_voltage(int raw) const {
+        return unwrap(try_to_voltage(raw));
+    }
 
     /**
      * @brief Converts a batch of samples to voltages using factory calibration.
@@ -666,9 +683,12 @@ private:
     struct state;
     explicit sampler(std::unique_ptr<state> s) noexcept;
     // A nullopt timeout means wait forever.
-    [[nodiscard]] result<size_t> _try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout);
     [[nodiscard]] result<size_t>
-    _read_voltage(std::span<quanta::electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout);
+    _try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout);
+    [[nodiscard]] result<size_t> _read_voltage(
+        std::span<quanta::electro::millivolts> out,
+        std::optional<std::chrono::milliseconds> timeout
+    );
     /// @endcond
 
     std::unique_ptr<state> _state;

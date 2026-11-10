@@ -180,9 +180,12 @@ public:
      * @brief Timer configuration parameters.
      */
     struct config {
-        idfxx::required<quanta::frequency::hertz> frequency; ///< PWM frequency.
-        uint8_t resolution_bits = 13; ///< Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
-        enum clk_source clk_source = clk_source::auto_select; ///< Clock source selection.
+        /// PWM frequency.
+        idfxx::required<quanta::frequency::hertz> frequency;
+        /// Duty resolution in bits (1 to SOC_LEDC_TIMER_BIT_WIDTH).
+        uint8_t resolution_bits = 13;
+        /// Clock source selection.
+        enum clk_source clk_source = clk_source::auto_select;
     };
 
     timer(const timer&) = default;
@@ -254,7 +257,8 @@ public:
      * @param resolution_bits Duty resolution in bits (default: 13).
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_configure(quanta::frequency::hertz frequency, uint8_t resolution_bits = 13) {
+    [[nodiscard]] result<void>
+    try_configure(quanta::frequency::hertz frequency, uint8_t resolution_bits = 13) {
         return try_configure({.frequency = frequency, .resolution_bits = resolution_bits});
     }
 
@@ -484,10 +488,14 @@ inline constexpr timer hs_timer_3 = timer_constant<3, speed_mode::high_speed>::v
  * @brief Output configuration parameters.
  */
 struct output_config {
-    float duty = 0.0f;                                       ///< Initial duty cycle ratio (0.0 to 1.0).
-    int hpoint = 0;                                          ///< High point in the PWM cycle.
-    bool output_invert = false;                              ///< Invert the output signal.
-    enum sleep_mode sleep_mode = sleep_mode::no_alive_no_pd; ///< Behavior during light sleep.
+    /// Initial duty cycle ratio (0.0 to 1.0).
+    float duty = 0.0f;
+    /// High point in the PWM cycle.
+    int hpoint = 0;
+    /// Invert the output signal.
+    bool output_invert = false;
+    /// Behavior during light sleep.
+    enum sleep_mode sleep_mode = sleep_mode::no_alive_no_pd;
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -523,7 +531,8 @@ struct output_config {
 
 /** @brief Starts PWM output on a GPIO pin with custom configuration.
  *  @throws std::system_error on failure. */
-[[nodiscard]] output start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg);
+[[nodiscard]] output
+start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg);
 
 /**
  * @headerfile <idfxx/pwm>
@@ -549,7 +558,8 @@ struct output_config {
 
 /** @brief Starts PWM output with automatic allocation and custom output configuration.
  *  @throws std::system_error on failure. */
-[[nodiscard]] output start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg);
+[[nodiscard]] output
+start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg);
 
 /** @brief Stops PWM output on a channel and sets it to an idle level.
  *  @throws std::system_error on failure. */
@@ -602,7 +612,8 @@ void stop(
  * @retval invalid_state Timer not configured.
  * @retval invalid_arg GPIO not connected or invalid channel.
  */
-[[nodiscard]] result<output> try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg);
+[[nodiscard]] result<output>
+try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg);
 
 /**
  * @headerfile <idfxx/pwm>
@@ -642,7 +653,8 @@ void stop(
  * @retval not_found No free timer or channel available.
  * @retval invalid_arg GPIO not connected or invalid configuration.
  */
-[[nodiscard]] result<output> try_start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg);
+[[nodiscard]] result<output>
+try_start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg);
 
 /**
  * @headerfile <idfxx/pwm>
@@ -662,7 +674,8 @@ void stop(
  * @param mode Speed mode group (defaults to low_speed).
  * @return The timer bound to the channel, or std::nullopt if the channel is not active.
  */
-[[nodiscard]] std::optional<timer> get_timer(enum channel ch, enum speed_mode mode = speed_mode::low_speed);
+[[nodiscard]] std::optional<timer>
+get_timer(enum channel ch, enum speed_mode mode = speed_mode::low_speed);
 
 /**
  * @headerfile <idfxx/pwm>
@@ -808,7 +821,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void set_duty_ticks(uint32_t duty, uint32_t hpoint) { unwrap(try_set_duty_ticks(duty, hpoint)); }
+    void set_duty_ticks(uint32_t duty, uint32_t hpoint) {
+        unwrap(try_set_duty_ticks(duty, hpoint));
+    }
 #endif
 
     /**
@@ -871,7 +886,8 @@ public:
      * @retval invalid_state Output has been moved from.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_set_pulse_width(const std::chrono::duration<Rep, Period>& width) {
+    [[nodiscard]] result<void>
+    try_set_pulse_width(const std::chrono::duration<Rep, Period>& width) {
         return _try_set_pulse_width(std::chrono::ceil<std::chrono::nanoseconds>(width));
     }
 
@@ -972,7 +988,9 @@ public:
         const std::chrono::duration<Rep, Period>& duration,
         enum fade_mode mode = fade_mode::no_wait
     ) {
-        return _try_fade_to_duty(target_duty, std::chrono::ceil<std::chrono::milliseconds>(duration), mode);
+        return _try_fade_to_duty(
+            target_duty, std::chrono::ceil<std::chrono::milliseconds>(duration), mode
+        );
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1044,8 +1062,12 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void
-    fade_with_step(uint32_t target_duty, uint32_t scale, uint32_t cycle_num, enum fade_mode mode = fade_mode::no_wait) {
+    void fade_with_step(
+        uint32_t target_duty,
+        uint32_t scale,
+        uint32_t cycle_num,
+        enum fade_mode mode = fade_mode::no_wait
+    ) {
         unwrap(try_fade_with_step(target_duty, scale, cycle_num, mode));
     }
 #endif
@@ -1086,7 +1108,11 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode = fade_mode::no_wait) {
+    void multi_fade(
+        uint32_t start_duty,
+        std::span<const fade_param> steps,
+        enum fade_mode mode = fade_mode::no_wait
+    ) {
         unwrap(try_multi_fade(start_duty, steps, mode));
     }
 #endif
@@ -1106,8 +1132,11 @@ public:
      * @retval invalid_state Output moved from or fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
-    [[nodiscard]] result<void>
-    try_multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode = fade_mode::no_wait);
+    [[nodiscard]] result<void> try_multi_fade(
+        uint32_t start_duty,
+        std::span<const fade_param> steps,
+        enum fade_mode mode = fade_mode::no_wait
+    );
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -1120,7 +1149,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] fade_param read_fade_param(uint32_t range) const { return unwrap(try_read_fade_param(range)); }
+    [[nodiscard]] fade_param read_fade_param(uint32_t range) const {
+        return unwrap(try_read_fade_param(range));
+    }
 #endif
 
     /**
@@ -1160,7 +1191,9 @@ public:
         const std::chrono::duration<Rep, Period>& max_fade_time,
         uint32_t (*gamma_correction)(uint32_t)
     ) {
-        return unwrap(try_fill_multi_fade_params(start_duty, end_duty, linear_phases, max_fade_time, gamma_correction));
+        return unwrap(try_fill_multi_fade_params(
+            start_duty, end_duty, linear_phases, max_fade_time, gamma_correction
+        ));
     }
 #endif
 
@@ -1229,7 +1262,8 @@ public:
      * @return Success, or an error.
      * @retval invalid_state Output moved from or fade service not installed.
      */
-    [[nodiscard]] result<void> try_register_fade_end_callback(std::move_only_function<bool() const> callback);
+    [[nodiscard]] result<void>
+    try_register_fade_end_callback(std::move_only_function<bool() const> callback);
 
 #if SOC_LEDC_SUPPORT_FADE_STOP
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1266,8 +1300,10 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    static void
-    install_fade_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {}) {
+    static void install_fade_service(
+        idfxx::intr_levels levels = intr_level_lowmed,
+        idfxx::flags<intr_flag> flags = {}
+    ) {
         unwrap(try_install_fade_service(levels, flags));
     }
 #endif
@@ -1284,8 +1320,10 @@ public:
      *
      * @retval invalid_state Fade service already installed.
      */
-    [[nodiscard]] static result<void>
-    try_install_fade_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {});
+    [[nodiscard]] static result<void> try_install_fade_service(
+        idfxx::intr_levels levels = intr_level_lowmed,
+        idfxx::flags<intr_flag> flags = {}
+    );
 
     /**
      * @brief Uninstalls the PWM fade service.
@@ -1302,7 +1340,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
-    void stop(idfxx::gpio::level idle_level = idfxx::gpio::level::low) { unwrap(try_stop(idle_level)); }
+    void stop(idfxx::gpio::level idle_level = idfxx::gpio::level::low) {
+        unwrap(try_stop(idle_level));
+    }
 #endif
 
     /**
@@ -1342,8 +1382,11 @@ private:
         enum fade_mode mode
     );
 
-    [[nodiscard]] result<void>
-    _try_fade_to_duty(uint32_t target_duty, std::chrono::milliseconds duration, enum fade_mode mode);
+    [[nodiscard]] result<void> _try_fade_to_duty(
+        uint32_t target_duty,
+        std::chrono::milliseconds duration,
+        enum fade_mode mode
+    );
 
 #if SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
     [[nodiscard]] result<std::vector<fade_param>> _try_fill_multi_fade_params(

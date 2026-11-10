@@ -224,7 +224,9 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             // TX done: complete the operation latch (waking any futures), post
             // the event.
             if (irqs.contains(sx126x::irq_flag::tx_done)) {
-                park_and_complete(s, internal::driver_activity::tx_in_flight, [](internal::op_latch&) {});
+                park_and_complete(
+                    s, internal::driver_activity::tx_in_flight, [](internal::op_latch&) {}
+                );
                 if (loop) {
                     (void)loop->try_post(tx_done);
                 }
@@ -242,7 +244,10 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
                         (void)loop->try_post(rx_done, *drained);
                     }
                 }
-            } else if (irqs.contains_any(sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err) && loop) {
+            } else if (irqs.contains_any(
+                           sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err
+                       ) &&
+                       loop) {
                 // CRC or header error without rx_done — surface as event. A
                 // header error also fires when an explicit-header packet's
                 // received length exceeds the programmed payload_length.
@@ -253,9 +258,11 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             // event.
             if (irqs.contains(sx126x::irq_flag::cad_done)) {
                 cad_info ci{.detected = irqs.contains(sx126x::irq_flag::cad_detected)};
-                park_and_complete(s, internal::driver_activity::cad_scan, [&](internal::op_latch& l) {
-                    l.cad_detected = ci.detected;
-                });
+                park_and_complete(
+                    s, internal::driver_activity::cad_scan, [&](internal::op_latch& l) {
+                        l.cad_detected = ci.detected;
+                    }
+                );
                 if (loop) {
                     (void)loop->try_post(cad_done, ci);
                 }

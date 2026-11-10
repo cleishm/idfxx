@@ -136,9 +136,9 @@ display.set_contrast(0x20);
 
 ### Partial Updates
 
-`panel::write_rows` redraws only a horizontal band of a `mono_framebuffer`,
-and `panel::write_region` narrows the transfer further to a column range,
-which keeps I2C traffic low for small changes:
+`panel::write_rows` redraws only a horizontal band of a `mono_framebuffer`, and
+`panel::write_region` narrows the transfer further to a column range, which keeps I2C traffic low
+for small changes:
 
 ```cpp
 fb.set_pixel(64, 20, true);
@@ -187,17 +187,19 @@ display.write_region(fb, 64, 20, 65, 21); // only one byte of page 2 is transfer
 
 ### `ssd1306::config`
 
-- `reset_gpio` - Reset pin GPIO (`idfxx::gpio::nc()` if not used; most I2C modules have no reset pin)
+- `reset_gpio` - Reset pin GPIO (`idfxx::gpio::nc()` if not used; most I2C modules have no reset
+  pin)
 - `height` - Display height in pixels: 64 (default) or 32
-- `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
-- `contrast` - Initial display contrast, 0x00-0xFF (default 128), applied at construction; same scale as `set_contrast()`
+- `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or
+  `gpio::level::high`)
+- `contrast` - Initial display contrast, 0x00-0xFF (default 128), applied at construction; same
+  scale as `set_contrast()`
 
 ### Panel I/O Configuration
 
-`ssd1306::i2c_io_config()` returns a `panel_io::i2c_config` with the controller's
-required framing filled in (a one-byte control phase with the D/C selection in
-bit 6, and 8-bit commands and parameters); only the wiring-specific values are
-parameters:
+`ssd1306::i2c_io_config()` returns a `panel_io::i2c_config` with the controller's required framing
+filled in (a one-byte control phase with the D/C selection in bit 6, and 8-bit commands and
+parameters); only the wiring-specific values are parameters:
 
 ```cpp
 using namespace quanta::frequency_literals;
@@ -217,17 +219,16 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
 
 ## Important Notes
 
-- **The display starts off**: call `display_on(true)` after construction, or the panel
-  stays dark even though drawing succeeds
-- The typical I2C address is **0x3C** (the `i2c_io_config()` default); some modules are
-  strapped to 0x3D
-- OLED panels **age with use**: pixels dim in proportion to their cumulative on-time, so
-  static content shown for long periods leaves ghost images (burn-in). Blank the screen or
-  call `display_on(false)` when idle, lower `set_contrast()` for always-on status displays,
-  and avoid keeping fixed content lit for days at a time
-- Pixel data is **page-packed 1-bpp**: each byte holds 8 vertically adjacent pixels
-  (bit 0 topmost) and pages span the full width — the same layout
-  `idfxx::lcd::mono_framebuffer` produces
+- **The display starts off**: call `display_on(true)` after construction, or the panel stays dark
+  even though drawing succeeds
+- The typical I2C address is **0x3C** (the `i2c_io_config()` default); some modules are strapped to
+  0x3D
+- OLED panels **age with use**: pixels dim in proportion to their cumulative on-time, so static
+  content shown for long periods leaves ghost images (burn-in). Blank the screen or call
+  `display_on(false)` when idle, lower `set_contrast()` for always-on status displays, and avoid
+  keeping fixed content lit for days at a time
+- Pixel data is **page-packed 1-bpp**: each byte holds 8 vertically adjacent pixels (bit 0 topmost)
+  and pages span the full width — the same layout `idfxx::lcd::mono_framebuffer` produces
 - Row coordinates passed to `draw_bitmap` must be **page-aligned** (multiples of 8);
   `panel::write_rows` / `write_region` handle this rounding for you when drawing a
   `mono_framebuffer`

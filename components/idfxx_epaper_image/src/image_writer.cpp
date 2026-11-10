@@ -25,7 +25,9 @@ static_assert(offsetof(idfxx::image::rgb888, b) == offsetof(epi_rgb_t, b));
 namespace idfxx::epaper::detail {
 
 struct calibration_access {
-    [[nodiscard]] static const epi_panel_t& panel(const calibration& cal) noexcept { return *cal._panel; }
+    [[nodiscard]] static const epi_panel_t& panel(const calibration& cal) noexcept {
+        return *cal._panel;
+    }
 };
 
 namespace {
@@ -75,7 +77,8 @@ size_t band_bytes(enum color_mode mode, size_t width, size_t rows) {
     return 0;
 }
 
-epi_config_t converter_config(const calibration& cal, const epi_intent_t* intent, size_t width, size_t height) {
+epi_config_t
+converter_config(const calibration& cal, const epi_intent_t* intent, size_t width, size_t height) {
     return {
         .panel = &calibration_access::panel(cal),
         .intent = intent,
@@ -167,7 +170,8 @@ result<void> image_stream::state::row_done() {
         }
         if (packed != nullptr) {
             const auto width = static_cast<uint16_t>(codes.size());
-            if (const auto err = epi_pack_row(panel, format, codes.data(), width, packed + filled * stride);
+            if (const auto err =
+                    epi_pack_row(panel, format, codes.data(), width, packed + filled * stride);
                 err != EPI_OK) {
                 return error(to_errc(err));
             }
@@ -259,7 +263,8 @@ result<image_stream> image_stream::make(
             .lift = options.intent->lift,
         };
     }
-    const epi_config_t config = converter_config(cal, options.intent ? &intent : nullptr, output.width, output.height);
+    const epi_config_t config =
+        converter_config(cal, options.intent ? &intent : nullptr, output.width, output.height);
     const size_t workspace_bytes = epi_converter_workspace_size(&config);
     if (workspace_bytes == 0) {
         return error(errc::invalid_arg);
@@ -273,7 +278,8 @@ result<image_stream> image_stream::make(
         .panel = config.panel,
     });
     s->workspace.resize(workspace_bytes);
-    if (const auto err = epi_converter_init(&config, s->workspace.data(), workspace_bytes, &s->converter);
+    if (const auto err =
+            epi_converter_init(&config, s->workspace.data(), workspace_bytes, &s->converter);
         err != EPI_OK) {
         return error(to_errc(err));
     }

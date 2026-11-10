@@ -40,7 +40,11 @@ template<>
 inline constexpr bool idfxx::enable_flags_operators<sync_flag> = true;
 
 namespace {
-void resolve_host(std::string_view host, idfxx::net::port_number port, const idfxx::net::resolver_options& opts = {});
+void resolve_host(
+    std::string_view host,
+    idfxx::net::port_number port,
+    const idfxx::net::resolver_options& opts = {}
+);
 idfxx::net::ipv4_addr connect_to_wifi();
 } // namespace
 
@@ -86,7 +90,11 @@ extern "C" void app_main() {
 
 namespace {
 
-void resolve_host(std::string_view host, idfxx::net::port_number port, const idfxx::net::resolver_options& opts) {
+void resolve_host(
+    std::string_view host,
+    idfxx::net::port_number port,
+    const idfxx::net::resolver_options& opts
+) {
     logger.info("Resolving {}:{}...", host, port);
     try {
         auto eps = idfxx::net::resolve(host, port, opts);
@@ -116,16 +124,18 @@ idfxx::net::ipv4_addr connect_to_wifi() {
         network_ready.set(sync_flag::got_ip);
     });
 
-    loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-        logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-        // Listener runs in the event-loop trampoline (C frame); exceptions
-        // must not escape, so suppress at this boundary.
-        try {
-            idfxx::wifi::connect();
-        } catch (const std::system_error& e) {
-            logger.warn("reconnect failed: {}", e.what());
+    loop.listener_add(
+        idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+            // Listener runs in the event-loop trampoline (C frame); exceptions
+            // must not escape, so suppress at this boundary.
+            try {
+                idfxx::wifi::connect();
+            } catch (const std::system_error& e) {
+                logger.warn("reconnect failed: {}", e.what());
+            }
         }
-    });
+    );
 
     idfxx::wifi::init();
     idfxx::wifi::set_roles(idfxx::wifi::role::sta);

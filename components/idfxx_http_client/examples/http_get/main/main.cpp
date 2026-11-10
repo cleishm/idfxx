@@ -50,12 +50,14 @@ extern "C" void app_main() {
             network_ready.set(sync_flag::got_ip);
         });
 
-        loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            if (auto r = idfxx::wifi::try_connect(); !r) {
-                logger.error("Reconnect failed: {}", r.error().message());
+        loop.listener_add(
+            idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+                logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+                if (auto r = idfxx::wifi::try_connect(); !r) {
+                    logger.error("Reconnect failed: {}", r.error().message());
+                }
             }
-        });
+        );
 
         // --- Connect to WiFi ---
         idfxx::wifi::init();
@@ -83,10 +85,14 @@ extern "C" void app_main() {
                     content_type.clear();
                     body.clear();
                 } else if (evt.id == idfxx::http::event_id::on_header &&
-                           std::ranges::equal(evt.header_key, std::string_view("Content-Type"), [](char a, char b) {
-                               return std::tolower(static_cast<unsigned char>(a)) ==
-                                   std::tolower(static_cast<unsigned char>(b));
-                           })) {
+                           std::ranges::equal(
+                               evt.header_key,
+                               std::string_view("Content-Type"),
+                               [](char a, char b) {
+                                   return std::tolower(static_cast<unsigned char>(a)) ==
+                                       std::tolower(static_cast<unsigned char>(b));
+                               }
+                           )) {
                     content_type = evt.header_value;
                 } else if (evt.id == idfxx::http::event_id::on_data) {
                     body.append(reinterpret_cast<const char*>(evt.data.data()), evt.data.size());

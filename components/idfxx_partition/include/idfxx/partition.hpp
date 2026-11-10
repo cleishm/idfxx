@@ -211,8 +211,11 @@ public:
      *
      * @return A vector of matching partitions (may be empty).
      */
-    [[nodiscard]] static std::vector<partition>
-    find_all(enum type type = type::any, enum subtype subtype = subtype::any, std::string_view label = {});
+    [[nodiscard]] static std::vector<partition> find_all(
+        enum type type = type::any,
+        enum subtype subtype = subtype::any,
+        std::string_view label = {}
+    );
 
     /**
      * @brief Constructs a partition from an ESP-IDF partition handle.
@@ -221,7 +224,9 @@ public:
      *
      * @return A partition wrapping the given handle.
      */
-    [[nodiscard]] static constexpr partition from_handle(const esp_partition_t* handle) { return partition{handle}; }
+    [[nodiscard]] static constexpr partition from_handle(const esp_partition_t* handle) {
+        return partition{handle};
+    }
 
     // Copyable and movable
     partition(const partition&) = default;
@@ -240,7 +245,9 @@ public:
     [[nodiscard]] enum type type() const { return static_cast<enum partition::type>(_part->type); }
 
     /** @brief Returns the partition subtype. */
-    [[nodiscard]] enum subtype subtype() const { return static_cast<enum partition::subtype>(_part->subtype); }
+    [[nodiscard]] enum subtype subtype() const {
+        return static_cast<enum partition::subtype>(_part->subtype);
+    }
 
     /** @brief Returns the starting address in flash. */
     [[nodiscard]] uint32_t address() const { return _part->address; }
@@ -301,7 +308,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write(size_t offset, const void* src, size_t size) { unwrap(try_write(offset, src, size)); }
+    void write(size_t offset, const void* src, size_t size) {
+        unwrap(try_write(offset, src, size));
+    }
 
     /**
      * @brief Writes data to the partition with encryption if applicable.
@@ -324,7 +333,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_raw(size_t offset, void* dst, size_t size) const { unwrap(try_read_raw(offset, dst, size)); }
+    void read_raw(size_t offset, void* dst, size_t size) const {
+        unwrap(try_read_raw(offset, dst, size));
+    }
 
     /**
      * @brief Reads data from the partition without decryption.
@@ -335,7 +346,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_raw(size_t offset, std::span<uint8_t> dst) const { unwrap(try_read_raw(offset, dst)); }
+    void read_raw(size_t offset, std::span<uint8_t> dst) const {
+        unwrap(try_read_raw(offset, dst));
+    }
 
     /**
      * @brief Writes data to the partition without encryption.
@@ -347,7 +360,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_raw(size_t offset, const void* src, size_t size) { unwrap(try_write_raw(offset, src, size)); }
+    void write_raw(size_t offset, const void* src, size_t size) {
+        unwrap(try_write_raw(offset, src, size));
+    }
 
     /**
      * @brief Writes data to the partition without encryption.
@@ -358,7 +373,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_raw(size_t offset, std::span<const uint8_t> src) { unwrap(try_write_raw(offset, src)); }
+    void write_raw(size_t offset, std::span<const uint8_t> src) {
+        unwrap(try_write_raw(offset, src));
+    }
 
     /**
      * @brief Erases a range of the partition.
@@ -561,7 +578,8 @@ public:
      *
      * @return A handle to the mapped memory region, or an error.
      */
-    [[nodiscard]] result<mmap_handle> try_mmap(size_t offset, size_t size, const mmap_config& cfg) const;
+    [[nodiscard]] result<mmap_handle>
+    try_mmap(size_t offset, size_t size, const mmap_config& cfg) const;
 
     /**
      * @brief Memory-maps a region of the partition.
@@ -614,7 +632,8 @@ private:
  * is automatically unmapped on destruction. Move-only.
  *
  * @code
- * auto part = idfxx::partition::find(idfxx::partition::type::data, idfxx::partition::subtype::data_fat);
+ * auto part =
+ *     idfxx::partition::find(idfxx::partition::type::data, idfxx::partition::subtype::data_fat);
  * auto mapped = part.mmap(0, part.size());
  * auto bytes = mapped.as_span<const uint8_t>();
  * @endcode
@@ -653,7 +672,9 @@ public:
      */
     template<typename T>
     [[nodiscard]] std::span<T> as_span() const {
-        static_assert(std::is_const_v<T>, "T must be const-qualified; mapped partition memory is read-only");
+        static_assert(
+            std::is_const_v<T>, "T must be const-qualified; mapped partition memory is read-only"
+        );
         return {static_cast<T*>(_ptr), _size / sizeof(T)};
     }
 
@@ -681,11 +702,13 @@ inline partition::mmap_handle partition::mmap(size_t offset, size_t size) const 
     return unwrap(try_mmap(offset, size, mmap_config{}));
 }
 
-inline partition::mmap_handle partition::mmap(size_t offset, size_t size, const mmap_config& cfg) const {
+inline partition::mmap_handle
+partition::mmap(size_t offset, size_t size, const mmap_config& cfg) const {
     return unwrap(try_mmap(offset, size, cfg));
 }
 
-inline partition::mmap_handle partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
+inline partition::mmap_handle
+partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
     return unwrap(try_mmap(offset, size, mmap_config{.memory = memory}));
 }
 #endif
@@ -749,7 +772,8 @@ public:
      * @retval idfxx::errc::invalid_arg if the range extends past the end of
      *         the partition (`offset + length` exceeds `part.size()`).
      */
-    [[nodiscard]] static result<partition_source> make(const partition& part, size_t offset, size_t length);
+    [[nodiscard]] static result<partition_source>
+    make(const partition& part, size_t offset, size_t length);
 
     /**
      * @brief Returns the number of bytes not yet read.

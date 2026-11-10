@@ -103,7 +103,8 @@ if (!btn) {
 - `event_type::released` - Button released
 - `event_type::clicked` - Short press completed (pressed then released)
 - `event_type::long_press` - Button held beyond long-press threshold
-- `event_type::extended_press` - Button held beyond extended-press threshold (when `extended_press_time` is set)
+- `event_type::extended_press` - Button held beyond extended-press threshold (when
+  `extended_press_time` is set)
 
 ### Detection Modes
 
@@ -128,21 +129,31 @@ Key configuration options:
 
 ## Error Handling
 
-The `make()` factory returns `idfxx::result<button>`. The exception-based constructor throws `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+The `make()` factory returns `idfxx::result<button>`. The exception-based constructor throws
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 Error codes from `idfxx::errc`:
 
-- `invalid_arg` - Pin is not connected, callback is empty, or `extended_press_time` is set but not beyond `long_press_time`
+- `invalid_arg` - Pin is not connected, callback is empty, or `extended_press_time` is set but not
+  beyond `long_press_time`
 
 ## Important Notes
 
 - **Non-copyable/move-only**: Button is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops monitoring and releases resources.
-- **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the button API.
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is logged and otherwise ignored. The button keeps tracking its state and reporting later events
-- **Autorepeat vs long press**: These modes are mutually exclusive. When autorepeat is enabled, long and extended press detection are disabled.
-- **Extended press**: A press held beyond `extended_press_time` reports `pressed -> long_press -> extended_press -> released`; one released between the two thresholds reports `pressed -> long_press -> released`. Neither reports `clicked`.
-- **Interrupt mode**: When using `mode::interrupt`, the GPIO ISR service must be installed before creating the button (via `idfxx::gpio::install_isr_service()`). If it is installed with `intr_flag::iram`, enable `CONFIG_GPIO_CTRL_FUNC_IN_IRAM` so the button's interrupt handler stays IRAM-safe.
+- **Callback context**: Callbacks are invoked from a timer task context. They must not block or call
+  back into the button API.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is
+  logged and otherwise ignored. The button keeps tracking its state and reporting later events
+- **Autorepeat vs long press**: These modes are mutually exclusive. When autorepeat is enabled, long
+  and extended press detection are disabled.
+- **Extended press**: A press held beyond `extended_press_time` reports
+  `pressed -> long_press -> extended_press -> released`; one released between the two thresholds
+  reports `pressed -> long_press -> released`. Neither reports `clicked`.
+- **Interrupt mode**: When using `mode::interrupt`, the GPIO ISR service must be installed before
+  creating the button (via `idfxx::gpio::install_isr_service()`). If it is installed with
+  `intr_flag::iram`, enable `CONFIG_GPIO_CTRL_FUNC_IN_IRAM` so the button's interrupt handler stays
+  IRAM-safe.
 
 ## License
 

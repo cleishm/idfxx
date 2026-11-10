@@ -172,7 +172,8 @@ auto valid = idfxx::gpio_21;  // OK
 auto maybe_pin = idfxx::gpio::make(99);  // Returns error for invalid pin (idfxx::result<idfxx::gpio>)
 ```
 
-See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__gpio.html) for complete API reference.
+See the [full documentation](https://cleishm.github.io/idfxx/group__idfxx__gpio.html) for complete
+API reference.
 
 ## Error Handling
 
@@ -182,14 +183,17 @@ GPIO operations use error codes from `idfxx::errc`:
 - `invalid_state` - Operation not valid in current state
 - `not_found` - ISR handler not found for removal
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw
+  exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - Call `idfxx::gpio::install_isr_service()` once before using interrupts
 - ISR handlers run in interrupt context - keep them short and use IRAM-safe functions
-- **Exceptions in ISR handlers**: ISR handlers must not throw, as throwing is not permitted in interrupt context
+- **Exceptions in ISR handlers**: ISR handlers must not throw, as throwing is not permitted in
+  interrupt context
 - Multiple handlers per pin are stored in DRAM - ensure sufficient heap space
 - GPIO pins used by other peripherals (SPI, I2C, etc.) should not be reconfigured
 

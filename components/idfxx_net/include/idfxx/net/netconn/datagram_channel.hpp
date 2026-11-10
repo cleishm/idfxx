@@ -85,7 +85,10 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit datagram_channel(address_family fam, udp_variant variant = udp_variant::standard);
+    [[nodiscard]] explicit datagram_channel(
+        address_family fam,
+        udp_variant variant = udp_variant::standard
+    );
 #endif
 
     /**
@@ -95,7 +98,8 @@ public:
      * @param variant UDP transport variant.
      * @return The new channel, or an error.
      */
-    [[nodiscard]] static result<datagram_channel> make(address_family fam, udp_variant variant = udp_variant::standard);
+    [[nodiscard]] static result<datagram_channel>
+    make(address_family fam, udp_variant variant = udp_variant::standard);
 
     // ----- multicast -----
 

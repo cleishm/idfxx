@@ -64,9 +64,12 @@ result<event_loop::listener_handle> event_loop::register_listener(
 
     if (loop == nullptr) {
         // Default event loop
-        err = esp_event_handler_instance_register(base, id, listener_trampoline, ctx, &ctx->instance);
+        err =
+            esp_event_handler_instance_register(base, id, listener_trampoline, ctx, &ctx->instance);
     } else {
-        err = esp_event_handler_instance_register_with(loop, base, id, listener_trampoline, ctx, &ctx->instance);
+        err = esp_event_handler_instance_register_with(
+            loop, base, id, listener_trampoline, ctx, &ctx->instance
+        );
     }
 
     if (err != ESP_OK) {
@@ -158,7 +161,13 @@ void event_loop::_delete() noexcept {
     }
 }
 
-result<void> event_loop::_post(esp_event_base_t base, int32_t id, const void* data, size_t size, TickType_t ticks) {
+result<void> event_loop::_post(
+    esp_event_base_t base,
+    int32_t id,
+    const void* data,
+    size_t size,
+    TickType_t ticks
+) {
     if (!_system && _handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -174,7 +183,8 @@ result<void> event_loop::_post(esp_event_base_t base, int32_t id, const void* da
 
 void event_loop::unique_listener_handle::reset() noexcept {
     if (_handle._instance != nullptr) {
-        auto result = unregister_listener(_handle._loop, _handle._instance, _handle._base, _handle._id);
+        auto result =
+            unregister_listener(_handle._loop, _handle._instance, _handle._base, _handle._id);
         if (!result) {
             auto msg = result.error().message();
             ESP_LOGE(TAG, "Failed to unregister event handler: %s", msg.c_str());
@@ -205,7 +215,8 @@ result<esp_event_loop_handle_t> create_loop(size_t queue_size) {
     return handle;
 }
 
-result<esp_event_loop_handle_t> create_loop(const event_loop::task_config& task, size_t queue_size) {
+result<esp_event_loop_handle_t>
+create_loop(const event_loop::task_config& task, size_t queue_size) {
     auto core_id_to_freertos = [](std::optional<core_id> affinity) -> BaseType_t {
         return affinity.has_value() ? static_cast<BaseType_t>(*affinity) : tskNO_AFFINITY;
     };

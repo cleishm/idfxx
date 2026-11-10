@@ -1,23 +1,24 @@
 # OTA Info
 
-Prints the device's OTA partitions, the running app's description, partition image states, and rollback
-status.
+Prints the device's OTA partitions, the running app's description, partition image states, and
+rollback status.
 
 ## What it demonstrates
 
-- Finding the running partition with `idfxx::ota::running_partition()`, and printing its label, address
-  and size
+- Finding the running partition with `idfxx::ota::running_partition()`, and printing its label,
+  address and size
 - Reading the app's version, project name, ESP-IDF version, and build date and time with
   `idfxx::ota::partition_description()`
-- Finding the boot partition with `idfxx::ota::boot_partition()`, and the partition the next update would
-  be written to with `idfxx::ota::next_update_partition()`
+- Finding the boot partition with `idfxx::ota::boot_partition()`, and the partition the next update
+  would be written to with `idfxx::ota::next_update_partition()`
 - Counting the OTA app partitions with `idfxx::ota::app_partition_count()`
-- Reading image states with `idfxx::ota::try_partition_state()`, which reports an error for partitions
-  with no recorded state, such as the factory partition a freshly flashed board runs from
-- Checking whether a rollback is possible with `idfxx::ota::rollback_possible()`, and looking up the last
-  invalid partition with `try_last_invalid_partition()`
+- Reading image states with `idfxx::ota::try_partition_state()`, which reports an error for
+  partitions with no recorded state, such as the factory partition a freshly flashed board runs from
+- Checking whether a rollback is possible with `idfxx::ota::rollback_possible()`, and looking up the
+  last invalid partition with `try_last_invalid_partition()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -42,4 +43,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

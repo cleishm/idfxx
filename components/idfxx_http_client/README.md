@@ -7,7 +7,8 @@ Type-safe HTTP/HTTPS client for ESP32.
 - Blocking `perform()` for simple request/response workflows
 - Streaming `open()`/`write()`/`read()`/`close()` for large payloads
 - Chunked request bodies via `open_chunked()` for uploads of unknown length
-- Models `idfxx::byte_source`, so a response body can be passed to any code that consumes a byte stream
+- Models `idfxx::byte_source`, so a response body can be passed to any code that consumes a byte
+  stream
 - TLS support with certificate pinning and bundle verification
 - HTTP Basic and Digest authentication
 - Automatic and manual redirect handling
@@ -124,8 +125,8 @@ try {
 
 ### Chunked Upload
 
-When the request body's length isn't known up front, `open_chunked()` sends it with
-chunked transfer encoding. Each `write()` sends one chunk; `finish()` ends the body.
+When the request body's length isn't known up front, `open_chunked()` sends it with chunked transfer
+encoding. Each `write()` sends one chunk; `finish()` ends the body.
 
 ```cpp
 #include <idfxx/http/client>
@@ -213,11 +214,12 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 
 **Streaming:**
 - `open(write_len)` / `try_open(write_len)` - Open connection
-- `open_chunked()` / `try_open_chunked()` - Open connection for a chunked request body; returns a `chunk_writer`
+- `open_chunked()` / `try_open_chunked()` - Open connection for a chunked request body; returns a
+  `chunk_writer`
 - `write(data)` / `try_write(data)` - Write request body
 - `fetch_headers()` / `try_fetch_headers()` - Read response headers
-- `read(buf)` / `try_read(buf)` - Read response body; 0 at end of response. `try_read(std::span<uint8_t>)`
-  makes the client an `idfxx::byte_source`
+- `read(buf)` / `try_read(buf)` - Read response body; 0 at end of response.
+  `try_read(std::span<uint8_t>)` makes the client an `idfxx::byte_source`
 - `flush_response()` / `try_flush_response()` - Discard remaining data
 - `close()` / `try_close()` - Close connection
 
@@ -225,7 +227,8 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `status_code()` - HTTP status code
 - `content_length()` - Response content length
 - `is_chunked_response()` - Check chunked encoding
-- `get_response_header(key)` - Get response header (returns `std::optional`); requires `CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS` (ESP-IDF 6.0+)
+- `get_response_header(key)` - Get response header (returns `std::optional`); requires
+  `CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS` (ESP-IDF 6.0+)
 - `get_url()` - Get current effective URL
 
 **Redirect:**
@@ -248,34 +251,54 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
   - `connecting` - Connection in progress (async)
   - `eagain` - Timed out: `read()` before any data arrived, `write()` while waiting to send, or
     `fetch_headers()` / `perform()` before the response headers arrived
-  - `connection_closed` - `read()` found the connection closed (or failed) before the response
-    body was complete
+  - `connection_closed` - `read()` found the connection closed (or failed) before the response body
+    was complete
   - `not_modified` - Server responded 304 Not Modified
   - `range_not_satisfiable` - Server responded 416 Range Not Satisfiable
   - `read_timeout` - Timed out reading response data (ESP-IDF 5.5.2+; ESP-IDF 5.5.2 through 6.1
     report a `perform()` body-read timeout as `incomplete_data` instead)
-  - `incomplete_data` - Response body ended before the full Content-Length or final chunk; this
-    is what `perform()` returns when the body read times out or the server closes early
-    (ESP-IDF 5.5.2+; earlier versions complete `perform()` successfully with the truncated body)
+  - `incomplete_data` - Response body ended before the full Content-Length or final chunk; this is
+    what `perform()` returns when the body read times out or the server closes early (ESP-IDF
+    5.5.2+; earlier versions complete `perform()` successfully with the truncated body)
   - `redirect_downgrade` - Redirect from HTTPS to a non-HTTPS URL was blocked (ESP-IDF 6.0+)
   - `header_too_long` - A request header does not fit in the transmit buffer (ESP-IDF 6.0+)
 - **Configuration errors**: creating a client fails with `idfxx::errc::invalid_arg` when an optional
-  `config` setting is given an out-of-range value: a `port`, `timeout`, buffer size, redirect count or
-  keep-alive setting of 0 or less, an empty `path`, or a negative `max_authorization_retries`
-- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`, throwing methods raise `std::system_error`
+  `config` setting is given an out-of-range value: a `port`, `timeout`, buffer size, redirect count
+  or keep-alive setting of 0 or less, an empty `path`, or a negative `max_authorization_retries`
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`, throwing methods raise
+  `std::system_error`
 
 ## Important Notes
 
 - **Not thread-safe**: The client handle is not thread-safe; callers must synchronize access
-- **Driver defaults**: Optional `config` settings left unset (`port`, `path`, `timeout`, `user_agent`, buffer sizes, redirect and authorization retry limits, keep-alive tuning) are chosen by the driver. Set `max_authorization_retries` to 0 to disable authorization retries; to stop following redirects, set `disable_auto_redirect`, which returns the 3xx response instead of failing
-- **Certificate lifetime**: TLS certificate strings are copied internally and kept alive for the client's lifetime
-- **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only a pointer
-- **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers brief
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `on_event` is logged and otherwise ignored, and the request continues. An exception thrown by `crt_bundle_attach` is logged and treated as returning a non-zero error code
-- **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a loop → `close()`
-- **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()` → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its client, which must outlive it
-- **Chunked write failures**: A `write()` or `finish()` that times out fails with `eagain`; any other send failure is `write_data`. Either way part of the chunk may already have been sent, so the writer sends nothing more and later calls fail with `invalid_state`
-- **Abandoned chunked requests**: Destroying a writer before `finish()` completes (including after a failure) abandons the request: nothing more is sent, so the body stays unterminated, and a warning is logged. The client then fails `fetch_headers()`, `read()`, `flush_response()` and `write()` with `invalid_state` instead of blocking on or corrupting that connection. The next `open()`, `open_chunked()` or `perform()` closes the connection (logging a warning) and starts on a fresh one; `close()` and `cancel_request()` also end the abandoned request
+- **Driver defaults**: Optional `config` settings left unset (`port`, `path`, `timeout`,
+  `user_agent`, buffer sizes, redirect and authorization retry limits, keep-alive tuning) are chosen
+  by the driver. Set `max_authorization_retries` to 0 to disable authorization retries; to stop
+  following redirects, set `disable_auto_redirect`, which returns the 3xx response instead of
+  failing
+- **Certificate lifetime**: TLS certificate strings are copied internally and kept alive for the
+  client's lifetime
+- **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only
+  a pointer
+- **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers
+  brief
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `on_event` is logged
+  and otherwise ignored, and the request continues. An exception thrown by `crt_bundle_attach` is
+  logged and treated as returning a non-zero error code
+- **Streaming workflow**: Call `open()` → optional `write()` → `fetch_headers()` → `read()` in a
+  loop → `close()`
+- **Chunked upload workflow**: Call `open_chunked()` → `write()` on the returned writer → `finish()`
+  → `fetch_headers()`. Fetching headers before `finish()` is a usage error. The writer refers to its
+  client, which must outlive it
+- **Chunked write failures**: A `write()` or `finish()` that times out fails with `eagain`; any
+  other send failure is `write_data`. Either way part of the chunk may already have been sent, so
+  the writer sends nothing more and later calls fail with `invalid_state`
+- **Abandoned chunked requests**: Destroying a writer before `finish()` completes (including after a
+  failure) abandons the request: nothing more is sent, so the body stays unterminated, and a warning
+  is logged. The client then fails `fetch_headers()`, `read()`, `flush_response()` and `write()`
+  with `invalid_state` instead of blocking on or corrupting that connection. The next `open()`,
+  `open_chunked()` or `perform()` closes the connection (logging a warning) and starts on a fresh
+  one; `close()` and `cancel_request()` also end the abandoned request
 
 ## License
 

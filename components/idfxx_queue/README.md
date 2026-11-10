@@ -134,7 +134,8 @@ Place queue storage in external PSRAM to free internal DRAM:
 idfxx::queue<sensor_reading> q(1000, idfxx::memory::capabilities::spiram);
 ```
 
-> **Note:** `memory::capabilities::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+> **Note:** `memory::capabilities::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM`
+> enabled.
 
 ### Send-to-Front (Priority Messages)
 
@@ -190,7 +191,8 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 - `queue(length, mem_type)` - Create a queue with the specified capacity (exception-based)
 - `queue::make(length, mem_type)` - Create a queue with the specified capacity (result-based)
-- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in `<idfxx/memory>`
+- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in
+  `<idfxx/memory>`
 
 ### Send
 
@@ -202,7 +204,8 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 - `send_to_front(item)` / `try_send_to_front(item)` - Send to front, blocking indefinitely
 - `send_to_front(item, timeout)` / `try_send_to_front(item, timeout)` - Send to front with timeout
-- `send_to_front_until(item, deadline)` / `try_send_to_front_until(item, deadline)` - Send to front with deadline
+- `send_to_front_until(item, deadline)` / `try_send_to_front_until(item, deadline)` - Send to front
+  with deadline
 
 ### Receive
 
@@ -244,15 +247,19 @@ Queue operations use error codes from `idfxx::errc`:
 - `invalid_arg` - Queue length is 0
 - `timeout` - Send or receive operation timed out (queue full or empty)
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Trivially copyable**: The message type `T` must be trivially copyable (`std::is_trivially_copyable_v<T>`). This is enforced at compile time via a `requires` clause.
+- **Trivially copyable**: The message type `T` must be trivially copyable
+  (`std::is_trivially_copyable_v<T>`). This is enforced at compile time via a `requires` clause.
 - **Non-copyable/move-only**: Queue instances are non-copyable and move-only.
 - **RAII cleanup**: The destructor automatically deletes the queue and discards any remaining items.
-- **ISR safety**: Use the `*_from_isr` methods in interrupt context. Pass the `yield` field to `idfxx::yield_from_isr()` to perform any necessary context switch.
-- **Overwrite semantics**: `overwrite()` is most useful with a queue of length 1. With longer queues, it overwrites the most recently written item when the queue is full.
+- **ISR safety**: Use the `*_from_isr` methods in interrupt context. Pass the `yield` field to
+  `idfxx::yield_from_isr()` to perform any necessary context switch.
+- **Overwrite semantics**: `overwrite()` is most useful with a queue of length 1. With longer
+  queues, it overwrites the most recently written item when the queue is full.
 
 ## License
 

@@ -67,7 +67,9 @@ extern "C" void app_main() {
         idfxx::spi::bus_config bus_cfg{};
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O and driver ---
         idfxx::panel_io io(bus, idfxx::epaper::ssd1680::spi_io_config(PIN_CS, PIN_DC));
@@ -143,11 +145,14 @@ extern "C" void app_main() {
         idfxx::future<void> update;
         for (int i = 0; i <= 20; ++i) {
             canvas.fill_rect(0, counter_y, canvas.width(), counter_h, false);
-            canvas.draw_text(idfxx::font::spleen_8x16, 8, counter_y, std::format("{:02}", i), true, 2);
+            canvas.draw_text(
+                idfxx::font::spleen_8x16, 8, counter_y, std::format("{:02}", i), true, 2
+            );
             display.write_rows(fb, counter_y, counter_y + counter_h);
             // Partial updates accumulate ghosting; clean up with a full
             // refresh every 10 iterations.
-            update = display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
+            update =
+                display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);
         }
         update.wait();
         logger.info("stage 5: partial refresh loop done");

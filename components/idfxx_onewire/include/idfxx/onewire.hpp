@@ -143,8 +143,11 @@ class bus;
  * @param crc_iv The CRC starting value (default: 0).
  * @return true if the CRC matches, false otherwise.
  */
-[[nodiscard]] bool
-check_crc16(std::span<const uint8_t> data, std::span<const uint8_t, 2> inverted_crc, uint16_t crc_iv = 0);
+[[nodiscard]] bool check_crc16(
+    std::span<const uint8_t> data,
+    std::span<const uint8_t, 2> inverted_crc,
+    uint16_t crc_iv = 0
+);
 
 // -- bus ---------------------------------------------------------------------
 
@@ -403,7 +406,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on bus communication failure.
      */
-    [[nodiscard]] std::vector<address> search(size_t max_devices = 8) { return unwrap(try_search(max_devices)); }
+    [[nodiscard]] std::vector<address> search(size_t max_devices = 8) {
+        return unwrap(try_search(max_devices));
+    }
 
     /**
      * @brief Searches for devices with a specific family code.
@@ -435,7 +440,8 @@ public:
      * @return A vector of discovered device addresses matching the family code,
      *         or an error on bus communication failure.
      */
-    [[nodiscard]] result<std::vector<address>> try_search(uint8_t family_code, size_t max_devices = 8);
+    [[nodiscard]] result<std::vector<address>>
+    try_search(uint8_t family_code, size_t max_devices = 8);
 
 private:
     /** @cond INTERNAL */

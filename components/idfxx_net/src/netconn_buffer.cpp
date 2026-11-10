@@ -45,7 +45,8 @@ buffer& buffer::operator=(buffer&& other) noexcept {
     return *this;
 }
 
-buffer::segment_view::iterator::value_type buffer::segment_view::iterator::operator*() const noexcept {
+buffer::segment_view::iterator::value_type
+buffer::segment_view::iterator::operator*() const noexcept {
     const auto* p = static_cast<const ::pbuf*>(_seg);
     return {static_cast<const std::byte*>(p->payload), p->len};
 }

@@ -88,7 +88,8 @@ namespace detail {
         numerator = 0;
     }
     const int32_t denominator = 4 * (sf_n - 2 * de);
-    const int32_t ceil_term = (numerator + denominator - 1) / denominator; // ceil of a non-negative ratio
+    // ceil of a non-negative ratio
+    const int32_t ceil_term = (numerator + denominator - 1) / denominator;
     return 8u + static_cast<uint32_t>(ceil_term) * static_cast<uint32_t>(cr_n + 4);
 }
 
@@ -132,12 +133,16 @@ namespace detail {
  * radio.transmit(payload, airtime + 200ms);
  * @endcode
  */
-[[nodiscard]] constexpr std::chrono::microseconds
-time_on_air(const lora_modulation& mod, const lora_packet_params& pkt, size_t payload_length) noexcept {
+[[nodiscard]] constexpr std::chrono::microseconds time_on_air(
+    const lora_modulation& mod,
+    const lora_packet_params& pkt,
+    size_t payload_length
+) noexcept {
     const uint64_t bw = static_cast<uint64_t>(detail::channel_bandwidth(mod.bw).count());
     const uint64_t sf = std::to_underlying(mod.sf);
-    const uint32_t n_payload =
-        detail::payload_symbols(mod.sf, mod.cr, pkt.header, pkt.crc_on, mod.low_data_rate_optimize, payload_length);
+    const uint32_t n_payload = detail::payload_symbols(
+        mod.sf, mod.cr, pkt.header, pkt.crc_on, mod.low_data_rate_optimize, payload_length
+    );
 
     // Total symbol count scaled ×4 so the 4.25-symbol preamble offset (×4 = 17)
     // stays integral.

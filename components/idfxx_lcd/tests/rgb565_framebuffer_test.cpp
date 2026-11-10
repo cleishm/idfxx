@@ -102,7 +102,7 @@ TEST_CASE("rgb565_framebuffer set/get pixel round trip", "[idfxx][lcd]") {
     fb->set_pixel(5, 9, amber);
     TEST_ASSERT_TRUE(fb->get_pixel(5, 9) == amber);
 
-    // Neighbouring pixels are unaffected.
+    // Neighboring pixels are unaffected.
     TEST_ASSERT_TRUE(fb->get_pixel(4, 9) == rgb565{});
     TEST_ASSERT_TRUE(fb->get_pixel(6, 9) == rgb565{});
     TEST_ASSERT_TRUE(fb->get_pixel(5, 8) == rgb565{});

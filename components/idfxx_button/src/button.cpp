@@ -73,7 +73,8 @@ void poll_button(button_context* ctx) {
         if (ctx->state == button_state::pressed && ctx->pressed_time >= ctx->cfg.long_press_time) {
             ctx->state = button_state::pressed_long;
             notify(ctx, button::event_type::long_press);
-        } else if (ctx->state == button_state::pressed_long && ctx->cfg.extended_press_time.count() != 0 &&
+        } else if (ctx->state == button_state::pressed_long &&
+                   ctx->cfg.extended_press_time.count() != 0 &&
                    ctx->pressed_time >= ctx->cfg.extended_press_time) {
             ctx->state = button_state::pressed_extended;
             notify(ctx, button::event_type::extended_press);
@@ -146,7 +147,8 @@ result<button> button::make(config cfg) {
     }
 
     if (cfg.enable_pull) {
-        auto pull = cfg.pressed_level == gpio::level::low ? gpio::pull_mode::pullup : gpio::pull_mode::pulldown;
+        auto pull = cfg.pressed_level == gpio::level::low ? gpio::pull_mode::pullup
+                                                          : gpio::pull_mode::pulldown;
         r = cfg.pin->try_set_pull_mode(pull);
         if (!r) {
             auto msg = r.error().message();

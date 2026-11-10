@@ -11,7 +11,8 @@
  * @addtogroup idfxx_core
  * @{
  * @defgroup idfxx_core_memory Memory
- * @brief Memory capability flags, heap queries, allocation, walking, integrity checking, and STL-compatible allocators.
+ * @brief Memory capability flags, heap queries, allocation, walking, integrity checking, and
+ * STL-compatible allocators.
  *
  * Provides composable memory capability flags via `memory::capabilities`, heap query
  * functions, heap walking and integrity checking, and allocators (including
@@ -199,9 +200,13 @@ struct block {
  */
 template<typename F>
 void walk(flags<capabilities> c, F&& walker) {
-    auto cb = [](walker_heap_into_t heap_info, walker_block_info_t block_info, void* user_data) -> bool {
+    auto cb =
+        [](walker_heap_into_t heap_info, walker_block_info_t block_info, void* user_data) -> bool {
         auto& fn = *static_cast<std::remove_reference_t<F>*>(user_data);
-        return fn(region{heap_info.start, heap_info.end}, block{block_info.ptr, block_info.size, block_info.used});
+        return fn(
+            region{heap_info.start, heap_info.end},
+            block{block_info.ptr, block_info.size, block_info.used}
+        );
     };
     heap_caps_walk(to_underlying(c), cb, &walker);
 }
@@ -218,9 +223,13 @@ void walk(flags<capabilities> c, F&& walker) {
  */
 template<typename F>
 void walk(F&& walker) {
-    auto cb = [](walker_heap_into_t heap_info, walker_block_info_t block_info, void* user_data) -> bool {
+    auto cb =
+        [](walker_heap_into_t heap_info, walker_block_info_t block_info, void* user_data) -> bool {
         auto& fn = *static_cast<std::remove_reference_t<F>*>(user_data);
-        return fn(region{heap_info.start, heap_info.end}, block{block_info.ptr, block_info.size, block_info.used});
+        return fn(
+            region{heap_info.start, heap_info.end},
+            block{block_info.ptr, block_info.size, block_info.used}
+        );
     };
     heap_caps_walk_all(cb, &walker);
 }
@@ -237,7 +246,8 @@ void walk(F&& walker) {
  * @param print_errors Print specific errors if heap corruption is found.
  * @return True if all matching heaps are valid, false if at least one is corrupt.
  */
-[[nodiscard]] inline bool check_integrity(flags<capabilities> c, bool print_errors = false) noexcept {
+[[nodiscard]] inline bool
+check_integrity(flags<capabilities> c, bool print_errors = false) noexcept {
     return heap_caps_check_integrity(to_underlying(c), print_errors);
 }
 
@@ -334,13 +344,15 @@ inline void free(void* ptr) noexcept {
  * @param c Capability flags to select heap regions.
  * @return Pointer to the aligned memory, or `nullptr` on failure.
  */
-[[nodiscard]] inline void* aligned_alloc(size_t alignment, size_t size, flags<memory::capabilities> c) noexcept {
+[[nodiscard]] inline void*
+aligned_alloc(size_t alignment, size_t size, flags<memory::capabilities> c) noexcept {
     return heap_caps_aligned_alloc(alignment, size, to_underlying(c));
 }
 
 /**
  * @headerfile <idfxx/memory>
- * @brief Allocates aligned, zero-initialized memory from heap regions matching the given capabilities.
+ * @brief Allocates aligned, zero-initialized memory from heap regions matching the given
+ * capabilities.
  *
  * @param alignment Alignment in bytes (must be a power of two).
  * @param n Number of elements to allocate.
@@ -367,7 +379,8 @@ aligned_calloc(size_t alignment, size_t n, size_t size, flags<memory::capabiliti
  *
  * @tparam T The type of object to allocate.
  * @tparam Caps The memory capability flags (e.g., `memory::capabilities::dram`).
- * @tparam Alignment Allocation alignment in bytes (0 = default alignment, must be power of two when non-zero).
+ * @tparam Alignment Allocation alignment in bytes (0 = default alignment, must be power of two when
+ * non-zero).
  */
 template<typename T, flags<memory::capabilities> Caps, size_t Alignment = 0>
 struct allocator {
@@ -404,8 +417,8 @@ struct allocator {
      *
      * @return A pointer to the allocated memory.
      *
-     * @note Throws std::bad_alloc only when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     *       When exceptions are disabled, calls abort() on failure.
+     * @note Throws std::bad_alloc only when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in
+     * menuconfig. When exceptions are disabled, calls abort() on failure.
      * @throws std::bad_alloc If allocation fails and exceptions are enabled.
      */
     [[nodiscard]] T* allocate(size_t n) {
@@ -441,7 +454,8 @@ struct allocator {
  * @return Always returns true.
  */
 template<typename T, typename U, flags<memory::capabilities> Caps, size_t Alignment>
-constexpr bool operator==(const allocator<T, Caps, Alignment>&, const allocator<U, Caps, Alignment>&) noexcept {
+constexpr bool
+operator==(const allocator<T, Caps, Alignment>&, const allocator<U, Caps, Alignment>&) noexcept {
     return true;
 }
 

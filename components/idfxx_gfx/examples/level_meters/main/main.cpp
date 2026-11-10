@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Animates level meters on an ILI9341 color LCD: six channels drawn as
-// labelled horizontal bars that fill proportionally to a simulated level
+// labeled horizontal bars that fill proportionally to a simulated level
 // and change color at thresholds (green / amber / red). The whole 240x320
 // frame is authored in screen coordinates in draw_frame(); each tick
 // updates the levels and re-renders via render_banded, so the framebuffer
@@ -56,7 +56,8 @@ static constexpr size_t BAR_Y = 8;
 static constexpr size_t BAR_W = 160;
 static constexpr size_t BAR_H = 24;
 
-static constexpr std::array<std::string_view, 6> CHANNELS{"60Hz", "250Hz", "1kHz", "4kHz", "8kHz", "16kHz"};
+static constexpr std::array<std::string_view, 6>
+    CHANNELS{"60Hz", "250Hz", "1kHz", "4kHz", "8kHz", "16kHz"};
 
 // Random-walk level simulation, 0-100 per channel (a simple LCG supplies
 // the steps).
@@ -93,7 +94,7 @@ static void draw_frame(band_canvas& canvas, const std::array<int, CHANNELS.size(
     canvas.fill_rect(0, 0, DISPLAY_W, HEADER_H, {0, 0, 96});
     canvas.draw_text(idfxx::font::spleen_8x16, 8, 10, "level meters", white, 2);
 
-    // One labelled meter per channel. The 44-pixel pitch means every bar
+    // One labeled meter per channel. The 44-pixel pitch means every bar
     // straddles a band boundary.
     for (size_t i = 0; i < CHANNELS.size(); ++i) {
         const size_t top = METER_TOP + i * METER_PITCH;
@@ -101,7 +102,11 @@ static void draw_frame(band_canvas& canvas, const std::array<int, CHANNELS.size(
         canvas.draw_text(idfxx::font::spleen_8x16, 8, top + 12, CHANNELS[i], white);
         canvas.draw_rect(BAR_X, top + BAR_Y, BAR_W, BAR_H, white);
         canvas.fill_rect(
-            BAR_X + 2, top + BAR_Y + 2, static_cast<size_t>(level) * (BAR_W - 4) / 100, BAR_H - 4, level_color(level)
+            BAR_X + 2,
+            top + BAR_Y + 2,
+            static_cast<size_t>(level) * (BAR_W - 4) / 100,
+            BAR_H - 4,
+            level_color(level)
         );
         for (size_t tick = 1; tick < 4; ++tick) {
             canvas.draw_vline(BAR_X + tick * BAR_W / 4, top + BAR_Y + BAR_H + 2, 4, gray);
@@ -121,7 +126,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
         bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(rgb565);
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O ---
         idfxx::panel_io io(
@@ -159,7 +166,9 @@ extern "C" void app_main() {
                 levels[i] = next_level(i);
             }
 
-            idfxx::gfx::render_banded(band, panel, DISPLAY_H, [&](band_canvas& canvas) { draw_frame(canvas, levels); });
+            idfxx::gfx::render_banded(band, panel, DISPLAY_H, [&](band_canvas& canvas) {
+                draw_frame(canvas, levels);
+            });
             idfxx::delay(80ms);
         }
     } catch (const std::system_error& e) {

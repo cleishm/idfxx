@@ -56,7 +56,8 @@ struct resolver_options {
     /** @brief Request results suitable for `bind()` rather than `connect()`. */
     bool passive = false;
 
-    /** @brief Restrict results to a particular transport protocol. `std::nullopt` accepts any protocol. */
+    /** @brief Restrict results to a particular transport protocol. `std::nullopt` accepts any
+     * protocol. */
     std::optional<ip_protocol> protocol = std::nullopt;
 };
 
@@ -110,7 +111,8 @@ bool invoke_resolve_sink(void* ctx, const endpoint& ep) {
  *
  * @return The first endpoint.
  */
-[[nodiscard]] endpoint resolve_one(std::string_view host, port_number port, const resolver_options& opts = {});
+[[nodiscard]] endpoint
+resolve_one(std::string_view host, port_number port, const resolver_options& opts = {});
 #endif
 
 /**
@@ -137,7 +139,8 @@ try_resolve_one(std::string_view host, port_number port, const resolver_options&
  *
  * @return The first endpoint.
  */
-[[nodiscard]] endpoint resolve_one(std::string_view host, std::string_view service, const resolver_options& opts = {});
+[[nodiscard]] endpoint
+resolve_one(std::string_view host, std::string_view service, const resolver_options& opts = {});
 #endif
 
 /**
@@ -175,7 +178,12 @@ try_resolve_one(std::string_view host, std::string_view service, const resolver_
  * @endcode
  */
 template<typename F>
-void resolve_each(std::string_view host, port_number port, F&& f, const resolver_options& opts = {}) {
+void resolve_each(
+    std::string_view host,
+    port_number port,
+    F&& f,
+    const resolver_options& opts = {}
+) {
     idfxx::unwrap(try_resolve_each(host, port, std::forward<F>(f), opts));
 }
 #endif
@@ -195,10 +203,16 @@ void resolve_each(std::string_view host, port_number port, F&& f, const resolver
  *         early), or a resolution error.
  */
 template<typename F>
-[[nodiscard]] result<void>
-try_resolve_each(std::string_view host, port_number port, F&& f, const resolver_options& opts = {}) {
+[[nodiscard]] result<void> try_resolve_each(
+    std::string_view host,
+    port_number port,
+    F&& f,
+    const resolver_options& opts = {}
+) {
     using fn_type = std::remove_reference_t<F>;
-    return detail::resolve_for_each(host, port, opts, &detail::invoke_resolve_sink<fn_type>, std::addressof(f));
+    return detail::resolve_for_each(
+        host, port, opts, &detail::invoke_resolve_sink<fn_type>, std::addressof(f)
+    );
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -219,7 +233,12 @@ try_resolve_each(std::string_view host, port_number port, F&& f, const resolver_
  *         not a failure.
  */
 template<typename F>
-void resolve_each(std::string_view host, std::string_view service, F&& f, const resolver_options& opts = {}) {
+void resolve_each(
+    std::string_view host,
+    std::string_view service,
+    F&& f,
+    const resolver_options& opts = {}
+) {
     idfxx::unwrap(try_resolve_each(host, service, std::forward<F>(f), opts));
 }
 #endif
@@ -239,10 +258,16 @@ void resolve_each(std::string_view host, std::string_view service, F&& f, const 
  *         early), or a resolution error.
  */
 template<typename F>
-[[nodiscard]] result<void>
-try_resolve_each(std::string_view host, std::string_view service, F&& f, const resolver_options& opts = {}) {
+[[nodiscard]] result<void> try_resolve_each(
+    std::string_view host,
+    std::string_view service,
+    F&& f,
+    const resolver_options& opts = {}
+) {
     using fn_type = std::remove_reference_t<F>;
-    return detail::resolve_for_each(host, service, opts, &detail::invoke_resolve_sink<fn_type>, std::addressof(f));
+    return detail::resolve_for_each(
+        host, service, opts, &detail::invoke_resolve_sink<fn_type>, std::addressof(f)
+    );
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -262,7 +287,8 @@ try_resolve_each(std::string_view host, std::string_view service, F&& f, const r
  *
  * @return List of resolved endpoints (may be empty).
  */
-[[nodiscard]] std::vector<endpoint> resolve(std::string_view host, port_number port, const resolver_options& opts = {});
+[[nodiscard]] std::vector<endpoint>
+resolve(std::string_view host, port_number port, const resolver_options& opts = {});
 #endif
 
 /**

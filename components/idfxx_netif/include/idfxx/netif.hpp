@@ -195,7 +195,8 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/netif>
- * @brief Creates an unexpected error from an ESP-IDF error code, mapping to netif error codes where possible.
+ * @brief Creates an unexpected error from an ESP-IDF error code, mapping to netif error codes where
+ * possible.
  *
  * Converts the ESP-IDF error code to a netif-specific error code if a mapping exists,
  * otherwise falls back to the default IDFXX error category.
@@ -424,7 +425,8 @@ public:
     /**
      * @brief Returns the interface key string.
      *
-     * The view refers to storage owned by the network interface and is valid only while that interface exists.
+     * The view refers to storage owned by the network interface and is valid only while that
+     * interface exists.
      *
      * @return The interface key, or an empty view if not set.
      */
@@ -433,7 +435,8 @@ public:
     /**
      * @brief Returns the interface description string.
      *
-     * The view refers to storage owned by the network interface and is valid only while that interface exists.
+     * The view refers to storage owned by the network interface and is valid only while that
+     * interface exists.
      *
      * @return The interface description, or an empty view if not set.
      */
@@ -571,11 +574,16 @@ public:
 
     /// @cond INTERNAL
     // Backward-compatibility forwarders for the original spellings.
-    [[nodiscard, deprecated("use get_ipv4_info")]] net::ipv4_info get_ip4_info() const { return get_ipv4_info(); }
+    [[nodiscard, deprecated("use get_ipv4_info")]] net::ipv4_info get_ip4_info() const {
+        return get_ipv4_info();
+    }
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    [[deprecated("use set_ipv4_info")]] void set_ip4_info(const net::ipv4_info& info) { set_ipv4_info(info); }
+    [[deprecated("use set_ipv4_info")]] void set_ip4_info(const net::ipv4_info& info) {
+        set_ipv4_info(info);
+    }
 #endif
-    [[deprecated("use try_set_ipv4_info")]] result<void> try_set_ip4_info(const net::ipv4_info& info) {
+    [[deprecated("use try_set_ipv4_info")]] result<void>
+    try_set_ip4_info(const net::ipv4_info& info) {
         return try_set_ipv4_info(info);
     }
     /// @endcond
@@ -591,7 +599,9 @@ public:
 
     /** @brief Returns the IPv6 link-local address.
      *  @throws std::system_error on failure. */
-    [[nodiscard]] net::ipv6_addr get_ipv6_linklocal() const { return unwrap(try_get_ipv6_linklocal()); }
+    [[nodiscard]] net::ipv6_addr get_ipv6_linklocal() const {
+        return unwrap(try_get_ipv6_linklocal());
+    }
 
     /** @brief Returns the IPv6 global address.
      *  @throws std::system_error on failure. */
@@ -633,7 +643,8 @@ public:
      */
     [[nodiscard]] std::vector<net::ipv6_addr> get_all_preferred_ipv6() const;
 
-#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)) ||            \
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) &&                                            \
+     defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)) ||                                           \
     defined(__DOXYGEN__)
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -677,7 +688,9 @@ public:
      * @throws std::system_error on failure, including when no static entry exists
      *         for @p addr.
      */
-    void remove_static_neighbor(const net::ipv6_addr& addr) { unwrap(try_remove_static_neighbor(addr)); }
+    void remove_static_neighbor(const net::ipv6_addr& addr) {
+        unwrap(try_remove_static_neighbor(addr));
+    }
 #endif
 
     /**
@@ -699,7 +712,8 @@ public:
      * @note Only available when CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES is enabled,
      *       building with ESP-IDF 6.1 or later.
      */
-    [[nodiscard]] result<void> try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac);
+    [[nodiscard]] result<void>
+    try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac);
 
     /**
      * @brief Removes a static IPv6 neighbor cache entry.
@@ -719,25 +733,32 @@ public:
     /// @cond INTERNAL
     // Backward-compatibility forwarders for the original spellings.
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-    [[deprecated("use create_ipv6_linklocal")]] void create_ip6_linklocal() { create_ipv6_linklocal(); }
+    [[deprecated("use create_ipv6_linklocal")]] void create_ip6_linklocal() {
+        create_ipv6_linklocal();
+    }
     [[nodiscard, deprecated("use get_ipv6_linklocal")]] net::ipv6_addr get_ip6_linklocal() const {
         return get_ipv6_linklocal();
     }
-    [[nodiscard, deprecated("use get_ipv6_global")]] net::ipv6_addr get_ip6_global() const { return get_ipv6_global(); }
+    [[nodiscard, deprecated("use get_ipv6_global")]] net::ipv6_addr get_ip6_global() const {
+        return get_ipv6_global();
+    }
 #endif
     [[deprecated("use try_create_ipv6_linklocal")]] result<void> try_create_ip6_linklocal() {
         return try_create_ipv6_linklocal();
     }
-    [[nodiscard, deprecated("use try_get_ipv6_linklocal")]] result<net::ipv6_addr> try_get_ip6_linklocal() const {
+    [[nodiscard, deprecated("use try_get_ipv6_linklocal")]] result<net::ipv6_addr>
+    try_get_ip6_linklocal() const {
         return try_get_ipv6_linklocal();
     }
-    [[nodiscard, deprecated("use try_get_ipv6_global")]] result<net::ipv6_addr> try_get_ip6_global() const {
+    [[nodiscard, deprecated("use try_get_ipv6_global")]] result<net::ipv6_addr>
+    try_get_ip6_global() const {
         return try_get_ipv6_global();
     }
     [[nodiscard, deprecated("use get_all_ipv6")]] std::vector<net::ipv6_addr> get_all_ip6() const {
         return get_all_ipv6();
     }
-    [[nodiscard, deprecated("use get_all_preferred_ipv6")]] std::vector<net::ipv6_addr> get_all_preferred_ip6() const {
+    [[nodiscard, deprecated("use get_all_preferred_ipv6")]] std::vector<net::ipv6_addr>
+    get_all_preferred_ip6() const {
         return get_all_preferred_ipv6();
     }
     /// @endcond
@@ -964,13 +985,20 @@ namespace sntp {
  * @brief SNTP client configuration.
  */
 struct config {
-    bool smooth_sync = false;                              /*!< Use smooth time synchronization. */
-    bool server_from_dhcp = false;                         /*!< Request NTP server from DHCP. */
-    bool wait_for_sync = true;                             /*!< Create semaphore for sync notification. */
-    bool start = true;                                     /*!< Automatically start SNTP service. */
-    bool renew_servers_after_new_ip = false;               /*!< Refresh server list on new IP. */
-    ip_event_id renew_event_id = ip_event_id::sta_got_ip4; /*!< IP event that triggers server refresh. */
-    std::vector<std::string> servers;                      /*!< NTP server hostnames (e.g. "pool.ntp.org"). */
+    /// Use smooth time synchronization.
+    bool smooth_sync = false;
+    /// Request NTP server from DHCP.
+    bool server_from_dhcp = false;
+    /// Create semaphore for sync notification.
+    bool wait_for_sync = true;
+    /// Automatically start SNTP service.
+    bool start = true;
+    /// Refresh server list on new IP.
+    bool renew_servers_after_new_ip = false;
+    /// IP event that triggers server refresh.
+    ip_event_id renew_event_id = ip_event_id::sta_got_ip4;
+    /// NTP server hostnames (e.g. "pool.ntp.org").
+    std::vector<std::string> servers;
 };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

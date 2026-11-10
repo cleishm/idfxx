@@ -8,12 +8,13 @@ Draws a test pattern on an SSD1306 OLED and animates it with partial updates, sh
 - Setting up an I2C bus at 400 kHz with `idfxx::i2c::master_bus`
 - Creating I2C panel I/O with `idfxx::panel_io` and `idfxx::lcd::ssd1306::i2c_io_config()`
 - Creating an `idfxx::lcd::ssd1306` panel for a 128x64 module and turning it on with `display_on()`
-- Drawing pixels into an `idfxx::lcd::mono_framebuffer` with `set_pixel()`, then sending the whole frame with
-  `write()`
+- Drawing pixels into an `idfxx::lcd::mono_framebuffer` with `set_pixel()`, then sending the whole
+  frame with `write()`
 - Updating a single column with `write_region()`, and a band of rows with `write_rows()`
 - Inverting the display with `invert_color()` and changing the brightness with `set_contrast()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -27,8 +28,9 @@ Wire the display to the board as follows, plus power and ground:
 | SDA         | GPIO 8     |
 | SCL         | GPIO 9     |
 
-To use different pins, change `PIN_SDA` and `PIN_SCL` at the top of `main/main.cpp`. If your module uses address
-0x3D, pass it to `i2c_io_config()`. For a 128x32 module, change `.height = 64` to `.height = 32`.
+To use different pins, change `PIN_SDA` and `PIN_SCL` at the top of `main/main.cpp`. If your module
+uses address 0x3D, pass it to `i2c_io_config()`. For a 128x32 module, change `.height = 64` to
+`.height = 32`.
 
 > [!NOTE]
 > The default pins suit the ESP32-S2 and ESP32-S3. On other targets, change them first:
@@ -51,8 +53,9 @@ idf.py set-target esp32s3
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-The display shows a border, an X from corner to corner, and a checkerboard band along the bottom. A bar then
-sweeps across the middle from left to right. Each time it finishes, the bar is cleared and the display switches
-between normal and inverted, with lower contrast while inverted.
+The display shows a border, an X from corner to corner, and a checkerboard band along the bottom. A
+bar then sweeps across the middle from left to right. Each time it finishes, the bar is cleared and
+the display switches between normal and inverted, with lower contrast while inverted.

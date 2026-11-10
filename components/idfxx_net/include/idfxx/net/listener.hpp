@@ -221,7 +221,9 @@ public:
      *
      * @return The accepted connection and the peer's endpoint.
      */
-    [[nodiscard]] accepted_connection accept_with_peer() { return idfxx::unwrap(try_accept_with_peer()); }
+    [[nodiscard]] accepted_connection accept_with_peer() {
+        return idfxx::unwrap(try_accept_with_peer());
+    }
 
     /**
      * @brief Accepts a single connection within the given timeout.
@@ -235,7 +237,9 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] stream_socket accept_for(const std::chrono::duration<Rep, Period>& timeout) {
-        return idfxx::unwrap(_try_accept_for(std::chrono::ceil<std::chrono::milliseconds>(timeout)));
+        return idfxx::unwrap(
+            _try_accept_for(std::chrono::ceil<std::chrono::milliseconds>(timeout))
+        );
     }
 #endif
 
@@ -276,7 +280,8 @@ public:
      * @return The connected socket, or an error such as `errc::timed_out`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<stream_socket> try_accept_for(const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<stream_socket>
+    try_accept_for(const std::chrono::duration<Rep, Period>& timeout) {
         return _try_accept_for(std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 

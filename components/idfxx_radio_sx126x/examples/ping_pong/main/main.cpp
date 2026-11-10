@@ -82,8 +82,10 @@ static int32_t parse_counter(std::string_view sv) {
 // Listen window for one election: LISTEN_TIMEOUT plus a fresh random
 // 0..ELECTION_JITTER.
 static std::chrono::milliseconds election_listen_time() {
-    const auto max_jitter_ms = std::chrono::duration_cast<std::chrono::milliseconds>(ELECTION_JITTER).count();
-    const auto jitter = std::chrono::milliseconds(esp_random() % static_cast<uint32_t>(max_jitter_ms + 1));
+    const auto max_jitter_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(ELECTION_JITTER).count();
+    const auto jitter =
+        std::chrono::milliseconds(esp_random() % static_cast<uint32_t>(max_jitter_ms + 1));
     return LISTEN_TIMEOUT + jitter;
 }
 
@@ -100,7 +102,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         idfxx::radio::sx126x radio(
             bus,
@@ -133,7 +137,9 @@ extern "C" void app_main() {
 
         // ---- Election: listen briefly; whoever times out first sends seq=0.
         const auto election_listen = election_listen_time();
-        logger.info("listening {}ms for a peer before electing as initiator", election_listen.count());
+        logger.info(
+            "listening {}ms for a peer before electing as initiator", election_listen.count()
+        );
         auto first = radio.try_receive(rx_buf, election_listen);
         if (first) {
             std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), first->length};
@@ -142,7 +148,12 @@ extern "C" void app_main() {
                 logger.warn("election rx: unparseable [{}B]: {}", first->length, sv);
                 counter = 0;
             } else {
-                logger.info("election rx: {} (rssi={} snr={}) — we are the responder", sv, first->rssi, first->snr);
+                logger.info(
+                    "election rx: {} (rssi={} snr={}) — we are the responder",
+                    sv,
+                    first->rssi,
+                    first->snr
+                );
                 counter = static_cast<uint32_t>(parsed) + 1;
             }
         } else if (first.error() == idfxx::errc::timeout) {
@@ -193,7 +204,9 @@ extern "C" void app_main() {
                             return;
                         }
                     } else {
-                        std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), re->length};
+                        std::string_view sv{
+                            reinterpret_cast<const char*>(rx_buf.data()), re->length
+                        };
                         int32_t parsed = parse_counter(sv);
                         counter = parsed < 0 ? 0 : static_cast<uint32_t>(parsed) + 1;
                         logger.info("re-elected as responder, resuming at {}", counter);
@@ -211,7 +224,9 @@ extern "C" void app_main() {
             std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
             int32_t parsed = parse_counter(sv);
             if (parsed < 0) {
-                logger.warn("rx: unparseable [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
+                logger.warn(
+                    "rx: unparseable [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv
+                );
                 continue;
             }
             logger.info("rx: {} (rssi={} snr={})", sv, r->rssi, r->snr);

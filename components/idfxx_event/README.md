@@ -159,8 +159,11 @@ sys.post(started);
 
 ### event<IdEnum, DataType = void>
 
-- Pairs an event ID with its data type for type-safe listener registration and posting. The event base is looked up automatically from the enum type via ADL
-- `DataType` must satisfy `receivable_event_data` (trivially copyable types work automatically; types needing custom reconstruction provide `from_opaque`). Posting requires `event_data` (type must be trivially copyable). Defaults to `void` (no data provided with the event)
+- Pairs an event ID with its data type for type-safe listener registration and posting. The event
+  base is looked up automatically from the enum type via ADL
+- `DataType` must satisfy `receivable_event_data` (trivially copyable types work automatically;
+  types needing custom reconstruction provide `from_opaque`). Posting requires `event_data` (type
+  must be trivially copyable). Defaults to `void` (no data provided with the event)
 
 ### event_loop
 
@@ -205,15 +208,21 @@ Event operations use error codes from `idfxx::errc` and ESP-IDF:
 - `invalid_arg` - Invalid handle or parameter
 - `invalid_state` - Loop not created or already destroyed
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods return `idfxx::result<T>`. Exception-based methods throw `std::system_error`
+when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
-- **Type-safe listeners**: Use `event` constants for specific events; wildcard listeners still use untyped callbacks
-- Create the system event loop with `event_loop::create_system()` before registering system event listeners
+- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw
+  exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Type-safe listeners**: Use `event` constants for specific events; wildcard listeners still use
+  untyped callbacks
+- Create the system event loop with `event_loop::create_system()` before registering system event
+  listeners
 - Event callbacks may be invoked from different task contexts depending on loop configuration
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a listener is logged and otherwise ignored. Other listeners for the event still run, and the event loop keeps dispatching later events
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a listener is logged
+  and otherwise ignored. Other listeners for the event still run, and the event loop keeps
+  dispatching later events
 - Use `unique_listener_handle` for automatic cleanup; `listener_handle` requires manual removal
 
 ## License

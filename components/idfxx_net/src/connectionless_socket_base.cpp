@@ -49,7 +49,8 @@ result<void> connectionless_socket_base::try_disconnect() {
     return {};
 }
 
-result<size_t> connectionless_socket_base::try_send_to(std::span<const std::byte> buf, const endpoint& to) {
+result<size_t>
+connectionless_socket_base::try_send_to(std::span<const std::byte> buf, const endpoint& to) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
@@ -58,7 +59,8 @@ result<size_t> connectionless_socket_base::try_send_to(std::span<const std::byte
     if (len == 0) {
         return error(errc::invalid_argument);
     }
-    ssize_t n = lwip_sendto(_fd, buf.data(), buf.size(), 0, reinterpret_cast<const sockaddr*>(&ss), len);
+    ssize_t n =
+        lwip_sendto(_fd, buf.data(), buf.size(), 0, reinterpret_cast<const sockaddr*>(&ss), len);
     if (n < 0) {
         return error(io_error_code(_fd, errno));
     }

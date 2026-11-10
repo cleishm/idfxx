@@ -41,14 +41,18 @@ extern "C" void app_main() {
         // --- UDP echo server ---
         idfxx::net::datagram_socket sock(idfxx::net::address_family::ipv4);
         sock.bind({idfxx::net::ipv4_addr::any(), ECHO_PORT});
-        logger.info("UDP echo on {}:{} -- try: echo hi | nc -u {} {}", my_ip, ECHO_PORT, my_ip, ECHO_PORT);
+        logger.info(
+            "UDP echo on {}:{} -- try: echo hi | nc -u {} {}", my_ip, ECHO_PORT, my_ip, ECHO_PORT
+        );
 
         std::array<std::byte, 1500> buf; // sized for a typical Ethernet MTU
         while (true) {
             auto dg = sock.recv_from(buf);
             if (dg.truncated) {
                 logger.warn(
-                    "Datagram from {} exceeded the {}-byte buffer; echoing truncated copy", dg.from, buf.size()
+                    "Datagram from {} exceeded the {}-byte buffer; echoing truncated copy",
+                    dg.from,
+                    buf.size()
                 );
             }
             logger.info("Got {} bytes from {}", dg.data.size(), dg.from);
@@ -84,16 +88,18 @@ idfxx::net::ipv4_addr connect_to_wifi() {
         network_ready.set(sync_flag::got_ip);
     });
 
-    loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-        logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-        // Listener runs in the event-loop trampoline (C frame); exceptions
-        // must not escape, so suppress at this boundary.
-        try {
-            idfxx::wifi::connect();
-        } catch (const std::system_error& e) {
-            logger.warn("reconnect failed: {}", e.what());
+    loop.listener_add(
+        idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+            // Listener runs in the event-loop trampoline (C frame); exceptions
+            // must not escape, so suppress at this boundary.
+            try {
+                idfxx::wifi::connect();
+            } catch (const std::system_error& e) {
+                logger.warn("reconnect failed: {}", e.what());
+            }
         }
-    });
+    );
 
     idfxx::wifi::init();
     idfxx::wifi::set_roles(idfxx::wifi::role::sta);

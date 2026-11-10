@@ -9,7 +9,8 @@
 namespace {
 const char* TAG = "idfxx::onewire";
 
-std::vector<idfxx::onewire::address> search_devices(onewire_search_t& search, gpio_num_t pin, size_t max_devices) {
+std::vector<idfxx::onewire::address>
+search_devices(onewire_search_t& search, gpio_num_t pin, size_t max_devices) {
     std::vector<idfxx::onewire::address> devices;
     devices.reserve(max_devices);
     for (size_t i = 0; i < max_devices; ++i) {
@@ -38,7 +39,11 @@ uint16_t crc16(std::span<const uint8_t> data, uint16_t crc_iv) {
     return onewire_crc16(data.data(), data.size(), crc_iv);
 }
 
-bool check_crc16(std::span<const uint8_t> data, std::span<const uint8_t, 2> inverted_crc, uint16_t crc_iv) {
+bool check_crc16(
+    std::span<const uint8_t> data,
+    std::span<const uint8_t, 2> inverted_crc,
+    uint16_t crc_iv
+) {
     return onewire_check_crc16(data.data(), data.size(), inverted_crc.data(), crc_iv);
 }
 

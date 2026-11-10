@@ -17,24 +17,41 @@
 // =============================================================================
 
 // dhcp_option_id
-static_assert(std::to_underlying(idfxx::netif::dhcp_option_id::subnet_mask) == ESP_NETIF_SUBNET_MASK);
-static_assert(std::to_underlying(idfxx::netif::dhcp_option_id::domain_name_server) == ESP_NETIF_DOMAIN_NAME_SERVER);
+static_assert(
+    std::to_underlying(idfxx::netif::dhcp_option_id::subnet_mask) == ESP_NETIF_SUBNET_MASK
+);
+static_assert(
+    std::to_underlying(idfxx::netif::dhcp_option_id::domain_name_server) ==
+    ESP_NETIF_DOMAIN_NAME_SERVER
+);
 static_assert(
     std::to_underlying(idfxx::netif::dhcp_option_id::router_solicitation_address) ==
     ESP_NETIF_ROUTER_SOLICITATION_ADDRESS
 );
-static_assert(std::to_underlying(idfxx::netif::dhcp_option_id::requested_ip_address) == ESP_NETIF_REQUESTED_IP_ADDRESS);
 static_assert(
-    std::to_underlying(idfxx::netif::dhcp_option_id::ip_address_lease_time) == ESP_NETIF_IP_ADDRESS_LEASE_TIME
+    std::to_underlying(idfxx::netif::dhcp_option_id::requested_ip_address) ==
+    ESP_NETIF_REQUESTED_IP_ADDRESS
 );
 static_assert(
-    std::to_underlying(idfxx::netif::dhcp_option_id::ip_request_retry_time) == ESP_NETIF_IP_REQUEST_RETRY_TIME
+    std::to_underlying(idfxx::netif::dhcp_option_id::ip_address_lease_time) ==
+    ESP_NETIF_IP_ADDRESS_LEASE_TIME
 );
 static_assert(
-    std::to_underlying(idfxx::netif::dhcp_option_id::vendor_class_identifier) == ESP_NETIF_VENDOR_CLASS_IDENTIFIER
+    std::to_underlying(idfxx::netif::dhcp_option_id::ip_request_retry_time) ==
+    ESP_NETIF_IP_REQUEST_RETRY_TIME
 );
-static_assert(std::to_underlying(idfxx::netif::dhcp_option_id::vendor_specific_info) == ESP_NETIF_VENDOR_SPECIFIC_INFO);
-static_assert(std::to_underlying(idfxx::netif::dhcp_option_id::captiveportal_uri) == ESP_NETIF_CAPTIVEPORTAL_URI);
+static_assert(
+    std::to_underlying(idfxx::netif::dhcp_option_id::vendor_class_identifier) ==
+    ESP_NETIF_VENDOR_CLASS_IDENTIFIER
+);
+static_assert(
+    std::to_underlying(idfxx::netif::dhcp_option_id::vendor_specific_info) ==
+    ESP_NETIF_VENDOR_SPECIFIC_INFO
+);
+static_assert(
+    std::to_underlying(idfxx::netif::dhcp_option_id::captiveportal_uri) ==
+    ESP_NETIF_CAPTIVEPORTAL_URI
+);
 
 // dns_type
 static_assert(std::to_underlying(idfxx::netif::dns_type::main) == ESP_NETIF_DNS_MAIN);
@@ -46,21 +63,29 @@ static_assert(std::to_underlying(idfxx::netif::flag::dhcp_client) == ESP_NETIF_D
 static_assert(std::to_underlying(idfxx::netif::flag::dhcp_server) == ESP_NETIF_DHCP_SERVER);
 static_assert(std::to_underlying(idfxx::netif::flag::autoup) == ESP_NETIF_FLAG_AUTOUP);
 static_assert(std::to_underlying(idfxx::netif::flag::garp) == ESP_NETIF_FLAG_GARP);
-static_assert(std::to_underlying(idfxx::netif::flag::event_ip_modified) == ESP_NETIF_FLAG_EVENT_IP_MODIFIED);
+static_assert(
+    std::to_underlying(idfxx::netif::flag::event_ip_modified) == ESP_NETIF_FLAG_EVENT_IP_MODIFIED
+);
 static_assert(std::to_underlying(idfxx::netif::flag::is_ppp) == ESP_NETIF_FLAG_IS_PPP);
 static_assert(std::to_underlying(idfxx::netif::flag::is_bridge) == ESP_NETIF_FLAG_IS_BRIDGE);
 static_assert(std::to_underlying(idfxx::netif::flag::mldv6_report) == ESP_NETIF_FLAG_MLDV6_REPORT);
 static_assert(
-    std::to_underlying(idfxx::netif::flag::ipv6_autoconfig_enabled) == ESP_NETIF_FLAG_IPV6_AUTOCONFIG_ENABLED
+    std::to_underlying(idfxx::netif::flag::ipv6_autoconfig_enabled) ==
+    ESP_NETIF_FLAG_IPV6_AUTOCONFIG_ENABLED
 );
 
 // ip_event_id
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::sta_got_ip4) == IP_EVENT_STA_GOT_IP);
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::sta_lost_ip4) == IP_EVENT_STA_LOST_IP);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-static_assert(std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) == IP_EVENT_ASSIGNED_IP_TO_CLIENT);
+static_assert(
+    std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) ==
+    IP_EVENT_ASSIGNED_IP_TO_CLIENT
+);
 #else
-static_assert(std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) == IP_EVENT_AP_STAIPASSIGNED);
+static_assert(
+    std::to_underlying(idfxx::netif::ip_event_id::ap_sta_ip4_assigned) == IP_EVENT_AP_STAIPASSIGNED
+);
 #endif
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::got_ip6) == IP_EVENT_GOT_IP6);
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::eth_got_ip4) == IP_EVENT_ETH_GOT_IP);
@@ -69,19 +94,45 @@ static_assert(std::to_underlying(idfxx::netif::ip_event_id::ppp_got_ip4) == IP_E
 static_assert(std::to_underlying(idfxx::netif::ip_event_id::ppp_lost_ip4) == IP_EVENT_PPP_LOST_IP);
 
 // errc
-static_assert(std::to_underlying(idfxx::netif::errc::invalid_params) == ESP_ERR_ESP_NETIF_INVALID_PARAMS);
-static_assert(std::to_underlying(idfxx::netif::errc::if_not_ready) == ESP_ERR_ESP_NETIF_IF_NOT_READY);
-static_assert(std::to_underlying(idfxx::netif::errc::dhcpc_start_failed) == ESP_ERR_ESP_NETIF_DHCPC_START_FAILED);
-static_assert(std::to_underlying(idfxx::netif::errc::dhcp_already_started) == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED);
-static_assert(std::to_underlying(idfxx::netif::errc::dhcp_already_stopped) == ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::invalid_params) == ESP_ERR_ESP_NETIF_INVALID_PARAMS
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::if_not_ready) == ESP_ERR_ESP_NETIF_IF_NOT_READY
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dhcpc_start_failed) ==
+    ESP_ERR_ESP_NETIF_DHCPC_START_FAILED
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dhcp_already_started) ==
+    ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dhcp_already_stopped) ==
+    ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED
+);
 static_assert(std::to_underlying(idfxx::netif::errc::no_mem) == ESP_ERR_ESP_NETIF_NO_MEM);
-static_assert(std::to_underlying(idfxx::netif::errc::dhcp_not_stopped) == ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED);
-static_assert(std::to_underlying(idfxx::netif::errc::driver_attach_failed) == ESP_ERR_ESP_NETIF_DRIVER_ATTACH_FAILED);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dhcp_not_stopped) == ESP_ERR_ESP_NETIF_DHCP_NOT_STOPPED
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::driver_attach_failed) ==
+    ESP_ERR_ESP_NETIF_DRIVER_ATTACH_FAILED
+);
 static_assert(std::to_underlying(idfxx::netif::errc::init_failed) == ESP_ERR_ESP_NETIF_INIT_FAILED);
-static_assert(std::to_underlying(idfxx::netif::errc::dns_not_configured) == ESP_ERR_ESP_NETIF_DNS_NOT_CONFIGURED);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dns_not_configured) ==
+    ESP_ERR_ESP_NETIF_DNS_NOT_CONFIGURED
+);
 static_assert(std::to_underlying(idfxx::netif::errc::mld6_failed) == ESP_ERR_ESP_NETIF_MLD6_FAILED);
-static_assert(std::to_underlying(idfxx::netif::errc::ipv6_addr_failed) == ESP_ERR_ESP_NETIF_IP6_ADDR_FAILED);
-static_assert(std::to_underlying(idfxx::netif::errc::dhcps_start_failed) == ESP_ERR_ESP_NETIF_DHCPS_START_FAILED);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::ipv6_addr_failed) == ESP_ERR_ESP_NETIF_IP6_ADDR_FAILED
+);
+static_assert(
+    std::to_underlying(idfxx::netif::errc::dhcps_start_failed) ==
+    ESP_ERR_ESP_NETIF_DHCPS_START_FAILED
+);
 static_assert(std::to_underlying(idfxx::netif::errc::tx_failed) == ESP_ERR_ESP_NETIF_TX_FAILED);
 
 // =============================================================================

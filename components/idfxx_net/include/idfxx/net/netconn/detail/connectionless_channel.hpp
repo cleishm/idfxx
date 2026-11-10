@@ -155,7 +155,9 @@ public:
      * @return The number of bytes sent — always `data.size()` on success, since
      *         a connectionless packet is sent in full or not at all.
      */
-    size_t send_to(std::span<const std::byte> data, const endpoint& to) { return idfxx::unwrap(try_send_to(data, to)); }
+    size_t send_to(std::span<const std::byte> data, const endpoint& to) {
+        return idfxx::unwrap(try_send_to(data, to));
+    }
 #endif
 
     /**
@@ -206,7 +208,9 @@ public:
      *         received zero-length packet — connectionless channels have no
      *         end-of-stream, so it never signals peer close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) { return idfxx::unwrap(try_recv(buf)); }
+    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv(buf));
+    }
 #endif
 
     /**
@@ -235,7 +239,9 @@ public:
      *
      * @return Datagram metadata (filled sub-span, source endpoint).
      */
-    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) { return idfxx::unwrap(try_recv_from(buf)); }
+    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv_from(buf));
+    }
 #endif
 
     /**

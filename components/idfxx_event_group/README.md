@@ -148,14 +148,18 @@ void IRAM_ATTR my_isr() {
 ### Wait
 
 - `wait(bits, mode, clear_on_exit)` / `try_wait(bits, mode, clear_on_exit)` - Wait indefinitely
-- `wait(bits, mode, timeout, clear_on_exit)` / `try_wait(bits, mode, timeout, clear_on_exit)` - Wait with timeout
-- `wait_until(bits, mode, deadline, clear_on_exit)` / `try_wait_until(bits, mode, deadline, clear_on_exit)` - Wait with deadline
+- `wait(bits, mode, timeout, clear_on_exit)` / `try_wait(bits, mode, timeout, clear_on_exit)` - Wait
+  with timeout
+- `wait_until(bits, mode, deadline, clear_on_exit)` /
+  `try_wait_until(bits, mode, deadline, clear_on_exit)` - Wait with deadline
 
 ### Sync
 
 - `sync(set_bits, wait_bits)` / `try_sync(set_bits, wait_bits)` - Sync indefinitely
-- `sync(set_bits, wait_bits, timeout)` / `try_sync(set_bits, wait_bits, timeout)` - Sync with timeout
-- `sync_until(set_bits, wait_bits, deadline)` / `try_sync_until(set_bits, wait_bits, deadline)` - Sync with deadline
+- `sync(set_bits, wait_bits, timeout)` / `try_sync(set_bits, wait_bits, timeout)` - Sync with
+  timeout
+- `sync_until(set_bits, wait_bits, deadline)` / `try_sync_until(set_bits, wait_bits, deadline)` -
+  Sync with deadline
 
 ### ISR Operations
 
@@ -173,15 +177,20 @@ Wait and sync operations use error codes from `idfxx::errc`:
 
 - `timeout` - The wait condition was not satisfied within the specified time
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **clear_on_exit defaults to true**: Wait operations clear the matched bits by default, preventing accidental double-processing of events.
+- **clear_on_exit defaults to true**: Wait operations clear the matched bits by default, preventing
+  accidental double-processing of events.
 - **Non-copyable/move-only**: Event groups are non-copyable and move-only.
-- **Automatic cleanup**: The destructor automatically deletes the event group. Tasks blocked on the group are unblocked.
-- **ISR set is deferred**: `set_from_isr()` posts to the timer daemon task. It can fail if the command queue is full.
-- **Bit width**: The enum's underlying type must fit within `EventBits_t` (typically 24 usable bits on ESP32).
+- **Automatic cleanup**: The destructor automatically deletes the event group. Tasks blocked on the
+  group are unblocked.
+- **ISR set is deferred**: `set_from_isr()` posts to the timer daemon task. It can fail if the
+  command queue is full.
+- **Bit width**: The enum's underlying type must fit within `EventBits_t` (typically 24 usable bits
+  on ESP32).
 
 ## License
 

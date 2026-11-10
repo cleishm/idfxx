@@ -47,7 +47,7 @@ class rgb565_framebuffer;
  * @brief Abstract base class for LCD panels.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::lcd::ili9341`) customize behaviour by overriding the protected
+ * `idfxx::lcd::ili9341`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  *
@@ -71,12 +71,18 @@ public:
      * @brief Configuration structure for LCD panels.
      */
     struct config {
-        gpio reset_gpio = gpio::nc(); ///< GPIO number for hardware reset, or idfxx::gpio::nc() if not used
-        enum rgb_element_order rgb_element_order = rgb_element_order::rgb; ///< Set RGB element order, RGB or BGR
-        rgb_data_endian data_endian = rgb_data_endian::big; ///< Set the data endian for color data larger than 1 byte
-        uint32_t bits_per_pixel = 16;                       ///< Color depth, in bpp
-        gpio::level reset_active_level = gpio::level::low;  ///< Active level for the panel reset signal
-        void* vendor_config = nullptr; ///< vendor specific configuration, optional, left as NULL if not used
+        /// GPIO number for hardware reset, or idfxx::gpio::nc() if not used
+        gpio reset_gpio = gpio::nc();
+        /// Set RGB element order, RGB or BGR
+        enum rgb_element_order rgb_element_order = rgb_element_order::rgb;
+        /// Set the data endian for color data larger than 1 byte
+        rgb_data_endian data_endian = rgb_data_endian::big;
+        /// Color depth, in bpp
+        uint32_t bits_per_pixel = 16;
+        /// Active level for the panel reset signal
+        gpio::level reset_active_level = gpio::level::low;
+        /// vendor specific configuration, optional, left as NULL if not used
+        void* vendor_config = nullptr;
     };
 
     virtual ~panel() = default;
@@ -148,7 +154,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void write(const rgb565_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+    void write(const rgb565_framebuffer& fb, size_t x = 0, size_t y = 0) {
+        unwrap(try_write(fb, x, y));
+    }
 
     /**
      * @brief Draws a monochrome framebuffer to the display.
@@ -165,7 +173,9 @@ public:
      * @throws std::system_error on error, including `errc::invalid_arg` for
      *         an unaligned @p y.
      */
-    void write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0) { unwrap(try_write(fb, x, y)); }
+    void write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0) {
+        unwrap(try_write(fb, x, y));
+    }
 
     /**
      * @brief Draws a horizontal band of an RGB565 framebuffer to the display.
@@ -187,7 +197,13 @@ public:
      * @throws std::system_error on error, including `errc::invalid_arg` for
      *         an invalid row range.
      */
-    void write_rows(const rgb565_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+    void write_rows(
+        const rgb565_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    ) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -214,7 +230,13 @@ public:
      * @throws std::system_error on error, including `errc::invalid_arg` for
      *         an invalid row range or an unaligned @p y.
      */
-    void write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0) {
+    void write_rows(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    ) {
         unwrap(try_write_rows(fb, row_start, row_end, x, y));
     }
 
@@ -339,8 +361,13 @@ public:
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the row range is invalid.
      */
-    [[nodiscard]] result<void>
-    try_write_rows(const rgb565_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+    [[nodiscard]] result<void> try_write_rows(
+        const rgb565_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    );
 
     /**
      * @brief Draws a horizontal band of a monochrome framebuffer to the display.
@@ -365,8 +392,13 @@ public:
      * @retval idfxx::errc::invalid_arg if the row range is invalid, or @p y
      *         is not a multiple of 8.
      */
-    [[nodiscard]] result<void>
-    try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x = 0, size_t y = 0);
+    [[nodiscard]] result<void> try_write_rows(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x = 0,
+        size_t y = 0
+    );
 
     /**
      * @brief Draws a rectangular region of an RGB565 framebuffer to the display.
@@ -508,7 +540,8 @@ public:
      * @param color_data Pixel data in the panel's native format.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+    [[nodiscard]] result<void>
+    try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
         return do_draw_bitmap(x_start, y_start, x_end, y_end, color_data);
     }
 
@@ -542,7 +575,9 @@ public:
      * @param mirror_y true to mirror vertically.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_mirror(bool mirror_x, bool mirror_y) { return do_mirror(mirror_x, mirror_y); }
+    [[nodiscard]] result<void> try_mirror(bool mirror_x, bool mirror_y) {
+        return do_mirror(mirror_x, mirror_y);
+    }
 
     /**
      * @brief Turns the display on or off.

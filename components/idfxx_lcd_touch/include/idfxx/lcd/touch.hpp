@@ -37,7 +37,7 @@ namespace idfxx::lcd {
  * @brief Abstract base class for touch controllers.
  *
  * The public interface is non-virtual; concrete drivers (e.g.
- * `idfxx::lcd::stmpe610`) customize behaviour by overriding the protected
+ * `idfxx::lcd::stmpe610`) customize behavior by overriding the protected
  * `do_*` hooks, mirroring the standard library's non-virtual-interface
  * pattern (cf. `std::pmr::memory_resource`).
  */
@@ -50,8 +50,13 @@ public:
      * When exceptions are enabled, an exception thrown by the callback is
      * logged, and that read reports no touch points.
      */
-    typedef std::move_only_function<
-        void(uint16_t* x, uint16_t* y, uint16_t* strength, uint8_t* point_num, uint8_t max_point_num)>
+    typedef std::move_only_function<void(
+        uint16_t* x,
+        uint16_t* y,
+        uint16_t* strength,
+        uint8_t* point_num,
+        uint8_t max_point_num
+    )>
         process_coordinates_callback;
 
     /**
@@ -74,7 +79,8 @@ public:
         bool mirror_x = false; ///< Mirror X after read coordinates
         bool mirror_y = false; ///< Mirror Y after read coordinates
 
-        /// Callback to apply user adjustments after reading coordinates from the touch controller, before swap/mirror
+        /// Callback to apply user adjustments after reading coordinates from the touch controller,
+        /// before swap/mirror
         process_coordinates_callback process_coordinates = nullptr;
     };
 

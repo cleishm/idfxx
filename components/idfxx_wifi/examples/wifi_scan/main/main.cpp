@@ -25,7 +25,13 @@ extern "C" void app_main() {
 
         // --- Display results ---
         for (const auto& ap : results) {
-            logger.info("  {:32s}  ch:{:2d}  rssi:{:4.0f}  {}", ap.ssid, ap.primary_channel, ap.rssi, ap.authmode);
+            logger.info(
+                "  {:32s}  ch:{:2d}  rssi:{:4.0f}  {}",
+                ap.ssid,
+                ap.primary_channel,
+                ap.rssi,
+                ap.authmode
+            );
         }
 
         // --- Cleanup ---

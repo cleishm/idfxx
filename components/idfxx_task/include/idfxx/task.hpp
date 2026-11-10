@@ -60,7 +60,7 @@ public:
      * @headerfile <idfxx/task>
      * @brief Error codes for task operations.
      *
-     * The category's `equivalent()` member recognises these codes as
+     * The category's `equivalent()` member recognizes these codes as
      * equivalent to the corresponding `std::errc` synonyms, so callers can
      * compare against either the domain-specific `errc` value or the
      * portable POSIX name. For example
@@ -93,7 +93,8 @@ public:
          * @param condition The condition being compared against.
          * @return True if `code` is equivalent to `condition`.
          */
-        [[nodiscard]] bool equivalent(int code, const std::error_condition& condition) const noexcept override final;
+        [[nodiscard]] bool
+        equivalent(int code, const std::error_condition& condition) const noexcept override final;
     };
 
     /**
@@ -124,7 +125,8 @@ public:
         /**
          * @brief Checks if a stop has been requested for this task.
          *
-         * @return true if request_stop() has been called on the owning task object, false otherwise.
+         * @return true if request_stop() has been called on the owning task object, false
+         * otherwise.
          */
         [[nodiscard]] bool stop_requested() const noexcept;
 
@@ -297,11 +299,16 @@ public:
      * @brief Task configuration parameters.
      */
     struct config {
-        std::string_view name = "task";                                     ///< Task name (max 16 chars)
-        size_t stack_size = 4096;                                           ///< Stack size in bytes
-        task_priority priority = 5;                                         ///< Task priority (0 = lowest)
-        std::optional<core_id> core_affinity = std::nullopt;                ///< Core pin (nullopt = any core)
-        flags<memory::capabilities> stack_mem = memory::capabilities::dram; ///< Stack memory capabilities
+        /// Task name (max 16 chars)
+        std::string_view name = "task";
+        /// Stack size in bytes
+        size_t stack_size = 4096;
+        /// Task priority (0 = lowest)
+        task_priority priority = 5;
+        /// Core pin (nullopt = any core)
+        std::optional<core_id> core_affinity = std::nullopt;
+        /// Stack memory capabilities
+        flags<memory::capabilities> stack_mem = memory::capabilities::dram;
     };
 
     /**
@@ -738,7 +745,8 @@ public:
      *         The task remains joinable and can be joined again.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<void> try_join_until(const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<void>
+    try_join_until(const std::chrono::time_point<Clock, Duration>& deadline) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_join(0);
@@ -755,7 +763,9 @@ public:
      *
      * @return The current task's TaskHandle_t.
      */
-    [[nodiscard]] static TaskHandle_t current_handle() noexcept { return xTaskGetCurrentTaskHandle(); }
+    [[nodiscard]] static TaskHandle_t current_handle() noexcept {
+        return xTaskGetCurrentTaskHandle();
+    }
 
     /**
      * @brief Returns the name of the currently executing task.

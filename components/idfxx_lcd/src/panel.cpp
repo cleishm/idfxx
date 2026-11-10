@@ -33,11 +33,23 @@ result<void> panel::try_write(const mono_framebuffer& fb, size_t x, size_t y) {
     );
 }
 
-result<void> panel::try_write_rows(const rgb565_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::try_write_rows(
+    const rgb565_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     return try_write_region(fb, 0, row_start, fb.width(), row_end, x, y);
 }
 
-result<void> panel::try_write_rows(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> panel::try_write_rows(
+    const mono_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     return try_write_region(fb, 0, row_start, fb.width(), row_end, x, y);
 }
 
@@ -91,7 +103,8 @@ result<void> panel::try_write_region(
     size_t y
 ) {
     const size_t width = fb.width();
-    if (x_start >= x_end || x_end > width || y_start >= y_end || y_end > fb.height() || y % 8 != 0) {
+    if (x_start >= x_end || x_end > width || y_start >= y_end || y_end > fb.height() ||
+        y % 8 != 0) {
         return error(errc::invalid_arg);
     }
     const uint8_t* data = fb.data().data();
@@ -123,12 +136,14 @@ result<void> panel::try_write_region(
     return {};
 }
 
-result<void> panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+result<void>
+panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
     auto handle = do_idf_handle();
     if (handle == nullptr) {
         return error(errc::invalid_state);
     }
-    auto drawn = wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data));
+    auto drawn =
+        wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data));
     if (_queued_io == nullptr) {
         return drawn;
     }

@@ -6,10 +6,11 @@ Sweeps a hobby servo from 0 to 180 degrees and back, then centers it.
 
 - Starting a 50 Hz PWM output with 14-bit duty resolution using `idfxx::pwm::start()`, which picks a
   free timer and channel
-- Setting the pulse width directly as a `std::chrono` duration with `set_pulse_width()`, mapping each
-  angle to a 1000–2000 µs pulse
+- Setting the pulse width directly as a `std::chrono` duration with `set_pulse_width()`, mapping
+  each angle to a 1000–2000 µs pulse
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -24,8 +25,8 @@ The example assumes 1000 µs is 0 degrees and 2000 µs is 180 degrees. If your s
 range, change `min_pulse` and `max_pulse` in `main/main.cpp`.
 
 > [!NOTE]
-> On the ESP32-C3, GPIO 18 is a USB-JTAG pin, and using it disables USB-JTAG. On the ESP32-H2,
-> GPIO 18 is connected to the SPI flash. Choose another pin on these chips.
+> On the ESP32-C3, GPIO 18 is a USB-JTAG pin, and using it disables USB-JTAG. On the ESP32-H2, GPIO
+> 18 is connected to the SPI flash. Choose another pin on these chips.
 
 ## How to use
 

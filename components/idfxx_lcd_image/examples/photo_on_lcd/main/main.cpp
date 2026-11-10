@@ -24,8 +24,9 @@ namespace lcd = idfxx::lcd;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// The picture is written to the panel in bands of 16 rows. That is the default, and no frame buffer is needed either
-// way, but it is named here because it bounds the bus's largest transfer, which the board setup below sizes for.
+// The picture is written to the panel in bands of 16 rows. That is the default, and no frame buffer
+// is needed either way, but it is named here because it bounds the bus's largest transfer, which
+// the board setup below sizes for.
 static constexpr lcd::write_options WRITE_OPTIONS{.band_rows = 16};
 
 // The photo, embedded by main/CMakeLists.txt.
@@ -55,17 +56,31 @@ static void show_in_rectangle(lcd::panel& panel, std::span<const uint8_t> jpeg) 
     };
     const image::placement where{
         .target = frame,
-        .layout = image::layout::fit, // all of the photo, with black where it doesn't reach the frame
+        // all of the photo, with black where it doesn't reach the frame
+        .layout = image::layout::fit,
         .background = {0, 0, 0},
     };
 
-    // The overlay is called with each band just before it is written. It draws in screen coordinates, and the
-    // canvas clips to the band, so the caption appears in whichever band it falls in.
-    lcd::write_image(panel, decoder, where, WRITE_OPTIONS, [&](lcd::rgb565_framebuffer& band, size_t x, size_t y) {
-        idfxx::gfx::canvas canvas(band, x, y);
-        canvas.fill_rect(frame.x, frame.y + frame.height - 20, frame.width, 20, {0, 0, 0});
-        canvas.draw_text(idfxx::font::spleen_8x16, frame.x + 4, frame.y + frame.height - 18, "idfxx", {255, 255, 255});
-    });
+    // The overlay is called with each band just before it is written. It draws in screen
+    // coordinates, and the canvas clips to the band, so the caption appears in whichever band it
+    // falls in.
+    lcd::write_image(
+        panel,
+        decoder,
+        where,
+        WRITE_OPTIONS,
+        [&](lcd::rgb565_framebuffer& band, size_t x, size_t y) {
+            idfxx::gfx::canvas canvas(band, x, y);
+            canvas.fill_rect(frame.x, frame.y + frame.height - 20, frame.width, 20, {0, 0, 0});
+            canvas.draw_text(
+                idfxx::font::spleen_8x16,
+                frame.x + 4,
+                frame.y + frame.height - 18,
+                "idfxx",
+                {255, 255, 255}
+            );
+        }
+    );
 }
 
 extern "C" void app_main() {

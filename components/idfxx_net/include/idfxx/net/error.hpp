@@ -131,7 +131,8 @@ public:
      * @param code The `errc` value to canonicalize.
      * @return The canonical `std::error_condition` for `code`.
      */
-    [[nodiscard]] std::error_condition default_error_condition(int code) const noexcept override final;
+    [[nodiscard]] std::error_condition
+    default_error_condition(int code) const noexcept override final;
 };
 
 } // namespace idfxx::net
@@ -219,7 +220,7 @@ struct is_error_code_enum<idfxx::net::errc> : std::true_type {};
  * @brief Lower-level networking API with zero-copy receive.
  *
  * The Netconn API exposes received buffers directly to the caller, enabling
- * zero-copy receive paths and tighter control over send/receive behaviour at
+ * zero-copy receive paths and tighter control over send/receive behavior at
  * the cost of a more involved programming model.
  *
  * @note Most callers should prefer the BSD socket API

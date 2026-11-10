@@ -9,14 +9,15 @@ interrupt handling.
 - Setting the pin direction to input and enabling the internal pull-up
 - Installing the GPIO interrupt service with `gpio::install_isr_service()`
 - Triggering on a falling edge with `set_intr_type()`
-- Adding an interrupt handler with `isr_handler_add()`, held in a `gpio::unique_isr_handle` that removes
-  it automatically
+- Adding an interrupt handler with `isr_handler_add()`, held in a `gpio::unique_isr_handle` that
+  removes it automatically
 - Enabling and disabling the pin's interrupt with `intr_enable()` and `intr_disable()`
 - Watching for presses for 30 seconds with `idfxx::chrono::tick_clock` and `idfxx::delay()`
 - Cleaning up in order: removing the handler, uninstalling the service with
   `gpio::uninstall_isr_service()`, and returning the pin to its default state with `reset()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -45,6 +46,6 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press the button during the
-30 seconds after startup; the example logs the running count, then cleans up and stops. Press `Ctrl-]`
-to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press the button during
+the 30 seconds after startup; the example logs the running count, then cleans up and stops. Press
+`Ctrl-]` to exit the monitor.
