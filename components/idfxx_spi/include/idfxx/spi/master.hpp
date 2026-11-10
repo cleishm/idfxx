@@ -315,8 +315,12 @@ public:
     /**
      * @brief Returns the maximum transaction length for this bus.
      *
-     * The maximum length depends on the DMA configuration.
-     * Returns 0 if the bus has been moved from.
+     * The value is fixed when the bus is created and does not depend on whether
+     * any devices are attached. With DMA, it is the transfer size the bus was
+     * created for (`bus_config::max_transfer_sz`, rounded up to whole DMA
+     * descriptors, or the driver default when unset), capped at the hardware's
+     * maximum transaction length. Without DMA, it is the size of the hardware
+     * FIFO (`SOC_SPI_MAXIMUM_BUFFER_SIZE`, 64 bytes on most chips).
      *
      * @return Maximum transaction length in bytes.
      */

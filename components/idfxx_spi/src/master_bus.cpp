@@ -3,8 +3,16 @@
 
 #include <idfxx/spi/master>
 
+#include <algorithm>
 #include <esp_idf_version.h>
 #include <esp_log.h>
+// On some targets, ESP-IDF 5.5's esp_private/periph_ctrl.h (included from here)
+// pastes a string macro directly after a literal, which is not valid C++11.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wliteral-suffix"
+#include <esp_private/spi_common_internal.h>
+#pragma GCC diagnostic pop
+#include <hal/spi_ll.h>
 #include <limits>
 #include <utility>
 
@@ -113,13 +121,14 @@ size_t master_bus::max_transaction_length() const {
     if (!_initialized) {
         return 0;
     }
-    size_t max_bytes = 0;
-    auto err = spi_bus_get_max_transaction_len(static_cast<spi_host_device_t>(_host), &max_bytes);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to get max transaction length: %s", esp_err_to_name(err));
+    // spi_bus_get_max_transaction_len() fails while the bus has no devices, so
+    // apply the limit it computes to the bus attributes directly.
+    const spi_bus_attr_t* attr = spi_bus_get_attr(static_cast<spi_host_device_t>(_host));
+    if (attr == nullptr) {
         return 0;
     }
-    return max_bytes;
+    const int hw_max = static_cast<int>((attr->dma_enabled ? SPI_LL_DMA_MAX_BIT_LEN : SPI_LL_CPU_MAX_BIT_LEN) / 8);
+    return static_cast<size_t>(std::min(attr->max_transfer_sz, hw_max));
 }
 
 } // namespace idfxx::spi
