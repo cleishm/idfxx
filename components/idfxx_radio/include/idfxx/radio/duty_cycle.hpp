@@ -94,7 +94,7 @@ template<typename Rep = std::chrono::microseconds::rep, typename Period = std::c
     // Symbol duration Tsym = 2^SF / BW. Durations are computed as
     // n·2^SF·1e6 / BW in integer arithmetic, rounding the sleep window down
     // (wake early) and the listen window up (listen longer).
-    const int64_t bw = airtime_detail::channel_bandwidth(mod.bw).count();
+    const int64_t bw = detail::channel_bandwidth(mod.bw).count();
     const int64_t sym_x_1e6 = (int64_t{1} << std::to_underlying(mod.sf)) * 1'000'000;
     const auto symbols_floor = [&](int64_t n) { return std::chrono::microseconds{n * sym_x_1e6 / bw}; };
     const auto symbols_ceil = [&](int64_t n) { return std::chrono::microseconds{(n * sym_x_1e6 + bw - 1) / bw}; };
