@@ -165,6 +165,8 @@ static_assert(pcf8563_internal::control2_af == 0x08);
 static_assert(pcf8563_internal::control2_tf == 0x04);
 static_assert(pcf8563_internal::control2_aie == 0x02);
 static_assert(pcf8563_internal::control2_tie == 0x01);
+static_assert(std::to_underlying(pcf8563::event::timer) == pcf8563_internal::control2_tf);
+static_assert(std::to_underlying(pcf8563::event::alarm) == pcf8563_internal::control2_af);
 static_assert(pcf8563_internal::seconds_vl == 0x80);
 static_assert(pcf8563_internal::months_century == 0x80);
 static_assert(pcf8563_internal::alarm_disable == 0x80);

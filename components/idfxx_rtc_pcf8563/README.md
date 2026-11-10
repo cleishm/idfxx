@@ -78,9 +78,11 @@ try {
     rtc.set_alarm({.minute = 30min, .hour = 7h, .interrupt = true});
 
     // ...later
-    if (rtc.alarm_fired()) {
-        rtc.clear_alarm_flag();
+    auto events = rtc.events();
+    if (events.contains(idfxx::rtc::pcf8563::event::alarm)) {
+        // ...handle the alarm
     }
+    rtc.clear_events(events);
 
     // A countdown timer every 30 seconds
     rtc.start_timer(30s);
@@ -168,8 +170,6 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
 **Alarm:**
 - `set_alarm(alarm)` / `try_set_alarm(alarm)` - Configure the alarm; `set_alarm({})` turns it off
 - `alarm()` / `try_alarm()` - Read the alarm settings back
-- `alarm_fired()` / `try_alarm_fired()` - Whether the alarm flag is set
-- `clear_alarm_flag()` / `try_clear_alarm_flag()` - Clear the alarm flag
 
 **Countdown timer:**
 - `start_timer(period[, cfg])` / `try_start_timer(period[, cfg])` - Start with a period, any
@@ -177,9 +177,11 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
 - `start_timer(source, count[, cfg])` / `try_start_timer(source, count[, cfg])` - Start with an
   explicit source and count
 - `timer_remaining()` / `try_timer_remaining()` - Time left in the current period
-- `timer_fired()` / `try_timer_fired()` - Whether the timer flag is set
-- `clear_timer_flag()` / `try_clear_timer_flag()` - Clear the timer flag
 - `stop_timer()` / `try_stop_timer()` - Stop the timer and put it in its low-power setting
+
+**Events:**
+- `events()` / `try_events()` - Which of the alarm and timer flags (`pcf8563::event`) are set
+- `clear_events(events)` / `try_clear_events(events)` - Clear only the named flags
 
 **Clock output:**
 - `set_clkout(frequency)` / `try_set_clkout(frequency)` - Set the CLKOUT frequency, or
@@ -221,8 +223,9 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
   `std::nullopt`. `set_time()` writes the time, then clears STOP, so
   the time is valid afterwards; if clearing STOP fails, the time is already written and
   `set_time()` reports the transfer error.
-- **Flags**: The alarm and timer flags stay set until cleared. Each `clear_*_flag()` clears only its
-  own flag, and no other operation clears either.
+- **Event flags**: The alarm and timer flags stay set until cleared. `clear_events()` clears only the
+  flags it is given, and no other operation clears either. Clearing the events that `events()`
+  returned never wipes one that arrived after the read.
 - **Alarm weekday**: The weekday field matches the chip's weekday register, which `set_time()` writes
   from the date.
 - **Countdown timer**: `start_timer()` picks the fastest source that gives the period exactly (30 s

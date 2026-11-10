@@ -359,16 +359,6 @@ result<pcf8563::alarm_config> pcf8563::try_alarm() {
     return pcf8563_internal::decode_alarm(regs, *control2);
 }
 
-result<bool> pcf8563::try_alarm_fired() {
-    return _state->read(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
-        return (control2 & pcf8563_internal::control2_af) != 0;
-    });
-}
-
-result<void> pcf8563::try_clear_alarm_flag() {
-    return _state->modify_control2(0, 0, {.alarm_flag = true, .timer_flag = false});
-}
-
 // =============================================================================
 // Countdown timer
 // =============================================================================
@@ -423,21 +413,34 @@ result<pcf8563::timer_duration> pcf8563::try_timer_remaining() {
     return pcf8563_internal::timer_remaining(previous[0], previous[1]);
 }
 
-result<bool> pcf8563::try_timer_fired() {
-    return _state->read(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
-        return (control2 & pcf8563_internal::control2_tf) != 0;
-    });
-}
-
-result<void> pcf8563::try_clear_timer_flag() {
-    return _state->modify_control2(0, 0, {.alarm_flag = false, .timer_flag = true});
-}
-
 result<void> pcf8563::try_stop_timer() {
     if (auto r = _state->write(pcf8563_internal::reg_timer_control, pcf8563_internal::timer_td_low_power); !r) {
         return r;
     }
     return _state->modify_control2(pcf8563_internal::control2_tie, 0, {.alarm_flag = false, .timer_flag = false});
+}
+
+// =============================================================================
+// Events
+// =============================================================================
+
+result<flags<pcf8563::event>> pcf8563::try_events() {
+    return _state->read(pcf8563_internal::reg_control2).transform([](uint8_t control2) {
+        flags<event> events;
+        if ((control2 & pcf8563_internal::control2_af) != 0) {
+            events |= event::alarm;
+        }
+        if ((control2 & pcf8563_internal::control2_tf) != 0) {
+            events |= event::timer;
+        }
+        return events;
+    });
+}
+
+result<void> pcf8563::try_clear_events(flags<event> events) {
+    return _state->modify_control2(
+        0, 0, {.alarm_flag = events.contains(event::alarm), .timer_flag = events.contains(event::timer)}
+    );
 }
 
 // =============================================================================

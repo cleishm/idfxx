@@ -20,6 +20,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/error>
+#include <idfxx/flags>
 #include <idfxx/i2c/master>
 #include <idfxx/rtc/clock>
 
@@ -80,6 +81,26 @@ template<typename Rep, typename Period>
 
 /**
  * @headerfile <idfxx/rtc/pcf8563>
+ * @brief PCF8563 event flags.
+ *
+ * Each value is the bit the chip sets in its Control_status_2 register when
+ * the event occurs; it stays set until cleared. Accessible as
+ * `pcf8563::event` after the class definition.
+ */
+enum class pcf8563_event : uint8_t {
+    timer = 1 << 2, ///< Countdown timer flag (TF).
+    alarm = 1 << 3, ///< Alarm flag (AF).
+};
+
+} // namespace idfxx::rtc
+
+template<>
+inline constexpr bool idfxx::enable_flags_operators<idfxx::rtc::pcf8563_event> = true;
+
+namespace idfxx::rtc {
+
+/**
+ * @headerfile <idfxx/rtc/pcf8563>
  * @brief An NXP PCF8563 real-time clock on an I2C bus.
  *
  * The driver creates and owns its own I2C device on the given bus, so the
@@ -125,8 +146,8 @@ template<typename Rep, typename Period>
  * **Interrupts.** The chip's INT pin is an open-drain, active-low interrupt
  * output: the chip pulls it low while an enabled alarm or timer interrupt is
  * signaling, and releases it otherwise, so it needs a pull-up. The driver
- * exposes the alarm and timer interrupt enables and their flags; it does not
- * configure a GPIO or an ISR for INT.
+ * exposes the alarm and timer interrupt enables and their event flags (see
+ * events() and clear_events()); it does not configure a GPIO or an ISR for INT.
  *
  * A driver is not thread-safe: use it from one task, or synchronize access
  * externally. Other devices may share the bus.
@@ -137,6 +158,9 @@ template<typename Rep, typename Period>
  */
 class pcf8563 final : public clock {
 public:
+    /// Event flag enumeration. See @ref pcf8563_event.
+    using event = pcf8563_event;
+
     /**
      * @headerfile <idfxx/rtc/pcf8563>
      * @brief Duration of the countdown timer, in ticks of 1/4096 s.
@@ -187,8 +211,8 @@ public:
      * @brief Alarm settings.
      *
      * The alarm fires when every set field matches the current time: the
-     * chip then sets the alarm flag (see alarm_fired()) and, if @ref interrupt
-     * is true, pulls INT low until the flag is cleared. A field left
+     * chip then sets the alarm flag (see events()) and, if @ref interrupt
+     * is true, pulls INT low until the flag is cleared with clear_events(). A field left
      * empty takes no part in the match.
      *
      * The weekday field compares against the chip's weekday register, which
@@ -435,7 +459,7 @@ public:
 
     /**
      * @name Alarm
-     * @brief The chip's alarm: its settings and interrupt enable, and the alarm flag.
+     * @brief The chip's alarm: its settings and interrupt enable.
      * @{
      */
 
@@ -445,7 +469,7 @@ public:
      *
      * Writes all four alarm fields, then the alarm interrupt enable. Fields
      * left empty are disabled; `set_alarm({})` turns the alarm off entirely.
-     * The alarm flag is left as it is; clear it with clear_alarm_flag().
+     * The alarm flag is left as it is; clear it with clear_events().
      *
      * @code
      * using namespace std::chrono_literals;
@@ -469,25 +493,6 @@ public:
      *         an impossible value, or on I2C failure.
      */
     [[nodiscard]] alarm_config alarm() { return unwrap(try_alarm()); }
-
-    /**
-     * @brief Reports whether the alarm has fired.
-     *
-     * @return True if the alarm flag (AF) is set; it stays set until clear_alarm_flag().
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on I2C failure.
-     */
-    [[nodiscard]] bool alarm_fired() { return unwrap(try_alarm_fired()); }
-
-    /**
-     * @brief Clears the alarm flag.
-     *
-     * Releases INT if the alarm was driving it. The timer flag is left as it is.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on I2C failure.
-     */
-    void clear_alarm_flag() { unwrap(try_clear_alarm_flag()); }
 #endif
 
     /**
@@ -496,7 +501,7 @@ public:
      * Writes all four alarm fields, then the alarm interrupt enable. Fields
      * left empty are disabled; `try_set_alarm({})` turns the alarm off
      * entirely. The alarm flag is left as it is; clear it with
-     * try_clear_alarm_flag().
+     * try_clear_events().
      *
      * @param alarm The alarm settings.
      * @return Success, or an error.
@@ -512,28 +517,11 @@ public:
      */
     [[nodiscard]] result<alarm_config> try_alarm();
 
-    /**
-     * @brief Reports whether the alarm has fired.
-     *
-     * @return True if the alarm flag (AF) is set; it stays set until
-     *         try_clear_alarm_flag(). An error on I2C failure.
-     */
-    [[nodiscard]] result<bool> try_alarm_fired();
-
-    /**
-     * @brief Clears the alarm flag.
-     *
-     * Releases INT if the alarm was driving it. The timer flag is left as it is.
-     *
-     * @return Success, or an error on I2C failure.
-     */
-    [[nodiscard]] result<void> try_clear_alarm_flag();
-
     /** @} */
 
     /**
      * @name Countdown timer
-     * @brief The chip's countdown timer: starting and stopping it, the time left, and the timer flag.
+     * @brief The chip's countdown timer: starting and stopping it, and the time left.
      * @{
      */
 
@@ -573,13 +561,13 @@ public:
      * 100 ms, is rejected.
      *
      * The timer repeats: each time the countdown reaches zero the chip sets
-     * the timer flag (see timer_fired()) and reloads the count.
+     * the timer flag (see events()) and reloads the count.
      *
      * The chip is written in this order, so INT cannot fire from a stale
      * setting: the timer is disabled with its new source and count in one
      * write, then the interrupt mode is set, then the timer is enabled. A timer
      * flag left set by an earlier period stays set; clear it with
-     * clear_timer_flag() first if INT is in level mode.
+     * clear_events() first if INT is in level mode.
      *
      * @code
      * using namespace std::chrono_literals;
@@ -646,26 +634,6 @@ public:
     [[nodiscard]] timer_duration timer_remaining() { return unwrap(try_timer_remaining()); }
 
     /**
-     * @brief Reports whether the countdown timer has reached zero.
-     *
-     * @return True if the timer flag (TF) is set; it stays set until clear_timer_flag().
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on I2C failure.
-     */
-    [[nodiscard]] bool timer_fired() { return unwrap(try_timer_fired()); }
-
-    /**
-     * @brief Clears the timer flag.
-     *
-     * Releases INT if the timer was holding it in level mode. The alarm flag
-     * is left as it is.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on I2C failure.
-     */
-    void clear_timer_flag() { unwrap(try_clear_timer_flag()); }
-
-    /**
      * @brief Stops the countdown timer.
      *
      * Disables the timer, switches it to its lowest-power source (1/60 Hz),
@@ -706,13 +674,13 @@ public:
      * 100 ms, is rejected.
      *
      * The timer repeats: each time the countdown reaches zero the chip sets
-     * the timer flag (see try_timer_fired()) and reloads the count.
+     * the timer flag (see try_events()) and reloads the count.
      *
      * The chip is written in this order, so INT cannot fire from a stale
      * setting: the timer is disabled with its new source and count in one
      * write, then the interrupt mode is set, then the timer is enabled. A timer
      * flag left set by an earlier period stays set; clear it with
-     * try_clear_timer_flag() first if INT is in level mode.
+     * try_clear_events() first if INT is in level mode.
      *
      * @tparam Rep    Duration arithmetic type; must be an integer type.
      * @tparam Period Duration period type.
@@ -773,24 +741,6 @@ public:
     [[nodiscard]] result<timer_duration> try_timer_remaining();
 
     /**
-     * @brief Reports whether the countdown timer has reached zero.
-     *
-     * @return True if the timer flag (TF) is set; it stays set until
-     *         try_clear_timer_flag(). An error on I2C failure.
-     */
-    [[nodiscard]] result<bool> try_timer_fired();
-
-    /**
-     * @brief Clears the timer flag.
-     *
-     * Releases INT if the timer was holding it in level mode. The alarm flag
-     * is left as it is.
-     *
-     * @return Success, or an error on I2C failure.
-     */
-    [[nodiscard]] result<void> try_clear_timer_flag();
-
-    /**
      * @brief Stops the countdown timer.
      *
      * Disables the timer, switches it to its lowest-power source (1/60 Hz),
@@ -799,6 +749,91 @@ public:
      * @return Success, or an error on I2C failure.
      */
     [[nodiscard]] result<void> try_stop_timer();
+
+    /** @} */
+
+    /**
+     * @name Events
+     * @brief The alarm and timer event flags.
+     * @{
+     */
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Reads which events have occurred.
+     *
+     * Reads the chip's status once and reports which of the alarm and timer
+     * flags are set. A flag stays set until cleared with clear_events().
+     *
+     * @code
+     * using idfxx::rtc::pcf8563;
+     *
+     * // After an INT wake
+     * auto e = rtc.events();
+     * if (e.contains(pcf8563::event::alarm)) {
+     *     // ...handle the alarm
+     * }
+     * rtc.clear_events(e);
+     * @endcode
+     *
+     * @return The set of events whose flags are set; empty if none is.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on I2C failure.
+     */
+    [[nodiscard]] flags<event> events() { return unwrap(try_events()); }
+
+    /**
+     * @brief Clears event flags.
+     *
+     * Clears only the named flags, in one write of the chip's status, and
+     * writes nothing if none of them is set. Clearing a flag releases INT if
+     * that flag was driving it.
+     *
+     * The chip clears a flag when a 0 is written to it and leaves it set when
+     * a 1 is written, so clearing the events that were read never wipes one
+     * that arrived after the read: an event that fires in between stays set
+     * for the next events().
+     *
+     * @code
+     * auto e = rtc.events();
+     * // ...handle e
+     * rtc.clear_events(e);
+     * @endcode
+     *
+     * @param events The events whose flags to clear; the others are left as they are.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on I2C failure.
+     */
+    void clear_events(flags<event> events) { unwrap(try_clear_events(events)); }
+#endif
+
+    /**
+     * @brief Reads which events have occurred.
+     *
+     * Reads the chip's status once and reports which of the alarm and timer
+     * flags are set. A flag stays set until cleared with try_clear_events().
+     *
+     * @return The set of events whose flags are set (empty if none is), or an
+     *         error on I2C failure.
+     */
+    [[nodiscard]] result<flags<event>> try_events();
+
+    /**
+     * @brief Clears event flags.
+     *
+     * Clears only the named flags, in one write of the chip's status, and
+     * writes nothing if none of them is set. Clearing a flag releases INT if
+     * that flag was driving it.
+     *
+     * The chip clears a flag when a 0 is written to it and leaves it set when
+     * a 1 is written, so clearing the events that were read never wipes one
+     * that arrived after the read: an event that fires in between stays set
+     * for the next try_events().
+     *
+     * @param events The events whose flags to clear; the others are left as they are.
+     * @return Success, or an error on I2C failure.
+     */
+    [[nodiscard]] result<void> try_clear_events(flags<event> events);
 
     /** @} */
 
@@ -880,6 +915,24 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/rtc/pcf8563>
+ * @brief Returns a string representation of a PCF8563 event.
+ *
+ * @param e The event to convert.
+ * @return "alarm", "timer", or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(rtc::pcf8563_event e) {
+    switch (e) {
+    case rtc::pcf8563_event::alarm:
+        return "alarm";
+    case rtc::pcf8563_event::timer:
+        return "timer";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(e)) + ")";
+    }
+}
+
+/**
+ * @headerfile <idfxx/rtc/pcf8563>
  * @brief Returns a string representation of a PCF8563 timer source.
  *
  * @param s The timer source to convert.
@@ -949,6 +1002,17 @@ namespace idfxx {
 #include <algorithm>
 #include <format>
 namespace std {
+
+template<>
+struct formatter<idfxx::rtc::pcf8563_event> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::rtc::pcf8563_event e, FormatContext& ctx) const {
+        auto str = idfxx::to_string(e);
+        return std::copy(str.begin(), str.end(), ctx.out());
+    }
+};
 
 template<>
 struct formatter<idfxx::rtc::pcf8563::timer_source> {
