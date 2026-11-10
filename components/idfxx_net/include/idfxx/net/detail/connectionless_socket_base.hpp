@@ -3,8 +3,6 @@
 
 #pragma once
 
-/// @cond INTERNAL
-
 // Internal base class shared by `datagram_socket` and `raw_socket`. Adds the
 // per-message send/receive and disconnect operations that connectionless
 // sockets share. Stream sockets use the `ip_io_socket_base` API directly.
@@ -20,6 +18,7 @@
 
 namespace idfxx::net::detail {
 
+/// @brief Per-message send/receive and disconnect operations common to datagram and raw sockets.
 class connectionless_socket_base : public ip_io_socket_base {
 public:
     /// @brief Alias for `idfxx::net::datagram`, returned by `recv_from` / `try_recv_from`.
@@ -142,9 +141,9 @@ public:
     [[nodiscard]] result<datagram> try_recv_from(std::span<std::byte> buf);
 
 protected:
+    /// @cond INTERNAL
     using ip_io_socket_base::ip_io_socket_base;
+    /// @endcond
 };
 
 } // namespace idfxx::net::detail
-
-/// @endcond

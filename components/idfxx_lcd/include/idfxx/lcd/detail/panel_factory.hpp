@@ -3,6 +3,8 @@
 
 #pragma once
 
+/// @cond INTERNAL
+
 /**
  * @headerfile <idfxx/lcd/detail/panel_factory.hpp>
  * @file panel_factory.hpp
@@ -15,8 +17,6 @@
 
 #include <esp_lcd_panel_dev.h>
 #include <esp_lcd_panel_io.h>
-
-/// @cond INTERNAL
 
 namespace idfxx::lcd::detail {
 

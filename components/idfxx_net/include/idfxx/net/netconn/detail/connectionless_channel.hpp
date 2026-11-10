@@ -3,8 +3,6 @@
 
 #pragma once
 
-/// @cond INTERNAL
-
 // Internal base class shared by `datagram_channel` and `raw_channel`, the
 // connectionless netconn-API channel types. Provides the connect / disconnect /
 // send / recv operations that have the same shape on both — per-message
@@ -270,9 +268,9 @@ public:
     [[nodiscard]] result<endpoint> try_peer_endpoint() const { return _try_getaddr(false); }
 
 protected:
+    /// @cond INTERNAL
     using base_channel::base_channel;
+    /// @endcond
 };
 
 } // namespace idfxx::net::netconn::detail
-
-/// @endcond

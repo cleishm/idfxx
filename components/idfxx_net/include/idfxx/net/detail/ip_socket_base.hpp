@@ -3,8 +3,6 @@
 
 #pragma once
 
-/// @cond INTERNAL
-
 // Narrow internal base class shared by every public socket type — `listener`,
 // `stream_socket`, `datagram_socket`, `raw_socket`. Holds the file descriptor,
 // address family, lifecycle (move, close), `bind` / `local_endpoint`,
@@ -33,6 +31,7 @@
 
 namespace idfxx::net::detail {
 
+/// @brief Lifecycle, binding, readiness and socket options common to every socket type.
 class ip_socket_base {
 public:
     /** @brief Closes the descriptor if still open. */
@@ -260,6 +259,7 @@ public:
     [[nodiscard]] int idf_last_error() const noexcept;
 
 protected:
+    /// @cond INTERNAL
     ip_socket_base() noexcept = default;
     ip_socket_base(int fd, address_family fam) noexcept
         : _fd(fd)
@@ -270,8 +270,7 @@ protected:
 
     int _fd = -1;
     address_family _family = address_family::ipv4;
+    /// @endcond
 };
 
 } // namespace idfxx::net::detail
-
-/// @endcond
