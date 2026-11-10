@@ -186,7 +186,9 @@ result<quanta::electro::millivolts> input::try_read_voltage() {
     }
     // Scale by the configured external divider to report the source voltage.
     const auto& div = _state->cfg.divider;
-    return quanta::electro::millivolts{static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)};
+    return quanta::electro::millivolts{
+        static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)
+    };
 }
 
 struct sampler::state {
@@ -257,10 +259,12 @@ result<sampler> sampler::make(config cfg) {
     for (auto pin : *s->cfg.pins) {
         adc_unit_t unit = ADC_UNIT_1;
         adc_channel_t channel = ADC_CHANNEL_0;
-        if (adc_continuous_io_to_channel(pin.num(), &unit, &channel) != ESP_OK || unit != ADC_UNIT_1) {
+        if (adc_continuous_io_to_channel(pin.num(), &unit, &channel) != ESP_OK ||
+            unit != ADC_UNIT_1) {
             return error(errc::invalid_arg);
         }
-        // Each ADC1 channel maps to a single pin, so an already-populated slot means a duplicate pin.
+        // Each ADC1 channel maps to a single pin, so an already-populated slot means a duplicate
+        // pin.
         if (s->chan_pin[channel].is_connected()) {
             return error(errc::invalid_arg);
         }
@@ -270,7 +274,8 @@ result<sampler> sampler::make(config cfg) {
 
     // The driver requires the frame size to be a multiple of one conversion unit; round up.
     constexpr size_t conv = SOC_ADC_DIGI_DATA_BYTES_PER_CONV;
-    size_t frame_bytes = (s->cfg.frame_samples * SOC_ADC_DIGI_RESULT_BYTES + conv - 1) / conv * conv;
+    size_t frame_bytes =
+        (s->cfg.frame_samples * SOC_ADC_DIGI_RESULT_BYTES + conv - 1) / conv * conv;
     size_t store_bytes = std::max(s->cfg.buffer_samples * SOC_ADC_DIGI_RESULT_BYTES, frame_bytes);
     s->staging.resize(frame_bytes);
 
@@ -308,7 +313,9 @@ result<sampler> sampler::make(config cfg) {
     }
 #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
     // Line fitting calibrates per unit: create one handle and alias it across pins.
-    s->calis.assign(channels.size(), create_calibration(ADC_UNIT_1, channels.front(), atten, bitwidth));
+    s->calis.assign(
+        channels.size(), create_calibration(ADC_UNIT_1, channels.front(), atten, bitwidth)
+    );
 #else
     s->calis.assign(channels.size(), nullptr);
 #endif
@@ -321,7 +328,8 @@ sampler::sampler(sampler&& other) noexcept = default;
 sampler& sampler::operator=(sampler&& other) noexcept = default;
 
 std::span<const idfxx::gpio> sampler::pins() const noexcept {
-    return _state ? std::span<const idfxx::gpio>{*_state->cfg.pins} : std::span<const idfxx::gpio>{};
+    return _state ? std::span<const idfxx::gpio>{*_state->cfg.pins}
+                  : std::span<const idfxx::gpio>{};
 }
 
 enum attenuation sampler::attenuation() const noexcept {
@@ -370,7 +378,8 @@ result<void> sampler::try_stop() {
     return {};
 }
 
-result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout) {
+result<size_t>
+sampler::_try_read(std::span<sample> out, std::optional<std::chrono::milliseconds> timeout) {
     if (!_state || !_state->running) {
         return error(errc::invalid_state);
     }
@@ -384,7 +393,8 @@ result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chro
     if (timeout) {
         deadline = std::chrono::steady_clock::now() + *timeout;
     }
-    const size_t want_bytes = std::min(out.size() * SOC_ADC_DIGI_RESULT_BYTES, _state->staging.size());
+    const size_t want_bytes =
+        std::min(out.size() * SOC_ADC_DIGI_RESULT_BYTES, _state->staging.size());
 
     // Clamps a millisecond count to the driver-wait range, reserving
     // ADC_MAX_DELAY for "wait forever".
@@ -399,7 +409,9 @@ result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chro
     uint32_t remaining_ms = timeout ? clamp_ms(timeout->count()) : ADC_MAX_DELAY;
     while (count == 0) {
         uint32_t out_len = 0;
-        esp_err_t err = adc_continuous_read(_state->handle, _state->staging.data(), want_bytes, &out_len, remaining_ms);
+        esp_err_t err = adc_continuous_read(
+            _state->handle, _state->staging.data(), want_bytes, &out_len, remaining_ms
+        );
         if (err == ESP_ERR_TIMEOUT) {
             return error(errc::timeout);
         }
@@ -423,7 +435,8 @@ result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chro
             const uint32_t channel = data.type2.channel;
             const int raw = data.type2.data;
 #endif
-            const idfxx::gpio pin = channel < SOC_ADC_MAX_CHANNEL_NUM ? _state->chan_pin[channel] : gpio::nc();
+            const idfxx::gpio pin =
+                channel < SOC_ADC_MAX_CHANNEL_NUM ? _state->chan_pin[channel] : gpio::nc();
             if (!pin.is_connected()) {
                 continue;
             }
@@ -435,7 +448,8 @@ result<size_t> sampler::_try_read(std::span<sample> out, std::optional<std::chro
             if (now >= deadline) {
                 return error(errc::timeout);
             }
-            remaining_ms = clamp_ms(std::chrono::ceil<std::chrono::milliseconds>(deadline - now).count());
+            remaining_ms =
+                clamp_ms(std::chrono::ceil<std::chrono::milliseconds>(deadline - now).count());
         }
     }
     return count;
@@ -456,7 +470,10 @@ result<quanta::electro::millivolts> sampler::try_to_voltage(int raw) const {
     return try_to_voltage(sample{.pin = _state->cfg.pins->front(), .raw = raw});
 }
 
-result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<quanta::electro::millivolts> out) const {
+result<void> sampler::try_to_voltage(
+    std::span<const sample> in,
+    std::span<quanta::electro::millivolts> out
+) const {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -491,8 +508,10 @@ result<void> sampler::try_to_voltage(std::span<const sample> in, std::span<quant
     return {};
 }
 
-result<size_t>
-sampler::_read_voltage(std::span<quanta::electro::millivolts> out, std::optional<std::chrono::milliseconds> timeout) {
+result<size_t> sampler::_read_voltage(
+    std::span<quanta::electro::millivolts> out,
+    std::optional<std::chrono::milliseconds> timeout
+) {
     if (!_state) {
         return error(errc::invalid_state);
     }

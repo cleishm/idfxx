@@ -31,7 +31,9 @@ Or add `idfxx_http` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ### `idfxx::http::method`
 
-HTTP request methods: `get`, `post`, `put`, `patch`, `delete_`, `head`, `notify`, `subscribe`, `unsubscribe`, `options`, `copy`, `move`, `lock`, `unlock`, `propfind`, `proppatch`, `mkcol`, `report`.
+HTTP request methods: `get`, `post`, `put`, `patch`, `delete_`, `head`, `notify`, `subscribe`,
+`unsubscribe`, `options`, `copy`, `move`, `lock`, `unlock`, `propfind`, `proppatch`, `mkcol`,
+`report`.
 
 ### `idfxx::http::auth_type`
 

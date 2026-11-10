@@ -67,9 +67,16 @@ void draw_color_screen(Canvas& canvas) {
         canvas.draw_text(idfxx::font::spleen_8x16, i * bar_w + 16, 24, name, ink, 3);
     }
     canvas.fill_rect(0, canvas.height() - 120, canvas.width(), 120, color6::white);
-    canvas.draw_text(idfxx::font::spleen_8x16, 24, canvas.height() - 96, "idfxx epaper", color6::black, 4);
     canvas.draw_text(
-        idfxx::font::spleen_8x16, 24, canvas.height() - 40, "EL133UF1 1200x1600 Spectra 6", color6::red, 2
+        idfxx::font::spleen_8x16, 24, canvas.height() - 96, "idfxx epaper", color6::black, 4
+    );
+    canvas.draw_text(
+        idfxx::font::spleen_8x16,
+        24,
+        canvas.height() - 40,
+        "EL133UF1 1200x1600 Spectra 6",
+        color6::red,
+        2
     );
 }
 
@@ -87,7 +94,9 @@ void draw_text_page(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas,
     canvas.draw_text(idfxx::font::spleen_8x16, 64, 224, "hello", true, 12);
     canvas.draw_text(idfxx::font::spleen_8x16, 32, 640, "monochrome, banded", true, 4);
     for (int i = 0; i < 12; ++i) {
-        canvas.draw_text(idfxx::font::spleen_8x16, 32, 760 + i * 48, std::format("line {:02}", i), true, 2);
+        canvas.draw_text(
+            idfxx::font::spleen_8x16, 32, 760 + i * 48, std::format("line {:02}", i), true, 2
+        );
     }
     canvas.draw_hline(0, 1500, 1200, true);
 }
@@ -113,7 +122,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Display driver (drives both chip selects and D/C itself) ---
         idfxx::epaper::el133uf1 display(
@@ -146,13 +157,17 @@ extern "C" void app_main() {
         // --- Stage 2: monochrome text page, rendered in 1200x100 bands ---
         display.set_color_mode(color_mode::mono);
         idfxx::epaper::mono_framebuffer band(display.width(), 100);
-        idfxx::gfx::render_banded(band, display, display.height(), [](auto& canvas) { draw_text_page(canvas, false); });
+        idfxx::gfx::render_banded(band, display, display.height(), [](auto& canvas) {
+            draw_text_page(canvas, false);
+        });
         display.refresh();
         logger.info("stage 2: monochrome refresh done");
         idfxx::delay(10s);
 
         // --- Stage 3: closing screen ---
-        idfxx::gfx::render_banded(band, display, display.height(), [](auto& canvas) { draw_text_page(canvas, true); });
+        idfxx::gfx::render_banded(band, display, display.height(), [](auto& canvas) {
+            draw_text_page(canvas, true);
+        });
         display.refresh();
         logger.info("stage 3: closing screen done");
 

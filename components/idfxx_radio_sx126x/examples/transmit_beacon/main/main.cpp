@@ -41,7 +41,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         idfxx::radio::sx126x radio(
             bus,
@@ -75,7 +77,11 @@ extern "C" void app_main() {
             int n = std::snprintf(payload.data(), payload.size(), "beacon %04" PRIu32, counter++);
             if (n > 0) {
                 // transmit sizes its own timeout from the packet's air-time.
-                radio.transmit(std::span{reinterpret_cast<const uint8_t*>(payload.data()), static_cast<size_t>(n)});
+                radio.transmit(
+                    std::span{
+                        reinterpret_cast<const uint8_t*>(payload.data()), static_cast<size_t>(n)
+                    }
+                );
                 logger.info("sent: {}", std::string_view{payload.data(), static_cast<size_t>(n)});
             }
             idfxx::delay(2s);

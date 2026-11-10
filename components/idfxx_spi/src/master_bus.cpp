@@ -47,20 +47,23 @@ static result<void> init_bus(enum host_device host, const bus_config& cfg, enum 
         .data6_io_num = cfg.data6.idf_num(),
         .data7_io_num = cfg.data7.idf_num(),
         .data_io_default_level = cfg.data_idle_level == gpio::level::high,
-        .max_transfer_sz = static_cast<int>(cfg.max_transfer_sz.value_or(0)), // 0 selects the driver default
+        // 0 selects the driver default
+        .max_transfer_sz = static_cast<int>(cfg.max_transfer_sz.value_or(0)),
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
         .dma_burst_size = cfg.dma_burst_size.value_or(0), // 0 selects the driver default
 #endif
         .flags = to_underlying(cfg.flags),
         // core_id is 0-based (core_0=0, core_1=1), but esp_intr_cpu_affinity_t is
         // AUTO=0, CORE0=1, CORE1=2, so +1 converts to the ESP-IDF enum.
-        .isr_cpu_id = cfg.isr_cpu_id ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*cfg.isr_cpu_id) + 1)
-                                     : ESP_INTR_CPU_AFFINITY_AUTO,
+        .isr_cpu_id = cfg.isr_cpu_id
+            ? static_cast<esp_intr_cpu_affinity_t>(std::to_underlying(*cfg.isr_cpu_id) + 1)
+            : ESP_INTR_CPU_AFFINITY_AUTO,
         .intr_flags = to_underlying(cfg.intr_levels) | to_underlying(cfg.intr_flags),
     };
 
-    esp_err_t res =
-        spi_bus_initialize(static_cast<spi_host_device_t>(host), &spi_config, static_cast<spi_dma_chan_t>(dma_chan));
+    esp_err_t res = spi_bus_initialize(
+        static_cast<spi_host_device_t>(host), &spi_config, static_cast<spi_dma_chan_t>(dma_chan)
+    );
     if (res != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(res));
         switch (res) {
@@ -80,7 +83,8 @@ static result<void> init_bus(enum host_device host, const bus_config& cfg, enum 
     return {};
 }
 
-result<master_bus> master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg) {
+result<master_bus>
+master_bus::make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg) {
     return init_bus(host, cfg, dma_chan).transform([&] { return master_bus{host}; });
 }
 
@@ -127,7 +131,8 @@ size_t master_bus::max_transaction_length() const {
     if (attr == nullptr) {
         return 0;
     }
-    const int hw_max = static_cast<int>((attr->dma_enabled ? SPI_LL_DMA_MAX_BIT_LEN : SPI_LL_CPU_MAX_BIT_LEN) / 8);
+    const int hw_max =
+        static_cast<int>((attr->dma_enabled ? SPI_LL_DMA_MAX_BIT_LEN : SPI_LL_CPU_MAX_BIT_LEN) / 8);
     return static_cast<size_t>(std::min(attr->max_transfer_sz, hw_max));
 }
 

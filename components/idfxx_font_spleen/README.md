@@ -7,11 +7,9 @@ The [Spleen](https://github.com/fcambus/spleen) bitmap fonts (5x8 and 8x16) as i
 ## Features
 
 - `spleen_5x8` — compact status text
-- `spleen_8x16` — headline text; scale 2 (via `idfxx::gfx::draw_text`) gives
-  16x32 digits
+- `spleen_8x16` — headline text; scale 2 (via `idfxx::gfx::draw_text`) gives 16x32 digits
 - Covers printable ASCII (0x20–0x7E)
-- One translation unit per font, so fonts an application never references
-  are dropped at link time
+- One translation unit per font, so fonts an application never references are dropped at link time
 
 ## Requirements
 
@@ -49,8 +47,8 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_8x16, 4, 16, "23.7", true, 2);
 
 ## Important Notes
 
-- The original BDF sources are included under `fonts/` and can be
-  regenerated with `idfxx_font`'s `scripts/bdf_to_c.py`.
+- The original BDF sources are included under `fonts/` and can be regenerated with `idfxx_font`'s
+  `scripts/bdf_to_c.py`.
 - Spleen is Copyright (c) 2018-2026 Frederic Cambus.
 
 ## License

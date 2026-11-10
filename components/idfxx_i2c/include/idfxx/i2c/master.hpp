@@ -176,17 +176,26 @@ public:
      * @endcode
      */
     struct config {
-        idfxx::required<idfxx::gpio> sda;                        ///< GPIO pin for the SDA line.
-        idfxx::required<idfxx::gpio> scl;                        ///< GPIO pin for the SCL line.
-        idfxx::required<quanta::frequency::hertz> frequency;     ///< Clock frequency in Hz.
-        enum clk_source clk_source = clk_source::default_source; ///< Clock source for the I2C master bus.
+        /// GPIO pin for the SDA line.
+        idfxx::required<idfxx::gpio> sda;
+        /// GPIO pin for the SCL line.
+        idfxx::required<idfxx::gpio> scl;
+        /// Clock frequency in Hz.
+        idfxx::required<quanta::frequency::hertz> frequency;
+        /// Clock source for the I2C master bus.
+        enum clk_source clk_source = clk_source::default_source;
 #if SOC_LP_I2C_SUPPORTED
-        enum lp_clk_source lp_source_clk = lp_clk_source::default_source; ///< Clock source for LP I2C bus.
+        /// Clock source for LP I2C bus.
+        enum lp_clk_source lp_source_clk = lp_clk_source::default_source;
 #endif
-        uint8_t glitch_ignore_cnt = 7; ///< Glitch filter count (0-7). Higher values filter more noise.
-        std::optional<idfxx::intr_level> intr_level = {}; ///< Interrupt priority level, or empty for automatic.
-        bool enable_internal_pullup = true;               ///< Enable internal pull-up resistors on SDA and SCL.
-        bool allow_pd = false;                            ///< Allow powering down the bus during light sleep.
+        /// Glitch filter count (0-7). Higher values filter more noise.
+        uint8_t glitch_ignore_cnt = 7;
+        /// Interrupt priority level, or empty for automatic.
+        std::optional<idfxx::intr_level> intr_level = {};
+        /// Enable internal pull-up resistors on SDA and SCL.
+        bool enable_internal_pullup = true;
+        /// Allow powering down the bus during light sleep.
+        bool allow_pd = false;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -197,7 +206,8 @@ public:
      * @param cfg Bus configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, with the codes listed for make(enum port, const config&).
+     * @throws std::system_error on failure, with the codes listed for make(enum port, const
+     * config&).
      *
      * @code
      * idfxx::i2c::master_bus bus(idfxx::i2c::port::i2c0, {
@@ -219,9 +229,15 @@ public:
      * @param frequency Clock frequency in Hz.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, with the codes listed for make(enum port, const config&).
+     * @throws std::system_error on failure, with the codes listed for make(enum port, const
+     * config&).
      */
-    [[nodiscard]] explicit master_bus(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency);
+    [[nodiscard]] explicit master_bus(
+        enum port port,
+        gpio sda,
+        gpio scl,
+        quanta::frequency::hertz frequency
+    );
 #endif
 
     /**
@@ -234,12 +250,12 @@ public:
      * @param cfg Bus configuration.
      *
      * @return The new master_bus, or an error.
-     * @retval idfxx::errc::invalid_arg @p cfg has an unconnected SDA or SCL pin or a zero frequency, or the
-     *         driver rejected the pins or the interrupt level.
+     * @retval idfxx::errc::invalid_arg @p cfg has an unconnected SDA or SCL pin or a zero
+     * frequency, or the driver rejected the pins or the interrupt level.
      * @retval idfxx::errc::invalid_state @p port is already in use.
-     * @retval idfxx::errc::not_supported @p cfg asks for a setting the target or port doesn't support, such as
-     *         config::allow_pd on a target that can't keep the bus powered down during light sleep, or a clock
-     *         source the LP I2C port can't use.
+     * @retval idfxx::errc::not_supported @p cfg asks for a setting the target or port doesn't
+     * support, such as config::allow_pd on a target that can't keep the bus powered down during
+     * light sleep, or a clock source the LP I2C port can't use.
      * @retval idfxx::errc::not_found No free interrupt was available.
      *
      * @code
@@ -261,7 +277,8 @@ public:
      * @param scl       GPIO pin for the SCL line.
      * @param frequency Clock frequency in Hz.
      *
-     * @return The new master_bus, or an error, with the codes listed for make(enum port, const config&).
+     * @return The new master_bus, or an error, with the codes listed for make(enum port, const
+     * config&).
      */
     [[nodiscard]] static result<master_bus>
     make(enum port port, gpio sda, gpio scl, quanta::frequency::hertz frequency);
@@ -322,7 +339,8 @@ public:
      * @return true if the lock was acquired.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] bool try_lock_until(const std::chrono::time_point<Clock, Duration>& deadline) const {
+    [[nodiscard]] bool
+    try_lock_until(const std::chrono::time_point<Clock, Duration>& deadline) const {
         if (!_mux) {
             return false;
         }
@@ -353,7 +371,9 @@ public:
      *
      * @return Addresses of responding devices.
      */
-    [[nodiscard]] std::vector<uint8_t> scan_devices() const { return scan_devices(DEFAULT_TIMEOUT); }
+    [[nodiscard]] std::vector<uint8_t> scan_devices() const {
+        return scan_devices(DEFAULT_TIMEOUT);
+    }
 
     /**
      * @brief Scans for devices on the bus.
@@ -368,7 +388,8 @@ public:
      * @return Addresses of responding devices.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] std::vector<uint8_t> scan_devices(const std::chrono::duration<Rep, Period>& timeout) const {
+    [[nodiscard]] std::vector<uint8_t>
+    scan_devices(const std::chrono::duration<Rep, Period>& timeout) const {
         return _scan_devices(std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -412,10 +433,12 @@ public:
      *
      * @return Success if the device acknowledges, or an error.
      * @retval idfxx::errc::not_found No device acknowledged.
-     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on the bus
-     *         (for example, SCL held low). The driver reports both the same way.
+     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on
+     * the bus (for example, SCL held low). The driver reports both the same way.
      */
-    [[nodiscard]] result<void> try_probe(uint16_t address) const { return try_probe(address, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<void> try_probe(uint16_t address) const {
+        return try_probe(address, DEFAULT_TIMEOUT);
+    }
 
     /**
      * @brief Probes for a device at the specified address.
@@ -428,24 +451,30 @@ public:
      *
      * @return Success if the device acknowledges, or an error.
      * @retval idfxx::errc::not_found No device acknowledged.
-     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on the bus
-     *         (for example, SCL held low). The driver reports both the same way.
+     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on
+     * the bus (for example, SCL held low). The driver reports both the same way.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_probe(uint16_t address, const std::chrono::duration<Rep, Period>& timeout) const {
+    [[nodiscard]] result<void>
+    try_probe(uint16_t address, const std::chrono::duration<Rep, Period>& timeout) const {
         return _probe(address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 private:
     friend class master_device;
 
-    explicit master_bus(i2c_master_bus_handle_t handle, enum port port, quanta::frequency::hertz frequency);
+    explicit master_bus(
+        i2c_master_bus_handle_t handle,
+        enum port port,
+        quanta::frequency::hertz frequency
+    );
 
     void _delete() noexcept;
 
-    // Takes the bus lock, waiting at most timeout (a negative timeout waits indefinitely). The returned lock
-    // doesn't own the mutex if it wasn't acquired in time.
-    [[nodiscard]] std::unique_lock<std::recursive_timed_mutex> _lock_for(std::chrono::milliseconds timeout) const;
+    // Takes the bus lock, waiting at most timeout (a negative timeout waits indefinitely). The
+    // returned lock doesn't own the mutex if it wasn't acquired in time.
+    [[nodiscard]] std::unique_lock<std::recursive_timed_mutex>
+    _lock_for(std::chrono::milliseconds timeout) const;
 
     [[nodiscard]] std::vector<uint8_t> _scan_devices(std::chrono::milliseconds timeout) const;
     [[nodiscard]] result<void> _probe(uint16_t address, std::chrono::milliseconds timeout) const;
@@ -470,13 +499,13 @@ enum class register_address_size : uint8_t {
 /** @cond INTERNAL */
 namespace detail {
 
-// Unsigned integer types that can be read from or written to a register as a whole value. bool and the
-// character types are excluded: they hold truth values or text, not register contents.
+// Unsigned integer types that can be read from or written to a register as a whole value. bool and
+// the character types are excluded: they hold truth values or text, not register contents.
 template<typename T>
-concept register_value =
-    std::unsigned_integral<T> && !std::same_as<std::remove_cv_t<T>, bool> && !std::same_as<std::remove_cv_t<T>, char> &&
-    !std::same_as<std::remove_cv_t<T>, char8_t> && !std::same_as<std::remove_cv_t<T>, char16_t> &&
-    !std::same_as<std::remove_cv_t<T>, char32_t> && !std::same_as<std::remove_cv_t<T>, wchar_t>;
+concept register_value = std::unsigned_integral<T> && !std::same_as<std::remove_cv_t<T>, bool> &&
+    !std::same_as<std::remove_cv_t<T>, char> && !std::same_as<std::remove_cv_t<T>, char8_t> &&
+    !std::same_as<std::remove_cv_t<T>, char16_t> && !std::same_as<std::remove_cv_t<T>, char32_t> &&
+    !std::same_as<std::remove_cv_t<T>, wchar_t>;
 
 // Shift (in bits) of the byte at index i of a sizeof(T)-byte value sent in the given order.
 template<register_value T>
@@ -486,7 +515,8 @@ constexpr unsigned register_value_shift(size_t i, std::endian order) noexcept {
 
 // Encodes value into out in the given byte order.
 template<register_value T>
-constexpr void encode_register_value(T value, std::endian order, std::span<uint8_t, sizeof(T)> out) noexcept {
+constexpr void
+encode_register_value(T value, std::endian order, std::span<uint8_t, sizeof(T)> out) noexcept {
     for (size_t i = 0; i < sizeof(T); ++i) {
         out[i] = static_cast<uint8_t>(value >> register_value_shift<T>(i, order));
     }
@@ -547,18 +577,18 @@ public:
      * @endcode
      */
     struct config {
-        /// Per-device SCL speed, or std::nullopt to use the bus frequency. An explicit speed of 0 Hz or less is
-        /// rejected with `errc::invalid_arg` when the device is created.
+        /// Per-device SCL speed, or std::nullopt to use the bus frequency. An explicit speed of 0
+        /// Hz or less is rejected with `errc::invalid_arg` when the device is created.
         std::optional<quanta::frequency::hertz> scl_speed = std::nullopt;
-        /// SCL wait time in microseconds, or std::nullopt to let the driver choose. An explicit value of 0 is
-        /// rejected with `errc::invalid_arg` when the device is created.
+        /// SCL wait time in microseconds, or std::nullopt to let the driver choose. An explicit
+        /// value of 0 is rejected with `errc::invalid_arg` when the device is created.
         std::optional<uint32_t> scl_wait_us = std::nullopt;
 #if SOC_I2C_SUPPORT_10BIT_ADDR
         bool addr_10bit = false; ///< Use 10-bit addressing mode instead of 7-bit.
 #endif
         bool disable_ack_check = false; ///< Disable ACK checking for this device.
-        /// Size of the register address sent before register reads and writes. Most devices use one byte;
-        /// 16-bit-addressed devices such as larger EEPROMs use two_bytes.
+        /// Size of the register address sent before register reads and writes. Most devices use one
+        /// byte; 16-bit-addressed devices such as larger EEPROMs use two_bytes.
         register_address_size register_address = register_address_size::one_byte;
     };
 
@@ -615,8 +645,8 @@ public:
      * @param cfg     Device configuration.
      *
      * @return The new master_device, or an error.
-     * @retval idfxx::errc::invalid_arg config::scl_speed is 0 Hz or less, config::scl_wait_us is 0, or the
-     *         driver rejected the configuration.
+     * @retval idfxx::errc::invalid_arg config::scl_speed is 0 Hz or less, config::scl_wait_us is 0,
+     * or the driver rejected the configuration.
      *
      * @code
      * auto device = idfxx::i2c::master_device::make(bus, 0x3C, {
@@ -624,7 +654,8 @@ public:
      * });
      * @endcode
      */
-    [[nodiscard]] static result<master_device> make(master_bus& bus, uint16_t address, const config& cfg);
+    [[nodiscard]] static result<master_device>
+    make(master_bus& bus, uint16_t address, const config& cfg);
 
     /**
      * @brief Creates a new device on the specified bus.
@@ -667,14 +698,17 @@ public:
      *
      * @return The size set by config::register_address when the device was created.
      */
-    [[nodiscard]] register_address_size register_address() const noexcept { return _register_address; }
+    [[nodiscard]] register_address_size register_address() const noexcept {
+        return _register_address;
+    }
 
     /**
      * @brief Returns the SCL speed the device was configured with.
      *
      * This is the configured speed, not a measurement of the clock generated on the bus.
      *
-     * @return config::scl_speed when it was set, or else the bus frequency when the device was created.
+     * @return config::scl_speed when it was set, or else the bus frequency when the device was
+     * created.
      */
     [[nodiscard]] quanta::frequency::hertz scl_speed() const noexcept { return _scl_speed; }
 
@@ -683,8 +717,8 @@ public:
      * @brief Probes the device.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::not_found if the device does not acknowledge, with
-     *         idfxx::errc::timeout if the bus could not be acquired in time or the probe timed out on
+     * @throws std::system_error with idfxx::errc::not_found if the device does not acknowledge,
+     * with idfxx::errc::timeout if the bus could not be acquired in time or the probe timed out on
      *         the bus (for example, SCL held low), or on another error.
      */
     void probe() const { probe(DEFAULT_TIMEOUT); }
@@ -698,8 +732,8 @@ public:
      * @param timeout Maximum time to wait for the bus and for the response.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::not_found if the device does not acknowledge, with
-     *         idfxx::errc::timeout if the bus could not be acquired in time or the probe timed out on
+     * @throws std::system_error with idfxx::errc::not_found if the device does not acknowledge,
+     * with idfxx::errc::timeout if the bus could not be acquired in time or the probe timed out on
      *         the bus (for example, SCL held low), or on another error.
      */
     template<typename Rep, typename Period>
@@ -713,8 +747,8 @@ public:
      *
      * @return Success if the device acknowledges, or an error.
      * @retval idfxx::errc::not_found The device did not acknowledge.
-     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on the bus
-     *         (for example, SCL held low). The driver reports both the same way.
+     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on
+     * the bus (for example, SCL held low). The driver reports both the same way.
      */
     [[nodiscard]] result<void> try_probe() const { return try_probe(DEFAULT_TIMEOUT); }
 
@@ -728,8 +762,8 @@ public:
      *
      * @return Success if the device acknowledges, or an error.
      * @retval idfxx::errc::not_found The device did not acknowledge.
-     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on the bus
-     *         (for example, SCL held low). The driver reports both the same way.
+     * @retval idfxx::errc::timeout The bus could not be acquired in time, or the probe timed out on
+     * the bus (for example, SCL held low). The driver reports both the same way.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_probe(const std::chrono::duration<Rep, Period>& timeout) const {
@@ -784,7 +818,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void transmit(std::span<const std::span<const uint8_t>> buffers) { unwrap(try_transmit(buffers)); }
+    void transmit(std::span<const std::span<const uint8_t>> buffers) {
+        unwrap(try_transmit(buffers));
+    }
 
     /**
      * @brief Transmits data to the device.
@@ -799,7 +835,8 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    void
+    transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
     }
 
@@ -819,8 +856,10 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void
-    transmit(std::span<const std::span<const uint8_t>> buffers, const std::chrono::duration<Rep, Period>& timeout) {
+    void transmit(
+        std::span<const std::span<const uint8_t>> buffers,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_transmit(buffers, timeout));
     }
 
@@ -849,7 +888,8 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void transmit(const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    void
+    transmit(const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(buf, size, timeout));
     }
 #endif
@@ -933,9 +973,13 @@ public:
      *
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_transmit(std::span<const std::span<const uint8_t>> buffers, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_multi_buffer_transmit(buffers, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    [[nodiscard]] result<void> try_transmit(
+        std::span<const std::span<const uint8_t>> buffers,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return _try_multi_buffer_transmit(
+            buffers, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     /**
@@ -965,8 +1009,11 @@ public:
      *
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_transmit(const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_transmit(
+        const uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return _try_transmit(buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -980,8 +1027,8 @@ public:
      * @param new_address The new device address.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::invalid_arg if @p new_address doesn't fit the device's
-     *         addressing mode (the address is unchanged), or on failure.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p new_address doesn't fit the
+     * device's addressing mode (the address is unchanged), or on failure.
      */
     void change_address(uint16_t new_address) { unwrap(try_change_address(new_address)); }
 
@@ -998,8 +1045,8 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::invalid_arg if @p new_address doesn't fit the device's
-     *         addressing mode (the address is unchanged), or on failure.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p new_address doesn't fit the
+     * device's addressing mode (the address is unchanged), or on failure.
      */
     template<typename Rep, typename Period>
     void change_address(uint16_t new_address, const std::chrono::duration<Rep, Period>& timeout) {
@@ -1016,8 +1063,9 @@ public:
      * @param new_address The new device address.
      *
      * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg @p new_address doesn't fit the device's addressing mode: above 0x7F
-     *         for a 7-bit device, or 0x7F or below for a 10-bit device. The address is unchanged.
+     * @retval idfxx::errc::invalid_arg @p new_address doesn't fit the device's addressing mode:
+     * above 0x7F for a 7-bit device, or 0x7F or below for a 10-bit device. The address is
+     * unchanged.
      */
     [[nodiscard]] result<void> try_change_address(uint16_t new_address) {
         return try_change_address(new_address, DEFAULT_TIMEOUT);
@@ -1036,13 +1084,16 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg @p new_address doesn't fit the device's addressing mode: above 0x7F
-     *         for a 7-bit device, or 0x7F or below for a 10-bit device. The address is unchanged.
+     * @retval idfxx::errc::invalid_arg @p new_address doesn't fit the device's addressing mode:
+     * above 0x7F for a 7-bit device, or 0x7F or below for a 10-bit device. The address is
+     * unchanged.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
     try_change_address(uint16_t new_address, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_change_address(new_address, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_change_address(
+            new_address, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1097,7 +1148,10 @@ public:
      * @throws std::system_error on failure.
      */
     template<typename Rep, typename Period>
-    void execute_operations(std::span<const operation> ops, const std::chrono::duration<Rep, Period>& timeout) {
+    void execute_operations(
+        std::span<const operation> ops,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_execute_operations(ops, timeout));
     }
 #endif
@@ -1140,8 +1194,10 @@ public:
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_execute_operations(std::span<const operation> ops, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_execute_operations(
+        std::span<const operation> ops,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return _try_execute_operations(ops, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
@@ -1179,7 +1235,8 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] std::vector<uint8_t> receive(size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] std::vector<uint8_t>
+    receive(size_t size, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_receive(size, timeout));
     }
 
@@ -1263,7 +1320,9 @@ public:
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
-    [[nodiscard]] result<std::vector<uint8_t>> try_receive(size_t size) { return try_receive(size, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<std::vector<uint8_t>> try_receive(size_t size) {
+        return try_receive(size, DEFAULT_TIMEOUT);
+    }
 
     /**
      * @brief Receives data from the device.
@@ -1336,7 +1395,9 @@ public:
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
-    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf) { return try_receive(buf, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf) {
+        return try_receive(buf, DEFAULT_TIMEOUT);
+    }
 
     /**
      * @brief Receives data from the device.
@@ -1354,7 +1415,8 @@ public:
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
         return try_receive(buf.data(), buf.size(), timeout);
     }
 
@@ -1369,7 +1431,9 @@ public:
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
      */
-    void write_register(uint16_t reg, std::span<const uint8_t> buf) { unwrap(try_write_register(reg, buf)); }
+    void write_register(uint16_t reg, std::span<const uint8_t> buf) {
+        unwrap(try_write_register(reg, buf));
+    }
 
     /**
      * @brief Writes data to a register.
@@ -1386,7 +1450,11 @@ public:
      *         using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
-    void write_register(uint16_t reg, std::span<const uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void write_register(
+        uint16_t reg,
+        std::span<const uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_write_register(reg, buf, timeout));
     }
 
@@ -1402,7 +1470,9 @@ public:
      *         using one-byte register addresses, or if @p buf is null and @p size is nonzero
      *         (nothing is sent), or on error.
      */
-    void write_register(uint16_t reg, const uint8_t* buf, size_t size) { unwrap(try_write_register(reg, buf, size)); }
+    void write_register(uint16_t reg, const uint8_t* buf, size_t size) {
+        unwrap(try_write_register(reg, buf, size));
+    }
 
     /**
      * @brief Writes data to a register.
@@ -1421,8 +1491,12 @@ public:
      *         (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
-    void
-    write_register(uint16_t reg, const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    void write_register(
+        uint16_t reg,
+        const uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_write_register(reg, buf, size, timeout));
     }
 
@@ -1453,7 +1527,8 @@ public:
      *         using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
-    void write_register(uint16_t reg, uint8_t value, const std::chrono::duration<Rep, Period>& timeout) {
+    void
+    write_register(uint16_t reg, uint8_t value, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_write_register(reg, value, timeout));
     }
 
@@ -1512,14 +1587,20 @@ public:
      * @endcode
      */
     template<detail::register_value T, typename Rep, typename Period>
-    void write_register(uint16_t reg, T value, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+    void write_register(
+        uint16_t reg,
+        T value,
+        std::endian order,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_write_register(reg, value, order, timeout));
     }
 
     /** @cond INTERNAL */
-    // A value wider than a byte without a byte order would otherwise convert to the uint8_t overload and
-    // write only its low byte. Pass the byte order, or a uint8_t for a single byte. The check is by type, so
-    // wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected too; use uint8_t register constants.
+    // A value wider than a byte without a byte order would otherwise convert to the uint8_t
+    // overload and write only its low byte. Pass the byte order, or a uint8_t for a single byte.
+    // The check is by type, so wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected
+    // too; use uint8_t register constants.
     template<detail::register_value T>
         requires(sizeof(T) > 1)
     void write_register(uint16_t, T) = delete;
@@ -1558,8 +1639,11 @@ public:
      *         addresses; nothing is sent.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_write_register(uint16_t reg, std::span<const uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_write_register(
+        uint16_t reg,
+        std::span<const uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return try_write_register(reg, buf.data(), buf.size(), timeout);
     }
 
@@ -1600,7 +1684,9 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_write_register(reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_write_register(
+            reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     /**
@@ -1632,9 +1718,14 @@ public:
      *         addresses; nothing is sent.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_write_register(uint16_t reg, uint8_t value, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_write_register(reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    [[nodiscard]] result<void> try_write_register(
+        uint16_t reg,
+        uint8_t value,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return _try_write_register(
+            reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     /**
@@ -1680,17 +1771,24 @@ public:
      *         addresses; nothing is sent.
      */
     template<detail::register_value T, typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_write_register(uint16_t reg, T value, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_write_register(
+        uint16_t reg,
+        T value,
+        std::endian order,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         std::array<uint8_t, sizeof(T)> buf;
         detail::encode_register_value<T>(value, order, buf);
-        return _try_write_register(reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_write_register(
+            reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     /** @cond INTERNAL */
-    // A value wider than a byte without a byte order would otherwise convert to the uint8_t overload and
-    // write only its low byte. Pass the byte order, or a uint8_t for a single byte. The check is by type, so
-    // wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected too; use uint8_t register constants.
+    // A value wider than a byte without a byte order would otherwise convert to the uint8_t
+    // overload and write only its low byte. Pass the byte order, or a uint8_t for a single byte.
+    // The check is by type, so wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected
+    // too; use uint8_t register constants.
     template<detail::register_value T>
         requires(sizeof(T) > 1)
     void try_write_register(uint16_t, T) = delete;
@@ -1840,7 +1938,9 @@ public:
         std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout);
+        write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout
+        );
     }
 
     /**
@@ -1859,7 +1959,8 @@ public:
      *         0xFF on a device using one-byte register addresses, or if @p buf is null and
      *         @p size is nonzero (nothing is sent), or on error.
      */
-    void write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
+    void
+    write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
         write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size);
     }
 
@@ -1890,7 +1991,9 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout);
+        write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout
+        );
     }
 #endif
 
@@ -1908,7 +2011,8 @@ public:
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
      *         one-byte register addresses; nothing is sent.
      */
-    [[nodiscard]] result<void> try_write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
+    [[nodiscard]] result<void>
+    try_write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
         return try_write_registers(registers, buf, DEFAULT_TIMEOUT);
     }
 
@@ -1987,7 +2091,9 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_write_registers(registers, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+        return _try_write_registers(
+            registers, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     // C++23: std::span cannot be constructed from a braced initializer list until C++26 (P2447).
@@ -2009,7 +2115,9 @@ public:
      */
     [[nodiscard]] result<void>
     try_write_registers(std::initializer_list<uint16_t> registers, std::span<const uint8_t> buf) {
-        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf);
+        return try_write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf
+        );
     }
 
     /**
@@ -2036,7 +2144,9 @@ public:
         std::span<const uint8_t> buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout);
+        return try_write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout
+        );
     }
 
     /**
@@ -2055,9 +2165,14 @@ public:
      *         one-byte register addresses, or @p buf is null and @p size is nonzero; nothing is
      *         sent.
      */
-    [[nodiscard]] result<void>
-    try_write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
-        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size);
+    [[nodiscard]] result<void> try_write_registers(
+        std::initializer_list<uint16_t> registers,
+        const uint8_t* buf,
+        size_t size
+    ) {
+        return try_write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size
+        );
     }
 
     /**
@@ -2087,7 +2202,9 @@ public:
         size_t size,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return try_write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout);
+        return try_write_registers(
+            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout
+        );
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -2160,7 +2277,9 @@ public:
      *         using one-byte register addresses, or if @p buf is empty (nothing is sent),
      *         or on error.
      */
-    void read_register(uint16_t reg, std::span<uint8_t> buf) { unwrap(try_read_register(reg, buf)); }
+    void read_register(uint16_t reg, std::span<uint8_t> buf) {
+        unwrap(try_read_register(reg, buf));
+    }
 
     /**
      * @brief Reads data from a register.
@@ -2184,7 +2303,11 @@ public:
      *         or on error.
      */
     template<typename Rep, typename Period>
-    void read_register(uint16_t reg, std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void read_register(
+        uint16_t reg,
+        std::span<uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_read_register(reg, buf, timeout));
     }
 
@@ -2203,10 +2326,12 @@ public:
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is sent),
-     *         or on error.
+     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is
+     * sent), or on error.
      */
-    void read_register(uint16_t reg, uint8_t* buf, size_t size) { unwrap(try_read_register(reg, buf, size)); }
+    void read_register(uint16_t reg, uint8_t* buf, size_t size) {
+        unwrap(try_read_register(reg, buf, size));
+    }
 
     /**
      * @brief Reads data from a register.
@@ -2227,11 +2352,16 @@ public:
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is sent),
-     *         or on error.
+     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is
+     * sent), or on error.
      */
     template<typename Rep, typename Period>
-    void read_register(uint16_t reg, uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    void read_register(
+        uint16_t reg,
+        uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_read_register(reg, buf, size, timeout));
     }
 
@@ -2246,8 +2376,8 @@ public:
      * @return The byte read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2269,14 +2399,15 @@ public:
      * @return The byte read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] uint8_t read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] uint8_t
+    read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_read_register(reg, timeout));
     }
 
@@ -2297,8 +2428,8 @@ public:
      * @return The value read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2333,8 +2464,8 @@ public:
      * @return The value read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2346,14 +2477,19 @@ public:
      * @endcode
      */
     template<detail::register_value T, typename Rep, typename Period>
-    [[nodiscard]] T read_register(uint16_t reg, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] T read_register(
+        uint16_t reg,
+        std::endian order,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return unwrap(try_read_register<T>(reg, order, timeout));
     }
 
     /** @cond INTERNAL */
-    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single uint16_t and set
-    // config::register_address for two-byte devices. These keep an old read_register(high, 0x00, size) call
-    // from silently binding the literal 0 to the buffer pointer.
+    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single
+    // uint16_t and set config::register_address for two-byte devices. These keep an old
+    // read_register(high, 0x00, size) call from silently binding the literal 0 to the buffer
+    // pointer.
     template<std::integral T>
     void read_register(uint16_t, T, size_t) = delete;
     template<std::integral T, typename Rep, typename Period>
@@ -2404,8 +2540,11 @@ public:
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<std::vector<uint8_t>>
-    try_read_register(uint16_t reg, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<std::vector<uint8_t>> try_read_register(
+        uint16_t reg,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         // Reject invalid arguments before allocating the result
         if (size == 0 || (_register_address == register_address_size::one_byte && reg > 0xFF)) {
             return error(errc::invalid_arg);
@@ -2457,8 +2596,11 @@ public:
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_read_register(uint16_t reg, std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_read_register(
+        uint16_t reg,
+        std::span<uint8_t> buf,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return try_read_register(reg, buf.data(), buf.size(), timeout);
     }
 
@@ -2507,9 +2649,15 @@ public:
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_read_register(uint16_t reg, uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_read_register(reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    [[nodiscard]] result<void> try_read_register(
+        uint16_t reg,
+        uint8_t* buf,
+        size_t size,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return _try_read_register(
+            reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        );
     }
 
     /**
@@ -2525,10 +2673,12 @@ public:
      *         addresses; nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
-    [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg) { return try_read_register(reg, DEFAULT_TIMEOUT); }
+    [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg) {
+        return try_read_register(reg, DEFAULT_TIMEOUT);
+    }
 
     /**
      * @brief Reads a single byte from a register.
@@ -2547,13 +2697,16 @@ public:
      *         addresses; nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<uint8_t>
+    try_read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
         uint8_t value = 0;
-        return _try_read_register(reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout))
+        return _try_read_register(
+                   reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        )
             .transform([&]() { return value; });
     }
 
@@ -2576,8 +2729,8 @@ public:
      *         addresses; nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<detail::register_value T>
     [[nodiscard]] result<T> try_read_register(uint16_t reg, std::endian order) {
@@ -2606,21 +2759,30 @@ public:
      *         addresses; nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not PSRAM);
-     *       otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<detail::register_value T, typename Rep, typename Period>
-    [[nodiscard]] result<T>
-    try_read_register(uint16_t reg, std::endian order, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<T> try_read_register(
+        uint16_t reg,
+        std::endian order,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         std::array<uint8_t, sizeof(T)> buf{};
-        return _try_read_register(reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout))
+        return _try_read_register(
+                   reg,
+                   buf.data(),
+                   buf.size(),
+                   std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        )
             .transform([&]() -> T { return detail::decode_register_value<T>(buf, order); });
     }
 
     /** @cond INTERNAL */
-    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single uint16_t and set
-    // config::register_address for two-byte devices. These keep an old try_read_register(high, 0x00, size) call
-    // from silently binding the literal 0 to the buffer pointer.
+    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single
+    // uint16_t and set config::register_address for two-byte devices. These keep an old
+    // try_read_register(high, 0x00, size) call from silently binding the literal 0 to the buffer
+    // pointer.
     template<std::integral T>
     void try_read_register(uint16_t, T, size_t) = delete;
     template<std::integral T, typename Rep, typename Period>
@@ -2641,18 +2803,28 @@ private:
 
     [[nodiscard]] result<void> _map_xfer_error(esp_err_t err, const char* op) const;
 
-    [[nodiscard]] std::unique_lock<std::recursive_timed_mutex> _lock_bus(std::chrono::milliseconds timeout) const;
+    [[nodiscard]] std::unique_lock<std::recursive_timed_mutex>
+    _lock_bus(std::chrono::milliseconds timeout) const;
 
-    [[nodiscard]] result<void> _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void>
-    _try_multi_buffer_transmit(std::span<const std::span<const uint8_t>> buffers, std::chrono::milliseconds timeout);
-    [[nodiscard]] result<void> _try_change_address(uint16_t new_address, std::chrono::milliseconds timeout);
+    _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void> _try_multi_buffer_transmit(
+        std::span<const std::span<const uint8_t>> buffers,
+        std::chrono::milliseconds timeout
+    );
+    [[nodiscard]] result<void>
+    _try_change_address(uint16_t new_address, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void>
     _try_execute_operations(std::span<const operation> ops, std::chrono::milliseconds timeout);
-    [[nodiscard]] result<void> _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
-
     [[nodiscard]] result<void>
-    _try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+
+    [[nodiscard]] result<void> _try_write_register(
+        uint16_t reg,
+        const uint8_t* buf,
+        size_t size,
+        std::chrono::milliseconds timeout
+    );
     [[nodiscard]] result<void> _try_write_registers(
         std::span<const uint16_t> registers,
         const uint8_t* buf,
@@ -2681,7 +2853,8 @@ namespace idfxx {
  * @brief Returns a string representation of an I2C port.
  *
  * @param p The port identifier to convert.
- * @return "I2C0", "I2C1" (when available), "LP_I2C0" (when available), or "unknown(N)" for unrecognized values.
+ * @return "I2C0", "I2C1" (when available), "LP_I2C0" (when available), or "unknown(N)" for
+ * unrecognized values.
  */
 [[nodiscard]] inline std::string to_string(i2c::port p) {
     switch (p) {

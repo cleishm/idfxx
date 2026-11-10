@@ -6,12 +6,13 @@ Reads a battery's voltage through a 2:1 resistor divider every 5 seconds.
 
 - Creating a one-shot analog input (`idfxx::adc::input`) from a pin and an external divider ratio
   (`.divider = {2, 1}`), so readings report the battery voltage rather than the pin voltage
-- Checking the input's pin with `pin()` and whether factory calibration is active with `calibrated()`
-- Reading a calibrated voltage with `try_read_voltage()`, logging a warning and carrying on if a read
-  fails
+- Checking the input's pin with `pin()` and whether factory calibration is active with
+  `calibrated()`
+- Reading a calibrated voltage with `try_read_voltage()`, logging a warning and carrying on if a
+  read fails
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`),
-with `try_read_voltage()` where it handles a failed read and keeps going.
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`), with `try_read_voltage()` where it handles a failed read and keeps going.
 
 ## Hardware required
 
@@ -29,9 +30,9 @@ The example reads the battery on an ADC1 pin that depends on the target:
 
 Wire the battery's positive terminal through the first resistor to that pin, and the pin through the
 second resistor to GND. Connect the battery's negative terminal to GND. The example uses the default
-12 dB attenuation, which measures up to roughly 3.1 V at the pin, so with equal resistors the battery
-must stay below about 6.2 V. To use a different pin, change `battery_pin` in `main/main.cpp`; if your
-resistors aren't equal, change `.divider` to match.
+12 dB attenuation, which measures up to roughly 3.1 V at the pin, so with equal resistors the
+battery must stay below about 6.2 V. To use a different pin, change `battery_pin` in
+`main/main.cpp`; if your resistors aren't equal, change `.divider` to match.
 
 The first log line says whether calibration is active. Without calibration data, voltage reads fail
 and the example logs a warning each time.

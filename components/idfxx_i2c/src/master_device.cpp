@@ -45,7 +45,8 @@ static size_t encode_register(register_address_size size, uint16_t reg, uint8_t*
 }
 
 // The SCL speed a device is configured with: config::scl_speed, or else the bus frequency.
-static quanta::frequency::hertz resolve_scl_speed(const master_bus& bus, const master_device::config& cfg) {
+static quanta::frequency::hertz
+resolve_scl_speed(const master_bus& bus, const master_device::config& cfg) {
     return cfg.scl_speed.value_or(bus.frequency());
 }
 
@@ -86,7 +87,10 @@ make_device(master_bus& bus, uint16_t address, const master_device::config& cfg)
     }
 
     ESP_LOGD(
-        TAG, "I2C master device created at address 0x%04X on bus port %d", address, std::to_underlying(bus.port())
+        TAG,
+        "I2C master device created at address 0x%04X on bus port %d",
+        address,
+        std::to_underlying(bus.port())
     );
     return handle;
 }
@@ -116,7 +120,12 @@ master_device::master_device(master_bus& bus, uint16_t address)
 result<master_device> master_device::make(master_bus& bus, uint16_t address, const config& cfg) {
     return make_device(bus, address, cfg).transform([&](auto handle) {
         return master_device(
-            &bus, handle, address, uses_10bit_addresses(cfg), cfg.register_address, resolve_scl_speed(bus, cfg)
+            &bus,
+            handle,
+            address,
+            uses_10bit_addresses(cfg),
+            cfg.register_address,
+            resolve_scl_speed(bus, cfg)
         );
     });
 }
@@ -172,12 +181,13 @@ void master_device::_delete() noexcept {
     }
 }
 
-// Maps a transfer result to idfxx errors. Driver errors pass through, except that ESP_ERR_INVALID_STATE is reported
-// as errc::invalid_response. A transfer that fails on the bus (a NACK, a bus timeout, or not finishing within the
-// caller's timeout) is reported as ESP_ERR_INVALID_RESPONSE by ESP-IDF 6.0+ and as ESP_ERR_INVALID_STATE by earlier
-// versions, and a failed bus clear reports ESP_ERR_INVALID_STATE on every version. The transfer queue that would
-// make ESP_ERR_INVALID_STATE mean "queue full" is never enabled, since buses are always created with a zero
-// trans_queue_depth.
+// Maps a transfer result to idfxx errors. Driver errors pass through, except that
+// ESP_ERR_INVALID_STATE is reported as errc::invalid_response. A transfer that fails on the bus (a
+// NACK, a bus timeout, or not finishing within the caller's timeout) is reported as
+// ESP_ERR_INVALID_RESPONSE by ESP-IDF 6.0+ and as ESP_ERR_INVALID_STATE by earlier versions, and a
+// failed bus clear reports ESP_ERR_INVALID_STATE on every version. The transfer queue that would
+// make ESP_ERR_INVALID_STATE mean "queue full" is never enabled, since buses are always created
+// with a zero trans_queue_depth.
 result<void> master_device::_map_xfer_error(esp_err_t err, const char* op) const {
     if (err == ESP_OK) {
         return {};
@@ -196,9 +206,10 @@ result<void> master_device::_map_xfer_error(esp_err_t err, const char* op) const
     return error(err);
 }
 
-// Takes the bus lock for a transfer, waiting at most the transfer's timeout. The driver call that follows is given
-// the caller's timeout unchanged.
-std::unique_lock<std::recursive_timed_mutex> master_device::_lock_bus(std::chrono::milliseconds timeout) const {
+// Takes the bus lock for a transfer, waiting at most the transfer's timeout. The driver call that
+// follows is given the caller's timeout unchanged.
+std::unique_lock<std::recursive_timed_mutex>
+master_device::_lock_bus(std::chrono::milliseconds timeout) const {
     auto lock = _bus->_lock_for(timeout);
     if (!lock.owns_lock()) {
         ESP_LOGD(
@@ -211,7 +222,8 @@ std::unique_lock<std::recursive_timed_mutex> master_device::_lock_bus(std::chron
     return lock;
 }
 
-result<void> master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+result<void>
+master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -254,16 +266,18 @@ result<void> master_device::_try_multi_buffer_transmit(
     }
 
     return _map_xfer_error(
-        i2c_master_multi_buffer_transmit(_handle, info, buffers.size(), timeout.count()), "multi_buffer_transmit"
+        i2c_master_multi_buffer_transmit(_handle, info, buffers.size(), timeout.count()),
+        "multi_buffer_transmit"
     );
 }
 
-result<void> master_device::_try_change_address(uint16_t new_address, std::chrono::milliseconds timeout) {
+result<void>
+master_device::_try_change_address(uint16_t new_address, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // The driver checks this too, but returns without releasing its own bus lock, which stalls every later
-    // transfer on the bus, so it's checked here first.
+    // The driver checks this too, but returns without releasing its own bus lock, which stalls
+    // every later transfer on the bus, so it's checked here first.
     if (_addr_10bit ? new_address <= 0x7F : new_address > 0x7F) {
         ESP_LOGD(
             TAG,
@@ -278,14 +292,19 @@ result<void> master_device::_try_change_address(uint16_t new_address, std::chron
     if (!lock.owns_lock()) {
         return error(errc::timeout);
     }
-    auto r = _map_xfer_error(i2c_master_device_change_address(_handle, new_address, timeout.count()), "change_address");
+    auto r = _map_xfer_error(
+        i2c_master_device_change_address(_handle, new_address, timeout.count()), "change_address"
+    );
     if (r) {
         _address = new_address;
     }
     return r;
 }
 
-result<void> master_device::_try_execute_operations(std::span<const operation> ops, std::chrono::milliseconds timeout) {
+result<void> master_device::_try_execute_operations(
+    std::span<const operation> ops,
+    std::chrono::milliseconds timeout
+) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -328,11 +347,13 @@ result<void> master_device::_try_execute_operations(std::span<const operation> o
     }
 
     return _map_xfer_error(
-        i2c_master_execute_defined_operations(_handle, jobs, ops.size(), timeout.count()), "execute_operations"
+        i2c_master_execute_defined_operations(_handle, jobs, ops.size(), timeout.count()),
+        "execute_operations"
     );
 }
 
-result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+result<void>
+master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -343,8 +364,12 @@ result<void> master_device::_try_receive(uint8_t* buf, size_t size, std::chrono:
     return _map_xfer_error(i2c_master_receive(_handle, buf, size, timeout.count()), "receive");
 }
 
-result<void>
-master_device::_try_write_register(uint16_t reg, const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+result<void> master_device::_try_write_register(
+    uint16_t reg,
+    const uint8_t* buf,
+    size_t size,
+    std::chrono::milliseconds timeout
+) {
     return _try_write_registers(std::span<const uint16_t>(&reg, 1), buf, size, timeout);
 }
 
@@ -357,7 +382,9 @@ result<void> master_device::_try_write_registers(
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    if (!std::ranges::all_of(registers, [this](uint16_t reg) { return register_fits(_register_address, reg); })) {
+    if (!std::ranges::all_of(registers, [this](uint16_t reg) {
+            return register_fits(_register_address, reg);
+        })) {
         return error(errc::invalid_arg);
     }
     if (buf == nullptr && size > 0) {
@@ -369,8 +396,8 @@ result<void> master_device::_try_write_registers(
         return error(errc::timeout);
     }
 
-    // Each register is sent with the data as one write transaction. The driver skips zero-length buffers, so a
-    // register-only write sends just the register address.
+    // Each register is sent with the data as one write transaction. The driver skips zero-length
+    // buffers, so a register-only write sends just the register address.
     for (const auto& reg : registers) {
         uint8_t reg_bytes[2];
         auto reg_size = encode_register(_register_address, reg, reg_bytes);
@@ -382,8 +409,12 @@ result<void> master_device::_try_write_registers(
     return {};
 }
 
-result<void>
-master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+result<void> master_device::_try_read_register(
+    uint16_t reg,
+    uint8_t* buf,
+    size_t size,
+    std::chrono::milliseconds timeout
+) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -398,7 +429,8 @@ master_device::_try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::
         return error(errc::timeout);
     }
     return _map_xfer_error(
-        i2c_master_transmit_receive(_handle, reg_bytes, reg_size, buf, size, timeout.count()), "read_register"
+        i2c_master_transmit_receive(_handle, reg_bytes, reg_size, buf, size, timeout.count()),
+        "read_register"
     );
 }
 

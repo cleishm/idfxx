@@ -35,13 +35,15 @@ static void register_error_handlers(idfxx::http::server& srv) {
         [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {
             req.set_status(404);
             req.set_content_type("text/html");
-            req.send(std::format("<h1>Not found</h1><p>Nothing lives at <code>{}</code>.</p>", req.uri()));
+            req.send(
+                std::format("<h1>Not found</h1><p>Nothing lives at <code>{}</code>.</p>", req.uri())
+            );
             return {};
         }
     );
 
-    // httpd itself detects this one (a registered URI requested with the wrong method), so on_error()
-    // also customizes errors the server raises on its own.
+    // httpd itself detects this one (a registered URI requested with the wrong method), so
+    // on_error() also customizes errors the server raises on its own.
     srv.on_error(
         idfxx::http::status_code::method_not_allowed,
         [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {
@@ -98,12 +100,14 @@ extern "C" void app_main() {
             logger.info("Open http://{}/ in your browser", info.ip4.ip);
         });
 
-        loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            if (auto r = idfxx::wifi::try_connect(); !r) {
-                logger.error("Reconnect failed: {}", r.error().message());
+        loop.listener_add(
+            idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+                logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+                if (auto r = idfxx::wifi::try_connect(); !r) {
+                    logger.error("Reconnect failed: {}", r.error().message());
+                }
             }
-        });
+        );
 
         // --- Connect to WiFi ---
         idfxx::wifi::init();

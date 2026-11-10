@@ -22,12 +22,16 @@ extern "C" void app_main() {
         // --- Register event listeners ---
         auto& loop = idfxx::event_loop::system();
 
-        loop.listener_add(idfxx::wifi::ap_sta_connected, [](const idfxx::wifi::ap_sta_connected_event_data& info) {
-            logger.info("Station connected (AID: {})", info.aid);
-        });
+        loop.listener_add(
+            idfxx::wifi::ap_sta_connected,
+            [](const idfxx::wifi::ap_sta_connected_event_data& info) {
+                logger.info("Station connected (AID: {})", info.aid);
+            }
+        );
 
         loop.listener_add(
-            idfxx::wifi::ap_sta_disconnected, [](const idfxx::wifi::ap_sta_disconnected_event_data& info) {
+            idfxx::wifi::ap_sta_disconnected,
+            [](const idfxx::wifi::ap_sta_disconnected_event_data& info) {
                 logger.info("Station disconnected (AID: {}, reason: {})", info.aid, info.reason);
             }
         );

@@ -260,7 +260,9 @@ public:
     [[nodiscard]] static constexpr gpio nc() { return gpio{GPIO_NUM_NC}; }
 
     /** @brief Returns a GPIO for the highest valid pin number. */
-    [[nodiscard]] static constexpr gpio max() { return gpio{static_cast<gpio_num_t>(GPIO_NUM_MAX - 1)}; }
+    [[nodiscard]] static constexpr gpio max() {
+        return gpio{static_cast<gpio_num_t>(GPIO_NUM_MAX - 1)};
+    }
 
     // Copyable and movable
     gpio(const gpio&) = default;
@@ -272,13 +274,19 @@ public:
     [[nodiscard]] constexpr bool operator==(const gpio&) const noexcept = default;
 
     /** @brief Returns true if this is a valid GPIO pin. */
-    [[nodiscard]] constexpr bool is_connected() const { return _num != GPIO_NUM_NC && _is_valid_gpio_num(_num); }
+    [[nodiscard]] constexpr bool is_connected() const {
+        return _num != GPIO_NUM_NC && _is_valid_gpio_num(_num);
+    }
 
     /** @brief Returns true if this gpio supports output mode. */
-    [[nodiscard]] constexpr bool is_output_capable() const { return _is_valid_output_gpio_num(_num); }
+    [[nodiscard]] constexpr bool is_output_capable() const {
+        return _is_valid_output_gpio_num(_num);
+    }
 
     /** @brief Returns true if this gpio is a valid digital I/O pin. */
-    [[nodiscard]] constexpr bool is_digital_io_pin_capable() const { return _is_valid_digital_io_gpio_num(_num); }
+    [[nodiscard]] constexpr bool is_digital_io_pin_capable() const {
+        return _is_valid_digital_io_gpio_num(_num);
+    }
 
     /** @brief Returns the underlying GPIO pin number. */
     [[nodiscard]] constexpr int num() const { return static_cast<int>(_num); }
@@ -440,7 +448,8 @@ public:
     /**
      * @brief Reads the current input level.
      * @return The current input level.
-     * @warning If the gpio is not configured for input, the returned value is always gpio::level::low.
+     * @warning If the gpio is not configured for input, the returned value is always
+     * gpio::level::low.
      * @note Returns gpio::level::low for gpio::nc().
      * @note Safe to call from an ISR installed with `intr_flag::iram` when
      *       CONFIG_GPIO_CTRL_FUNC_IN_IRAM is enabled.
@@ -464,13 +473,17 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void set_drive_capability(enum drive_cap strength) { unwrap(try_set_drive_capability(strength)); }
+    void set_drive_capability(enum drive_cap strength) {
+        unwrap(try_set_drive_capability(strength));
+    }
     /**
      * @brief Gets the current drive capability.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] enum drive_cap get_drive_capability() const { return unwrap(try_get_drive_capability()); }
+    [[nodiscard]] enum drive_cap get_drive_capability() const {
+        return unwrap(try_get_drive_capability());
+    }
 #endif
     /**
      * @brief Sets the gpio drive capability.
@@ -497,7 +510,10 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    static void install_isr_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {}) {
+    static void install_isr_service(
+        idfxx::intr_levels levels = intr_level_lowmed,
+        idfxx::flags<intr_flag> flags = {}
+    ) {
         unwrap(try_install_isr_service(levels, flags));
     }
     /**
@@ -510,7 +526,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    static void install_isr_service(idfxx::flags<intr_flag> flags) { unwrap(try_install_isr_service(flags)); }
+    static void install_isr_service(idfxx::flags<intr_flag> flags) {
+        unwrap(try_install_isr_service(flags));
+    }
 #endif
     /**
      * @brief Installs the GPIO ISR service for per-gpio interrupt handlers.
@@ -520,8 +538,10 @@ public:
      * @param levels Interrupt priority levels to accept.
      * @param flags  Behavioral flags (e.g., `intr_flag::iram`).
      */
-    [[nodiscard]] static result<void>
-    try_install_isr_service(idfxx::intr_levels levels = intr_level_lowmed, idfxx::flags<intr_flag> flags = {});
+    [[nodiscard]] static result<void> try_install_isr_service(
+        idfxx::intr_levels levels = intr_level_lowmed,
+        idfxx::flags<intr_flag> flags = {}
+    );
     /**
      * @brief Installs the GPIO ISR service with default priority levels.
      *
@@ -578,7 +598,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    isr_handle isr_handler_add(void (*fn)(void*), void* arg) { return unwrap(try_isr_handler_add(fn, arg)); }
+    isr_handle isr_handler_add(void (*fn)(void*), void* arg) {
+        return unwrap(try_isr_handler_add(fn, arg));
+    }
     /**
      * @brief Removes a specific ISR handler.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -794,7 +816,8 @@ private:
         return num >= 0 && num < GPIO_NUM_MAX && (SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << num));
     }
     static constexpr bool _is_valid_digital_io_gpio_num(int num) {
-        return num >= 0 && num < GPIO_NUM_MAX && (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK & (1ULL << num));
+        return num >= 0 && num < GPIO_NUM_MAX &&
+            (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK & (1ULL << num));
     }
 
     gpio_num_t _num;

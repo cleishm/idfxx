@@ -41,7 +41,8 @@
 #include <cstring>
 
 #if !defined(FLT_EVAL_METHOD) || (FLT_EVAL_METHOD != 0 && FLT_EVAL_METHOD != 16)
-#error "floating-point expressions must be evaluated at their own precision, or the output is not deterministic"
+#error                                                                                             \
+    "floating-point expressions must be evaluated at their own precision, or the output is not deterministic"
 #endif
 
 namespace idfxx::image::detail {
@@ -293,7 +294,15 @@ int32_t to_fixed(double p) {
 // Fixed-point weights k[0..n) of output index i (conv axes only). Each tap is
 // evaluated once, into the scratch w[0..n), summing in tap order; the
 // normalization then reads w, so it is the same value the sum saw.
-void axis_coeffs(const resampler_axis& a, filter_fn f, uint32_t i, double* w, int32_t* k, uint32_t& lo, uint32_t& n) {
+void axis_coeffs(
+    const resampler_axis& a,
+    filter_fn f,
+    uint32_t i,
+    double* w,
+    int32_t* k,
+    uint32_t& lo,
+    uint32_t& n
+) {
     double center = axis_bounds(a, i, lo, n);
     double ww = 0.0;
     for (uint32_t t = 0; t < n; t++) {
@@ -408,8 +417,9 @@ uint64_t resampler::memory_bytes(const resampler_plan& p) {
     const uint64_t ht = p.h_taps;
     const uint64_t vw = p.vis_w;
     const uint64_t rw = p.ring_w;
-    return vt * sizeof(const rgb888*) + p.hk_len * sizeof(int32_t) + (p.v.conv ? vt : 0u) * sizeof(int32_t) +
-        (p.h.conv ? vw : 0u) * 2 * sizeof(uint16_t) + vt * rw * sizeof(rgb888) + (p.vh ? rw : 0u) * sizeof(rgb888) +
+    return vt * sizeof(const rgb888*) + p.hk_len * sizeof(int32_t) +
+        (p.v.conv ? vt : 0u) * sizeof(int32_t) + (p.h.conv ? vw : 0u) * 2 * sizeof(uint16_t) +
+        vt * rw * sizeof(rgb888) + (p.vh ? rw : 0u) * sizeof(rgb888) +
         std::max(ht, vt) * sizeof(double);
 }
 
@@ -461,7 +471,9 @@ rgb888* resampler::_ring_row(uint32_t src_row) {
 void resampler::_h_pass(const rgb888* in, uint32_t in_base, rgb888* out) const {
     if (!_p.h.conv) {
         std::memcpy(
-            out, in + (static_cast<uint32_t>(_p.h.off) + _p.col0 - in_base), static_cast<size_t>(_p.vis_w) * sizeof *out
+            out,
+            in + (static_cast<uint32_t>(_p.h.off) + _p.col0 - in_base),
+            static_cast<size_t>(_p.vis_w) * sizeof *out
         );
         return;
     }
@@ -529,7 +541,9 @@ bool resampler::pop(rgb888* dst_row) {
     } else {
         uint32_t lo = 0;
         uint32_t n = 0;
-        axis_coeffs(_p.v, filter_function(_p.kernel), _p.row0 + _done, _wk.data(), _vk.data(), lo, n);
+        axis_coeffs(
+            _p.v, filter_function(_p.kernel), _p.row0 + _done, _wk.data(), _vk.data(), lo, n
+        );
         _next_n = n;
         for (uint32_t t = 0; t < n; t++) {
             _win[t] = _ring_row(lo + t);

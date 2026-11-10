@@ -136,11 +136,14 @@ enum class ramp_time : uint8_t {
  * @brief LoRa modulation parameters.
  */
 struct lora_modulation {
-    spreading_factor sf = spreading_factor::sf7; ///< Spreading factor.
-    bandwidth bw = bandwidth::bw_125;            ///< Channel bandwidth.
-    coding_rate cr = coding_rate::cr_4_5;        ///< Forward-error-correction coding rate.
-    bool low_data_rate_optimize = false;         ///< Enable low-data-rate optimization (recommended at SF11/SF12 on
-                                                 ///< narrow bandwidths).
+    /// Spreading factor.
+    spreading_factor sf = spreading_factor::sf7;
+    /// Channel bandwidth.
+    bandwidth bw = bandwidth::bw_125;
+    /// Forward-error-correction coding rate.
+    coding_rate cr = coding_rate::cr_4_5;
+    /// Enable low-data-rate optimization (recommended at SF11/SF12 on narrow bandwidths).
+    bool low_data_rate_optimize = false;
 
     /**
      * @brief Compares two modulation-parameter sets for equality.

@@ -72,7 +72,9 @@ constexpr auto mono_expansion = [] {
     std::array<std::array<uint8_t, 4>, 256> table{};
     for (size_t b = 0; b < table.size(); ++b) {
         for (size_t pair = 0; pair < 4; ++pair) {
-            const auto code = [&](size_t bit) { return (b & (0x80u >> bit)) ? code_white : code_black; };
+            const auto code = [&](size_t bit) {
+                return (b & (0x80u >> bit)) ? code_white : code_black;
+            };
             table[b][pair] = static_cast<uint8_t>((code(2 * pair) << 4) | code(2 * pair + 1));
         }
     }
@@ -132,7 +134,8 @@ result<void> configure_cs(gpio cs) {
 } // namespace
 
 result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config cfg) {
-    if (!cfg.master_cs_gpio->is_connected() || !cfg.slave_cs_gpio->is_connected() || !cfg.dc_gpio->is_connected()) {
+    if (!cfg.master_cs_gpio->is_connected() || !cfg.slave_cs_gpio->is_connected() ||
+        !cfg.dc_gpio->is_connected()) {
         return error(errc::invalid_arg);
     }
     if (cfg.master_cs_gpio == cfg.slave_cs_gpio) {
@@ -248,7 +251,13 @@ el133uf1::~el133uf1() {
 // epaper::panel hooks
 // =============================================================================
 
-result<void> el133uf1::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> el133uf1::do_write(
+    const mono_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
@@ -271,7 +280,9 @@ result<void> el133uf1::do_write(const mono_framebuffer& fb, size_t row_start, si
         // dst1 + 4 * (i - split).
         uint8_t* const dst0 = _shadow_byte(x, dst_y);
         uint8_t* const dst1 = _shadow_byte(std::max(x0, plane_stride) * 2, dst_y);
-        const auto dst_at = [&](size_t i) { return i < split ? dst0 + 4 * i : dst1 + 4 * (i - split); };
+        const auto dst_at = [&](size_t i) {
+            return i < split ? dst0 + 4 * i : dst1 + 4 * (i - split);
+        };
         for (size_t i = 0; i < whole; ++i) {
             std::ranges::copy(mono_expansion[src[i]], dst_at(i));
         }
@@ -280,14 +291,21 @@ result<void> el133uf1::do_write(const mono_framebuffer& fb, size_t row_start, si
             uint8_t* const dst = dst_at(whole);
             std::copy_n(codes.begin(), rem / 2, dst);
             if (rem % 2 != 0) {
-                dst[rem / 2] = static_cast<uint8_t>((codes[rem / 2] & 0xF0) | (dst[rem / 2] & 0x0F));
+                dst[rem / 2] =
+                    static_cast<uint8_t>((codes[rem / 2] & 0xF0) | (dst[rem / 2] & 0x0F));
             }
         }
     }
     return {};
 }
 
-result<void> el133uf1::do_write(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> el133uf1::do_write(
+    const color6_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
@@ -310,7 +328,9 @@ result<void> el133uf1::do_write(const color6_framebuffer& fb, size_t row_start, 
         }
         if (x0 + whole > plane_stride) {
             const size_t start = std::max(x0, plane_stride);
-            std::memcpy(_shadow_byte(start * 2, dst_y), src.data() + (start - x0), x0 + whole - start);
+            std::memcpy(
+                _shadow_byte(start * 2, dst_y), src.data() + (start - x0), x0 + whole - start
+            );
         }
         if (tail) {
             uint8_t& dst = *_shadow_byte(x + width - 1, dst_y);
@@ -459,7 +479,8 @@ result<void> el133uf1::_stream(target to, uint8_t cmd, std::span<const uint8_t> 
     }
     _dc.set_level(gpio::level::high);
     for (size_t offset = 0; offset < plane.size(); offset += _chunk.size()) {
-        if (auto r = _send(plane.subspan(offset, std::min(_chunk.size(), plane.size() - offset))); !r) {
+        if (auto r = _send(plane.subspan(offset, std::min(_chunk.size(), plane.size() - offset)));
+            !r) {
             return r;
         }
     }
@@ -512,11 +533,18 @@ result<void> el133uf1::_confirm_presence() {
         }
         if (reply[0] != id_present) {
             ESP_LOGE(
-                TAG, "%s controller did not answer (ID %02X %02X %02X)", controller.name, reply[0], reply[1], reply[2]
+                TAG,
+                "%s controller did not answer (ID %02X %02X %02X)",
+                controller.name,
+                reply[0],
+                reply[1],
+                reply[2]
             );
             return error(errc::not_found);
         }
-        ESP_LOGD(TAG, "%s controller ID %02X %02X %02X", controller.name, reply[0], reply[1], reply[2]);
+        ESP_LOGD(
+            TAG, "%s controller ID %02X %02X %02X", controller.name, reply[0], reply[1], reply[2]
+        );
     }
     return {};
 }

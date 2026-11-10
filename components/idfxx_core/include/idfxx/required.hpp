@@ -135,7 +135,8 @@ public:
     using value_type = T;
 
     /**
-     * @brief Initializes the stored value from any value implicitly convertible to `T` without narrowing.
+     * @brief Initializes the stored value from any value implicitly convertible to `T` without
+     * narrowing.
      *
      * @tparam U The source type, implicitly convertible to `T` without narrowing.
      * @param value The value to store.
@@ -161,7 +162,10 @@ public:
      * @param value The integer constant to store.
      */
     template<typename U>
-        requires(std::integral<T> && std::integral<std::remove_cvref_t<U>> && !detail::required_non_narrowing<T, U>)
+        requires(
+            std::integral<T> && std::integral<std::remove_cvref_t<U>> &&
+            !detail::required_non_narrowing<T, U>
+        )
     consteval required(U&& value) noexcept
         : _value(static_cast<T>(value)) {
         if (!detail::required_fits<T, std::remove_cvref_t<U>>(value)) {
@@ -241,9 +245,10 @@ public:
      * @param rhs The right operand.
      * @return `lhs.get() == rhs.get()`.
      */
-    [[nodiscard]] friend constexpr bool operator==(const required& lhs, const required& rhs) noexcept(
-        noexcept(static_cast<bool>(std::declval<const T&>() == std::declval<const T&>()))
-    )
+    [[nodiscard]] friend constexpr bool operator==(
+        const required& lhs,
+        const required& rhs
+    ) noexcept(noexcept(static_cast<bool>(std::declval<const T&>() == std::declval<const T&>())))
         requires requires(const T& a) {
             { a == a } -> std::convertible_to<bool>;
         }

@@ -145,7 +145,8 @@ public:
      * radio.start_listening(radio.rx_duty_cycle_for());
      * @endcode
      */
-    [[nodiscard]] std::optional<rx_duty_cycle> rx_duty_cycle_for(uint16_t min_symbols = 8) const noexcept {
+    [[nodiscard]] std::optional<rx_duty_cycle>
+    rx_duty_cycle_for(uint16_t min_symbols = 8) const noexcept {
         return idfxx::radio::rx_duty_cycle_for(
             _modulation, _packet_params.preamble_length, min_symbols, do_rx_duty_cycle_min_sleep()
         );
@@ -206,7 +207,8 @@ public:
      * @throws std::system_error on failure, including `errc::invalid_arg` for a
      *         non-positive @p rx_period or @p sleep_period.
      */
-    void start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
+    void
+    start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
         unwrap(try_start_listening(rx_period, sleep_period));
     }
 
@@ -240,7 +242,9 @@ public:
      * radio.start_listening(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
      * @endcode
      */
-    void start_listening(const std::optional<rx_duty_cycle>& cycle) { unwrap(try_start_listening(cycle)); }
+    void start_listening(const std::optional<rx_duty_cycle>& cycle) {
+        unwrap(try_start_listening(cycle));
+    }
 
     /**
      * @brief Starts a one-shot channel-activity scan and returns a future.
@@ -259,7 +263,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] idfxx::future<cad_info> start_channel_scan() { return unwrap(try_start_channel_scan()); }
+    [[nodiscard]] idfxx::future<cad_info> start_channel_scan() {
+        return unwrap(try_start_channel_scan());
+    }
 
     /**
      * @brief Scans the channel for LoRa activity, blocking until the result is known.
@@ -335,9 +341,12 @@ public:
      * @retval invalid_arg @p rx_period or @p sleep_period is not positive.
      * @retval not_supported The driver has no hardware duty-cycled listening.
      */
-    [[nodiscard]] result<void>
-    try_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
-        if (rx_period <= std::chrono::microseconds::zero() || sleep_period <= std::chrono::microseconds::zero()) {
+    [[nodiscard]] result<void> try_start_listening(
+        std::chrono::microseconds rx_period,
+        std::chrono::microseconds sleep_period
+    ) {
+        if (rx_period <= std::chrono::microseconds::zero() ||
+            sleep_period <= std::chrono::microseconds::zero()) {
             return error(errc::invalid_arg);
         }
         return do_start_listening(rx_period, sleep_period);
@@ -385,7 +394,9 @@ public:
      * @return A future completing with the scan result, or an error.
      * @retval invalid_state Another transmit, receive, or scan is already in flight.
      */
-    [[nodiscard]] result<idfxx::future<cad_info>> try_start_channel_scan() { return do_start_channel_scan(); }
+    [[nodiscard]] result<idfxx::future<cad_info>> try_start_channel_scan() {
+        return do_start_channel_scan();
+    }
 
     /**
      * @brief Scans the channel for LoRa activity, blocking until the result is known.
@@ -542,7 +553,9 @@ public:
      * @param hz Carrier frequency.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_frequency(quanta::frequency::hertz hz) { return do_set_frequency(hz); }
+    [[nodiscard]] result<void> try_set_frequency(quanta::frequency::hertz hz) {
+        return do_set_frequency(hz);
+    }
 
     /**
      * @brief Sets the transmit output power.
@@ -551,7 +564,8 @@ public:
      * @return Success, or an error.
      * @retval invalid_arg The requested power is outside the chip variant's supported range.
      */
-    [[nodiscard]] result<void> try_set_output_power(quanta::electro::dbm power, ramp_time ramp = ramp_time::us_200) {
+    [[nodiscard]] result<void>
+    try_set_output_power(quanta::electro::dbm power, ramp_time ramp = ramp_time::us_200) {
         return do_set_output_power(power, ramp);
     }
 
@@ -590,7 +604,9 @@ public:
      * @param network Network whose sync word to use.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_sync_word(lora_network network) { return do_set_sync_word(network); }
+    [[nodiscard]] result<void> try_set_sync_word(lora_network network) {
+        return do_set_sync_word(network);
+    }
 
     // =========================================================================
     // Data path: blocking
@@ -617,7 +633,8 @@ public:
      * @throws std::system_error on failure or timeout.
      */
     template<typename Rep, typename Period>
-    void transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    void
+    transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
     }
 
@@ -633,7 +650,8 @@ public:
      *         than @p buffer; nothing is written).
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] rx_info receive(std::span<uint8_t> buffer, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] rx_info
+    receive(std::span<uint8_t> buffer, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_receive(buffer, timeout));
     }
 #endif
@@ -793,7 +811,9 @@ public:
      *         nothing is queued and `errc::invalid_size` when the packet did
      *         not fit.
      */
-    [[nodiscard]] rx_info read_received(std::span<uint8_t> buffer) { return unwrap(try_read_received(buffer)); }
+    [[nodiscard]] rx_info read_received(std::span<uint8_t> buffer) {
+        return unwrap(try_read_received(buffer));
+    }
 #endif
 
     /**
@@ -869,7 +889,9 @@ public:
      * @retval invalid_size The packet was larger than @p buffer; it was popped
      *         and discarded, nothing written.
      */
-    [[nodiscard]] result<rx_info> try_read_received(std::span<uint8_t> buffer) { return do_read_received(buffer); }
+    [[nodiscard]] result<rx_info> try_read_received(std::span<uint8_t> buffer) {
+        return do_read_received(buffer);
+    }
 
     // =========================================================================
     // Status
@@ -939,7 +961,9 @@ public:
      * @brief Returns the instantaneous RSSI on the configured channel.
      * @return The RSSI, or an error.
      */
-    [[nodiscard]] result<quanta::electro::centi_dbm> try_current_rssi() { return do_current_rssi(); }
+    [[nodiscard]] result<quanta::electro::centi_dbm> try_current_rssi() {
+        return do_current_rssi();
+    }
 
     /// Maximum LoRa payload length in bytes.
     static constexpr size_t max_payload_length = 255;
@@ -983,8 +1007,10 @@ protected:
     /// (duty-cycled receive). Both durations are positive. Hardware
     /// duty-cycled listening is optional: drivers whose chip cannot listen
     /// autonomously keep this default, which reports `errc::not_supported`.
-    [[nodiscard]] virtual result<void>
-    do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
+    [[nodiscard]] virtual result<void> do_start_listening(
+        std::chrono::microseconds rx_period,
+        std::chrono::microseconds sleep_period
+    ) {
         (void)rx_period;
         (void)sleep_period;
         return error(errc::not_supported);
@@ -997,7 +1023,8 @@ protected:
     /// Hook for @ref try_set_frequency.
     [[nodiscard]] virtual result<void> do_set_frequency(quanta::frequency::hertz hz) = 0;
     /// Hook for @ref try_set_output_power.
-    [[nodiscard]] virtual result<void> do_set_output_power(quanta::electro::dbm power, ramp_time ramp) = 0;
+    [[nodiscard]] virtual result<void>
+    do_set_output_power(quanta::electro::dbm power, ramp_time ramp) = 0;
     /// Hook for @ref try_set_modulation.
     [[nodiscard]] virtual result<void> do_set_modulation(lora_modulation mod) = 0;
     /// Hook for @ref try_set_packet_params.
@@ -1011,7 +1038,8 @@ protected:
     /// must complete when the packet has been sent, or with
     /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown).
-    [[nodiscard]] virtual result<idfxx::future<void>> do_start_transmit(std::span<const uint8_t> data) = 0;
+    [[nodiscard]] virtual result<idfxx::future<void>>
+    do_start_transmit(std::span<const uint8_t> data) = 0;
     /// Hook for @ref try_start_receive(std::span<uint8_t>) (single-shot
     /// receive). The returned future must complete with the received packet's
     /// info (`errc::invalid_crc` on CRC failure, `errc::invalid_size` if the
@@ -1019,7 +1047,8 @@ protected:
     /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown); the buffer must never be written after the future
     /// completes.
-    [[nodiscard]] virtual result<idfxx::future<rx_info>> do_start_receive(std::span<uint8_t> buffer) = 0;
+    [[nodiscard]] virtual result<idfxx::future<rx_info>>
+    do_start_receive(std::span<uint8_t> buffer) = 0;
     /// Hook for @ref try_read_received. Must pop the oldest queued packet;
     /// `errc::not_found` when none is queued, `errc::invalid_size` (packet
     /// popped and discarded) if it is larger than the buffer — never truncate.

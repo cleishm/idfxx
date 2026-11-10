@@ -152,7 +152,8 @@ enum class sort_method : int {
  * @brief WiFi disconnection reason codes.
  *
  * Values 1-68 are IEEE 802.11 standard reason codes.
- * Values 200+ are vendor-specific reason codes for events such as beacon timeout and authentication failure.
+ * Values 200+ are vendor-specific reason codes for events such as beacon timeout and authentication
+ * failure.
  */
 enum class disconnect_reason : uint16_t {
     // clang-format off
@@ -688,7 +689,8 @@ public:
      * @param condition The condition being compared against.
      * @return True if `code` is equivalent to `condition`.
      */
-    [[nodiscard]] bool equivalent(int code, const std::error_condition& condition) const noexcept override final;
+    [[nodiscard]] bool
+    equivalent(int code, const std::error_condition& condition) const noexcept override final;
 };
 
 // =============================================================================
@@ -715,13 +717,19 @@ struct he_ap_info {
  * @brief WiFi country configuration.
  */
 struct country_config {
-    std::array<char, 3> cc = {'0', '1', '\0'};                /*!< Country code string. */
-    uint8_t start_channel = 1;                                /*!< Start channel. */
-    uint8_t num_channels = 11;                                /*!< Number of channels. */
-    quanta::electro::dbm max_tx_power{20};                    /*!< Maximum TX power. */
-    enum country_policy policy = country_policy::auto_policy; /*!< Country policy. */
+    /// Country code string.
+    std::array<char, 3> cc = {'0', '1', '\0'};
+    /// Start channel.
+    uint8_t start_channel = 1;
+    /// Number of channels.
+    uint8_t num_channels = 11;
+    /// Maximum TX power.
+    quanta::electro::dbm max_tx_power{20};
+    /// Country policy.
+    enum country_policy policy = country_policy::auto_policy;
 #if SOC_WIFI_SUPPORT_5G
-    flags<channel_5g> channels_5g{}; /*!< Allowed 5GHz channels (empty = use regulatory defaults). */
+    /// Allowed 5GHz channels (empty = use regulatory defaults).
+    flags<channel_5g> channels_5g{};
 #endif
 
     [[nodiscard]] constexpr bool operator==(const country_config&) const noexcept = default;
@@ -734,29 +742,52 @@ struct country_config {
  * Contains the details of an AP found during a WiFi scan.
  */
 struct ap_record {
-    mac_address bssid;                         /*!< MAC address of the access point. */
-    std::string ssid;                          /*!< SSID (network name). */
-    quanta::electro::dbm rssi;                 /*!< Received signal strength. */
-    uint8_t primary_channel;                   /*!< Primary channel number. */
-    std::optional<enum second_channel> second; /*!< Secondary channel position, or nullopt for HT20. */
-    enum auth_mode authmode;                   /*!< Authentication mode. */
-    enum cipher_type pairwise_cipher;          /*!< Pairwise cipher type. */
-    enum cipher_type group_cipher;             /*!< Group cipher type. */
-    bool phy_11b;                              /*!< AP supports 802.11b. */
-    bool phy_11g;                              /*!< AP supports 802.11g. */
-    bool phy_11n;                              /*!< AP supports 802.11n. */
-    bool phy_lr;                               /*!< AP supports Long Range mode. */
-    bool phy_11a;                              /*!< AP supports 802.11a. */
-    bool phy_11ac;                             /*!< AP supports 802.11ac. */
-    bool phy_11ax;                             /*!< AP supports 802.11ax. */
-    bool wps;                                  /*!< AP supports WPS. */
-    bool ftm_responder;                        /*!< AP supports FTM responder. */
-    bool ftm_initiator;                        /*!< AP supports FTM initiator. */
-    struct country_config country;             /*!< Country information. */
-    struct he_ap_info he_ap;                   /*!< HE AP information. */
-    enum bandwidth bw;                         /*!< Channel bandwidth. */
-    uint8_t vht_ch_freq1;                      /*!< VHT channel center frequency segment 1. */
-    uint8_t vht_ch_freq2;                      /*!< VHT channel center frequency segment 2. */
+    /// MAC address of the access point.
+    mac_address bssid;
+    /// SSID (network name).
+    std::string ssid;
+    /// Received signal strength.
+    quanta::electro::dbm rssi;
+    /// Primary channel number.
+    uint8_t primary_channel;
+    /// Secondary channel position, or nullopt for HT20.
+    std::optional<enum second_channel> second;
+    /// Authentication mode.
+    enum auth_mode authmode;
+    /// Pairwise cipher type.
+    enum cipher_type pairwise_cipher;
+    /// Group cipher type.
+    enum cipher_type group_cipher;
+    /// AP supports 802.11b.
+    bool phy_11b;
+    /// AP supports 802.11g.
+    bool phy_11g;
+    /// AP supports 802.11n.
+    bool phy_11n;
+    /// AP supports Long Range mode.
+    bool phy_lr;
+    /// AP supports 802.11a.
+    bool phy_11a;
+    /// AP supports 802.11ac.
+    bool phy_11ac;
+    /// AP supports 802.11ax.
+    bool phy_11ax;
+    /// AP supports WPS.
+    bool wps;
+    /// AP supports FTM responder.
+    bool ftm_responder;
+    /// AP supports FTM initiator.
+    bool ftm_initiator;
+    /// Country information.
+    struct country_config country;
+    /// HE AP information.
+    struct he_ap_info he_ap;
+    /// Channel bandwidth.
+    enum bandwidth bw;
+    /// VHT channel center frequency segment 1.
+    uint8_t vht_ch_freq1;
+    /// VHT channel center frequency segment 2.
+    uint8_t vht_ch_freq2;
 
     [[nodiscard]] bool operator==(const ap_record&) const noexcept = default;
 };
@@ -784,13 +815,20 @@ struct sta_info {
  * @brief Single FTM report measurement entry.
  */
 struct ftm_report_entry {
-    uint8_t dlog_token;             /*!< Dialog token. */
-    quanta::electro::dbm rssi;      /*!< RSSI of the FTM frame. */
-    idfxx::chrono::picoseconds rtt; /*!< Round-trip time to the peer. */
-    idfxx::chrono::picoseconds t1;  /*!< Departure of the FTM frame from the responder (responder clock). */
-    idfxx::chrono::picoseconds t2;  /*!< Arrival of the FTM frame at the initiator (initiator clock). */
-    idfxx::chrono::picoseconds t3;  /*!< Departure of the ACK from the initiator (initiator clock). */
-    idfxx::chrono::picoseconds t4;  /*!< Arrival of the ACK at the responder (responder clock). */
+    /// Dialog token.
+    uint8_t dlog_token;
+    /// RSSI of the FTM frame.
+    quanta::electro::dbm rssi;
+    /// Round-trip time to the peer.
+    idfxx::chrono::picoseconds rtt;
+    /// Departure of the FTM frame from the responder (responder clock).
+    idfxx::chrono::picoseconds t1;
+    /// Arrival of the FTM frame at the initiator (initiator clock).
+    idfxx::chrono::picoseconds t2;
+    /// Departure of the ACK from the initiator (initiator clock).
+    idfxx::chrono::picoseconds t3;
+    /// Arrival of the ACK at the responder (responder clock).
+    idfxx::chrono::picoseconds t4;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
     /**
      * @brief Clock frequency offset between the local and peer devices, in parts per million.
@@ -876,29 +914,48 @@ struct pmf_config {
  * @brief Configuration for WiFi station mode.
  */
 struct sta_config {
-    std::string ssid;                                    /*!< SSID of the target access point. */
-    std::string password;                                /*!< Password for the target access point. */
-    std::optional<mac_address> bssid = {};               /*!< Target AP BSSID (empty = any). */
-    uint8_t channel = 0;                                 /*!< Channel hint (0 = scan all). */
-    enum scan_method scan_method = scan_method::fast;    /*!< Scan method when connecting. */
-    enum sort_method sort_method = sort_method::by_rssi; /*!< AP sort method when connecting. */
-    enum auth_mode auth_threshold = auth_mode::open;     /*!< Minimum authentication mode to accept. */
-    quanta::electro::dbm rssi_threshold{-127};           /*!< Minimum RSSI to accept. */
-    struct pmf_config pmf = {};                          /*!< PMF configuration. */
+    /// SSID of the target access point.
+    std::string ssid;
+    /// Password for the target access point.
+    std::string password;
+    /// Target AP BSSID (empty = any).
+    std::optional<mac_address> bssid = {};
+    /// Channel hint (0 = scan all).
+    uint8_t channel = 0;
+    /// Scan method when connecting.
+    enum scan_method scan_method = scan_method::fast;
+    /// AP sort method when connecting.
+    enum sort_method sort_method = sort_method::by_rssi;
+    /// Minimum authentication mode to accept.
+    enum auth_mode auth_threshold = auth_mode::open;
+    /// Minimum RSSI to accept.
+    quanta::electro::dbm rssi_threshold{-127};
+    /// PMF configuration.
+    struct pmf_config pmf = {};
     /**
-     * @brief Listen interval for maximum modem power save, in AP beacon intervals, or std::nullopt to let the driver
-     * choose. An explicit value of 0 is rejected with `idfxx::errc::invalid_arg` when the configuration is applied.
+     * @brief Listen interval for maximum modem power save, in AP beacon intervals, or std::nullopt
+     * to let the driver choose. An explicit value of 0 is rejected with `idfxx::errc::invalid_arg`
+     * when the configuration is applied.
      */
     std::optional<uint16_t> listen_interval = std::nullopt;
-    bool rm_enabled = false;                               /*!< Radio Measurement enabled. */
-    bool btm_enabled = false;                              /*!< BSS Transition Management enabled. */
-    bool mbo_enabled = false;                              /*!< MBO (Multi-Band Operation) enabled. */
-    bool ft_enabled = false;                               /*!< Fast BSS Transition (802.11r) enabled. */
-    bool owe_enabled = false;                              /*!< OWE Transition mode enabled. */
-    bool transition_disable = false;                       /*!< Transition Disable indication. */
-    flags<sae_pwe_method> sae_pwe_h2e = {};                /*!< SAE PWE derivation methods (empty = auto). */
-    enum sae_pk_mode sae_pk_mode = sae_pk_mode::automatic; /*!< SAE-PK mode. */
-    uint8_t failure_retry_cnt = 0;                         /*!< Connection failure retry count (0 = no retry). */
+    /// Radio Measurement enabled.
+    bool rm_enabled = false;
+    /// BSS Transition Management enabled.
+    bool btm_enabled = false;
+    /// MBO (Multi-Band Operation) enabled.
+    bool mbo_enabled = false;
+    /// Fast BSS Transition (802.11r) enabled.
+    bool ft_enabled = false;
+    /// OWE Transition mode enabled.
+    bool owe_enabled = false;
+    /// Transition Disable indication.
+    bool transition_disable = false;
+    /// SAE PWE derivation methods (empty = auto).
+    flags<sae_pwe_method> sae_pwe_h2e = {};
+    /// SAE-PK mode.
+    enum sae_pk_mode sae_pk_mode = sae_pk_mode::automatic;
+    /// Connection failure retry count (0 = no retry).
+    uint8_t failure_retry_cnt = 0;
 
     [[nodiscard]] bool operator==(const sta_config&) const noexcept = default;
 };
@@ -908,17 +965,28 @@ struct sta_config {
  * @brief Configuration for WiFi access point mode.
  */
 struct ap_config {
-    std::string ssid;                                          /*!< SSID of the access point. */
-    std::string password;                                      /*!< Password for the access point. */
-    uint8_t channel = 1;                                       /*!< Channel number. */
-    enum auth_mode authmode = auth_mode::open;                 /*!< Authentication mode. */
-    uint8_t ssid_hidden = 0;                                   /*!< Whether SSID is hidden (0 = broadcast). */
-    uint8_t max_connection = 4;                                /*!< Maximum number of connected stations. */
-    uint16_t beacon_interval = 100;                            /*!< Beacon interval in TU (1 TU = 1024 µs). */
-    enum cipher_type pairwise_cipher = cipher_type::tkip_ccmp; /*!< Pairwise cipher type. */
-    bool ftm_responder = false;                                /*!< FTM responder mode enabled. */
-    struct pmf_config pmf = {};                                /*!< PMF configuration. */
-    flags<sae_pwe_method> sae_pwe_h2e = {};                    /*!< SAE PWE derivation methods (empty = auto). */
+    /// SSID of the access point.
+    std::string ssid;
+    /// Password for the access point.
+    std::string password;
+    /// Channel number.
+    uint8_t channel = 1;
+    /// Authentication mode.
+    enum auth_mode authmode = auth_mode::open;
+    /// Whether SSID is hidden (0 = broadcast).
+    uint8_t ssid_hidden = 0;
+    /// Maximum number of connected stations.
+    uint8_t max_connection = 4;
+    /// Beacon interval in TU (1 TU = 1024 µs).
+    uint16_t beacon_interval = 100;
+    /// Pairwise cipher type.
+    enum cipher_type pairwise_cipher = cipher_type::tkip_ccmp;
+    /// FTM responder mode enabled.
+    bool ftm_responder = false;
+    /// PMF configuration.
+    struct pmf_config pmf = {};
+    /// SAE PWE derivation methods (empty = auto).
+    flags<sae_pwe_method> sae_pwe_h2e = {};
 
     [[nodiscard]] bool operator==(const ap_config&) const noexcept = default;
 };
@@ -941,10 +1009,14 @@ struct scan_config {
  * @brief Default scan timing parameters.
  */
 struct scan_default_params {
-    std::chrono::milliseconds active_scan_min{0};       /*!< Minimum active scan time per channel. */
-    std::chrono::milliseconds active_scan_max{120};     /*!< Maximum active scan time per channel. */
-    std::chrono::milliseconds passive_scan{360};        /*!< Passive scan time per channel. */
-    std::chrono::milliseconds home_chan_dwell_time{30}; /*!< Home channel dwell time (max 255 ms). */
+    /// Minimum active scan time per channel.
+    std::chrono::milliseconds active_scan_min{0};
+    /// Maximum active scan time per channel.
+    std::chrono::milliseconds active_scan_max{120};
+    /// Passive scan time per channel.
+    std::chrono::milliseconds passive_scan{360};
+    /// Home channel dwell time (max 255 ms).
+    std::chrono::milliseconds home_chan_dwell_time{30};
 
     [[nodiscard]] constexpr bool operator==(const scan_default_params&) const noexcept = default;
 };
@@ -976,8 +1048,10 @@ struct bandwidths_config {
  * @brief WiFi channel information.
  */
 struct channel_info {
-    uint8_t primary;                           /*!< Primary channel number. */
-    std::optional<enum second_channel> second; /*!< Secondary channel position, or nullopt for HT20. */
+    /// Primary channel number.
+    uint8_t primary;
+    /// Secondary channel position, or nullopt for HT20.
+    std::optional<enum second_channel> second;
 
     [[nodiscard]] constexpr bool operator==(const channel_info&) const noexcept = default;
 };
@@ -987,14 +1061,17 @@ struct channel_info {
  * @brief FTM initiator session configuration.
  */
 struct ftm_initiator_config {
-    mac_address resp_mac;    /*!< Responder MAC address. */
-    uint8_t channel = 0;     /*!< Channel for FTM session. */
-    uint8_t frame_count = 0; /*!< Number of FTM frames per burst. */
-    std::chrono::milliseconds burst_period{
-        0
-    }; /*!< Time between bursts (rounded up to 100 ms units; 0 = no preference). */
+    /// Responder MAC address.
+    mac_address resp_mac;
+    /// Channel for FTM session.
+    uint8_t channel = 0;
+    /// Number of FTM frames per burst.
+    uint8_t frame_count = 0;
+    /// Time between bursts (rounded up to 100 ms units; 0 = no preference).
+    std::chrono::milliseconds burst_period{0};
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-    bool use_get_report_api = false; /*!< Use ftm_get_report() to retrieve results. */
+    /// Use ftm_get_report() to retrieve results.
+    bool use_get_report_api = false;
 #endif
 
     [[nodiscard]] constexpr bool operator==(const ftm_initiator_config&) const noexcept = default;
@@ -1231,7 +1308,8 @@ struct authmode_change_event_data {
     static authmode_change_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const authmode_change_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const authmode_change_event_data&) const noexcept = default;
 };
 
 /**
@@ -1248,7 +1326,8 @@ struct ap_sta_connected_event_data {
     static ap_sta_connected_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const ap_sta_connected_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const ap_sta_connected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1266,7 +1345,8 @@ struct ap_sta_disconnected_event_data {
     static ap_sta_disconnected_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const ap_sta_disconnected_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const ap_sta_disconnected_event_data&) const noexcept = default;
 };
 
 /**
@@ -1283,7 +1363,8 @@ struct ap_probe_req_event_data {
     static ap_probe_req_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const ap_probe_req_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const ap_probe_req_event_data&) const noexcept = default;
 };
 
 /**
@@ -1299,7 +1380,8 @@ struct bss_rssi_low_event_data {
     static bss_rssi_low_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const bss_rssi_low_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const bss_rssi_low_event_data&) const noexcept = default;
 };
 
 /**
@@ -1318,7 +1400,8 @@ struct home_channel_change_event_data {
     static home_channel_change_event_data from_opaque(const void* event_data);
     /// @endcond
 
-    [[nodiscard]] constexpr bool operator==(const home_channel_change_event_data&) const noexcept = default;
+    [[nodiscard]] constexpr bool
+    operator==(const home_channel_change_event_data&) const noexcept = default;
 };
 
 /**
@@ -1348,23 +1431,35 @@ struct ftm_report_event_data {
 
 // WiFi events with data
 /** @brief Station connected event with connection details. */
-inline constexpr idfxx::event<event_id, connected_event_data> sta_connected{event_id::sta_connected};
+inline constexpr idfxx::event<event_id, connected_event_data> sta_connected{
+    event_id::sta_connected
+};
 /** @brief Station disconnected event with disconnection details. */
-inline constexpr idfxx::event<event_id, disconnected_event_data> sta_disconnected{event_id::sta_disconnected};
+inline constexpr idfxx::event<event_id, disconnected_event_data> sta_disconnected{
+    event_id::sta_disconnected
+};
 /** @brief Scan completed event with scan results summary. */
 inline constexpr idfxx::event<event_id, scan_done_event_data> scan_done{event_id::scan_done};
 /** @brief Station authentication mode changed event. */
-inline constexpr idfxx::event<event_id, authmode_change_event_data> sta_authmode_change{event_id::sta_authmode_change};
+inline constexpr idfxx::event<event_id, authmode_change_event_data> sta_authmode_change{
+    event_id::sta_authmode_change
+};
 /** @brief Station connected to soft-AP event. */
-inline constexpr idfxx::event<event_id, ap_sta_connected_event_data> ap_sta_connected{event_id::ap_sta_connected};
+inline constexpr idfxx::event<event_id, ap_sta_connected_event_data> ap_sta_connected{
+    event_id::ap_sta_connected
+};
 /** @brief Station disconnected from soft-AP event. */
 inline constexpr idfxx::event<event_id, ap_sta_disconnected_event_data> ap_sta_disconnected{
     event_id::ap_sta_disconnected
 };
 /** @brief Probe request received by soft-AP event. */
-inline constexpr idfxx::event<event_id, ap_probe_req_event_data> ap_probe_req_received{event_id::ap_probe_req_received};
+inline constexpr idfxx::event<event_id, ap_probe_req_event_data> ap_probe_req_received{
+    event_id::ap_probe_req_received
+};
 /** @brief BSS RSSI dropped below threshold event. */
-inline constexpr idfxx::event<event_id, bss_rssi_low_event_data> sta_bss_rssi_low{event_id::sta_bss_rssi_low};
+inline constexpr idfxx::event<event_id, bss_rssi_low_event_data> sta_bss_rssi_low{
+    event_id::sta_bss_rssi_low
+};
 /** @brief Home channel changed event. */
 inline constexpr idfxx::event<event_id, home_channel_change_event_data> home_channel_change{
     event_id::home_channel_change
@@ -1448,7 +1543,9 @@ inline constexpr idfxx::event<event_id> sta_neighbor_rep{event_id::sta_neighbor_
 /** @brief AP detected wrong password from station event. */
 inline constexpr idfxx::event<event_id> ap_wrong_password{event_id::ap_wrong_password};
 /** @brief Station beacon offset unstable event. */
-inline constexpr idfxx::event<event_id> sta_beacon_offset_unstable{event_id::sta_beacon_offset_unstable};
+inline constexpr idfxx::event<event_id> sta_beacon_offset_unstable{
+    event_id::sta_beacon_offset_unstable
+};
 /** @brief DPP URI ready event. */
 inline constexpr idfxx::event<event_id> dpp_uri_ready{event_id::dpp_uri_ready};
 /** @brief DPP configuration received event. */
@@ -1777,7 +1874,8 @@ void connect();
  * @throws std::system_error on failure, disconnection during the attempt, or timeout.
  */
 template<typename Rep, typename Period>
-[[nodiscard]] net::ipv4_info connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout);
+[[nodiscard]] net::ipv4_info
+connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout);
 
 /**
  * @brief Disconnects from the current access point.
@@ -1846,7 +1944,8 @@ void clear_fast_connect();
  *         ESP_ERR_WIFI_CONN if the station is disconnected during the
  *         attempt, or ESP_ERR_WIFI_TIMEOUT if @p timeout elapses.
  */
-[[nodiscard]] result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout);
+[[nodiscard]] result<net::ipv4_info>
+try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout);
 
 /**
  * @copydoc try_connect_sta(const sta_config&, std::chrono::milliseconds)
@@ -2270,7 +2369,8 @@ void set_channel(uint8_t primary, std::optional<enum second_channel> second = st
  * @param second The secondary channel position, or nullopt for HT20 (no secondary channel).
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_set_channel(uint8_t primary, std::optional<enum second_channel> second = std::nullopt);
+[[nodiscard]] result<void>
+try_set_channel(uint8_t primary, std::optional<enum second_channel> second = std::nullopt);
 
 /**
  * @brief Gets the current primary and secondary channel.
@@ -2953,7 +3053,8 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  * @param en_sys_seq Whether to use system-managed sequence numbers.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq);
+[[nodiscard]] result<void>
+try_tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq);
 
 /**
  * @brief Registers a callback for 802.11 TX completion.
@@ -3336,7 +3437,8 @@ void connectionless_module_set_wake_interval(std::chrono::milliseconds interval)
  *                 recommended; 0 selects the default mode).
  * @return Success, or an error.
  */
-[[nodiscard]] result<void> try_connectionless_module_set_wake_interval(std::chrono::milliseconds interval);
+[[nodiscard]] result<void>
+try_connectionless_module_set_wake_interval(std::chrono::milliseconds interval);
 
 // =============================================================================
 // Inline definitions — exception-based API
@@ -3398,7 +3500,8 @@ inline uint16_t ap_get_sta_aid(mac_address mac) {
 
 // Connect / disconnect
 template<typename Rep, typename Period>
-[[nodiscard]] net::ipv4_info connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout) {
+[[nodiscard]] net::ipv4_info
+connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout) {
     return unwrap(try_connect_sta(cfg, std::chrono::ceil<std::chrono::milliseconds>(timeout)));
 }
 inline void connect() {
@@ -3605,7 +3708,8 @@ inline void register_80211_tx_cb(tx_80211_done_cb cb) {
 }
 
 // Vendor IE
-inline void set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
+inline void
+set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
     unwrap(try_set_vendor_ie(enable, type, id, vnd_ie));
 }
 inline void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx) {
@@ -3729,7 +3833,8 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Creates an unexpected error from an ESP-IDF error code, mapping to WiFi error codes where possible.
+ * @brief Creates an unexpected error from an ESP-IDF error code, mapping to WiFi error codes where
+ * possible.
  *
  * Converts the ESP-IDF error code to a WiFi-specific error code if a mapping exists,
  * otherwise falls back to the default IDFXX error category.

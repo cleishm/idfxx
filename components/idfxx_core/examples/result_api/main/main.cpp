@@ -74,6 +74,8 @@ extern "C" void app_main() {
     logger.info("Initialization succeeded (would have aborted on failure)");
 
     // abort_on_error with a callback for logging before abort
-    idfxx::abort_on_error(try_initialize(false), [&](std::error_code ec) { logger.error("Fatal: {}", ec.message()); });
+    idfxx::abort_on_error(try_initialize(false), [&](std::error_code ec) {
+        logger.error("Fatal: {}", ec.message());
+    });
     logger.info("Done!");
 }

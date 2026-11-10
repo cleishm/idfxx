@@ -6,11 +6,13 @@ Shows how to signal and synchronize tasks with `idfxx::event_group`.
 
 - Defining event bits as a scoped enum with `idfxx::enable_flags_operators`
 - Setting, clearing and reading bits with `set()`, `clear()` and `get()`
-- Waiting for any of several bits with `wait()` and `idfxx::wait_mode::any`, while another task sets them
+- Waiting for any of several bits with `wait()` and `idfxx::wait_mode::any`, while another task sets
+  them
 - Waiting for all of several bits with `wait()` and `idfxx::wait_mode::all`
 - Making two tasks meet at a rendezvous point with `sync()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -32,4 +34,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

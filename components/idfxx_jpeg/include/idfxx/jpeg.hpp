@@ -115,7 +115,8 @@ public:
      * @param code The `errc` value to map.
      * @return The `std::error_condition` for `code`.
      */
-    [[nodiscard]] std::error_condition default_error_condition(int code) const noexcept override final;
+    [[nodiscard]] std::error_condition
+    default_error_condition(int code) const noexcept override final;
 };
 
 /**
@@ -505,8 +506,9 @@ public:
             if (auto r = _read_row(*row); !r) {
                 return r;
             }
-            result<void> r =
-                std::invoke(sink, image::point{0, y}, image::view<const image::rgb888>(*row, _output_width, 1));
+            result<void> r = std::invoke(
+                sink, image::point{0, y}, image::view<const image::rgb888>(*row, _output_width, 1)
+            );
             if (!r) {
                 _abort();
                 return r;
@@ -521,11 +523,20 @@ private:
 
     // Reads from a type-erased byte source. Returns false on failure, with the
     // reason stored in `failure`.
-    using read_fn =
-        bool (*)(void* source, std::span<uint8_t> buf, size_t& count, detail::read_failure& failure) noexcept;
+    using read_fn = bool (*)(
+        void* source,
+        std::span<uint8_t> buf,
+        size_t& count,
+        detail::read_failure& failure
+    ) noexcept;
 
     template<byte_source Src>
-    static bool _read(void* source, std::span<uint8_t> buf, size_t& count, detail::read_failure& failure) noexcept {
+    static bool _read(
+        void* source,
+        std::span<uint8_t> buf,
+        size_t& count,
+        detail::read_failure& failure
+    ) noexcept {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
         try {
 #endif

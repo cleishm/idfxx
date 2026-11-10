@@ -78,7 +78,10 @@ public:
      * @throws std::system_error with idfxx::errc::invalid_arg if length is 0.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    [[nodiscard]] explicit queue(size_t length, flags<memory::capabilities> mem_caps = memory::capabilities::dram)
+    [[nodiscard]] explicit queue(
+        size_t length,
+        flags<memory::capabilities> mem_caps = memory::capabilities::dram
+    )
         : _handle(nullptr) {
         if (length == 0) {
             throw std::system_error(errc::invalid_arg);
@@ -238,7 +241,8 @@ public:
      *         until the deadline.
      */
     template<typename Clock, typename Duration>
-    void send_to_front_until(const T& item, const std::chrono::time_point<Clock, Duration>& deadline) {
+    void
+    send_to_front_until(const T& item, const std::chrono::time_point<Clock, Duration>& deadline) {
         unwrap(try_send_to_front_until(item, deadline));
     }
 #endif
@@ -267,7 +271,8 @@ public:
      * @retval timeout The queue remained full for the duration.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_send(const T& item, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_send(const T& item, const std::chrono::duration<Rep, Period>& timeout) {
         return _try_send(item, chrono::ticks(timeout));
     }
 
@@ -284,7 +289,8 @@ public:
      * @retval timeout The queue remained full until the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<void> try_send_until(const T& item, const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<void>
+    try_send_until(const T& item, const std::chrono::time_point<Clock, Duration>& deadline) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_send(item, 0);
@@ -302,7 +308,9 @@ public:
      * @return Success, or an error.
      * @retval timeout The queue remained full.
      */
-    [[nodiscard]] result<void> try_send_to_front(const T& item) { return _try_send_to_front(item, portMAX_DELAY); }
+    [[nodiscard]] result<void> try_send_to_front(const T& item) {
+        return _try_send_to_front(item, portMAX_DELAY);
+    }
 
     /**
      * @brief Sends an item to the front of the queue with a timeout.
@@ -318,7 +326,8 @@ public:
      * @retval timeout The queue remained full for the duration.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_send_to_front(const T& item, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_send_to_front(const T& item, const std::chrono::duration<Rep, Period>& timeout) {
         return _try_send_to_front(item, chrono::ticks(timeout));
     }
 
@@ -336,8 +345,10 @@ public:
      * @retval timeout The queue remained full until the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<void>
-    try_send_to_front_until(const T& item, const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<void> try_send_to_front_until(
+        const T& item,
+        const std::chrono::time_point<Clock, Duration>& deadline
+    ) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_send_to_front(item, 0);
@@ -458,7 +469,8 @@ public:
      * @retval timeout The queue remained empty until the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<T> try_receive_until(const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<T>
+    try_receive_until(const std::chrono::time_point<Clock, Duration>& deadline) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_receive(0);
@@ -561,7 +573,8 @@ public:
      * @retval timeout The queue remained empty until the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<T> try_peek_until(const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<T>
+    try_peek_until(const std::chrono::time_point<Clock, Duration>& deadline) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_peek(0);

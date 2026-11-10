@@ -1,8 +1,8 @@
 # Components
 
-All idfxx components, grouped by area. Each component is published separately on the
-[ESP Component Registry](https://components.espressif.com/) as `cleishm/<component>`; see the
-[main README](../README.md) for installation and conventions shared by every component.
+All idfxx components, grouped by area. Each component is published separately on the [ESP Component
+Registry](https://components.espressif.com/) as `cleishm/<component>`; see the [main
+README](../README.md) for installation and conventions shared by every component.
 
 ## Core Infrastructure
 

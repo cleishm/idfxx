@@ -69,14 +69,20 @@ public:
      */
     struct config {
         // Task
-        task_priority priority = 5;                          ///< Priority of the server task
-        size_t stack_size = 10240;                           ///< Stack size for the server task (10KB)
-        std::optional<core_id> core_affinity = std::nullopt; ///< Core pin (nullopt = any core)
+        /// Priority of the server task
+        task_priority priority = 5;
+        /// Stack size for the server task (10KB)
+        size_t stack_size = 10240;
+        /// Core pin (nullopt = any core)
+        std::optional<core_id> core_affinity = std::nullopt;
 
         // Network
-        uint16_t server_port = 443; ///< HTTPS listening port
-        uint16_t ctrl_port = 32769; ///< Control port for server commands
-        uint16_t backlog_conn = 5;  ///< Maximum backlog connections
+        /// HTTPS listening port
+        uint16_t server_port = 443;
+        /// Control port for server commands
+        uint16_t ctrl_port = 32769;
+        /// Maximum backlog connections
+        uint16_t backlog_conn = 5;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
         /**
          * @brief Network interface to accept connections on (nullopt = all interfaces).
@@ -95,9 +101,12 @@ public:
 #endif
 
         // Limits
-        uint16_t max_open_sockets = 4; ///< Maximum concurrent client connections
-        uint16_t max_uri_handlers = 8; ///< Maximum registered URI handlers
-        uint16_t max_resp_headers = 8; ///< Maximum additional response headers
+        /// Maximum concurrent client connections
+        uint16_t max_open_sockets = 4;
+        /// Maximum registered URI handlers
+        uint16_t max_uri_handlers = 8;
+        /// Maximum additional response headers
+        uint16_t max_resp_headers = 8;
         /**
          * @brief Maximum request header length, in bytes.
          *
@@ -114,20 +123,27 @@ public:
         size_t max_uri_len = CONFIG_HTTPD_MAX_URI_LEN;
 
         // Timeouts
-        std::chrono::seconds recv_wait_timeout{5}; ///< Receive timeout
-        std::chrono::seconds send_wait_timeout{5}; ///< Send timeout
+        /// Receive timeout
+        std::chrono::seconds recv_wait_timeout{5};
+        /// Send timeout
+        std::chrono::seconds send_wait_timeout{5};
 
         // LRU
-        bool lru_purge_enable = true; ///< Purge least-recently-used connections when full
+        /// Purge least-recently-used connections when full
+        bool lru_purge_enable = true;
 
         // SO_LINGER
-        bool enable_so_linger = false;          ///< Enable SO_LINGER on sockets
-        std::chrono::seconds linger_timeout{0}; ///< Linger timeout
+        /// Enable SO_LINGER on sockets
+        bool enable_so_linger = false;
+        /// Linger timeout
+        std::chrono::seconds linger_timeout{0};
 
         // Keep-alive
-        bool keep_alive_enable = false; ///< Enable TCP keep-alive
+        /// Enable TCP keep-alive
+        bool keep_alive_enable = false;
         /**
-         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver choose.
+         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver
+         * choose.
          *
          * A value of zero or less is rejected with idfxx::errc::invalid_arg.
          */
@@ -146,7 +162,8 @@ public:
         std::optional<int> keep_alive_count = std::nullopt;
 
         // URI matching
-        bool wildcard_uri_match = false; ///< Enable wildcard URI matching
+        /// Enable wildcard URI matching
+        bool wildcard_uri_match = false;
 
         // Session callbacks
         /**
@@ -161,18 +178,24 @@ public:
          *
          * Also called for a session rejected by on_session_open, and for a session whose TLS
          * handshake failed, for which on_session_open was never called.
-         * The server closes the session's socket after this callback returns; the callback must not close it.
-         * An exception thrown from this callback is logged and otherwise ignored.
+         * The server closes the session's socket after this callback returns; the callback must not
+         * close it. An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
 
         // TLS configuration
-        std::string server_cert = {};      ///< Server certificate (PEM format)
-        std::string private_key = {};      ///< Server private key (PEM format)
-        std::string client_ca_cert = {};   ///< CA cert for client verification (optional, PEM format)
-        bool use_ecdsa_peripheral = false; ///< Use ECDSA peripheral for key operations
-        uint8_t ecdsa_key_efuse_blk = 0;   ///< eFuse block number for ECDSA key
-        bool session_tickets = false;      ///< Enable TLS session tickets
+        /// Server certificate (PEM format)
+        std::string server_cert = {};
+        /// Server private key (PEM format)
+        std::string private_key = {};
+        /// CA cert for client verification (optional, PEM format)
+        std::string client_ca_cert = {};
+        /// Use ECDSA peripheral for key operations
+        bool use_ecdsa_peripheral = false;
+        /// eFuse block number for ECDSA key
+        uint8_t ecdsa_key_efuse_blk = 0;
+        /// Enable TLS session tickets
+        bool session_tickets = false;
         /**
          * @brief TLS handshake timeout, or std::nullopt to let the driver choose.
          *

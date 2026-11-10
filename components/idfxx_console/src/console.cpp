@@ -173,7 +173,9 @@ result<esp_console_repl_config_t> repl::_translate_config(const config& cfg) {
     idf_cfg.max_history_len = static_cast<uint32_t>(cfg.max_history_len);
     idf_cfg.task_stack_size = static_cast<uint32_t>(cfg.task_stack_size);
     idf_cfg.task_priority = static_cast<uint32_t>(cfg.priority.value());
-    idf_cfg.task_core_id = cfg.core_affinity.has_value() ? static_cast<BaseType_t>(*cfg.core_affinity) : tskNO_AFFINITY;
+    idf_cfg.task_core_id = cfg.core_affinity.has_value()
+        ? static_cast<BaseType_t>(*cfg.core_affinity)
+        : tskNO_AFFINITY;
     if (cfg.max_cmdline_length) {
         idf_cfg.max_cmdline_length = *cfg.max_cmdline_length;
     }
@@ -190,7 +192,8 @@ result<esp_console_repl_config_t> repl::_translate_config(const config& cfg) {
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
 
 result<repl> repl::make(const config& cfg, const uart_config& uart) {
-    if ((uart.tx_gpio && !uart.tx_gpio->is_connected()) || (uart.rx_gpio && !uart.rx_gpio->is_connected())) {
+    if ((uart.tx_gpio && !uart.tx_gpio->is_connected()) ||
+        (uart.rx_gpio && !uart.rx_gpio->is_connected())) {
         return error(errc::invalid_arg);
     }
 
@@ -209,7 +212,8 @@ result<repl> repl::make(const config& cfg, const uart_config& uart) {
     esp_console_dev_uart_config_t dev_cfg{};
     dev_cfg.channel = static_cast<int>(uart.port);
     dev_cfg.baud_rate = uart.baud_rate;
-    dev_cfg.tx_gpio_num = uart.tx_gpio ? uart.tx_gpio->num() : -1; // -1 keeps the port's default pin
+    // -1 keeps the port's default pin
+    dev_cfg.tx_gpio_num = uart.tx_gpio ? uart.tx_gpio->num() : -1;
     dev_cfg.rx_gpio_num = uart.rx_gpio ? uart.rx_gpio->num() : -1;
 
     esp_console_repl_t* handle = nullptr;
@@ -294,7 +298,8 @@ result<repl> repl::make(const config& cfg, usb_serial_jtag_t /*transport*/) {
     idf_cfg.history_save_path = history_path.empty() ? nullptr : history_path.c_str();
     idf_cfg.prompt = cfg.prompt ? prompt.c_str() : nullptr;
 
-    esp_console_dev_usb_serial_jtag_config_t dev_cfg = ESP_CONSOLE_DEV_USB_SERIAL_JTAG_CONFIG_DEFAULT();
+    esp_console_dev_usb_serial_jtag_config_t dev_cfg =
+        ESP_CONSOLE_DEV_USB_SERIAL_JTAG_CONFIG_DEFAULT();
 
     esp_console_repl_t* handle = nullptr;
     auto err = esp_console_new_repl_usb_serial_jtag(&dev_cfg, &idf_cfg, &handle);

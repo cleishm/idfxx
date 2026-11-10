@@ -67,7 +67,9 @@ extern "C" void app_main() {
         idfxx::delay(50ms);
     }
 
-    logger.info("Monitoring complete. Total presses: {}", press_count.load(std::memory_order_relaxed));
+    logger.info(
+        "Monitoring complete. Total presses: {}", press_count.load(std::memory_order_relaxed)
+    );
 
     // --- Cleanup (ordered) ---
     logger.info("=== Cleanup ===");

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Wakes the ESP32 from deep sleep with a PCF8563 alarm, once a minute. Each boot reports why it woke,
-// sets the alarm for the next minute and goes back to sleep; the chip's INT pin does the waking.
+// Wakes the ESP32 from deep sleep with a PCF8563 alarm, once a minute. Each boot reports why it
+// woke, sets the alarm for the next minute and goes back to sleep; the chip's INT pin does the
+// waking.
 
 #include <idfxx/i2c/master>
 #include <idfxx/log>
@@ -55,8 +56,9 @@ extern "C" void app_main() {
             now = SEED_TIME;
         }
 
-        // An EXT0 wake means INT woke the chip, and the alarm flag says the alarm drove it. The flag
-        // alone isn't enough: an alarm that fires while the chip is awake, or before a reset, also sets it.
+        // An EXT0 wake means INT woke the chip, and the alarm flag says the alarm drove it. The
+        // flag alone isn't enough: an alarm that fires while the chip is awake, or before a reset,
+        // also sets it.
         auto events = rtc.events();
         if (idfxx::sleep::wakeup_cause() == idfxx::sleep::wakeup_source::ext0 &&
             events.contains(pcf8563::event::alarm)) {
@@ -64,21 +66,23 @@ extern "C" void app_main() {
         } else {
             logger.info("first boot or another reset, at {:%F %T} UTC", *now);
         }
-        // Clearing the flag releases INT. EXT0 is level-triggered, so a pin still held low would wake
-        // the chip again at once.
+        // Clearing the flag releases INT. EXT0 is level-triggered, so a pin still held low would
+        // wake the chip again at once.
         rtc.clear_events(events);
 
-        // The alarm has whole-minute resolution, so aim for a minute boundary, and skip to the next one
-        // if this is under 30 s away: the chip could pass it before the ESP32 is asleep.
+        // The alarm has whole-minute resolution, so aim for a minute boundary, and skip to the next
+        // one if this is under 30 s away: the chip could pass it before the ESP32 is asleep.
         auto next = floor<minutes>(*now) + ALARM_INTERVAL;
         if (next - *now < 30s) {
             next += 1min;
         }
 
-        // The alarm matches the minute and hour, so it fires once a day at that time; setting it again
-        // on every boot is what makes it repeat.
+        // The alarm matches the minute and hour, so it fires once a day at that time; setting it
+        // again on every boot is what makes it repeat.
         hh_mm_ss next_time{next - floor<days>(next)};
-        rtc.set_alarm({.minute = next_time.minutes(), .hour = next_time.hours(), .interrupt = true});
+        rtc.set_alarm(
+            {.minute = next_time.minutes(), .hour = next_time.hours(), .interrupt = true}
+        );
         logger.info("sleeping until {:%F %T} UTC", next);
 
         idfxx::sleep::deep_sleep(idfxx::sleep::ext0_wake{PIN_INT, idfxx::gpio::level::low});

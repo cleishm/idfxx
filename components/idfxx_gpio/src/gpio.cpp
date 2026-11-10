@@ -66,7 +66,9 @@ result<void> gpio_handlers::activate() {
     functional.reserve(2);
 
     auto _num = num();
-    auto err = gpio_isr_handler_add(_num, &trampoline, reinterpret_cast<void*>(static_cast<uintptr_t>(_num)));
+    auto err = gpio_isr_handler_add(
+        _num, &trampoline, reinterpret_cast<void*>(static_cast<uintptr_t>(_num))
+    );
     return wrap(err).transform([this]() { activated.store(true, std::memory_order_relaxed); });
 }
 
@@ -340,7 +342,9 @@ void gpio::sleep_set_pull_mode(enum pull_mode pull) {
 
 result<void> gpio::try_install_isr_service(intr_levels levels, flags<intr_flag> intr_flags) {
     int raw = to_underlying(levels) | to_underlying(intr_flags);
-    return wrap(gpio_install_isr_service(raw)).transform([&]() { iram_isr = intr_flags.contains(intr_flag::iram); });
+    return wrap(gpio_install_isr_service(raw)).transform([&]() {
+        iram_isr = intr_flags.contains(intr_flag::iram);
+    });
 }
 
 void gpio::uninstall_isr_service() {
@@ -453,7 +457,10 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
             auto err = gpio_isr_handler_remove(_num);
             if (err != ESP_OK) {
                 ESP_LOGE(
-                    TAG, "Failed to remove ISR handler for GPIO %d: %s", static_cast<int>(_num), esp_err_to_name(err)
+                    TAG,
+                    "Failed to remove ISR handler for GPIO %d: %s",
+                    static_cast<int>(_num),
+                    esp_err_to_name(err)
                 );
             }
         }
@@ -495,7 +502,10 @@ void gpio::isr_handler_remove_all() {
             auto err = gpio_isr_handler_remove(_num);
             if (err != ESP_OK) {
                 ESP_LOGE(
-                    TAG, "Failed to remove ISR handler for GPIO %d: %s", static_cast<int>(_num), esp_err_to_name(err)
+                    TAG,
+                    "Failed to remove ISR handler for GPIO %d: %s",
+                    static_cast<int>(_num),
+                    esp_err_to_name(err)
                 );
             }
         }
@@ -506,11 +516,12 @@ result<void> try_configure_gpios(const gpio::config& cfg, std::vector<gpio> pins
     gpio_config_t gpio_config{
         .pin_bit_mask = 0,
         .mode = static_cast<gpio_mode_t>(cfg.mode),
-        .pull_up_en = (cfg.pull_mode == gpio::pull_mode::pullup || cfg.pull_mode == gpio::pull_mode::pullup_pulldown)
+        .pull_up_en = (cfg.pull_mode == gpio::pull_mode::pullup ||
+                       cfg.pull_mode == gpio::pull_mode::pullup_pulldown)
             ? GPIO_PULLUP_ENABLE
             : GPIO_PULLUP_DISABLE,
-        .pull_down_en =
-            (cfg.pull_mode == gpio::pull_mode::pulldown || cfg.pull_mode == gpio::pull_mode::pullup_pulldown)
+        .pull_down_en = (cfg.pull_mode == gpio::pull_mode::pulldown ||
+                         cfg.pull_mode == gpio::pull_mode::pullup_pulldown)
             ? GPIO_PULLDOWN_ENABLE
             : GPIO_PULLDOWN_DISABLE,
         .intr_type = static_cast<gpio_int_type_t>(cfg.intr_type),

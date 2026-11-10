@@ -474,7 +474,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void send_error(int code, std::string_view message = {}) { unwrap(try_send_error(code, message)); }
+    void send_error(int code, std::string_view message = {}) {
+        unwrap(try_send_error(code, message));
+    }
 #endif
 
     /**
@@ -724,7 +726,9 @@ public:
          *         further is received after this, and the connection is closed when the
          *         handler returns).
          */
-        [[nodiscard]] std::span<const uint8_t> read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+        [[nodiscard]] std::span<const uint8_t> read(std::span<uint8_t> buf) {
+            return unwrap(try_read(buf));
+        }
 #endif
 
         /**
@@ -813,7 +817,8 @@ public:
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame with type and payload span referencing buf.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error with idfxx::errc::invalid_size if the payload is larger than
      *         @p buf, or another error if the frame could not be received. In either case
      *         the connection is closed when the handler returns.
@@ -863,7 +868,8 @@ public:
      * @brief Sends a WebSocket text frame.
      *
      * @param text The text data to send.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error on failure.
      */
     void ws_send_text(std::string_view text) { unwrap(try_ws_send_text(text)); }
@@ -872,7 +878,8 @@ public:
      * @brief Sends a WebSocket binary frame.
      *
      * @param data The binary data to send.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error on failure.
      */
     void ws_send_binary(std::span<const uint8_t> data) { unwrap(try_ws_send_binary(data)); }
@@ -881,7 +888,8 @@ public:
      * @brief Sends a WebSocket frame with the given type.
      *
      * @param frame The frame to send.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error on failure.
      */
     void ws_send(const ws_frame& frame) { unwrap(try_ws_send(frame)); }
@@ -1124,7 +1132,8 @@ public:
         // Keep-alive
         bool keep_alive_enable = false; ///< Enable TCP keep-alive
         /**
-         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver choose.
+         * @brief Keep-alive idle time before the first probe, or std::nullopt to let the driver
+         * choose.
          *
          * A value of zero or less is rejected with idfxx::errc::invalid_arg.
          */
@@ -1156,8 +1165,8 @@ public:
          * @brief Called when a session is closed.
          *
          * Also called for a session rejected by on_session_open.
-         * The server closes the session's socket after this callback returns; the callback must not close it.
-         * An exception thrown from this callback is logged and otherwise ignored.
+         * The server closes the session's socket after this callback returns; the callback must not
+         * close it. An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
     };
@@ -1206,11 +1215,15 @@ public:
      *
      * @code
      * idfxx::http::server srv({});
-     * srv.on(idfxx::http::method::get, "/api/status", [](idfxx::http::request& req) -> idfxx::result<void> {
-     *     req.set_content_type("application/json");
-     *     req.send(R"({"status": "ok"})");
-     *     return {};
-     * });
+     * srv.on(
+     *     idfxx::http::method::get,
+     *     "/api/status",
+     *     [](idfxx::http::request& req) -> idfxx::result<void> {
+     *         req.set_content_type("application/json");
+     *         req.send(R"({"status": "ok"})");
+     *         return {};
+     *     }
+     * );
      * @endcode
      *
      * @param m The HTTP method to handle.
@@ -1231,7 +1244,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_any(std::string uri, handler_type handler) { unwrap(try_on_any(std::move(uri), std::move(handler))); }
+    void on_any(std::string uri, handler_type handler) {
+        unwrap(try_on_any(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a GET handler.
@@ -1241,7 +1256,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_get(std::string uri, handler_type handler) { unwrap(try_on_get(std::move(uri), std::move(handler))); }
+    void on_get(std::string uri, handler_type handler) {
+        unwrap(try_on_get(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a POST handler.
@@ -1251,7 +1268,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_post(std::string uri, handler_type handler) { unwrap(try_on_post(std::move(uri), std::move(handler))); }
+    void on_post(std::string uri, handler_type handler) {
+        unwrap(try_on_post(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a PUT handler.
@@ -1261,7 +1280,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_put(std::string uri, handler_type handler) { unwrap(try_on_put(std::move(uri), std::move(handler))); }
+    void on_put(std::string uri, handler_type handler) {
+        unwrap(try_on_put(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a PATCH handler.
@@ -1271,7 +1292,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_patch(std::string uri, handler_type handler) { unwrap(try_on_patch(std::move(uri), std::move(handler))); }
+    void on_patch(std::string uri, handler_type handler) {
+        unwrap(try_on_patch(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a DELETE handler.
@@ -1281,7 +1304,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_delete(std::string uri, handler_type handler) { unwrap(try_on_delete(std::move(uri), std::move(handler))); }
+    void on_delete(std::string uri, handler_type handler) {
+        unwrap(try_on_delete(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a HEAD handler.
@@ -1291,7 +1316,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void on_head(std::string uri, handler_type handler) { unwrap(try_on_head(std::move(uri), std::move(handler))); }
+    void on_head(std::string uri, handler_type handler) {
+        unwrap(try_on_head(std::move(uri), std::move(handler)));
+    }
 
     /**
      * @brief Registers a server-wide handler for an HTTP error.
@@ -1329,7 +1356,9 @@ public:
      *         server::errc::handler_exists if a handler is already registered for
      *         @p status, or idfxx::errc::invalid_state if the server is not running.
      */
-    void on_error(error_status status, error_handler_type handler) { unwrap(try_on_error(status, std::move(handler))); }
+    void on_error(error_status status, error_handler_type handler) {
+        unwrap(try_on_error(status, std::move(handler)));
+    }
 #endif
 
     /**
@@ -1457,7 +1486,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void unregister_handler(enum method m, std::string_view uri) { unwrap(try_unregister_handler(m, uri)); }
+    void unregister_handler(enum method m, std::string_view uri) {
+        unwrap(try_unregister_handler(m, uri));
+    }
 
     /**
      * @brief Unregisters the handler for an HTTP error.
@@ -1469,7 +1500,9 @@ public:
      * @throws std::system_error with idfxx::errc::not_found if no handler is registered for
      *         @p status, or idfxx::errc::invalid_state if the server is not running.
      */
-    void unregister_error_handler(error_status status) { unwrap(try_unregister_error_handler(status)); }
+    void unregister_error_handler(error_status status) {
+        unwrap(try_unregister_error_handler(status));
+    }
 #endif
 
     /**
@@ -1503,8 +1536,10 @@ public:
      * @brief WebSocket endpoint configuration.
      */
     struct ws_config {
-        bool handle_control_frames = false;     ///< Pass control frames (PING, PONG, CLOSE) to handler
-        std::string supported_subprotocol = {}; ///< Supported WebSocket subprotocol (empty = none)
+        /// Pass control frames (PING, PONG, CLOSE) to handler
+        bool handle_control_frames = false;
+        /// Supported WebSocket subprotocol (empty = none)
+        std::string supported_subprotocol = {};
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1517,7 +1552,8 @@ public:
      * @param uri The URI for the WebSocket endpoint.
      * @param handler The handler function.
      * @param ws_cfg WebSocket configuration.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error on failure.
      */
     void on_ws(std::string uri, handler_type handler, ws_config ws_cfg) {
@@ -1532,10 +1568,13 @@ public:
      *
      * @param uri The URI for the WebSocket endpoint.
      * @param handler The handler function.
-     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are enabled.
+     * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
+     * enabled.
      * @throws std::system_error on failure.
      */
-    void on_ws(std::string uri, handler_type handler) { unwrap(try_on_ws(std::move(uri), std::move(handler))); }
+    void on_ws(std::string uri, handler_type handler) {
+        unwrap(try_on_ws(std::move(uri), std::move(handler)));
+    }
 #endif
 
     /**
@@ -1630,8 +1669,11 @@ protected:
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     // Points httpd_cfg.if_name at ifr, filled from name. ifr must outlive the httpd start call.
-    [[nodiscard]] static result<void>
-    _populate_bind_to_device(struct httpd_config& httpd_cfg, std::optional<std::string_view> name, struct ifreq& ifr);
+    [[nodiscard]] static result<void> _populate_bind_to_device(
+        struct httpd_config& httpd_cfg,
+        std::optional<std::string_view> name,
+        struct ifreq& ifr
+    );
 #endif
 
 private:
@@ -1647,9 +1689,14 @@ private:
     };
 
     [[nodiscard]] result<void> _register_handler(handler_record& record);
-    [[nodiscard]] result<void> _try_register(unsigned httpd_method, std::string uri, handler_type handler);
-    [[nodiscard]] static result<httpd_handle_t>
-    _start_server(const config& cfg, server_ctx* ctx, bool has_session_open, bool has_session_close);
+    [[nodiscard]] result<void>
+    _try_register(unsigned httpd_method, std::string uri, handler_type handler);
+    [[nodiscard]] static result<httpd_handle_t> _start_server(
+        const config& cfg,
+        server_ctx* ctx,
+        bool has_session_open,
+        bool has_session_close
+    );
 
     static esp_err_t _uri_handler_trampoline(httpd_req_t* req);
 
@@ -1667,7 +1714,8 @@ private:
     stop_fn_type _stop_fn;
     std::unique_ptr<server_ctx> _ctx;
     std::list<handler_record> _handlers;
-    std::array<error_handler_type, _httpd_err_code_count> _error_handlers; // indexed by httpd_err_code_t
+    // indexed by httpd_err_code_t
+    std::array<error_handler_type, _httpd_err_code_count> _error_handlers;
     std::move_only_function<result<void>(int) const> _on_session_open;
     std::move_only_function<void(int) const> _on_session_close;
     /** @endcond */

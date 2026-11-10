@@ -125,7 +125,9 @@ result<void> arm_stream_receive(
     // to have — and §13.4.6 (table 13-68) defines payload_length as the maximum
     // the receiver accepts. Arm RX with the caller's intent, not a transmit
     // leftover.
-    if (auto e = s.write_command(internal::op_set_packet_params, internal::pack_packet_params(s.last_packet_params));
+    if (auto e = s.write_command(
+            internal::op_set_packet_params, internal::pack_packet_params(s.last_packet_params)
+        );
         !e) {
         return e;
     }
@@ -146,7 +148,9 @@ result<void> arm_stream_receive(
     std::lock_guard g(s.mu);
     s.mode = chip_mode::rx;
     s.driver_state = internal::driver_activity::rx_continuous;
-    s.duty_sleep_us = static_cast<uint32_t>(std::min<std::chrono::microseconds::rep>(sleep_period.count(), UINT32_MAX));
+    s.duty_sleep_us = static_cast<uint32_t>(
+        std::min<std::chrono::microseconds::rep>(sleep_period.count(), UINT32_MAX)
+    );
     return {};
 }
 
@@ -192,7 +196,8 @@ result<void> apply_default_config(sx126x::state& s) {
     }
 
     // Regulator (SetRegulatorMode, §13.1.11).
-    if (auto e = s.command1(internal::op_set_regulator_mode, std::to_underlying(s.cfg.regulator)); !e) {
+    if (auto e = s.command1(internal::op_set_regulator_mode, std::to_underlying(s.cfg.regulator));
+        !e) {
         return e;
     }
 
@@ -234,7 +239,8 @@ result<void> apply_default_config(sx126x::state& s) {
     // SetDioIrqParams (§13.3.1): 8 bytes — (irq_mask, dio1_mask, dio2_mask,
     // dio3_mask) MSB/LSB each. The same mask is used for latching and DIO1
     // routing; config::dio1_mask overrides the driver default.
-    const uint16_t irq_mask = s.cfg.dio1_mask ? idfxx::to_underlying(*s.cfg.dio1_mask) : default_irq_mask;
+    const uint16_t irq_mask =
+        s.cfg.dio1_mask ? idfxx::to_underlying(*s.cfg.dio1_mask) : default_irq_mask;
     std::array<uint8_t, 8> irq_params{
         static_cast<uint8_t>(irq_mask >> 8),
         static_cast<uint8_t>(irq_mask),
@@ -362,7 +368,8 @@ result<gpio::unique_isr_handle> setup_dio1_isr(sx126x::state& s) {
 // chip timeout. Unwinds to idle/standby on any post-claim error. The worker's
 // tx_done path completes the returned latch, resets the driver state, and
 // posts the event.
-result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, std::span<const uint8_t> data) {
+result<std::shared_ptr<internal::op_latch>>
+begin_transmit(sx126x::state& s, std::span<const uint8_t> data) {
     // The payload has already been validated (non-empty, <= 255 bytes) by the
     // lora_transceiver base-class wrappers.
 
@@ -413,10 +420,14 @@ idfxx::future<T> make_op_future(std::shared_ptr<internal::op_latch> latch, Extra
         if (timeout) {
             // clear_on_exit=false: every future copy sharing this latch must
             // observe the (one-shot) completion bit.
-            (void)latch->eg.try_wait(internal::completion_bit::done, *timeout, /*clear_on_exit=*/false);
+            (void)latch->eg.try_wait(
+                internal::completion_bit::done, *timeout, /*clear_on_exit=*/false
+            );
         } else {
             while (!latch->done.load(std::memory_order_acquire)) {
-                (void)latch->eg.try_wait(internal::completion_bit::done, wait_mode::all, /*clear_on_exit=*/false);
+                (void)latch->eg.try_wait(
+                    internal::completion_bit::done, wait_mode::all, /*clear_on_exit=*/false
+                );
             }
         }
         if (!latch->done.load(std::memory_order_acquire)) {
@@ -534,7 +545,9 @@ result<void> sx126x::state::wait_busy_waking() {
     // busy_timeout). A warm-started driver doesn't know the period and wakes
     // the chip promptly.
     probe += std::chrono::microseconds(duty_sleep_us.load(std::memory_order_relaxed));
-    if (busy_clears_within(cfg.busy.get(), std::min<std::chrono::microseconds>(probe, cfg.busy_timeout))) {
+    if (busy_clears_within(
+            cfg.busy.get(), std::min<std::chrono::microseconds>(probe, cfg.busy_timeout)
+        )) {
         return {};
     }
     // BUSY held high past any processing time: the chip is asleep (e.g. the
@@ -576,7 +589,8 @@ namespace {
 // Stages `header` followed by `data` into a single frame and transmits it.
 // The staging buffer is deliberately left uninitialized: every transmitted
 // byte is written below.
-result<void> write_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<const uint8_t> data) {
+result<void>
+write_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<const uint8_t> data) {
     std::array<uint8_t, internal::max_frame> buf;
     const size_t total = header.size() + data.size();
     if (total > buf.size()) {
@@ -589,7 +603,8 @@ result<void> write_framed(sx126x::state& s, std::span<const uint8_t> header, std
 
 // Transmits `header` (which includes the NOP turnaround byte), clocking out
 // one NOP per response byte, and copies the response into `out`.
-result<void> read_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<uint8_t> out) {
+result<void>
+read_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<uint8_t> out) {
     std::array<uint8_t, internal::max_frame> tx_buf;
     std::array<uint8_t, internal::max_frame> rx_buf;
     const size_t total = header.size() + out.size();
@@ -668,7 +683,10 @@ result<void> sx126x::state::write_register(uint16_t addr, std::span<const uint8_
 
 result<void> sx126x::state::read_register(uint16_t addr, std::span<uint8_t> data) {
     std::array<uint8_t, 4> header{
-        internal::op_read_register, static_cast<uint8_t>(addr >> 8), static_cast<uint8_t>(addr), 0x00
+        internal::op_read_register,
+        static_cast<uint8_t>(addr >> 8),
+        static_cast<uint8_t>(addr),
+        0x00
     }; // trailing NOP turnaround
     return read_framed(*this, header, data);
 }
@@ -679,7 +697,9 @@ result<void> sx126x::state::write_buffer(uint8_t offset, std::span<const uint8_t
 }
 
 result<void> sx126x::state::read_buffer(uint8_t offset, std::span<uint8_t> data) {
-    std::array<uint8_t, 3> header{internal::op_read_buffer, offset, 0x00}; // trailing NOP turnaround
+    std::array<uint8_t, 3> header{
+        internal::op_read_buffer, offset, 0x00
+    }; // trailing NOP turnaround
     return read_framed(*this, header, data);
 }
 
@@ -893,7 +913,10 @@ result<void> sx126x::do_start_listening() {
     return arm_stream_receive(*_state, internal::op_set_rx, params, {});
 }
 
-result<void> sx126x::do_start_listening(std::chrono::microseconds rx_period, std::chrono::microseconds sleep_period) {
+result<void> sx126x::do_start_listening(
+    std::chrono::microseconds rx_period,
+    std::chrono::microseconds sleep_period
+) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -935,9 +958,11 @@ result<idfxx::future<cad_info>> sx126x::do_start_channel_scan() {
         return error(e.error());
     }
 
-    return make_op_future<cad_info>(std::move(*latch), [](internal::op_latch& l) -> result<cad_info> {
-        return cad_info{.detected = l.cad_detected};
-    });
+    return make_op_future<cad_info>(
+        std::move(*latch), [](internal::op_latch& l) -> result<cad_info> {
+            return cad_info{.detected = l.cad_detected};
+        }
+    );
 }
 
 // =============================================================================
@@ -989,12 +1014,17 @@ result<void> sx126x::do_set_output_power(quanta::electro::dbm power, ramp_time r
     // SetPaConfig (§13.1.14) for the requested power (the SX1261's +15 dBm needs
     // a different PA duty cycle and a +14 SetTxParams byte), then SetTxParams
     // (§13.4.4).
-    auto txp = internal::tx_power_config_for(_state->cfg.variant, static_cast<int8_t>(power.count()));
-    std::array<uint8_t, 4> pa_params{txp.pa.pa_duty_cycle, txp.pa.hp_max, txp.pa.device_sel, txp.pa.pa_lut};
+    auto txp =
+        internal::tx_power_config_for(_state->cfg.variant, static_cast<int8_t>(power.count()));
+    std::array<uint8_t, 4> pa_params{
+        txp.pa.pa_duty_cycle, txp.pa.hp_max, txp.pa.device_sel, txp.pa.pa_lut
+    };
     if (auto e = _state->write_command(internal::op_set_pa_config, pa_params); !e) {
         return e;
     }
-    std::array<uint8_t, 2> params{static_cast<uint8_t>(txp.power_byte), internal::ramp_time_byte(ramp)};
+    std::array<uint8_t, 2> params{
+        static_cast<uint8_t>(txp.power_byte), internal::ramp_time_byte(ramp)
+    };
     return _state->write_command(internal::op_set_tx_params, params);
 }
 
@@ -1059,7 +1089,9 @@ result<void> sx126x::do_set_packet_params(lora_packet_params params) {
 }
 
 result<void> sx126x::do_set_sync_word(lora_network network) {
-    return try_set_sync_word(network == lora_network::public_network ? sync_word_public : sync_word_private);
+    return try_set_sync_word(
+        network == lora_network::public_network ? sync_word_public : sync_word_private
+    );
 }
 
 result<void> sx126x::try_set_sync_word(uint16_t sync_word) {
@@ -1086,7 +1118,9 @@ result<idfxx::future<void>> sx126x::do_start_transmit(std::span<const uint8_t> d
     if (!latch) {
         return error(latch.error());
     }
-    return make_op_future<void>(std::move(*latch), [](internal::op_latch&) -> result<void> { return {}; });
+    return make_op_future<void>(std::move(*latch), [](internal::op_latch&) -> result<void> {
+        return {};
+    });
 }
 
 result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffer) {
@@ -1119,7 +1153,9 @@ result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffe
         return error(e.error());
     }
 
-    return make_op_future<rx_info>(std::move(*latch), [](internal::op_latch& l) -> result<rx_info> { return l.rx; });
+    return make_op_future<rx_info>(std::move(*latch), [](internal::op_latch& l) -> result<rx_info> {
+        return l.rx;
+    });
 }
 
 result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {

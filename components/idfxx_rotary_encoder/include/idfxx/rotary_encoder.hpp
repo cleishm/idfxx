@@ -48,9 +48,10 @@ public:
      *
      * Every field other than pin_a, pin_b, and callback has a sensible default.
      *
-     * The pull mode field defaults to pullup as a convenience, but external pull-up resistors are recommended.
-     * When using external pull-ups, set the pull mode field to gpio::pull_mode::floating to disable internal
-     * pull resistors, or to std::nullopt if the pins have already been configured.
+     * The pull mode field defaults to pullup as a convenience, but external pull-up resistors are
+     * recommended. When using external pull-ups, set the pull mode field to
+     * gpio::pull_mode::floating to disable internal pull resistors, or to std::nullopt if the pins
+     * have already been configured.
      *
      * @code
      * idfxx::rotary_encoder encoder({
@@ -63,13 +64,18 @@ public:
      * @endcode
      */
     struct config {
-        idfxx::required<idfxx::gpio> pin_a; ///< Encoder pin A
-        idfxx::required<idfxx::gpio> pin_b; ///< Encoder pin B
+        /// Encoder pin A
+        idfxx::required<idfxx::gpio> pin_a;
+        /// Encoder pin B
+        idfxx::required<idfxx::gpio> pin_b;
         /// Pull mode for encoder pins A and B, or std::nullopt to leave unchanged.
         std::optional<gpio::pull_mode> encoder_pins_pull_mode = gpio::pull_mode::pullup;
-        std::chrono::milliseconds acceleration_threshold{200}; ///< Acceleration starts below this interval
-        std::chrono::milliseconds acceleration_cap{4};         ///< Minimum interval (limits max acceleration)
-        std::chrono::microseconds polling_interval{std::chrono::milliseconds{1}}; ///< GPIO polling interval
+        /// Acceleration starts below this interval
+        std::chrono::milliseconds acceleration_threshold{200};
+        /// Minimum interval (limits max acceleration)
+        std::chrono::milliseconds acceleration_cap{4};
+        /// GPIO polling interval
+        std::chrono::microseconds polling_interval{std::chrono::milliseconds{1}};
         /**
          * @brief Event callback.
          *
@@ -83,12 +89,13 @@ public:
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience; set to
-     *            gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt if the
-     *            pins have already been configured.
+     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience;
+     * set to gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt
+     * if the pins have already been configured.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
-     * @throws std::system_error with errc::invalid_arg if pin_a or pin_b is not connected, or callback is empty.
+     * @throws std::system_error with errc::invalid_arg if pin_a or pin_b is not connected, or
+     * callback is empty.
      */
     [[nodiscard]] explicit rotary_encoder(config cfg);
 #endif
@@ -96,9 +103,9 @@ public:
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience; set to
-     *            gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt if the
-     *            pins have already been configured.
+     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience;
+     * set to gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt
+     * if the pins have already been configured.
      * @return The new rotary encoder, or an error.
      * @retval invalid_arg pin_a or pin_b is not connected, or callback is empty.
      */

@@ -25,7 +25,11 @@ bool panel_io::on_color_transfer_done(
     return false;
 }
 
-panel_io::panel_io(esp_lcd_panel_io_handle_t handle, transport kind, std::unique_ptr<callback_state> callbacks)
+panel_io::panel_io(
+    esp_lcd_panel_io_handle_t handle,
+    transport kind,
+    std::unique_ptr<callback_state> callbacks
+)
     : _handle(handle)
     , _transport(kind)
     , _callbacks(std::move(callbacks)) {}
@@ -85,7 +89,9 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
     lcd_config.flags.cs_high_active = cfg.flags.cs_high_active;
 
     esp_lcd_panel_io_handle_t handle = nullptr;
-    auto err = esp_lcd_new_panel_io_spi(static_cast<spi_host_device_t>(spi_bus.host()), &lcd_config, &handle);
+    auto err = esp_lcd_new_panel_io_spi(
+        static_cast<spi_host_device_t>(spi_bus.host()), &lcd_config, &handle
+    );
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to create panel IO: %s", esp_err_to_name(err));
         return error(err);

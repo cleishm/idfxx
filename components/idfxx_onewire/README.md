@@ -180,15 +180,18 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
   - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+  - Methods without `try_` prefix throw `std::system_error` (requires
+    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 
 ## Important Notes
 
 - **Wiring**: 1-Wire devices require a 4.7k pull-up resistor on the data line
 - **Reset first**: Always call `reset()` before issuing ROM commands
 - **Single-device buses**: Use `address::any()` or `skip_rom()` to skip ROM matching
-- **Parasitic power**: Call `power()` after write commands when devices need extra power; `reset()` automatically depowers
-- **Thread safety**: All bus operations acquire the internal mutex; use `std::lock_guard` for multi-operation sequences
+- **Parasitic power**: Call `power()` after write commands when devices need extra power; `reset()`
+  automatically depowers
+- **Thread safety**: All bus operations acquire the internal mutex; use `std::lock_guard` for
+  multi-operation sequences
 
 ## License
 

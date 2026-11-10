@@ -8,13 +8,14 @@ Sends a numbered LoRa beacon every two seconds.
   driver needs
 - Setting up an SPI bus with `idfxx::spi::master_bus`
 - Creating an `idfxx::radio::sx126x` from a config with its control pins and TCXO settings
-- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding rate)
-  with `configure()`
+- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding
+  rate) with `configure()`
 - Sending a packet with `transmit()`, which waits for the packet to go out and sizes its own timeout
   from the packet's time on air
 - Catching `std::system_error` to log radio errors
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -47,9 +48,10 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 
 ## Configuration
 
-Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
-to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
+Before building, set the radio frequency to one that's allowed in your region and that your module
+and antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for
+example to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power
+(`output_power = 14_dBm`).
 
 ## How to use
 

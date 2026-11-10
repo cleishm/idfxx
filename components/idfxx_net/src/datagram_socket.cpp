@@ -99,7 +99,8 @@ void datagram_socket::set_broadcast(bool on) noexcept {
 
 namespace {
 
-result<void> ipv4_membership(int fd, address_family fam, int op, ipv4_addr group, ipv4_addr interface) {
+result<void>
+ipv4_membership(int fd, address_family fam, int op, ipv4_addr group, ipv4_addr interface) {
     if (fd < 0) {
         return error(errc::invalid_state);
     }
@@ -116,7 +117,8 @@ result<void> ipv4_membership(int fd, address_family fam, int op, ipv4_addr group
 }
 
 #ifdef CONFIG_LWIP_IPV6
-result<void> ipv6_membership(int fd, address_family fam, int op, ipv6_addr group, uint8_t if_index) {
+result<void>
+ipv6_membership(int fd, address_family fam, int op, ipv6_addr group, uint8_t if_index) {
     if (fd < 0) {
         return error(errc::invalid_state);
     }

@@ -50,9 +50,11 @@ struct ink_options {
     size_t x = 0;
     /** @brief The row of the rectangle's top edge. */
     size_t y = 0;
-    /** @brief The rectangle's width in pixels; `std::nullopt` reaches the destination's right edge. */
+    /** @brief The rectangle's width in pixels; `std::nullopt` reaches the destination's right edge.
+     */
     std::optional<size_t> width = std::nullopt;
-    /** @brief The rectangle's height in pixels; `std::nullopt` reaches the destination's bottom edge. */
+    /** @brief The rectangle's height in pixels; `std::nullopt` reaches the destination's bottom
+     * edge. */
     std::optional<size_t> height = std::nullopt;
     /**
      * @brief The number of rows read at a time.
@@ -81,13 +83,20 @@ template<byte_source Source>
     };
 }
 
-[[nodiscard]] result<void> try_write_inks(panel& display, const ink_source& source, const ink_options& options);
+[[nodiscard]] result<void>
+try_write_inks(panel& display, const ink_source& source, const ink_options& options);
 [[nodiscard]] result<void>
 try_write_inks(mono_framebuffer& framebuffer, const ink_source& source, const ink_options& options);
-[[nodiscard]] result<void>
-try_write_inks(gray4_framebuffer& framebuffer, const ink_source& source, const ink_options& options);
-[[nodiscard]] result<void>
-try_write_inks(color6_framebuffer& framebuffer, const ink_source& source, const ink_options& options);
+[[nodiscard]] result<void> try_write_inks(
+    gray4_framebuffer& framebuffer,
+    const ink_source& source,
+    const ink_options& options
+);
+[[nodiscard]] result<void> try_write_inks(
+    color6_framebuffer& framebuffer,
+    const ink_source& source,
+    const ink_options& options
+);
 
 } // namespace detail
 /** @endcond */
@@ -299,7 +308,8 @@ void write_inks(color6_framebuffer& framebuffer, Source& source, const ink_optio
  * @retval other An error from the source or the panel, unchanged.
  */
 template<byte_source Source>
-[[nodiscard]] result<void> try_write_inks(panel& display, Source& source, const ink_options& options = {}) {
+[[nodiscard]] result<void>
+try_write_inks(panel& display, Source& source, const ink_options& options = {}) {
     return detail::try_write_inks(display, detail::to_ink_source(source), options);
 }
 

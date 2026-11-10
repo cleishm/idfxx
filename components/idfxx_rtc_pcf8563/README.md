@@ -6,11 +6,11 @@ NXP PCF8563 real-time clock driver, with alarm, countdown timer and clock output
 
 ## Features
 
-- Calendar time through the chip-agnostic `idfxx::rtc::clock` interface (`now()`, `set_time()`),
-  as `std::chrono::sys_seconds` in UTC
+- Calendar time through the chip-agnostic `idfxx::rtc::clock` interface (`now()`, `set_time()`), as
+  `std::chrono::sys_seconds` in UTC
 - Never reports a time it can't trust: a lost time (the chip's voltage-low flag), a stopped clock,
-  and corrupt or impossible register contents all count as not valid, `now()` returns
-  `std::nullopt` while the time is not valid, and `set_time()` makes it valid again in every case
+  and corrupt or impossible register contents all count as not valid, `now()` returns `std::nullopt`
+  while the time is not valid, and `set_time()` makes it valid again in every case
 - Alarm on any combination of minute, hour, day of the month and weekday, with an optional interrupt
 - Countdown timer from 1/4096 s to 255 minutes, set as any integer `std::chrono` duration (exact,
   never rounded) or as an explicit source and count, with level or pulse interrupts
@@ -192,14 +192,16 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
   - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+  - Methods without `try_` prefix throw `std::system_error` (requires
+    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - **Time that is not valid**: not an error. `now()` returns `std::nullopt` while the voltage-low
   flag is set (such as on first boot or after a battery change), the clock is stopped, or the time
   registers hold corrupt BCD, an impossible date, or the century bit. Reseed the clock with
   `set_time()`, which also restarts a stopped clock
 - **Error codes**:
-  - `errc::invalid_arg` - An I2C clock above 400 kHz, a time outside 2000–2099, an alarm field out of
-    range, a timer period the timer can't produce exactly, or a timer count of 0; nothing is written
+  - `errc::invalid_arg` - An I2C clock above 400 kHz, a time outside 2000–2099, an alarm field out
+    of range, a timer period the timer can't produce exactly, or a timer count of 0; nothing is
+    written
   - `errc::not_found` - No chip acknowledged the probe when the driver was created
   - `errc::invalid_state` - From `alarm()`: an enabled alarm field read back from the chip holds an
     impossible value; set the alarm again with `set_alarm()`
@@ -211,23 +213,22 @@ clock is stopped, its time is not valid: `now()` returns `std::nullopt`.
 
 ## Important Notes
 
-- **Time range**: The chip holds 2000-01-01T00:00:00 to 2099-12-31T23:59:59 UTC. `set_time()`
-  writes the century bit as 0 and the weekday from the date.
+- **Time range**: The chip holds 2000-01-01T00:00:00 to 2099-12-31T23:59:59 UTC. `set_time()` writes
+  the century bit as 0 and the weekday from the date.
 - **Voltage-low flag**: The chip sets it at power-on and when its supply drops too far to keep
   reliable time. Only `set_time()` clears it.
-- **CLKOUT**: The clock output runs at 32.768 kHz from power-on. Boards that don't use it should call
-  `set_clkout(std::nullopt)` to save current. Creating the driver doesn't change it.
+- **CLKOUT**: The clock output runs at 32.768 kHz from power-on. Boards that don't use it should
+  call `set_clkout(std::nullopt)` to save current. Creating the driver doesn't change it.
 - **No writes at creation**: Creating the driver only probes the chip's address. It doesn't clear
   the STOP bit, the alarm or timer flags, or change the clock output.
 - **Stopped clock**: While the STOP bit is set, the time is not valid: `now()` returns
-  `std::nullopt`. `set_time()` writes the time, then clears STOP, so
-  the time is valid afterward; if clearing STOP fails, the time is already written and
-  `set_time()` reports the transfer error.
-- **Event flags**: The alarm and timer flags stay set until cleared. `clear_events()` clears only the
-  flags it is given, and no other operation clears either. Clearing the events that `events()`
+  `std::nullopt`. `set_time()` writes the time, then clears STOP, so the time is valid afterward; if
+  clearing STOP fails, the time is already written and `set_time()` reports the transfer error.
+- **Event flags**: The alarm and timer flags stay set until cleared. `clear_events()` clears only
+  the flags it is given, and no other operation clears either. Clearing the events that `events()`
   returned never wipes one that arrived after the read.
-- **Alarm weekday**: The weekday field matches the chip's weekday register, which `set_time()` writes
-  from the date.
+- **Alarm weekday**: The weekday field matches the chip's weekday register, which `set_time()`
+  writes from the date.
 - **Countdown timer**: `start_timer()` picks the fastest source that gives the period exactly (30 s
   runs at 1 Hz with a count of 30, 250 ms at 64 Hz with a count of 16; 100 ms can't be produced and
   is rejected, never rounded). Periods must use an integer rep. It disables the timer with the new

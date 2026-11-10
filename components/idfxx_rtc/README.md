@@ -6,8 +6,8 @@ Abstract interface for external real-time-clock chips.
 
 ## Features
 
-- Abstract `idfxx::rtc::clock` base class — drivers for battery-backed real-time-clock chips (such as
-  the PCF8563) implement this single interface, so application code can target any of them
+- Abstract `idfxx::rtc::clock` base class — drivers for battery-backed real-time-clock chips (such
+  as the PCF8563) implement this single interface, so application code can target any of them
 - Calendar time as `std::chrono::sys_seconds` (UTC)
 - Reads the time only while the clock is keeping reliable time — not lost (supply or oscillator
   failure), not stopped, and holding a time the chip can represent — and returns `std::nullopt`
@@ -115,7 +115,8 @@ Drivers implement the protected `do_now()` and `do_set_time()` hooks.
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
   - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+  - Methods without `try_` prefix throw `std::system_error` (requires
+    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - **Time that is not valid**: not an error. `now()` returns `std::nullopt` while the chip has lost
   track of the time (such as on first boot or after a battery change), the clock is stopped, or it
   holds a time the chip can't represent. Reseed the clock with `set_time()`, which also restarts a

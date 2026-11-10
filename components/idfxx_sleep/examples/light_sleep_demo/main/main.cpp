@@ -38,12 +38,15 @@ extern "C" void app_main() {
     pin.set_pull_mode(idfxx::gpio::pull_mode::pullup);
 
     for (int cycle = 1;; ++cycle) {
-        logger.info("cycle {}: entering light sleep (timer {}, or press BOOT)", cycle, SLEEP_INTERVAL);
+        logger.info(
+            "cycle {}: entering light sleep (timer {}, or press BOOT)", cycle, SLEEP_INTERVAL
+        );
 
         // GPIO wake-up is level-triggered: a held button wakes the chip
         // immediately.
         const auto cause = idfxx::sleep::light_sleep(
-            idfxx::sleep::timer_wake{SLEEP_INTERVAL}, idfxx::sleep::gpio_wake{pin, idfxx::gpio::level::low}
+            idfxx::sleep::timer_wake{SLEEP_INTERVAL},
+            idfxx::sleep::gpio_wake{pin, idfxx::gpio::level::low}
         );
 
         switch (cause) {

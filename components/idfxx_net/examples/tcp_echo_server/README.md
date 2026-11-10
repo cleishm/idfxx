@@ -4,12 +4,14 @@ A TCP server that sends back whatever a client sends it.
 
 ## What it demonstrates
 
-- Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an `idfxx::event_group`
+- Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an
+  `idfxx::event_group`
 - Listening on a port with `idfxx::net::listener`
 - Accepting a connection, along with the client's address, with `accept_with_peer()`
 - Echoing data with the client socket's `recv()` and `send_all()` until the client disconnects
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -38,16 +40,18 @@ Set the target:
 idf.py set-target esp32
 ```
 
-Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and flash
-it, and watch the serial output:
+Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and
+flash it, and watch the serial output:
 
 ```bash
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-Once the board joins the network, it logs its IP address. From the other computer, connect to port 8080:
+Once the board joins the network, it logs its IP address. From the other computer, connect to port
+8080:
 
 ```bash
 nc <IP> 8080

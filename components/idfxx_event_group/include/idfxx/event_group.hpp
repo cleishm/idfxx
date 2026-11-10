@@ -225,8 +225,12 @@ public:
      *         is not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    flags<E>
-    wait(flags<E> bits, wait_mode mode, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
+    flags<E> wait(
+        flags<E> bits,
+        wait_mode mode,
+        const std::chrono::duration<Rep, Period>& timeout,
+        bool clear_on_exit = true
+    ) {
         return unwrap(try_wait(bits, mode, timeout, clear_on_exit));
     }
 
@@ -247,7 +251,11 @@ public:
      *         is not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    flags<E> wait(flags<E> bits, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
+    flags<E> wait(
+        flags<E> bits,
+        const std::chrono::duration<Rep, Period>& timeout,
+        bool clear_on_exit = true
+    ) {
         return unwrap(try_wait(bits, wait_mode::all, timeout, clear_on_exit));
     }
 
@@ -294,8 +302,11 @@ public:
      *         is not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    flags<E>
-    wait_until(flags<E> bits, const std::chrono::time_point<Clock, Duration>& deadline, bool clear_on_exit = true) {
+    flags<E> wait_until(
+        flags<E> bits,
+        const std::chrono::time_point<Clock, Duration>& deadline,
+        bool clear_on_exit = true
+    ) {
         return unwrap(try_wait_until(bits, wait_mode::all, deadline, clear_on_exit));
     }
 #endif
@@ -313,7 +324,8 @@ public:
      * @return The event group bits at the time the wait condition was satisfied, or an error.
      * @retval timeout The wait condition was not satisfied.
      */
-    result<flags<E>> try_wait(flags<E> bits, wait_mode mode = wait_mode::all, bool clear_on_exit = true) {
+    result<flags<E>>
+    try_wait(flags<E> bits, wait_mode mode = wait_mode::all, bool clear_on_exit = true) {
         return _try_wait(bits, mode, clear_on_exit, portMAX_DELAY);
     }
 
@@ -356,8 +368,11 @@ public:
      * @retval timeout The wait condition was not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<flags<E>>
-    try_wait(flags<E> bits, const std::chrono::duration<Rep, Period>& timeout, bool clear_on_exit = true) {
+    [[nodiscard]] result<flags<E>> try_wait(
+        flags<E> bits,
+        const std::chrono::duration<Rep, Period>& timeout,
+        bool clear_on_exit = true
+    ) {
         return _try_wait(bits, wait_mode::all, clear_on_exit, chrono::ticks(timeout));
     }
 
@@ -404,8 +419,11 @@ public:
      * @retval timeout The wait condition was not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<flags<E>>
-    try_wait_until(flags<E> bits, const std::chrono::time_point<Clock, Duration>& deadline, bool clear_on_exit = true) {
+    [[nodiscard]] result<flags<E>> try_wait_until(
+        flags<E> bits,
+        const std::chrono::time_point<Clock, Duration>& deadline,
+        bool clear_on_exit = true
+    ) {
         return try_wait_until(bits, wait_mode::all, deadline, clear_on_exit);
     }
 
@@ -431,7 +449,9 @@ public:
      * @throws std::system_error with idfxx::errc::timeout if the wait condition
      *         is not satisfied.
      */
-    flags<E> sync(flags<E> set_bits, flags<E> wait_bits) { return unwrap(try_sync(set_bits, wait_bits)); }
+    flags<E> sync(flags<E> set_bits, flags<E> wait_bits) {
+        return unwrap(try_sync(set_bits, wait_bits));
+    }
 
     /**
      * @brief Atomically sets bits and waits for other bits, with a timeout.
@@ -449,7 +469,8 @@ public:
      *         is not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    flags<E> sync(flags<E> set_bits, flags<E> wait_bits, const std::chrono::duration<Rep, Period>& timeout) {
+    flags<E>
+    sync(flags<E> set_bits, flags<E> wait_bits, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_sync(set_bits, wait_bits, timeout));
     }
 
@@ -469,8 +490,11 @@ public:
      *         is not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    flags<E>
-    sync_until(flags<E> set_bits, flags<E> wait_bits, const std::chrono::time_point<Clock, Duration>& deadline) {
+    flags<E> sync_until(
+        flags<E> set_bits,
+        flags<E> wait_bits,
+        const std::chrono::time_point<Clock, Duration>& deadline
+    ) {
         return unwrap(try_sync_until(set_bits, wait_bits, deadline));
     }
 #endif
@@ -487,7 +511,8 @@ public:
      *
      * @param set_bits The bits to set before waiting.
      * @param wait_bits The bits to wait for (all must be set).
-     * @return The event group bits at the time all wait bits were set (before clearing), or an error.
+     * @return The event group bits at the time all wait bits were set (before clearing), or an
+     * error.
      * @retval timeout The wait condition was not satisfied.
      */
     result<flags<E>> try_sync(flags<E> set_bits, flags<E> wait_bits) {
@@ -504,12 +529,16 @@ public:
      * @param set_bits The bits to set before waiting.
      * @param wait_bits The bits to wait for (all must be set).
      * @param timeout Maximum time to wait.
-     * @return The event group bits at the time all wait bits were set (before clearing), or an error.
+     * @return The event group bits at the time all wait bits were set (before clearing), or an
+     * error.
      * @retval timeout The wait condition was not satisfied within the timeout.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<flags<E>>
-    try_sync(flags<E> set_bits, flags<E> wait_bits, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<flags<E>> try_sync(
+        flags<E> set_bits,
+        flags<E> wait_bits,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return _try_sync(set_bits, wait_bits, chrono::ticks(timeout));
     }
 
@@ -523,12 +552,16 @@ public:
      * @param set_bits The bits to set before waiting.
      * @param wait_bits The bits to wait for (all must be set).
      * @param deadline The time point at which to stop waiting.
-     * @return The event group bits at the time all wait bits were set (before clearing), or an error.
+     * @return The event group bits at the time all wait bits were set (before clearing), or an
+     * error.
      * @retval timeout The wait condition was not satisfied before the deadline.
      */
     template<typename Clock, typename Duration>
-    [[nodiscard]] result<flags<E>>
-    try_sync_until(flags<E> set_bits, flags<E> wait_bits, const std::chrono::time_point<Clock, Duration>& deadline) {
+    [[nodiscard]] result<flags<E>> try_sync_until(
+        flags<E> set_bits,
+        flags<E> wait_bits,
+        const std::chrono::time_point<Clock, Duration>& deadline
+    ) {
         auto remaining = deadline - Clock::now();
         if (remaining <= decltype(remaining)::zero()) {
             return _try_sync(set_bits, wait_bits, 0);
@@ -629,7 +662,8 @@ private:
         return flags<E>(static_cast<std::underlying_type_t<E>>(bits));
     }
 
-    [[nodiscard]] result<flags<E>> _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
+    [[nodiscard]] result<flags<E>>
+    _try_wait(flags<E> bits, wait_mode mode, bool clear_on_exit, TickType_t ticks) {
         if (_handle == nullptr) {
             return error(errc::invalid_state);
         }
@@ -641,18 +675,21 @@ private:
             ticks
         );
         auto result_flags = _from_bits(result_bits);
-        bool satisfied = (mode == wait_mode::all) ? result_flags.contains(bits) : result_flags.contains_any(bits);
+        bool satisfied = (mode == wait_mode::all) ? result_flags.contains(bits)
+                                                  : result_flags.contains_any(bits);
         if (!satisfied) {
             return error(errc::timeout);
         }
         return result_flags;
     }
 
-    [[nodiscard]] result<flags<E>> _try_sync(flags<E> set_bits, flags<E> wait_bits, TickType_t ticks) {
+    [[nodiscard]] result<flags<E>>
+    _try_sync(flags<E> set_bits, flags<E> wait_bits, TickType_t ticks) {
         if (_handle == nullptr) {
             return error(errc::invalid_state);
         }
-        EventBits_t result_bits = xEventGroupSync(_handle, to_underlying(set_bits), to_underlying(wait_bits), ticks);
+        EventBits_t result_bits =
+            xEventGroupSync(_handle, to_underlying(set_bits), to_underlying(wait_bits), ticks);
         auto result_flags = _from_bits(result_bits);
         if (!result_flags.contains(wait_bits)) {
             return error(errc::timeout);

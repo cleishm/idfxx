@@ -14,54 +14,129 @@
 // Verify type enum values match ESP-IDF constants
 static_assert(std::to_underlying(idfxx::partition::type::app) == ESP_PARTITION_TYPE_APP);
 static_assert(std::to_underlying(idfxx::partition::type::data) == ESP_PARTITION_TYPE_DATA);
-static_assert(std::to_underlying(idfxx::partition::type::bootloader) == ESP_PARTITION_TYPE_BOOTLOADER);
-static_assert(std::to_underlying(idfxx::partition::type::partition_table) == ESP_PARTITION_TYPE_PARTITION_TABLE);
+static_assert(
+    std::to_underlying(idfxx::partition::type::bootloader) == ESP_PARTITION_TYPE_BOOTLOADER
+);
+static_assert(
+    std::to_underlying(idfxx::partition::type::partition_table) ==
+    ESP_PARTITION_TYPE_PARTITION_TABLE
+);
 static_assert(std::to_underlying(idfxx::partition::type::any) == ESP_PARTITION_TYPE_ANY);
 
 // Verify subtype enum values match ESP-IDF constants
 static_assert(
-    std::to_underlying(idfxx::partition::subtype::bootloader_primary) == ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY
+    std::to_underlying(idfxx::partition::subtype::bootloader_primary) ==
+    ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY
 );
-static_assert(std::to_underlying(idfxx::partition::subtype::bootloader_ota) == ESP_PARTITION_SUBTYPE_BOOTLOADER_OTA);
 static_assert(
-    std::to_underlying(idfxx::partition::subtype::bootloader_recovery) == ESP_PARTITION_SUBTYPE_BOOTLOADER_RECOVERY
+    std::to_underlying(idfxx::partition::subtype::bootloader_ota) ==
+    ESP_PARTITION_SUBTYPE_BOOTLOADER_OTA
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::bootloader_recovery) ==
+    ESP_PARTITION_SUBTYPE_BOOTLOADER_RECOVERY
 );
 static_assert(
     std::to_underlying(idfxx::partition::subtype::partition_table_primary) ==
     ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY
 );
 static_assert(
-    std::to_underlying(idfxx::partition::subtype::partition_table_ota) == ESP_PARTITION_SUBTYPE_PARTITION_TABLE_OTA
+    std::to_underlying(idfxx::partition::subtype::partition_table_ota) ==
+    ESP_PARTITION_SUBTYPE_PARTITION_TABLE_OTA
 );
-static_assert(std::to_underlying(idfxx::partition::subtype::app_factory) == ESP_PARTITION_SUBTYPE_APP_FACTORY);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_0) == ESP_PARTITION_SUBTYPE_APP_OTA_0);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_1) == ESP_PARTITION_SUBTYPE_APP_OTA_1);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_2) == ESP_PARTITION_SUBTYPE_APP_OTA_2);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_3) == ESP_PARTITION_SUBTYPE_APP_OTA_3);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_4) == ESP_PARTITION_SUBTYPE_APP_OTA_4);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_5) == ESP_PARTITION_SUBTYPE_APP_OTA_5);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_6) == ESP_PARTITION_SUBTYPE_APP_OTA_6);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_7) == ESP_PARTITION_SUBTYPE_APP_OTA_7);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_8) == ESP_PARTITION_SUBTYPE_APP_OTA_8);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_9) == ESP_PARTITION_SUBTYPE_APP_OTA_9);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_10) == ESP_PARTITION_SUBTYPE_APP_OTA_10);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_11) == ESP_PARTITION_SUBTYPE_APP_OTA_11);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_12) == ESP_PARTITION_SUBTYPE_APP_OTA_12);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_13) == ESP_PARTITION_SUBTYPE_APP_OTA_13);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_14) == ESP_PARTITION_SUBTYPE_APP_OTA_14);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_ota_15) == ESP_PARTITION_SUBTYPE_APP_OTA_15);
-static_assert(std::to_underlying(idfxx::partition::subtype::app_test) == ESP_PARTITION_SUBTYPE_APP_TEST);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_ota) == ESP_PARTITION_SUBTYPE_DATA_OTA);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_phy) == ESP_PARTITION_SUBTYPE_DATA_PHY);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_nvs) == ESP_PARTITION_SUBTYPE_DATA_NVS);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_coredump) == ESP_PARTITION_SUBTYPE_DATA_COREDUMP);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_nvs_keys) == ESP_PARTITION_SUBTYPE_DATA_NVS_KEYS);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_efuse_em) == ESP_PARTITION_SUBTYPE_DATA_EFUSE_EM);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_undefined) == ESP_PARTITION_SUBTYPE_DATA_UNDEFINED);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_esphttpd) == ESP_PARTITION_SUBTYPE_DATA_ESPHTTPD);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_fat) == ESP_PARTITION_SUBTYPE_DATA_FAT);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_spiffs) == ESP_PARTITION_SUBTYPE_DATA_SPIFFS);
-static_assert(std::to_underlying(idfxx::partition::subtype::data_littlefs) == ESP_PARTITION_SUBTYPE_DATA_LITTLEFS);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_factory) == ESP_PARTITION_SUBTYPE_APP_FACTORY
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_0) == ESP_PARTITION_SUBTYPE_APP_OTA_0
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_1) == ESP_PARTITION_SUBTYPE_APP_OTA_1
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_2) == ESP_PARTITION_SUBTYPE_APP_OTA_2
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_3) == ESP_PARTITION_SUBTYPE_APP_OTA_3
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_4) == ESP_PARTITION_SUBTYPE_APP_OTA_4
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_5) == ESP_PARTITION_SUBTYPE_APP_OTA_5
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_6) == ESP_PARTITION_SUBTYPE_APP_OTA_6
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_7) == ESP_PARTITION_SUBTYPE_APP_OTA_7
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_8) == ESP_PARTITION_SUBTYPE_APP_OTA_8
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_9) == ESP_PARTITION_SUBTYPE_APP_OTA_9
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_10) == ESP_PARTITION_SUBTYPE_APP_OTA_10
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_11) == ESP_PARTITION_SUBTYPE_APP_OTA_11
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_12) == ESP_PARTITION_SUBTYPE_APP_OTA_12
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_13) == ESP_PARTITION_SUBTYPE_APP_OTA_13
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_14) == ESP_PARTITION_SUBTYPE_APP_OTA_14
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_ota_15) == ESP_PARTITION_SUBTYPE_APP_OTA_15
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::app_test) == ESP_PARTITION_SUBTYPE_APP_TEST
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_ota) == ESP_PARTITION_SUBTYPE_DATA_OTA
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_phy) == ESP_PARTITION_SUBTYPE_DATA_PHY
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_nvs) == ESP_PARTITION_SUBTYPE_DATA_NVS
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_coredump) ==
+    ESP_PARTITION_SUBTYPE_DATA_COREDUMP
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_nvs_keys) ==
+    ESP_PARTITION_SUBTYPE_DATA_NVS_KEYS
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_efuse_em) ==
+    ESP_PARTITION_SUBTYPE_DATA_EFUSE_EM
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_undefined) ==
+    ESP_PARTITION_SUBTYPE_DATA_UNDEFINED
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_esphttpd) ==
+    ESP_PARTITION_SUBTYPE_DATA_ESPHTTPD
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_fat) == ESP_PARTITION_SUBTYPE_DATA_FAT
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_spiffs) == ESP_PARTITION_SUBTYPE_DATA_SPIFFS
+);
+static_assert(
+    std::to_underlying(idfxx::partition::subtype::data_littlefs) ==
+    ESP_PARTITION_SUBTYPE_DATA_LITTLEFS
+);
 static_assert(std::to_underlying(idfxx::partition::subtype::any) == ESP_PARTITION_SUBTYPE_ANY);
 
 // Verify mmap_memory enum values match ESP-IDF constants
@@ -114,7 +189,8 @@ static result<void> checked(esp_err_t err, const char* op) {
     return {};
 }
 
-static const esp_partition_t* find_first(enum partition::type pt, enum partition::subtype ps, std::string_view label) {
+static const esp_partition_t*
+find_first(enum partition::type pt, enum partition::subtype ps, std::string_view label) {
     label_buf lb{label};
     return esp_partition_find_first(
         static_cast<esp_partition_type_t>(pt), static_cast<esp_partition_subtype_t>(ps), lb.c_str
@@ -156,9 +232,9 @@ std::vector<partition> partition::find_all(enum type pt, enum subtype ps, std::s
     };
 
     std::vector<partition> results;
-    iterator_guard guard{
-        esp_partition_find(static_cast<esp_partition_type_t>(pt), static_cast<esp_partition_subtype_t>(ps), lb.c_str)
-    };
+    iterator_guard guard{esp_partition_find(
+        static_cast<esp_partition_type_t>(pt), static_cast<esp_partition_subtype_t>(ps), lb.c_str
+    )};
     while (guard.it != nullptr) {
         const esp_partition_t* part = esp_partition_get(guard.it);
         if (part != nullptr) {
@@ -223,7 +299,8 @@ result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size) c
     return try_mmap(offset, size, mmap_config{});
 }
 
-result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, const mmap_config& cfg) const {
+result<partition::mmap_handle>
+partition::try_mmap(size_t offset, size_t size, const mmap_config& cfg) const {
     const void* ptr = nullptr;
     esp_partition_mmap_handle_t handle = 0;
     auto flags = static_cast<int>(cfg.memory);
@@ -232,7 +309,9 @@ result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, c
         flags |= ESP_PARTITION_MMAP_BLOCKS_WRITE;
     }
 #endif
-    esp_err_t err = esp_partition_mmap(_part, offset, size, static_cast<idf_mmap_memory_t>(flags), &ptr, &handle);
+    esp_err_t err = esp_partition_mmap(
+        _part, offset, size, static_cast<idf_mmap_memory_t>(flags), &ptr, &handle
+    );
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "partition mmap failed: %s", esp_err_to_name(err));
         return error(err);
@@ -240,7 +319,8 @@ result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, c
     return mmap_handle{ptr, size, handle};
 }
 
-result<partition::mmap_handle> partition::try_mmap(size_t offset, size_t size, enum mmap_memory memory) const {
+result<partition::mmap_handle>
+partition::try_mmap(size_t offset, size_t size, enum mmap_memory memory) const {
     return try_mmap(offset, size, mmap_config{.memory = memory});
 }
 
@@ -252,7 +332,11 @@ bool partition::check_identity(const partition& other) const {
 // mmap_handle
 // =========================================================================
 
-partition::mmap_handle::mmap_handle(const void* ptr, size_t size, esp_partition_mmap_handle_t handle)
+partition::mmap_handle::mmap_handle(
+    const void* ptr,
+    size_t size,
+    esp_partition_mmap_handle_t handle
+)
     : _ptr(ptr)
     , _size(size)
     , _handle(handle) {}
@@ -292,7 +376,8 @@ esp_partition_mmap_handle_t partition::mmap_handle::release() noexcept {
 // partition_source
 // =========================================================================
 
-result<partition_source> partition_source::make(const partition& part, size_t offset, size_t length) {
+result<partition_source>
+partition_source::make(const partition& part, size_t offset, size_t length) {
     const size_t size = part.size();
     // Written to avoid overflow: offset + length may not fit in size_t
     if (offset > size || length > size - offset) {

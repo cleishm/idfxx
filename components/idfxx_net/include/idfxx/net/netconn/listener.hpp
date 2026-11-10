@@ -73,7 +73,8 @@ public:
     listener();
 #endif
 
-    /** @brief Creates an unbound TCP listening netconn (IPv4). @return The new listener, or an error. */
+    /** @brief Creates an unbound TCP listening netconn (IPv4). @return The new listener, or an
+     * error. */
     [[nodiscard]] static result<listener> make();
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -136,7 +137,8 @@ public:
      * @param backlog   Pending connection queue depth.
      * @return The bound, listening listener, or an error.
      */
-    [[nodiscard]] static result<listener> make(const endpoint& bind_addr, int backlog = default_backlog);
+    [[nodiscard]] static result<listener>
+    make(const endpoint& bind_addr, int backlog = default_backlog);
 
     /**
      * @brief Creates a TCP listening netconn bound to all local interfaces on @p port.
@@ -191,7 +193,9 @@ public:
      *
      * @return The connected channel and the peer's endpoint.
      */
-    [[nodiscard]] accepted_channel accept_with_peer() { return idfxx::unwrap(try_accept_with_peer()); }
+    [[nodiscard]] accepted_channel accept_with_peer() {
+        return idfxx::unwrap(try_accept_with_peer());
+    }
 #endif
 
     /**

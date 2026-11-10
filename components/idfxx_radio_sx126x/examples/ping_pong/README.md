@@ -8,16 +8,17 @@ Two boards bounce a counter back and forth over LoRa.
   driver needs
 - Setting up an SPI bus with `idfxx::spi::master_bus`
 - Creating an `idfxx::radio::sx126x` from a config with its control pins and TCXO settings
-- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding rate)
-  with `configure()`
-- Waiting for a packet with `try_receive()` and a timeout, and using the timeout to decide which board
-  starts
+- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding
+  rate) with `configure()`
+- Waiting for a packet with `try_receive()` and a timeout, and using the timeout to decide which
+  board starts
 - Sending with `try_transmit()`, which sizes its own timeout from the packet's time on air
 - Reading each packet's RSSI and SNR
 - Catching `std::system_error` to log radio errors
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`),
-with `try_receive()` and `try_transmit()` where it handles timeouts and errors and carries on.
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`), with `try_receive()` and `try_transmit()` where it handles timeouts and
+errors and carries on.
 
 ## Hardware required
 
@@ -50,9 +51,10 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 
 ## Configuration
 
-Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
-to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
+Before building, set the radio frequency to one that's allowed in your region and that your module
+and antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for
+example to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power
+(`output_power = 14_dBm`).
 
 ## How to use
 
@@ -78,9 +80,10 @@ idf.py -p PORT flash monitor
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
 You need two boards, both flashed with this example and set to the same frequency. At startup each
-board listens for 5 seconds plus a random extra of up to 2 seconds, so two boards that start together
-don't time out at the same moment. A board that hears nothing becomes the initiator and sends
-`PING 0000`; a board that hears a packet becomes the responder. Each board answers every packet it
-receives with the counter plus one: the initiator sends `PING` packets and the responder sends `PONG`
-packets, and both log the RSSI and SNR of what they receive. If a board gets no reply within 3 seconds,
-it listens again, with a fresh random extra wait, and the two boards pick a new initiator.
+board listens for 5 seconds plus a random extra of up to 2 seconds, so two boards that start
+together don't time out at the same moment. A board that hears nothing becomes the initiator and
+sends `PING 0000`; a board that hears a packet becomes the responder. Each board answers every
+packet it receives with the counter plus one: the initiator sends `PING` packets and the responder
+sends `PONG` packets, and both log the RSSI and SNR of what they receive. If a board gets no reply
+within 3 seconds, it listens again, with a fresh random extra wait, and the two boards pick a new
+initiator.

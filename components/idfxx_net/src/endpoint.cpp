@@ -76,7 +76,8 @@ namespace idfxx {
 
 std::string to_string(const net::endpoint& ep) {
     char port_buf[6];
-    auto port_len = std::snprintf(port_buf, sizeof(port_buf), "%u", static_cast<unsigned>(ep.port()));
+    auto port_len =
+        std::snprintf(port_buf, sizeof(port_buf), "%u", static_cast<unsigned>(ep.port()));
     if (auto v4 = ep.address<net::ipv4_addr>()) {
         std::string out = to_string(*v4);
         out.reserve(out.size() + 1 + port_len);

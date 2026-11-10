@@ -1,7 +1,7 @@
 # Line Chart
 
-Plots a scrolling line chart of a simulated temperature on an SSD1306 OLED, showing how to animate with
-`idfxx::gfx::canvas`.
+Plots a scrolling line chart of a simulated temperature on an SSD1306 OLED, showing how to animate
+with `idfxx::gfx::canvas`.
 
 ## What it demonstrates
 
@@ -10,11 +10,12 @@ Plots a scrolling line chart of a simulated temperature on an SSD1306 OLED, show
 - Drawing into an `idfxx::lcd::mono_framebuffer` through an `idfxx::gfx::canvas`
 - Animating by clearing the canvas with `clear()` and redrawing the whole frame on each tick
 - Drawing a text readout with `draw_text()` and the `idfxx::font::spleen_5x8` font
-- Drawing the chart frame with `draw_rect()`, a dotted midline with `draw_hline()`, and the data as a line with
-  `draw_line()`
+- Drawing the chart frame with `draw_rect()`, a dotted midline with `draw_hline()`, and the data as
+  a line with `draw_line()`
 - Sending each frame to the display with `write()`, about 10 times a second
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -51,7 +52,8 @@ idf.py set-target esp32s3
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-The display shows the latest reading (for example "temp 23.7C") above a framed chart. The simulated temperature
-wanders between 18 °C and 30 °C, and its trace scrolls from right to left.
+The display shows the latest reading (for example "temp 23.7C") above a framed chart. The simulated
+temperature wanders between 18 °C and 30 °C, and its trace scrolls from right to left.

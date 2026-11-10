@@ -63,12 +63,14 @@ extern "C" void app_main() {
             logger.info("Open http://{}/hello?name=esp32 in your browser", info.ip4.ip);
         });
 
-        loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            if (auto r = idfxx::wifi::try_connect(); !r) {
-                logger.error("Reconnect failed: {}", r.error().message());
+        loop.listener_add(
+            idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+                logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+                if (auto r = idfxx::wifi::try_connect(); !r) {
+                    logger.error("Reconnect failed: {}", r.error().message());
+                }
             }
-        });
+        );
 
         // --- Connect to WiFi ---
         idfxx::wifi::init();

@@ -47,7 +47,9 @@ public:
      *         received zero-length datagram — connectionless sockets have no
      *         end-of-stream, so it never signals peer close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) { return idfxx::unwrap(try_recv(buf)); }
+    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv(buf));
+    }
 #endif
 
     /**
@@ -99,7 +101,9 @@ public:
      * @return The number of bytes sent — always `buf.size()` on success, since a
      *         datagram is sent in full or not at all.
      */
-    size_t send_to(std::span<const std::byte> buf, const endpoint& to) { return idfxx::unwrap(try_send_to(buf, to)); }
+    size_t send_to(std::span<const std::byte> buf, const endpoint& to) {
+        return idfxx::unwrap(try_send_to(buf, to));
+    }
 #endif
 
     /**
@@ -126,7 +130,9 @@ public:
      *
      * @return Datagram metadata (filled sub-span, source endpoint).
      */
-    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) { return idfxx::unwrap(try_recv_from(buf)); }
+    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv_from(buf));
+    }
 #endif
 
     /**

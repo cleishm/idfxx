@@ -33,7 +33,10 @@ std::string task::error_category::message(int ec) const {
     return "Unknown task error (" + std::to_string(ec) + ")";
 }
 
-bool task::error_category::equivalent(int code, const std::error_condition& condition) const noexcept {
+bool task::error_category::equivalent(
+    int code,
+    const std::error_condition& condition
+) const noexcept {
     if (condition.category() != std::generic_category()) {
         return false;
     }
@@ -72,7 +75,10 @@ void task::trampoline(void* arg) {
 
     auto expected = context::state_t::running;
     if (ctx->state.compare_exchange_strong(
-            expected, context::state_t::completed, std::memory_order_acq_rel, std::memory_order_acquire
+            expected,
+            context::state_t::completed,
+            std::memory_order_acq_rel,
+            std::memory_order_acquire
         )) {
         // Owned task completed. Signal joiner, then suspend.
         // The owner (destructor/try_join/try_detach/try_kill) will vTaskDelete us.
@@ -98,8 +104,9 @@ void task::trampoline(void* arg) {
 
 TaskHandle_t task::_create(context* ctx, const config& cfg, const char* name) {
     TaskHandle_t handle = nullptr;
-    BaseType_t core =
-        cfg.core_affinity ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity)) : tskNO_AFFINITY;
+    BaseType_t core = cfg.core_affinity
+        ? static_cast<BaseType_t>(std::to_underlying(*cfg.core_affinity))
+        : tskNO_AFFINITY;
 
     BaseType_t ret = xTaskCreatePinnedToCoreWithCaps(
         trampoline,
@@ -184,7 +191,8 @@ void task::_stop_and_delete() noexcept {
 }
 
 bool task::_is_running() const noexcept {
-    return _handle != nullptr && _context->state.load(std::memory_order_acquire) == context::state_t::running;
+    return _handle != nullptr &&
+        _context->state.load(std::memory_order_acquire) == context::state_t::running;
 }
 
 task_priority task::priority() const noexcept {
@@ -202,7 +210,8 @@ size_t task::stack_high_water_mark() const noexcept {
 }
 
 bool task::is_completed() const noexcept {
-    return _handle != nullptr && _context->state.load(std::memory_order_acquire) == context::state_t::completed;
+    return _handle != nullptr &&
+        _context->state.load(std::memory_order_acquire) == context::state_t::completed;
 }
 
 bool task::request_stop() noexcept {
@@ -249,7 +258,10 @@ result<void> task::try_detach() {
     }
     auto expected = context::state_t::running;
     if (!_context->state.compare_exchange_strong(
-            expected, context::state_t::detached, std::memory_order_acq_rel, std::memory_order_acquire
+            expected,
+            context::state_t::detached,
+            std::memory_order_acq_rel,
+            std::memory_order_acquire
         )) {
         // completed: task is suspended. Delete it and clean up context.
         vTaskDeleteWithCaps(_handle);
@@ -270,7 +282,10 @@ result<void> task::try_kill() {
 
     auto expected = context::state_t::running;
     if (_context->state.compare_exchange_strong(
-            expected, context::state_t::destroying, std::memory_order_acq_rel, std::memory_order_acquire
+            expected,
+            context::state_t::destroying,
+            std::memory_order_acq_rel,
+            std::memory_order_acquire
         )) {
         // Task hasn't completed yet. Force delete it.
         vTaskDeleteWithCaps(_handle);

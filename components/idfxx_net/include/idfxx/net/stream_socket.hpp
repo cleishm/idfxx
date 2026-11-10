@@ -295,8 +295,12 @@ public:
      * @param opts Resolver options.
      * @return The connected socket, or an error.
      */
-    [[nodiscard]] static result<stream_socket>
-    connect_to(std::string_view host, port_number port, const config& cfg, const resolver_options& opts = {});
+    [[nodiscard]] static result<stream_socket> connect_to(
+        std::string_view host,
+        port_number port,
+        const config& cfg,
+        const resolver_options& opts = {}
+    );
 
     // ----- connect_to_for (resolve a host with per-candidate timeout) -----
 
@@ -377,8 +381,11 @@ public:
      * @return The connected socket, or an error such as `errc::timed_out`.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] static result<stream_socket>
-    connect_to_for(std::string_view host, port_number port, const std::chrono::duration<Rep, Period>& timeout);
+    [[nodiscard]] static result<stream_socket> connect_to_for(
+        std::string_view host,
+        port_number port,
+        const std::chrono::duration<Rep, Period>& timeout
+    );
 
     /**
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint,
@@ -405,7 +412,9 @@ public:
         const config& cfg,
         const resolver_options& opts = {}
     ) {
-        return _connect_to_for(host, port, std::chrono::ceil<std::chrono::milliseconds>(timeout), cfg, opts);
+        return _connect_to_for(
+            host, port, std::chrono::ceil<std::chrono::milliseconds>(timeout), cfg, opts
+        );
     }
 
     // ----- connect / disconnect -----
@@ -423,7 +432,9 @@ public:
      */
     template<typename Rep, typename Period>
     void connect_for(const endpoint& peer, const std::chrono::duration<Rep, Period>& timeout) {
-        idfxx::unwrap(_try_connect_for(peer, std::chrono::ceil<std::chrono::milliseconds>(timeout)));
+        idfxx::unwrap(
+            _try_connect_for(peer, std::chrono::ceil<std::chrono::milliseconds>(timeout))
+        );
     }
 #endif
 
@@ -463,7 +474,9 @@ public:
      *
      * @return Number of bytes sent.
      */
-    [[nodiscard]] size_t send(std::span<const std::byte> buf) { return idfxx::unwrap(try_send(buf)); }
+    [[nodiscard]] size_t send(std::span<const std::byte> buf) {
+        return idfxx::unwrap(try_send(buf));
+    }
 #endif
 
     /**
@@ -776,7 +789,8 @@ private:
     stream_socket(int fd, address_family fam) noexcept
         : ip_io_socket_base(fd, fam) {}
 
-    [[nodiscard]] result<void> _try_connect_for(const endpoint& peer, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void>
+    _try_connect_for(const endpoint& peer, std::chrono::milliseconds timeout);
     [[nodiscard]] static result<stream_socket>
     _make_and_connect_for(const endpoint& ep, const config& cfg, std::chrono::milliseconds timeout);
     [[nodiscard]] static result<stream_socket> _connect_to_for(
@@ -811,7 +825,11 @@ result<stream_socket> stream_socket::connect_to_for(
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 template<typename Rep, typename Period>
-stream_socket::stream_socket(std::string_view host, port_number port, const std::chrono::duration<Rep, Period>& timeout)
+stream_socket::stream_socket(
+    std::string_view host,
+    port_number port,
+    const std::chrono::duration<Rep, Period>& timeout
+)
     : stream_socket(idfxx::unwrap(connect_to_for(host, port, timeout))) {}
 #endif
 

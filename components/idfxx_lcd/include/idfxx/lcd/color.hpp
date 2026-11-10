@@ -68,7 +68,9 @@ public:
      * @param b Blue component, 0-255.
      */
     constexpr rgb565(uint8_t r, uint8_t g, uint8_t b) noexcept
-        : _repr(_to_panel_order(static_cast<uint16_t>(((r & 0xF8u) << 8) | ((g & 0xFCu) << 3) | (b >> 3)))) {}
+        : _repr(_to_panel_order(
+              static_cast<uint16_t>(((r & 0xF8u) << 8) | ((g & 0xFCu) << 3) | (b >> 3))
+          )) {}
 
     /**
      * @brief Creates a color from a packed RGB565 value.

@@ -8,12 +8,13 @@ Draws text on an SSD1306 OLED, showing how to use `idfxx::gfx::canvas` with Sple
   `idfxx::panel_io`
 - Drawing into an `idfxx::lcd::mono_framebuffer` through an `idfxx::gfx::canvas`
 - Filling a rectangle with `fill_rect()`, and drawing unlit text on top of it
-- Drawing text in the `idfxx::font::spleen_5x8` and `idfxx::font::spleen_8x16` fonts with `draw_text()`,
-  including text scaled to twice its size
+- Drawing text in the `idfxx::font::spleen_5x8` and `idfxx::font::spleen_8x16` fonts with
+  `draw_text()`, including text scaled to twice its size
 - Measuring text with `idfxx::font::text_width()` to right-align it
 - Sending the finished frame to the display with `write()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -50,7 +51,8 @@ idf.py set-target esp32s3
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-The display shows a lit banner across the top with "idfxx_gfx demo" in dark text, a large "23.7" in the middle,
-and a small "-72dBm 45s" status line in the bottom right corner.
+The display shows a lit banner across the top with "idfxx_gfx demo" in dark text, a large "23.7" in
+the middle, and a small "-72dBm 45s" status line in the bottom right corner.

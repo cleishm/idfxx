@@ -142,7 +142,8 @@ idfxx::panel_io panel_io(
 
 **Properties:**
 - `host()` - Get SPI host device
-- `max_transaction_length()` - Largest transaction the bus accepts, in bytes (with or without devices attached)
+- `max_transaction_length()` - Largest transaction the bus accepts, in bytes (with or without
+  devices attached)
 
 **Lifetime:**
 - Non-copyable and move-only
@@ -166,17 +167,18 @@ Via `idfxx::spi::dma_chan`:
 
 ## Interrupt Configuration
 
-`bus_config::intr_levels` and `bus_config::intr_flags` control the bus interrupt. The driver rejects the
-following with `errc::invalid_arg` when the bus is created:
+`bus_config::intr_levels` and `bus_config::intr_flags` control the bus interrupt. The driver rejects
+the following with `errc::invalid_arg` when the bus is created:
 - `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled`
 - `intr_levels` level 4, 5, 6 and `nmi`
-- `intr_flag::iram`, unless `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (and then all callbacks must be in IRAM)
+- `intr_flag::iram`, unless `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (and then all callbacks must
+  be in IRAM)
 
 ## DMA Burst Size
 
-With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. Left unset, the driver
-chooses. When set, the value must be one of the burst sizes supported by the chip's DMA controller, and is ignored on
-chips whose burst size is not configurable.
+With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. Left
+unset, the driver chooses. When set, the value must be one of the burst sizes supported by the
+chip's DMA controller, and is ignored on chips whose burst size is not configurable.
 
 ## Important Notes
 
@@ -187,7 +189,8 @@ chips whose burst size is not configurable.
 - The bus must remain alive while devices using it exist
 - DMA enables larger transfers but requires DMA-capable memory
 - Maximum transfer size without DMA is ~64 bytes
-- With DMA, transfer size is limited by `max_transfer_sz` in config; left unset, the driver default applies
+- With DMA, transfer size is limited by `max_transfer_sz` in config; left unset, the driver default
+  applies
 - GPIO pins must not be used by other peripherals
 
 ## License

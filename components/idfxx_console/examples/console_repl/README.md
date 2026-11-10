@@ -4,11 +4,14 @@ Runs an interactive command prompt over the serial console with `idfxx::console`
 
 ## What it demonstrates
 
-- Registering commands with `idfxx::console::register_command()`: `hello`, which takes an optional name, and `count`, which keeps a counter between calls
+- Registering commands with `idfxx::console::register_command()`: `hello`, which takes an optional
+  name, and `count`, which keeps a counter between calls
 - Adding the built-in `help` command with `idfxx::console::register_help_command()`
-- Starting a REPL on the default console UART with `idfxx::console::repl`, which runs in its own task
+- Starting a REPL on the default console UART with `idfxx::console::repl`, which runs in its own
+  task
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -30,6 +33,8 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.
 
-Once the prompt appears, type `help` to list the commands, then try `hello`, `hello Alice` and `count`.
+Once the prompt appears, type `help` to list the commands, then try `hello`, `hello Alice` and
+`count`.

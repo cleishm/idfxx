@@ -97,7 +97,9 @@ public:
             return error(errc::invalid_arg);
         }
         // Both planes live in one allocation: plane 0 first, then plane 1.
-        return gray4_framebuffer{width, height, std::vector<uint8_t>(2 * ((width + 7) / 8) * height)};
+        return gray4_framebuffer{
+            width, height, std::vector<uint8_t>(2 * ((width + 7) / 8) * height)
+        };
     }
 
     /** @brief Returns the width in pixels. */

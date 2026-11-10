@@ -33,8 +33,8 @@
 /**
  * @brief Defines an event base.
  *
- * Creates an event_base with the given name and enum type. The event base name string is automatically derived from the
- * variable name.
+ * Creates an event_base with the given name and enum type. The event base name string is
+ * automatically derived from the variable name.
  *
  * @param name The variable name for the event base.
  * @param id_enum The enum class for event IDs within this base.
@@ -57,11 +57,11 @@
  * loop.post(started);
  * @endcode
  */
-#define IDFXX_EVENT_DEFINE_BASE(name, id_enum)                                                                         \
-    inline constexpr char _##name##_base[] = #name;                                                                    \
-    inline constexpr ::idfxx::event_base<id_enum> name{_##name##_base};                                                \
-    constexpr ::idfxx::event_base<id_enum> idfxx_get_event_base(id_enum*) {                                            \
-        return name;                                                                                                   \
+#define IDFXX_EVENT_DEFINE_BASE(name, id_enum)                                                     \
+    inline constexpr char _##name##_base[] = #name;                                                \
+    inline constexpr ::idfxx::event_base<id_enum> name{_##name##_base};                            \
+    constexpr ::idfxx::event_base<id_enum> idfxx_get_event_base(id_enum*) {                        \
+        return name;                                                                               \
     }
 
 namespace idfxx {
@@ -180,7 +180,8 @@ concept event_data = receivable_event_data<T> && std::is_trivially_copyable_v<T>
  * reconstruct the wrong type from the event data).
  *
  * @tparam IdEnum The event ID enum type.
- * @tparam DataType The event data type (must satisfy receivable_event_data), or void for events without data.
+ * @tparam DataType The event data type (must satisfy receivable_event_data), or void for events
+ * without data.
  *
  * @code
  * // Define typed events
@@ -274,7 +275,8 @@ using event_handler = typename event_handler_traits<DataType>::type;
  * @tparam IdEnum The event ID enum type.
  */
 template<typename IdEnum>
-using opaque_event_handler = std::move_only_function<void(event_base<IdEnum> base, IdEnum id, void* event_data) const>;
+using opaque_event_handler =
+    std::move_only_function<void(event_base<IdEnum> base, IdEnum id, void* event_data) const>;
 
 class user_event_loop;
 
@@ -445,13 +447,17 @@ public:
      *
      * @tparam IdEnum The event ID enum type.
      * @param base The event base.
-     * @param callback Function called when any event from this base occurs. Takes ownership of the callback.
+     * @param callback Function called when any event from this base occurs. Takes ownership of the
+     * callback.
      * @return A listener handle for the registered listener.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
     template<typename IdEnum>
-    listener_handle listener_add(event_base<IdEnum> base, opaque_event_handler<std::type_identity_t<IdEnum>> callback);
+    listener_handle listener_add(
+        event_base<IdEnum> base,
+        opaque_event_handler<std::type_identity_t<IdEnum>> callback
+    );
 #endif
 
     /**
@@ -479,12 +485,15 @@ public:
      *
      * @tparam IdEnum The event ID enum type.
      * @param base The event base.
-     * @param callback Function called when any event from this base occurs. Takes ownership of the callback.
+     * @param callback Function called when any event from this base occurs. Takes ownership of the
+     * callback.
      * @return A listener handle, or an error.
      */
     template<typename IdEnum>
-    [[nodiscard]] result<listener_handle>
-    try_listener_add(event_base<IdEnum> base, opaque_event_handler<std::type_identity_t<IdEnum>> callback);
+    [[nodiscard]] result<listener_handle> try_listener_add(
+        event_base<IdEnum> base,
+        opaque_event_handler<std::type_identity_t<IdEnum>> callback
+    );
 
     // =========================================================================
     // Listener removal
@@ -586,7 +595,11 @@ public:
      */
     template<typename IdEnum, typename DataType, typename Rep, typename Period>
         requires event_data<DataType>
-    void post(event<IdEnum, DataType> evt, const DataType& data, const std::chrono::duration<Rep, Period>& timeout) {
+    void post(
+        event<IdEnum, DataType> evt,
+        const DataType& data,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         unwrap(try_post(evt, data, timeout));
     }
 #endif
@@ -600,7 +613,13 @@ public:
      */
     template<typename IdEnum>
     [[nodiscard]] result<void> try_post(event<IdEnum> evt) {
-        return _post(event_base_lookup<IdEnum>().idf_base(), static_cast<int32_t>(evt.id), nullptr, 0, portMAX_DELAY);
+        return _post(
+            event_base_lookup<IdEnum>().idf_base(),
+            static_cast<int32_t>(evt.id),
+            nullptr,
+            0,
+            portMAX_DELAY
+        );
     }
 
     /**
@@ -614,9 +633,14 @@ public:
      * @return Success or an error (e.g., timeout).
      */
     template<typename IdEnum, typename Rep, typename Period>
-    [[nodiscard]] result<void> try_post(event<IdEnum> evt, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_post(event<IdEnum> evt, const std::chrono::duration<Rep, Period>& timeout) {
         return _post(
-            event_base_lookup<IdEnum>().idf_base(), static_cast<int32_t>(evt.id), nullptr, 0, chrono::ticks(timeout)
+            event_base_lookup<IdEnum>().idf_base(),
+            static_cast<int32_t>(evt.id),
+            nullptr,
+            0,
+            chrono::ticks(timeout)
         );
     }
 
@@ -635,7 +659,11 @@ public:
         requires event_data<DataType>
     [[nodiscard]] result<void> try_post(event<IdEnum, DataType> evt, const DataType& data) {
         return _post(
-            event_base_lookup<IdEnum>().idf_base(), static_cast<int32_t>(evt.id), &data, sizeof(data), portMAX_DELAY
+            event_base_lookup<IdEnum>().idf_base(),
+            static_cast<int32_t>(evt.id),
+            &data,
+            sizeof(data),
+            portMAX_DELAY
         );
     }
 
@@ -655,8 +683,11 @@ public:
      */
     template<typename IdEnum, typename DataType, typename Rep, typename Period>
         requires event_data<DataType>
-    [[nodiscard]] result<void>
-    try_post(event<IdEnum, DataType> evt, const DataType& data, const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void> try_post(
+        event<IdEnum, DataType> evt,
+        const DataType& data,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
         return _post(
             event_base_lookup<IdEnum>().idf_base(),
             static_cast<int32_t>(evt.id),
@@ -719,7 +750,8 @@ private:
     );
 
     void _delete() noexcept;
-    result<void> _post(esp_event_base_t base, int32_t id, const void* data, size_t size, TickType_t ticks);
+    result<void>
+    _post(esp_event_base_t base, int32_t id, const void* data, size_t size, TickType_t ticks);
 
     esp_event_loop_handle_t _handle = nullptr;
     bool _system = false;
@@ -938,13 +970,16 @@ private:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 template<typename IdEnum, typename DataType>
-event_loop::listener_handle event_loop::listener_add(event<IdEnum, DataType> event, event_handler<DataType> callback) {
+event_loop::listener_handle
+event_loop::listener_add(event<IdEnum, DataType> event, event_handler<DataType> callback) {
     return unwrap(try_listener_add(event, std::move(callback)));
 }
 
 template<typename IdEnum>
-event_loop::listener_handle
-event_loop::listener_add(event_base<IdEnum> base, opaque_event_handler<std::type_identity_t<IdEnum>> callback) {
+event_loop::listener_handle event_loop::listener_add(
+    event_base<IdEnum> base,
+    opaque_event_handler<std::type_identity_t<IdEnum>> callback
+) {
     return unwrap(try_listener_add(base, std::move(callback)));
 }
 
@@ -960,9 +995,11 @@ result<event_loop::listener_handle> event_loop::register_listener(
     int32_t id,
     opaque_event_handler<IdEnum> callback
 ) {
-    return register_listener(loop, base, id, [cb = std::move(callback)](esp_event_base_t b, int32_t i, void* data) {
-        cb(event_base<IdEnum>{b}, static_cast<IdEnum>(i), data);
-    });
+    return register_listener(
+        loop, base, id, [cb = std::move(callback)](esp_event_base_t b, int32_t i, void* data) {
+            cb(event_base<IdEnum>{b}, static_cast<IdEnum>(i), data);
+        }
+    );
 }
 
 template<typename IdEnum, typename DataType>
@@ -983,18 +1020,24 @@ event_loop::try_listener_add(event<IdEnum, DataType> event, event_handler<DataTy
             _handle,
             event_base_lookup<IdEnum>().idf_base(),
             static_cast<int32_t>(event.id),
-            [cb = std::move(callback)](esp_event_base_t, int32_t, void* data) { cb(from_opaque_data<DataType>(data)); }
+            [cb = std::move(callback)](esp_event_base_t, int32_t, void* data) {
+                cb(from_opaque_data<DataType>(data));
+            }
         );
     }
 }
 
 template<typename IdEnum>
-result<event_loop::listener_handle>
-event_loop::try_listener_add(event_base<IdEnum> base, opaque_event_handler<std::type_identity_t<IdEnum>> callback) {
+result<event_loop::listener_handle> event_loop::try_listener_add(
+    event_base<IdEnum> base,
+    opaque_event_handler<std::type_identity_t<IdEnum>> callback
+) {
     if (!_system && _handle == nullptr) {
         return error(errc::invalid_state);
     }
-    return register_listener<IdEnum>(_handle, base.idf_base(), ESP_EVENT_ANY_ID, std::move(callback));
+    return register_listener<IdEnum>(
+        _handle, base.idf_base(), ESP_EVENT_ANY_ID, std::move(callback)
+    );
 }
 
 } // namespace idfxx

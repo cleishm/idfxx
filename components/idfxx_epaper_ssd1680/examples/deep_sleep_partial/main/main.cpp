@@ -136,7 +136,9 @@ extern "C" void app_main() {
         idfxx::spi::bus_config bus_cfg{};
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O and driver ---
         idfxx::panel_io io(bus, idfxx::epaper::ssd1680::spi_io_config(PIN_CS, PIN_DC));

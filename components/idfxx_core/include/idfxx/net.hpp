@@ -93,8 +93,8 @@ public:
      */
     constexpr ipv4_addr(uint8_t a, uint8_t b, uint8_t c, uint8_t d) noexcept
         : _addr(
-              static_cast<uint32_t>(a) | (static_cast<uint32_t>(b) << 8) | (static_cast<uint32_t>(c) << 16) |
-              (static_cast<uint32_t>(d) << 24)
+              static_cast<uint32_t>(a) | (static_cast<uint32_t>(b) << 8) |
+              (static_cast<uint32_t>(c) << 16) | (static_cast<uint32_t>(d) << 24)
           ) {}
 
     /**

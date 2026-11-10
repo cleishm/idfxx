@@ -177,8 +177,12 @@ template<image::decoder Decoder, typename Overlay>
 }
 
 template<typename Surface, image::decoder Decoder>
-[[nodiscard]] result<void>
-try_write_surface(Surface& surface, Decoder& decoder, const image::placement& where, const write_options& options) {
+[[nodiscard]] result<void> try_write_surface(
+    Surface& surface,
+    Decoder& decoder,
+    const image::placement& where,
+    const write_options& options
+) {
     if (options.band_rows == 0) {
         return error(errc::invalid_arg);
     }
@@ -269,10 +273,11 @@ void write_image(
  * band's top-left pixel on the screen:
  *
  * @code
- * idfxx::lcd::write_image(display, dec, [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
+ * auto overlay = [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
  *     idfxx::gfx::canvas canvas(band, x, y);
  *     canvas.draw_text(font, 10, 220, "Hello", idfxx::lcd::rgb565(255, 255, 255));
- * });
+ * };
+ * idfxx::lcd::write_image(display, dec, overlay);
  * @endcode
  *
  * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.

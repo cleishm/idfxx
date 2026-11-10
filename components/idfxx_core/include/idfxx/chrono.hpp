@@ -75,13 +75,17 @@ struct tick_clock {
      * @brief Returns the current tick count as a time_point.
      * @return Current time as a time_point.
      */
-    [[nodiscard]] static time_point now() noexcept { return time_point{duration{xTaskGetTickCount()}}; }
+    [[nodiscard]] static time_point now() noexcept {
+        return time_point{duration{xTaskGetTickCount()}};
+    }
 
     /**
      * @brief Returns the current tick count as a time_point from ISR context.
      * @return Current time as a time_point.
      */
-    [[nodiscard]] static time_point now_from_isr() noexcept { return time_point{duration{xTaskGetTickCountFromISR()}}; }
+    [[nodiscard]] static time_point now_from_isr() noexcept {
+        return time_point{duration{xTaskGetTickCountFromISR()}};
+    }
 };
 
 /**
@@ -142,7 +146,8 @@ struct rtc_clock {
 
 /** @cond INTERNAL */
 namespace detail {
-[[nodiscard]] result<void> try_set_system_time_us(std::chrono::sys_time<std::chrono::microseconds> us);
+[[nodiscard]] result<void>
+try_set_system_time_us(std::chrono::sys_time<std::chrono::microseconds> us);
 } // namespace detail
 /** @endcond */
 

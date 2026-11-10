@@ -6,11 +6,10 @@ Fixed-cell bitmap font model and text metrics.
 
 ## Features
 
-- Compact fixed-cell font representation (`mono_font`): contiguous character
-  range, one cell size, row-major MSB-first glyph data
+- Compact fixed-cell font representation (`mono_font`): contiguous character range, one cell size,
+  row-major MSB-first glyph data
 - Text measurement (`text_width`, per-glyph `advance`), fully `constexpr`
-- BDF-to-C converter script for turning any monospace BDF font into a
-  `mono_font` translation unit
+- BDF-to-C converter script for turning any monospace BDF font into a `mono_font` translation unit
 - Header-only, no dependencies beyond the C++ standard library
 
 ## Requirements
@@ -29,9 +28,9 @@ dependencies:
   cleishm/idfxx_font: "^1.0.0"
 ```
 
-Font data packages (e.g. `cleishm/idfxx_font_spleen`) and text rendering
-(`cleishm/idfxx_gfx`) depend on this component and pull it in automatically —
-depend on it directly only when defining fonts or measuring text yourself.
+Font data packages (e.g. `cleishm/idfxx_font_spleen`) and text rendering (`cleishm/idfxx_gfx`)
+depend on this component and pull it in automatically — depend on it directly only when defining
+fonts or measuring text yourself.
 
 ## Usage
 
@@ -62,23 +61,21 @@ Text drawing lives in `idfxx_gfx` (`idfxx::gfx::draw_text`).
 
 ## Adding fonts
 
-Convert any monospace BDF font with the included script and add the output
-to your build:
+Convert any monospace BDF font with the included script and add the output to your build:
 
 ```sh
 scripts/bdf_to_c.py myfont.bdf my_font my/header.hpp > my_font.cpp
 ```
 
-The named header must declare `extern const mono_font my_font;` in namespace
-`idfxx::font` so the generated definition gets external linkage (see
-`idfxx_font_spleen` for the pattern).
+The named header must declare `extern const mono_font my_font;` in namespace `idfxx::font` so the
+generated definition gets external linkage (see `idfxx_font_spleen` for the pattern).
 
 ## Important Notes
 
-- Glyph bitmaps store each row in `ceil(width / 8)` bytes, MSB = leftmost
-  pixel, rows top to bottom, glyphs consecutive from `first_char`.
-- Characters outside a font's range still advance the cursor (rendered
-  blank by `idfxx::gfx::draw_text`), so `text_width` counts them too.
+- Glyph bitmaps store each row in `ceil(width / 8)` bytes, MSB = leftmost pixel, rows top to bottom,
+  glyphs consecutive from `first_char`.
+- Characters outside a font's range still advance the cursor (rendered blank by
+  `idfxx::gfx::draw_text`), so `text_width` counts them too.
 
 ## License
 

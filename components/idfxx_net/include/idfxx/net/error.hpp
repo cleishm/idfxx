@@ -131,7 +131,8 @@ public:
      * @param code The `errc` value to canonicalize.
      * @return The canonical `std::error_condition` for `code`.
      */
-    [[nodiscard]] std::error_condition default_error_condition(int code) const noexcept override final;
+    [[nodiscard]] std::error_condition
+    default_error_condition(int code) const noexcept override final;
 };
 
 } // namespace idfxx::net

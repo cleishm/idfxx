@@ -141,7 +141,9 @@ public:
             }
 
             /// @brief Compares two iterators; equal iff they reference the same segment.
-            [[nodiscard]] bool operator==(const iterator& other) const noexcept { return _seg == other._seg; }
+            [[nodiscard]] bool operator==(const iterator& other) const noexcept {
+                return _seg == other._seg;
+            }
 
         private:
             friend class segment_view;
@@ -249,7 +251,8 @@ private:
 // temporary's segments through a view adaptor — `buf.segments() | views::…` —
 // does not dangle.
 template<>
-inline constexpr bool std::ranges::enable_borrowed_range<idfxx::net::netconn::buffer::segment_view> = true;
+inline constexpr bool
+    std::ranges::enable_borrowed_range<idfxx::net::netconn::buffer::segment_view> = true;
 /// @endcond
 
 /** @} */ // end of idfxx_net_netconn_buffer

@@ -47,12 +47,15 @@ extern "C" void app_main() {
         connect_to_wifi();
 
         // --- Resolve target ---
-        auto target =
-            idfxx::net::resolve_one(TARGET_HOST, 0, {.family = idfxx::net::address_family::ipv4, .numeric_host = true});
+        auto target = idfxx::net::resolve_one(
+            TARGET_HOST, 0, {.family = idfxx::net::address_family::ipv4, .numeric_host = true}
+        );
         logger.info("Pinging {}", target);
 
         // --- Open raw ICMP socket ---
-        idfxx::net::raw_socket sock(idfxx::net::ip_protocol::icmp, idfxx::net::address_family::ipv4);
+        idfxx::net::raw_socket sock(
+            idfxx::net::ip_protocol::icmp, idfxx::net::address_family::ipv4
+        );
         sock.set_recv_timeout(5s);
 
         // --- Build ICMP echo request: 8-byte header + 32-byte payload ---
@@ -86,7 +89,12 @@ extern "C" void app_main() {
         } else {
             const auto icmp_type = static_cast<uint8_t>(reply.data[ip_hdr_len]);
             if (icmp_type == 0) { // echo reply
-                logger.info("Reply from {}: {} bytes, rtt = {} us", reply.from, reply.data.size() - ip_hdr_len, rtt_us);
+                logger.info(
+                    "Reply from {}: {} bytes, rtt = {} us",
+                    reply.from,
+                    reply.data.size() - ip_hdr_len,
+                    rtt_us
+                );
             } else {
                 logger.warn("Unexpected ICMP type {} from {}", icmp_type, reply.from);
             }
@@ -137,16 +145,18 @@ idfxx::net::ipv4_addr connect_to_wifi() {
         network_ready.set(sync_flag::got_ip);
     });
 
-    loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-        logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-        // Listener runs in the event-loop trampoline (C frame); exceptions
-        // must not escape, so suppress at this boundary.
-        try {
-            idfxx::wifi::connect();
-        } catch (const std::system_error& e) {
-            logger.warn("reconnect failed: {}", e.what());
+    loop.listener_add(
+        idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+            logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
+            // Listener runs in the event-loop trampoline (C frame); exceptions
+            // must not escape, so suppress at this boundary.
+            try {
+                idfxx::wifi::connect();
+            } catch (const std::system_error& e) {
+                logger.warn("reconnect failed: {}", e.what());
+            }
         }
-    });
+    );
 
     idfxx::wifi::init();
     idfxx::wifi::set_roles(idfxx::wifi::role::sta);

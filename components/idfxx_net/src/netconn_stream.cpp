@@ -63,7 +63,8 @@ result<void> stream_channel::try_connect(const endpoint& peer) {
     return {};
 }
 
-result<size_t> stream_channel::try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags) {
+result<size_t>
+stream_channel::try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags) {
     if (_conn == nullptr) {
         return error(errc::invalid_state);
     }
@@ -122,8 +123,9 @@ result<std::span<std::byte>> stream_channel::try_recv(std::span<std::byte> buf) 
         const size_t total = _pending.len();
         const size_t remaining = total - _pending_offset;
         const auto to_copy = static_cast<uint16_t>(std::min(remaining, buf.size()));
-        const auto copied =
-            ::netbuf_copy_partial(_pending.idf_handle(), buf.data(), to_copy, static_cast<uint16_t>(_pending_offset));
+        const auto copied = ::netbuf_copy_partial(
+            _pending.idf_handle(), buf.data(), to_copy, static_cast<uint16_t>(_pending_offset)
+        );
         _pending_offset += copied;
         if (_pending_offset >= total) {
             _pending = buffer{};
@@ -144,14 +146,17 @@ result<std::span<std::byte>> stream_channel::try_recv(std::span<std::byte> buf) 
 
     // Caller buffer is smaller than the segment lwIP delivered: copy what fits
     // and stash the netbuf so the leftover can be returned on later calls.
-    const auto copied = ::netbuf_copy_partial(nb->idf_handle(), buf.data(), static_cast<uint16_t>(buf.size()), 0);
+    const auto copied =
+        ::netbuf_copy_partial(nb->idf_handle(), buf.data(), static_cast<uint16_t>(buf.size()), 0);
     _pending = std::move(*nb);
     _pending_offset = copied;
     return buf.first(copied);
 }
 
 result<size_t> stream_channel::try_read(std::span<uint8_t> buf) {
-    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) { return r.size(); });
+    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) {
+        return r.size();
+    });
 }
 
 result<void> stream_channel::try_close() {

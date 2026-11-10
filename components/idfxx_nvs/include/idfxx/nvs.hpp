@@ -40,9 +40,9 @@ namespace idfxx {
  * @brief Concept for fixed-size integral types (8 to 64 bits).
  */
 template<typename T>
-concept sized_integral =
-    std::same_as<T, uint8_t> || std::same_as<T, int8_t> || std::same_as<T, uint16_t> || std::same_as<T, int16_t> ||
-    std::same_as<T, uint32_t> || std::same_as<T, int32_t> || std::same_as<T, uint64_t> || std::same_as<T, int64_t>;
+concept sized_integral = std::same_as<T, uint8_t> || std::same_as<T, int8_t> ||
+    std::same_as<T, uint16_t> || std::same_as<T, int16_t> || std::same_as<T, uint32_t> ||
+    std::same_as<T, int32_t> || std::same_as<T, uint64_t> || std::same_as<T, int64_t>;
 
 /**
  * @headerfile <idfxx/nvs>
@@ -151,7 +151,11 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] explicit nvs(const partition& part, std::string_view namespace_name, bool read_only = false);
+    [[nodiscard]] explicit nvs(
+        const partition& part,
+        std::string_view namespace_name,
+        bool read_only = false
+    );
 #endif
 
     /**
@@ -210,7 +214,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void set_string(std::string_view key, std::string_view value) { unwrap(try_set_string(key, value)); }
+    void set_string(std::string_view key, std::string_view value) {
+        unwrap(try_set_string(key, value));
+    }
 
     /**
      * @brief Retrieves a string.
@@ -219,7 +225,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] std::string get_string(std::string_view key) { return unwrap(try_get_string(key)); }
+    [[nodiscard]] std::string get_string(std::string_view key) {
+        return unwrap(try_get_string(key));
+    }
 
     /**
      * @brief Stores binary data.
@@ -229,7 +237,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void set_blob(std::string_view key, const void* data, size_t length) { unwrap(try_set_blob(key, data, length)); }
+    void set_blob(std::string_view key, const void* data, size_t length) {
+        unwrap(try_set_blob(key, data, length));
+    }
 
     /**
      * @brief Stores binary data.
@@ -238,7 +248,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void set_blob(std::string_view key, std::span<const uint8_t> data) { unwrap(try_set_blob(key, data)); }
+    void set_blob(std::string_view key, std::span<const uint8_t> data) {
+        unwrap(try_set_blob(key, data));
+    }
 
     /**
      * @brief Retrieves binary data.
@@ -247,7 +259,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] std::vector<uint8_t> get_blob(std::string_view key) { return unwrap(try_get_blob(key)); }
+    [[nodiscard]] std::vector<uint8_t> get_blob(std::string_view key) {
+        return unwrap(try_get_blob(key));
+    }
 
     /**
      * @brief Stores a numeric value.
@@ -255,8 +269,8 @@ public:
      *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
-     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it is
-     *       rejected with idfxx::errc::invalid_arg.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it
+     * is rejected with idfxx::errc::invalid_arg.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -347,8 +361,8 @@ public:
      *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
-     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it is
-     *       rejected with idfxx::errc::invalid_arg.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it
+     * is rejected with idfxx::errc::invalid_arg.
      * @return Success, or an error.
      */
     template<typename T>
@@ -391,7 +405,8 @@ private:
 
 /**
  * @headerfile <idfxx/nvs>
- * @brief Creates an unexpected error from an ESP-IDF error code, mapping to NVS error codes where possible.
+ * @brief Creates an unexpected error from an ESP-IDF error code, mapping to NVS error codes where
+ * possible.
  *
  * Converts the ESP-IDF error code to an NVS-specific error code if a mapping exists,
  * otherwise falls back to the default IDFXX error category.
@@ -425,7 +440,8 @@ public:
     };
     /** @endcond */
 
-    /** @brief Tag requesting non-encrypted initialization: `idfxx::nvs::flash::init(idfxx::nvs::flash::insecure)`. */
+    /** @brief Tag requesting non-encrypted initialization:
+     * `idfxx::nvs::flash::init(idfxx::nvs::flash::insecure)`. */
     constexpr static insecure_t insecure{};
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -511,7 +527,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    static void init(insecure_t, std::string_view partition_label) { unwrap(try_init(insecure, partition_label)); }
+    static void init(insecure_t, std::string_view partition_label) {
+        unwrap(try_init(insecure, partition_label));
+    }
 
     /**
      * @brief Initialize NVS flash storage for the specified partition.
@@ -532,7 +550,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    static void init(const partition& part, const secure_config& cfg) { unwrap(try_init(part, cfg)); }
+    static void init(const partition& part, const secure_config& cfg) {
+        unwrap(try_init(part, cfg));
+    }
 
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
@@ -568,7 +588,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
+     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
+     table.
 
      * @retval Other error codes from the underlying flash storage driver.
      */
@@ -585,7 +606,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
+     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
+     table.
 
      * @retval Other error codes from the underlying flash storage driver.
      */
@@ -602,7 +624,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition table.
+     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
+     table.
 
      * @retval Other error codes from the underlying flash storage driver.
      */
@@ -635,7 +658,8 @@ public:
 
      * @retval Other error codes from the underlying flash storage driver.
      */
-    [[nodiscard]] static result<void> try_init(std::string_view partition_label, const secure_config& cfg);
+    [[nodiscard]] static result<void>
+    try_init(std::string_view partition_label, const secure_config& cfg);
 
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
@@ -788,7 +812,8 @@ public:
     /**
      * @brief Erases the default NVS partition.
      * @return Success, or an error.
-     * @retval nvs::errc::not_found if there is no NVS partition labeled "nvs" in the partition table.
+     * @retval nvs::errc::not_found if there is no NVS partition labeled "nvs" in the partition
+     * table.
      */
     [[nodiscard]] static result<void> try_erase();
 

@@ -38,7 +38,10 @@ result<ssl_server> ssl_server::make(config cfg) {
     if (cfg.handshake_timeout.has_value() && cfg.handshake_timeout->count() <= 0) {
         return error(idfxx::errc::invalid_arg);
     }
-    if (auto res = _populate_httpd_config(ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close); !res) {
+    if (auto res = _populate_httpd_config(
+            ssl_cfg.httpd, cfg, ctx.get(), has_session_open, has_session_close
+        );
+        !res) {
         return error(res.error());
     }
     if (has_session_open) {
@@ -73,7 +76,8 @@ result<ssl_server> ssl_server::make(config cfg) {
     ssl_cfg.session_tickets = cfg.session_tickets;
 
     if (cfg.handshake_timeout) {
-        ssl_cfg.tls_handshake_timeout_ms = static_cast<unsigned int>(cfg.handshake_timeout->count());
+        ssl_cfg.tls_handshake_timeout_ms =
+            static_cast<unsigned int>(cfg.handshake_timeout->count());
     }
 
     ssl_cfg.port_secure = cfg.server_port;
@@ -86,7 +90,9 @@ result<ssl_server> ssl_server::make(config cfg) {
         return http_server_error(err);
     }
 
-    return ssl_server{handle, std::move(ctx), std::move(on_session_open), std::move(on_session_close)};
+    return ssl_server{
+        handle, std::move(ctx), std::move(on_session_open), std::move(on_session_close)
+    };
 }
 
 ssl_server::ssl_server(
@@ -95,7 +101,13 @@ ssl_server::ssl_server(
     std::move_only_function<result<void>(int) const> on_session_open,
     std::move_only_function<void(int) const> on_session_close
 )
-    : server(handle, std::move(ctx), std::move(on_session_open), std::move(on_session_close), httpd_ssl_stop) {}
+    : server(
+          handle,
+          std::move(ctx),
+          std::move(on_session_open),
+          std::move(on_session_close),
+          httpd_ssl_stop
+      ) {}
 
 esp_err_t ssl_server::_ssl_session_open_trampoline(httpd_handle_t hd, int sockfd) {
     esp_err_t err = _session_open_trampoline(hd, sockfd);

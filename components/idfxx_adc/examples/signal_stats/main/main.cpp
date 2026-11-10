@@ -32,7 +32,9 @@ static constexpr auto signal_pin = idfxx::gpio_3;
 #endif
 
 extern "C" void app_main() {
-    idfxx::adc::sampler sampler({.pins = std::vector<idfxx::gpio>{signal_pin}, .sample_rate = 20_kHz});
+    idfxx::adc::sampler sampler(
+        {.pins = std::vector<idfxx::gpio>{signal_pin}, .sample_rate = 20_kHz}
+    );
     logger.info(
         "sampling GPIO {} at {} Hz ({}calibrated)",
         signal_pin.num(),
@@ -78,7 +80,12 @@ extern "C" void app_main() {
             );
         } else {
             logger.info(
-                "raw min {} max {} mean {} | {} samples, {} overruns", min, max, mean, count, sampler.overruns()
+                "raw min {} max {} mean {} | {} samples, {} overruns",
+                min,
+                max,
+                mean,
+                count,
+                sampler.overruns()
             );
         }
         min = std::numeric_limits<int>::max();

@@ -40,7 +40,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         idfxx::radio::sx126x radio(
             bus,

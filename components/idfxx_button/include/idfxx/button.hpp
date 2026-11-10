@@ -94,17 +94,28 @@ public:
      * @endcode
      */
     struct config {
-        idfxx::required<idfxx::gpio> pin;                                   ///< GPIO pin
-        enum mode mode = mode::poll;                                        ///< Detection mode
-        gpio::level pressed_level = gpio::level::low;                       ///< GPIO level when pressed
-        bool enable_pull = true;                                            ///< Enable internal pull resistor
-        bool autorepeat = false;                                            ///< Enable autorepeat (disables long press)
-        std::chrono::microseconds dead_time{std::chrono::milliseconds{50}}; ///< Debounce delay
-        std::chrono::microseconds long_press_time{std::chrono::milliseconds{1000}};    ///< Long press threshold
-        std::chrono::microseconds extended_press_time{0};                              ///< Extended press threshold
-        std::chrono::microseconds autorepeat_timeout{std::chrono::milliseconds{500}};  ///< Autorepeat start delay
-        std::chrono::microseconds autorepeat_interval{std::chrono::milliseconds{250}}; ///< Autorepeat repeat interval
-        std::chrono::microseconds poll_interval{std::chrono::milliseconds{10}};        ///< Polling interval
+        /// GPIO pin
+        idfxx::required<idfxx::gpio> pin;
+        /// Detection mode
+        enum mode mode = mode::poll;
+        /// GPIO level when pressed
+        gpio::level pressed_level = gpio::level::low;
+        /// Enable internal pull resistor
+        bool enable_pull = true;
+        /// Enable autorepeat (disables long press)
+        bool autorepeat = false;
+        /// Debounce delay
+        std::chrono::microseconds dead_time{std::chrono::milliseconds{50}};
+        /// Long press threshold
+        std::chrono::microseconds long_press_time{std::chrono::milliseconds{1000}};
+        /// Extended press threshold
+        std::chrono::microseconds extended_press_time{0};
+        /// Autorepeat start delay
+        std::chrono::microseconds autorepeat_timeout{std::chrono::milliseconds{500}};
+        /// Autorepeat repeat interval
+        std::chrono::microseconds autorepeat_interval{std::chrono::milliseconds{250}};
+        /// Polling interval
+        std::chrono::microseconds poll_interval{std::chrono::milliseconds{10}};
         /**
          * @brief Event callback.
          *
@@ -121,8 +132,8 @@ public:
      * @param cfg Button configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
-     * @throws std::system_error with errc::invalid_arg if pin is not connected, callback is empty, or
-     *         extended_press_time is set but not beyond long_press_time.
+     * @throws std::system_error with errc::invalid_arg if pin is not connected, callback is empty,
+     * or extended_press_time is set but not beyond long_press_time.
      */
     [[nodiscard]] explicit button(config cfg);
 #endif
@@ -132,8 +143,8 @@ public:
      *
      * @param cfg Button configuration.
      * @return The new button, or an error.
-     * @retval invalid_arg pin is not connected, callback is empty, or extended_press_time is set but not
-     *         beyond long_press_time.
+     * @retval invalid_arg pin is not connected, callback is empty, or extended_press_time is set
+     * but not beyond long_press_time.
      */
     [[nodiscard]] static result<button> make(config cfg);
 

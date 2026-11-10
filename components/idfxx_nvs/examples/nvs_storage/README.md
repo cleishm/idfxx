@@ -16,7 +16,8 @@ Stores and reads back values in non-volatile storage (NVS) with `idfxx::nvs`.
 
 The example erases everything it writes, so it leaves the `demo_ns` namespace empty.
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -38,4 +39,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

@@ -4,14 +4,19 @@ Joins a Wi-Fi network, logs the IP address it gets, and reconnects whenever the 
 
 ## What it demonstrates
 
-- Creating the default event loop with `idfxx::event_loop::create_system()`, initializing the network stack
-  with `idfxx::netif::init()`, and creating the station interface with `idfxx::wifi::make_sta_netif()`
-- Handling the `idfxx::wifi::sta_connected` event, and printing the network's SSID, channel and security mode
-- Handling the `idfxx::wifi::sta_disconnected` event, and reconnecting with `idfxx::wifi::try_connect()`
+- Creating the default event loop with `idfxx::event_loop::create_system()`, initializing the
+  network stack with `idfxx::netif::init()`, and creating the station interface with
+  `idfxx::wifi::make_sta_netif()`
+- Handling the `idfxx::wifi::sta_connected` event, and printing the network's SSID, channel and
+  security mode
+- Handling the `idfxx::wifi::sta_disconnected` event, and reconnecting with
+  `idfxx::wifi::try_connect()`
 - Handling the `idfxx::netif::sta_got_ip4` event, and printing the IP address
-- Joining the network with `idfxx::wifi::init()`, `set_roles()`, `set_sta_config()`, `start()` and `connect()`
+- Joining the network with `idfxx::wifi::init()`, `set_roles()`, `set_sta_config()`, `start()` and
+  `connect()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -39,11 +44,12 @@ Set the target:
 idf.py set-target esp32
 ```
 
-Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and flash
-it, and watch the serial output:
+Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and
+flash it, and watch the serial output:
 
 ```bash
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

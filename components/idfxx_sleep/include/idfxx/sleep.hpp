@@ -292,7 +292,10 @@ public:
      *             and connected, or arming the specification fails.
      * @param mode The level or edge that triggers the wake.
      */
-    constexpr deep_sleep_gpio_wake(std::initializer_list<idfxx::gpio> pins, deep_sleep_gpio_mode mode) noexcept
+    constexpr deep_sleep_gpio_wake(
+        std::initializer_list<idfxx::gpio> pins,
+        deep_sleep_gpio_mode mode
+    ) noexcept
         : _pin_mask(detail::pin_mask_of(pins))
         , _mode(mode) {}
 
@@ -363,8 +366,9 @@ void disarm_all(const Sources&... sources) noexcept {
  * @headerfile <idfxx/sleep>
  * @brief A wake-up source specification accepted by the sleep functions.
  *
- * Satisfied by @ref idfxx::sleep::timer_wake "timer_wake", @ref idfxx::sleep::gpio_wake "gpio_wake", and — on chips
- * that support them — @ref idfxx::sleep::ext0_wake "ext0_wake", @ref idfxx::sleep::ext1_wake "ext1_wake", and
+ * Satisfied by @ref idfxx::sleep::timer_wake "timer_wake",
+ * @ref idfxx::sleep::gpio_wake "gpio_wake", and — on chips that support them —
+ * @ref idfxx::sleep::ext0_wake "ext0_wake", @ref idfxx::sleep::ext1_wake "ext1_wake", and
  * @ref idfxx::sleep::deep_sleep_gpio_wake "deep_sleep_gpio_wake".
  */
 template<typename T>

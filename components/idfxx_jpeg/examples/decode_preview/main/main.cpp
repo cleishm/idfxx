@@ -63,13 +63,15 @@ static void show_color_preview() {
     const auto& info = decoder.info();
 
     // The upright photo's aspect ratio gives the preview's height.
-    const idfxx::image::size shown = idfxx::image::oriented_size(info.orientation, info.width, info.height);
+    const idfxx::image::size shown =
+        idfxx::image::oriented_size(info.orientation, info.width, info.height);
     const size_t preview_height = PREVIEW_COLUMNS * shown.height / shown.width;
 
-    // The decoder works in the stored orientation, so its target is turned back. It decodes at the smallest of its
-    // fixed scales that covers the target, so the printed size is only approximate. For an exact size, use
-    // idfxx::image::render().
-    const idfxx::image::size target = idfxx::image::oriented_size(info.orientation, PREVIEW_COLUMNS, preview_height);
+    // The decoder works in the stored orientation, so its target is turned back. It decodes at the
+    // smallest of its fixed scales that covers the target, so the printed size is only approximate.
+    // For an exact size, use idfxx::image::render().
+    const idfxx::image::size target =
+        idfxx::image::oriented_size(info.orientation, PREVIEW_COLUMNS, preview_height);
     decoder.scale_to_cover(target.width, target.height);
     logger.info("Decoding at {}x{}", decoder.output_width(), decoder.output_height());
 
@@ -88,9 +90,10 @@ static void show_streaming() {
     uint64_t green = 0;
     uint64_t blue = 0;
 
-    // The sink is called once per row, top to bottom in the stored orientation, with a block one pixel high. Only that
-    // row is in memory, however large the photo is.
-    auto add_row = [&](idfxx::image::point, idfxx::image::view<const rgb888> block) -> idfxx::result<void> {
+    // The sink is called once per row, top to bottom in the stored orientation, with a block one
+    // pixel high. Only that row is in memory, however large the photo is.
+    auto add_row = [&](idfxx::image::point,
+                       idfxx::image::view<const rgb888> block) -> idfxx::result<void> {
         for (const rgb888& pixel : block.row(0)) {
             red += pixel.r;
             green += pixel.g;
@@ -101,12 +104,15 @@ static void show_streaming() {
     decoder.decode(add_row);
 
     const size_t pixel_count = decoder.output_width() * decoder.output_height();
-    logger.info("Average color: ({}, {}, {})", red / pixel_count, green / pixel_count, blue / pixel_count);
+    logger.info(
+        "Average color: ({}, {}, {})", red / pixel_count, green / pixel_count, blue / pixel_count
+    );
 }
 
 // Reads a JPEG's headers and decodes it at the smallest scale (1/8), passing any error on to the
 // caller. The full-size photo would not fit in memory here, and errors are the same at any scale.
-static idfxx::result<void> try_decode_small(std::span<const uint8_t> jpeg, idfxx::jpeg::decoder::config config = {}) {
+static idfxx::result<void>
+try_decode_small(std::span<const uint8_t> jpeg, idfxx::jpeg::decoder::config config = {}) {
     idfxx::memory_source source{jpeg};
     auto decoder = idfxx::jpeg::decoder::make(source, config);
     if (!decoder) {
@@ -125,17 +131,24 @@ static void show_error_handling() {
         logger.info("{}: {}", what, outcome ? "decoded" : outcome.error().message());
     };
 
-    // Bytes that aren't a JPEG, here the start of a PNG file, are rejected when the headers are read.
-    static constexpr std::array<uint8_t, 8> png_signature{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
+    // Bytes that aren't a JPEG, here the start of a PNG file, are rejected when the headers are
+    // read.
+    static constexpr std::array<uint8_t, 8> png_signature{
+        0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'
+    };
     log_outcome("Not a JPEG", try_decode_small(png_signature));
 
     // A photo cut in half still has its headers, but the image data ends too soon.
     const auto jpeg_bytes = photo();
     log_outcome("Truncated", try_decode_small(jpeg_bytes.first(jpeg_bytes.size() / 2)));
 
-    // A progressive JPEG refines the whole picture scan by scan, so the decoder keeps every coefficient
-    // until the last scan: about 1.2 MB here, at any scale. A memory limit rejects it before that is allocated.
-    log_outcome("Progressive with a 64 KiB limit", try_decode_small(progressive_photo(), {.memory_limit = 64 * 1024}));
+    // A progressive JPEG refines the whole picture scan by scan, so the decoder keeps every
+    // coefficient until the last scan: about 1.2 MB here, at any scale. A memory limit rejects it
+    // before that is allocated.
+    log_outcome(
+        "Progressive with a 64 KiB limit",
+        try_decode_small(progressive_photo(), {.memory_limit = 64 * 1024})
+    );
 }
 
 extern "C" void app_main() {

@@ -84,7 +84,9 @@ public:
      *         non-empty @p buf, an empty span indicates the peer closed the
      *         connection.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) { return idfxx::unwrap(try_recv(buf)); }
+    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
+        return idfxx::unwrap(try_recv(buf));
+    }
 #endif
 
     /**
@@ -153,7 +155,8 @@ public:
      * @return Success when writable, `errc::timed_out` when not.
      */
     template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_wait_writable(const std::chrono::duration<Rep, Period>& timeout) {
+    [[nodiscard]] result<void>
+    try_wait_writable(const std::chrono::duration<Rep, Period>& timeout) {
         return _try_wait_writable(std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 

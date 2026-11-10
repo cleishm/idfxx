@@ -33,16 +33,19 @@ extern "C" void app_main() {
     idfxx::event_loop loop({.name = "evt_task", .stack_size = 4096, .priority = 5});
 
     // Register listener for a specific event (type-safe, no void* casting needed)
-    auto handle = loop.listener_add(started, []() { logger.info("Listener: got 'started' event"); });
+    auto handle =
+        loop.listener_add(started, []() { logger.info("Listener: got 'started' event"); });
 
     // Register wildcard listener for any event from the base
-    auto any_handle = loop.listener_add(app_events, [](idfxx::event_base<app_event_id>, app_event_id id, void* data) {
-        logger.info("Any-listener: got event id={}", static_cast<int32_t>(id));
-        if (data) {
-            int value = *static_cast<const int*>(data);
-            logger.info("Any-listener: event data={}", value);
+    auto any_handle = loop.listener_add(
+        app_events, [](idfxx::event_base<app_event_id>, app_event_id id, void* data) {
+            logger.info("Any-listener: got event id={}", static_cast<int32_t>(id));
+            if (data) {
+                int value = *static_cast<const int*>(data);
+                logger.info("Any-listener: event data={}", value);
+            }
         }
-    });
+    );
 
     // Post events (type-safe)
     loop.post(started);

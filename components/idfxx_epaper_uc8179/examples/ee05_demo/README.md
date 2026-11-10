@@ -1,6 +1,7 @@
 # EE05 Demo
 
-Walks through the refresh modes of a 7.5" UC8179 ePaper panel on the Seeed Studio XIAO ePaper Display Board EE05.
+Walks through the refresh modes of a 7.5" UC8179 ePaper panel on the Seeed Studio XIAO ePaper
+Display Board EE05.
 
 ## What it demonstrates
 
@@ -9,24 +10,28 @@ Walks through the refresh modes of a 7.5" UC8179 ePaper panel on the Seeed Studi
   `idfxx::epaper::uc8179::spi_io_config()`
 - Creating an `idfxx::epaper::uc8179` driver with reset and BUSY pins
 - Drawing the full 800x480 screen through an 800x80 `idfxx::epaper::mono_framebuffer` with
-  `idfxx::gfx::render_banded()`, instead of a 48 KB full-frame buffer, then showing it with a full `refresh()`
-- Blanking the panel with `clear()`, switching to 4-level grayscale with `set_color_mode()`, and drawing into an
-  `idfxx::epaper::gray4_framebuffer`
+  `idfxx::gfx::render_banded()`, instead of a 48 KB full-frame buffer, then showing it with a full
+  `refresh()`
+- Blanking the panel with `clear()`, switching to 4-level grayscale with `set_color_mode()`, and
+  drawing into an `idfxx::epaper::gray4_framebuffer`
 - A fast refresh with `refresh(refresh_mode::fast)`
-- Updating part of the screen by writing a small framebuffer at an offset with `write()`, followed by partial
-  refreshes, using `start_refresh()` to draw the next frame while the panel is still updating, with a full refresh
-  every 10 updates to clear ghosting
-- Putting the panel into deep sleep with `sleep()`, after which the image stays on screen without power
+- Updating part of the screen by writing a small framebuffer at an offset with `write()`, followed
+  by partial refreshes, using `start_refresh()` to draw the next frame while the panel is still
+  updating, with a full refresh every 10 updates to clear ghosting
+- Putting the panel into deep sleep with `sleep()`, after which the image stays on screen without
+  power
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
 - A Seeed Studio XIAO ePaper Display Board EE05 (ESP32-S3 Plus)
-- A 7.5" 800x480 UC8179 ePaper panel connected to the board (the driver's defaults match the GDEY075T7)
+- A 7.5" 800x480 UC8179 ePaper panel connected to the board (the driver's defaults match the
+  GDEY075T7)
 
-The example is for the ESP32-S3 only (`sdkconfig.defaults` sets the target to `esp32s3`). It uses the EE05's
-display wiring:
+The example is for the ESP32-S3 only (`sdkconfig.defaults` sets the target to `esp32s3`). It uses
+the EE05's display wiring:
 
 | Display signal             | ESP32-S3 GPIO |
 | -------------------------- | ------------- |
@@ -41,9 +46,9 @@ display wiring:
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
 > [!NOTE]
-> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for the display.
-> Log output still reaches the monitor through the USB Serial/JTAG port, which is enabled as a secondary console
-> by default.
+> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for
+> the display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
+> enabled as a secondary console by default.
 
 ## How to use
 
@@ -65,7 +70,8 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 
 The panel steps through six screens, about five seconds apart:
 
-1. A title screen with "idfxx epaper" on a black banner, a large "hello" in a box, and "UC8179 800x480"
+1. A title screen with "idfxx epaper" on a black banner, a large "hello" in a box, and "UC8179
+   800x480"
 2. Four horizontal bands, from white through light and dark gray to black
 3. The title screen again, back in black and white
 4. The title screen with "fast refresh" added, drawn with a fast refresh

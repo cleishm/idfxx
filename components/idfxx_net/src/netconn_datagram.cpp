@@ -58,8 +58,13 @@ result<datagram_channel> datagram_channel::make(address_family fam, udp_variant 
 
 namespace {
 
-result<void>
-ipv4_membership(::netconn* conn, address_family fam, ipv4_addr group, ipv4_addr interface, enum netconn_igmp op) {
+result<void> ipv4_membership(
+    ::netconn* conn,
+    address_family fam,
+    ipv4_addr group,
+    ipv4_addr interface,
+    enum netconn_igmp op
+) {
     if (conn == nullptr) {
         return error(errc::invalid_state);
     }

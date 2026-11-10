@@ -79,14 +79,18 @@ static void draw_frame(band_canvas& canvas) {
         const size_t top = SWATCH_TOP + i * SWATCH_PITCH;
         canvas.fill_rect(8, top, 60, 28, SWATCHES[i].color);
         canvas.draw_rect(6, top - 2, 64, 32, white);
-        canvas.draw_text(idfxx::font::spleen_8x16, 84, top + 6, SWATCHES[i].name, SWATCHES[i].color);
+        canvas.draw_text(
+            idfxx::font::spleen_8x16, 84, top + 6, SWATCHES[i].name, SWATCHES[i].color
+        );
     }
 
     // Footer: separator and right-aligned status.
     canvas.draw_hline(0, DISPLAY_H - 20, DISPLAY_W, white);
     const auto status = "-72dBm 45s";
     const size_t w = idfxx::font::text_width(idfxx::font::spleen_8x16, status);
-    canvas.draw_text(idfxx::font::spleen_8x16, DISPLAY_W - w - 4, DISPLAY_H - 18, status, {0, 255, 0});
+    canvas.draw_text(
+        idfxx::font::spleen_8x16, DISPLAY_W - w - 4, DISPLAY_H - 18, status, {0, 255, 0}
+    );
 }
 
 extern "C" void app_main() {
@@ -101,7 +105,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.sclk = PIN_SCLK;
         bus_cfg.max_transfer_sz = DISPLAY_W * BAND_H * sizeof(rgb565);
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // --- Panel I/O ---
         idfxx::panel_io io(
@@ -131,7 +137,9 @@ extern "C" void app_main() {
         logger.info("Display initialized ({}x{})", DISPLAY_W, DISPLAY_H);
 
         idfxx::lcd::rgb565_framebuffer band(DISPLAY_W, BAND_H);
-        idfxx::gfx::render_banded(band, panel, DISPLAY_H, [](band_canvas& canvas) { draw_frame(canvas); });
+        idfxx::gfx::render_banded(band, panel, DISPLAY_H, [](band_canvas& canvas) {
+            draw_frame(canvas);
+        });
 
         logger.info("Drew {} swatches", SWATCHES.size());
 

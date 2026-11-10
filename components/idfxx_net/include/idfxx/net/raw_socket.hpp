@@ -58,8 +58,10 @@ public:
      * raw socket.
      */
     struct config {
-        idfxx::required<ip_protocol> protocol;        ///< IP-layer protocol (e.g. `ip_protocol::icmp`).
-        address_family family = address_family::ipv4; ///< Address family (IPv4 / IPv6).
+        /// IP-layer protocol (e.g. `ip_protocol::icmp`).
+        idfxx::required<ip_protocol> protocol;
+        /// Address family (IPv4 / IPv6).
+        address_family family = address_family::ipv4;
         /// If true, I/O calls fail immediately with `errc::operation_would_block` when no
         /// data or buffer space is available rather than blocking the calling task.
         /// Equivalent to the POSIX `O_NONBLOCK` flag.

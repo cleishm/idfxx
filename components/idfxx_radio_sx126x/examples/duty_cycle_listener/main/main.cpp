@@ -72,7 +72,9 @@ extern "C" void app_main() {
         bus_cfg.mosi = PIN_MOSI;
         bus_cfg.miso = PIN_MISO;
         bus_cfg.sclk = PIN_SCLK;
-        idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+        idfxx::spi::master_bus bus(
+            idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+        );
 
         // The radio posts rx_done / cad_done on this loop's task.
         idfxx::event_loop loop({.name = "radio_evt", .stack_size = 4096, .priority = 5});
@@ -87,7 +89,8 @@ extern "C" void app_main() {
                 .nreset = PIN_NRESET,
                 // The Heltec V3 drives a TCXO from DIO3 — required for the
                 // chip to lock. Verify the voltage for your board.
-                .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = TCXO_STARTUP},
+                .tcxo =
+                    idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = TCXO_STARTUP},
                 .loop = &loop,
             }
         );
@@ -101,17 +104,19 @@ extern "C" void app_main() {
 
         // ---- Event listeners (dispatched on the loop's task) ----
         std::array<uint8_t, 256> rx_buf{};
-        auto rx_handle = loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info&) {
-            // Pair the read bytes with the rx_info read_received returns; the
-            // event's payload may describe an older packet than the cache.
-            if (auto r = radio.try_read_received(rx_buf)) {
-                std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
-                logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
-            }
-        });
-        auto cad_handle = loop.listener_add(idfxx::radio::cad_done, [](const idfxx::radio::cad_info& ci) {
-            logger.info("cad_done: channel {}", ci.detected ? "busy" : "clear");
-        });
+        auto rx_handle =
+            loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info&) {
+                // Pair the read bytes with the rx_info read_received returns; the
+                // event's payload may describe an older packet than the cache.
+                if (auto r = radio.try_read_received(rx_buf)) {
+                    std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
+                    logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
+                }
+            });
+        auto cad_handle =
+            loop.listener_add(idfxx::radio::cad_done, [](const idfxx::radio::cad_info& ci) {
+                logger.info("cad_done: channel {}", ci.detected ? "busy" : "clear");
+            });
 
         // Listen/sleep windows guaranteed to catch any packet using the
         // configured preamble (~37 ms listen / ~197 ms sleep at SF9/BW125).
@@ -127,7 +132,10 @@ extern "C" void app_main() {
                 duty_cycle->sleep_period.count()
             );
         } else {
-            logger.info("duty-cycling infeasible for this modulation — listening continuously on {}", FREQUENCY);
+            logger.info(
+                "duty-cycling infeasible for this modulation — listening continuously on {}",
+                FREQUENCY
+            );
         }
 
         uint32_t counter = 0;

@@ -27,7 +27,8 @@ constexpr auto tick_period = std::chrono::ceil<std::chrono::microseconds>(tick_d
 // Ticks to ask vTaskDelay() for so that it does not wake before `remaining` has
 // elapsed: rounded up, and clamped to what TickType_t can carry (the caller loops).
 [[nodiscard]] TickType_t ticks_for(std::chrono::microseconds remaining) noexcept {
-    const auto ticks = static_cast<uint64_t>((remaining.count() + tick_period.count() - 1) / tick_period.count());
+    const auto ticks =
+        static_cast<uint64_t>((remaining.count() + tick_period.count() - 1) / tick_period.count());
     return static_cast<TickType_t>(std::min<uint64_t>(ticks, portMAX_DELAY));
 }
 
@@ -68,7 +69,9 @@ void delay(const std::chrono::microseconds& duration) {
     auto remaining = duration;
     while (remaining > std::chrono::microseconds::zero()) {
         vTaskDelay(ticks_for(remaining));
-        remaining = std::chrono::ceil<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now());
+        remaining = std::chrono::ceil<std::chrono::microseconds>(
+            deadline - std::chrono::steady_clock::now()
+        );
     }
 }
 

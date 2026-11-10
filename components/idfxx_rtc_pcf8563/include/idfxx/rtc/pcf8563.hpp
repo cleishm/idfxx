@@ -50,7 +50,8 @@ inline constexpr uint32_t max_timer_ticks = 255u * 60u * 4096u;
 // by division before it is formed.
 template<typename Rep, typename Period>
     requires std::integral<Rep>
-[[nodiscard]] constexpr std::optional<uint32_t> timer_ticks(const std::chrono::duration<Rep, Period>& period) noexcept {
+[[nodiscard]] constexpr std::optional<uint32_t>
+timer_ticks(const std::chrono::duration<Rep, Period>& period) noexcept {
     // One unit of Period is n/d s = n * k / b ticks, where k/b is 4096/d in
     // lowest terms. n/d is reduced and so is k/b, so units * n * k / b is whole
     // exactly when b divides units.
@@ -225,11 +226,16 @@ public:
      * @endcode
      */
     struct alarm_config {
-        std::optional<std::chrono::minutes> minute = std::nullopt;  ///< Minute (0–59), or empty to ignore.
-        std::optional<std::chrono::hours> hour = std::nullopt;      ///< Hour (0–23), or empty to ignore.
-        std::optional<std::chrono::day> day = std::nullopt;         ///< Day of the month (1–31), or empty to ignore.
-        std::optional<std::chrono::weekday> weekday = std::nullopt; ///< Weekday, or empty to ignore.
-        bool interrupt = false;                                     ///< Drive INT when the alarm fires (AIE).
+        /// Minute (0–59), or empty to ignore.
+        std::optional<std::chrono::minutes> minute = std::nullopt;
+        /// Hour (0–23), or empty to ignore.
+        std::optional<std::chrono::hours> hour = std::nullopt;
+        /// Day of the month (1–31), or empty to ignore.
+        std::optional<std::chrono::day> day = std::nullopt;
+        /// Weekday, or empty to ignore.
+        std::optional<std::chrono::weekday> weekday = std::nullopt;
+        /// Drive INT when the alarm fires (AIE).
+        bool interrupt = false;
     };
 
     /**
@@ -474,7 +480,12 @@ public:
      * @code
      * using namespace std::chrono_literals;
      * // At 07:30 on Mondays
-     * rtc.set_alarm({.minute = 30min, .hour = 7h, .weekday = std::chrono::Monday, .interrupt = true});
+     * rtc.set_alarm({
+     *     .minute = 30min,
+     *     .hour = 7h,
+     *     .weekday = std::chrono::Monday,
+     *     .interrupt = true,
+     * });
      * @endcode
      *
      * @param alarm The alarm settings.
@@ -726,7 +737,8 @@ public:
      * @return Success, or an error.
      * @retval invalid_arg @p count is 0, or @p source or @p cfg is invalid; nothing was written.
      */
-    [[nodiscard]] result<void> try_start_timer(timer_source source, uint8_t count, const timer_config& cfg);
+    [[nodiscard]] result<void>
+    try_start_timer(timer_source source, uint8_t count, const timer_config& cfg);
 
     /**
      * @brief Reads the time left in the current countdown period.
@@ -859,7 +871,9 @@ public:
      * @throws std::system_error with `errc::invalid_arg` if @p frequency is invalid, or on I2C
      *         failure.
      */
-    void set_clkout(std::optional<clkout_frequency> frequency) { unwrap(try_set_clkout(frequency)); }
+    void set_clkout(std::optional<clkout_frequency> frequency) {
+        unwrap(try_set_clkout(frequency));
+    }
 
     /**
      * @brief Reads the CLKOUT setting.

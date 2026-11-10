@@ -4,7 +4,8 @@ Blinks an LED, showing how to use `idfxx::gpio` pins for output.
 
 ## What it demonstrates
 
-- Pin constants (`idfxx::gpio_2`, `idfxx::gpio_nc`), printing pins, and checking whether a pin is connected
+- Pin constants (`idfxx::gpio_2`, `idfxx::gpio_nc`), printing pins, and checking whether a pin is
+  connected
 - Setting the pin direction, then setting and reading the output level
 - Inverting a level with `operator~`, and toggling the output with `toggle_level()`
 - Reading and setting the drive capability
@@ -12,15 +13,16 @@ Blinks an LED, showing how to use `idfxx::gpio` pins for output.
 - Blinking at a steady rate with `idfxx::delay_until()`, so timing errors don't add up
 - Returning the pin to its default state with `reset()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
 - Any ESP32-series development board
 - An LED on GPIO 2
 
-Many ESP32 development boards have an LED on GPIO 2. If yours doesn't, connect an LED in series with a
-~330 Ω resistor between GPIO 2 and GND. To use a different pin, change `idfxx::gpio_2` in
+Many ESP32 development boards have an LED on GPIO 2. If yours doesn't, connect an LED in series with
+a ~330 Ω resistor between GPIO 2 and GND. To use a different pin, change `idfxx::gpio_2` in
 `main/main.cpp`.
 
 > [!NOTE]
@@ -43,4 +45,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

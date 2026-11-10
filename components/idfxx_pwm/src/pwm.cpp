@@ -185,9 +185,11 @@ result<void> timer::try_set_frequency(quanta::frequency::hertz frequency) {
     if (frequency.count() <= 0) {
         return error(errc::invalid_arg);
     }
-    return wrap(
-        ledc_set_freq(to_ledc(_speed_mode), static_cast<ledc_timer_t>(_num), static_cast<uint32_t>(frequency.count()))
-    );
+    return wrap(ledc_set_freq(
+        to_ledc(_speed_mode),
+        static_cast<ledc_timer_t>(_num),
+        static_cast<uint32_t>(frequency.count())
+    ));
 }
 
 quanta::frequency::hertz timer::frequency() const {
@@ -235,7 +237,8 @@ result<output> try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch) {
     return try_start(gpio, tmr, ch, output_config{});
 }
 
-result<output> try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg) {
+result<output>
+try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg) {
     auto& state = channels[to_ledc(tmr.speed_mode())][std::to_underlying(ch)];
     std::scoped_lock lock(state.mutex);
     return output::_make(gpio, tmr, ch, cfg);
@@ -269,7 +272,8 @@ result<output> try_start(idfxx::gpio gpio, const timer::config& cfg, const outpu
             }
             continue;
         }
-        if (ledc_get_freq(ledc_mode, static_cast<ledc_timer_t>(t)) == static_cast<uint32_t>(cfg.frequency->count()) &&
+        if (ledc_get_freq(ledc_mode, static_cast<ledc_timer_t>(t)) ==
+                static_cast<uint32_t>(cfg.frequency->count()) &&
             state.resolution_bits == cfg.resolution_bits &&
             state.clk_source == static_cast<int8_t>(std::to_underlying(cfg.clk_source))) {
             matched_timer = t;
@@ -325,7 +329,9 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
     auto& state = channels[ledc_mode][std::to_underlying(ch)];
     auto ledc_timer = static_cast<ledc_timer_t>(tmr.num());
     auto ledc_ch = to_ledc(ch);
-    auto duty = static_cast<uint32_t>(std::clamp(cfg.duty, 0.0f, 1.0f) * static_cast<float>(tmr.ticks_max()));
+    auto duty = static_cast<uint32_t>(
+        std::clamp(cfg.duty, 0.0f, 1.0f) * static_cast<float>(tmr.ticks_max())
+    );
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     if (state.configured) {
@@ -379,7 +385,8 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
 }
 
 // requires channel_state for channel to be locked
-static result<void> _deconfigure_channel(enum channel ch, enum speed_mode mode, idfxx::gpio::level idle_level) {
+static result<void>
+_deconfigure_channel(enum channel ch, enum speed_mode mode, idfxx::gpio::level idle_level) {
     auto ledc_mode = to_ledc(mode);
     auto& state = channels[ledc_mode][std::to_underlying(ch)];
     if (!state.active) {
@@ -410,7 +417,8 @@ static result<void> _deconfigure_channel(enum channel ch, enum speed_mode mode, 
 }
 
 // requires channel_state for channel to be locked
-result<output> output::_make(idfxx::gpio gpio, const class timer& tmr, enum channel ch, const output_config& cfg) {
+result<output>
+output::_make(idfxx::gpio gpio, const class timer& tmr, enum channel ch, const output_config& cfg) {
     auto r = _configure_channel(ch, gpio, tmr, cfg);
     if (!r) {
         return error(r.error());
@@ -484,7 +492,9 @@ void output::_delete() noexcept {
         if (state.active && _gen == state.gen) {
             if (_fade_cb) {
                 ledc_cbs_t cbs{.fade_cb = nullptr};
-                (void)ledc_cb_register(to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, nullptr);
+                (void)ledc_cb_register(
+                    to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, nullptr
+                );
             }
             _deconfigure_channel(_channel, _timer.speed_mode(), idfxx::gpio::level::low);
         }
@@ -525,7 +535,9 @@ uint32_t output::duty_ticks() const {
 }
 
 result<void> output::try_set_duty(float duty) {
-    return try_set_duty_ticks(static_cast<uint32_t>(std::clamp(duty, 0.0f, 1.0f) * static_cast<float>(ticks_max())));
+    return try_set_duty_ticks(
+        static_cast<uint32_t>(std::clamp(duty, 0.0f, 1.0f) * static_cast<float>(ticks_max()))
+    );
 }
 
 result<void> output::try_set_duty_ticks(uint32_t duty) {
@@ -580,7 +592,9 @@ result<void> output::try_stop(idfxx::gpio::level idle_level) {
     if (!_gen) {
         return error(errc::invalid_state);
     }
-    return wrap(ledc_stop(to_ledc(_timer.speed_mode()), to_ledc(_channel), static_cast<uint32_t>(idle_level)));
+    return wrap(ledc_stop(
+        to_ledc(_timer.speed_mode()), to_ledc(_channel), static_cast<uint32_t>(idle_level)
+    ));
 }
 
 enum channel output::release() noexcept {
@@ -601,7 +615,11 @@ result<void> output::_try_fade_to_pulse_width(
     return _try_fade_to_duty(ticks, duration, mode);
 }
 
-result<void> output::_try_fade_to_duty(uint32_t target_duty, std::chrono::milliseconds duration, enum fade_mode mode) {
+result<void> output::_try_fade_to_duty(
+    uint32_t target_duty,
+    std::chrono::milliseconds duration,
+    enum fade_mode mode
+) {
     if (!_gen) {
         return error(errc::invalid_state);
     }
@@ -618,7 +636,12 @@ result<void> output::_try_fade_to_duty(uint32_t target_duty, std::chrono::millis
     return r;
 }
 
-result<void> output::try_fade_with_step(uint32_t target_duty, uint32_t scale, uint32_t cycle_num, enum fade_mode mode) {
+result<void> output::try_fade_with_step(
+    uint32_t target_duty,
+    uint32_t scale,
+    uint32_t cycle_num,
+    enum fade_mode mode
+) {
     if (!_gen) {
         return error(errc::invalid_state);
     }
@@ -637,7 +660,11 @@ result<void> output::try_fade_with_step(uint32_t target_duty, uint32_t scale, ui
 }
 
 #if SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
-result<void> output::try_multi_fade(uint32_t start_duty, std::span<const fade_param> steps, enum fade_mode mode) {
+result<void> output::try_multi_fade(
+    uint32_t start_duty,
+    std::span<const fade_param> steps,
+    enum fade_mode mode
+) {
     if (!_gen) {
         return error(errc::invalid_state);
     }
@@ -670,8 +697,9 @@ result<fade_param> output::try_read_fade_param(uint32_t range) const {
         return error(errc::invalid_state);
     }
     uint32_t dir, cycle, scale, step;
-    auto err =
-        ledc_read_fade_param(to_ledc(_timer.speed_mode()), to_ledc(_channel), range, &dir, &cycle, &scale, &step);
+    auto err = ledc_read_fade_param(
+        to_ledc(_timer.speed_mode()), to_ledc(_channel), range, &dir, &cycle, &scale, &step
+    );
     if (err != ESP_OK) {
         return error(err);
     }
@@ -735,13 +763,15 @@ bool IRAM_ATTR fade_cb_trampoline(const ledc_cb_param_t*, void* user_arg) {
 
 } // namespace
 
-result<void> output::try_register_fade_end_callback(std::move_only_function<bool() const> callback) {
+result<void>
+output::try_register_fade_end_callback(std::move_only_function<bool() const> callback) {
     if (!_gen) {
         return error(errc::invalid_state);
     }
     auto new_cb = std::make_unique<std::move_only_function<bool() const>>(std::move(callback));
     ledc_cbs_t cbs{.fade_cb = fade_cb_trampoline};
-    if (auto err = ledc_cb_register(to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, new_cb.get());
+    if (auto err =
+            ledc_cb_register(to_ledc(_timer.speed_mode()), to_ledc(_channel), &cbs, new_cb.get());
         err != ESP_OK) {
         return error(err);
     }
@@ -758,7 +788,8 @@ result<void> output::try_fade_stop() {
 }
 #endif
 
-result<void> output::try_install_fade_service(idfxx::intr_levels levels, idfxx::flags<intr_flag> flags) {
+result<void>
+output::try_install_fade_service(idfxx::intr_levels levels, idfxx::flags<intr_flag> flags) {
     int raw = to_underlying(levels) | to_underlying(flags);
     return wrap(ledc_fade_func_install(raw));
 }

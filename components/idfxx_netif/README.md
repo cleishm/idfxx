@@ -105,7 +105,8 @@ idfxx::netif::sntp::deinit();
 ## API Overview
 
 The component provides two API styles:
-- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) — methods throw `std::system_error` on error
+- **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) — methods throw
+  `std::system_error` on error
 - **Result-based API** (always available) — methods prefixed with `try_*` return `result<T>`
 
 ### IP Address Types (from `idfxx::net` in `idfxx_core`)
@@ -122,7 +123,8 @@ The component provides two API styles:
 
 ### Network Interface (interface class)
 
-**Status**: `is_up()`, `key()`, `description()`, `get_route_priority()` / `set_route_priority()`, `get_flags()`, `get_event_id()`
+**Status**: `is_up()`, `key()`, `description()`, `get_route_priority()` / `set_route_priority()`,
+`get_flags()`, `get_event_id()`
 
 **IDF Interop**: `idf_handle()`, `idf_index()`, `idf_name()` (lwIP only)
 
@@ -132,9 +134,11 @@ The component provides two API styles:
 
 **IPv4**: `get_ipv4_info()` / `set_ipv4_info()`
 
-**IPv6**: `create_ipv6_linklocal()`, `get_ipv6_linklocal()`, `get_ipv6_global()`, `get_all_ipv6()`, `get_all_preferred_ipv6()`
+**IPv6**: `create_ipv6_linklocal()`, `get_ipv6_linklocal()`, `get_ipv6_global()`, `get_all_ipv6()`,
+`get_all_preferred_ipv6()`
 
-**Static IPv6 neighbors** (ESP-IDF 6.1+, `CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES`): `add_static_neighbor()`, `remove_static_neighbor()`
+**Static IPv6 neighbors** (ESP-IDF 6.1+, `CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES`):
+`add_static_neighbor()`, `remove_static_neighbor()`
 
 **DHCP Client**: `dhcp_client_start()`, `dhcp_client_stop()`, `is_dhcp_client_running()`
 
@@ -188,13 +192,17 @@ loop.listener_add(netif::sta_got_ip4,
 loop.listener_add(netif::sta_lost_ip4, []() { ... });
 ```
 
-Available events: `sta_got_ip4`, `sta_lost_ip4`, `ap_sta_ip4_assigned`, `got_ip6`, `eth_got_ip4`, `eth_lost_ip4`, `ppp_got_ip4`, `ppp_lost_ip4`.
+Available events: `sta_got_ip4`, `sta_lost_ip4`, `ap_sta_ip4_assigned`, `got_ip6`, `eth_got_ip4`,
+`eth_lost_ip4`, `ppp_got_ip4`, `ppp_lost_ip4`.
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs. Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
-- **RAII Ownership**: The `interface` class owns its network interface handle. Move-only semantics prevent accidental copies.
-- **Prerequisites**: Create the system event loop before using netif functions. Call `init()` before creating any network interfaces.
+- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs.
+  Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
+- **RAII Ownership**: The `interface` class owns its network interface handle. Move-only semantics
+  prevent accidental copies.
+- **Prerequisites**: Create the system event loop before using netif functions. Call `init()` before
+  creating any network interfaces.
 - **IP Address Byte Order**: `ipv4_addr` stores addresses in network byte order.
 
 ## License

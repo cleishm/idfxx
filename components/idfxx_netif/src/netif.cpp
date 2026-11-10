@@ -286,8 +286,10 @@ std::vector<net::ipv6_addr> interface::get_all_preferred_ipv6() const {
 #endif
 }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)
-result<void> interface::try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) &&                                             \
+    defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)
+result<void>
+interface::try_add_static_neighbor(const net::ipv6_addr& addr, const mac_address& mac) {
     if (_handle == nullptr) {
         return error(idfxx::errc::invalid_state);
     }
@@ -326,7 +328,9 @@ result<void> interface::try_set_dns(dns_type type, const dns_info& info) {
     esp_netif_dns_info_t native;
     native.ip.type = ESP_IPADDR_TYPE_V4;
     native.ip.u_addr.ip4.addr = info.ip.addr();
-    auto err = esp_netif_set_dns_info(_handle, static_cast<esp_netif_dns_type_t>(std::to_underlying(type)), &native);
+    auto err = esp_netif_set_dns_info(
+        _handle, static_cast<esp_netif_dns_type_t>(std::to_underlying(type)), &native
+    );
     if (err != ESP_OK) {
         return netif_error(err);
     }
@@ -338,7 +342,9 @@ result<dns_info> interface::try_get_dns(dns_type type) const {
         return error(idfxx::errc::invalid_state);
     }
     esp_netif_dns_info_t native;
-    auto err = esp_netif_get_dns_info(_handle, static_cast<esp_netif_dns_type_t>(std::to_underlying(type)), &native);
+    auto err = esp_netif_get_dns_info(
+        _handle, static_cast<esp_netif_dns_type_t>(std::to_underlying(type)), &native
+    );
     if (err != ESP_OK) {
         return netif_error(err);
     }
@@ -492,7 +498,8 @@ result<void> try_init(const config& cfg) {
     native.start = cfg.start;
     native.renew_servers_after_new_IP = cfg.renew_servers_after_new_ip;
     native.ip_event_to_renew = static_cast<ip_event_t>(std::to_underlying(cfg.renew_event_id));
-    native.num_of_servers = std::min(cfg.servers.size(), static_cast<size_t>(CONFIG_LWIP_SNTP_MAX_SERVERS));
+    native.num_of_servers =
+        std::min(cfg.servers.size(), static_cast<size_t>(CONFIG_LWIP_SNTP_MAX_SERVERS));
     for (size_t i = 0; i < native.num_of_servers; ++i) {
         native.servers[i] = cfg.servers[i].c_str();
     }

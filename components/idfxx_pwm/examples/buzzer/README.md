@@ -11,7 +11,8 @@ Plays a C major scale on a passive buzzer, setting each note's pitch by changing
 - Changing the pitch with the timer's `set_frequency()`
 - Silencing the output by setting the duty cycle to 0 with `set_duty()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -23,8 +24,8 @@ active buzzer has its own oscillator and sounds at one fixed pitch. To use a dif
 `idfxx::gpio_18` in `main/main.cpp`.
 
 > [!NOTE]
-> On the ESP32-C3, GPIO 18 is a USB-JTAG pin, and using it disables USB-JTAG. On the ESP32-H2,
-> GPIO 18 is connected to the SPI flash. Choose another pin on these chips.
+> On the ESP32-C3, GPIO 18 is a USB-JTAG pin, and using it disables USB-JTAG. On the ESP32-H2, GPIO
+> 18 is connected to the SPI flash. Choose another pin on these chips.
 
 ## How to use
 

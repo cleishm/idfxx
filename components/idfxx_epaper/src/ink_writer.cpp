@@ -41,7 +41,8 @@ place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_optio
     }
     const size_t width = options.width.value_or(dest_width - options.x);
     const size_t height = options.height.value_or(dest_height - options.y);
-    if (width == 0 || height == 0 || width > dest_width - options.x || height > dest_height - options.y) {
+    if (width == 0 || height == 0 || width > dest_width - options.x ||
+        height > dest_height - options.y) {
         return error(errc::invalid_arg);
     }
     const size_t right = options.x + width;
@@ -51,7 +52,8 @@ place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_optio
     return rectangle{.x = options.x, .y = options.y, .width = width, .height = height};
 }
 
-// Fills the buffer from the source. Reads nothing past it, and doesn't look for the end of the stream.
+// Fills the buffer from the source. Reads nothing past it, and doesn't look for the end of the
+// stream.
 [[nodiscard]] result<void> read_exactly(const ink_source& source, std::span<uint8_t> into) {
     while (!into.empty()) {
         auto n = source.read(source.source, into);
@@ -68,8 +70,12 @@ place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_optio
 
 // Reads the first rows of a band. The bytes of a mono band are the input's, with the padding bits
 // white: a framebuffer's padding is uploaded with its row, and the next column may be on the glass.
-[[nodiscard]] result<void>
-read_band(mono_framebuffer& band, size_t rows, const ink_source& source, std::span<uint8_t> /* packed_row */) {
+[[nodiscard]] result<void> read_band(
+    mono_framebuffer& band,
+    size_t rows,
+    const ink_source& source,
+    std::span<uint8_t> /* packed_row */
+) {
     const size_t stride = band.stride_bytes();
     const auto bytes = band.data().first(rows * stride);
     if (auto r = read_exactly(source, bytes); !r) {
@@ -85,8 +91,12 @@ read_band(mono_framebuffer& band, size_t rows, const ink_source& source, std::sp
 
 // The bytes of a color6 band are the input's, once they are known to be valid, with the padding
 // nibble white, as in a mono band.
-[[nodiscard]] result<void>
-read_band(color6_framebuffer& band, size_t rows, const ink_source& source, std::span<uint8_t> /* packed_row */) {
+[[nodiscard]] result<void> read_band(
+    color6_framebuffer& band,
+    size_t rows,
+    const ink_source& source,
+    std::span<uint8_t> /* packed_row */
+) {
     const auto bytes = band.data().first(rows * band.stride_bytes());
     if (auto r = read_exactly(source, bytes); !r) {
         return r;
@@ -109,8 +119,12 @@ read_band(color6_framebuffer& band, size_t rows, const ink_source& source, std::
 
 // A gray4 band keeps its levels in two planes. The input's code 0 is the darkest and a level's 0 is
 // white, so a level is 3 - code. Padding bits stay white.
-[[nodiscard]] result<void>
-read_band(gray4_framebuffer& band, size_t rows, const ink_source& source, std::span<uint8_t> packed_row) {
+[[nodiscard]] result<void> read_band(
+    gray4_framebuffer& band,
+    size_t rows,
+    const ink_source& source,
+    std::span<uint8_t> packed_row
+) {
     const size_t stride = band.stride_bytes();
     const size_t width = band.width();
     for (size_t y = 0; y < rows; ++y) {
@@ -139,8 +153,12 @@ read_band(gray4_framebuffer& band, size_t rows, const ink_source& source, std::s
 // Reads the rectangle's rows a band at a time, passing each band to write_band with the
 // number of rows it holds and the destination row of the first.
 template<typename Framebuffer, typename WriteBand>
-[[nodiscard]] result<void>
-write_bands(const ink_source& source, const rectangle& at, size_t band_rows, WriteBand&& write_band) {
+[[nodiscard]] result<void> write_bands(
+    const ink_source& source,
+    const rectangle& at,
+    size_t band_rows,
+    WriteBand&& write_band
+) {
     const size_t band_height = std::min(band_rows, at.height);
     auto band = Framebuffer::make(at.width, band_height);
     if (!band) {
@@ -164,8 +182,10 @@ write_bands(const ink_source& source, const rectangle& at, size_t band_rows, Wri
 }
 
 template<typename Framebuffer>
-[[nodiscard]] result<void> write_to_panel(panel& display, const ink_source& source, const ink_options& options) {
-    const auto at = place(display.display_width(), display.display_height(), Framebuffer::x_alignment, options);
+[[nodiscard]] result<void>
+write_to_panel(panel& display, const ink_source& source, const ink_options& options) {
+    const auto at =
+        place(display.display_width(), display.display_height(), Framebuffer::x_alignment, options);
     if (!at) {
         return error(at.error());
     }
@@ -176,9 +196,9 @@ template<typename Framebuffer>
     );
 }
 
-// Copies the rows of a band's bytes to a destination's. The left edge is on a byte boundary. So is the
-// right edge, or else it's the destination's own, where both have the same padding: the band's stride
-// never reaches past what the rectangle owns.
+// Copies the rows of a band's bytes to a destination's. The left edge is on a byte boundary. So is
+// the right edge, or else it's the destination's own, where both have the same padding: the band's
+// stride never reaches past what the rectangle owns.
 void copy_rows(
     std::span<const uint8_t> band,
     size_t band_stride,
@@ -190,7 +210,9 @@ void copy_rows(
 ) {
     for (size_t row = 0; row < rows; ++row) {
         std::memcpy(
-            dest.data() + (dest_y + row) * dest_stride + dest_x_byte, band.data() + row * band_stride, band_stride
+            dest.data() + (dest_y + row) * dest_stride + dest_x_byte,
+            band.data() + row * band_stride,
+            band_stride
         );
     }
 }
@@ -205,7 +227,10 @@ write_to_framebuffer(Framebuffer& dest, const ink_source& source, const ink_opti
     // A framebuffer's alignment is the number of pixels in a byte of its rows.
     const size_t x_byte = at->x / Framebuffer::x_alignment;
     return write_bands<Framebuffer>(
-        source, *at, options.band_rows, [&](const Framebuffer& band, size_t rows, size_t y) -> result<void> {
+        source,
+        *at,
+        options.band_rows,
+        [&](const Framebuffer& band, size_t rows, size_t y) -> result<void> {
             const size_t band_stride = band.stride_bytes();
             const size_t dest_stride = dest.stride_bytes();
             if constexpr (std::same_as<Framebuffer, gray4_framebuffer>) {
@@ -236,15 +261,27 @@ result<void> try_write_inks(panel& display, const ink_source& source, const ink_
     return error(errc::invalid_state);
 }
 
-result<void> try_write_inks(mono_framebuffer& framebuffer, const ink_source& source, const ink_options& options) {
+result<void> try_write_inks(
+    mono_framebuffer& framebuffer,
+    const ink_source& source,
+    const ink_options& options
+) {
     return write_to_framebuffer(framebuffer, source, options);
 }
 
-result<void> try_write_inks(gray4_framebuffer& framebuffer, const ink_source& source, const ink_options& options) {
+result<void> try_write_inks(
+    gray4_framebuffer& framebuffer,
+    const ink_source& source,
+    const ink_options& options
+) {
     return write_to_framebuffer(framebuffer, source, options);
 }
 
-result<void> try_write_inks(color6_framebuffer& framebuffer, const ink_source& source, const ink_options& options) {
+result<void> try_write_inks(
+    color6_framebuffer& framebuffer,
+    const ink_source& source,
+    const ink_options& options
+) {
     return write_to_framebuffer(framebuffer, source, options);
 }
 

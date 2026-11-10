@@ -72,12 +72,16 @@ result<resolution> device::try_get_resolution() const {
 
 result<std::array<uint8_t, 9>> device::try_read_scratchpad() const {
     std::array<uint8_t, 9> buf{};
-    return wrap(ds18x20_read_scratchpad(_pin.idf_num(), _addr.raw(), buf.data())).transform([&]() { return buf; });
+    return wrap(ds18x20_read_scratchpad(_pin.idf_num(), _addr.raw(), buf.data())).transform([&]() {
+        return buf;
+    });
 }
 
 result<void> device::try_write_scratchpad(std::span<const uint8_t, 3> data) {
     // C API takes non-const pointer but only reads the data
-    return wrap(ds18x20_write_scratchpad(_pin.idf_num(), _addr.raw(), const_cast<uint8_t*>(data.data())));
+    return wrap(
+        ds18x20_write_scratchpad(_pin.idf_num(), _addr.raw(), const_cast<uint8_t*>(data.data()))
+    );
 }
 
 result<void> device::try_copy_scratchpad() {
@@ -94,20 +98,22 @@ result<std::vector<device>> try_scan_devices(idfxx::gpio pin, size_t max_devices
 
     std::vector<onewire_addr_t> addrs(max_devices);
     size_t found = 0;
-    return wrap(ds18x20_scan_devices(pin.idf_num(), addrs.data(), max_devices, &found)).transform([&]() {
-        std::vector<device> devices;
-        devices.reserve(found);
-        for (size_t i = 0; i < found; ++i) {
-            devices.push_back(device(pin, onewire::address{addrs[i]}, device::validated{}));
-        }
-        return devices;
-    });
+    return wrap(ds18x20_scan_devices(pin.idf_num(), addrs.data(), max_devices, &found))
+        .transform([&]() {
+            std::vector<device> devices;
+            devices.reserve(found);
+            for (size_t i = 0; i < found; ++i) {
+                devices.push_back(device(pin, onewire::address{addrs[i]}, device::validated{}));
+            }
+            return devices;
+        });
 }
 
-// Devices are grouped by GPIO pin so that a single batch measurement is issued per bus. Pointer-nulling tracks
-// processed devices in-place to avoid extra allocations, and `addrs` is reused across iterations via `.clear()`
-// to minimize heap activity.
-result<std::vector<quanta::thermo::millicelsius>> try_measure_and_read_multi(std::span<const device> devices) {
+// Devices are grouped by GPIO pin so that a single batch measurement is issued per bus.
+// Pointer-nulling tracks processed devices in-place to avoid extra allocations, and `addrs` is
+// reused across iterations via `.clear()` to minimize heap activity.
+result<std::vector<quanta::thermo::millicelsius>>
+try_measure_and_read_multi(std::span<const device> devices) {
     if (devices.empty()) {
         return std::vector<quanta::thermo::millicelsius>{};
     }
@@ -140,7 +146,9 @@ result<std::vector<quanta::thermo::millicelsius>> try_measure_and_read_multi(std
         }
 
         std::vector<float> raw_temps(addrs.size());
-        auto result = wrap(ds18x20_measure_and_read_multi(pin.idf_num(), addrs.data(), addrs.size(), raw_temps.data()));
+        auto result = wrap(ds18x20_measure_and_read_multi(
+            pin.idf_num(), addrs.data(), addrs.size(), raw_temps.data()
+        ));
         if (!result) {
             return error(result.error());
         }

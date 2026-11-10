@@ -28,8 +28,12 @@ extern "C" void app_main() {
 
     // Heap information
     logger.info("=== Heap Info ===");
-    logger.info("Free heap:         {} bytes", memory::free_size(memory::capabilities::default_heap));
-    logger.info("Min free heap:     {} bytes", memory::minimum_free_size(memory::capabilities::default_heap));
+    logger.info(
+        "Free heap:         {} bytes", memory::free_size(memory::capabilities::default_heap)
+    );
+    logger.info(
+        "Min free heap:     {} bytes", memory::minimum_free_size(memory::capabilities::default_heap)
+    );
     logger.info("Free internal:     {} bytes", memory::free_size(memory::capabilities::internal));
 
     // Random number generation

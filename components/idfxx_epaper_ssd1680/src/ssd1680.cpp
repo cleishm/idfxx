@@ -101,7 +101,8 @@ constexpr size_t max_height = 296;
 
 } // namespace
 
-panel_io::spi_config ssd1680::spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk) noexcept {
+panel_io::spi_config
+ssd1680::spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk) noexcept {
     return {
         .cs_gpio = cs,
         .dc_gpio = dc,
@@ -179,7 +180,13 @@ ssd1680::~ssd1680() {
 // epaper::panel hooks
 // =============================================================================
 
-result<void> ssd1680::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> ssd1680::do_write(
+    const mono_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -201,7 +208,13 @@ result<void> ssd1680::do_write(const mono_framebuffer& fb, size_t row_start, siz
     return _drain();
 }
 
-result<void> ssd1680::do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
+result<void> ssd1680::do_write(
+    const gray4_framebuffer& fb,
+    size_t row_start,
+    size_t row_end,
+    size_t x,
+    size_t y
+) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -454,7 +467,10 @@ result<void> ssd1680::_init_scan() {
         return r;
     }
     const auto mux = static_cast<uint16_t>(height() - 1);
-    if (auto r = _cmd(cmd_driver_output, {static_cast<uint8_t>(mux & 0xFF), static_cast<uint8_t>(mux >> 8), 0x00});
+    if (auto r = _cmd(
+            cmd_driver_output,
+            {static_cast<uint8_t>(mux & 0xFF), static_cast<uint8_t>(mux >> 8), 0x00}
+        );
         !r) {
         return r;
     }
@@ -542,7 +558,9 @@ result<void> ssd1680::_set_ram_window(region r) {
         y_start = height() - 1 - y_start;
         y_end = height() - 1 - y_end;
     }
-    if (auto e = _cmd(cmd_ram_x_range, {static_cast<uint8_t>(x_start), static_cast<uint8_t>(x_end)}); !e) {
+    if (auto e =
+            _cmd(cmd_ram_x_range, {static_cast<uint8_t>(x_start), static_cast<uint8_t>(x_end)});
+        !e) {
         return e;
     }
     if (auto e = _cmd(
@@ -558,11 +576,17 @@ result<void> ssd1680::_set_ram_window(region r) {
     if (auto e = _cmd(cmd_ram_x_counter, {static_cast<uint8_t>(x_start)}); !e) {
         return e;
     }
-    return _cmd(cmd_ram_y_counter, {static_cast<uint8_t>(y_start & 0xFF), static_cast<uint8_t>(y_start >> 8)});
+    return _cmd(
+        cmd_ram_y_counter,
+        {static_cast<uint8_t>(y_start & 0xFF), static_cast<uint8_t>(y_start >> 8)}
+    );
 }
 
-result<void>
-ssd1680::_write_planes(region window, std::span<const uint8_t> new_plane, std::span<const uint8_t> old_plane) {
+result<void> ssd1680::_write_planes(
+    region window,
+    std::span<const uint8_t> new_plane,
+    std::span<const uint8_t> old_plane
+) {
     if (auto r = _set_ram_window(window); !r) {
         return r;
     }

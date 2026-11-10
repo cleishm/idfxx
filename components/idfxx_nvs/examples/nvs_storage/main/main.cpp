@@ -33,7 +33,13 @@ extern "C" void app_main() {
         auto temperature = handle.get_value<int16_t>("temperature");
         auto flags = handle.get_value<uint8_t>("flags");
         auto timestamp = handle.get_value<uint64_t>("timestamp");
-        logger.info("counter={}, temperature={}, flags=0x{:02X}, timestamp={}", counter, temperature, flags, timestamp);
+        logger.info(
+            "counter={}, temperature={}, flags=0x{:02X}, timestamp={}",
+            counter,
+            temperature,
+            flags,
+            timestamp
+        );
 
         handle.erase_all();
         handle.commit();

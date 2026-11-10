@@ -241,7 +241,9 @@ result<T> future<T>::try_wait_for(const std::chrono::duration<Rep, Period>& time
         }
     }
     return _state->waiter(
-        std::optional<std::chrono::milliseconds>{std::chrono::ceil<std::chrono::milliseconds>(timeout)}
+        std::optional<std::chrono::milliseconds>{
+            std::chrono::ceil<std::chrono::milliseconds>(timeout)
+        }
     );
 }
 

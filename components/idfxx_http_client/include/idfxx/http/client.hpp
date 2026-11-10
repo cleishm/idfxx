@@ -144,17 +144,18 @@ public:
         // Connection
         std::string url = {};  ///< Full URL
         std::string host = {}; ///< Host name
-        /// Port number, or std::nullopt to let the driver choose based on the transport. An explicit value of 0
-        /// or less is rejected with `errc::invalid_arg` when the client is created.
+        /// Port number, or std::nullopt to let the driver choose based on the transport. An
+        /// explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
+        /// created.
         std::optional<int> port = std::nullopt;
-        /// URL path, or std::nullopt to let the driver choose. An explicit empty path is rejected with
-        /// `errc::invalid_arg` when the client is created.
+        /// URL path, or std::nullopt to let the driver choose. An explicit empty path is rejected
+        /// with `errc::invalid_arg` when the client is created.
         std::optional<std::string> path = std::nullopt;
         std::string query = {};                             ///< URL query string
         enum method method = method::get;                   ///< HTTP method
         enum transport transport_type = transport::unknown; ///< Transport type
-        /// Network timeout, or std::nullopt to let the driver choose. An explicit timeout of 0 or less is
-        /// rejected with `errc::invalid_arg` when the client is created.
+        /// Network timeout, or std::nullopt to let the driver choose. An explicit timeout of 0 or
+        /// less is rejected with `errc::invalid_arg` when the client is created.
         std::optional<std::chrono::milliseconds> timeout = std::nullopt;
 
         // Authentication
@@ -168,39 +169,43 @@ public:
         std::string client_key_pem = {};  ///< Client private key (PEM)
 
         // Headers
-        /// User-Agent header value, or std::nullopt to let the driver choose. An explicit string, including an
-        /// empty one, is sent as given.
+        /// User-Agent header value, or std::nullopt to let the driver choose. An explicit string,
+        /// including an empty one, is sent as given.
         std::optional<std::string> user_agent = std::nullopt;
 
         // Redirect
         bool disable_auto_redirect = false; ///< Disable automatic redirect following
-        /// Maximum number of redirects to follow, or std::nullopt to let the driver choose. An explicit value of 0
-        /// or less is rejected with `errc::invalid_arg` when the client is created; to stop following redirects,
-        /// set `disable_auto_redirect`, which returns the 3xx response to the caller instead.
+        /// Maximum number of redirects to follow, or std::nullopt to let the driver choose. An
+        /// explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
+        /// created; to stop following redirects, set `disable_auto_redirect`, which returns the 3xx
+        /// response to the caller instead.
         std::optional<int> max_redirection_count = std::nullopt;
-        /// Maximum number of authorization retries, or std::nullopt to let the driver choose. An explicit value of 0
-        /// disables retries. A negative value is rejected with `errc::invalid_arg` when the client is created.
+        /// Maximum number of authorization retries, or std::nullopt to let the driver choose. An
+        /// explicit value of 0 disables retries. A negative value is rejected with
+        /// `errc::invalid_arg` when the client is created.
         std::optional<int> max_authorization_retries = std::nullopt;
 
         // Buffers
-        /// Receive buffer size, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 or
-        /// less is rejected with `errc::invalid_arg` when the client is created.
+        /// Receive buffer size, in bytes, or std::nullopt to let the driver choose. An explicit
+        /// value of 0 or less is rejected with `errc::invalid_arg` when the client is created.
         std::optional<int> buffer_size = std::nullopt;
-        /// Transmit buffer size, in bytes, or std::nullopt to let the driver choose. An explicit value of 0 or
-        /// less is rejected with `errc::invalid_arg` when the client is created.
+        /// Transmit buffer size, in bytes, or std::nullopt to let the driver choose. An explicit
+        /// value of 0 or less is rejected with `errc::invalid_arg` when the client is created.
         std::optional<int> buffer_size_tx = std::nullopt;
 
         // Keep-alive
         bool keep_alive_enable = false; ///< Enable TCP keep-alive
-        /// Keep-alive idle time before the first probe, or std::nullopt to let the driver choose. An explicit
-        /// value of 0 or less is rejected with `errc::invalid_arg` when the client is created.
-        std::optional<std::chrono::seconds> keep_alive_idle = std::nullopt;
-        /// Interval between keep-alive probes, or std::nullopt to let the driver choose. An explicit value of 0 or
-        /// less is rejected with `errc::invalid_arg` when the client is created.
-        std::optional<std::chrono::seconds> keep_alive_interval = std::nullopt;
-        /// Number of unanswered keep-alive probes before the connection is dropped, or std::nullopt to let the
-        /// driver choose. An explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
+        /// Keep-alive idle time before the first probe, or std::nullopt to let the driver choose.
+        /// An explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
         /// created.
+        std::optional<std::chrono::seconds> keep_alive_idle = std::nullopt;
+        /// Interval between keep-alive probes, or std::nullopt to let the driver choose. An
+        /// explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
+        /// created.
+        std::optional<std::chrono::seconds> keep_alive_interval = std::nullopt;
+        /// Number of unanswered keep-alive probes before the connection is dropped, or std::nullopt
+        /// to let the driver choose. An explicit value of 0 or less is rejected with
+        /// `errc::invalid_arg` when the client is created.
         std::optional<int> keep_alive_count = std::nullopt;
 
         // TLS options
@@ -665,7 +670,10 @@ public:
      * first and a warning is logged.
      *
      * @code
-     * idfxx::http::client c({.url = "http://example.com/upload", .method = idfxx::http::method::post});
+     * idfxx::http::client c({
+     *     .url = "http://example.com/upload",
+     *     .method = idfxx::http::method::post,
+     * });
      * auto writer = c.open_chunked();
      * writer.write("first part");
      * writer.write("second part");
@@ -807,7 +815,9 @@ public:
     [[nodiscard]] result<void> try_open(size_t write_len = 0);
 
     /// @overload
-    [[nodiscard]] result<void> try_open(int write_len) { return try_open(static_cast<size_t>(write_len)); }
+    [[nodiscard]] result<void> try_open(int write_len) {
+        return try_open(static_cast<size_t>(write_len));
+    }
 
     /**
      * @brief Opens a connection for streaming a chunked request body.

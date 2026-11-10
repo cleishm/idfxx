@@ -72,12 +72,13 @@ namespace idfxx::gfx {
  * @tparam S The surface type.
  */
 template<typename S>
-concept pixel_surface = requires(S& s, const S& cs, size_t x, size_t y, typename S::pixel_type pixel) {
-    typename S::pixel_type;
-    { s.set_pixel(x, y, pixel) } noexcept;
-    { cs.width() } -> std::convertible_to<size_t>;
-    { cs.height() } -> std::convertible_to<size_t>;
-};
+concept pixel_surface =
+    requires(S& s, const S& cs, size_t x, size_t y, typename S::pixel_type pixel) {
+        typename S::pixel_type;
+        { s.set_pixel(x, y, pixel) } noexcept;
+        { cs.width() } -> std::convertible_to<size_t>;
+        { cs.height() } -> std::convertible_to<size_t>;
+    };
 
 /**
  * @brief Fills a rectangle with the given ink.
@@ -131,7 +132,13 @@ void fill_rect(
  * @param ink     The pixel value to write.
  */
 template<pixel_surface Surface>
-void draw_hline(Surface& surface, size_t x, size_t y, size_t length, typename Surface::pixel_type ink) noexcept {
+void draw_hline(
+    Surface& surface,
+    size_t x,
+    size_t y,
+    size_t length,
+    typename Surface::pixel_type ink
+) noexcept {
     fill_rect(surface, x, y, length, 1, ink);
 }
 
@@ -149,7 +156,13 @@ void draw_hline(Surface& surface, size_t x, size_t y, size_t length, typename Su
  * @param ink     The pixel value to write.
  */
 template<pixel_surface Surface>
-void draw_vline(Surface& surface, size_t x, size_t y, size_t length, typename Surface::pixel_type ink) noexcept {
+void draw_vline(
+    Surface& surface,
+    size_t x,
+    size_t y,
+    size_t length,
+    typename Surface::pixel_type ink
+) noexcept {
     fill_rect(surface, x, y, 1, length, ink);
 }
 
@@ -330,7 +343,13 @@ void draw_text(
  */
 template<pixel_surface Surface>
     requires std::same_as<typename Surface::pixel_type, bool>
-void draw_text(Surface& surface, const font::mono_font& font, size_t x, size_t y, std::string_view text) noexcept {
+void draw_text(
+    Surface& surface,
+    const font::mono_font& font,
+    size_t x,
+    size_t y,
+    std::string_view text
+) noexcept {
     draw_text(surface, font, x, y, text, true);
 }
 
@@ -600,7 +619,9 @@ public:
      * @param length Length of the line, in pixels.
      * @param ink    The pixel value to write.
      */
-    void draw_hline(size_t x, size_t y, size_t length, pixel_type ink) noexcept { fill_rect(x, y, length, 1, ink); }
+    void draw_hline(size_t x, size_t y, size_t length, pixel_type ink) noexcept {
+        fill_rect(x, y, length, 1, ink);
+    }
 
     /**
      * @brief Draws a vertical line with the given ink.
@@ -613,7 +634,9 @@ public:
      * @param length Length of the line, in pixels.
      * @param ink    The pixel value to write.
      */
-    void draw_vline(size_t x, size_t y, size_t length, pixel_type ink) noexcept { fill_rect(x, y, 1, length, ink); }
+    void draw_vline(size_t x, size_t y, size_t length, pixel_type ink) noexcept {
+        fill_rect(x, y, 1, length, ink);
+    }
 
     /**
      * @brief Outlines a rectangle with the given ink.
@@ -744,7 +767,8 @@ enum class rotation : uint8_t {
  * idfxx::gfx::rotated view(fb, idfxx::gfx::rotation::cw90);              // 250x122 landscape
  * idfxx::gfx::canvas canvas(view);
  * canvas.draw_text(idfxx::font::spleen_8x16, 8, 8, "landscape");
- * display.write(fb);                                                     // native layout, as always
+ * // The framebuffer is written in its native layout, as always.
+ * display.write(fb);
  * @endcode
  *
  * Like a canvas, a rotated view is a cheap, copyable view: it does not own
@@ -838,8 +862,8 @@ private:
  * an offset.
  */
 template<typename Surface, typename Dest, typename DrawFn>
-concept banded_renderable =
-    pixel_surface<Surface> && requires(canvas<Surface>& c, const Surface& band, Dest& dest, DrawFn& draw) {
+concept banded_renderable = pixel_surface<Surface> &&
+    requires(canvas<Surface>& c, const Surface& band, Dest& dest, DrawFn& draw) {
         draw(c);
         { dest.try_write(band, size_t{}, size_t{}) } -> std::same_as<result<void>>;
     };
@@ -848,7 +872,8 @@ concept banded_renderable =
 /** @cond INTERNAL */
 template<pixel_surface Surface, typename Dest, typename DrawFn>
     requires banded_renderable<Surface, Dest, DrawFn>
-[[nodiscard]] result<void> try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw);
+[[nodiscard]] result<void>
+try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw);
 /** @endcond */
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -931,7 +956,8 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
  */
 template<pixel_surface Surface, typename Dest, typename DrawFn>
     requires banded_renderable<Surface, Dest, DrawFn>
-[[nodiscard]] result<void> try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw) {
+[[nodiscard]] result<void>
+try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw) {
     const size_t band_height = band.height();
     if (band_height == 0 || frame_height == 0 || frame_height % band_height != 0) {
         return error(errc::invalid_arg);

@@ -81,23 +81,34 @@ enum class dma_chan : int {
  * - After initialization, they indicate the actual capabilities of the bus.
  */
 enum class bus_flags : uint32_t {
-    slave = SPICOMMON_BUSFLAG_SLAVE,           ///< Bus supports slave mode
-    master = SPICOMMON_BUSFLAG_MASTER,         ///< Bus supports master mode
-    iomux_pins = SPICOMMON_BUSFLAG_IOMUX_PINS, ///< Bus uses IOMUX pins
-    sclk = SPICOMMON_BUSFLAG_SCLK,             ///< Check existing of SCLK pin. Or indicates CLK line initialized.
-    miso = SPICOMMON_BUSFLAG_MISO,             ///< Check existing of MISO pin. Or indicates MISO line initialized.
-    mosi = SPICOMMON_BUSFLAG_MOSI,             ///< Check existing of MOSI pin. Or indicates MOSI line initialized.
-    dual =
-        SPICOMMON_BUSFLAG_DUAL, ///< Check MOSI and MISO pins can output. Or indicates bus able to work under DIO mode.
-    wphd = SPICOMMON_BUSFLAG_WPHD, ///< Check existing of WP and HD pins. Or indicates WP & HD pins initialized.
-    quad = SPICOMMON_BUSFLAG_QUAD, ///< Check existing of MOSI/MISO/WP/HD pins as output. Or indicates bus able to work
-                                   ///< under QIO mode.
-    io4_io7 = SPICOMMON_BUSFLAG_IO4_IO7, ///< Check existing of IO4~IO7 pins. Or indicates IO4~IO7 pins initialized.
-    octal = SPICOMMON_BUSFLAG_OCTAL, ///< Check existing of MOSI/MISO/WP/HD/SPIIO4/SPIIO5/SPIIO6/SPIIO7 pins as output.
-                                     ///< Or indicates bus able to work under octal mode.
-    native_pins = SPICOMMON_BUSFLAG_NATIVE_PINS,   ///< Bus uses native pins
-    slp_allow_pd = SPICOMMON_BUSFLAG_SLP_ALLOW_PD, ///< Allow to power down the peripheral during light sleep, and auto
-                                                   ///< recover then.
+    /// Bus supports slave mode
+    slave = SPICOMMON_BUSFLAG_SLAVE,
+    /// Bus supports master mode
+    master = SPICOMMON_BUSFLAG_MASTER,
+    /// Bus uses IOMUX pins
+    iomux_pins = SPICOMMON_BUSFLAG_IOMUX_PINS,
+    /// Check existing of SCLK pin. Or indicates CLK line initialized.
+    sclk = SPICOMMON_BUSFLAG_SCLK,
+    /// Check existing of MISO pin. Or indicates MISO line initialized.
+    miso = SPICOMMON_BUSFLAG_MISO,
+    /// Check existing of MOSI pin. Or indicates MOSI line initialized.
+    mosi = SPICOMMON_BUSFLAG_MOSI,
+    /// Check MOSI and MISO pins can output. Or indicates bus able to work under DIO mode.
+    dual = SPICOMMON_BUSFLAG_DUAL,
+    /// Check existing of WP and HD pins. Or indicates WP & HD pins initialized.
+    wphd = SPICOMMON_BUSFLAG_WPHD,
+    /// Check existing of MOSI/MISO/WP/HD pins as output. Or indicates bus able to work under QIO
+    /// mode.
+    quad = SPICOMMON_BUSFLAG_QUAD,
+    /// Check existing of IO4~IO7 pins. Or indicates IO4~IO7 pins initialized.
+    io4_io7 = SPICOMMON_BUSFLAG_IO4_IO7,
+    /// Check existing of MOSI/MISO/WP/HD/SPIIO4/SPIIO5/SPIIO6/SPIIO7 pins as output. Or indicates
+    /// bus able to work under octal mode.
+    octal = SPICOMMON_BUSFLAG_OCTAL,
+    /// Bus uses native pins
+    native_pins = SPICOMMON_BUSFLAG_NATIVE_PINS,
+    /// Allow to power down the peripheral during light sleep, and auto recover then.
+    slp_allow_pd = SPICOMMON_BUSFLAG_SLP_ALLOW_PD,
 };
 
 /**
@@ -108,16 +119,26 @@ enum class bus_flags : uint32_t {
  * CS polarity, and duplex mode.
  */
 enum class device_flags : uint32_t {
-    txbit_lsbfirst = SPI_DEVICE_TXBIT_LSBFIRST,     ///< Transmit command/address/data LSB first.
-    rxbit_lsbfirst = SPI_DEVICE_RXBIT_LSBFIRST,     ///< Receive data LSB first.
-    bit_lsbfirst = SPI_DEVICE_BIT_LSBFIRST,         ///< Transmit and receive LSB first.
-    three_wire = SPI_DEVICE_3WIRE,                  ///< Use MOSI for both sending and receiving.
-    positive_cs = SPI_DEVICE_POSITIVE_CS,           ///< CS is active high during a transaction.
-    halfduplex = SPI_DEVICE_HALFDUPLEX,             ///< Transmit data before receiving, not simultaneously.
-    clk_as_cs = SPI_DEVICE_CLK_AS_CS,               ///< Output clock on CS line while CS is active.
-    no_dummy = SPI_DEVICE_NO_DUMMY,                 ///< Disable automatic dummy bit insertion.
-    ddrclk = SPI_DEVICE_DDRCLK,                     ///< Use double data rate clocking.
-    no_return_result = SPI_DEVICE_NO_RETURN_RESULT, ///< Don't return descriptor on completion (use post_cb).
+    /// Transmit command/address/data LSB first.
+    txbit_lsbfirst = SPI_DEVICE_TXBIT_LSBFIRST,
+    /// Receive data LSB first.
+    rxbit_lsbfirst = SPI_DEVICE_RXBIT_LSBFIRST,
+    /// Transmit and receive LSB first.
+    bit_lsbfirst = SPI_DEVICE_BIT_LSBFIRST,
+    /// Use MOSI for both sending and receiving.
+    three_wire = SPI_DEVICE_3WIRE,
+    /// CS is active high during a transaction.
+    positive_cs = SPI_DEVICE_POSITIVE_CS,
+    /// Transmit data before receiving, not simultaneously.
+    halfduplex = SPI_DEVICE_HALFDUPLEX,
+    /// Output clock on CS line while CS is active.
+    clk_as_cs = SPI_DEVICE_CLK_AS_CS,
+    /// Disable automatic dummy bit insertion.
+    no_dummy = SPI_DEVICE_NO_DUMMY,
+    /// Use double data rate clocking.
+    ddrclk = SPI_DEVICE_DDRCLK,
+    /// Don't return descriptor on completion (use post_cb).
+    no_return_result = SPI_DEVICE_NO_RETURN_RESULT,
 };
 
 /**
@@ -128,20 +149,33 @@ enum class device_flags : uint32_t {
  * command/address/dummy phases, and DMA buffer behavior.
  */
 enum class trans_flags : uint32_t {
-    mode_dio = SPI_TRANS_MODE_DIO,                               ///< Transmit/receive data in 2-bit mode.
-    mode_qio = SPI_TRANS_MODE_QIO,                               ///< Transmit/receive data in 4-bit mode.
-    mode_oct = SPI_TRANS_MODE_OCT,                               ///< Transmit/receive data in 8-bit mode.
-    use_rxdata = SPI_TRANS_USE_RXDATA,                           ///< Receive into inline rx_data instead of rx_buffer.
-    use_txdata = SPI_TRANS_USE_TXDATA,                           ///< Transmit inline tx_data instead of tx_buffer.
-    multiline_addr = SPI_TRANS_MULTILINE_ADDR,                   ///< Use multi-line mode for address phase.
-    multiline_cmd = SPI_TRANS_MULTILINE_CMD,                     ///< Use multi-line mode for command phase.
-    variable_cmd = SPI_TRANS_VARIABLE_CMD,                       ///< Use per-transaction command_bits length.
-    variable_addr = SPI_TRANS_VARIABLE_ADDR,                     ///< Use per-transaction address_bits length.
-    variable_dummy = SPI_TRANS_VARIABLE_DUMMY,                   ///< Use per-transaction dummy_bits length.
-    cs_keep_active = SPI_TRANS_CS_KEEP_ACTIVE,                   ///< Keep CS active after data transfer.
-    dma_buffer_align_manual = SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL, ///< Disable automatic DMA buffer re-alignment.
+    /// Transmit/receive data in 2-bit mode.
+    mode_dio = SPI_TRANS_MODE_DIO,
+    /// Transmit/receive data in 4-bit mode.
+    mode_qio = SPI_TRANS_MODE_QIO,
+    /// Transmit/receive data in 8-bit mode.
+    mode_oct = SPI_TRANS_MODE_OCT,
+    /// Receive into inline rx_data instead of rx_buffer.
+    use_rxdata = SPI_TRANS_USE_RXDATA,
+    /// Transmit inline tx_data instead of tx_buffer.
+    use_txdata = SPI_TRANS_USE_TXDATA,
+    /// Use multi-line mode for address phase.
+    multiline_addr = SPI_TRANS_MULTILINE_ADDR,
+    /// Use multi-line mode for command phase.
+    multiline_cmd = SPI_TRANS_MULTILINE_CMD,
+    /// Use per-transaction command_bits length.
+    variable_cmd = SPI_TRANS_VARIABLE_CMD,
+    /// Use per-transaction address_bits length.
+    variable_addr = SPI_TRANS_VARIABLE_ADDR,
+    /// Use per-transaction dummy_bits length.
+    variable_dummy = SPI_TRANS_VARIABLE_DUMMY,
+    /// Keep CS active after data transfer.
+    cs_keep_active = SPI_TRANS_CS_KEEP_ACTIVE,
+    /// Disable automatic DMA buffer re-alignment.
+    dma_buffer_align_manual = SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-    dma_use_psram = SPI_TRANS_DMA_USE_PSRAM, ///< Use PSRAM for DMA buffer directly. Requires ESP-IDF 6.0+.
+    /// Use PSRAM for DMA buffer directly. Requires ESP-IDF 6.0+.
+    dma_use_psram = SPI_TRANS_DMA_USE_PSRAM,
 #endif
 };
 
@@ -175,17 +209,28 @@ namespace idfxx::spi {
  * (transmit/receive/transfer) which handle bit-length conversion automatically.
  */
 struct transaction {
-    idfxx::flags<trans_flags> flags = {};      ///< Per-transaction flags.
-    uint16_t cmd = 0;                          ///< Command data (length set by device config or variable_cmd).
-    uint64_t addr = 0;                         ///< Address data (length set by device config or variable_addr).
-    std::span<const uint8_t> tx_buffer = {};   ///< Transmit buffer, or empty for no MOSI phase.
-    std::span<uint8_t> rx_buffer = {};         ///< Receive buffer, or empty for no MISO phase.
-    size_t length = 0;                         ///< Total data length in bits.
-    size_t rx_length = 0;                      ///< Receive length in bits (0 = same as length).
-    quanta::frequency::hertz override_freq{0}; ///< Override clock speed for this transaction (0 = no override).
-    uint8_t command_bits = 0;                  ///< Command length for variable_cmd flag.
-    uint8_t address_bits = 0;                  ///< Address length for variable_addr flag.
-    uint8_t dummy_bits = 0;                    ///< Dummy length for variable_dummy flag.
+    /// Per-transaction flags.
+    idfxx::flags<trans_flags> flags = {};
+    /// Command data (length set by device config or variable_cmd).
+    uint16_t cmd = 0;
+    /// Address data (length set by device config or variable_addr).
+    uint64_t addr = 0;
+    /// Transmit buffer, or empty for no MOSI phase.
+    std::span<const uint8_t> tx_buffer = {};
+    /// Receive buffer, or empty for no MISO phase.
+    std::span<uint8_t> rx_buffer = {};
+    /// Total data length in bits.
+    size_t length = 0;
+    /// Receive length in bits (0 = same as length).
+    size_t rx_length = 0;
+    /// Override clock speed for this transaction (0 = no override).
+    quanta::frequency::hertz override_freq{0};
+    /// Command length for variable_cmd flag.
+    uint8_t command_bits = 0;
+    /// Address length for variable_addr flag.
+    uint8_t address_bits = 0;
+    /// Dummy length for variable_dummy flag.
+    uint8_t dummy_bits = 0;
 };
 
 class master_device;
@@ -215,45 +260,58 @@ struct bus_config {
         idfxx::gpio miso = gpio::nc(); ///< GPIO pin for Master In Slave Out (=spi_q) signal.
         idfxx::gpio data1;             ///< GPIO pin for spi data1 signal in quad/octal mode.
     };
-    idfxx::gpio sclk = gpio::nc(); ///< GPIO pin for SPI Clock signal.
+    /// GPIO pin for SPI Clock signal.
+    idfxx::gpio sclk = gpio::nc();
     union {
-        idfxx::gpio quadwp = gpio::nc(); ///< GPIO pin for WP (Write Protect) signal, or gpio::nc() if not used.
-        idfxx::gpio data2; ///< GPIO pin for spi data2 signal in quad/octal mode, or gpio::nc() if not used.
+        /// GPIO pin for WP (Write Protect) signal, or gpio::nc() if not used.
+        idfxx::gpio quadwp = gpio::nc();
+        /// GPIO pin for spi data2 signal in quad/octal mode, or gpio::nc() if not used.
+        idfxx::gpio data2;
     };
     union {
-        idfxx::gpio quadhd = gpio::nc(); ///< GPIO pin for HD (Hold) signal, or gpio::nc() if not used.
-        idfxx::gpio data3; ///< GPIO pin for spi data3 signal in quad/octal mode, or gpio::nc() if not used.
+        /// GPIO pin for HD (Hold) signal, or gpio::nc() if not used.
+        idfxx::gpio quadhd = gpio::nc();
+        /// GPIO pin for spi data3 signal in quad/octal mode, or gpio::nc() if not used.
+        idfxx::gpio data3;
     };
-    idfxx::gpio data4 = gpio::nc(); ///< GPIO pin for spi data4 signal in octal mode, or gpio::nc() if not used.
-    idfxx::gpio data5 = gpio::nc(); ///< GPIO pin for spi data5 signal in octal mode, or gpio::nc() if not used.
-    idfxx::gpio data6 = gpio::nc(); ///< GPIO pin for spi data6 signal in octal mode, or gpio::nc() if not used.
-    idfxx::gpio data7 = gpio::nc(); ///< GPIO pin for spi data7 signal in octal mode, or gpio::nc() if not used.
+    /// GPIO pin for spi data4 signal in octal mode, or gpio::nc() if not used.
+    idfxx::gpio data4 = gpio::nc();
+    /// GPIO pin for spi data5 signal in octal mode, or gpio::nc() if not used.
+    idfxx::gpio data5 = gpio::nc();
+    /// GPIO pin for spi data6 signal in octal mode, or gpio::nc() if not used.
+    idfxx::gpio data6 = gpio::nc();
+    /// GPIO pin for spi data7 signal in octal mode, or gpio::nc() if not used.
+    idfxx::gpio data7 = gpio::nc();
 
-    gpio::level data_idle_level = gpio::level::low; ///< Data pin output level while no transaction is active.
-    /// Maximum transfer size, in bytes (DMA only), or std::nullopt to let the driver choose. Larger values allocate
-    /// more DMA descriptors. An explicit value of 0, or one larger than `INT_MAX`, is rejected with
-    /// `errc::invalid_arg` when the bus is created. Ignored when DMA is disabled; the effective limit is then
-    /// `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
+    /// Data pin output level while no transaction is active.
+    gpio::level data_idle_level = gpio::level::low;
+    /// Maximum transfer size, in bytes (DMA only), or std::nullopt to let the driver choose. Larger
+    /// values allocate more DMA descriptors. An explicit value of 0, or one larger than `INT_MAX`,
+    /// is rejected with `errc::invalid_arg` when the bus is created. Ignored when DMA is disabled;
+    /// the effective limit is then `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
     std::optional<size_t> max_transfer_sz = std::nullopt;
 
-    idfxx::flags<bus_flags> flags = {}; ///< Abilities of bus to be checked by the driver.
+    /// Abilities of bus to be checked by the driver.
+    idfxx::flags<bus_flags> flags = {};
 
-    std::optional<idfxx::core_id> isr_cpu_id = std::nullopt; ///< Select cpu core to register SPI ISR.
+    /// Select cpu core to register SPI ISR.
+    std::optional<idfxx::core_id> isr_cpu_id = std::nullopt;
 
-    /// Interrupt priority levels to accept. Only the standard-priority levels (level 1, 2 and 3) are allowed;
-    /// level 4, 5, 6 and `nmi` are rejected by the driver with `errc::invalid_arg`.
+    /// Interrupt priority levels to accept. Only the standard-priority levels (level 1, 2 and 3)
+    /// are allowed; level 4, 5, 6 and `nmi` are rejected by the driver with `errc::invalid_arg`.
     idfxx::intr_levels intr_levels = {};
 
-    /// Behavioral interrupt flags. `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled` are not
-    /// allowed and are rejected by the driver with `errc::invalid_arg`. `intr_flag::iram` is only allowed when
-    /// `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (otherwise it is rejected with `errc::invalid_arg`); when set,
-    /// all callbacks must be placed in IRAM.
+    /// Behavioral interrupt flags. `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled`
+    /// are not allowed and are rejected by the driver with `errc::invalid_arg`. `intr_flag::iram`
+    /// is only allowed when `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (otherwise it is rejected
+    /// with `errc::invalid_arg`); when set, all callbacks must be placed in IRAM.
     idfxx::flags<idfxx::intr_flag> intr_flags = {};
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
-    /// DMA burst size, in bytes, or std::nullopt to let the driver choose. When set, it must be one of the burst
-    /// sizes supported by the chip's DMA controller, otherwise bus creation fails with `errc::invalid_arg`. Only
-    /// used when DMA is enabled, and ignored on chips whose DMA burst size is not configurable.
+    /// DMA burst size, in bytes, or std::nullopt to let the driver choose. When set, it must be one
+    /// of the burst sizes supported by the chip's DMA controller, otherwise bus creation fails with
+    /// `errc::invalid_arg`. Only used when DMA is enabled, and ignored on chips whose DMA burst
+    /// size is not configurable.
     /// @note Only available with ESP-IDF 6.1 or later.
     std::optional<uint32_t> dma_burst_size = std::nullopt;
 #endif
@@ -279,10 +337,14 @@ public:
      * @param cfg      Bus configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure. In particular, `errc::invalid_arg` if the driver rejects
-     *         `cfg.intr_flags` or `cfg.intr_levels` (see ::idfxx::spi::bus_config).
+     * @throws std::system_error on failure. In particular, `errc::invalid_arg` if the driver
+     * rejects `cfg.intr_flags` or `cfg.intr_levels` (see ::idfxx::spi::bus_config).
      */
-    [[nodiscard]] explicit master_bus(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg);
+    [[nodiscard]] explicit master_bus(
+        enum host_device host,
+        enum dma_chan dma_chan,
+        struct bus_config cfg
+    );
 #endif
 
     /**
@@ -293,10 +355,11 @@ public:
      * @param cfg      Bus configuration.
      *
      * @return The new bus, or an error.
-     * @retval errc::invalid_arg The driver rejected the configuration, including interrupt flags or levels
-     *         that are not allowed (see `bus_config::intr_flags` and `bus_config::intr_levels`).
+     * @retval errc::invalid_arg The driver rejected the configuration, including interrupt flags or
+     * levels that are not allowed (see `bus_config::intr_flags` and `bus_config::intr_levels`).
      */
-    [[nodiscard]] static result<master_bus> make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg);
+    [[nodiscard]] static result<master_bus>
+    make(enum host_device host, enum dma_chan dma_chan, struct bus_config cfg);
 
     ~master_bus();
 
@@ -375,20 +438,32 @@ public:
      * @endcode
      */
     struct config {
-        uint8_t command_bits = 0; ///< Default command phase length in bits (0-16).
-        uint8_t address_bits = 0; ///< Default address phase length in bits (0-64).
-        uint8_t dummy_bits = 0;   ///< Dummy bits between address and data phase.
-        uint8_t mode = 0;         ///< SPI mode (0-3): (CPOL, CPHA) pair.
-        /// Duty cycle of the positive clock, in 1/256 increments (128 = 50%), or std::nullopt to let the driver
-        /// choose. An explicit value of 0 is rejected with `errc::invalid_arg` when the device is created.
+        /// Default command phase length in bits (0-16).
+        uint8_t command_bits = 0;
+        /// Default address phase length in bits (0-64).
+        uint8_t address_bits = 0;
+        /// Dummy bits between address and data phase.
+        uint8_t dummy_bits = 0;
+        /// SPI mode (0-3): (CPOL, CPHA) pair.
+        uint8_t mode = 0;
+        /// Duty cycle of the positive clock, in 1/256 increments (128 = 50%), or std::nullopt to
+        /// let the driver choose. An explicit value of 0 is rejected with `errc::invalid_arg` when
+        /// the device is created.
         std::optional<uint16_t> duty_cycle_pos = std::nullopt;
-        uint16_t cs_ena_pretrans = 0; ///< SPI bit-cycles CS is active before transmission (half-duplex only).
-        uint8_t cs_ena_posttrans = 0; ///< SPI bit-cycles CS stays active after transmission.
-        quanta::frequency::hertz clock_speed{0}; ///< SPI clock speed in Hz.
-        std::chrono::nanoseconds input_delay{0}; ///< Maximum data valid time of slave.
-        idfxx::gpio cs = gpio::nc();             ///< GPIO pin for chip select, or gpio::nc() if not used.
-        idfxx::flags<device_flags> flags = {};   ///< Device capability flags.
-        int queue_size = 1;                      ///< Transaction queue depth for async API.
+        /// SPI bit-cycles CS is active before transmission (half-duplex only).
+        uint16_t cs_ena_pretrans = 0;
+        /// SPI bit-cycles CS stays active after transmission.
+        uint8_t cs_ena_posttrans = 0;
+        /// SPI clock speed in Hz.
+        quanta::frequency::hertz clock_speed{0};
+        /// Maximum data valid time of slave.
+        std::chrono::nanoseconds input_delay{0};
+        /// GPIO pin for chip select, or gpio::nc() if not used.
+        idfxx::gpio cs = gpio::nc();
+        /// Device capability flags.
+        idfxx::flags<device_flags> flags = {};
+        /// Transaction queue depth for async API.
+        int queue_size = 1;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -571,7 +646,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
+    [[nodiscard]] result<void>
+    try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
 
     // =========================================================================
     // Full transaction API (blocking)
@@ -613,7 +689,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void polling_transmit(std::span<const uint8_t> tx_data) { unwrap(try_polling_transmit(tx_data)); }
+    void polling_transmit(std::span<const uint8_t> tx_data) {
+        unwrap(try_polling_transmit(tx_data));
+    }
 
     /**
      * @brief Receives data using polling (busy-wait).
@@ -639,7 +717,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] std::vector<uint8_t> polling_receive(size_t size) { return unwrap(try_polling_receive(size)); }
+    [[nodiscard]] std::vector<uint8_t> polling_receive(size_t size) {
+        return unwrap(try_polling_receive(size));
+    }
 
     /**
      * @brief Performs a full-duplex transfer using polling (busy-wait).
@@ -716,7 +796,8 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
+    [[nodiscard]] result<void>
+    try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
 
     /**
      * @brief Executes a full-control transaction using polling (busy-wait).
@@ -757,7 +838,9 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] idfxx::future<void> queue_trans(const transaction& trans) { return unwrap(try_queue_trans(trans)); }
+    [[nodiscard]] idfxx::future<void> queue_trans(const transaction& trans) {
+        return unwrap(try_queue_trans(trans));
+    }
 
     /**
      * @brief Queues a transaction for asynchronous execution with timeout.
@@ -873,7 +956,8 @@ private:
 
     using _trans_fn = esp_err_t (*)(spi_device_handle_t, spi_transaction_t*);
 
-    [[nodiscard]] result<void> _simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn);
+    [[nodiscard]] result<void>
+    _simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn);
     [[nodiscard]] result<void> _full_trans(const transaction& trans, _trans_fn fn);
 
     [[nodiscard]] result<idfxx::future<void>>

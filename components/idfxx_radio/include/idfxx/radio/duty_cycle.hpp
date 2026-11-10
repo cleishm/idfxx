@@ -80,7 +80,9 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  * radio.start_listening(idfxx::radio::rx_duty_cycle_for(mod, pkt.preamble_length));
  * @endcode
  */
-template<typename Rep = std::chrono::microseconds::rep, typename Period = std::chrono::microseconds::period>
+template<
+    typename Rep = std::chrono::microseconds::rep,
+    typename Period = std::chrono::microseconds::period>
 [[nodiscard]] constexpr std::optional<rx_duty_cycle> rx_duty_cycle_for(
     const lora_modulation& mod,
     uint16_t sender_preamble,
@@ -96,8 +98,12 @@ template<typename Rep = std::chrono::microseconds::rep, typename Period = std::c
     // (wake early) and the listen window up (listen longer).
     const int64_t bw = detail::channel_bandwidth(mod.bw).count();
     const int64_t sym_x_1e6 = (int64_t{1} << std::to_underlying(mod.sf)) * 1'000'000;
-    const auto symbols_floor = [&](int64_t n) { return std::chrono::microseconds{n * sym_x_1e6 / bw}; };
-    const auto symbols_ceil = [&](int64_t n) { return std::chrono::microseconds{(n * sym_x_1e6 + bw - 1) / bw}; };
+    const auto symbols_floor = [&](int64_t n) {
+        return std::chrono::microseconds{n * sym_x_1e6 / bw};
+    };
+    const auto symbols_ceil = [&](int64_t n) {
+        return std::chrono::microseconds{(n * sym_x_1e6 + bw - 1) / bw};
+    };
 
     const auto sleep = symbols_floor(sender_preamble - 2 * min_symbols);
     if (sleep < std::chrono::ceil<std::chrono::microseconds>(min_sleep)) {
@@ -105,7 +111,8 @@ template<typename Rep = std::chrono::microseconds::rep, typename Period = std::c
     }
 
     constexpr std::chrono::milliseconds margin{1};
-    const auto worst_case = (symbols_ceil(sender_preamble + 1) - (sleep - margin) + std::chrono::microseconds{1}) / 2;
+    const auto worst_case =
+        (symbols_ceil(sender_preamble + 1) - (sleep - margin) + std::chrono::microseconds{1}) / 2;
     const auto detect = symbols_ceil(min_symbols + 1);
 
     return rx_duty_cycle{worst_case > detect ? worst_case : detect, sleep};

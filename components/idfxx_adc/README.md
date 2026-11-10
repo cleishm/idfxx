@@ -1,18 +1,18 @@
 # idfxx_adc
 
-One-shot and continuous ADC reads with calibrated voltages for ESP32, with type-safe C++23 interfaces.
+One-shot and continuous ADC reads with calibrated voltages for ESP32, with type-safe C++23
+interfaces.
 
 [API documentation](https://cleishm.github.io/idfxx/group__idfxx__adc.html)
 
 ## Features
 
-- One-shot reads (`adc::input`): on-demand conversions — the battery-voltage /
-  sensor-divider case
-- Continuous sampling (`adc::sampler`): fixed-rate background (DMA) sampling of
-  one or more pins, delivered as parsed per-pin samples with overrun accounting
+- One-shot reads (`adc::input`): on-demand conversions — the battery-voltage / sensor-divider case
+- Continuous sampling (`adc::sampler`): fixed-rate background (DMA) sampling of one or more pins,
+  delivered as parsed per-pin samples with overrun accounting
 - Single-call setup: ADC unit and channel resolved from the GPIO pin
-- Typed voltage readings (`quanta::electro::millivolts`) using the chip's factory
-  calibration when available
+- Typed voltage readings (`quanta::electro::millivolts`) using the chip's factory calibration when
+  available
 - Attenuation selection for the full input-range spectrum
 - Dual error handling: exception-based and `result`-based (`try_*`) APIs
 
@@ -104,9 +104,8 @@ if (!n) { /* n.error() */ }
 | `read_raw()` / `try_read_raw()` | Raw conversion value. |
 | `calibrated()` | Whether factory calibration is active. |
 
-`config`: `pin` (required, ADC-capable), `attenuation` (default `db_12`,
-full range), `divider` (external divider ratio, default 1:1 — `read_voltage`
-scales by it to report the source voltage).
+`config`: `pin` (required, ADC-capable), `attenuation` (default `db_12`, full range), `divider`
+(external divider ratio, default 1:1 — `read_voltage` scales by it to report the source voltage).
 
 ### `idfxx::adc::sampler`
 
@@ -124,51 +123,44 @@ scales by it to report the source voltage).
 | `calibrated()` | Whether factory calibration is active for every pin. |
 | `overruns()` | Dropped-data events since the last start. |
 
-`config`: `pins` (required, ADC1-capable, no duplicates), `attenuation`
-(default `db_12`, uniform across pins), `sample_rate` (default 20 kHz, total
-across pins), `frame_samples` (default 256, read granularity),
-`buffer_samples` (default 1024, internal pool capacity).
+`config`: `pins` (required, ADC1-capable, no duplicates), `attenuation` (default `db_12`, uniform
+across pins), `sample_rate` (default 20 kHz, total across pins), `frame_samples` (default 256, read
+granularity), `buffer_samples` (default 1024, internal pool capacity).
 
 ## Error Handling
 
-- `errc::invalid_arg` — pin not connected or not ADC-capable, or a
-  non-positive divider ratio; for the sampler also: empty/duplicate or non-ADC1 pins, bad frame/buffer sizes,
-  non-positive sample rate, empty read destination, a batch `try_to_voltage`
-  output span smaller than its input, or `try_to_voltage` with a pin the
-  sampler was not configured with.
-- `errc::invalid_state` — sampler operation in the wrong state (e.g.
-  `try_read` before `try_start`, double start).
+- `errc::invalid_arg` — pin not connected or not ADC-capable, or a non-positive divider ratio; for
+  the sampler also: empty/duplicate or non-ADC1 pins, bad frame/buffer sizes, non-positive sample
+  rate, empty read destination, a batch `try_to_voltage` output span smaller than its input, or
+  `try_to_voltage` with a pin the sampler was not configured with.
+- `errc::invalid_state` — sampler operation in the wrong state (e.g. `try_read` before `try_start`,
+  double start).
 - `errc::timeout` — no sample arrived within the sampler read timeout.
-- `errc::not_supported` — voltage conversion with no usable factory
-  calibration (fall back to raw values; check `calibrated()`).
+- `errc::not_supported` — voltage conversion with no usable factory calibration (fall back to raw
+  values; check `calibrated()`).
 
 ## Important Notes
 
-- Each `input` claims its pin's entire ADC unit; two inputs on the same
-  unit cannot currently coexist. This component intentionally covers only
-  the single-input case.
-- **The sampler is ADC1 only.** The digital (continuous) controller serves
-  only ADC1 on the supported targets; pins that map to ADC2 are rejected.
-- **One-shot and continuous reads exclude each other on ADC1.** While a
-  sampler is running, `input` reads on ADC1 fail with a timeout — the
-  driver serializes access to the unit. Stop the sampler first.
-- **Sampler attenuation is uniform.** The hardware applies one attenuation
-  per ADC unit in continuous mode, so all pins share `config.attenuation`.
-- **Sample-rate range is chip-specific.** ESP32: 20 kHz – 2 MHz; most other
-  targets (S3/C3/C6/H2): 611 Hz – 83.3 kHz. Rates outside the range fail at
-  construction. `sample_rate` is the *total* conversion rate — each pin
-  samples at `sample_rate / pins.size()`.
-- **Overruns drop data, not errors.** If reads don't keep up and the
-  sampler's internal pool overflows, the driver discards samples;
-  `try_read` still returns valid data and `overruns()` counts the drop
-  events. Size `buffer_samples` and read cadence so the pool never fills.
-- **The sampler expects a single reader and is not ISR-safe.** Call
-  `read`/`try_read` from one task only, and never from an interrupt
-  handler.
-- ADC2 is shared with Wi-Fi on most chips — prefer ADC1 pins when Wi-Fi is
-  active.
-- For battery sensing above the input range, use a resistor divider and
-  set `config::divider` so `read_voltage` reports the source voltage.
+- Each `input` claims its pin's entire ADC unit; two inputs on the same unit cannot currently
+  coexist. This component intentionally covers only the single-input case.
+- **The sampler is ADC1 only.** The digital (continuous) controller serves only ADC1 on the
+  supported targets; pins that map to ADC2 are rejected.
+- **One-shot and continuous reads exclude each other on ADC1.** While a sampler is running, `input`
+  reads on ADC1 fail with a timeout — the driver serializes access to the unit. Stop the sampler
+  first.
+- **Sampler attenuation is uniform.** The hardware applies one attenuation per ADC unit in
+  continuous mode, so all pins share `config.attenuation`.
+- **Sample-rate range is chip-specific.** ESP32: 20 kHz – 2 MHz; most other targets (S3/C3/C6/H2):
+  611 Hz – 83.3 kHz. Rates outside the range fail at construction. `sample_rate` is the *total*
+  conversion rate — each pin samples at `sample_rate / pins.size()`.
+- **Overruns drop data, not errors.** If reads don't keep up and the sampler's internal pool
+  overflows, the driver discards samples; `try_read` still returns valid data and `overruns()`
+  counts the drop events. Size `buffer_samples` and read cadence so the pool never fills.
+- **The sampler expects a single reader and is not ISR-safe.** Call `read`/`try_read` from one task
+  only, and never from an interrupt handler.
+- ADC2 is shared with Wi-Fi on most chips — prefer ADC1 pins when Wi-Fi is active.
+- For battery sensing above the input range, use a resistor divider and set `config::divider` so
+  `read_voltage` reports the source voltage.
 
 ## License
 

@@ -47,14 +47,17 @@ result<void> apply_config(stream_socket& s, const stream_socket::config& cfg) {
         }
     }
     if (cfg.keep_idle) {
-        if (auto r = detail::set_int_option(fd, IPPROTO_TCP, TCP_KEEPIDLE, static_cast<int>(cfg.keep_idle->count()));
+        if (auto r = detail::set_int_option(
+                fd, IPPROTO_TCP, TCP_KEEPIDLE, static_cast<int>(cfg.keep_idle->count())
+            );
             !r) {
             return r;
         }
     }
     if (cfg.keep_interval) {
-        if (auto r =
-                detail::set_int_option(fd, IPPROTO_TCP, TCP_KEEPINTVL, static_cast<int>(cfg.keep_interval->count()));
+        if (auto r = detail::set_int_option(
+                fd, IPPROTO_TCP, TCP_KEEPINTVL, static_cast<int>(cfg.keep_interval->count())
+            );
             !r) {
             return r;
         }
@@ -88,7 +91,12 @@ stream_socket::stream_socket(const endpoint& peer, const config& cfg)
 stream_socket::stream_socket(std::string_view host, port_number port)
     : stream_socket(idfxx::unwrap(connect_to(host, port))) {}
 
-stream_socket::stream_socket(std::string_view host, port_number port, const config& cfg, const resolver_options& opts)
+stream_socket::stream_socket(
+    std::string_view host,
+    port_number port,
+    const config& cfg,
+    const resolver_options& opts
+)
     : stream_socket(idfxx::unwrap(connect_to(host, port, cfg, opts))) {}
 #endif
 
@@ -139,8 +147,12 @@ namespace {
 // first success, or the last attempt error if every candidate failed, or
 // `errc::name_not_found` if resolution succeeded but yielded no candidates.
 template<typename Service, typename Attempt>
-result<stream_socket>
-connect_to_impl(std::string_view host, Service service, const resolver_options& opts, Attempt&& attempt) {
+result<stream_socket> connect_to_impl(
+    std::string_view host,
+    Service service,
+    const resolver_options& opts,
+    Attempt&& attempt
+) {
     std::optional<stream_socket> connected;
     bool any_tried = false;
     std::error_code last_err{};
@@ -177,13 +189,22 @@ result<stream_socket> stream_socket::connect_to(std::string_view host, port_numb
     return connect_to(host, port, config{}, {});
 }
 
-result<stream_socket>
-stream_socket::connect_to(std::string_view host, port_number port, const config& cfg, const resolver_options& opts) {
-    return connect_to_impl(host, port, opts, [&](const endpoint& ep) { return connect_to(ep, cfg); });
+result<stream_socket> stream_socket::connect_to(
+    std::string_view host,
+    port_number port,
+    const config& cfg,
+    const resolver_options& opts
+) {
+    return connect_to_impl(host, port, opts, [&](const endpoint& ep) {
+        return connect_to(ep, cfg);
+    });
 }
 
-result<stream_socket>
-stream_socket::_make_and_connect_for(const endpoint& ep, const config& cfg, std::chrono::milliseconds timeout) {
+result<stream_socket> stream_socket::_make_and_connect_for(
+    const endpoint& ep,
+    const config& cfg,
+    std::chrono::milliseconds timeout
+) {
     config c = cfg;
     c.family = ep.family();
     auto sock_r = make(c);
@@ -208,7 +229,8 @@ result<stream_socket> stream_socket::_connect_to_for(
     });
 }
 
-result<void> stream_socket::_try_connect_for(const endpoint& peer, std::chrono::milliseconds timeout) {
+result<void>
+stream_socket::_try_connect_for(const endpoint& peer, std::chrono::milliseconds timeout) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
@@ -308,7 +330,9 @@ result<void> stream_socket::try_recv_exact(std::span<std::byte> buf) {
 }
 
 result<size_t> stream_socket::try_read(std::span<uint8_t> buf) {
-    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) { return r.size(); });
+    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) {
+        return r.size();
+    });
 }
 
 result<void> stream_socket::try_shutdown() {
@@ -350,14 +374,16 @@ void stream_socket::_set_keep_idle(std::chrono::seconds s) noexcept {
     if (_fd < 0) {
         return;
     }
-    std::ignore = detail::set_int_option(_fd, IPPROTO_TCP, TCP_KEEPIDLE, static_cast<int>(s.count()));
+    std::ignore =
+        detail::set_int_option(_fd, IPPROTO_TCP, TCP_KEEPIDLE, static_cast<int>(s.count()));
 }
 
 void stream_socket::_set_keep_interval(std::chrono::seconds s) noexcept {
     if (_fd < 0) {
         return;
     }
-    std::ignore = detail::set_int_option(_fd, IPPROTO_TCP, TCP_KEEPINTVL, static_cast<int>(s.count()));
+    std::ignore =
+        detail::set_int_option(_fd, IPPROTO_TCP, TCP_KEEPINTVL, static_cast<int>(s.count()));
 }
 
 void stream_socket::set_keep_count(uint32_t count) noexcept {

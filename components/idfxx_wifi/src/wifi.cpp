@@ -78,7 +78,8 @@ static void promiscuous_trampoline(void* buf, wifi_promiscuous_pkt_type_t type) 
         return;
     }
     (void)invoke_guarded(TAG, "Promiscuous callback", [&] {
-        cb(static_cast<const wifi_promiscuous_pkt_t*>(buf), static_cast<promiscuous_pkt_type>(type));
+        cb(static_cast<const wifi_promiscuous_pkt_t*>(buf),
+           static_cast<promiscuous_pkt_type>(type));
     });
 }
 
@@ -116,8 +117,9 @@ static ap_record from_idf_record(const wifi_ap_record_t& r) {
     record.ssid = std::string(reinterpret_cast<const char*>(r.ssid));
     record.rssi = quanta::electro::dbm{r.rssi};
     record.primary_channel = r.primary;
-    record.second =
-        r.second == WIFI_SECOND_CHAN_NONE ? std::nullopt : std::optional(static_cast<second_channel>(r.second));
+    record.second = r.second == WIFI_SECOND_CHAN_NONE
+        ? std::nullopt
+        : std::optional(static_cast<second_channel>(r.second));
     record.authmode = static_cast<auth_mode>(r.authmode);
     record.pairwise_cipher = static_cast<cipher_type>(r.pairwise_cipher);
     record.group_cipher = static_cast<cipher_type>(r.group_cipher);
@@ -493,7 +495,9 @@ result<void> try_restore() {
 // =============================================================================
 
 result<void> try_set_roles(flags<role> roles) {
-    return check(esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set WiFi roles");
+    return check(
+        esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set WiFi roles"
+    );
 }
 
 result<flags<role>> try_get_roles() {
@@ -571,7 +575,9 @@ result<void> try_set_sta_config(const sta_config& cfg) {
         return wifi_error(err);
     }
 
-    ESP_LOGD(TAG, "WiFi STA configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data());
+    ESP_LOGD(
+        TAG, "WiFi STA configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
+    );
     return {};
 }
 
@@ -606,7 +612,9 @@ result<void> try_set_ap_config(const ap_config& cfg) {
         return wifi_error(err);
     }
 
-    ESP_LOGD(TAG, "WiFi AP configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data());
+    ESP_LOGD(
+        TAG, "WiFi AP configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
+    );
     return {};
 }
 
@@ -694,13 +702,14 @@ result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milli
     }
     event_loop::unique_listener_handle got_ip_guard{*got_ip};
 
-    auto disconnect_listener = loop.try_listener_add(sta_disconnected, [w](const disconnected_event_data&) {
-        {
-            std::lock_guard lock(w->mutex);
-            w->disconnected = true;
-        }
-        w->cv.notify_all();
-    });
+    auto disconnect_listener =
+        loop.try_listener_add(sta_disconnected, [w](const disconnected_event_data&) {
+            {
+                std::lock_guard lock(w->mutex);
+                w->disconnected = true;
+            }
+            w->cv.notify_all();
+        });
     if (!disconnect_listener) {
         return error(disconnect_listener.error());
     }
@@ -767,7 +776,9 @@ result<std::vector<ap_record>> try_scan(const scan_config& cfg) {
 
 result<void> try_scan_start(const scan_config& cfg) {
     auto idf_cfg = to_idf_scan_config(cfg);
-    return check(esp_wifi_scan_start(&idf_cfg, false /* non-blocking */), "Failed to start async scan");
+    return check(
+        esp_wifi_scan_start(&idf_cfg, false /* non-blocking */), "Failed to start async scan"
+    );
 }
 
 result<std::vector<ap_record>> try_scan_get_results() {
@@ -794,8 +805,8 @@ result<void> try_clear_ap_list() {
 
 result<void> try_set_scan_parameters(const scan_default_params& params) {
     wifi_scan_default_params_t idf_params{};
-    if (params.active_scan_min.count() < 0 || params.active_scan_max.count() < 0 || params.passive_scan.count() < 0 ||
-        params.home_chan_dwell_time.count() < 0 ||
+    if (params.active_scan_min.count() < 0 || params.active_scan_max.count() < 0 ||
+        params.passive_scan.count() < 0 || params.home_chan_dwell_time.count() < 0 ||
         params.home_chan_dwell_time.count() > std::numeric_limits<uint8_t>::max()) {
         return wifi_error(ESP_ERR_INVALID_ARG);
     }
@@ -845,7 +856,8 @@ result<enum power_save> try_get_power_save() {
 
 result<void> try_set_bandwidth(enum role iface, enum bandwidth bw) {
     return check(
-        esp_wifi_set_bandwidth(to_wifi_if(iface), static_cast<wifi_bandwidth_t>(bw)), "Failed to set bandwidth"
+        esp_wifi_set_bandwidth(to_wifi_if(iface), static_cast<wifi_bandwidth_t>(bw)),
+        "Failed to set bandwidth"
     );
 }
 
@@ -930,7 +942,8 @@ result<channel_info> try_get_channel() {
     }
     return channel_info{
         primary,
-        second == WIFI_SECOND_CHAN_NONE ? std::nullopt : std::optional(static_cast<second_channel>(second)),
+        second == WIFI_SECOND_CHAN_NONE ? std::nullopt
+                                        : std::optional(static_cast<second_channel>(second)),
     };
 }
 
@@ -954,7 +967,9 @@ result<country_config> try_get_country() {
 }
 
 result<void> try_set_country_code(std::string_view cc, bool ieee80211d_enabled) {
-    return check(esp_wifi_set_country_code(cc.data(), ieee80211d_enabled), "Failed to set country code");
+    return check(
+        esp_wifi_set_country_code(cc.data(), ieee80211d_enabled), "Failed to set country code"
+    );
 }
 
 result<std::string> try_get_country_code() {
@@ -975,10 +990,13 @@ result<void> try_set_max_tx_power(quanta::electro::centi_dbm power) {
     // The hardware unit is 0.25 dBm (25 centi-dBm); round to the nearest step.
     const int64_t cdbm = power.count();
     const int64_t quarter_dbm = (cdbm >= 0 ? cdbm + 12 : cdbm - 12) / 25;
-    if (quarter_dbm < std::numeric_limits<int8_t>::min() || quarter_dbm > std::numeric_limits<int8_t>::max()) {
+    if (quarter_dbm < std::numeric_limits<int8_t>::min() ||
+        quarter_dbm > std::numeric_limits<int8_t>::max()) {
         return wifi_error(ESP_ERR_INVALID_ARG);
     }
-    return check(esp_wifi_set_max_tx_power(static_cast<int8_t>(quarter_dbm)), "Failed to set max TX power");
+    return check(
+        esp_wifi_set_max_tx_power(static_cast<int8_t>(quarter_dbm)), "Failed to set max TX power"
+    );
 }
 
 result<quanta::electro::centi_dbm> try_get_max_tx_power() {
@@ -996,7 +1014,10 @@ result<quanta::electro::centi_dbm> try_get_max_tx_power() {
 // =============================================================================
 
 result<void> try_set_rssi_threshold(quanta::electro::dbm threshold) {
-    return check(esp_wifi_set_rssi_threshold(static_cast<int32_t>(threshold.count())), "Failed to set RSSI threshold");
+    return check(
+        esp_wifi_set_rssi_threshold(static_cast<int32_t>(threshold.count())),
+        "Failed to set RSSI threshold"
+    );
 }
 
 result<quanta::electro::dbm> try_get_rssi() {
@@ -1066,7 +1087,9 @@ result<enum band> try_get_band() {
 }
 
 result<void> try_set_band_mode(enum band_mode m) {
-    return check(esp_wifi_set_band_mode(static_cast<wifi_band_mode_t>(m)), "Failed to set band mode");
+    return check(
+        esp_wifi_set_band_mode(static_cast<wifi_band_mode_t>(m)), "Failed to set band mode"
+    );
 }
 
 result<enum band_mode> try_get_band_mode() {
@@ -1221,10 +1244,14 @@ result<void> try_register_80211_tx_cb(tx_80211_done_cb cb) {
 // Vendor IE
 // =============================================================================
 
-result<void> try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
+result<void>
+try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
     return check(
         esp_wifi_set_vendor_ie(
-            enable, static_cast<wifi_vendor_ie_type_t>(type), static_cast<wifi_vendor_ie_id_t>(id), vnd_ie
+            enable,
+            static_cast<wifi_vendor_ie_type_t>(type),
+            static_cast<wifi_vendor_ie_id_t>(id),
+            vnd_ie
         ),
         "Failed to set vendor IE"
     );
@@ -1266,7 +1293,8 @@ result<csi_config> try_get_csi_config() {
 
 result<void> try_set_csi_rx_cb(csi_rx_cb cb, void* ctx) {
     auto res = check(
-        esp_wifi_set_csi_rx_cb(cb != nullptr ? csi_trampoline : nullptr, nullptr), "Failed to set CSI RX callback"
+        esp_wifi_set_csi_rx_cb(cb != nullptr ? csi_trampoline : nullptr, nullptr),
+        "Failed to set CSI RX callback"
     );
     if (res) {
         s_csi_cb.store(cb, ctx);
@@ -1299,11 +1327,13 @@ result<void> try_ftm_end_session() {
 }
 
 result<void> try_ftm_resp_set_offset(quanta::spatial::centimeters offset) {
-    if (offset.count() < std::numeric_limits<int16_t>::min() || offset.count() > std::numeric_limits<int16_t>::max()) {
+    if (offset.count() < std::numeric_limits<int16_t>::min() ||
+        offset.count() > std::numeric_limits<int16_t>::max()) {
         return wifi_error(ESP_ERR_INVALID_ARG);
     }
     return check(
-        esp_wifi_ftm_resp_set_offset(static_cast<int16_t>(offset.count())), "Failed to set FTM responder offset"
+        esp_wifi_ftm_resp_set_offset(static_cast<int16_t>(offset.count())),
+        "Failed to set FTM responder offset"
     );
 }
 
@@ -1353,12 +1383,16 @@ result<void> try_statis_dump(flags<statis_module> modules) {
 }
 
 result<void> try_config_11b_rate(enum role iface, bool disable) {
-    return check(esp_wifi_config_11b_rate(to_wifi_if(iface), disable), "Failed to configure 11b rate");
+    return check(
+        esp_wifi_config_11b_rate(to_wifi_if(iface), disable), "Failed to configure 11b rate"
+    );
 }
 
 result<void> try_config_80211_tx_rate(enum role iface, enum phy_rate rate) {
     return check(
-        esp_wifi_config_80211_tx_rate(to_wifi_if(iface), static_cast<wifi_phy_rate_t>(std::to_underlying(rate))),
+        esp_wifi_config_80211_tx_rate(
+            to_wifi_if(iface), static_cast<wifi_phy_rate_t>(std::to_underlying(rate))
+        ),
         "Failed to configure 802.11 TX rate"
     );
 }

@@ -16,7 +16,9 @@ static_assert(std::to_underlying(idfxx::nvs::errc::not_initialized) == ESP_ERR_N
 static_assert(std::to_underlying(idfxx::nvs::errc::not_found) == ESP_ERR_NVS_NOT_FOUND);
 static_assert(std::to_underlying(idfxx::nvs::errc::type_mismatch) == ESP_ERR_NVS_TYPE_MISMATCH);
 static_assert(std::to_underlying(idfxx::nvs::errc::read_only) == ESP_ERR_NVS_READ_ONLY);
-static_assert(std::to_underlying(idfxx::nvs::errc::not_enough_space) == ESP_ERR_NVS_NOT_ENOUGH_SPACE);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::not_enough_space) == ESP_ERR_NVS_NOT_ENOUGH_SPACE
+);
 static_assert(std::to_underlying(idfxx::nvs::errc::invalid_name) == ESP_ERR_NVS_INVALID_NAME);
 static_assert(std::to_underlying(idfxx::nvs::errc::invalid_handle) == ESP_ERR_NVS_INVALID_HANDLE);
 static_assert(std::to_underlying(idfxx::nvs::errc::remove_failed) == ESP_ERR_NVS_REMOVE_FAILED);
@@ -26,15 +28,27 @@ static_assert(std::to_underlying(idfxx::nvs::errc::invalid_length) == ESP_ERR_NV
 static_assert(std::to_underlying(idfxx::nvs::errc::no_free_pages) == ESP_ERR_NVS_NO_FREE_PAGES);
 static_assert(std::to_underlying(idfxx::nvs::errc::value_too_long) == ESP_ERR_NVS_VALUE_TOO_LONG);
 static_assert(std::to_underlying(idfxx::nvs::errc::part_not_found) == ESP_ERR_NVS_PART_NOT_FOUND);
-static_assert(std::to_underlying(idfxx::nvs::errc::new_version_found) == ESP_ERR_NVS_NEW_VERSION_FOUND);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::new_version_found) == ESP_ERR_NVS_NEW_VERSION_FOUND
+);
 static_assert(std::to_underlying(idfxx::nvs::errc::xts_encr_failed) == ESP_ERR_NVS_XTS_ENCR_FAILED);
 static_assert(std::to_underlying(idfxx::nvs::errc::xts_decr_failed) == ESP_ERR_NVS_XTS_DECR_FAILED);
 static_assert(std::to_underlying(idfxx::nvs::errc::xts_cfg_failed) == ESP_ERR_NVS_XTS_CFG_FAILED);
-static_assert(std::to_underlying(idfxx::nvs::errc::xts_cfg_not_found) == ESP_ERR_NVS_XTS_CFG_NOT_FOUND);
-static_assert(std::to_underlying(idfxx::nvs::errc::encr_not_supported) == ESP_ERR_NVS_ENCR_NOT_SUPPORTED);
-static_assert(std::to_underlying(idfxx::nvs::errc::keys_not_initialized) == ESP_ERR_NVS_KEYS_NOT_INITIALIZED);
-static_assert(std::to_underlying(idfxx::nvs::errc::corrupt_key_part) == ESP_ERR_NVS_CORRUPT_KEY_PART);
-static_assert(std::to_underlying(idfxx::nvs::errc::wrong_encryption) == ESP_ERR_NVS_WRONG_ENCRYPTION);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::xts_cfg_not_found) == ESP_ERR_NVS_XTS_CFG_NOT_FOUND
+);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::encr_not_supported) == ESP_ERR_NVS_ENCR_NOT_SUPPORTED
+);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::keys_not_initialized) == ESP_ERR_NVS_KEYS_NOT_INITIALIZED
+);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::corrupt_key_part) == ESP_ERR_NVS_CORRUPT_KEY_PART
+);
+static_assert(
+    std::to_underlying(idfxx::nvs::errc::wrong_encryption) == ESP_ERR_NVS_WRONG_ENCRYPTION
+);
 
 // Verify key size matches ESP-IDF constant
 static_assert(idfxx::nvs::flash::key_size == NVS_KEY_SIZE);
@@ -140,14 +154,18 @@ static result<nvs_handle_t> open_nvs(std::string_view namespace_name, bool read_
     nvs_handle_t handle;
     esp_err_t err = nvs_open(ns_str.c_str(), read_only ? NVS_READONLY : NVS_READWRITE, &handle);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to open nvs namespace '%s': %s", ns_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG, "Failed to open nvs namespace '%s': %s", ns_str.c_str(), esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return handle;
 }
 
 result<nvs> nvs::make(std::string_view namespace_name, bool read_only) {
-    return open_nvs(namespace_name, read_only).transform([&](auto handle) { return nvs{handle, read_only}; });
+    return open_nvs(namespace_name, read_only).transform([&](auto handle) {
+        return nvs{handle, read_only};
+    });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -155,8 +173,11 @@ nvs::nvs(std::string_view namespace_name, bool read_only)
     : nvs(unwrap(open_nvs(namespace_name, read_only)), read_only) {}
 #endif
 
-static result<nvs_handle_t>
-open_nvs_from_partition(const idfxx::partition& part, std::string_view namespace_name, bool read_only) {
+static result<nvs_handle_t> open_nvs_from_partition(
+    const idfxx::partition& part,
+    std::string_view namespace_name,
+    bool read_only
+) {
     if (namespace_name.empty() || namespace_name.length() > 15) {
         return idfxx::error(idfxx::nvs::errc::invalid_name);
     }
@@ -279,7 +300,9 @@ result<std::string> nvs::try_get_string(std::string_view key) {
     esp_err_t err = nvs_get_str(_handle, key_str.c_str(), nullptr, &required_size);
     if (err != ESP_OK) {
         if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGD(TAG, "Failed to get string key '%s': %s", key_str.c_str(), esp_err_to_name(err));
+            ESP_LOGD(
+                TAG, "Failed to get string key '%s': %s", key_str.c_str(), esp_err_to_name(err)
+            );
         }
         return nvs_error(err);
     }
@@ -448,7 +471,12 @@ result<void> nvs::flash::try_init(std::string_view partition_label) {
     std::string label_str{partition_label};
     esp_err_t err = nvs_flash_init_partition(label_str.c_str());
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_init_partition('%s') failed: %s", label_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_init_partition('%s') failed: %s",
+            label_str.c_str(),
+            esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return {};
@@ -462,7 +490,12 @@ result<void> nvs::flash::try_init(std::string_view partition_label, const secure
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), &nvs_cfg);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_secure_init_partition('%s') failed: %s", label_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_secure_init_partition('%s') failed: %s",
+            label_str.c_str(),
+            esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return {};
@@ -472,7 +505,12 @@ result<void> nvs::flash::try_init(insecure_t, std::string_view partition_label) 
     std::string label_str{partition_label};
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), nullptr);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_init_partition('%s') failed: %s", label_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_init_partition('%s') failed: %s",
+            label_str.c_str(),
+            esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return {};
@@ -491,7 +529,12 @@ result<void> nvs::flash::try_deinit(std::string_view partition_label) {
     std::string label_str{partition_label};
     esp_err_t err = nvs_flash_deinit_partition(label_str.c_str());
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_deinit_partition('%s') failed: %s", label_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_deinit_partition('%s') failed: %s",
+            label_str.c_str(),
+            esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return {};
@@ -510,7 +553,12 @@ result<void> nvs::flash::try_erase(std::string_view partition_label) {
     std::string label_str{partition_label};
     esp_err_t err = nvs_flash_erase_partition(label_str.c_str());
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_erase_partition('%s') failed: %s", label_str.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "nvs_flash_erase_partition('%s') failed: %s",
+            label_str.c_str(),
+            esp_err_to_name(err)
+        );
         return nvs_error(err);
     }
     return {};

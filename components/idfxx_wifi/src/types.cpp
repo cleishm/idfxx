@@ -19,7 +19,8 @@
 static_assert(std::to_underlying(idfxx::wifi::role::sta) == WIFI_MODE_STA);
 static_assert(std::to_underlying(idfxx::wifi::role::ap) == WIFI_MODE_AP);
 static_assert(
-    (std::to_underlying(idfxx::wifi::role::sta) | std::to_underlying(idfxx::wifi::role::ap)) == WIFI_MODE_APSTA
+    (std::to_underlying(idfxx::wifi::role::sta) | std::to_underlying(idfxx::wifi::role::ap)) ==
+    WIFI_MODE_APSTA
 );
 
 // auth_mode
@@ -28,16 +29,25 @@ static_assert(std::to_underlying(idfxx::wifi::auth_mode::wep) == WIFI_AUTH_WEP);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa_psk) == WIFI_AUTH_WPA_PSK);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa2_psk) == WIFI_AUTH_WPA2_PSK);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa_wpa2_psk) == WIFI_AUTH_WPA_WPA2_PSK);
-static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa2_enterprise) == WIFI_AUTH_WPA2_ENTERPRISE);
+static_assert(
+    std::to_underlying(idfxx::wifi::auth_mode::wpa2_enterprise) == WIFI_AUTH_WPA2_ENTERPRISE
+);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa3_psk) == WIFI_AUTH_WPA3_PSK);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa2_wpa3_psk) == WIFI_AUTH_WPA2_WPA3_PSK);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wapi_psk) == WIFI_AUTH_WAPI_PSK);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::owe) == WIFI_AUTH_OWE);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa3_ent_192) == WIFI_AUTH_WPA3_ENT_192);
 static_assert(std::to_underlying(idfxx::wifi::auth_mode::dpp) == WIFI_AUTH_DPP);
-static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa3_enterprise) == WIFI_AUTH_WPA3_ENTERPRISE);
-static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa2_wpa3_enterprise) == WIFI_AUTH_WPA2_WPA3_ENTERPRISE);
-static_assert(std::to_underlying(idfxx::wifi::auth_mode::wpa_enterprise) == WIFI_AUTH_WPA_ENTERPRISE);
+static_assert(
+    std::to_underlying(idfxx::wifi::auth_mode::wpa3_enterprise) == WIFI_AUTH_WPA3_ENTERPRISE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::auth_mode::wpa2_wpa3_enterprise) ==
+    WIFI_AUTH_WPA2_WPA3_ENTERPRISE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::auth_mode::wpa_enterprise) == WIFI_AUTH_WPA_ENTERPRISE
+);
 
 // power_save
 static_assert(std::to_underlying(idfxx::wifi::power_save::none) == WIFI_PS_NONE);
@@ -66,77 +76,134 @@ static_assert(std::to_underlying(idfxx::wifi::second_channel::below) == WIFI_SEC
 
 // sort_method
 static_assert(std::to_underlying(idfxx::wifi::sort_method::by_rssi) == WIFI_CONNECT_AP_BY_SIGNAL);
-static_assert(std::to_underlying(idfxx::wifi::sort_method::by_security) == WIFI_CONNECT_AP_BY_SECURITY);
+static_assert(
+    std::to_underlying(idfxx::wifi::sort_method::by_security) == WIFI_CONNECT_AP_BY_SECURITY
+);
 
 // disconnect_reason (IEEE 802.11)
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::unspecified) == WIFI_REASON_UNSPECIFIED);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::auth_expire) == WIFI_REASON_AUTH_EXPIRE);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::auth_leave) == WIFI_REASON_AUTH_LEAVE);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::unspecified) == WIFI_REASON_UNSPECIFIED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::auth_expire) == WIFI_REASON_AUTH_EXPIRE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::auth_leave) == WIFI_REASON_AUTH_LEAVE
+);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) == WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) == WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) ==
+    WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) == WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) ==
+    WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) ==
+    WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA
 );
 #else
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) == WIFI_REASON_ASSOC_EXPIRE);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) == WIFI_REASON_NOT_AUTHED);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) == WIFI_REASON_NOT_ASSOCED);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_expire) == WIFI_REASON_ASSOC_EXPIRE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_toomany) == WIFI_REASON_ASSOC_TOOMANY
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_authed) == WIFI_REASON_NOT_AUTHED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_assoced) == WIFI_REASON_NOT_ASSOCED
+);
 #endif
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_leave) == WIFI_REASON_ASSOC_LEAVE);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_not_authed) == WIFI_REASON_ASSOC_NOT_AUTHED);
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::disassoc_pwrcap_bad) == WIFI_REASON_DISASSOC_PWRCAP_BAD
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_leave) == WIFI_REASON_ASSOC_LEAVE
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::disassoc_supchan_bad) == WIFI_REASON_DISASSOC_SUPCHAN_BAD
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_not_authed) ==
+    WIFI_REASON_ASSOC_NOT_AUTHED
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::bss_transition_disassoc) == WIFI_REASON_BSS_TRANSITION_DISASSOC
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::ie_invalid) == WIFI_REASON_IE_INVALID);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::mic_failure) == WIFI_REASON_MIC_FAILURE);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::fourway_handshake_timeout) == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT
+    std::to_underlying(idfxx::wifi::disconnect_reason::disassoc_pwrcap_bad) ==
+    WIFI_REASON_DISASSOC_PWRCAP_BAD
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::group_key_update_timeout) == WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::ie_in_4way_differs) == WIFI_REASON_IE_IN_4WAY_DIFFERS);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::group_cipher_invalid) == WIFI_REASON_GROUP_CIPHER_INVALID
+    std::to_underlying(idfxx::wifi::disconnect_reason::disassoc_supchan_bad) ==
+    WIFI_REASON_DISASSOC_SUPCHAN_BAD
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::pairwise_cipher_invalid) == WIFI_REASON_PAIRWISE_CIPHER_INVALID
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::akmp_invalid) == WIFI_REASON_AKMP_INVALID);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::unsupp_rsn_ie_version) == WIFI_REASON_UNSUPP_RSN_IE_VERSION
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::invalid_rsn_ie_cap) == WIFI_REASON_INVALID_RSN_IE_CAP);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::ieee_802_1x_auth_failed) == WIFI_REASON_802_1X_AUTH_FAILED
+    std::to_underlying(idfxx::wifi::disconnect_reason::bss_transition_disassoc) ==
+    WIFI_REASON_BSS_TRANSITION_DISASSOC
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::cipher_suite_rejected) == WIFI_REASON_CIPHER_SUITE_REJECTED
+    std::to_underlying(idfxx::wifi::disconnect_reason::ie_invalid) == WIFI_REASON_IE_INVALID
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::tdls_peer_unreachable) == WIFI_REASON_TDLS_PEER_UNREACHABLE
-);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::tdls_unspecified) == WIFI_REASON_TDLS_UNSPECIFIED);
-static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::ssp_requested_disassoc) == WIFI_REASON_SSP_REQUESTED_DISASSOC
+    std::to_underlying(idfxx::wifi::disconnect_reason::mic_failure) == WIFI_REASON_MIC_FAILURE
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::no_ssp_roaming_agreement) == WIFI_REASON_NO_SSP_ROAMING_AGREEMENT
+    std::to_underlying(idfxx::wifi::disconnect_reason::fourway_handshake_timeout) ==
+    WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT
 );
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::bad_cipher_or_akm) == WIFI_REASON_BAD_CIPHER_OR_AKM);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::group_key_update_timeout) ==
+    WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::ie_in_4way_differs) ==
+    WIFI_REASON_IE_IN_4WAY_DIFFERS
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::group_cipher_invalid) ==
+    WIFI_REASON_GROUP_CIPHER_INVALID
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::pairwise_cipher_invalid) ==
+    WIFI_REASON_PAIRWISE_CIPHER_INVALID
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::akmp_invalid) == WIFI_REASON_AKMP_INVALID
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::unsupp_rsn_ie_version) ==
+    WIFI_REASON_UNSUPP_RSN_IE_VERSION
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::invalid_rsn_ie_cap) ==
+    WIFI_REASON_INVALID_RSN_IE_CAP
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::ieee_802_1x_auth_failed) ==
+    WIFI_REASON_802_1X_AUTH_FAILED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::cipher_suite_rejected) ==
+    WIFI_REASON_CIPHER_SUITE_REJECTED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::tdls_peer_unreachable) ==
+    WIFI_REASON_TDLS_PEER_UNREACHABLE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::tdls_unspecified) ==
+    WIFI_REASON_TDLS_UNSPECIFIED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::ssp_requested_disassoc) ==
+    WIFI_REASON_SSP_REQUESTED_DISASSOC
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::no_ssp_roaming_agreement) ==
+    WIFI_REASON_NO_SSP_ROAMING_AGREEMENT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::bad_cipher_or_akm) ==
+    WIFI_REASON_BAD_CIPHER_OR_AKM
+);
 static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::not_authorized_this_location) ==
     WIFI_REASON_NOT_AUTHORIZED_THIS_LOCATION
@@ -145,25 +212,47 @@ static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::service_change_precludes_ts) ==
     WIFI_REASON_SERVICE_CHANGE_PERCLUDES_TS
 );
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::unspecified_qos) == WIFI_REASON_UNSPECIFIED_QOS);
 static_assert(
-    std::to_underlying(idfxx::wifi::disconnect_reason::not_enough_bandwidth) == WIFI_REASON_NOT_ENOUGH_BANDWIDTH
+    std::to_underlying(idfxx::wifi::disconnect_reason::unspecified_qos) ==
+    WIFI_REASON_UNSPECIFIED_QOS
 );
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::missing_acks) == WIFI_REASON_MISSING_ACKS);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::exceeded_txop) == WIFI_REASON_EXCEEDED_TXOP);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::sta_leaving) == WIFI_REASON_STA_LEAVING);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::not_enough_bandwidth) ==
+    WIFI_REASON_NOT_ENOUGH_BANDWIDTH
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::missing_acks) == WIFI_REASON_MISSING_ACKS
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::exceeded_txop) == WIFI_REASON_EXCEEDED_TXOP
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::sta_leaving) == WIFI_REASON_STA_LEAVING
+);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::end_ba) == WIFI_REASON_END_BA);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::unknown_ba) == WIFI_REASON_UNKNOWN_BA);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::unknown_ba) == WIFI_REASON_UNKNOWN_BA
+);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::timeout) == WIFI_REASON_TIMEOUT);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::peer_initiated) == WIFI_REASON_PEER_INITIATED);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::ap_initiated) == WIFI_REASON_AP_INITIATED);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::peer_initiated) == WIFI_REASON_PEER_INITIATED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::ap_initiated) == WIFI_REASON_AP_INITIATED
+);
 static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::invalid_ft_action_frame_count) ==
     WIFI_REASON_INVALID_FT_ACTION_FRAME_COUNT
 );
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::invalid_pmkid) == WIFI_REASON_INVALID_PMKID);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::invalid_mde) == WIFI_REASON_INVALID_MDE);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::invalid_fte) == WIFI_REASON_INVALID_FTE);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::invalid_pmkid) == WIFI_REASON_INVALID_PMKID
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::invalid_mde) == WIFI_REASON_INVALID_MDE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::invalid_fte) == WIFI_REASON_INVALID_FTE
+);
 static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::transmission_link_establish_failed) ==
     WIFI_REASON_TRANSMISSION_LINK_ESTABLISH_FAILED
@@ -174,19 +263,38 @@ static_assert(
 );
 
 // disconnect_reason (ESP-IDF specific)
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::beacon_timeout) == WIFI_REASON_BEACON_TIMEOUT);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::no_ap_found) == WIFI_REASON_NO_AP_FOUND);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::auth_fail) == WIFI_REASON_AUTH_FAIL);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::assoc_fail) == WIFI_REASON_ASSOC_FAIL);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::handshake_timeout) == WIFI_REASON_HANDSHAKE_TIMEOUT);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::connection_fail) == WIFI_REASON_CONNECTION_FAIL);
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::ap_tsf_reset) == WIFI_REASON_AP_TSF_RESET);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::beacon_timeout) == WIFI_REASON_BEACON_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::no_ap_found) == WIFI_REASON_NO_AP_FOUND
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::auth_fail) == WIFI_REASON_AUTH_FAIL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::assoc_fail) == WIFI_REASON_ASSOC_FAIL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::handshake_timeout) ==
+    WIFI_REASON_HANDSHAKE_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::connection_fail) ==
+    WIFI_REASON_CONNECTION_FAIL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::ap_tsf_reset) == WIFI_REASON_AP_TSF_RESET
+);
 static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::roaming) == WIFI_REASON_ROAMING);
 static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::assoc_comeback_time_too_long) ==
     WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG
 );
-static_assert(std::to_underlying(idfxx::wifi::disconnect_reason::sa_query_timeout) == WIFI_REASON_SA_QUERY_TIMEOUT);
+static_assert(
+    std::to_underlying(idfxx::wifi::disconnect_reason::sa_query_timeout) ==
+    WIFI_REASON_SA_QUERY_TIMEOUT
+);
 static_assert(
     std::to_underlying(idfxx::wifi::disconnect_reason::no_ap_found_w_compatible_security) ==
     WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY
@@ -206,13 +314,21 @@ static_assert(std::to_underlying(idfxx::wifi::cipher_type::wep40) == WIFI_CIPHER
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::wep104) == WIFI_CIPHER_TYPE_WEP104);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::tkip) == WIFI_CIPHER_TYPE_TKIP);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::ccmp) == WIFI_CIPHER_TYPE_CCMP);
-static_assert(std::to_underlying(idfxx::wifi::cipher_type::tkip_ccmp) == WIFI_CIPHER_TYPE_TKIP_CCMP);
-static_assert(std::to_underlying(idfxx::wifi::cipher_type::aes_cmac128) == WIFI_CIPHER_TYPE_AES_CMAC128);
+static_assert(
+    std::to_underlying(idfxx::wifi::cipher_type::tkip_ccmp) == WIFI_CIPHER_TYPE_TKIP_CCMP
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::cipher_type::aes_cmac128) == WIFI_CIPHER_TYPE_AES_CMAC128
+);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::sms4) == WIFI_CIPHER_TYPE_SMS4);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::gcmp) == WIFI_CIPHER_TYPE_GCMP);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::gcmp256) == WIFI_CIPHER_TYPE_GCMP256);
-static_assert(std::to_underlying(idfxx::wifi::cipher_type::aes_gmac128) == WIFI_CIPHER_TYPE_AES_GMAC128);
-static_assert(std::to_underlying(idfxx::wifi::cipher_type::aes_gmac256) == WIFI_CIPHER_TYPE_AES_GMAC256);
+static_assert(
+    std::to_underlying(idfxx::wifi::cipher_type::aes_gmac128) == WIFI_CIPHER_TYPE_AES_GMAC128
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::cipher_type::aes_gmac256) == WIFI_CIPHER_TYPE_AES_GMAC256
+);
 static_assert(std::to_underlying(idfxx::wifi::cipher_type::unknown) == WIFI_CIPHER_TYPE_UNKNOWN);
 
 // phy_mode
@@ -239,8 +355,12 @@ static_assert(std::to_underlying(idfxx::wifi::storage::flash) == WIFI_STORAGE_FL
 static_assert(std::to_underlying(idfxx::wifi::storage::ram) == WIFI_STORAGE_RAM);
 
 // country_policy
-static_assert(std::to_underlying(idfxx::wifi::country_policy::auto_policy) == WIFI_COUNTRY_POLICY_AUTO);
-static_assert(std::to_underlying(idfxx::wifi::country_policy::manual) == WIFI_COUNTRY_POLICY_MANUAL);
+static_assert(
+    std::to_underlying(idfxx::wifi::country_policy::auto_policy) == WIFI_COUNTRY_POLICY_AUTO
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::country_policy::manual) == WIFI_COUNTRY_POLICY_MANUAL
+);
 
 // channel_5g
 static_assert(std::to_underlying(idfxx::wifi::channel_5g::ch36) == WIFI_CHANNEL_36);
@@ -277,15 +397,21 @@ static_assert(std::to_underlying(idfxx::wifi::scan_method::fast) == WIFI_FAST_SC
 static_assert(std::to_underlying(idfxx::wifi::scan_method::all_channel) == WIFI_ALL_CHANNEL_SCAN);
 
 // sae_pwe_method
-static_assert(std::to_underlying(idfxx::wifi::sae_pwe_method::hunt_and_peck) == WPA3_SAE_PWE_HUNT_AND_PECK);
-static_assert(std::to_underlying(idfxx::wifi::sae_pwe_method::hash_to_element) == WPA3_SAE_PWE_HASH_TO_ELEMENT);
+static_assert(
+    std::to_underlying(idfxx::wifi::sae_pwe_method::hunt_and_peck) == WPA3_SAE_PWE_HUNT_AND_PECK
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::sae_pwe_method::hash_to_element) == WPA3_SAE_PWE_HASH_TO_ELEMENT
+);
 static_assert(
     (std::to_underlying(idfxx::wifi::sae_pwe_method::hunt_and_peck) |
      std::to_underlying(idfxx::wifi::sae_pwe_method::hash_to_element)) == WPA3_SAE_PWE_BOTH
 );
 
 // sae_pk_mode
-static_assert(std::to_underlying(idfxx::wifi::sae_pk_mode::automatic) == WPA3_SAE_PK_MODE_AUTOMATIC);
+static_assert(
+    std::to_underlying(idfxx::wifi::sae_pk_mode::automatic) == WPA3_SAE_PK_MODE_AUTOMATIC
+);
 static_assert(std::to_underlying(idfxx::wifi::sae_pk_mode::only) == WPA3_SAE_PK_MODE_ONLY);
 static_assert(std::to_underlying(idfxx::wifi::sae_pk_mode::disabled) == WPA3_SAE_PK_MODE_DISABLED);
 
@@ -301,7 +427,10 @@ static_assert(std::to_underlying(idfxx::wifi::protocol::b11ax) == WIFI_PROTOCOL_
 // event_mask
 static_assert(std::to_underlying(idfxx::wifi::event_mask::all) == WIFI_EVENT_MASK_ALL);
 static_assert(std::to_underlying(idfxx::wifi::event_mask::none) == WIFI_EVENT_MASK_NONE);
-static_assert(std::to_underlying(idfxx::wifi::event_mask::ap_probe_req_rx) == WIFI_EVENT_MASK_AP_PROBEREQRECVED);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_mask::ap_probe_req_rx) ==
+    WIFI_EVENT_MASK_AP_PROBEREQRECVED
+);
 
 // promiscuous_pkt_type
 static_assert(std::to_underlying(idfxx::wifi::promiscuous_pkt_type::mgmt) == WIFI_PKT_MGMT);
@@ -310,42 +439,69 @@ static_assert(std::to_underlying(idfxx::wifi::promiscuous_pkt_type::data) == WIF
 static_assert(std::to_underlying(idfxx::wifi::promiscuous_pkt_type::misc) == WIFI_PKT_MISC);
 
 // promiscuous_filter
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::all) == WIFI_PROMIS_FILTER_MASK_ALL);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::mgmt) == WIFI_PROMIS_FILTER_MASK_MGMT);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::ctrl) == WIFI_PROMIS_FILTER_MASK_CTRL);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::data) == WIFI_PROMIS_FILTER_MASK_DATA);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::misc) == WIFI_PROMIS_FILTER_MASK_MISC);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::data_mpdu) == WIFI_PROMIS_FILTER_MASK_DATA_MPDU);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::data_ampdu) == WIFI_PROMIS_FILTER_MASK_DATA_AMPDU);
-static_assert(std::to_underlying(idfxx::wifi::promiscuous_filter::fcsfail) == WIFI_PROMIS_FILTER_MASK_FCSFAIL);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::all) == WIFI_PROMIS_FILTER_MASK_ALL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::mgmt) == WIFI_PROMIS_FILTER_MASK_MGMT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::ctrl) == WIFI_PROMIS_FILTER_MASK_CTRL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::data) == WIFI_PROMIS_FILTER_MASK_DATA
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::misc) == WIFI_PROMIS_FILTER_MASK_MISC
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::data_mpdu) ==
+    WIFI_PROMIS_FILTER_MASK_DATA_MPDU
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::data_ampdu) ==
+    WIFI_PROMIS_FILTER_MASK_DATA_AMPDU
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::promiscuous_filter::fcsfail) == WIFI_PROMIS_FILTER_MASK_FCSFAIL
+);
 
 // promiscuous_ctrl_filter
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::all) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_ALL)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::all) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_ALL)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::wrapper) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_WRAPPER)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::wrapper) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_WRAPPER)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::bar) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_BAR)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::bar) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_BAR)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::ba) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_BA)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::ba) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_BA)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::pspoll) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_PSPOLL)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::pspoll) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_PSPOLL)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::rts) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_RTS)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::rts) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_RTS)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::cts) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_CTS)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::cts) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_CTS)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::ack) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_ACK)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::ack) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_ACK)
 );
 static_assert(
-    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::cfend) == uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_CFEND)
+    std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::cfend) ==
+    uint32_t(WIFI_PROMIS_CTRL_FILTER_MASK_CFEND)
 );
 static_assert(
     std::to_underlying(idfxx::wifi::promiscuous_ctrl_filter::cfendack) ==
@@ -354,10 +510,18 @@ static_assert(
 
 // vendor_ie_type
 static_assert(std::to_underlying(idfxx::wifi::vendor_ie_type::beacon) == WIFI_VND_IE_TYPE_BEACON);
-static_assert(std::to_underlying(idfxx::wifi::vendor_ie_type::probe_req) == WIFI_VND_IE_TYPE_PROBE_REQ);
-static_assert(std::to_underlying(idfxx::wifi::vendor_ie_type::probe_resp) == WIFI_VND_IE_TYPE_PROBE_RESP);
-static_assert(std::to_underlying(idfxx::wifi::vendor_ie_type::assoc_req) == WIFI_VND_IE_TYPE_ASSOC_REQ);
-static_assert(std::to_underlying(idfxx::wifi::vendor_ie_type::assoc_resp) == WIFI_VND_IE_TYPE_ASSOC_RESP);
+static_assert(
+    std::to_underlying(idfxx::wifi::vendor_ie_type::probe_req) == WIFI_VND_IE_TYPE_PROBE_REQ
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::vendor_ie_type::probe_resp) == WIFI_VND_IE_TYPE_PROBE_RESP
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::vendor_ie_type::assoc_req) == WIFI_VND_IE_TYPE_ASSOC_REQ
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::vendor_ie_type::assoc_resp) == WIFI_VND_IE_TYPE_ASSOC_RESP
+);
 
 // vendor_ie_id
 static_assert(std::to_underlying(idfxx::wifi::vendor_ie_id::id_0) == WIFI_VND_IE_ID_0);
@@ -366,10 +530,14 @@ static_assert(std::to_underlying(idfxx::wifi::vendor_ie_id::id_1) == WIFI_VND_IE
 // ftm_status
 static_assert(std::to_underlying(idfxx::wifi::ftm_status::success) == FTM_STATUS_SUCCESS);
 static_assert(std::to_underlying(idfxx::wifi::ftm_status::unsupported) == FTM_STATUS_UNSUPPORTED);
-static_assert(std::to_underlying(idfxx::wifi::ftm_status::conf_rejected) == FTM_STATUS_CONF_REJECTED);
+static_assert(
+    std::to_underlying(idfxx::wifi::ftm_status::conf_rejected) == FTM_STATUS_CONF_REJECTED
+);
 static_assert(std::to_underlying(idfxx::wifi::ftm_status::no_response) == FTM_STATUS_NO_RESPONSE);
 static_assert(std::to_underlying(idfxx::wifi::ftm_status::fail) == FTM_STATUS_FAIL);
-static_assert(std::to_underlying(idfxx::wifi::ftm_status::no_valid_msmt) == FTM_STATUS_NO_VALID_MSMT);
+static_assert(
+    std::to_underlying(idfxx::wifi::ftm_status::no_valid_msmt) == FTM_STATUS_NO_VALID_MSMT
+);
 static_assert(std::to_underlying(idfxx::wifi::ftm_status::user_term) == FTM_STATUS_USER_TERM);
 
 // phy_rate
@@ -421,32 +589,68 @@ static_assert(std::to_underlying(idfxx::wifi::event_id::scan_done) == WIFI_EVENT
 static_assert(std::to_underlying(idfxx::wifi::event_id::sta_start) == WIFI_EVENT_STA_START);
 static_assert(std::to_underlying(idfxx::wifi::event_id::sta_stop) == WIFI_EVENT_STA_STOP);
 static_assert(std::to_underlying(idfxx::wifi::event_id::sta_connected) == WIFI_EVENT_STA_CONNECTED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_disconnected) == WIFI_EVENT_STA_DISCONNECTED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_authmode_change) == WIFI_EVENT_STA_AUTHMODE_CHANGE);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_wps_er_success) == WIFI_EVENT_STA_WPS_ER_SUCCESS);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_wps_er_failed) == WIFI_EVENT_STA_WPS_ER_FAILED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_wps_er_timeout) == WIFI_EVENT_STA_WPS_ER_TIMEOUT);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_wps_er_pin) == WIFI_EVENT_STA_WPS_ER_PIN);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_wps_er_pbc_overlap) == WIFI_EVENT_STA_WPS_ER_PBC_OVERLAP);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_disconnected) == WIFI_EVENT_STA_DISCONNECTED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_authmode_change) == WIFI_EVENT_STA_AUTHMODE_CHANGE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_wps_er_success) == WIFI_EVENT_STA_WPS_ER_SUCCESS
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_wps_er_failed) == WIFI_EVENT_STA_WPS_ER_FAILED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_wps_er_timeout) == WIFI_EVENT_STA_WPS_ER_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_wps_er_pin) == WIFI_EVENT_STA_WPS_ER_PIN
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_wps_er_pbc_overlap) ==
+    WIFI_EVENT_STA_WPS_ER_PBC_OVERLAP
+);
 static_assert(std::to_underlying(idfxx::wifi::event_id::ap_start) == WIFI_EVENT_AP_START);
 static_assert(std::to_underlying(idfxx::wifi::event_id::ap_stop) == WIFI_EVENT_AP_STOP);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_sta_connected) == WIFI_EVENT_AP_STACONNECTED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_sta_disconnected) == WIFI_EVENT_AP_STADISCONNECTED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_probe_req_received) == WIFI_EVENT_AP_PROBEREQRECVED);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_sta_connected) == WIFI_EVENT_AP_STACONNECTED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_sta_disconnected) == WIFI_EVENT_AP_STADISCONNECTED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_probe_req_received) == WIFI_EVENT_AP_PROBEREQRECVED
+);
 static_assert(std::to_underlying(idfxx::wifi::event_id::ftm_report) == WIFI_EVENT_FTM_REPORT);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_bss_rssi_low) == WIFI_EVENT_STA_BSS_RSSI_LOW);
-static_assert(std::to_underlying(idfxx::wifi::event_id::action_tx_status) == WIFI_EVENT_ACTION_TX_STATUS);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_bss_rssi_low) == WIFI_EVENT_STA_BSS_RSSI_LOW
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::action_tx_status) == WIFI_EVENT_ACTION_TX_STATUS
+);
 static_assert(std::to_underlying(idfxx::wifi::event_id::roc_done) == WIFI_EVENT_ROC_DONE);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_beacon_timeout) == WIFI_EVENT_STA_BEACON_TIMEOUT);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_beacon_timeout) == WIFI_EVENT_STA_BEACON_TIMEOUT
+);
 static_assert(
     std::to_underlying(idfxx::wifi::event_id::connectionless_module_wake_interval_start) ==
     WIFI_EVENT_CONNECTIONLESS_MODULE_WAKE_INTERVAL_START
 );
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_success) == WIFI_EVENT_AP_WPS_RG_SUCCESS);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_failed) == WIFI_EVENT_AP_WPS_RG_FAILED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_timeout) == WIFI_EVENT_AP_WPS_RG_TIMEOUT);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_success) == WIFI_EVENT_AP_WPS_RG_SUCCESS
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_failed) == WIFI_EVENT_AP_WPS_RG_FAILED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_timeout) == WIFI_EVENT_AP_WPS_RG_TIMEOUT
+);
 static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_pin) == WIFI_EVENT_AP_WPS_RG_PIN);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_pbc_overlap) == WIFI_EVENT_AP_WPS_RG_PBC_OVERLAP);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_wps_rg_pbc_overlap) ==
+    WIFI_EVENT_AP_WPS_RG_PBC_OVERLAP
+);
 static_assert(std::to_underlying(idfxx::wifi::event_id::itwt_setup) == WIFI_EVENT_ITWT_SETUP);
 static_assert(std::to_underlying(idfxx::wifi::event_id::itwt_teardown) == WIFI_EVENT_ITWT_TEARDOWN);
 static_assert(std::to_underlying(idfxx::wifi::event_id::itwt_probe) == WIFI_EVENT_ITWT_PROBE);
@@ -455,8 +659,12 @@ static_assert(std::to_underlying(idfxx::wifi::event_id::twt_wakeup) == WIFI_EVEN
 static_assert(std::to_underlying(idfxx::wifi::event_id::btwt_setup) == WIFI_EVENT_BTWT_SETUP);
 static_assert(std::to_underlying(idfxx::wifi::event_id::btwt_teardown) == WIFI_EVENT_BTWT_TEARDOWN);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-static_assert(std::to_underlying(idfxx::wifi::event_id::nan_started) == WIFI_EVENT_NAN_SYNC_STARTED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVENT_NAN_SYNC_STOPPED);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::nan_started) == WIFI_EVENT_NAN_SYNC_STARTED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVENT_NAN_SYNC_STOPPED
+);
 #else
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_started) == WIFI_EVENT_NAN_STARTED);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVENT_NAN_STOPPED);
@@ -464,22 +672,40 @@ static_assert(std::to_underlying(idfxx::wifi::event_id::nan_stopped) == WIFI_EVE
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_svc_match) == WIFI_EVENT_NAN_SVC_MATCH);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_replied) == WIFI_EVENT_NAN_REPLIED);
 static_assert(std::to_underlying(idfxx::wifi::event_id::nan_receive) == WIFI_EVENT_NAN_RECEIVE);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ndp_indication) == WIFI_EVENT_NDP_INDICATION);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ndp_confirm) == WIFI_EVENT_NDP_CONFIRM);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ndp_terminated) == WIFI_EVENT_NDP_TERMINATED);
-static_assert(std::to_underlying(idfxx::wifi::event_id::home_channel_change) == WIFI_EVENT_HOME_CHANNEL_CHANGE);
-static_assert(std::to_underlying(idfxx::wifi::event_id::sta_neighbor_rep) == WIFI_EVENT_STA_NEIGHBOR_REP);
-static_assert(std::to_underlying(idfxx::wifi::event_id::ap_wrong_password) == WIFI_EVENT_AP_WRONG_PASSWORD);
 static_assert(
-    std::to_underlying(idfxx::wifi::event_id::sta_beacon_offset_unstable) == WIFI_EVENT_STA_BEACON_OFFSET_UNSTABLE
+    std::to_underlying(idfxx::wifi::event_id::ndp_indication) == WIFI_EVENT_NDP_INDICATION
+);
+static_assert(std::to_underlying(idfxx::wifi::event_id::ndp_confirm) == WIFI_EVENT_NDP_CONFIRM);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ndp_terminated) == WIFI_EVENT_NDP_TERMINATED
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::home_channel_change) == WIFI_EVENT_HOME_CHANNEL_CHANGE
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_neighbor_rep) == WIFI_EVENT_STA_NEIGHBOR_REP
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::ap_wrong_password) == WIFI_EVENT_AP_WRONG_PASSWORD
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::sta_beacon_offset_unstable) ==
+    WIFI_EVENT_STA_BEACON_OFFSET_UNSTABLE
 );
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_uri_ready) == WIFI_EVENT_DPP_URI_READY);
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_cfg_recvd) == WIFI_EVENT_DPP_CFG_RECVD);
 static_assert(std::to_underlying(idfxx::wifi::event_id::dpp_failed) == WIFI_EVENT_DPP_FAILED);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-static_assert(std::to_underlying(idfxx::wifi::event_id::nan_pairing_indication) == WIFI_EVENT_NAN_PAIRING_INDICATION);
-static_assert(std::to_underlying(idfxx::wifi::event_id::nan_pairing_confirm) == WIFI_EVENT_NAN_PAIRING_CONFIRM);
-static_assert(std::to_underlying(idfxx::wifi::event_id::nan_cluster_join) == WIFI_EVENT_NAN_CLUSTER_JOIN);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::nan_pairing_indication) ==
+    WIFI_EVENT_NAN_PAIRING_INDICATION
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::nan_pairing_confirm) == WIFI_EVENT_NAN_PAIRING_CONFIRM
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::event_id::nan_cluster_join) == WIFI_EVENT_NAN_CLUSTER_JOIN
+);
 #endif
 
 // errc
@@ -504,11 +730,19 @@ static_assert(std::to_underlying(idfxx::wifi::errc::stop_state) == ESP_ERR_WIFI_
 static_assert(std::to_underlying(idfxx::wifi::errc::not_assoc) == ESP_ERR_WIFI_NOT_ASSOC);
 static_assert(std::to_underlying(idfxx::wifi::errc::tx_disallow) == ESP_ERR_WIFI_TX_DISALLOW);
 static_assert(std::to_underlying(idfxx::wifi::errc::twt_full) == ESP_ERR_WIFI_TWT_FULL);
-static_assert(std::to_underlying(idfxx::wifi::errc::twt_setup_timeout) == ESP_ERR_WIFI_TWT_SETUP_TIMEOUT);
-static_assert(std::to_underlying(idfxx::wifi::errc::twt_setup_txfail) == ESP_ERR_WIFI_TWT_SETUP_TXFAIL);
-static_assert(std::to_underlying(idfxx::wifi::errc::twt_setup_reject) == ESP_ERR_WIFI_TWT_SETUP_REJECT);
+static_assert(
+    std::to_underlying(idfxx::wifi::errc::twt_setup_timeout) == ESP_ERR_WIFI_TWT_SETUP_TIMEOUT
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::errc::twt_setup_txfail) == ESP_ERR_WIFI_TWT_SETUP_TXFAIL
+);
+static_assert(
+    std::to_underlying(idfxx::wifi::errc::twt_setup_reject) == ESP_ERR_WIFI_TWT_SETUP_REJECT
+);
 static_assert(std::to_underlying(idfxx::wifi::errc::discard) == ESP_ERR_WIFI_DISCARD);
-static_assert(std::to_underlying(idfxx::wifi::errc::roc_in_progress) == ESP_ERR_WIFI_ROC_IN_PROGRESS);
+static_assert(
+    std::to_underlying(idfxx::wifi::errc::roc_in_progress) == ESP_ERR_WIFI_ROC_IN_PROGRESS
+);
 
 // =============================================================================
 // Event base definitions
@@ -596,7 +830,10 @@ std::string wifi::error_category::message(int ec) const {
     }
 }
 
-bool wifi::error_category::equivalent(int code, const std::error_condition& condition) const noexcept {
+bool wifi::error_category::equivalent(
+    int code,
+    const std::error_condition& condition
+) const noexcept {
     if (condition.category() != std::generic_category()) {
         return false;
     }
@@ -682,12 +919,14 @@ wifi::scan_done_event_data wifi::scan_done_event_data::from_opaque(const void* e
     return {info->status, info->number, info->scan_id};
 }
 
-wifi::authmode_change_event_data wifi::authmode_change_event_data::from_opaque(const void* event_data) {
+wifi::authmode_change_event_data
+wifi::authmode_change_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_sta_authmode_change_t*>(event_data);
     return {static_cast<auth_mode>(info->old_mode), static_cast<auth_mode>(info->new_mode)};
 }
 
-wifi::ap_sta_connected_event_data wifi::ap_sta_connected_event_data::from_opaque(const void* event_data) {
+wifi::ap_sta_connected_event_data
+wifi::ap_sta_connected_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_ap_staconnected_t*>(event_data);
     ap_sta_connected_event_data result;
     std::memcpy(result.mac.data(), info->mac, 6);
@@ -695,7 +934,8 @@ wifi::ap_sta_connected_event_data wifi::ap_sta_connected_event_data::from_opaque
     return result;
 }
 
-wifi::ap_sta_disconnected_event_data wifi::ap_sta_disconnected_event_data::from_opaque(const void* event_data) {
+wifi::ap_sta_disconnected_event_data
+wifi::ap_sta_disconnected_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_ap_stadisconnected_t*>(event_data);
     ap_sta_disconnected_event_data result;
     std::memcpy(result.mac.data(), info->mac, 6);
@@ -718,10 +958,12 @@ wifi::bss_rssi_low_event_data wifi::bss_rssi_low_event_data::from_opaque(const v
 }
 
 static std::optional<wifi::second_channel> from_idf_second_chan(wifi_second_chan_t sc) {
-    return sc == WIFI_SECOND_CHAN_NONE ? std::nullopt : std::optional(static_cast<wifi::second_channel>(sc));
+    return sc == WIFI_SECOND_CHAN_NONE ? std::nullopt
+                                       : std::optional(static_cast<wifi::second_channel>(sc));
 }
 
-wifi::home_channel_change_event_data wifi::home_channel_change_event_data::from_opaque(const void* event_data) {
+wifi::home_channel_change_event_data
+wifi::home_channel_change_event_data::from_opaque(const void* event_data) {
     auto* info = static_cast<const wifi_event_home_channel_change_t*>(event_data);
     return {
         info->old_chan,

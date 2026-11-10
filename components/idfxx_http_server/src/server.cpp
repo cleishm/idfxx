@@ -16,10 +16,18 @@
 #include <utility>
 
 // Verify errc enum values match ESP-IDF constants
-static_assert(std::to_underlying(idfxx::http::server::errc::handlers_full) == ESP_ERR_HTTPD_HANDLERS_FULL);
-static_assert(std::to_underlying(idfxx::http::server::errc::handler_exists) == ESP_ERR_HTTPD_HANDLER_EXISTS);
-static_assert(std::to_underlying(idfxx::http::server::errc::invalid_request) == ESP_ERR_HTTPD_INVALID_REQ);
-static_assert(std::to_underlying(idfxx::http::server::errc::result_truncated) == ESP_ERR_HTTPD_RESULT_TRUNC);
+static_assert(
+    std::to_underlying(idfxx::http::server::errc::handlers_full) == ESP_ERR_HTTPD_HANDLERS_FULL
+);
+static_assert(
+    std::to_underlying(idfxx::http::server::errc::handler_exists) == ESP_ERR_HTTPD_HANDLER_EXISTS
+);
+static_assert(
+    std::to_underlying(idfxx::http::server::errc::invalid_request) == ESP_ERR_HTTPD_INVALID_REQ
+);
+static_assert(
+    std::to_underlying(idfxx::http::server::errc::result_truncated) == ESP_ERR_HTTPD_RESULT_TRUNC
+);
 static_assert(std::to_underlying(idfxx::http::server::errc::resp_header) == ESP_ERR_HTTPD_RESP_HDR);
 static_assert(std::to_underlying(idfxx::http::server::errc::resp_send) == ESP_ERR_HTTPD_RESP_SEND);
 static_assert(std::to_underlying(idfxx::http::server::errc::alloc_mem) == ESP_ERR_HTTPD_ALLOC_MEM);
@@ -56,10 +64,16 @@ static constexpr size_t httpd_method_count = sizeof(httpd_method_map) / sizeof(h
 
 #ifdef CONFIG_HTTPD_WS_SUPPORT
 // Verify ws_frame_type enum values match ESP-IDF constants
-static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::continuation) == HTTPD_WS_TYPE_CONTINUE);
+static_assert(
+    std::to_underlying(idfxx::http::request::ws_frame_type::continuation) == HTTPD_WS_TYPE_CONTINUE
+);
 static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::text) == HTTPD_WS_TYPE_TEXT);
-static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::binary) == HTTPD_WS_TYPE_BINARY);
-static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::close) == HTTPD_WS_TYPE_CLOSE);
+static_assert(
+    std::to_underlying(idfxx::http::request::ws_frame_type::binary) == HTTPD_WS_TYPE_BINARY
+);
+static_assert(
+    std::to_underlying(idfxx::http::request::ws_frame_type::close) == HTTPD_WS_TYPE_CLOSE
+);
 static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::ping) == HTTPD_WS_TYPE_PING);
 static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::pong) == HTTPD_WS_TYPE_PONG);
 #endif
@@ -192,7 +206,9 @@ std::unexpected<std::error_code> http_server_error(esp_err_t e) {
     }
     return std::unexpected(make_errc(e)
                                .transform([](server::errc ec) {
-                                   return std::error_code{std::to_underlying(ec), http_server_category()};
+                                   return std::error_code{
+                                       std::to_underlying(ec), http_server_category()
+                                   };
                                })
                                .value_or(idfxx::make_error_code(e)));
 }
@@ -231,7 +247,8 @@ std::string server::error_category::message(int ec) const {
 esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
     auto* record = static_cast<handler_record*>(req->user_ctx);
     request r{req};
-    auto res = idfxx::invoke_guarded(TAG, "Handler for", req->uri, [&] { return record->handler(r); });
+    auto res =
+        idfxx::invoke_guarded(TAG, "Handler for", req->uri, [&] { return record->handler(r); });
     if (!res) {
         auto msg = res.error().message();
         ESP_LOGD(TAG, "URI handler for %s returned error: %s", req->uri, msg.c_str());
@@ -241,7 +258,11 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
     // Unread payload would be parsed as the next frame header, so the
     // connection cannot continue. Returning an error makes httpd close it.
     if (r._ws_payload_unread) {
-        ESP_LOGW(TAG, "WebSocket handler left frame payload unread; closing connection %d", httpd_req_to_sockfd(req));
+        ESP_LOGW(
+            TAG,
+            "WebSocket handler left frame payload unread; closing connection %d",
+            httpd_req_to_sockfd(req)
+        );
         return ESP_FAIL;
     }
 #endif
@@ -256,8 +277,9 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
 esp_err_t server::_session_open_trampoline(httpd_handle_t hd, int sockfd) {
     auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(hd));
     if (ctx && ctx->self && ctx->self->_on_session_open) {
-        auto res =
-            idfxx::invoke_guarded(TAG, "Session open handler", [&] { return ctx->self->_on_session_open(sockfd); });
+        auto res = idfxx::invoke_guarded(TAG, "Session open handler", [&] {
+            return ctx->self->_on_session_open(sockfd);
+        });
         if (!res) {
             return ESP_FAIL;
         }
@@ -269,7 +291,9 @@ void server::_session_close_trampoline(httpd_handle_t hd, int sockfd) {
     auto* ctx = static_cast<server_ctx*>(httpd_get_global_user_ctx(hd));
     if (ctx && ctx->self && ctx->self->_on_session_close) {
         // An exception is logged and otherwise ignored
-        (void)idfxx::invoke_guarded(TAG, "Session close handler", [&] { ctx->self->_on_session_close(sockfd); });
+        (void)idfxx::invoke_guarded(TAG, "Session close handler", [&] {
+            ctx->self->_on_session_close(sockfd);
+        });
     }
     // A custom close_fn replaces the server's own close of the socket, so it must be closed here.
     ::close(sockfd);
@@ -279,10 +303,15 @@ void server::_session_close_trampoline(httpd_handle_t hd, int sockfd) {
 // Server Lifecycle
 // =============================================================================
 
-result<httpd_handle_t>
-server::_start_server(const config& cfg, server_ctx* ctx, bool has_session_open, bool has_session_close) {
+result<httpd_handle_t> server::_start_server(
+    const config& cfg,
+    server_ctx* ctx,
+    bool has_session_open,
+    bool has_session_close
+) {
     httpd_config_t httpd_cfg = HTTPD_DEFAULT_CONFIG();
-    if (auto res = _populate_httpd_config(httpd_cfg, cfg, ctx, has_session_open, has_session_close); !res) {
+    if (auto res = _populate_httpd_config(httpd_cfg, cfg, ctx, has_session_open, has_session_close);
+        !res) {
         return error(res.error());
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
@@ -327,9 +356,16 @@ result<server> server::make(config cfg) {
     auto on_session_open = std::move(cfg.on_session_open);
     auto on_session_close = std::move(cfg.on_session_close);
 
-    return _start_server(cfg, ctx.get(), has_session_open, has_session_close).transform([&](auto handle) {
-        return server{handle, std::move(ctx), std::move(on_session_open), std::move(on_session_close), httpd_stop};
-    });
+    return _start_server(cfg, ctx.get(), has_session_open, has_session_close)
+        .transform([&](auto handle) {
+            return server{
+                handle,
+                std::move(ctx),
+                std::move(on_session_open),
+                std::move(on_session_close),
+                httpd_stop
+            };
+        });
 }
 
 server::server(
@@ -419,7 +455,12 @@ result<void> server::_register_handler(handler_record& record) {
 
     esp_err_t err = httpd_register_uri_handler(_handle, &uri_def);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "httpd_register_uri_handler failed for %s: %s", record.uri.c_str(), esp_err_to_name(err));
+        ESP_LOGD(
+            TAG,
+            "httpd_register_uri_handler failed for %s: %s",
+            record.uri.c_str(),
+            esp_err_to_name(err)
+        );
         return http_server_error(err);
     }
     return {};
@@ -467,7 +508,9 @@ result<void> server::try_unregister_handler(enum method m, std::string_view uri)
         return http_server_error(err);
     }
 
-    _handlers.remove_if([&](const handler_record& r) { return r.uri == uri && r.httpd_method == hm; });
+    _handlers.remove_if([&](const handler_record& r) {
+        return r.uri == uri && r.httpd_method == hm;
+    });
     return {};
 }
 
@@ -540,7 +583,10 @@ result<void> server::_handle_error(request& req, error_status status) {
             if (!res) {
                 auto msg = res.error().message();
                 ESP_LOGD(
-                    TAG, "Error handler for %d returned error: %s", std::to_underlying(status.code()), msg.c_str()
+                    TAG,
+                    "Error handler for %d returned error: %s",
+                    std::to_underlying(status.code()),
+                    msg.c_str()
                 );
                 req._close_connection = true;
             }
@@ -668,7 +714,8 @@ std::optional<std::string> request::query_param(std::string_view key) const {
     }
     std::string key_str{key};
     char value[256];
-    esp_err_t err = httpd_query_key_value(_query_cache->c_str(), key_str.c_str(), value, sizeof(value));
+    esp_err_t err =
+        httpd_query_key_value(_query_cache->c_str(), key_str.c_str(), value, sizeof(value));
     if (err != ESP_OK) {
         return std::nullopt;
     }
@@ -805,8 +852,9 @@ result<void> request::try_send(std::string_view body) {
 }
 
 result<void> request::try_send(std::span<const uint8_t> body) {
-    esp_err_t err =
-        httpd_resp_send(_req, reinterpret_cast<const char*>(body.data()), static_cast<ssize_t>(body.size()));
+    esp_err_t err = httpd_resp_send(
+        _req, reinterpret_cast<const char*>(body.data()), static_cast<ssize_t>(body.size())
+    );
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "httpd_resp_send failed: %s", esp_err_to_name(err));
         return http_server_error(err);
@@ -940,7 +988,9 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
         // The payload stays unread and would be parsed as the next frame
         // header, so have the trampoline close the connection
         _ws_payload_unread = true;
-        ESP_LOGD(TAG, "WebSocket frame of %zu bytes exceeds the %zu-byte buffer", ws_pkt.len, buf.size());
+        ESP_LOGD(
+            TAG, "WebSocket frame of %zu bytes exceeds the %zu-byte buffer", ws_pkt.len, buf.size()
+        );
         return error(idfxx::errc::invalid_size);
     }
 
@@ -982,7 +1032,9 @@ result<request::ws_frame_reader> request::try_ws_recv_begin() {
         return http_server_error(err);
     }
 
-    return ws_frame_reader{*this, static_cast<ws_frame_type>(ws_pkt.type), ws_pkt.final, ws_pkt.len};
+    return ws_frame_reader{
+        *this, static_cast<ws_frame_type>(ws_pkt.type), ws_pkt.final, ws_pkt.len
+    };
 }
 
 request::ws_frame_reader::ws_frame_reader(ws_frame_reader&& other) noexcept

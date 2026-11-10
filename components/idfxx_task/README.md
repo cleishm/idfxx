@@ -6,7 +6,8 @@ Task lifecycle management for ESP32.
 
 - **Join support** with optional timeout and deadline-based waiting
 - **Cooperative stop signaling** via `request_stop()` / `stop_requested()`
-- **Auto-join destructor** requests task to stop then blocks until the task completes (similar to `std::jthread`)
+- **Auto-join destructor** requests task to stop then blocks until the task completes (similar to
+  `std::jthread`)
 - **Fire-and-forget tasks** via spawn() and detach()
 - **Suspend/resume control** with ISR-safe resume
 - **Task notifications** for lightweight wake-up (binary and counting semaphore patterns)
@@ -59,8 +60,8 @@ idfxx::task my_task(
 
 ### Result-based API
 
-Task construction always uses the constructor (allocation failure aborts). Use
-`try_*` methods for operations that can fail at runtime:
+Task construction always uses the constructor (allocation failure aborts). Use `try_*` methods for
+operations that can fail at runtime:
 
 ```cpp
 #include <idfxx/sched>
@@ -223,8 +224,8 @@ idfxx::task pinned(
 
 ### PSRAM Stack Allocation
 
-On devices with external PSRAM, place task stacks in external memory to free
-internal DRAM for DMA buffers and performance-critical data:
+On devices with external PSRAM, place task stacks in external memory to free internal DRAM for DMA
+buffers and performance-critical data:
 
 ```cpp
 #include <idfxx/task>
@@ -237,7 +238,8 @@ idfxx::task worker(
 // Use memory::capabilities::dram (default) for internal DRAM
 ```
 
-> **Note:** `memory::capabilities::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM` enabled.
+> **Note:** `memory::capabilities::spiram` requires a device with external PSRAM and `CONFIG_SPIRAM`
+> enabled.
 
 ### Task Control from ISR
 
@@ -255,9 +257,9 @@ void IRAM_ATTR my_isr() {
 
 ### Task Notifications
 
-Task notifications provide a lightweight signaling mechanism using FreeRTOS
-direct-to-task notifications (index 0). Unlike `suspend()`/`resume()`,
-notifications latch — a notification sent before the task waits is not lost.
+Task notifications provide a lightweight signaling mechanism using FreeRTOS direct-to-task
+notifications (index 0). Unlike `suspend()`/`resume()`, notifications latch — a notification sent
+before the task waits is not lost.
 
 **Binary semaphore pattern** — simple "wake up and do work":
 
@@ -350,8 +352,8 @@ void IRAM_ATTR my_isr() {
 }
 ```
 
-> **Note:** `idfxx::task` reserves notification index 0 for `wait()`/`take()`/`notify()`.
-> If you need to use other FreeRTOS notification indices, access them directly via `idf_handle()`.
+> **Note:** `idfxx::task` reserves notification index 0 for `wait()`/`take()`/`notify()`. If you
+> need to use other FreeRTOS notification indices, access them directly via `idf_handle()`.
 
 ### Static Utility Methods
 
@@ -416,7 +418,8 @@ std::string_view name = idfxx::task::current_name();
 ### Configuration Types
 
 - `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem)
-- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in `<idfxx/memory>`
+- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in
+  `<idfxx/memory>`
 
 ### Query Methods
 
@@ -439,20 +442,35 @@ Task operations use error codes from `idfxx::errc`:
 - `invalid_state` - Task has been detached, already joined, or operation invalid for current state
 - `timeout` - Join did not complete within the specified duration
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Auto-join destructor**: The destructor calls `request_stop()` then blocks until the task function completes, similar to `std::jthread`. Tasks that check `stop_requested()` in their loops will exit cleanly. For tasks that ignore the stop request and may not return promptly, call `join()` with a timeout or `detach()` before the task goes out of scope.
-- **Cooperative stop**: `request_stop()` only sets a flag — the task must poll `self.stop_requested()` to observe it. It does not forcibly terminate the task.
-- **Force kill**: `kill()` / `try_kill()` immediately terminates the task. This is dangerous: C++ destructors will not run, held mutexes will not be released, and allocated memory will not be freed. Only use as a last resort when a task cannot be stopped cooperatively.
-- **Single-join semantics**: A task can only be joined once. After a successful join, the task becomes non-joinable. A timed-out join does not consume the join — the task remains joinable for a subsequent attempt.
-- **Prefer timeouts**: Use `join(duration)` or `try_join(duration)` over the no-argument versions to avoid blocking indefinitely on tasks that may not return.
-- **Completed tasks**: Operations on a completed task (suspend, resume, set_priority) return `invalid_state`. Use `is_completed()` to check.
-- **Detached/spawned tasks**: Detached and spawned tasks clean up automatically when their function returns.
-- **Exceptions in task functions**: With exceptions enabled, an exception thrown by the task function is logged and the task finishes as if the function had returned: `join()` returns normally, and detached or spawned tasks still clean up
+- **Auto-join destructor**: The destructor calls `request_stop()` then blocks until the task
+  function completes, similar to `std::jthread`. Tasks that check `stop_requested()` in their loops
+  will exit cleanly. For tasks that ignore the stop request and may not return promptly, call
+  `join()` with a timeout or `detach()` before the task goes out of scope.
+- **Cooperative stop**: `request_stop()` only sets a flag — the task must poll
+  `self.stop_requested()` to observe it. It does not forcibly terminate the task.
+- **Force kill**: `kill()` / `try_kill()` immediately terminates the task. This is dangerous: C++
+  destructors will not run, held mutexes will not be released, and allocated memory will not be
+  freed. Only use as a last resort when a task cannot be stopped cooperatively.
+- **Single-join semantics**: A task can only be joined once. After a successful join, the task
+  becomes non-joinable. A timed-out join does not consume the join — the task remains joinable for a
+  subsequent attempt.
+- **Prefer timeouts**: Use `join(duration)` or `try_join(duration)` over the no-argument versions to
+  avoid blocking indefinitely on tasks that may not return.
+- **Completed tasks**: Operations on a completed task (suspend, resume, set_priority) return
+  `invalid_state`. Use `is_completed()` to check.
+- **Detached/spawned tasks**: Detached and spawned tasks clean up automatically when their function
+  returns.
+- **Exceptions in task functions**: With exceptions enabled, an exception thrown by the task
+  function is logged and the task finishes as if the function had returned: `join()` returns
+  normally, and detached or spawned tasks still clean up
 - **Non-copyable/move-only**: Task is non-copyable and move-only.
-- **Notification index 0 reserved**: `wait()`/`take()`/`notify()` use FreeRTOS notification index 0. If you need additional notification indices, access them directly via `idf_handle()`.
+- **Notification index 0 reserved**: `wait()`/`take()`/`notify()` use FreeRTOS notification index 0.
+  If you need additional notification indices, access them directly via `idf_handle()`.
 
 ## License
 

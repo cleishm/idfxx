@@ -26,18 +26,24 @@ extern "C" void app_main() {
         // --- Register event listeners ---
         auto& loop = idfxx::event_loop::system();
 
-        loop.listener_add(idfxx::wifi::sta_connected, [](const idfxx::wifi::connected_event_data& info) {
-            logger.info("Connected to {} (channel {}, {})", info.ssid, info.channel, info.authmode);
-        });
-
-        loop.listener_add(idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
-            logger.warn("Disconnected from {} (reason: {})", info.ssid, info.reason);
-            // Attempt to reconnect
-            logger.info("Reconnecting...");
-            if (auto r = idfxx::wifi::try_connect(); !r) {
-                logger.error("Reconnect failed: {}", r.error().message());
+        loop.listener_add(
+            idfxx::wifi::sta_connected, [](const idfxx::wifi::connected_event_data& info) {
+                logger.info(
+                    "Connected to {} (channel {}, {})", info.ssid, info.channel, info.authmode
+                );
             }
-        });
+        );
+
+        loop.listener_add(
+            idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
+                logger.warn("Disconnected from {} (reason: {})", info.ssid, info.reason);
+                // Attempt to reconnect
+                logger.info("Reconnecting...");
+                if (auto r = idfxx::wifi::try_connect(); !r) {
+                    logger.error("Reconnect failed: {}", r.error().message());
+                }
+            }
+        );
 
         loop.listener_add(idfxx::netif::sta_got_ip4, [](const idfxx::netif::ip4_event_data& info) {
             logger.info("Got IP address: {}", info.ip4.ip);

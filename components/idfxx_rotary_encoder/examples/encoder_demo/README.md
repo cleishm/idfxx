@@ -4,13 +4,14 @@ Tracks the position of a rotary encoder, first without acceleration, then with i
 
 ## What it demonstrates
 
-- Creating an `idfxx::rotary_encoder` from a config with the A and B pins and a callback that receives
-  each change in position
+- Creating an `idfxx::rotary_encoder` from a config with the A and B pins and a callback that
+  receives each change in position
 - The default internal pull-ups on both encoder pins
 - Turning on acceleration with `enable_acceleration()`, so fast turns move the position further
 - Turning it off again with `disable_acceleration()`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -41,6 +42,6 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Turn the encoder and watch
-the position change. The example runs for 15 seconds without acceleration, 15 seconds with it, then
-10 seconds without it, and logs the final position. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Turn the encoder and
+watch the position change. The example runs for 15 seconds without acceleration, 15 seconds with it,
+then 10 seconds without it, and logs the final position. Press `Ctrl-]` to exit the monitor.

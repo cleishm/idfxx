@@ -61,27 +61,35 @@ extern "C" void app_main() {
     logger.info("=== Producer-Consumer ===");
     idfxx::queue<sensor_reading> data_queue(10);
 
-    idfxx::task producer({.name = "producer", .stack_size = 4096}, [&data_queue](idfxx::task::self& self) {
-        for (int i = 0; i < 5 && !self.stop_requested(); ++i) {
-            sensor_reading reading{.sensor_id = i, .value = 20.0f + static_cast<float>(i) * 0.5f};
-            data_queue.send(reading);
-            logger.info("[producer] sent sensor_id={}, value={:.1f}", reading.sensor_id, reading.value);
-            idfxx::delay(200ms);
-        }
-    });
-
-    idfxx::task consumer({.name = "consumer", .stack_size = 4096}, [&data_queue](idfxx::task::self& self) {
-        while (!self.stop_requested()) {
-            auto result = data_queue.try_receive(1s);
-            if (result) {
-                auto& r = *result;
-                logger.info("[consumer] got sensor_id={}, value={:.1f}", r.sensor_id, r.value);
-            } else {
-                logger.info("[consumer] receive timed out");
-                break;
+    idfxx::task producer(
+        {.name = "producer", .stack_size = 4096}, [&data_queue](idfxx::task::self& self) {
+            for (int i = 0; i < 5 && !self.stop_requested(); ++i) {
+                sensor_reading reading{
+                    .sensor_id = i, .value = 20.0f + static_cast<float>(i) * 0.5f
+                };
+                data_queue.send(reading);
+                logger.info(
+                    "[producer] sent sensor_id={}, value={:.1f}", reading.sensor_id, reading.value
+                );
+                idfxx::delay(200ms);
             }
         }
-    });
+    );
+
+    idfxx::task consumer(
+        {.name = "consumer", .stack_size = 4096}, [&data_queue](idfxx::task::self& self) {
+            while (!self.stop_requested()) {
+                auto result = data_queue.try_receive(1s);
+                if (result) {
+                    auto& r = *result;
+                    logger.info("[consumer] got sensor_id={}, value={:.1f}", r.sensor_id, r.value);
+                } else {
+                    logger.info("[consumer] receive timed out");
+                    break;
+                }
+            }
+        }
+    );
 
     producer.join(5s);
     consumer.request_stop();
@@ -93,7 +101,9 @@ extern "C" void app_main() {
     state_q.send(1);
     state_q.send(2);
     state_q.send(3);
-    logger.info("size={}, available={}, full={}", state_q.size(), state_q.available(), state_q.full());
+    logger.info(
+        "size={}, available={}, full={}", state_q.size(), state_q.available(), state_q.full()
+    );
 
     state_q.reset();
     logger.info("After reset: size={}, empty={}", state_q.size(), state_q.empty());

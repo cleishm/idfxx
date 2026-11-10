@@ -177,7 +177,8 @@ try {
 
 - **Dual API Pattern**: The component provides both result-based and exception-based APIs
   - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+  - Methods without `try_` prefix throw `std::system_error` (requires
+    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 
 ## Important Notes
 
@@ -185,8 +186,10 @@ try {
 - **Conversion time**: Temperature measurement takes up to 750ms at 12-bit resolution
 - **Single-device buses**: Use `address::any()` (the default) to skip ROM matching
 - **Multi-device buses**: Use `scan_devices()` to discover all connected sensors
-- **Resolution**: Only DS18B20 supports configurable resolution (9-12 bit); DS18S20 is fixed at 9-bit
-- **EEPROM persistence**: Use `copy_scratchpad()` to save resolution and alarm settings across power cycles
+- **Resolution**: Only DS18B20 supports configurable resolution (9-12 bit); DS18S20 is fixed at
+  9-bit
+- **EEPROM persistence**: Use `copy_scratchpad()` to save resolution and alarm settings across power
+  cycles
 - **Lightweight value type**: `device` is copyable with no resource ownership
 
 ## License

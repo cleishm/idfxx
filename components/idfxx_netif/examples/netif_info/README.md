@@ -1,11 +1,12 @@
 # Network Interface Info
 
-Joins a Wi-Fi network and, once it has an IP address, prints the station interface's addresses and settings.
+Joins a Wi-Fi network and, once it has an IP address, prints the station interface's addresses and
+settings.
 
 ## What it demonstrates
 
-- Creating the default event loop with `idfxx::event_loop::create_system()`, and initializing the network
-  stack with `idfxx::netif::init()`
+- Creating the default event loop with `idfxx::event_loop::create_system()`, and initializing the
+  network stack with `idfxx::netif::init()`
 - Creating the Wi-Fi station interface with `idfxx::wifi::make_sta_netif()`
 - Handling the `idfxx::netif::sta_got_ip4` event, and printing its IP address, netmask, gateway and
   `changed` flag
@@ -14,7 +15,8 @@ Joins a Wi-Fi network and, once it has an IP address, prints the station interfa
 - Listing the main, backup and fallback DNS servers with `get_dns()`
 - Joining the network with `idfxx::wifi`
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
@@ -42,11 +44,12 @@ Set the target:
 idf.py set-target esp32
 ```
 
-Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and flash
-it, and watch the serial output:
+Then set your Wi-Fi credentials in `main/main.cpp` (see [Configuration](#configuration)), build and
+flash it, and watch the serial output:
 
 ```bash
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

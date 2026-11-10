@@ -139,8 +139,8 @@ idfxx::log::info("LCD", "Display initialized successfully");
 
 ### Using a Named Config Variable
 
-When storing the config in a variable before passing it, use `std::move()` since the config
-struct is move-only:
+When storing the config in a variable before passing it, use `std::move()` since the config struct
+is move-only:
 
 ```cpp
 idfxx::lcd::panel::config panel_config{
@@ -262,7 +262,8 @@ Configuration structure defined in `idfxx_lcd`:
 - `rgb_element_order` - RGB element order (`idfxx::lcd::rgb_element_order::rgb` or `::bgr`)
 - `data_endian` - RGB data endian (`idfxx::lcd::rgb_data_endian::big` or `::little`)
 - `bits_per_pixel` - Color depth (typically 16 for RGB565)
-- `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or `gpio::level::high`)
+- `reset_active_level` - Active level for the panel reset signal (`gpio::level::low` or
+  `gpio::level::high`)
 - `vendor_config` - Vendor-specific configuration (optional)
 
 ### Typical ILI9341 Configuration

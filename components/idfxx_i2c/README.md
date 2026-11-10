@@ -7,10 +7,11 @@ Type-safe I2C master bus driver for ESP32.
 ## Features
 
 - I2C bus and device lifecycle management
-- Thread-safe bus access with a `TimedLockable` interface; transfers wait at most their timeout for the bus
+- Thread-safe bus access with a `TimedLockable` interface; transfers wait at most their timeout for
+  the bus
 - Device scanning and probing
-- Register-based read/write operations (one-byte or two-byte register addresses), including single bytes
-  and multi-byte integer values in a chosen byte order
+- Register-based read/write operations (one-byte or two-byte register addresses), including single
+  bytes and multi-byte integer values in a chosen byte order
 - Raw transmit/receive, multi-buffer transmit, and custom operation sequences
 - `std::chrono` timeout support
 
@@ -209,8 +210,8 @@ idfxx::log::info("I2C", "Received {} bytes", rx_data.size());
 
 ### Thread-Safe Access
 
-The `master_bus` class implements the TimedLockable concept. Transfers take the same lock, so holding it
-groups several transfers without interruption:
+The `master_bus` class implements the TimedLockable concept. Transfers take the same lock, so
+holding it groups several transfers without interruption:
 
 ```cpp
 using namespace quanta::frequency_literals;
@@ -246,8 +247,8 @@ auto data = device.read_register(0x00, 1, 500ms);
 // Default timeout is 50ms (idfxx::i2c::DEFAULT_TIMEOUT)
 ```
 
-The timeout bounds both the wait for the bus lock and the transfer itself. A transfer that doesn't finish
-in time fails with `idfxx::errc::invalid_response`, so raise the timeout for long transfers.
+The timeout bounds both the wait for the bus lock and the transfer itself. A transfer that doesn't
+finish in time fails with `idfxx::errc::invalid_response`, so raise the timeout for long transfers.
 
 ### Upgrading from 2.x
 
@@ -255,20 +256,20 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
   address bytes; devices that relied on that must set
   `register_address = idfxx::i2c::register_address_size::two_bytes`. The `(high, low)` register
   overloads are replaced by a single `uint16_t` register.
-- `read_register()` sends the register address and reads back in one transaction with a repeated START.
-  In 2.x it wrote the address, sent a STOP, waited 20 ms, then read. Devices that need a STOP or a
-  conversion delay between the two should use `transmit()` then `receive()`.
+- `read_register()` sends the register address and reads back in one transaction with a repeated
+  START. In 2.x it wrote the address, sent a STOP, waited 20 ms, then read. Devices that need a STOP
+  or a conversion delay between the two should use `transmit()` then `receive()`.
 - `write_registers()` no longer waits 4 ms between registers. Devices with a write cycle, such as
   EEPROMs, need the caller to wait or poll between writes.
-- Failed transfers are no longer reported as `idfxx::errc::invalid_arg`; see
-  [Error Handling](#error-handling).
+- Failed transfers are no longer reported as `idfxx::errc::invalid_arg`; see [Error
+  Handling](#error-handling).
 - Construction errors from the driver now pass through instead of being reported as
   `idfxx::errc::invalid_arg`. For example, a port that's already in use fails with
   `idfxx::errc::invalid_state`.
-- Asynchronous transfers were removed: `master_bus::config::trans_queue_depth`, `wait_all_done()` and
-  `register_event_callbacks()` no longer exist, and every transfer finishes before the call returns.
-  The ESP-IDF asynchronous mode can't report bus errors or reliably signal when the caller's buffers
-  are free.
+- Asynchronous transfers were removed: `master_bus::config::trans_queue_depth`, `wait_all_done()`
+  and `register_event_callbacks()` no longer exist, and every transfer finishes before the call
+  returns. The ESP-IDF asynchronous mode can't report bus errors or reliably signal when the
+  caller's buffers are free.
 
 ## API Overview
 
@@ -283,7 +284,8 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
 **Operations:**
 - `scan_devices([timeout])` - Scan for devices
 - `probe(address, [timeout])` / `try_probe(address, [timeout])` - Probe specific address
-- `lock()`, `try_lock()`, `try_lock_for(timeout)`, `try_lock_until(deadline)`, `unlock()` - Thread synchronization
+- `lock()`, `try_lock()`, `try_lock_for(timeout)`, `try_lock_until(deadline)`, `unlock()` - Thread
+  synchronization
 
 **Properties:**
 - `port()` - I2C port (`idfxx::i2c::port`)
@@ -299,21 +301,25 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
 - `make(bus, address)` - Convenience factory with defaults
 
 **Raw I/O:**
-- `transmit(data, [timeout])` / `try_transmit(...)` - Send data, from one buffer or several in one transaction
-- `receive(size, [timeout])` / `try_receive(...)` - Receive data, into a new vector or a caller's buffer
-- `execute_operations(ops, [timeout])` / `try_execute_operations(...)` - Run a custom START/WRITE/READ/STOP sequence
+- `transmit(data, [timeout])` / `try_transmit(...)` - Send data, from one buffer or several in one
+  transaction
+- `receive(size, [timeout])` / `try_receive(...)` - Receive data, into a new vector or a caller's
+  buffer
+- `execute_operations(ops, [timeout])` / `try_execute_operations(...)` - Run a custom
+  START/WRITE/READ/STOP sequence
 - `probe([timeout])` / `try_probe([timeout])` - Probe the device
 
 **Register I/O** (register address size set by `config.register_address`):
 - `write_register(reg, data, [timeout])` / `try_write_register(...)` - Write to register
 - `write_register(reg, value, [timeout])` / `try_write_register(...)` - Write a single `uint8_t`
-- `write_register<T>(reg, value, order, [timeout])` / `try_write_register<T>(...)` - Write an unsigned integer
-  in `std::endian` byte `order`
+- `write_register<T>(reg, value, order, [timeout])` / `try_write_register<T>(...)` - Write an
+  unsigned integer in `std::endian` byte `order`
 - `read_register(reg, size, [timeout])` / `try_read_register(...)` - Read from register
 - `read_register(reg, [timeout])` / `try_read_register(...)` - Read a single `uint8_t`
-- `read_register<T>(reg, order, [timeout])` / `try_read_register<T>(...)` - Read an unsigned integer in
-  `std::endian` byte `order`
-- `write_registers(regs, data, [timeout])` / `try_write_registers(...)` - Write to multiple registers
+- `read_register<T>(reg, order, [timeout])` / `try_read_register<T>(...)` - Read an unsigned integer
+  in `std::endian` byte `order`
+- `write_registers(regs, data, [timeout])` / `try_write_registers(...)` - Write to multiple
+  registers
 
 **Addressing:**
 - `change_address(new_address, [timeout])` / `try_change_address(...)` - Change the device address
@@ -327,51 +333,65 @@ in time fails with `idfxx::errc::invalid_response`, so raise the timeout for lon
 
 ## Error Handling
 
-Errors are reported as `std::error_code` values from `idfxx::errc` (thrown as `std::system_error` by the
-exception-based methods).
+Errors are reported as `std::error_code` values from `idfxx::errc` (thrown as `std::system_error` by
+the exception-based methods).
 
 **Transfers** (`transmit`, `receive`, register methods, `execute_operations`, `change_address`):
-- `idfxx::errc::invalid_response` - The device didn't acknowledge (NACK), the transfer timed out on the bus
-  (including clock stretching beyond `scl_wait_us`), or it didn't finish within the timeout. The driver
-  can't tell these apart, and they are reported the same way on every supported ESP-IDF version, so raise
-  the timeout for long transfers.
+- `idfxx::errc::invalid_response` - The device didn't acknowledge (NACK), the transfer timed out on
+  the bus (including clock stretching beyond `scl_wait_us`), or it didn't finish within the timeout.
+  The driver can't tell these apart, and they are reported the same way on every supported ESP-IDF
+  version, so raise the timeout for long transfers.
 - `idfxx::errc::timeout` - The bus could not be acquired within the timeout
-- `idfxx::errc::invalid_arg` - An argument was rejected before anything was sent: a register above 0xFF with
-  one-byte register addresses, a null buffer with a nonzero size, a zero-byte register read, or an address
-  that doesn't fit the device's 7-bit or 10-bit addressing in `change_address`
+- `idfxx::errc::invalid_arg` - An argument was rejected before anything was sent: a register above
+  0xFF with one-byte register addresses, a null buffer with a nonzero size, a zero-byte register
+  read, or an address that doesn't fit the device's 7-bit or 10-bit addressing in `change_address`
 - Other driver errors are passed through
 
 **Probing** (`probe`, `scan_devices`):
 - `idfxx::errc::not_found` - No device acknowledged
-- `idfxx::errc::timeout` - The bus could not be acquired in time, or the probe timed out on the bus (for
-  example, SCL held low); the driver reports both the same way
+- `idfxx::errc::timeout` - The bus could not be acquired in time, or the probe timed out on the bus
+  (for example, SCL held low); the driver reports both the same way
 
 **Construction** (`master_bus`, `master_device`):
 - `idfxx::errc::invalid_arg` - An unconnected SDA/SCL pin, a zero bus frequency, a non-positive
   `scl_speed`, a zero `scl_wait_us`, or a configuration the driver rejects (pins, interrupt level)
 - `idfxx::errc::invalid_state` - The port is already in use
-- `idfxx::errc::not_supported` - A setting the target or port doesn't support, such as `allow_pd` or an LP
-  I2C clock source
+- `idfxx::errc::not_supported` - A setting the target or port doesn't support, such as `allow_pd` or
+  an LP I2C clock source
 - `idfxx::errc::not_found` - No free interrupt
-- Other driver errors are passed through; running out of memory throws `std::bad_alloc` (or aborts when
-  exceptions are disabled)
+- Other driver errors are passed through; running out of memory throws `std::bad_alloc` (or aborts
+  when exceptions are disabled)
 
 ## Integration
 
-See the [Installation](#installation) section above for details on adding `idfxx_i2c` to your project via the ESP-IDF Component Manager or CMakeLists.txt.
+See the [Installation](#installation) section above for details on adding `idfxx_i2c` to your
+project via the ESP-IDF Component Manager or CMakeLists.txt.
 
 ## Important Notes
 
-- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via `config.addr_10bit` on targets with `SOC_I2C_SUPPORT_10BIT_ADDR` (e.g., esp32, esp32s3, esp32c3/c6, esp32h2, esp32p4). The field is not present on targets without this capability (e.g., esp32s2).
-- Register addresses are one byte by default; set `config.register_address` to `register_address_size::two_bytes` for devices with 16-bit register addresses, which are then sent MSB first. With one-byte register addresses, a register above 0xFF fails with `idfxx::errc::invalid_arg` before anything is sent
-- Multi-byte integer register values always take a byte order. `write_register(reg, value)` writes one byte from a `uint8_t` or an `int` such as a plain literal; an unsigned value of any wider type doesn't compile, rather than writing only its low byte. That includes wide unsigned masks such as `0x80u` or ESP-IDF's `BIT(n)`, so declare single-byte register bits as `uint8_t` constants (`constexpr uint8_t ctrl_enable = 0x80;`)
-- The bus must remain alive while devices using it exist; the caller is responsible for ensuring this
+- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via
+  `config.addr_10bit` on targets with `SOC_I2C_SUPPORT_10BIT_ADDR` (e.g., esp32, esp32s3,
+  esp32c3/c6, esp32h2, esp32p4). The field is not present on targets without this capability (e.g.,
+  esp32s2).
+- Register addresses are one byte by default; set `config.register_address` to
+  `register_address_size::two_bytes` for devices with 16-bit register addresses, which are then sent
+  MSB first. With one-byte register addresses, a register above 0xFF fails with
+  `idfxx::errc::invalid_arg` before anything is sent
+- Multi-byte integer register values always take a byte order. `write_register(reg, value)` writes
+  one byte from a `uint8_t` or an `int` such as a plain literal; an unsigned value of any wider type
+  doesn't compile, rather than writing only its low byte. That includes wide unsigned masks such as
+  `0x80u` or ESP-IDF's `BIT(n)`, so declare single-byte register bits as `uint8_t` constants
+  (`constexpr uint8_t ctrl_enable = 0x80;`)
+- The bus must remain alive while devices using it exist; the caller is responsible for ensuring
+  this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)
 - Bus scanning probes addresses 0x08-0x77
 - Multiple devices can share the same bus
 - Every transfer finishes before the call that starts it returns
 - Bus access is thread-safe via an internal mutex; each transfer waits at most its timeout for it
-- With ESP-IDF 6.1 or later and `CONFIG_I2C_ISR_IRAM_SAFE` enabled, buffers that receive data (`receive`, `read_register`, and read operations in `execute_operations`) must reside in internal RAM, not PSRAM; otherwise the call fails with `idfxx::errc::invalid_arg`
+- With ESP-IDF 6.1 or later and `CONFIG_I2C_ISR_IRAM_SAFE` enabled, buffers that receive data
+  (`receive`, `read_register`, and read operations in `execute_operations`) must reside in internal
+  RAM, not PSRAM; otherwise the call fails with `idfxx::errc::invalid_arg`
 
 ## License
 

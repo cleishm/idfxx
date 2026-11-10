@@ -98,14 +98,16 @@ encoder->enable_acceleration(10);
 
 Key configuration options:
 - `pin_a`, `pin_b` - Encoder pins (required)
-- `encoder_pins_pull_mode` - Pull mode for encoder pins A and B (default: pullup, nullopt to leave unchanged)
+- `encoder_pins_pull_mode` - Pull mode for encoder pins A and B (default: pullup, nullopt to leave
+  unchanged)
 - `acceleration_threshold` - Acceleration trigger interval (default: 200ms)
 - `acceleration_cap` - Maximum acceleration limit (default: 4ms)
 - `polling_interval` - GPIO polling interval (default: 1ms)
 
 ## Error Handling
 
-The `make()` factory returns `idfxx::result<rotary_encoder>`. The exception-based constructor throws `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+The `make()` factory returns `idfxx::result<rotary_encoder>`. The exception-based constructor throws
+`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 Error codes from `idfxx::errc`:
 
@@ -115,10 +117,13 @@ Error codes from `idfxx::errc`:
 
 - **Non-copyable/move-only**: Encoder is non-copyable and move-only.
 - **Automatic cleanup**: The destructor automatically stops tracking and releases resources.
-- **Callback context**: Callbacks are invoked from a timer task context. They must not block or call back into the encoder API.
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is logged and otherwise ignored. The encoder keeps tracking and reporting later rotation
+- **Callback context**: Callbacks are invoked from a timer task context. They must not block or call
+  back into the encoder API.
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by the callback is
+  logged and otherwise ignored. The encoder keeps tracking and reporting later rotation
 - **Pin requirements**: `pin_a` and `pin_b` must be connected GPIO pins.
-- **Button support**: Many rotary encoders include a built-in push-button. Use [idfxx_button](../idfxx_button) to handle the button independently.
+- **Button support**: Many rotary encoders include a built-in push-button. Use
+  [idfxx_button](../idfxx_button) to handle the button independently.
 
 ## License
 

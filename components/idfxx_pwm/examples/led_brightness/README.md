@@ -4,22 +4,24 @@ Steps an LED through a series of brightness levels using PWM.
 
 ## What it demonstrates
 
-- Starting a 5 kHz PWM output on a pin with `idfxx::pwm::start()`, which picks a free timer and channel
+- Starting a 5 kHz PWM output on a pin with `idfxx::pwm::start()`, which picks a free timer and
+  channel
 - Setting the brightness as a fraction of full duty with `set_duty()`
 - Reading back the raw duty value with `duty_ticks()`
 - Stopping the output automatically when the output object goes out of scope
 
 A comment in `main/main.cpp` also shows how to configure a specific timer and channel yourself.
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`).
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`).
 
 ## Hardware required
 
 - Any ESP32-series development board
 - An LED on GPIO 2
 
-Many ESP32 development boards have an LED on GPIO 2. If yours doesn't, connect an LED in series with a
-~330 Ω resistor between GPIO 2 and GND. To use a different pin, change `idfxx::gpio_2` in
+Many ESP32 development boards have an LED on GPIO 2. If yours doesn't, connect an LED in series with
+a ~330 Ω resistor between GPIO 2 and GND. To use a different pin, change `idfxx::gpio_2` in
 `main/main.cpp`.
 
 > [!NOTE]

@@ -1,15 +1,15 @@
 # Orientations
 
-Shows a small in-memory photo the right way up on a panel that is mounted rotated, and prints the results
-as ASCII art.
+Shows a small in-memory photo the right way up on a panel that is mounted rotated, and prints the
+results as ASCII art.
 
 To decode an image straight to a display, use `idfxx::image::render()` instead, which applies these
 orientations for you.
 
 ## What it demonstrates
 
-- Drawing into an `idfxx::image::buffer<>` of `idfxx::image::rgb888` pixels with `operator[]`, `row()`
-  and `subview()`
+- Drawing into an `idfxx::image::buffer<>` of `idfxx::image::rgb888` pixels with `operator[]`,
+  `row()` and `subview()`
 - Combining a photo's EXIF orientation and the panel's rotation into one transform with
   `image::compose()`
 - Getting the result as a new image with `image::oriented()`, with an explicit allocator (here
@@ -43,4 +43,5 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
+the monitor.

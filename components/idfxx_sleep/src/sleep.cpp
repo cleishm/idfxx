@@ -17,7 +17,9 @@
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::ext0) == ESP_SLEEP_WAKEUP_EXT0);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::ext1) == ESP_SLEEP_WAKEUP_EXT1);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::timer) == ESP_SLEEP_WAKEUP_TIMER);
-static_assert(std::to_underlying(idfxx::sleep::wakeup_source::touchpad) == ESP_SLEEP_WAKEUP_TOUCHPAD);
+static_assert(
+    std::to_underlying(idfxx::sleep::wakeup_source::touchpad) == ESP_SLEEP_WAKEUP_TOUCHPAD
+);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::ulp) == ESP_SLEEP_WAKEUP_ULP);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::gpio) == ESP_SLEEP_WAKEUP_GPIO);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::uart) == ESP_SLEEP_WAKEUP_UART);
@@ -36,12 +38,25 @@ static_assert(std::to_underlying(idfxx::sleep::ext1_mode::any_high) == ESP_EXT1_
 
 // Verify deep_sleep_gpio_mode values match ESP-IDF constants
 #if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
-static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_low) == ESP_GPIO_WAKEUP_GPIO_LOW);
-static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_high) == ESP_GPIO_WAKEUP_GPIO_HIGH);
+static_assert(
+    std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_low) == ESP_GPIO_WAKEUP_GPIO_LOW
+);
+static_assert(
+    std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_high) == ESP_GPIO_WAKEUP_GPIO_HIGH
+);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED
-static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_posedge) == ESP_GPIO_WAKEUP_GPIO_POSEDGE);
-static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_negedge) == ESP_GPIO_WAKEUP_GPIO_NEGEDGE);
-static_assert(std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_anyedge) == ESP_GPIO_WAKEUP_GPIO_ANYEDGE);
+static_assert(
+    std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_posedge) ==
+    ESP_GPIO_WAKEUP_GPIO_POSEDGE
+);
+static_assert(
+    std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_negedge) ==
+    ESP_GPIO_WAKEUP_GPIO_NEGEDGE
+);
+static_assert(
+    std::to_underlying(idfxx::sleep::deep_sleep_gpio_mode::wake_anyedge) ==
+    ESP_GPIO_WAKEUP_GPIO_ANYEDGE
+);
 #endif
 #endif
 
@@ -84,7 +99,8 @@ wakeup_source from_esp_cause(esp_sleep_wakeup_cause_t cause) noexcept {
     case ESP_SLEEP_WAKEUP_UART1:
         // v6.1 declares the UART2+ causes only on chips that can wake from
         // them; these guards mirror the ones in esp_sleep.h.
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 1, 0) || ((SOC_UART_HP_NUM > 2) && !SOC_PM_RTC_NOT_SUPPORT_UART2_WAKEUP)
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 1, 0) ||                                              \
+    ((SOC_UART_HP_NUM > 2) && !SOC_PM_RTC_NOT_SUPPORT_UART2_WAKEUP)
     case ESP_SLEEP_WAKEUP_UART2:
 #endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && (SOC_UART_HP_NUM > 3)
@@ -152,7 +168,9 @@ result<void> arm(const ext0_wake& source) {
     if (!source.pin.is_connected()) {
         return error(errc::invalid_arg);
     }
-    return wrap(esp_sleep_enable_ext0_wakeup(source.pin.idf_num(), std::to_underlying(source.level)));
+    return wrap(
+        esp_sleep_enable_ext0_wakeup(source.pin.idf_num(), std::to_underlying(source.level))
+    );
 }
 
 void disarm(const ext0_wake& /*source*/) noexcept {
@@ -165,9 +183,9 @@ result<void> arm(const ext1_wake& source) {
     if (source.pin_mask() == 0) {
         return error(errc::invalid_arg);
     }
-    return wrap(
-        esp_sleep_enable_ext1_wakeup_io(source.pin_mask(), static_cast<esp_sleep_ext1_wakeup_mode_t>(source.mode()))
-    );
+    return wrap(esp_sleep_enable_ext1_wakeup_io(
+        source.pin_mask(), static_cast<esp_sleep_ext1_wakeup_mode_t>(source.mode())
+    ));
 }
 
 void disarm(const ext1_wake& source) noexcept {
@@ -206,7 +224,8 @@ result<wakeup_source> do_light_sleep() {
 }
 
 result<void> check_deep_sleep_allowed() {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && CONFIG_SPIRAM && CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && CONFIG_SPIRAM &&                            \
+    CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
     // Entering sleep disables the cache, so the stack must be in internal RAM.
     // esp_deep_sleep_start() only logs this and sleeps anyway.
     if (!esp_task_stack_is_sane_cache_disabled()) {
@@ -241,7 +260,8 @@ void deep_sleep() noexcept {
 }
 
 void deep_sleep(std::chrono::microseconds duration) noexcept {
-    const auto clamped = duration < std::chrono::microseconds::zero() ? std::chrono::microseconds::zero() : duration;
+    const auto clamped =
+        duration < std::chrono::microseconds::zero() ? std::chrono::microseconds::zero() : duration;
     esp_deep_sleep(static_cast<uint64_t>(clamped.count()));
 }
 
@@ -311,7 +331,8 @@ uint64_t deep_sleep_gpio_wakeup_status() noexcept {
     // chips (e.g. the original ESP32); translate each to its GPIO.
     uint64_t gpio_mask = 0;
     while (status != 0) {
-        const auto num = esp_sleep_wakeup_io_bit2num(static_cast<uint32_t>(std::countr_zero(status)));
+        const auto num =
+            esp_sleep_wakeup_io_bit2num(static_cast<uint32_t>(std::countr_zero(status)));
         if (num != GPIO_NUM_NC) {
             gpio_mask |= uint64_t{1} << static_cast<unsigned>(num);
         }

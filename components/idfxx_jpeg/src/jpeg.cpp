@@ -127,8 +127,9 @@ result<decoder> decoder::_make(void* source, read_fn read, config cfg) {
     decoder dec(std::make_unique<state>(source, read));
     state& s = *dec._state;
 
-    const idfxx_jpeg_status created =
-        idfxx_jpeg_create(&state::fill, &s, cfg.memory_limit.has_value(), cfg.memory_limit.value_or(0), &s.ctx);
+    const idfxx_jpeg_status created = idfxx_jpeg_create(
+        &state::fill, &s, cfg.memory_limit.has_value(), cfg.memory_limit.value_or(0), &s.ctx
+    );
     if (s.ctx == nullptr) {
         raise_no_mem();
     }
@@ -141,8 +142,9 @@ result<decoder> decoder::_make(void* source, read_fn read, config cfg) {
         return error(r.error());
     }
     // The shim reports 0 when there is no valid Orientation tag.
-    const image::orientation orientation =
-        header.orientation != 0 ? static_cast<image::orientation>(header.orientation) : image::orientation::identity;
+    const image::orientation orientation = header.orientation != 0
+        ? static_cast<image::orientation>(header.orientation)
+        : image::orientation::identity;
     dec._info = jpeg::info{
         .width = header.width,
         .height = header.height,
@@ -212,7 +214,14 @@ result<void> decoder::_begin() {
     // Rows are written for the output size the caller sized its destination
     // by, so libjpeg must produce exactly that.
     if (w != _output_width || h != _output_height) {
-        ESP_LOGE(TAG, "output is %" PRIu32 "x%" PRIu32 ", expected %zux%zu", w, h, _output_width, _output_height);
+        ESP_LOGE(
+            TAG,
+            "output is %" PRIu32 "x%" PRIu32 ", expected %zux%zu",
+            w,
+            h,
+            _output_width,
+            _output_height
+        );
         _abort();
         return error(idfxx::errc::invalid_state);
     }

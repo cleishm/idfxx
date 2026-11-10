@@ -29,7 +29,8 @@ Or add `idfxx_lcd_touch` to the `REQUIRES` list in your component's `CMakeLists.
 
 ## Usage
 
-This component provides the abstract base class. Use concrete implementations like `idfxx_lcd_touch_stmpe610` for actual touch controllers.
+This component provides the abstract base class. Use concrete implementations like
+`idfxx_lcd_touch_stmpe610` for actual touch controllers.
 
 ### Basic Example
 
@@ -82,8 +83,8 @@ esp_lcd_touch_handle_t handle = touch.idf_handle();
 
 ### Using a Named Config Variable
 
-When storing the config in a variable before passing it, use `std::move()` since the config
-struct is move-only:
+When storing the config in a variable before passing it, use `std::move()` since the config struct
+is move-only:
 
 ```cpp
 idfxx::lcd::touch::config touch_config{
@@ -118,9 +119,9 @@ idfxx::lcd::touch::config touch_config{
 
 ### Custom Coordinate Processing
 
-Apply custom transformations after reading coordinates. The callback runs before the
-`swap_xy`, `mirror_x` and `mirror_y` transformations, so it sees coordinates in the
-controller's own orientation:
+Apply custom transformations after reading coordinates. The callback runs before the `swap_xy`,
+`mirror_x` and `mirror_y` transformations, so it sees coordinates in the controller's own
+orientation:
 
 ```cpp
 idfxx::lcd::touch::config touch_config{
@@ -257,10 +258,13 @@ private:
 
 ## Important Notes
 
-- `idfxx::lcd::touch` is an abstract base class; use concrete implementations for actual touch controllers
+- `idfxx::lcd::touch` is an abstract base class; use concrete implementations for actual touch
+  controllers
 - Coordinate transformations (swap, mirror) are applied by ESP-IDF automatically
-- Custom `process_coordinates` callback runs before automatic transformations, on the coordinates as read from the controller
-- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `process_coordinates` is logged, and that read reports no touch points
+- Custom `process_coordinates` callback runs before automatic transformations, on the coordinates as
+  read from the controller
+- **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `process_coordinates`
+  is logged, and that read reports no touch points
 - Reset and interrupt pins are optional (use `gpio::nc()` if not needed)
 - Touch coordinates are device-specific; verify orientation matches your display
 

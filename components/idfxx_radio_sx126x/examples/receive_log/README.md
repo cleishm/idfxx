@@ -1,6 +1,7 @@
 # Receive Log
 
-Listens for LoRa packets and logs each one with its signal strength (RSSI) and signal-to-noise ratio (SNR).
+Listens for LoRa packets and logs each one with its signal strength (RSSI) and signal-to-noise ratio
+(SNR).
 
 ## What it demonstrates
 
@@ -8,14 +9,15 @@ Listens for LoRa packets and logs each one with its signal strength (RSSI) and s
   driver needs
 - Setting up an SPI bus with `idfxx::spi::master_bus`
 - Creating an `idfxx::radio::sx126x` from a config with its control pins and TCXO settings
-- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding rate)
-  with `configure()`
+- Setting the frequency, transmit power and LoRa modulation (SF9, 125 kHz bandwidth, 4/5 coding
+  rate) with `configure()`
 - Waiting for a packet with `try_receive()` and a timeout, and handling timeouts and CRC errors
 - Reading the received length, RSSI and SNR
 - Catching `std::system_error` to log radio errors
 
-The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in `sdkconfig.defaults`),
-with `try_receive()` where it handles timeouts and CRC errors and keeps listening.
+The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
+`sdkconfig.defaults`), with `try_receive()` where it handles timeouts and CRC errors and keeps
+listening.
 
 ## Hardware required
 
@@ -48,9 +50,10 @@ SX1261 or SX1268, change `chip_variant::sx1262`.
 
 ## Configuration
 
-Before building, set the radio frequency to one that's allowed in your region and that your module and
-antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for example
-to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power (`output_power = 14_dBm`).
+Before building, set the radio frequency to one that's allowed in your region and that your module
+and antenna are built for. In `main/main.cpp`, change the `FREQUENCY` constant from `915_MHz` (for
+example to `868_MHz` in Europe). The `radio.configure()` call sets the transmit power
+(`output_power = 14_dBm`).
 
 ## How to use
 
@@ -76,5 +79,5 @@ idf.py -p PORT flash monitor
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
 The board listens continuously and logs each packet with its RSSI and SNR. To give it something to
-receive, run the [transmit_beacon](../transmit_beacon/README.md) example on a second board with the same
-frequency.
+receive, run the [transmit_beacon](../transmit_beacon/README.md) example on a second board with the
+same frequency.

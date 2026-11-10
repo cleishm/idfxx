@@ -31,7 +31,9 @@ extern "C" void app_main() {
     // Battery → R1 → pin → R2 → GND with R1 == R2 halves the voltage at the
     // pin; the 2:1 divider config makes read_voltage report the battery side.
     idfxx::adc::input battery({.pin = battery_pin, .divider = {2, 1}});
-    logger.info("ADC on GPIO {} ({}calibrated)", battery.pin().num(), battery.calibrated() ? "" : "un");
+    logger.info(
+        "ADC on GPIO {} ({}calibrated)", battery.pin().num(), battery.calibrated() ? "" : "un"
+    );
 
     while (true) {
         auto v = battery.try_read_voltage();

@@ -63,7 +63,9 @@ namespace idfxx::epaper {
  * deep sleep.
  *
  * @code
- * idfxx::spi::master_bus bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg);
+ * idfxx::spi::master_bus bus(
+ *     idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, bus_cfg
+ * );
  * idfxx::panel_io io(bus, idfxx::epaper::uc8179::spi_io_config(PIN_CS, PIN_DC));
  * idfxx::epaper::uc8179 display(io, {.reset_gpio = PIN_RST, .busy_gpio = PIN_BUSY});
  *
@@ -158,8 +160,11 @@ public:
      * idfxx::epaper::uc8179 display(io, {.busy_gpio = PIN_BUSY});
      * @endcode
      */
-    [[nodiscard]] static panel_io::spi_config
-    spi_io_config(gpio cs, gpio dc, quanta::frequency::hertz pclk = quanta::frequency::hertz{10'000'000}) noexcept;
+    [[nodiscard]] static panel_io::spi_config spi_io_config(
+        gpio cs,
+        gpio dc,
+        quanta::frequency::hertz pclk = quanta::frequency::hertz{10'000'000}
+    ) noexcept;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -238,14 +243,31 @@ private:
     struct raw_tag {};
 
     explicit uc8179(raw_tag, idfxx::panel_io& panel_io, config cfg)
-        : panel(cfg.width, cfg.height, cfg.busy_gpio, gpio::level::low, cfg.busy_timeout, cfg.reset_gpio)
+        : panel(
+              cfg.width,
+              cfg.height,
+              cfg.busy_gpio,
+              gpio::level::low,
+              cfg.busy_timeout,
+              cfg.reset_gpio
+          )
         , _io_handle(panel_io.idf_handle()) {}
 
     // epaper::panel customization hooks.
-    [[nodiscard]] result<void>
-    do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
-    [[nodiscard]] result<void>
-    do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) override;
+    [[nodiscard]] result<void> do_write(
+        const mono_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
+    [[nodiscard]] result<void> do_write(
+        const gray4_framebuffer& fb,
+        size_t row_start,
+        size_t row_end,
+        size_t x,
+        size_t y
+    ) override;
     [[nodiscard]] result<void> do_clear() override;
     [[nodiscard]] result<void> do_restore_baseline(const mono_framebuffer& fb) override;
     [[nodiscard]] result<void> do_refresh(refresh_mode mode) override;
@@ -283,10 +305,13 @@ private:
     [[nodiscard]] result<void> _update();
     [[nodiscard]] result<void> _enter_deep_sleep();
 
-    esp_lcd_panel_io_handle_t _io_handle = nullptr; // nullptr after move
+    // nullptr after move.
+    esp_lcd_panel_io_handle_t _io_handle = nullptr;
     waveform _waveform = waveform::full;
-    uint8_t _gray_frame_rate_code = 0; // PLL code for config::gray4_frame_rate (set by make())
-    uint8_t _gray_source_code = 0;     // VDH/VDL code for config::gray4_source_voltage (set by make())
+    // PLL code for config::gray4_frame_rate (set by make()).
+    uint8_t _gray_frame_rate_code = 0;
+    // VDH/VDL code for config::gray4_source_voltage (set by make()).
+    uint8_t _gray_source_code = 0;
 };
 
 } // namespace idfxx::epaper
