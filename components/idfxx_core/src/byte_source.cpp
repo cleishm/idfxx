@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-#include "errno_error.hpp"
-
 #include <idfxx/byte_source>
 
 #include <cerrno>
@@ -22,7 +20,10 @@ result<size_t> file_source::try_read(std::span<uint8_t> buf) {
     // Bytes read before an error are returned as a short read; the stream's
     // error indicator stays set, so the error is reported by the next read.
     if (n == 0 && std::ferror(_file)) {
-        return detail::errno_error();
+        // The stream's error indicator is set, so an I/O error occurred even
+        // if it reported no errno.
+        const int err = errno;
+        return error(std::error_code(err != 0 ? err : EIO, std::generic_category()));
     }
     return n;
 }

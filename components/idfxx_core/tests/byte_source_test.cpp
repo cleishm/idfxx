@@ -99,9 +99,11 @@ FILE* open_test_file() {
     return f;
 }
 
-// Bytes a failing stream delivers before its reads start failing with EIO.
+// Bytes a failing stream delivers before its reads start failing, and the
+// errno those failing reads set (0 sets none).
 struct failing_stream {
     std::span<const uint8_t> good;
+    int error = EIO;
 };
 
 // funopen's read callback signature differs between newlib and picolibc, so
@@ -117,7 +119,9 @@ struct failing_read<R (*)(Cookie, Buf, Size)> {
     static R read(Cookie cookie, Buf buf, Size size) {
         auto* s = static_cast<failing_stream*>(cookie);
         if (s->good.empty()) {
-            errno = EIO;
+            if (s->error != 0) {
+                errno = s->error;
+            }
             return -1;
         }
         const size_t n = std::min<size_t>(s->good.size(), size);
@@ -127,7 +131,7 @@ struct failing_read<R (*)(Cookie, Buf, Size)> {
     }
 };
 
-// Opens a stream that delivers s.good, then fails every read with EIO.
+// Opens a stream that delivers s.good, then fails every read.
 FILE* open_failing_file(failing_stream& s) {
     using read_fn = decltype(funopen_read_fn(&funopen));
     FILE* f = funopen(&s, &failing_read<read_fn>::read, nullptr, nullptr, nullptr);
@@ -321,6 +325,22 @@ TEST_CASE("file_source reports a stream read error", "[idfxx][byte_source]") {
     FILE* f = open_failing_file(s);
     file_source src{f};
 
+    std::array<uint8_t, 4> buf{};
+    auto n = src.try_read(buf);
+    TEST_ASSERT_FALSE(n.has_value());
+    TEST_ASSERT_TRUE(std::ferror(f) != 0);
+    TEST_ASSERT_TRUE(n.error() == std::error_code(EIO, std::generic_category()));
+
+    std::fclose(f);
+}
+
+TEST_CASE("file_source reports EIO for a stream read error that sets no errno", "[idfxx][byte_source]") {
+    failing_stream s{.good = {}, .error = 0};
+    FILE* f = open_failing_file(s);
+    file_source src{f};
+
+    // A stale errno from an earlier call is not reported
+    errno = EBADF;
     std::array<uint8_t, 4> buf{};
     auto n = src.try_read(buf);
     TEST_ASSERT_FALSE(n.has_value());

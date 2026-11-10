@@ -236,7 +236,7 @@ public:
      * @return The number of bytes read; 0 for a non-empty @p buf at the end
      *         of the file. On a read error with no bytes read, an error code
      *         in `std::generic_category()` holding the `errno` value the
-     *         stream reported, or `idfxx::errc::fail` if it reported none.
+     *         stream reported, or `EIO` if it reported none.
      */
     [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
 
