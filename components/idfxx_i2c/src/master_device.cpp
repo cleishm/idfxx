@@ -44,12 +44,17 @@ static size_t encode_register(register_address_size size, uint16_t reg, uint8_t*
     return 1;
 }
 
+// The SCL speed a device is configured with: config::scl_speed, or else the bus frequency.
+static quanta::frequency::hertz resolve_scl_speed(const master_bus& bus, const master_device::config& cfg) {
+    return cfg.scl_speed.value_or(bus.frequency());
+}
+
 static result<i2c_master_dev_handle_t>
 make_device(master_bus& bus, uint16_t address, const master_device::config& cfg) {
     if ((cfg.scl_speed && cfg.scl_speed->count() <= 0) || cfg.scl_wait_us == 0u) {
         return error(errc::invalid_arg);
     }
-    auto scl_speed = cfg.scl_speed.value_or(bus.frequency());
+    auto scl_speed = resolve_scl_speed(bus, cfg);
 
     i2c_device_config_t dev_config{
 #if SOC_I2C_SUPPORT_10BIT_ADDR
@@ -101,7 +106,8 @@ master_device::master_device(master_bus& bus, uint16_t address, const config& cf
     , _handle(unwrap(make_device(bus, address, cfg)))
     , _address(address)
     , _addr_10bit(uses_10bit_addresses(cfg))
-    , _register_address(cfg.register_address) {}
+    , _register_address(cfg.register_address)
+    , _scl_speed(resolve_scl_speed(bus, cfg)) {}
 
 master_device::master_device(master_bus& bus, uint16_t address)
     : master_device(bus, address, config{}) {}
@@ -109,7 +115,9 @@ master_device::master_device(master_bus& bus, uint16_t address)
 
 result<master_device> master_device::make(master_bus& bus, uint16_t address, const config& cfg) {
     return make_device(bus, address, cfg).transform([&](auto handle) {
-        return master_device(&bus, handle, address, uses_10bit_addresses(cfg), cfg.register_address);
+        return master_device(
+            &bus, handle, address, uses_10bit_addresses(cfg), cfg.register_address, resolve_scl_speed(bus, cfg)
+        );
     });
 }
 
@@ -122,20 +130,23 @@ master_device::master_device(
     i2c_master_dev_handle_t handle,
     uint16_t address,
     bool addr_10bit,
-    register_address_size register_address
+    register_address_size register_address,
+    quanta::frequency::hertz scl_speed
 )
     : _bus(bus)
     , _handle(handle)
     , _address(address)
     , _addr_10bit(addr_10bit)
-    , _register_address(register_address) {}
+    , _register_address(register_address)
+    , _scl_speed(scl_speed) {}
 
 master_device::master_device(master_device&& other) noexcept
     : _bus(std::exchange(other._bus, nullptr))
     , _handle(std::exchange(other._handle, nullptr))
     , _address(other._address)
     , _addr_10bit(other._addr_10bit)
-    , _register_address(other._register_address) {}
+    , _register_address(other._register_address)
+    , _scl_speed(other._scl_speed) {}
 
 master_device& master_device::operator=(master_device&& other) noexcept {
     if (this != &other) {
@@ -145,6 +156,7 @@ master_device& master_device::operator=(master_device&& other) noexcept {
         _address = other._address;
         _addr_10bit = other._addr_10bit;
         _register_address = other._register_address;
+        _scl_speed = other._scl_speed;
     }
     return *this;
 }

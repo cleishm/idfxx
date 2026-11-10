@@ -649,6 +649,34 @@ TEST_CASE("pcf8563 enum to_string", "[idfxx][rtc][pcf8563]") {
 #endif
 }
 
+TEST_CASE("pcf8563 make rejects a device SCL speed above 400 kHz", "[idfxx][rtc][pcf8563]") {
+    bool bus_created = false;
+    bool rejected = false;
+    {
+        auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 100_kHz);
+        if (bus.has_value()) {
+            bus_created = true;
+            rejected = is_error(pcf8563::make(*bus, {.scl_speed = 1_MHz}), idfxx::errc::invalid_arg);
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(bus_created, "Failed to create I2C bus");
+    TEST_ASSERT_TRUE(rejected);
+}
+
+TEST_CASE("pcf8563 make rejects a bus frequency above 400 kHz", "[idfxx][rtc][pcf8563]") {
+    bool bus_created = false;
+    bool rejected = false;
+    {
+        auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 1_MHz);
+        if (bus.has_value()) {
+            bus_created = true;
+            rejected = is_error(pcf8563::make(*bus), idfxx::errc::invalid_arg);
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(bus_created, "Failed to create I2C bus");
+    TEST_ASSERT_TRUE(rejected);
+}
+
 TEST_CASE("pcf8563 set_time restarts a stopped clock", "[idfxx][rtc][pcf8563][hw]") {
     auto bus = idfxx::i2c::master_bus::make(idfxx::i2c::port::i2c0, TEST_SDA, TEST_SCL, 100_kHz);
     TEST_ASSERT_TRUE_MESSAGE(bus.has_value(), "Failed to create I2C bus");
