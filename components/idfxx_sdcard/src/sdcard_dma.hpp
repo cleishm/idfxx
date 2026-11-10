@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Internal: classifies the buffers of raw sector I/O on an SDMMC host slot.
+// Internal: classifies the buffers of sector I/O on an SDMMC host slot.
 // Kept free of driver dependencies so it can be unit-tested (in QEMU) against
 // real addresses.
 
@@ -21,9 +21,10 @@ inline bool sdmmc_dma_handles(const void* p) {
     return esp_ptr_dma_capable(p) || esp_ptr_external_ram(p);
 }
 
-// True if a buffer of size bytes (more than zero) at p must be copied through a DMA-capable buffer before ESP-IDF's
-// SDMMC sector reads and writes can be given it. Both ends are checked, so that a buffer that runs past the end of
-// a memory region is copied too.
+// True if a buffer of size bytes (more than zero) at p must be copied through a DMA-capable buffer for an SDMMC
+// sector read or write, beyond what ESP-IDF's alignment and PSRAM checks catch: the card's buffer check (see
+// sdcard.cpp) then has ESP-IDF copy it. Both ends are checked, so that a buffer that runs past the end of a memory
+// region is copied too.
 inline bool sdmmc_needs_dma_copy(const void* p, size_t size) {
     const auto* first = static_cast<const uint8_t*>(p);
     return !sdmmc_dma_handles(first) || !sdmmc_dma_handles(first + (size - 1));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "sdcard_erase.hpp"
 #include "sdcard_spi_clock.hpp"
 
 #include <idfxx/sdcard>
@@ -26,7 +27,6 @@
 #include "sdcard_dma.hpp"
 
 #include <driver/sdmmc_host.h>
-#include <esp_heap_caps.h>
 #endif
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32P4
 #include <soc/sdmmc_pins.h>
@@ -49,67 +49,6 @@ constexpr uint64_t sdxc_min_size = uint64_t{32} << 30;
 // The longest single SPI transaction the SD SPI driver issues: a 512-byte data block read together with its CRC
 // and the start of the next block's response.
 constexpr size_t sdspi_max_transaction_length = 512 + 4;
-
-// Erases are issued in chunks that start and end on multiples of this many sectors (1 GiB with 512-byte sectors).
-// sdmmc_erase_sectors() computes the erase timeout from the range's size with 32-bit arithmetic, which overflows on
-// larger ranges: the byte count does at 2^23 sectors, and so can the card-estimated timeout in milliseconds at 2^22
-// sectors (an SD card can report up to 63 s per 16 KiB allocation unit).
-constexpr size_t erase_chunk_sectors = size_t{1} << 21;
-
-// Validates a configured max_frequency and converts it for sdmmc_host_t::max_freq_khz. The card is identified at
-// SDMMC_FREQ_PROBING, so a lower bound could not be honored.
-result<int> to_max_freq_khz(quanta::frequency::hertz f) {
-    if (f.count() < int64_t{SDMMC_FREQ_PROBING} * 1000) {
-        return error(errc::invalid_arg);
-    }
-    return static_cast<int>(std::min<int64_t>(f.count() / 1000, std::numeric_limits<int>::max()));
-}
-
-// The clock to configure a card on an SPI bus with, for a max_frequency of cap: see internal::choose_spi_clock().
-std::optional<internal::spi_clock_choice>
-choose_sdspi_clock([[maybe_unused]] spi_host_device_t host, quanta::frequency::hertz cap) {
-    // The SD SPI driver leaves the device's clock source at the default, whose frequency the SPI master driver
-    // reads as this.
-    uint32_t source_hz = 0;
-    if (esp_clk_tree_src_get_freq_hz(
-            static_cast<soc_module_clk_t>(SPI_CLK_SRC_DEFAULT), ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &source_hz
-        ) != ESP_OK) {
-        return std::nullopt;
-    }
-    internal::spi_clock_source src{.hz = source_hz};
-#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61 ||                            \
-    CONFIG_IDF_TARGET_ESP32S31 || (CONFIG_IDF_TARGET_ESP32H4 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
-    // The SPI master driver divides the source down before the peripheral.
-    src.pre_div = internal::spi_min_pre_div(source_hz);
-#elif !(                                                                                                               \
-    CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C2 ||  \
-    CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 ||                             \
-    CONFIG_IDF_TARGET_ESP32H21 || CONFIG_IDF_TARGET_ESP32H4                                                            \
-)
-#error "idfxx_sdcard: unknown whether the SPI master driver divides the clock source on this target"
-#endif
-
-    std::optional<uint32_t> pin_limit_hz;
-#if CONFIG_IDF_TARGET_ESP32
-    // Only the ESP32's SPI master driver limits a device's clock by the bus's pins: over the GPIO matrix, it rejects a
-    // full-duplex device whose reads would need more than its limit allows. The SD SPI driver sets no input delay.
-    const spi_bus_attr_t* attr = spi_bus_get_attr(host);
-    const bool gpio_matrix = attr == nullptr || (attr->flags & SPICOMMON_BUSFLAG_IOMUX_PINS) == 0;
-    pin_limit_hz = static_cast<uint32_t>(spi_get_freq_limit(gpio_matrix, 0));
-#endif
-
-    // The SPI master driver's own calculation of the clock for a device. (spi_device_get_actual_freq(), which
-    // ESP-IDF recommends instead, reports the clock of a device already added, rounded down to whole kHz.)
-    auto divide = [](uint32_t base_hz, uint32_t request_hz) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        return static_cast<uint32_t>(
-            spi_get_actual_clock(static_cast<int>(base_hz), static_cast<int>(request_hz), 128)
-        );
-#pragma GCC diagnostic pop
-    };
-    return internal::choose_spi_clock(src, cap.count(), pin_limit_hz, divide);
-}
 
 gpio_num_t pin_or_nc(idfxx::gpio g) {
     return g.is_connected() ? g.idf_num() : GPIO_NUM_NC;
@@ -169,6 +108,15 @@ result<void> init_card(const sdmmc_host_t& host, sdmmc_card_t& c) {
 std::mutex sdmmc_mutex;
 std::array<bool, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_in_use{};
 
+// Validates a configured max_frequency and converts it for sdmmc_host_t::max_freq_khz. The card is identified at
+// SDMMC_FREQ_PROBING, so a lower bound could not be honored.
+result<int> to_max_freq_khz(quanta::frequency::hertz f) {
+    if (f.count() < int64_t{SDMMC_FREQ_PROBING} * 1000) {
+        return error(errc::invalid_arg);
+    }
+    return static_cast<int>(std::min<int64_t>(f.count() / 1000, std::numeric_limits<int>::max()));
+}
+
 bool valid_width(bus_width w) {
     return w == bus_width::one || w == bus_width::four || w == bus_width::eight;
 }
@@ -202,7 +150,6 @@ constexpr std::array<std::array<idfxx::gpio, 10>, SOC_SDMMC_NUM_SLOTS> sdmmc_slo
         gpio::nc(),
     },
 }};
-constexpr std::array<bus_width, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_max_width{bus_width::eight, bus_width::four};
 #else
 #error "idfxx_sdcard: slot pins are not known for this target's dedicated SDMMC pins"
 #endif
@@ -210,17 +157,17 @@ constexpr std::array<bus_width, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_max_width{bus_wi
 
 #if CONFIG_IDF_TARGET_ESP32P4
 // Slot 0 is connected through IO MUX only: CLK, CMD, D0-D7.
-constexpr std::array<int, 10> p4_slot0_pins{
-    SDMMC_SLOT0_IOMUX_PIN_NUM_CLK,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_CMD,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D0,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D1,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D2,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D3,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D4,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D5,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D6,
-    SDMMC_SLOT0_IOMUX_PIN_NUM_D7,
+constexpr std::array<idfxx::gpio, 10> p4_slot0_pins{
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_CLK>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_CMD>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D0>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D1>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D2>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D3>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D4>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D5>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D6>::value,
+    gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_D7>::value,
 };
 #endif
 
@@ -230,6 +177,7 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         return error(errc::invalid_arg);
     }
 
+    // The signal pins, CLK, CMD and D0-D7, and the widest bus they allow.
 #if SOC_SDMMC_USE_GPIO_MATRIX
     const std::array<idfxx::gpio, 10> signals{
         cfg.clk,
@@ -255,32 +203,11 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
             return error(errc::invalid_arg);
         }
 #if CONFIG_IDF_TARGET_ESP32P4
-        if (cfg.slot == card::slot::slot_0 && pin.num() != p4_slot0_pins[i]) {
+        if (cfg.slot == card::slot::slot_0 && pin != p4_slot0_pins[i]) {
             return error(errc::invalid_arg);
         }
 #endif
     }
-#else
-    const bus_width available = sdmmc_slot_max_width[std::to_underlying(cfg.slot)];
-    if (cfg.width && std::to_underlying(*cfg.width) > std::to_underlying(available)) {
-        return error(errc::invalid_arg);
-    }
-    const bus_width width = cfg.width.value_or(available);
-    // The slot's pins that the bus uses. The driver leaves the data lines above the bus width untouched, so they
-    // are free for card detect or write protect.
-    auto signals = sdmmc_slot_pins[std::to_underlying(cfg.slot)];
-    std::fill(signals.begin() + 2 + std::to_underlying(width), signals.end(), idfxx::gpio::nc());
-#endif
-
-    std::array<idfxx::gpio, 12> all{};
-    std::ranges::copy(signals, all.begin());
-    all[10] = cfg.card_detect;
-    all[11] = cfg.write_protect;
-    if (!distinct(all)) {
-        return error(errc::invalid_arg);
-    }
-
-#if SOC_SDMMC_USE_GPIO_MATRIX
     // Data lines come in groups: D1-D3 for a 4-bit bus, D4-D7 (with D1-D3) for an 8-bit bus.
     const auto connected = [&](size_t from, size_t to) {
         return static_cast<size_t>(std::count_if(signals.begin() + from, signals.begin() + to + 1, [](auto g) {
@@ -293,16 +220,31 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         return error(errc::invalid_arg);
     }
     const bus_width available = d4_d7 == 4 ? bus_width::eight : d1_d3 == 3 ? bus_width::four : bus_width::one;
-    if (cfg.width) {
-        if (std::to_underlying(*cfg.width) > std::to_underlying(available)) {
-            return error(errc::invalid_arg);
-        }
-        return *cfg.width;
-    }
-    return available;
 #else
-    return width;
+    auto signals = sdmmc_slot_pins[std::to_underlying(cfg.slot)];
+    const auto available = static_cast<bus_width>(std::count_if(signals.begin() + 2, signals.end(), [](auto g) {
+        return g.is_connected();
+    }));
 #endif
+
+    if (cfg.width && std::to_underlying(*cfg.width) > std::to_underlying(available)) {
+        return error(errc::invalid_arg);
+    }
+    const bus_width width = cfg.width.value_or(available);
+#if !SOC_SDMMC_USE_GPIO_MATRIX
+    // Only the slot's pins that the bus uses: the driver leaves the data lines above the bus width untouched, so they
+    // are free for card detect or write protect.
+    std::fill(signals.begin() + 2 + std::to_underlying(width), signals.end(), idfxx::gpio::nc());
+#endif
+
+    std::array<idfxx::gpio, 12> all{};
+    std::ranges::copy(signals, all.begin());
+    all[10] = cfg.card_detect;
+    all[11] = cfg.write_protect;
+    if (!distinct(all)) {
+        return error(errc::invalid_arg);
+    }
+    return width;
 }
 
 // The sdmmc_host_t and slot settings that select a bus speed mode.
@@ -368,30 +310,62 @@ result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) 
     }
 }
 
-// The most sectors copied at a time through a temporary DMA-capable buffer: the chunk size ESP-IDF itself uses for
-// misaligned buffers from 6.0 (SDMMC_HOST_DEFAULT()'s unaligned_multi_block_rw_max_chunk_size).
-constexpr size_t dma_copy_chunk_sectors = 16;
-
-struct heap_caps_deleter {
-    void operator()(uint8_t* p) const noexcept { heap_caps_free(p); }
-};
-
-using dma_buffer = std::unique_ptr<uint8_t, heap_caps_deleter>;
-
-// Allocates a DMA-capable buffer for up to max_sectors sectors, as ESP-IDF does for a misaligned buffer: the size is
-// halved while the allocation fails, down to a single sector. Returns the buffer and the number of sectors it holds.
-// Failing to allocate even one sector follows the OOM policy.
-std::pair<dma_buffer, size_t> allocate_dma_copy_buffer(size_t sector_size, size_t max_sectors) {
-    for (size_t n = max_sectors; n > 0; n /= 2) {
-        if (auto* p = static_cast<uint8_t*>(heap_caps_malloc(n * sector_size, MALLOC_CAP_DMA))) {
-            return {dma_buffer{p}, n};
-        }
-    }
-    raise_no_mem();
+// The card's sdmmc_host_t::check_buffer_alignment. ESP-IDF's sector reads and writes copy a buffer through a
+// DMA-capable one when this returns false, but its default only checks the alignment, and hands a buffer that the DMA
+// can't reach (in flash, IRAM or RTC memory, for example) to the DMA as it is. PSRAM is left to ESP-IDF's own check,
+// which copies it where the DMA can't reach it. Installed in the card's sdmmc_card_t, this also covers ESP-IDF code
+// given idf_handle(), such as a FAT filesystem. (ESP-IDF's SDIO functions fail with ESP_ERR_INVALID_ARG instead of
+// copying, where they would otherwise give the DMA a buffer it can't reach.)
+bool sdmmc_check_buffer(int slot, const void* buf, size_t size) {
+    return sdmmc_host_check_buffer_alignment(slot, buf, size) &&
+        (size == 0 || !internal::sdmmc_needs_dma_copy(buf, size));
 }
 #endif // SOC_SDMMC_HOST_SUPPORTED
 
 } // namespace
+
+result<internal::spi_clock_choice> internal::choose_sdspi_clock(
+    sdspi_dev_handle_t handle,
+    [[maybe_unused]] spi_host_device_t host,
+    quanta::frequency::hertz cap
+) {
+    // The SD SPI driver leaves the device's clock source at the default, whose frequency the SPI master driver reads
+    // as this.
+    uint32_t source_hz = 0;
+    if (auto err = esp_clk_tree_src_get_freq_hz(
+            static_cast<soc_module_clk_t>(SPI_CLK_SRC_DEFAULT), ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &source_hz
+        );
+        err != ESP_OK) {
+        return error(err);
+    }
+    auto limit_hz = static_cast<uint32_t>(std::clamp<int64_t>(cap.count(), 0, sd_high_speed_max_hz));
+#if CONFIG_IDF_TARGET_ESP32
+    // The ESP32's SPI master driver rejects a full-duplex device whose reads the bus's pins can't keep up with (over
+    // the GPIO matrix, above 26.7 MHz), and a device it rejects that way leaves one of the bus's device slots taken
+    // until the bus is freed, which then fails an assertion. So no clock above that limit is tried. The SD SPI driver
+    // sets no input delay.
+    const spi_bus_attr_t* attr = spi_bus_get_attr(host);
+    const bool gpio_matrix = attr == nullptr || (attr->flags & SPICOMMON_BUSFLAG_IOMUX_PINS) == 0;
+    limit_hz = std::min(limit_hz, static_cast<uint32_t>(spi_get_freq_limit(gpio_matrix, 0)));
+#endif
+    // A rejected clock leaves the device removed from the bus; the next clock set adds it again.
+    const auto choice = choose_spi_clock(source_hz, limit_hz, [handle](uint32_t khz) -> std::optional<uint32_t> {
+        int reported_khz = 0;
+        if (sdspi_host_set_card_clk(handle, khz) != ESP_OK ||
+            sdspi_host_get_real_freq(handle, &reported_khz) != ESP_OK || reported_khz < 0) {
+            return std::nullopt;
+        }
+        return static_cast<uint32_t>(reported_khz);
+    });
+    // Card initialization starts at the clock the device was added with, without setting it.
+    if (auto err = sdspi_host_set_card_clk(handle, SDMMC_FREQ_PROBING); err != ESP_OK) {
+        return error(err);
+    }
+    if (!choice) {
+        return error(errc::invalid_arg);
+    }
+    return *choice;
+}
 
 // =============================================================================
 // card_id
@@ -528,52 +502,8 @@ struct card::state {
         return write_protect.is_connected() && write_protect.get_level() == write_protect_active_level;
     }
 
-#if SOC_SDMMC_HOST_SUPPORTED
-    // True if the card is on an SDMMC host slot and a sector read or write must copy the buffer through a DMA-capable
-    // one. ESP-IDF's own copying covers every buffer on an SPI bus.
-    [[nodiscard]] bool needs_dma_copy(const void* buf, size_t bytes) const {
-        return sdmmc_slot && internal::sdmmc_needs_dma_copy(buf, bytes);
-    }
-
-    // Reads sectors into dst through a temporary DMA-capable buffer, a chunk at a time, stopping at the first error.
-    // Called with the card locked.
-    [[nodiscard]] result<void> read_through_dma_buffer(size_t first, uint8_t* dst, size_t count) {
-        const auto sector_size = static_cast<size_t>(card.csd.sector_size);
-        auto [buf, chunk] = allocate_dma_copy_buffer(sector_size, std::min(count, dma_copy_chunk_sectors));
-        while (count > 0) {
-            const size_t n = std::min(count, chunk);
-            if (auto r = wrap(sdmmc_read_sectors(&card, buf.get(), first, n)); !r) {
-                return r;
-            }
-            std::memcpy(dst, buf.get(), n * sector_size);
-            first += n;
-            dst += n * sector_size;
-            count -= n;
-        }
-        return {};
-    }
-
-    // Writes sectors from src through a temporary DMA-capable buffer, a chunk at a time, stopping at the first error.
-    // Called with the card locked.
-    [[nodiscard]] result<void> write_through_dma_buffer(size_t first, const uint8_t* src, size_t count) {
-        const auto sector_size = static_cast<size_t>(card.csd.sector_size);
-        auto [buf, chunk] = allocate_dma_copy_buffer(sector_size, std::min(count, dma_copy_chunk_sectors));
-        while (count > 0) {
-            const size_t n = std::min(count, chunk);
-            std::memcpy(buf.get(), src, n * sector_size);
-            if (auto r = wrap(sdmmc_write_sectors(&card, buf.get(), first, n)); !r) {
-                return r;
-            }
-            first += n;
-            src += n * sector_size;
-            count -= n;
-        }
-        return {};
-    }
-#endif
-
-    // Erases or discards a range of sectors in chunks on multiples of erase_chunk_sectors, stopping at the first
-    // error. The card stays locked throughout.
+    // Erases or discards a range of sectors in chunks on multiples of internal::erase_chunk_sectors, stopping at the
+    // first error. The card stays locked throughout.
     [[nodiscard]] result<void> erase(size_t first, size_t count, sdmmc_erase_arg_t arg) {
         if (count == 0) {
             return {};
@@ -586,7 +516,8 @@ struct card::state {
             return error(errc::invalid_state);
         }
         while (count > 0) {
-            const size_t n = std::min(count, erase_chunk_sectors - (first & (erase_chunk_sectors - 1)));
+            const size_t n =
+                std::min(count, internal::erase_chunk_sectors - (first & (internal::erase_chunk_sectors - 1)));
             if (auto r = wrap(sdmmc_erase_sectors(&card, first, n, arg)); !r) {
                 return r;
             }
@@ -608,14 +539,6 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
         return error(errc::invalid_arg);
     }
     if (!distinct(std::array{cs, cfg.card_detect, cfg.write_protect})) {
-        return error(errc::invalid_arg);
-    }
-    if (auto r = to_max_freq_khz(cfg.max_frequency); !r) {
-        return error(r.error());
-    }
-    // Never empty in practice: every bus generates its identification clock, 400 kHz, at or below any valid limit.
-    const auto clock = choose_sdspi_clock(static_cast<spi_host_device_t>(bus.host()), cfg.max_frequency);
-    if (!clock) {
         return error(errc::invalid_arg);
     }
 
@@ -652,6 +575,12 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     // removes the device again.
     if (bus.max_transaction_length() < sdspi_max_transaction_length) {
         return error(errc::invalid_arg);
+    }
+    // Found by setting clocks on the card's device, before the card is contacted. Done after the check above, which
+    // would fail while a rejected clock has the device removed from the bus.
+    auto clock = internal::choose_sdspi_clock(handle, dev_cfg.host_id, cfg.max_frequency);
+    if (!clock) {
+        return error(clock.error());
     }
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
@@ -755,6 +684,7 @@ result<card> card::make(const sdmmc_config& cfg) {
 
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.slot = slot_num;
+    host.check_buffer_alignment = &sdmmc_check_buffer;
     host.max_freq_khz = speed->max_freq_khz;
     if (speed->ddr) {
         host.flags |= SDMMC_HOST_FLAG_DDR;
@@ -872,11 +802,6 @@ result<void> card::try_read_sectors(size_t first, void* dst, size_t size) const 
         return error(count.error());
     }
     std::lock_guard lock(_state->mtx);
-#if SOC_SDMMC_HOST_SUPPORTED
-    if (_state->needs_dma_copy(dst, size)) {
-        return _state->read_through_dma_buffer(first, static_cast<uint8_t*>(dst), *count);
-    }
-#endif
     return wrap(sdmmc_read_sectors(&_state->card, dst, first, *count));
 }
 
@@ -906,11 +831,6 @@ result<void> card::try_write_sectors(size_t first, const void* src, size_t size)
     if (_state->is_write_protected()) {
         return error(errc::invalid_state);
     }
-#if SOC_SDMMC_HOST_SUPPORTED
-    if (_state->needs_dma_copy(src, size)) {
-        return _state->write_through_dma_buffer(first, static_cast<const uint8_t*>(src), *count);
-    }
-#endif
     return wrap(sdmmc_write_sectors(&_state->card, src, first, *count));
 }
 

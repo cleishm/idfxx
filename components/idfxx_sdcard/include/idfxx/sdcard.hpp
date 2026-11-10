@@ -305,19 +305,14 @@ public:
         /// Upper bound on the bus clock once the card is initialized. Must be at least 400 kHz, the card
         /// identification clock.
         ///
-        /// The bus generates its clock by dividing a source clock by a whole number (80 MHz on most targets, giving
-        /// 40, 26.7, 20, 16 MHz and so on), and the card is run at the highest such clock that is at or below all
-        /// of:
-        /// - this value;
-        /// - 50 MHz, the SD high-speed limit;
-        /// - on esp32, when the bus uses GPIO matrix pins rather than the SPI host's IO MUX pins, the highest clock
-        ///   the SPI driver allows for the card's reads over those pins (26.7 MHz).
+        /// The card runs at the highest clock the bus supports at or below this value, and never above 50 MHz,
+        /// the SD high-speed limit. On most targets the bus supports 40, 26.7, 20, 16 MHz and so on: 26 MHz gives
+        /// 20 MHz, and 50 MHz gives 40 MHz. On esp32, a bus on GPIO matrix pins runs at 26.7 MHz or less; use the
+        /// SPI host's IO MUX pins for 40 MHz. With ESP-IDF 5.5.0 on esp32p4, the bus's slowest clock is about
+        /// 470 kHz, used for any lower value.
         ///
-        /// On esp32p4, the source used is 80 MHz, divided from its 480 MHz SPI clock source. With ESP-IDF 5.5.0
-        /// on esp32p4, a value below about 940 kHz can be exceeded: that version can't divide the clock that far.
-        ///
-        /// A card is switched to high speed when that clock is above 20 MHz. A card that doesn't support high
-        /// speed runs at the clock the bus generates for 20 MHz instead. See card::frequency().
+        /// Above 20 MHz, the card is switched to high speed. A card that doesn't support high speed runs at 20 MHz,
+        /// or the next supported clock below it. See card::frequency().
         quanta::frequency::hertz max_frequency{20'000'000};
     };
 
@@ -340,10 +335,8 @@ public:
      * The SDMMC host is initialized on first use and shared between slots
      * (and with other code that uses it); each card owns its slot. A card
      * and other code (such as esp_vfs_fat_sdmmc_mount()) can use different
-     * slots of the host at the same time, but not the same slot: ESP-IDF 6.0
-     * and later reject a slot that other code has already set up with
-     * `errc::invalid_state`; ESP-IDF 5.5 does not detect it, so it must not
-     * be done there.
+     * slots of the host at the same time, but not the same slot (see
+     * card::make(const sdmmc_config&) for ESP-IDF 5.5).
      *
      * The bus width is the number of data lines supplied: D0 alone gives a
      * 1-bit bus, D0-D3 a 4-bit bus and D0-D7 an 8-bit bus (data lines must be
@@ -459,9 +452,8 @@ public:
      *
      * @return The initialized card, or an error.
      * @retval errc::invalid_arg The configuration is invalid: `cs` is not connected or not output-capable, two of
-     *         the pins are the same, `max_frequency` is below 400 kHz, or the bus has no DMA. Checked before the card
-     *         is contacted: the pins and `max_frequency` before the bus is used, and the bus once the card's device
-     *         is added to it (the device is then removed again).
+     *         the pins are the same, `max_frequency` is below 400 kHz, or the bus has no DMA. All are checked before
+     *         the card is contacted.
      * @retval errc::invalid_state The SPI bus has no free device slot for the card (each bus has a limited
      *         number of devices, shared with its other users).
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
@@ -515,11 +507,10 @@ public:
      *         400 kHz or is set with a UHS-I `speed`, or a UHS-I `speed` is selected without `io_power_ldo`.
      *         Checked before the host is used. Also returned, once the slot is set up, when `io_power_ldo` is not
      *         an LDO channel or is already in use by other code.
-     * @retval errc::invalid_state The slot is already in use by another card or, with ESP-IDF 6.0 and later, has
-     *         already been set up by other code (for example esp_vfs_fat_sdmmc_mount()). ESP-IDF 5.5 does not detect
-     *         a slot set up by other code: there, the card takes the slot over, and destroying the card releases the
-     *         slot (and the host, if no other slot is counted as in use) from under the other code, so the caller
-     *         must not pass such a slot. A slot other than the ones other code uses works with either version.
+     * @retval errc::invalid_state The slot is in use by another card or, with ESP-IDF 6.0 and later, by other code
+     *         (for example esp_vfs_fat_sdmmc_mount()). ESP-IDF 5.5 can't detect the latter: don't pass such a slot
+     *         there, because the card would take it over, and destroying the card can shut the host down under the
+     *         other code.
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response.
@@ -590,15 +581,9 @@ public:
     /**
      * @brief Returns the bus clock in use.
      *
-     * On an SDMMC host slot, the clock of the bus speed mode the card runs
-     * in (see bus_speed: a card that doesn't support the configured mode runs
-     * in a slower one), limited by sdmmc_config::max_frequency when that is
-     * set, and rounded down to a frequency the host can generate. Over SPI,
-     * the clock chosen for spi_config::max_frequency (the highest the bus
-     * generates within its limits, as described there); when that is above
-     * 20 MHz and the card doesn't support high speed, the clock the bus
-     * generates for 20 MHz instead. Either way, the clock is reported in whole
-     * kHz.
+     * The clock the card runs at, in whole kHz. It can be below the
+     * configured speed or max_frequency: see sdmmc_config::speed and
+     * spi_config::max_frequency.
      *
      * @return The actual clock frequency.
      */
@@ -677,11 +662,9 @@ public:
     // =========================================================================
     //
     // Sizes are in bytes and must be whole sectors. Buffers may be anywhere in
-    // memory, at any alignment: a buffer that DMA can't use directly (a
-    // misaligned one, or one in memory the DMA can't reach, such as flash,
-    // IRAM, RTC memory or, on most targets, PSRAM) is copied through a
-    // temporary DMA-capable buffer. Must not be used while a filesystem is
-    // mounted on the card.
+    // memory, at any alignment. Word-aligned buffers in DMA-capable internal
+    // RAM avoid an extra copy (on esp32p4, cache-line aligned ones). Must not
+    // be used while a filesystem is mounted on the card.
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -875,7 +858,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
-     * @note A large range is erased in several steps, so after a failure part of it may already be erased.
+     * @note If the erase fails, part of the range may already have been erased.
      * @throws std::system_error on failure, with the error codes listed for try_erase_sectors(size_t, size_t).
      *
      * @code
@@ -897,7 +880,7 @@ public:
      * the card.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @note A large range is discarded in several steps, so after a failure part of it may already be discarded.
+     * @note If the discard fails, part of the range may already have been discarded.
      * @throws std::system_error on failure, with the error codes listed for
      *         try_erase_sectors(size_t, size_t, discard_t).
      *
@@ -925,7 +908,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
-     * @note A large card is erased in several steps, so after a failure part of it may already be erased.
+     * @note If the erase fails, part of the card may already have been erased.
      * @throws std::system_error on failure, with the error codes listed for try_erase_all().
      */
     void erase_all();
@@ -968,7 +951,7 @@ public:
      *
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
-     * @note A large range is erased in several steps, so after a failure part of it may already be erased.
+     * @note If the erase fails, part of the range may already have been erased.
      *
      * @return Success, or an error.
      * @retval errc::invalid_size The range extends past the end of the card.
@@ -992,7 +975,7 @@ public:
      * @param count Number of sectors to discard. Discarding no sectors succeeds without checking @p first or contacting
      * the card.
      *
-     * @note A large range is discarded in several steps, so after a failure part of it may already be discarded.
+     * @note If the discard fails, part of the range may already have been discarded.
      *
      * @return Success, or an error.
      * @retval errc::invalid_size The range extends past the end of the card.
@@ -1019,7 +1002,7 @@ public:
      *
      * @note Some cards on an SPI bus do not respond correctly after an erase until they are initialized again
      *       (by destroying the card object and creating a new one).
-     * @note A large card is erased in several steps, so after a failure part of it may already be erased.
+     * @note If the erase fails, part of the card may already have been erased.
      *
      * @return Success, or an error.
      * @retval errc::invalid_state The write-protect pin reports that the card is write-protected.
@@ -1057,6 +1040,8 @@ public:
      * the card object is moved, so it can be passed to ESP-IDF functions
      * such as esp_vfs_fat_register() or sdmmc_card_print_info(). Commands
      * sent through it are not serialized with this object's operations.
+     * Sector reads and writes through it, such as a FAT filesystem's, take
+     * buffers anywhere in memory, as read_sectors() and write_sectors() do.
      *
      * @return The card structure.
      */

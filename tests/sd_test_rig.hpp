@@ -10,6 +10,7 @@
 #include "idfxx/sched"
 #include "idfxx/sdcard"
 #include "idfxx/spi/master"
+#include "test_cleanup.hpp"
 #include "unity.h"
 
 #include <array>
@@ -63,12 +64,8 @@ inline constexpr std::array<gpio, 0> other_cs{};
 
 #endif
 
-/// Returns whether a card is in the slot. Without a board there is no slot; without a card-detect line, a card
-/// is assumed.
+/// Returns whether a card is in the board's slot. Without a card-detect line, a card is assumed.
 inline bool card_inserted() {
-    if (!has_board) {
-        return false;
-    }
     if (!detect.is_connected()) {
         return true;
     }
@@ -107,13 +104,9 @@ inline spi::master_bus make_bus() {
     return std::move(*r);
 }
 
-inline card make_card(spi::master_bus& bus) {
-    auto r = card::make(bus, {.cs = cs, .card_detect = detect});
-    TEST_ASSERT_TRUE_MESSAGE(r.has_value(), r ? "" : r.error().message().c_str());
-    return std::move(*r);
-}
-
-inline card make_card(spi::master_bus& bus, quanta::frequency::hertz max_frequency) {
+inline card make_card(
+    spi::master_bus& bus, quanta::frequency::hertz max_frequency = card::spi_config{.cs = cs}.max_frequency
+) {
     auto r = card::make(bus, {.cs = cs, .card_detect = detect, .max_frequency = max_frequency});
     TEST_ASSERT_TRUE_MESSAGE(r.has_value(), r ? "" : r.error().message().c_str());
     return std::move(*r);
@@ -134,30 +127,45 @@ inline std::optional<card>& held_card() {
     return c;
 }
 
-// Destroys whatever a test left behind: the card, then its bus.
+// Whether card_fixture has powered the slot on.
+inline bool& slot_powered() {
+    static bool powered = false;
+    return powered;
+}
+
+// Destroys whatever a test left behind: the card, then its bus. Then powers the slot off, if card_fixture powered it
+// on.
 inline void release_held() {
     held_card().reset();
     held_bus().reset();
+    if (slot_powered()) {
+        slot_powered() = false;
+        slot_power(false);
+    }
+}
+
+// Has release_held() run after every test from now on, so that a test that fails leaves nothing behind. Called
+// before anything is held.
+inline void release_after_each_test() {
+    idfxx::test::run_after_each_test(&release_held);
 }
 
 } // namespace detail
 
-/// A [hw] test's bus and card, on the board's SD slot. Construction first destroys anything a failed earlier test
-/// left behind, then powers the slot and initializes the card; destruction releases the card and the bus, then
-/// powers the slot off.
+/// A [hw] test's bus and card, on the board's SD slot. Construction powers the slot and initializes the card;
+/// destruction releases the card and the bus, then powers the slot off. A test that fails before the fixture is
+/// destroyed has this done after it.
 class card_fixture {
 public:
     card_fixture() {
-        detail::release_held();
+        detail::release_after_each_test();
+        detail::slot_powered() = true;
         slot_power(true);
         detail::held_bus().emplace(make_bus());
         reopen();
     }
 
-    ~card_fixture() {
-        detail::release_held();
-        slot_power(false);
-    }
+    ~card_fixture() { detail::release_held(); }
 
     card_fixture(const card_fixture&) = delete;
     card_fixture& operator=(const card_fixture&) = delete;
@@ -166,15 +174,8 @@ public:
 
     card& get() { return *detail::held_card(); }
 
-    /// Destroys the card and initializes it again on the same bus.
-    card& reopen() {
-        detail::held_card().reset();
-        detail::held_card().emplace(make_card(bus()));
-        return get();
-    }
-
     /// Destroys the card and initializes it again on the same bus, with a clock limit.
-    card& reopen(quanta::frequency::hertz max_frequency) {
+    card& reopen(quanta::frequency::hertz max_frequency = card::spi_config{.cs = cs}.max_frequency) {
         detail::held_card().reset();
         detail::held_card().emplace(make_card(bus(), max_frequency));
         return get();
@@ -186,7 +187,7 @@ public:
 class unwired_bus_fixture {
 public:
     explicit unwired_bus_fixture(spi::dma_chan dma = spi::dma_chan::ch_auto) {
-        detail::release_held();
+        detail::release_after_each_test();
         auto r = spi::master_bus::make(spi::host_device::spi2, dma, spi::bus_config{});
         TEST_ASSERT_TRUE(r.has_value());
         detail::held_bus().emplace(std::move(*r));

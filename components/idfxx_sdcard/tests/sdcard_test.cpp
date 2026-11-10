@@ -5,6 +5,7 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
 #include "../src/sdcard_dma.hpp"
+#include "../src/sdcard_erase.hpp"
 #include "../src/sdcard_spi_clock.hpp"
 #include "idfxx/sdcard"
 #include "sd_test_rig.hpp"
@@ -17,7 +18,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <driver/sdspi_host.h>
 #include <driver/spi_master.h>
+#include <iterator>
 #include <esp_attr.h>
 #include <esp_heap_caps.h>
 #include <esp_memory_utils.h>
@@ -197,8 +200,7 @@ void assert_invalid_arg(const result<card>& r) {
 
 TEST_CASE("sdcard make over SPI rejects an unconnected cs", "[idfxx][sdcard]") {
     rig::unwired_bus_fixture bus;
-    assert_invalid_arg(card::make(bus.get(), {.cs = gpio::nc()}));
-}
+    assert_invalid_arg(card::make(bus.get(), {.cs = gpio::nc()}));}
 
 TEST_CASE("sdcard make over SPI rejects shared pins", "[idfxx][sdcard]") {
     rig::unwired_bus_fixture bus;
@@ -256,264 +258,167 @@ TEST_CASE("sdcard constructor over SPI throws on an invalid config", "[idfxx][sd
 
 // =============================================================================
 // SPI clock choice
-// The clock a card on an SPI bus is configured with, checked against ESP-IDF's
-// own calculation of the SPI peripheral's clock, against an ideal divider, and
-// against models of how ESP-IDF's versions divide a clock source down first.
+// The clock a card on an SPI bus is configured with: the search against
+// synthetic buses, and on this target's SPI bus.
 // =============================================================================
 
 namespace {
 
 namespace clk = idfxx::sdcard::internal;
 
-// The SPI peripheral's clock for a request, as the SPI master driver calculates it on this target.
-uint32_t idf_divide(uint32_t base_hz, uint32_t request_hz) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    return static_cast<uint32_t>(spi_get_actual_clock(static_cast<int>(base_hz), static_cast<int>(request_hz), 128));
-#pragma GCC diagnostic pop
-}
+constexpr uint32_t mhz = 1'000'000;
 
-// A divider that generates the nearest of base_hz / d, for any whole d, to the request (the lower one on a tie).
-uint32_t ideal_divide(uint32_t base_hz, uint32_t request_hz) {
-    const uint32_t d = std::max<uint32_t>(1, base_hz / request_hz);
-    const uint32_t above = base_hz / d;
-    const uint32_t below = base_hz / (d + 1);
+// The clock a bus generates for a request when it rounds to the nearest of source_hz divided by a whole number (the
+// lower one on a tie), as the SPI peripheral does, or 0 if it rejects the request.
+uint32_t nearest_clock(uint32_t source_hz, uint32_t request_hz) {
+    if (request_hz == 0 || request_hz > source_hz) {
+        return 0;
+    }
+    const uint32_t d = source_hz / request_hz;
+    const uint32_t above = source_hz / d;
+    const uint32_t below = source_hz / (d + 1);
     return above - request_hz < request_hz - below ? above : below;
 }
 
-using divide_fn = uint32_t (*)(uint32_t, uint32_t);
-
-constexpr uint32_t mhz = 1'000'000;
-
-// What the SPI clock must stay at or below.
-uint32_t limit_of(int64_t cap_hz, std::optional<uint32_t> pin_limit_hz) {
-    auto limit = static_cast<uint32_t>(std::min<int64_t>(cap_hz, clk::sd_high_speed_max_hz));
-    return pin_limit_hz ? std::min(limit, *pin_limit_hz) : limit;
+// The clock a bus reports, in whole kHz, for a generated clock (0 if it rejects the request).
+std::optional<uint32_t> reported(uint32_t hz) {
+    return hz == 0 ? std::nullopt : std::optional<uint32_t>{hz / 1000};
 }
 
-// Checks the choice for a source and limits: the generated clock is at or below the limit, also for a card without
-// high speed (configured with 20 MHz instead), and is the highest that any request in whole kHz generates within those
-// rules, found by trying every request from just below the chosen clock up. (No lower request generates more: each
-// one generates the nearest clock the peripheral can.) Returns the choice.
-clk::spi_clock_choice check_choice(
-    const clk::spi_clock_source& src, int64_t cap_hz, std::optional<uint32_t> pin_limit_hz, divide_fn divide
+// A bus on an 80 MHz source (esp32, esp32s2, esp32s3, esp32c3 and esp32c6).
+std::optional<uint32_t> nearest_80mhz_bus(uint32_t khz) {
+    return reported(nearest_clock(80 * mhz, khz * 1000));
+}
+
+// As nearest_80mhz_bus, but rejecting any clock above 26.7 MHz (as an esp32 bus on the GPIO matrix does).
+std::optional<uint32_t> limited_80mhz_bus(uint32_t khz) {
+    const uint32_t hz = nearest_clock(80 * mhz, khz * 1000);
+    return reported(hz > 80 * mhz / 3 ? 0 : hz);
+}
+
+// A bus on a 480 MHz source that the driver divides first by an even divider, at least 6, that divides the source's
+// ratio to the request, falling back to 6 (as ESP-IDF 6.1 does on esp32p4), and then rounds as nearest_clock() does.
+std::optional<uint32_t> pre_divided_480mhz_bus(uint32_t khz) {
+    const uint32_t source_hz = 480 * mhz;
+    const uint32_t request_hz = khz * 1000;
+    const uint32_t total = source_hz / request_hz;
+    uint32_t pre_div = 6;
+    for (uint32_t d = 6; d <= std::min<uint32_t>(total, 256); d += 2) {
+        if (total % d == 0 && total / d <= 1024) {
+            pre_div = d;
+            break;
+        }
+    }
+    return reported(nearest_clock(source_hz / pre_div, request_hz));
+}
+
+// A bus on a 44 MHz source, where a 20 MHz request runs at 22 MHz.
+std::optional<uint32_t> nearest_44mhz_bus(uint32_t khz) {
+    return reported(nearest_clock(44 * mhz, khz * 1000));
+}
+
+void check_choice(
+    uint32_t source_hz, uint32_t limit_hz, std::optional<uint32_t> (*bus)(uint32_t), uint32_t request_khz, uint32_t hz
 ) {
-    const auto choice = clk::choose_spi_clock(src, cap_hz, pin_limit_hz, divide);
+    const auto choice = clk::choose_spi_clock(source_hz, limit_hz, bus);
     TEST_ASSERT_TRUE(choice.has_value());
-    const uint32_t limit = limit_of(cap_hz, pin_limit_hz);
-    TEST_ASSERT_LESS_OR_EQUAL_UINT32(limit, choice->generated_hz);
-    const auto generated = clk::spi_generated_clock(src, choice->request_khz * 1000, divide);
-    TEST_ASSERT_TRUE(generated.has_value());
-    TEST_ASSERT_EQUAL_UINT32(choice->generated_hz, *generated);
-
-    const auto default_speed = clk::spi_generated_clock(src, clk::sdspi_default_speed_khz * 1000, divide);
-    const bool high_speed_allowed = default_speed && *default_speed <= limit;
-    // High speed exactly when the clock is above 20 MHz (for these sources, which generate nothing just above it)
-    if (choice->request_khz > clk::sdspi_default_speed_khz) {
-        TEST_ASSERT_TRUE(high_speed_allowed);
-        TEST_ASSERT_GREATER_THAN_UINT32(clk::sdspi_default_speed_khz * 1000, choice->generated_hz);
-    } else {
-        TEST_ASSERT_LESS_OR_EQUAL_UINT32(clk::sdspi_default_speed_khz * 1000, choice->generated_hz);
-    }
-
-    uint32_t best = 0;
-    const uint32_t top_khz = std::min(limit, src.hz / src.pre_div) / 1000 + 1;
-    for (uint32_t khz = std::max(clk::sdspi_probing_khz, choice->generated_hz / 1000 - 1); khz <= top_khz; ++khz) {
-        if (khz > clk::sdspi_default_speed_khz && !high_speed_allowed) {
-            continue;
-        }
-        const auto g = clk::spi_generated_clock(src, khz * 1000, divide);
-        if (g && *g <= limit) {
-            best = std::max(best, *g);
-        }
-    }
-    TEST_ASSERT_EQUAL_UINT32(best, choice->generated_hz);
-    return *choice;
-}
-
-// Caps around the clocks an 80 MHz source generates, and around the limits.
-constexpr int64_t caps[] = {
-    400'000,    401'000,    1'000'000,  10'000'000, 19'999'999, 20'000'000, 20'000'001,    24'000'000,
-    26'000'000, 26'666'665, 26'666'666, 26'666'667, 30'000'000, 40'000'000, 50'000'000, 1'000'000'000,
-};
-
-// How an ESP-IDF version picks the divider it applies to a clock source before the SPI peripheral, on targets that
-// have one. The peripheral then divides the result as idf_divide() does (the same calculation as on esp32p4).
-enum class pre_div_scheme {
-    v5_5_0, // Rounds the source's ratio to twice the request, in frequency, and doubles it; up to 255 * 2.
-    v5_5_1, // The smallest even divider, from spi_min_pre_div() up, that divides the source's ratio to the request.
-    v6_1,   // As v5_5_1, but tries dividers up to 256 only.
-};
-
-// The clock such a driver generates for a request, or nullopt if it rejects the request.
-std::optional<uint32_t> pre_divided_clock(pre_div_scheme scheme, uint32_t source_hz, uint32_t request_hz) {
-    uint32_t div = 0;
-    if (scheme == pre_div_scheme::v5_5_0) {
-        if (request_hz > std::min<uint32_t>(source_hz / 2, 80 * mhz)) {
-            return std::nullopt;
-        }
-        div = 1;
-        if (source_hz / 2 > 80 * mhz) {
-            // hal_utils_calc_clk_div_integer(), rounding, for twice the request, within [1, 256)
-            const uint32_t exp = 2 * request_hz;
-            div = source_hz / exp;
-            if (source_hz % exp >= source_hz / (2 * div * (div + 1))) {
-                ++div;
-            }
-            div = std::clamp<uint32_t>(div, 1, 255);
-        }
-        div *= 2;
-    } else {
-        const uint32_t min_div = clk::spi_min_pre_div(source_hz);
-        const uint32_t total = source_hz / request_hz;
-        const uint32_t max_div = scheme == pre_div_scheme::v6_1 ? std::min<uint32_t>(total, 256) : total;
-        div = min_div;
-        for (uint32_t d = min_div; d <= max_div; d += 2) {
-            if (total % d == 0 && total / d <= 1024) {
-                div = d;
-                break;
-            }
-        }
-    }
-    const uint32_t base = source_hz / div;
-    if (request_hz > base) {
-        return std::nullopt;
-    }
-    return idf_divide(base, request_hz);
-}
-
-// Checks a choice on a source that the driver divides first against each ESP-IDF version's divider. ESP-IDF 5.5.0
-// may generate a lower clock than predicted, for this request and for the 20 MHz one.
-void check_pre_divided(uint32_t source_hz, int64_t cap_hz) {
-    const clk::spi_clock_source src{.hz = source_hz, .pre_div = clk::spi_min_pre_div(source_hz)};
-    const auto choice = check_choice(src, cap_hz, std::nullopt, idf_divide);
-    const uint32_t limit = limit_of(cap_hz, std::nullopt);
-    for (auto scheme : {pre_div_scheme::v5_5_1, pre_div_scheme::v6_1, pre_div_scheme::v5_5_0}) {
-        const auto g = pre_divided_clock(scheme, source_hz, choice.request_khz * 1000);
-        TEST_ASSERT_TRUE(g.has_value());
-        if (scheme == pre_div_scheme::v5_5_0) {
-            TEST_ASSERT_LESS_OR_EQUAL_UINT32(choice.generated_hz, *g);
-        } else {
-            TEST_ASSERT_EQUAL_UINT32(choice.generated_hz, *g);
-        }
-        if (choice.request_khz > clk::sdspi_default_speed_khz) {
-            const auto fallback = pre_divided_clock(scheme, source_hz, clk::sdspi_default_speed_khz * 1000);
-            TEST_ASSERT_TRUE(fallback.has_value());
-            TEST_ASSERT_LESS_OR_EQUAL_UINT32(limit, *fallback);
-        }
-    }
+    TEST_ASSERT_EQUAL_UINT32(request_khz, choice->request_khz);
+    TEST_ASSERT_EQUAL_UINT32(hz, choice->hz);
 }
 
 } // namespace
 
-TEST_CASE("sdcard SPI clock is the highest the bus generates within the limits", "[idfxx][sdcard]") {
-    struct source {
-        uint32_t hz;
-        divide_fn divide;
-    };
-    // 80 MHz: esp32, esp32s2, esp32s3, esp32c3 and esp32c6; 48 MHz: esp32h2; 40 MHz: esp32c2. The ideal divider
-    // generates clocks this target's peripheral can't.
-    const source sources[] = {
-        {80 * mhz, idf_divide},
-        {48 * mhz, idf_divide},
-        {40 * mhz, idf_divide},
-        {44 * mhz, ideal_divide},
-    };
-    for (const auto& s : sources) {
-        for (int64_t cap : caps) {
-            check_choice({.hz = s.hz}, cap, std::nullopt, s.divide);
-            // As limited by the pins of an esp32 bus on the GPIO matrix
-            check_choice({.hz = s.hz}, cap, 26'666'666, s.divide);
-        }
-    }
+TEST_CASE("sdcard SPI clock is recovered from the clock reported in kHz", "[idfxx][sdcard]") {
+    // Exact where one divider gives the reading
+    TEST_ASSERT_EQUAL_UINT32(40'000'000, clk::spi_clock_hz(80 * mhz, 40'000));
+    TEST_ASSERT_EQUAL_UINT32(26'666'666, clk::spi_clock_hz(80 * mhz, 26'666));
+    TEST_ASSERT_EQUAL_UINT32(400'000, clk::spi_clock_hz(80 * mhz, 400));
+    // Otherwise the highest clock the reading allows: 480 MHz divided by 1198 to 1200 all read as 400 kHz
+    TEST_ASSERT_EQUAL_UINT32(400'999, clk::spi_clock_hz(480 * mhz, 400));
+    TEST_ASSERT_EQUAL_UINT32(999, clk::spi_clock_hz(80 * mhz, 0));
 }
 
-TEST_CASE("sdcard SPI clock on an 80 MHz source", "[idfxx][sdcard]") {
-    struct expected {
-        int64_t cap;
-        std::optional<uint32_t> pin_limit;
+TEST_CASE("sdcard SPI clock is the highest the bus runs at within the limit", "[idfxx][sdcard]") {
+    check_choice(80 * mhz, 400'000, nearest_80mhz_bus, 400, 400'000);
+    check_choice(80 * mhz, 10 * mhz, nearest_80mhz_bus, 10'000, 10 * mhz);
+    check_choice(80 * mhz, 20 * mhz, nearest_80mhz_bus, 20'000, 20 * mhz);
+    // Nothing between 20 MHz and 26.7 MHz, so the card stays in default speed
+    check_choice(80 * mhz, 26 * mhz, nearest_80mhz_bus, 20'000, 20 * mhz);
+    check_choice(80 * mhz, 26'666'666, nearest_80mhz_bus, 26'666, 26'666'666);
+    check_choice(80 * mhz, 30 * mhz, nearest_80mhz_bus, 26'666, 26'666'666);
+    // A limit the bus runs at exactly
+    check_choice(80 * mhz, 40 * mhz, nearest_80mhz_bus, 40'000, 40 * mhz);
+    check_choice(80 * mhz, 50 * mhz, nearest_80mhz_bus, 40'000, 40 * mhz);
+    TEST_ASSERT_FALSE(clk::choose_spi_clock(80 * mhz, 399'999, nearest_80mhz_bus).has_value());
+    TEST_ASSERT_FALSE(clk::choose_spi_clock(80 * mhz, 0, nearest_80mhz_bus).has_value());
+}
+
+TEST_CASE("sdcard SPI clock skips clocks the bus rejects", "[idfxx][sdcard]") {
+    check_choice(80 * mhz, 50 * mhz, limited_80mhz_bus, 26'666, 26'666'666);
+    check_choice(80 * mhz, 20 * mhz, limited_80mhz_bus, 20'000, 20 * mhz);
+}
+
+TEST_CASE("sdcard SPI clock on a bus that divides its source first", "[idfxx][sdcard]") {
+    // A request for 53.3 MHz runs at 40 MHz, but one for 48 MHz (divided first by 10) runs at 48 MHz
+    check_choice(480 * mhz, 50 * mhz, pre_divided_480mhz_bus, 48'000, 48 * mhz);
+    // A request for 25.3 MHz runs at 26.7 MHz, but one for 24 MHz (divided first by 10) runs at 24 MHz
+    check_choice(480 * mhz, 26 * mhz, pre_divided_480mhz_bus, 24'000, 24 * mhz);
+    // A request for 17.8 MHz runs at 16 MHz, below the 17.1 MHz that a lower one runs at (divided first by 14)
+    check_choice(480 * mhz, 18 * mhz, pre_divided_480mhz_bus, 17'142, 17'142'857);
+    // The reading for 400 kHz is ambiguous, and no lower clock is tried: the identification clock is kept
+    const auto choice = clk::choose_spi_clock(480 * mhz, 400'000, pre_divided_480mhz_bus);
+    TEST_ASSERT_TRUE(choice.has_value());
+    TEST_ASSERT_EQUAL_UINT32(SDMMC_FREQ_PROBING, choice->request_khz);
+}
+
+TEST_CASE("sdcard SPI clock stays in default speed when 20 MHz runs above the limit", "[idfxx][sdcard]") {
+    // A card without high speed would be configured with 20 MHz, which runs at 22 MHz on this bus
+    check_choice(44 * mhz, 21 * mhz, nearest_44mhz_bus, 14'666, 14'666'666);
+    check_choice(44 * mhz, 22 * mhz, nearest_44mhz_bus, 22'000, 22 * mhz);
+}
+
+// Setting a clock on a device needs no transfers, so this runs in QEMU too.
+TEST_CASE("sdcard SPI clock on this target's bus is at or below max_frequency", "[idfxx][sdcard]") {
+    rig::unwired_bus_fixture bus;
+    sdspi_device_config_t dev_cfg{};
+    dev_cfg.host_id = SPI2_HOST;
+    dev_cfg.gpio_cs = spare_pin_a.idf_num();
+    dev_cfg.gpio_cd = GPIO_NUM_NC;
+    dev_cfg.gpio_wp = GPIO_NUM_NC;
+    dev_cfg.gpio_int = GPIO_NUM_NC;
+    sdspi_dev_handle_t handle;
+    TEST_ASSERT_EQUAL(ESP_OK, sdspi_host_init_device(&dev_cfg, &handle));
+
+    const quanta::frequency::hertz caps[] = {400_kHz, 10_MHz, 20_MHz, 26_MHz, 40_MHz, 50_MHz, 1_GHz};
+    struct outcome {
+        bool chosen;
         uint32_t request_khz;
-        uint32_t generated_hz;
+        uint32_t hz;
+        int left_khz; // the device's clock afterwards
     };
-    const expected cases[] = {
-        {400'000, std::nullopt, 400, 400'000},
-        {10'000'000, std::nullopt, 10'000, 10'000'000},
-        {20'000'000, std::nullopt, 20'000, 20'000'000},
-        // Nothing between 20 MHz and 26.7 MHz, so the card stays in default speed
-        {26'000'000, std::nullopt, 20'000, 20'000'000},
-        {26'666'665, std::nullopt, 20'000, 20'000'000},
-        {26'666'666, std::nullopt, 26'666, 26'666'666},
-        {30'000'000, std::nullopt, 26'666, 26'666'666},
-        {40'000'000, std::nullopt, 40'000, 40'000'000},
-        // The SD high-speed limit: the driver would generate 80 MHz for anything above 60 MHz
-        {50'000'000, std::nullopt, 40'000, 40'000'000},
-        {1'000'000'000, std::nullopt, 40'000, 40'000'000},
-        // An esp32 bus on the GPIO matrix
-        {40'000'000, 26'666'666, 26'666, 26'666'666},
-        {20'000'000, 26'666'666, 20'000, 20'000'000},
-    };
-    for (const auto& e : cases) {
-        const auto choice = clk::choose_spi_clock({.hz = 80 * mhz}, e.cap, e.pin_limit, idf_divide);
-        TEST_ASSERT_TRUE(choice.has_value());
-        TEST_ASSERT_EQUAL_UINT32(e.request_khz, choice->request_khz);
-        TEST_ASSERT_EQUAL_UINT32(e.generated_hz, choice->generated_hz);
+    outcome outcomes[std::size(caps)]{};
+    for (size_t i = 0; i < std::size(caps); ++i) {
+        const auto choice = clk::choose_sdspi_clock(handle, SPI2_HOST, caps[i]);
+        outcomes[i] = {choice.has_value(), choice ? choice->request_khz : 0, choice ? choice->hz : 0, -1};
+        (void)sdspi_host_get_real_freq(handle, &outcomes[i].left_khz);
     }
-}
+    const auto too_low = clk::choose_sdspi_clock(handle, SPI2_HOST, 399_kHz);
+    // Removed before asserting, so that a failure doesn't leave the device on the bus
+    TEST_ASSERT_EQUAL(ESP_OK, sdspi_host_remove_device(handle));
 
-TEST_CASE("sdcard SPI clock on a source below the SD high-speed limit", "[idfxx][sdcard]") {
-    // esp32h2's 48 MHz source: the driver rejects a request above it, so a 50 MHz cap gives the source itself
-    auto choice = clk::choose_spi_clock({.hz = 48 * mhz}, 50'000'000, std::nullopt, idf_divide);
-    TEST_ASSERT_TRUE(choice.has_value());
-    TEST_ASSERT_EQUAL_UINT32(48'000, choice->request_khz);
-    TEST_ASSERT_EQUAL_UINT32(48'000'000, choice->generated_hz);
-    TEST_ASSERT_FALSE(clk::spi_generated_clock({.hz = 48 * mhz}, 48'000'001, idf_divide).has_value());
-
-    choice = clk::choose_spi_clock({.hz = 48 * mhz}, 23'000'000, std::nullopt, idf_divide);
-    TEST_ASSERT_TRUE(choice.has_value());
-    TEST_ASSERT_EQUAL_UINT32(16'000'000, choice->generated_hz);
-    TEST_ASSERT_LESS_OR_EQUAL_UINT32(clk::sdspi_default_speed_khz, choice->request_khz);
-}
-
-TEST_CASE("sdcard SPI clock on a source the driver divides first", "[idfxx][sdcard]") {
-    TEST_ASSERT_EQUAL_UINT32(2, clk::spi_min_pre_div(48 * mhz));
-    TEST_ASSERT_EQUAL_UINT32(2, clk::spi_min_pre_div(80 * mhz));
-    TEST_ASSERT_EQUAL_UINT32(2, clk::spi_min_pre_div(160 * mhz));
-    TEST_ASSERT_EQUAL_UINT32(6, clk::spi_min_pre_div(480 * mhz));
-
-    // 480 MHz: esp32p4; 160 MHz: esp32c5 and esp32c61; 48 MHz: esp32h4. ESP-IDF 5.5.0's range of dividers runs out
-    // below about 940 kHz on 480 MHz, so the lowest caps are only checked against the later versions.
-    for (uint32_t source_hz : {480 * mhz, 160 * mhz, 48 * mhz}) {
-        const clk::spi_clock_source src{.hz = source_hz, .pre_div = clk::spi_min_pre_div(source_hz)};
-        for (int64_t cap : caps) {
-            if (cap >= 1'000'000 || source_hz != 480 * mhz) {
-                check_pre_divided(source_hz, cap);
-            } else {
-                check_choice(src, cap, std::nullopt, idf_divide);
-            }
-        }
+    for (size_t i = 0; i < std::size(caps); ++i) {
+        const auto limit = static_cast<uint32_t>(std::min<int64_t>(caps[i].count(), 50 * mhz));
+        TEST_ASSERT_TRUE(outcomes[i].chosen);
+        TEST_ASSERT_LESS_OR_EQUAL_UINT32(limit, outcomes[i].hz);
+        // The highest clock at or below the limit, so not far below it
+        TEST_ASSERT_GREATER_OR_EQUAL_UINT32(limit / 4 * 3, outcomes[i].hz);
+        // High speed exactly when the clock is above 20 MHz
+        TEST_ASSERT_EQUAL(outcomes[i].hz > 20 * mhz, outcomes[i].request_khz > SDMMC_FREQ_DEFAULT);
+        // Left at the identification clock, for card initialization
+        TEST_ASSERT_EQUAL_INT32(SDMMC_FREQ_PROBING, outcomes[i].left_khz);
     }
-
-    // On esp32p4, 26 MHz gives 20 MHz, not the 26.7 MHz a request for 26 MHz would generate
-    auto choice = clk::choose_spi_clock({.hz = 480 * mhz, .pre_div = 6}, 26'000'000, std::nullopt, idf_divide);
-    TEST_ASSERT_TRUE(choice.has_value());
-    TEST_ASSERT_EQUAL_UINT32(20'000'000, choice->generated_hz);
-    choice = clk::choose_spi_clock({.hz = 480 * mhz, .pre_div = 6}, 50'000'000, std::nullopt, idf_divide);
-    TEST_ASSERT_TRUE(choice.has_value());
-    TEST_ASSERT_EQUAL_UINT32(40'000'000, choice->generated_hz);
-
-    // A request that the driver could divide differently is not predicted
-    TEST_ASSERT_FALSE(clk::spi_generated_clock({.hz = 480 * mhz, .pre_div = 6}, 30'000'000, idf_divide).has_value());
-}
-
-TEST_CASE("sdcard SPI clock stays in default speed when 20 MHz can't be predicted", "[idfxx][sdcard]") {
-    // On a 420 MHz source divided first by 6, a 20 MHz request isn't predictable, so a card without high speed
-    // could be clocked above the cap: the clock stays at or below 20 MHz
-    const clk::spi_clock_source src{.hz = 420 * mhz, .pre_div = clk::spi_min_pre_div(420 * mhz)};
-    TEST_ASSERT_EQUAL_UINT32(6, src.pre_div);
-    TEST_ASSERT_FALSE(clk::spi_generated_clock(src, 20 * mhz, idf_divide).has_value());
-    const auto choice = check_choice(src, 50'000'000, std::nullopt, idf_divide);
-    TEST_ASSERT_LESS_OR_EQUAL_UINT32(clk::sdspi_default_speed_khz, choice.request_khz);
-    TEST_ASSERT_EQUAL_UINT32(17'500'000, choice.generated_hz);
+    TEST_ASSERT_FALSE(too_low.has_value());
+    TEST_ASSERT_TRUE(too_low.error() == errc::invalid_arg);
 }
 
 // =============================================================================
@@ -798,6 +703,20 @@ size_t scratch_sector(const card& c) {
     return c.sector_count() - 64;
 }
 
+// Checks that the sectors from first, as many as original holds, read back erased (all zeros or all ones), then writes
+// original back to them.
+void check_erased_and_restore(card& c, size_t first, const std::vector<uint8_t>& original) {
+    std::vector<uint8_t> erased(original.size());
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+    const uint8_t fill = erased[0];
+    TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
+    TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
+
+    TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), original.size());
+}
+
 } // namespace
 
 TEST_CASE("sdcard reports identity and geometry", "[idfxx][sdcard][hw]") {
@@ -957,26 +876,15 @@ TEST_CASE("sdcard erase and discard", "[idfxx][sdcard][hw]") {
         TEST_ASSERT_TRUE(c.try_erase_sectors(first, 1).has_value());
     }
     // Cards on an SPI bus may need initializing again after an erase
-    {
-        auto& c = f.reopen();
-        std::vector<uint8_t> erased(c.sector_size());
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-        const uint8_t fill = erased[0];
-        TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
-        TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
-
-        TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), original.size());
-    }
+    check_erased_and_restore(f.reopen(), first, original);
 }
 
 TEST_CASE("sdcard erase across an erase chunk boundary", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
     rig::card_fixture f;
-    // Erases are sent in chunks on multiples of 2^21 sectors, so a range across the last such boundary on the card
-    // takes two erase commands in one call
-    constexpr size_t chunk = size_t{1} << 21;
+    // Erases are sent in chunks on multiples of erase_chunk_sectors, so a range across the last such boundary on the
+    // card takes two erase commands in one call
+    constexpr size_t chunk = internal::erase_chunk_sectors;
     if (f.get().sector_count() <= chunk) {
         return; // the card is a single chunk
     }
@@ -991,16 +899,5 @@ TEST_CASE("sdcard erase across an erase chunk boundary", "[idfxx][sdcard][hw]") 
         TEST_ASSERT_TRUE(c.try_erase_sectors(first, 2).has_value());
     }
     // Cards on an SPI bus may need initializing again after an erase
-    {
-        auto& c = f.reopen();
-        std::vector<uint8_t> erased(bytes);
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-        const uint8_t fill = erased[0];
-        TEST_ASSERT_TRUE(fill == 0x00 || fill == 0xFF);
-        TEST_ASSERT_TRUE(std::all_of(erased.begin(), erased.end(), [fill](uint8_t b) { return b == fill; }));
-
-        TEST_ASSERT_TRUE(c.try_write_sectors(first, original).has_value());
-        TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
-        TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), erased.data(), bytes);
-    }
+    check_erased_and_restore(f.reopen(), first, original);
 }
