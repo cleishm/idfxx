@@ -95,17 +95,15 @@ void delay_until(const std::chrono::time_point<Clock, Duration>& target) {
     }
 }
 
-/**
- * @headerfile <idfxx/sched>
- * @brief Tag type selecting the delay-until-next-tick overload of delay().
- *
- * Use the `next_tick` constant rather than constructing this directly.
- */
+/** @cond INTERNAL */
+// The type of `next_tick`, selecting the delay-until-next-tick overload of delay().
 struct next_tick_t {
     explicit next_tick_t() = default;
 };
+/** @endcond */
 
 /**
+ * @headerfile <idfxx/sched>
  * @brief Tag requesting a delay until the next scheduler tick: `idfxx::delay(idfxx::next_tick)`.
  */
 inline constexpr next_tick_t next_tick{};

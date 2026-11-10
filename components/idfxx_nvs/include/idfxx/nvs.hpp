@@ -418,12 +418,14 @@ public:
     // Non-instantiable
     flash() = delete;
 
-    /** @brief Tag type to indicate insecure (non-encrypted) initialization. */
+    /** @cond INTERNAL */
+    // The type of `insecure`, selecting the non-encrypted overloads of init() and try_init().
     struct insecure_t {
         explicit insecure_t() = default;
     };
+    /** @endcond */
 
-    /** @brief Insecure (non-encrypted) initialization tag. */
+    /** @brief Tag requesting non-encrypted initialization: `idfxx::nvs::flash::init(idfxx::nvs::flash::insecure)`. */
     constexpr static insecure_t insecure{};
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -466,6 +468,8 @@ public:
     /**
      * @brief Initialize the default NVS partition without encryption.
      *
+     * Selected by passing idfxx::nvs::flash::insecure.
+     *
      * This API initialises the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
@@ -500,6 +504,8 @@ public:
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
      *
+     * Selected by passing idfxx::nvs::flash::insecure.
+     *
      * @param partition_label Label of the partition. Must be no longer than 16 characters.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -530,6 +536,8 @@ public:
 
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
+     *
+     * Selected by passing idfxx::nvs::flash::insecure.
      *
      * @param part The partition to initialize NVS storage on.
      *
@@ -586,6 +594,8 @@ public:
     /**
      * @brief Initialize the default NVS partition without encryption.
      *
+     * Selected by passing idfxx::nvs::flash::insecure.
+     *
      * This API initialises the default NVS partition. The default NVS partition
      * is the one that is labeled "nvs" in the partition table.
      *
@@ -630,6 +640,8 @@ public:
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
      *
+     * Selected by passing idfxx::nvs::flash::insecure.
+     *
      * @param partition_label Label of the partition. Must be no longer than 16 characters.
      *
      * @return Success, or an error.
@@ -668,6 +680,8 @@ public:
 
     /**
      * @brief Initialize NVS flash storage for the specified partition without encryption.
+     *
+     * Selected by passing idfxx::nvs::flash::insecure.
      *
      * @param part The partition to initialize NVS storage on.
      *
