@@ -26,7 +26,7 @@
 
 // `clock` is also the C library's ::clock(), so the rtc namespace is never imported whole.
 using idfxx::rtc::pcf8563;
-namespace pcf8563_detail = idfxx::rtc::pcf8563_detail;
+namespace detail = idfxx::rtc::detail;
 namespace pcf8563_internal = idfxx::rtc::pcf8563_internal;
 using namespace std::chrono_literals;
 using namespace quanta::frequency_literals;
@@ -71,7 +71,7 @@ void assert_round_trip(sys_seconds t) {
 // Converts a period and selects its source, as try_start_timer() does.
 template<typename Rep, typename Period>
 idfxx::result<pcf8563_internal::timer_setting> select_timer(const std::chrono::duration<Rep, Period>& period) {
-    const auto ticks = pcf8563_detail::timer_ticks(period);
+    const auto ticks = detail::timer_ticks(period);
     if (!ticks) {
         return idfxx::error(idfxx::errc::invalid_arg);
     }
@@ -182,28 +182,28 @@ static_assert(std::is_same_v<timer_duration::rep, uint32_t>);
 static_assert(std::is_same_v<timer_duration::period, std::ratio<1, 4096>>);
 static_assert(timer_duration{30s}.count() == 122'880);
 static_assert(timer_duration{255min}.count() == 62'668'800);
-static_assert(pcf8563_detail::max_timer_ticks == timer_duration{255min}.count());
+static_assert(detail::max_timer_ticks == timer_duration{255min}.count());
 
 // Periods convert to an exact tick count, or not at all
-static_assert(pcf8563_detail::timer_ticks(30s) == 122'880u);
-static_assert(pcf8563_detail::timer_ticks(250ms) == 1024u);
-static_assert(pcf8563_detail::timer_ticks(203'125us) == 832u);
-static_assert(pcf8563_detail::timer_ticks(255min) == 62'668'800u);
-static_assert(pcf8563_detail::timer_ticks(timer_duration{1}) == 1u);
-static_assert(!pcf8563_detail::timer_ticks(100ms));
-static_assert(!pcf8563_detail::timer_ticks(256min));
-static_assert(!pcf8563_detail::timer_ticks(1'048'606s)); // 2^32 / 4096 + 30 s: wraps to 30 s in uint32
-static_assert(!pcf8563_detail::timer_ticks(0s));
-static_assert(!pcf8563_detail::timer_ticks(-1s));
-static_assert(!pcf8563_detail::timer_ticks(std::chrono::hours::max()));
-static_assert(!pcf8563_detail::timer_ticks(-std::chrono::hours::max()));
-static_assert(!pcf8563_detail::timer_ticks(std::chrono::nanoseconds::max()));
-static_assert(!pcf8563_detail::timer_ticks(std::chrono::duration<int64_t, std::exa>{1}));
-static_assert(!pcf8563_detail::timer_ticks(std::chrono::duration<int64_t, std::atto>{1}));
-static_assert(pcf8563_detail::timer_ticks(std::chrono::duration<int64_t, std::atto>{244'140'625'000'000}) == 1u);
-static_assert(!pcf8563_detail::timer_ticks(std::chrono::duration<int16_t, std::nano>{32767}));
-static_assert(pcf8563_detail::timer_ticks(std::chrono::duration<int16_t, std::milli>{250}) == 1024u);
-static_assert(pcf8563_detail::timer_ticks(std::chrono::duration<uint8_t, std::ratio<60>>{255}) == 62'668'800u);
+static_assert(detail::timer_ticks(30s) == 122'880u);
+static_assert(detail::timer_ticks(250ms) == 1024u);
+static_assert(detail::timer_ticks(203'125us) == 832u);
+static_assert(detail::timer_ticks(255min) == 62'668'800u);
+static_assert(detail::timer_ticks(timer_duration{1}) == 1u);
+static_assert(!detail::timer_ticks(100ms));
+static_assert(!detail::timer_ticks(256min));
+static_assert(!detail::timer_ticks(1'048'606s)); // 2^32 / 4096 + 30 s: wraps to 30 s in uint32
+static_assert(!detail::timer_ticks(0s));
+static_assert(!detail::timer_ticks(-1s));
+static_assert(!detail::timer_ticks(std::chrono::hours::max()));
+static_assert(!detail::timer_ticks(-std::chrono::hours::max()));
+static_assert(!detail::timer_ticks(std::chrono::nanoseconds::max()));
+static_assert(!detail::timer_ticks(std::chrono::duration<int64_t, std::exa>{1}));
+static_assert(!detail::timer_ticks(std::chrono::duration<int64_t, std::atto>{1}));
+static_assert(detail::timer_ticks(std::chrono::duration<int64_t, std::atto>{244'140'625'000'000}) == 1u);
+static_assert(!detail::timer_ticks(std::chrono::duration<int16_t, std::nano>{32767}));
+static_assert(detail::timer_ticks(std::chrono::duration<int16_t, std::milli>{250}) == 1024u);
+static_assert(detail::timer_ticks(std::chrono::duration<uint8_t, std::ratio<60>>{255}) == 62'668'800u);
 
 // Periods must have an integer rep
 template<typename D>

@@ -37,7 +37,7 @@
 namespace idfxx::rtc {
 
 /** @cond INTERNAL */
-namespace pcf8563_detail {
+namespace detail {
 
 // The longest countdown timer period, 255 minutes, in ticks of 1/4096 s.
 inline constexpr uint32_t max_timer_ticks = 255u * 60u * 4096u;
@@ -75,7 +75,7 @@ template<typename Rep, typename Period>
     return static_cast<uint32_t>(whole * n * k);
 }
 
-} // namespace pcf8563_detail
+} // namespace detail
 /** @endcond */
 
 /**
@@ -726,7 +726,7 @@ public:
         requires std::integral<Rep>
     [[nodiscard]] result<void>
     try_start_timer(const std::chrono::duration<Rep, Period>& period, const timer_config& cfg) {
-        const auto ticks = pcf8563_detail::timer_ticks(period);
+        const auto ticks = detail::timer_ticks(period);
         if (!ticks) {
             return error(errc::invalid_arg);
         }
