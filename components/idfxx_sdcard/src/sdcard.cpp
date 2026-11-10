@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "sdcard_spi_clock.hpp"
+
 #include <idfxx/sdcard>
 
 #include <algorithm>
 #include <array>
 #include <cstring>
 #include <driver/sdspi_host.h>
+#include <driver/spi_master.h>
+#include <esp_clk_tree.h>
 #include <esp_log.h>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <sd_protocol_defs.h>
 #include <sdmmc_cmd.h>
 #include <utility>
 
+#if CONFIG_IDF_TARGET_ESP32
+#include <esp_private/spi_common_internal.h>
+#endif
 #if SOC_SDMMC_HOST_SUPPORTED
 #include "sdcard_dma.hpp"
 
@@ -55,6 +63,52 @@ result<int> to_max_freq_khz(quanta::frequency::hertz f) {
         return error(errc::invalid_arg);
     }
     return static_cast<int>(std::min<int64_t>(f.count() / 1000, std::numeric_limits<int>::max()));
+}
+
+// The clock to configure a card on an SPI bus with, for a max_frequency of cap: see internal::choose_spi_clock().
+std::optional<internal::spi_clock_choice>
+choose_sdspi_clock([[maybe_unused]] spi_host_device_t host, quanta::frequency::hertz cap) {
+    // The SD SPI driver leaves the device's clock source at the default, whose frequency the SPI master driver
+    // reads as this.
+    uint32_t source_hz = 0;
+    if (esp_clk_tree_src_get_freq_hz(
+            static_cast<soc_module_clk_t>(SPI_CLK_SRC_DEFAULT), ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &source_hz
+        ) != ESP_OK) {
+        return std::nullopt;
+    }
+    internal::spi_clock_source src{.hz = source_hz};
+#if CONFIG_IDF_TARGET_ESP32P4 || CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61 ||                            \
+    CONFIG_IDF_TARGET_ESP32S31 || (CONFIG_IDF_TARGET_ESP32H4 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+    // The SPI master driver divides the source down before the peripheral.
+    src.pre_div = internal::spi_min_pre_div(source_hz);
+#elif !(                                                                                                               \
+    CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C2 ||  \
+    CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 ||                             \
+    CONFIG_IDF_TARGET_ESP32H21 || CONFIG_IDF_TARGET_ESP32H4                                                            \
+)
+#error "idfxx_sdcard: unknown whether the SPI master driver divides the clock source on this target"
+#endif
+
+    std::optional<uint32_t> pin_limit_hz;
+#if CONFIG_IDF_TARGET_ESP32
+    // Only the ESP32's SPI master driver limits a device's clock by the bus's pins: over the GPIO matrix, it rejects a
+    // full-duplex device whose reads would need more than its limit allows. The SD SPI driver sets no input delay.
+    const spi_bus_attr_t* attr = spi_bus_get_attr(host);
+    const bool gpio_matrix = attr == nullptr || (attr->flags & SPICOMMON_BUSFLAG_IOMUX_PINS) == 0;
+    pin_limit_hz = static_cast<uint32_t>(spi_get_freq_limit(gpio_matrix, 0));
+#endif
+
+    // The SPI master driver's own calculation of the clock for a device. (spi_device_get_actual_freq(), which
+    // ESP-IDF recommends instead, reports the clock of a device already added, rounded down to whole kHz.)
+    auto divide = [](uint32_t base_hz, uint32_t request_hz) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+        return static_cast<uint32_t>(
+            spi_get_actual_clock(static_cast<int>(base_hz), static_cast<int>(request_hz), 128)
+        );
+#pragma GCC diagnostic pop
+    };
+    return internal::choose_spi_clock(src, cap.count(), pin_limit_hz, divide);
 }
 
 gpio_num_t pin_or_nc(idfxx::gpio g) {
@@ -556,9 +610,13 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     if (!distinct(std::array{cs, cfg.card_detect, cfg.write_protect})) {
         return error(errc::invalid_arg);
     }
-    auto max_freq_khz = to_max_freq_khz(cfg.max_frequency);
-    if (!max_freq_khz) {
-        return error(max_freq_khz.error());
+    if (auto r = to_max_freq_khz(cfg.max_frequency); !r) {
+        return error(r.error());
+    }
+    // Never empty in practice: every bus generates its identification clock, 400 kHz, at or below any valid limit.
+    const auto clock = choose_sdspi_clock(static_cast<spi_host_device_t>(bus.host()), cfg.max_frequency);
+    if (!clock) {
+        return error(errc::invalid_arg);
     }
 
     auto s = std::make_unique<state>();
@@ -598,7 +656,7 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
 
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
     host.slot = handle;
-    host.max_freq_khz = *max_freq_khz;
+    host.max_freq_khz = static_cast<int>(clock->request_khz);
     if (auto r = init_card(host, s->card); !r) {
         return error(r.error());
     }

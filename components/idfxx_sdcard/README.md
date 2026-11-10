@@ -121,7 +121,8 @@ if (auto r = card.try_read_sectors(0, sector); !r) {
 ### `card`
 
 **Creation:**
-- `make(bus, spi_config)` / `card(bus, spi_config)` - Card on an SPI bus
+- `make(bus, spi_config)` / `card(bus, spi_config)` - Card on an SPI bus, clocked at up to
+  `spi_config::max_frequency`
 - `make(sdmmc_config)` / `card(sdmmc_config)` - Card on an SDMMC host slot (targets with an SDMMC host)
 
 **SDMMC speed** (`sdmmc_config::speed`, a `bus_speed`):
@@ -181,6 +182,15 @@ The component uses `idfxx::errc` codes:
   the bus and drives its chip select itself, acquiring the bus for each command, so the bus can be shared with other
   devices. The bus must outlive the card. The card's `cs`, `card_detect` and `write_protect` pins must not be any of
   the bus's SCLK, MOSI or MISO pins (this is not checked).
+- **SPI clock.** `spi_config::max_frequency` (20 MHz by default, at least 400 kHz) is an upper bound. The bus
+  divides a source clock by a whole number (80 MHz on most targets: 40, 26.7, 20, 16 MHz and so on), and the card
+  runs at the highest such clock at or below `max_frequency`, at or below 50 MHz (the SD high-speed limit), and, on
+  esp32 with a bus on GPIO matrix pins rather than the SPI host's IO MUX pins, at or below 26.7 MHz (the SPI driver's
+  limit for reads over those pins). With an 80 MHz source, a 26 MHz limit gives 20 MHz, and 50 MHz gives 40 MHz.
+  Above 20 MHz the card is switched to high speed; a card without high speed runs at the clock the bus generates for
+  20 MHz instead. Check `frequency()` for the clock in use. On esp32p4 the clock is divided from 80 MHz (itself
+  divided from its 480 MHz source). With ESP-IDF 5.5.0 on esp32p4, a limit below about 940 kHz can be exceeded:
+  that version can't divide the clock that far.
 - **Raw I/O and filesystems don't mix.** While a filesystem is mounted on the card, only the identity and geometry
   accessors (`type()`, `id()`, `size()`, `sector_size()`, `sector_count()`, `frequency()`, `width()`),
   `is_present()`, `is_write_protected()` and `idf_handle()` may be used. `probe()`, the raw sector reads and writes

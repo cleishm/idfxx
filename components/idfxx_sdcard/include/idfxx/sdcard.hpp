@@ -85,8 +85,8 @@ enum class bus_width : uint8_t {
  * it the bus clock. A card that doesn't support the requested mode is run in
  * a slower one instead, as described for each mode; card::frequency()
  * reports the clock that results. Select the mode with
- * card::sdmmc_config::speed. (Over SPI, the clock is set by
- * card::spi_config::max_frequency.)
+ * card::sdmmc_config::speed. (Over SPI, the mode follows the clock, which is
+ * limited by card::spi_config::max_frequency.)
  *
  * The UHS-I modes (`sdr50`, `ddr50` and `sdr104`) signal at 1.8 V, switched
  * through card::sdmmc_config::io_power_ldo, which must be set.
@@ -302,8 +302,22 @@ public:
         /// Level of the write-protect input when the card is write-protected. The pin's internal pull-up (active
         /// low) or pull-down (active high) is enabled, so an unconnected switch reads as not protected.
         gpio::level write_protect_active_level = gpio::level::low;
-        /// Upper bound on the bus clock once the card is initialized. The clock used is the lower of this and the
-        /// card's own maximum; see card::frequency(). Must be at least 400 kHz, the card identification clock.
+        /// Upper bound on the bus clock once the card is initialized. Must be at least 400 kHz, the card
+        /// identification clock.
+        ///
+        /// The bus generates its clock by dividing a source clock by a whole number (80 MHz on most targets, giving
+        /// 40, 26.7, 20, 16 MHz and so on), and the card is run at the highest such clock that is at or below all
+        /// of:
+        /// - this value;
+        /// - 50 MHz, the SD high-speed limit;
+        /// - on esp32, when the bus uses GPIO matrix pins rather than the SPI host's IO MUX pins, the highest clock
+        ///   the SPI driver allows for the card's reads over those pins (26.7 MHz).
+        ///
+        /// On esp32p4, the source used is 80 MHz, divided from its 480 MHz SPI clock source. With ESP-IDF 5.5.0
+        /// on esp32p4, a value below about 940 kHz can be exceeded: that version can't divide the clock that far.
+        ///
+        /// A card is switched to high speed when that clock is above 20 MHz. A card that doesn't support high
+        /// speed runs at the clock the bus generates for 20 MHz instead. See card::frequency().
         quanta::frequency::hertz max_frequency{20'000'000};
     };
 
@@ -580,8 +594,11 @@ public:
      * in (see bus_speed: a card that doesn't support the configured mode runs
      * in a slower one), limited by sdmmc_config::max_frequency when that is
      * set, and rounded down to a frequency the host can generate. Over SPI,
-     * the clock the bus generates for spi_config::max_frequency, or for
-     * 20 MHz if that is higher and the card is not switched to high speed.
+     * the clock chosen for spi_config::max_frequency (the highest the bus
+     * generates within its limits, as described there); when that is above
+     * 20 MHz and the card doesn't support high speed, the clock the bus
+     * generates for 20 MHz instead. Either way, the clock is reported in whole
+     * kHz.
      *
      * @return The actual clock frequency.
      */

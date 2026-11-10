@@ -113,6 +113,12 @@ inline card make_card(spi::master_bus& bus) {
     return std::move(*r);
 }
 
+inline card make_card(spi::master_bus& bus, quanta::frequency::hertz max_frequency) {
+    auto r = card::make(bus, {.cs = cs, .card_detect = detect, .max_frequency = max_frequency});
+    TEST_ASSERT_TRUE_MESSAGE(r.has_value(), r ? "" : r.error().message().c_str());
+    return std::move(*r);
+}
+
 namespace detail {
 
 // The bus and card a test is using. They are held in static storage rather than in the test's stack frame: a
@@ -164,6 +170,13 @@ public:
     card& reopen() {
         detail::held_card().reset();
         detail::held_card().emplace(make_card(bus()));
+        return get();
+    }
+
+    /// Destroys the card and initializes it again on the same bus, with a clock limit.
+    card& reopen(quanta::frequency::hertz max_frequency) {
+        detail::held_card().reset();
+        detail::held_card().emplace(make_card(bus(), max_frequency));
         return get();
     }
 };
