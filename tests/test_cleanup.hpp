@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <vector>
 
 namespace idfxx::test {
@@ -22,13 +21,14 @@ inline std::vector<cleanup_fn>& cleanups() {
 
 } // namespace detail
 
-/// Registers fn to run after every test from now on, whether the test passed or failed. Registering the same function
-/// again has no effect. fn must do nothing when there is nothing to clean up.
+/// Registers fn to run after every test from now on, whether the test passed or failed. Registering
+/// the same function again makes it the most recently registered, without running it twice, so that
+/// registering cleanup as each thing is created has it undone in the reverse order. fn must do
+/// nothing when there is nothing to clean up.
 inline void run_after_each_test(cleanup_fn fn) {
     auto& fns = detail::cleanups();
-    if (std::find(fns.begin(), fns.end(), fn) == fns.end()) {
-        fns.push_back(fn);
-    }
+    std::erase(fns, fn);
+    fns.push_back(fn);
 }
 
 /// Runs the registered cleanup, most recently registered first.

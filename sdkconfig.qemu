@@ -41,3 +41,6 @@ CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS=y
 
 # Static IPv6 neighbor API for idfxx_netif (ESP-IDF 6.1+)
 CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES=y
+
+# Long file names for idfxx_fatfs tests (the default changed from none to heap in ESP-IDF 6.0)
+CONFIG_FATFS_LFN_HEAP=y

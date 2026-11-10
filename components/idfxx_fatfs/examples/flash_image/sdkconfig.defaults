@@ -1,0 +1,11 @@
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+CONFIG_COMPILER_CXX_RTTI=y
+CONFIG_COMPILER_CXX_STD_23=y
+
+# The partition table with the `assets` partition
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# Long file names, so that the image keeps the files' names as they are in data/ (the default from ESP-IDF 6.0)
+CONFIG_FATFS_LFN_HEAP=y
