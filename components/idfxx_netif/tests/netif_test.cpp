@@ -95,6 +95,38 @@ TEST_CASE("flags bitwise operations", "[netif]") {
     TEST_ASSERT_FALSE(f.contains(idfxx::netif::flag::dhcp_server));
 }
 
+namespace {
+int custom_destroy_count = 0;
+
+void custom_destroy(esp_netif_t* handle) {
+    ++custom_destroy_count;
+    esp_netif_destroy(handle);
+}
+} // namespace
+
+TEST_CASE("take with a custom destroy calls it exactly once", "[netif]") {
+    custom_destroy_count = 0;
+    // Two netifs are alive at once, so each needs its own key
+    esp_netif_inherent_config_t base_a = ESP_NETIF_INHERENT_DEFAULT_ETH();
+    base_a.if_key = "TAKE_A";
+    esp_netif_inherent_config_t base_b = ESP_NETIF_INHERENT_DEFAULT_ETH();
+    base_b.if_key = "TAKE_B";
+    esp_netif_config_t cfg_a = ESP_NETIF_DEFAULT_ETH();
+    cfg_a.base = &base_a;
+    esp_netif_config_t cfg_b = ESP_NETIF_DEFAULT_ETH();
+    cfg_b.base = &base_b;
+    {
+        auto netif = idfxx::netif::interface::take(esp_netif_new(&cfg_a), custom_destroy);
+        auto moved = std::move(netif);
+        TEST_ASSERT_EQUAL(0, custom_destroy_count);
+
+        // Move-assigning over an owning interface destroys its previous handle
+        moved = idfxx::netif::interface::take(esp_netif_new(&cfg_b), custom_destroy);
+        TEST_ASSERT_EQUAL(1, custom_destroy_count);
+    }
+    TEST_ASSERT_EQUAL(2, custom_destroy_count);
+}
+
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) && defined(CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES)
 TEST_CASE("static neighbor add and remove", "[netif]") {
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();

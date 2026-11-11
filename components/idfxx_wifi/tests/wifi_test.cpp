@@ -23,6 +23,18 @@ static_assert(std::is_same_v<decltype(init_config::rmac_auto_reset_interval), st
 #endif
 
 // =============================================================================
+// Connect overloads
+// =============================================================================
+
+// connect() initiates only; connect(timeout) waits for and returns the address
+static_assert(std::is_same_v<decltype(try_connect()), idfxx::result<void>>);
+static_assert(std::is_same_v<decltype(try_connect(std::chrono::seconds{30})), idfxx::result<idfxx::net::ipv4_info>>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_same_v<decltype(connect()), void>);
+static_assert(std::is_same_v<decltype(connect(std::chrono::seconds{30})), idfxx::net::ipv4_info>);
+#endif
+
+// =============================================================================
 // Type properties
 // =============================================================================
 

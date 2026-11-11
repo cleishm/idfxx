@@ -666,21 +666,7 @@ result<void> try_connect() {
     return check(esp_wifi_connect(), "Failed to connect WiFi");
 }
 
-result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
-    auto roles = try_get_roles();
-    if (!roles) {
-        return error(roles.error());
-    }
-    if (auto r = try_set_roles(*roles | role::sta); !r) {
-        return error(r.error());
-    }
-    if (auto r = try_set_sta_config(cfg); !r) {
-        return error(r.error());
-    }
-    if (auto r = try_start(); !r) {
-        return error(r.error());
-    }
-
+result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout) {
     struct waiter {
         std::mutex mutex;
         std::condition_variable cv;
@@ -730,6 +716,21 @@ result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milli
     }
     ESP_LOGD(TAG, "Timed out waiting for an address");
     return wifi_error(ESP_ERR_WIFI_TIMEOUT);
+}
+
+result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
+    // The driver restores its mode from NVS at init, so inheriting it could start an access point
+    // left over from an earlier session; set the station as the only role instead.
+    if (auto r = try_set_roles(role::sta); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_set_sta_config(cfg); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_start(); !r) {
+        return error(r.error());
+    }
+    return try_connect(timeout);
 }
 
 result<void> try_disconnect() {
@@ -1429,12 +1430,18 @@ netif::interface make_ap_netif() {
 }
 #endif
 
+// The default WiFi netifs register the WiFi driver and default event handlers against the handle;
+// only esp_netif_destroy_default_wifi releases them.
+static void destroy_default_wifi_netif(esp_netif_t* handle) {
+    esp_netif_destroy_default_wifi(handle);
+}
+
 result<netif::interface> try_make_sta_netif() {
     auto* handle = esp_netif_create_default_wifi_sta();
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);
     }
-    return netif::interface::take(handle);
+    return netif::interface::take(handle, destroy_default_wifi_netif);
 }
 
 result<netif::interface> try_make_ap_netif() {
@@ -1442,7 +1449,7 @@ result<netif::interface> try_make_ap_netif() {
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);
     }
-    return netif::interface::take(handle);
+    return netif::interface::take(handle, destroy_default_wifi_netif);
 }
 
 } // namespace idfxx::wifi

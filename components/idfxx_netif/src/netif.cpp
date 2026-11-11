@@ -22,32 +22,37 @@ using detail::to_native;
 // =============================================================================
 
 interface interface::take(esp_netif_t* handle) {
+    return take(handle, esp_netif_destroy);
+}
+
+interface interface::take(esp_netif_t* handle, destroy_fn destroy) {
     assert(handle != nullptr);
-    return interface(handle, true);
+    assert(destroy != nullptr);
+    return interface(handle, destroy);
 }
 
 interface interface::wrap(esp_netif_t* handle) {
     assert(handle != nullptr);
-    return interface(handle, false);
+    return interface(handle, nullptr);
+}
+
+void interface::_release() noexcept {
+    if (_destroy != nullptr && _handle != nullptr) {
+        esp_netif_dhcpc_stop(_handle);
+        esp_netif_dhcps_stop(_handle);
+        _destroy(_handle);
+    }
 }
 
 interface::~interface() {
-    if (_owning && _handle != nullptr) {
-        esp_netif_dhcpc_stop(_handle);
-        esp_netif_dhcps_stop(_handle);
-        esp_netif_destroy(_handle);
-    }
+    _release();
 }
 
 interface& interface::operator=(interface&& other) noexcept {
     if (this != &other) {
-        if (_owning && _handle != nullptr) {
-            esp_netif_dhcpc_stop(_handle);
-            esp_netif_dhcps_stop(_handle);
-            esp_netif_destroy(_handle);
-        }
+        _release();
         _handle = std::exchange(other._handle, nullptr);
-        _owning = other._owning;
+        _destroy = std::exchange(other._destroy, nullptr);
     }
     return *this;
 }

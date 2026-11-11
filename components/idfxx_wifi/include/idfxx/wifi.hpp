@@ -1847,17 +1847,49 @@ void deauth_sta(uint16_t aid);
 void connect();
 
 /**
+ * @brief Connects to the configured access point and waits for an IPv4 address.
+ *
+ * Initiates the connection, then blocks until the station acquires an IPv4 address, is
+ * disconnected, or @p timeout elapses. The WiFi subsystem must be started with the station role
+ * enabled, and a station netif (make_sta_netif()) and the system event loop
+ * (event_loop::create_system()) must exist.
+ *
+ * Use this to finish a bring-up you sequence yourself, such as running an access point alongside
+ * the station:
+ *
+ * @code
+ * idfxx::wifi::set_roles(idfxx::wifi::role::sta | idfxx::wifi::role::ap);
+ * idfxx::wifi::set_ap_config({.ssid = "setup"});
+ * idfxx::wifi::set_sta_config({.ssid = "myssid", .password = "secret"});
+ * idfxx::wifi::start();
+ * auto ip = idfxx::wifi::connect(30s);
+ * @endcode
+ *
+ * @tparam Rep The duration's arithmetic type.
+ * @tparam Period The duration's tick period.
+ * @param timeout Maximum time to wait for an IPv4 address.
+ * @return The acquired IPv4 address information.
+ *
+ * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+ * @throws std::system_error on failure, disconnection during the attempt, or timeout.
+ */
+template<typename Rep, typename Period>
+[[nodiscard]] net::ipv4_info connect(std::chrono::duration<Rep, Period> timeout);
+
+/**
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
- * Composes the common station bring-up: enables the station role (preserving
- * any other active roles), applies @p cfg, starts WiFi, initiates the
- * connection, and blocks until the station acquires an IPv4 address or
+ * Composes the common station bring-up: sets the station as the only role, applies @p cfg,
+ * starts WiFi, initiates the connection, and blocks until the station acquires an IPv4 address or
  * @p timeout elapses.
+ *
+ * Setting the roles stops a running access point. To run an access point alongside the station,
+ * sequence the bring-up yourself (set_roles, set_ap_config, set_sta_config, start) and finish it
+ * with connect(std::chrono::duration<Rep, Period>).
  *
  * Requires the system event loop (event_loop::create_system()), a station
  * netif (make_sta_netif()), and an initialized WiFi subsystem
- * (init()) before calling. The step-by-step API (set_roles, set_sta_config,
- * start, connect) remains available for full control over the sequence.
+ * (init()) before calling.
  *
  * @code
  * idfxx::event_loop::create_system();
@@ -1866,6 +1898,8 @@ void connect();
  * auto ip = idfxx::wifi::connect_sta({.ssid = "myssid", .password = "secret"}, 30s);
  * @endcode
  *
+ * @tparam Rep The duration's arithmetic type.
+ * @tparam Period The duration's tick period.
  * @param cfg The station configuration (SSID, credentials, etc.).
  * @param timeout Maximum time to wait for an IPv4 address.
  * @return The acquired IPv4 address information.
@@ -1925,18 +1959,45 @@ void clear_fast_connect();
 [[nodiscard]] result<void> try_connect();
 
 /**
+ * @brief Connects to the configured access point and waits for an IPv4 address.
+ *
+ * Initiates the connection, then blocks until the station acquires an IPv4 address, is
+ * disconnected, or @p timeout elapses. The WiFi subsystem must be started with the station role
+ * enabled, and a station netif (try_make_sta_netif()) and the system event loop
+ * (event_loop::try_create_system()) must exist.
+ *
+ * Use this to finish a bring-up you sequence yourself, such as running an access point alongside
+ * the station.
+ *
+ * @param timeout Maximum time to wait for an IPv4 address.
+ * @return The acquired IPv4 address information, or an error. Fails with
+ *         ESP_ERR_WIFI_CONN if the station is disconnected during the
+ *         attempt, or ESP_ERR_WIFI_TIMEOUT if @p timeout elapses.
+ */
+[[nodiscard]] result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout);
+
+/**
+ * @copydoc try_connect(std::chrono::milliseconds)
+ */
+template<typename Rep, typename Period>
+[[nodiscard]] result<net::ipv4_info> try_connect(std::chrono::duration<Rep, Period> timeout) {
+    return try_connect(std::chrono::ceil<std::chrono::milliseconds>(timeout));
+}
+
+/**
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
- * Composes the common station bring-up: enables the station role (preserving
- * any other active roles), applies @p cfg, starts WiFi, initiates the
- * connection, and blocks until the station acquires an IPv4 address or
+ * Composes the common station bring-up: sets the station as the only role, applies @p cfg,
+ * starts WiFi, initiates the connection, and blocks until the station acquires an IPv4 address or
  * @p timeout elapses.
+ *
+ * Setting the roles stops a running access point. To run an access point alongside the station,
+ * sequence the bring-up yourself (try_set_roles, try_set_ap_config, try_set_sta_config,
+ * try_start) and finish it with try_connect(std::chrono::milliseconds).
  *
  * Requires the system event loop (event_loop::try_create_system()), a station
  * netif (try_make_sta_netif()), and an initialized WiFi subsystem
- * (try_init()) before calling. The step-by-step API (try_set_roles,
- * try_set_sta_config, try_start, try_connect) remains available for full
- * control over the sequence.
+ * (try_init()) before calling.
  *
  * @param cfg The station configuration (SSID, credentials, etc.).
  * @param timeout Maximum time to wait for an IPv4 address.
@@ -3506,6 +3567,10 @@ connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout) {
 }
 inline void connect() {
     unwrap(try_connect());
+}
+template<typename Rep, typename Period>
+[[nodiscard]] net::ipv4_info connect(std::chrono::duration<Rep, Period> timeout) {
+    return unwrap(try_connect(std::chrono::ceil<std::chrono::milliseconds>(timeout)));
 }
 inline void disconnect() {
     unwrap(try_disconnect());
