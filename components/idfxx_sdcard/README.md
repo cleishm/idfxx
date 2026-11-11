@@ -194,6 +194,13 @@ The component uses `idfxx::errc` codes:
   clock is about 470 kHz, used for any lower limit. Above 20 MHz the card is switched to high speed;
   a card without high speed runs at 20 MHz, or the next supported clock below it. Check
   `frequency()` for the clock in use.
+- **Shared MISO.** Before each command, the card waits for MISO to read high (the card not busy),
+  for the driver's default timeout. If another device on the bus can hold MISO low, such as an
+  unpowered device on the same lines, that wait times out before every command and slows all card
+  access. With ESP-IDF 5.5.3 or later, set `spi_config::miso_wait_timeout` (at most 127 ms) to a
+  shorter wait, such as 1 ms. Zero sends commands without waiting, but also skips the idle clocks
+  sent to the card while waiting: on a bus shared with another active device, the first command
+  after that device's transfers can then fail with `errc::timeout`.
 - **Raw I/O and filesystems don't mix.** While a filesystem is mounted on the card, only the
   identity and geometry accessors (`type()`, `id()`, `size()`, `sector_size()`, `sector_count()`,
   `frequency()`, `width()`), `is_present()`, `is_write_protected()` and `idf_handle()` may be used.

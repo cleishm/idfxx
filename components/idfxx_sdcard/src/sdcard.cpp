@@ -561,15 +561,28 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     if (!distinct(std::array{cs, cfg.card_detect, cfg.write_protect})) {
         return error(errc::invalid_arg);
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+    if (cfg.miso_wait_timeout &&
+        (cfg.miso_wait_timeout->count() < 0 || cfg.miso_wait_timeout->count() > 127)) {
+        return error(errc::invalid_arg);
+    }
+#endif
 
     auto s = std::make_unique<state>();
     s->card_detect = cfg.card_detect;
     s->write_protect = cfg.write_protect;
     s->write_protect_active_level = cfg.write_protect_active_level;
 
-    // Value-initialized: duty_cycle_pos (and wait_for_miso, where present) select the driver
-    // defaults.
+    // Value-initialized: duty_cycle_pos selects the driver default, as does wait_for_miso unless a
+    // timeout is configured.
     sdspi_device_config_t dev_cfg{};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+    if (cfg.miso_wait_timeout) {
+        // -1 for no wait, since 0 selects the driver default.
+        const auto ms = cfg.miso_wait_timeout->count();
+        dev_cfg.wait_for_miso = ms == 0 ? int8_t{-1} : static_cast<int8_t>(ms);
+    }
+#endif
     dev_cfg.host_id = static_cast<spi_host_device_t>(bus.host());
     dev_cfg.gpio_cs = cs.idf_num();
     dev_cfg.gpio_cd = pin_or_nc(cfg.card_detect);

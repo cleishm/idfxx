@@ -330,6 +330,23 @@ public:
         /// Above 20 MHz, the card is switched to high speed. A card that doesn't support high speed
         /// runs at 20 MHz, or the next supported clock below it. See card::frequency().
         quanta::frequency::hertz max_frequency{20'000'000};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3) || defined(__DOXYGEN__)
+        /// How long to wait, before each command, for MISO to read high (the card not busy).
+        /// `std::nullopt` uses the driver's default; zero sends each command without waiting. At
+        /// most 127 ms.
+        ///
+        /// When the wait times out, the command is sent anyway, so the timeout only bounds the
+        /// delay. On a bus where another device can hold MISO low, such as an unpowered device on
+        /// the same lines, the wait times out before every command; a short timeout, such as 1 ms,
+        /// then avoids most of that delay. A card that is still busy may then reject the command.
+        ///
+        /// Zero also skips the idle clocks sent to the card while waiting. On a bus shared with
+        /// another active device, the first command after that device's transfers can then fail
+        /// with `errc::timeout`; a short non-zero timeout keeps the idle clocks.
+        ///
+        /// @note Only available with ESP-IDF 5.5.3 or later.
+        std::optional<std::chrono::milliseconds> miso_wait_timeout = std::nullopt;
+#endif
     };
 
 #if SOC_SDMMC_HOST_SUPPORTED || defined(__DOXYGEN__)
@@ -487,8 +504,9 @@ public:
      *
      * @return The initialized card, or an error.
      * @retval errc::invalid_arg The configuration is invalid: `cs` is not connected or not
-     * output-capable, two of the pins are the same, `max_frequency` is below 400 kHz, or the bus
-     * has no DMA. All are checked before the card is contacted.
+     * output-capable, two of the pins are the same, `max_frequency` is below 400 kHz,
+     * `miso_wait_timeout` is negative or above 127 ms, or the bus has no DMA. All are checked
+     * before the card is contacted.
      * @retval errc::invalid_state The SPI bus has no free device slot for the card (each bus has a
      * limited number of devices, shared with its other users).
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
