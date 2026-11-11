@@ -118,6 +118,9 @@ TEST_CASE("sdcard spi_config default initialization", "[idfxx][sdcard]") {
     TEST_ASSERT_FALSE(cfg.write_protect.is_connected());
     TEST_ASSERT_TRUE(cfg.write_protect_active_level == gpio::level::low);
     TEST_ASSERT_EQUAL_INT32(20'000'000, static_cast<int32_t>(cfg.max_frequency.count()));
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+    TEST_ASSERT_FALSE(cfg.miso_wait_timeout.has_value());
+#endif
 }
 
 TEST_CASE("sdcard to_string(card_type)", "[idfxx][sdcard]") {
@@ -216,6 +219,15 @@ TEST_CASE("sdcard make over SPI rejects a max_frequency below 400 kHz", "[idfxx]
     assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .max_frequency = 0_Hz}));
     assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .max_frequency = 399_kHz}));
 }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+TEST_CASE("sdcard make over SPI rejects a miso_wait_timeout out of range", "[idfxx][sdcard]") {
+    using namespace std::chrono_literals;
+    rig::unwired_bus_fixture bus;
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .miso_wait_timeout = -1ms}));
+    assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a, .miso_wait_timeout = 128ms}));
+}
+#endif
 
 TEST_CASE("sdcard make over SPI rejects a bus without DMA", "[idfxx][sdcard]") {
     rig::unwired_bus_fixture bus(spi::dma_chan::disabled);
