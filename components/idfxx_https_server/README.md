@@ -97,10 +97,8 @@ if (!result) {
 auto& srv = *result;
 
 auto r = srv.try_on_get("/api/status", [](idfxx::http::request& req) -> idfxx::result<void> {
-    req.set_content_type("text/plain");
-    auto res = req.try_send("hello");
-    if (!res) return res;
-    return {};
+    if (auto res = req.try_set_content_type("text/plain"); !res) return res;
+    return req.try_send("hello");
 });
 if (!r) {
     idfxx::log::error("HTTPS", "Failed to register handler: {}", r.error().message());

@@ -89,10 +89,8 @@ if (!result) {
 auto& srv = *result;
 
 auto r = srv.try_on_get("/api/status", [](idfxx::http::request& req) -> idfxx::result<void> {
-    req.set_content_type("text/plain");
-    auto res = req.try_send("hello");
-    if (!res) return res;
-    return {};
+    if (auto res = req.try_set_content_type("text/plain"); !res) return res;
+    return req.try_send("hello");
 });
 if (!r) {
     idfxx::log::error("HTTP", "Failed to register handler: {}", r.error().message());
@@ -191,9 +189,10 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `recv_body()` / `try_recv_body()` - Receive entire body as string
 
 **Response:**
-- `set_status(code)` / `set_status(str)` - Set response status
-- `set_content_type(type)` - Set Content-Type
-- `set_header(field, value)` - Add response header
+- `set_status(code)` / `set_status(str)` / `try_set_status(str)` - Set response status
+- `set_content_type(type)` / `try_set_content_type(type)` - Set Content-Type
+- `set_header(field, value)` / `try_set_header(field, value)` - Add response header (at most
+  `max_resp_headers`)
 - `send(body)` / `try_send(body)` - Send complete response
 - `send_chunk(data)` / `try_send_chunk(data)` - Send chunked data
 - `end_chunked()` / `try_end_chunked()` - End chunked response
@@ -248,7 +247,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   - `handler_exists` - Duplicate handler registration
   - `invalid_request` - Invalid request
   - `result_truncated` - Result string truncated
-  - `resp_header` - Response header too large
+  - `resp_header` - Too many response headers (over `max_resp_headers`), or headers too large
   - `resp_send` - Error sending response
   - `alloc_mem` - Memory allocation failed
   - `task` - Failed to create server task
@@ -268,8 +267,12 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   store references to it
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the
   server begins accepting connections
-- **Response string lifetimes**: `set_status()`, `set_content_type()`, and `set_header()` copy
-  strings internally to ensure they remain valid until the response is sent
+- **Response strings**: `set_status()`, `set_content_type()` and `set_header()` copy their strings
+  and keep them until the response is sent. They reject text that would corrupt the response
+  (`invalid_arg`): a carriage return, line feed or null character, or a header name that isn't an
+  HTTP token. The string forms throw, so without exceptions use `try_set_status()`,
+  `try_set_content_type()` and `try_set_header()`; `set_status(int)` can't fail and is always
+  available
 - **WebSocket**: WebSocket support requires `CONFIG_HTTPD_WS_SUPPORT` to be enabled in menuconfig
 - **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame
   fails with `invalid_size` and its payload is left unread; since the connection cannot continue
