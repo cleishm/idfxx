@@ -363,14 +363,45 @@ struct dns_info {
 class interface {
 public:
     /**
+     * @brief Function that destroys an owned `esp_netif_t` handle.
+     *
+     * Used with take(esp_netif_t*, destroy_fn) for handles that must be released with something
+     * other than `esp_netif_destroy`, such as `esp_netif_destroy_default_wifi` for the default
+     * WiFi interfaces.
+     */
+    using destroy_fn = void (*)(esp_netif_t*);
+
+    /**
      * @brief Constructs an owning interface from an `esp_netif_t` handle.
      *
-     * Takes ownership of the handle and will destroy it on destruction.
+     * Takes ownership of the handle and will destroy it with `esp_netif_destroy` on destruction.
      * The handle must not be null.
      *
      * @param handle A non-null `esp_netif_t` handle.
+     * @return An interface that owns @p handle.
      */
     static interface take(esp_netif_t* handle);
+
+    /**
+     * @brief Constructs an owning interface from an `esp_netif_t` handle, with a custom destroy.
+     *
+     * Takes ownership of the handle and, on destruction, stops its DHCP client and server and then
+     * calls @p destroy on it in place of `esp_netif_destroy`. Use this for handles whose creator
+     * requires a matching destroy function, so that state registered alongside the handle is
+     * released with it.
+     *
+     * @code
+     * auto netif = idfxx::netif::interface::take(
+     *     esp_netif_create_default_wifi_sta(),
+     *     [](esp_netif_t* h) { esp_netif_destroy_default_wifi(h); }
+     * );
+     * @endcode
+     *
+     * @param handle A non-null `esp_netif_t` handle.
+     * @param destroy A non-null function that destroys @p handle.
+     * @return An interface that owns @p handle.
+     */
+    static interface take(esp_netif_t* handle, destroy_fn destroy);
 
     /**
      * @brief Constructs a non-owning interface from an `esp_netif_t` handle.
@@ -394,7 +425,7 @@ public:
      */
     interface(interface&& other) noexcept
         : _handle(std::exchange(other._handle, nullptr))
-        , _owning(other._owning) {}
+        , _destroy(std::exchange(other._destroy, nullptr)) {}
 
     /**
      * @brief Move assigns an interface, transferring ownership state.
@@ -888,12 +919,14 @@ public:
     result<void> try_napt_enable(bool enable = true);
 
 private:
-    interface(esp_netif_t* handle, bool owning) noexcept
+    interface(esp_netif_t* handle, destroy_fn destroy) noexcept
         : _handle(handle)
-        , _owning(owning) {}
+        , _destroy(destroy) {}
+
+    void _release() noexcept;
 
     esp_netif_t* _handle = nullptr;
-    bool _owning = true;
+    destroy_fn _destroy = nullptr;
 };
 
 // =============================================================================

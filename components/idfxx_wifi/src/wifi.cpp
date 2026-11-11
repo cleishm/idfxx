@@ -1429,12 +1429,18 @@ netif::interface make_ap_netif() {
 }
 #endif
 
+// The default WiFi netifs register the WiFi driver and default event handlers against the handle;
+// only esp_netif_destroy_default_wifi releases them.
+static void destroy_default_wifi_netif(esp_netif_t* handle) {
+    esp_netif_destroy_default_wifi(handle);
+}
+
 result<netif::interface> try_make_sta_netif() {
     auto* handle = esp_netif_create_default_wifi_sta();
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);
     }
-    return netif::interface::take(handle);
+    return netif::interface::take(handle, destroy_default_wifi_netif);
 }
 
 result<netif::interface> try_make_ap_netif() {
@@ -1442,7 +1448,7 @@ result<netif::interface> try_make_ap_netif() {
     if (handle == nullptr) {
         return netif_error(ESP_ERR_ESP_NETIF_INIT_FAILED);
     }
-    return netif::interface::take(handle);
+    return netif::interface::take(handle, destroy_default_wifi_netif);
 }
 
 } // namespace idfxx::wifi
