@@ -228,7 +228,7 @@ std::string server::error_category::message(int ec) const {
     case server::errc::result_truncated:
         return "Result string truncated";
     case server::errc::resp_header:
-        return "Response header field too large";
+        return "Too many response headers, or headers too large";
     case server::errc::resp_send:
         return "Error sending response";
     case server::errc::alloc_mem:
@@ -766,9 +766,32 @@ result<std::string> request::try_recv_body() {
 // Response Setup
 // =============================================================================
 
-void request::set_status(std::string_view status) {
-    _status_str = std::string(status);
+namespace {
+
+// Text for the status line or a header value: a line break would split the response, and a null
+// character would cut short the C string httpd takes.
+bool valid_header_text(std::string_view text) {
+    return text.find_first_of(std::string_view{"\r\n\0", 3}) == std::string_view::npos;
+}
+
+// A header name: a token (RFC 9110, section 5.6.2).
+bool valid_header_name(std::string_view name) {
+    constexpr std::string_view token_chars = "0123456789"
+                                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                             "abcdefghijklmnopqrstuvwxyz"
+                                             "!#$%&'*+-.^_`|~";
+    return !name.empty() && name.find_first_not_of(token_chars) == std::string_view::npos;
+}
+
+} // namespace
+
+result<void> request::try_set_status(std::string_view status) {
+    if (!valid_header_text(status)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    _status_str.assign(status);
     httpd_resp_set_status(_req, _status_str.c_str());
+    return {};
 }
 
 void request::set_status(int code) {
@@ -828,14 +851,26 @@ void request::set_status(int code) {
     httpd_resp_set_status(_req, phrase);
 }
 
-void request::set_content_type(std::string_view content_type) {
-    _content_type = std::string(content_type);
+result<void> request::try_set_content_type(std::string_view content_type) {
+    if (!valid_header_text(content_type)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    _content_type.assign(content_type);
     httpd_resp_set_type(_req, _content_type.c_str());
+    return {};
 }
 
-void request::set_header(std::string_view field, std::string_view value) {
-    auto& [f, v] = _resp_headers.emplace_back(std::string(field), std::string(value));
-    httpd_resp_set_hdr(_req, f.c_str(), v.c_str());
+result<void> request::try_set_header(std::string_view field, std::string_view value) {
+    if (!valid_header_name(field) || !valid_header_text(value)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    // httpd keeps the pointers until the response is sent, so the strings must not move.
+    auto& [f, v] = _resp_headers.emplace_back(field, value);
+    if (auto err = httpd_resp_set_hdr(_req, f.c_str(), v.c_str()); err != ESP_OK) {
+        _resp_headers.pop_back();
+        return http_server_error(err);
+    }
+    return {};
 }
 
 // =============================================================================

@@ -135,7 +135,7 @@ TEST_CASE("https server handles GET request", "[idfxx][https]") {
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_get("/hello", [](request& req) -> result<void> {
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send("Hello, TLS!");
     });
     TEST_ASSERT_TRUE(r.has_value());
@@ -167,7 +167,7 @@ TEST_CASE("https server handles POST with body", "[idfxx][https]") {
     auto r = srv->try_on_post("/echo", [](request& req) -> result<void> {
         auto body = req.try_recv_body();
         if (!body) return idfxx::error(body.error());
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send(*body);
     });
     TEST_ASSERT_TRUE(r.has_value());

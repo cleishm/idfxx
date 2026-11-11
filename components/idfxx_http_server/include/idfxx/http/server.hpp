@@ -373,15 +373,32 @@ public:
     // Response Setup
     // =========================================================================
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets the HTTP response status line.
      *
-     * The string must remain in the format "NNN Reason Phrase" (e.g. "200 OK").
-     * The string is copied internally and kept alive until the response is sent.
+     * The string must be in the format "NNN Reason Phrase" (e.g. "200 OK").
+     * It is copied internally and kept alive until the response is sent.
      *
      * @param status The status string (e.g. "200 OK").
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, with the error codes listed for try_set_status().
      */
-    void set_status(std::string_view status);
+    void set_status(std::string_view status) { unwrap(try_set_status(status)); }
+#endif
+
+    /**
+     * @brief Sets the HTTP response status line.
+     *
+     * The string must be in the format "NNN Reason Phrase" (e.g. "200 OK").
+     * It is copied internally and kept alive until the response is sent.
+     *
+     * @param status The status string (e.g. "200 OK").
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p status contains a carriage return, line feed or null
+     * character.
+     */
+    [[nodiscard]] result<void> try_set_status(std::string_view status);
 
     /**
      * @brief Sets the HTTP response status code.
@@ -393,25 +410,74 @@ public:
      */
     void set_status(int code);
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sets the Content-Type response header.
      *
      * The string is copied internally and kept alive until the response is sent.
      *
      * @param content_type The MIME type string (e.g. "application/json").
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, with the error codes listed for
+     *         try_set_content_type().
      */
-    void set_content_type(std::string_view content_type);
+    void set_content_type(std::string_view content_type) {
+        unwrap(try_set_content_type(content_type));
+    }
+#endif
+
+    /**
+     * @brief Sets the Content-Type response header.
+     *
+     * The string is copied internally and kept alive until the response is sent.
+     *
+     * @param content_type The MIME type string (e.g. "application/json").
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p content_type contains a carriage return, line feed or
+     * null character.
+     */
+    [[nodiscard]] result<void> try_set_content_type(std::string_view content_type);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Adds a response header.
+     *
+     * Both field and value are copied internally and kept alive until the
+     * response is sent. A response holds at most the server's
+     * `max_resp_headers` headers added this way.
+     *
+     * @code
+     * req.set_header("Cache-Control", "no-store");
+     * req.set_header("X-Request-Id", id);
+     * req.send(body);
+     * @endcode
+     *
+     * @param field Header name.
+     * @param value Header value.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, with the error codes listed for try_set_header().
+     */
+    void set_header(std::string_view field, std::string_view value) {
+        unwrap(try_set_header(field, value));
+    }
+#endif
 
     /**
      * @brief Adds a response header.
      *
      * Both field and value are copied internally and kept alive until the
-     * response is sent.
+     * response is sent. A response holds at most the server's
+     * `max_resp_headers` headers added this way.
      *
-     * @param field Header name.
+     * @param field Header name: one or more letters, digits or any of
+     * ``!#$%&'*+-.^_`|~``.
      * @param value Header value.
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg @p field is empty or has a character not allowed in a
+     * header name, or @p value contains a carriage return, line feed or null character.
+     * @retval server::errc::resp_header The response already has `max_resp_headers` headers.
      */
-    void set_header(std::string_view field, std::string_view value);
+    [[nodiscard]] result<void> try_set_header(std::string_view field, std::string_view value);
 
     // =========================================================================
     // Response Sending
@@ -987,7 +1053,8 @@ private:
     httpd_req_t* _req;
     std::string _status_str;
     std::string _content_type;
-    std::vector<std::pair<std::string, std::string>> _resp_headers;
+    // A list, so that strings handed to httpd stay in place as headers are added.
+    std::list<std::pair<std::string, std::string>> _resp_headers;
     mutable bool _query_fetched = false;
     mutable std::optional<std::string> _query_cache;
     bool _close_connection = false; // an error response requires the connection to close
@@ -1045,7 +1112,7 @@ public:
         handler_exists   = 0xb002, ///< URI handler already registered for this method and URI
         invalid_request  = 0xb003, ///< Invalid request pointer
         result_truncated = 0xb004, ///< Result string was truncated
-        resp_header      = 0xb005, ///< Response header field too large
+        resp_header      = 0xb005, ///< Too many response headers, or headers too large
         resp_send        = 0xb006, ///< Error sending response
         alloc_mem        = 0xb007, ///< Memory allocation failed
         task             = 0xb008, ///< Failed to create server task

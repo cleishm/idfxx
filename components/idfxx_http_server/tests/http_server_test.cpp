@@ -18,11 +18,13 @@
 #include <esp_idf_version.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <map>
 #include <memory>
 #include <netinet/in.h>
 #include <sdkconfig.h>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <system_error>
 #include <type_traits>
@@ -195,6 +197,40 @@ static uint16_t alloc_ctrl_port() {
 static void ensure_event_loop() { test::ensure_event_loop(); }
 static std::string read_response_body(client& c) { return test::read_response_body(c); }
 
+// The status and headers of the response to GET http://127.0.0.1:<port><path>.
+struct fetched_response {
+    int status = 0;
+    std::map<std::string, std::string, std::less<>> headers;
+};
+
+static fetched_response fetch(uint16_t port, std::string_view path) {
+    fetched_response resp;
+    auto c = client::make({
+        .url = "http://127.0.0.1:" + std::to_string(port) + std::string(path),
+        .on_event =
+            [&resp](const event_data& ev) {
+                if (ev.id == event_id::on_header) {
+                    resp.headers.insert_or_assign(
+                        std::string(ev.header_key), std::string(ev.header_value)
+                    );
+                }
+            },
+    });
+    TEST_ASSERT_TRUE(c.has_value());
+    auto body = read_response_body(*c);
+    resp.status = c->status_code();
+    return resp;
+}
+
+// A response header's value, or an empty string if the response has none.
+static std::string header_value(const fetched_response& resp, std::string_view field) {
+    auto it = resp.headers.find(field);
+    return it == resp.headers.end() ? std::string{} : it->second;
+}
+
+// The error a result holds, or no error.
+static std::error_code error_of(const result<void>& r) { return r ? std::error_code{} : r.error(); }
+
 TEST_CASE("http server handles GET request", "[idfxx][http]") {
     ensure_event_loop();
     auto port = alloc_test_port();
@@ -202,7 +238,7 @@ TEST_CASE("http server handles GET request", "[idfxx][http]") {
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_get("/hello", [](request& req) -> result<void> {
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send("Hello, World!");
     });
     TEST_ASSERT_TRUE(r.has_value());
@@ -225,7 +261,7 @@ TEST_CASE("http server handles POST with body", "[idfxx][http]") {
     auto r = srv->try_on_post("/echo", [](request& req) -> result<void> {
         auto body = req.try_recv_body();
         if (!body) return idfxx::error(body.error());
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send(*body);
     });
     TEST_ASSERT_TRUE(r.has_value());
@@ -283,27 +319,105 @@ TEST_CASE("http server sets custom response headers", "[idfxx][http]") {
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_get("/headers", [](request& req) -> result<void> {
-        req.set_header("X-Custom", "test-value");
+        if (auto hr = req.try_set_header("X-Custom", "test-value"); !hr) return hr;
         return req.try_send("ok");
     });
     TEST_ASSERT_TRUE(r.has_value());
 
-    std::string custom_hdr;
-    auto url = "http://127.0.0.1:" + std::to_string(port) + "/headers";
-    auto c = client::make({
-        .url = url,
-        .on_event =
-            [&custom_hdr](const event_data& ev) {
-                if (ev.id == event_id::on_header && ev.header_key == "X-Custom") {
-                    custom_hdr = std::string(ev.header_value);
-                }
-            },
-    });
-    TEST_ASSERT_TRUE(c.has_value());
-    auto body = read_response_body(*c);
+    auto resp = fetch(port, "/headers");
+    TEST_ASSERT_EQUAL(200, resp.status);
+    TEST_ASSERT_EQUAL_STRING("test-value", header_value(resp, "X-Custom").c_str());
+}
 
-    TEST_ASSERT_EQUAL(200, c->status_code());
-    TEST_ASSERT_EQUAL_STRING("test-value", custom_hdr.c_str());
+TEST_CASE("http server sends every response header set", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    // Short fields and values, held inline by std::string: storage that moved them as headers are
+    // added would leave earlier headers pointing at stale memory.
+    static constexpr std::array<std::pair<const char*, const char*>, 6> headers{{
+        {"X-A", "1"},
+        {"X-B", "22"},
+        {"X-C", "333"},
+        {"X-D", "4444"},
+        {"X-E", "55555"},
+        {"X-F", "666666"},
+    }};
+    auto r = srv->try_on_get("/many-headers", [](request& req) -> result<void> {
+        for (auto [field, value] : headers) {
+            if (auto hr = req.try_set_header(field, value); !hr) return hr;
+        }
+        return req.try_send("ok");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto resp = fetch(port, "/many-headers");
+    TEST_ASSERT_EQUAL(200, resp.status);
+    for (auto [field, value] : headers) {
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(value, header_value(resp, field).c_str(), field);
+    }
+}
+
+TEST_CASE("http server rejects invalid response text", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    std::array<std::error_code, 10> rejected;
+    auto r = srv->try_on_get("/invalid-text", [&rejected](request& req) -> result<void> {
+        rejected = {
+            error_of(req.try_set_header("", "1")),
+            error_of(req.try_set_header("X Bad", "1")),
+            error_of(req.try_set_header("X-Bad:", "1")),
+            error_of(req.try_set_header("X-Bad\r\nX-Injected", "1")),
+            error_of(req.try_set_header("X-Bad", "1\nX-Injected: 2")),
+            error_of(req.try_set_header("X-Bad", std::string_view{"1\0X", 3})),
+            error_of(req.try_set_status("200 OK\r\nX-Injected: 1")),
+            error_of(req.try_set_status(std::string_view{"200 OK\0", 7})),
+            error_of(req.try_set_content_type("text/plain\r\nX-Injected: 1")),
+            error_of(req.try_set_content_type(std::string_view{"text/plain\0", 11})),
+        };
+        return req.try_send("ok");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto resp = fetch(port, "/invalid-text");
+    TEST_ASSERT_EQUAL(200, resp.status);
+    for (const auto& ec : rejected) {
+        TEST_ASSERT_TRUE(ec == idfxx::errc::invalid_arg);
+    }
+    TEST_ASSERT_FALSE(resp.headers.contains("X-Bad"));
+    TEST_ASSERT_FALSE(resp.headers.contains("X-Injected"));
+}
+
+TEST_CASE("http server rejects response headers past max_resp_headers", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({
+        .server_port = port,
+        .ctrl_port = alloc_ctrl_port(),
+        .max_resp_headers = 2,
+    });
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    std::error_code third;
+    auto r = srv->try_on_get("/header-limit", [&third](request& req) -> result<void> {
+        if (auto hr = req.try_set_header("X-One", "1"); !hr) return hr;
+        if (auto hr = req.try_set_header("X-Two", "2"); !hr) return hr;
+        third = error_of(req.try_set_header("X-Three", "3"));
+        return req.try_send("ok");
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto resp = fetch(port, "/header-limit");
+    TEST_ASSERT_EQUAL(200, resp.status);
+    TEST_ASSERT_TRUE(third == server::errc::resp_header);
+    TEST_ASSERT_EQUAL_STRING("1", header_value(resp, "X-One").c_str());
+    TEST_ASSERT_EQUAL_STRING("2", header_value(resp, "X-Two").c_str());
+    TEST_ASSERT_FALSE(resp.headers.contains("X-Three"));
 }
 
 TEST_CASE("http server reads request headers", "[idfxx][http]") {
@@ -515,7 +629,7 @@ TEST_CASE("http server closes session sockets when on_session_close is set", "[i
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_get("/hello", [](request& req) -> result<void> {
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send("Hello, World!");
     });
     TEST_ASSERT_TRUE(r.has_value());
@@ -648,7 +762,7 @@ TEST_CASE("http server error handler serves a custom not-found response", "[idfx
 
     auto r = srv->try_on_error(status_code::not_found, [](request& req, status_code code) -> result<void> {
         req.set_status(404);
-        req.set_content_type("text/plain");
+        if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send("custom 404 for " + std::to_string(std::to_underlying(code)));
     });
     TEST_ASSERT_TRUE(r.has_value());
