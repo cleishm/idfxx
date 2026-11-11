@@ -30,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_wifi:
-    version: "^3.0.0"
+    version: "^4.0.0"
 ```
 
 Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -39,9 +39,9 @@ Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 ### Quick Station Connect
 
-`connect_sta` composes the common station bring-up — it enables the station role, applies the
-configuration, starts WiFi, connects, and blocks until an IPv4 address is acquired (or the timeout
-elapses):
+`connect_sta` composes the common station bring-up — it sets the station as the only role, applies
+the configuration, starts WiFi, connects, and blocks until an IPv4 address is acquired (or the
+timeout elapses):
 
 ```cpp
 #include <idfxx/wifi>
@@ -243,7 +243,8 @@ station privacy; these are available on ESP-IDF 6.1 and later only.
 
 ### Connection
 
-`connect()`, `connect_sta(sta_config, timeout)` (composed bring-up, returns the acquired IPv4 info),
+`connect()`, `connect(timeout)` (waits for and returns the acquired IPv4 info),
+`connect_sta(sta_config, timeout)` (composed station-only bring-up, returns the acquired IPv4 info),
 `disconnect()`, `deauth_sta(aid)`, `get_sta_list()`, `ap_get_sta_aid(mac)`, `sta_get_aid()`,
 `get_negotiated_phymode()`, `get_ap_info()`
 
@@ -344,6 +345,13 @@ loop.listener_add(netif::sta_got_ip4,
   will also need to initialize `idfxx::netif::init()` and create the appropriate default netif
   (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
+- **Persisted configuration**: With WiFi NVS enabled (the default), the driver stores the roles and
+  configurations you set in flash and restores them at the next `init()`, even after a reboot. Set
+  the roles and configuration you need each session rather than relying on `get_roles()` or the
+  `get_*_config()` values after `init()`.
+- **`connect_sta` is station-only**: It sets the station as the only role, which stops a running
+  access point. To run both, call `set_roles(role::sta | role::ap)`, configure both, `start()`, and
+  then `connect(timeout)`.
 - **TX power units**: `set_max_tx_power` / `get_max_tx_power` use typed `quanta::electro` levels
   (range 2–20 dBm); whole-dBm values such as `20_dBm` convert implicitly. The hardware applies power
   in 0.25 dBm steps (`quanta::electro::centi_dbm` carries the exact value), and may clamp to a lower

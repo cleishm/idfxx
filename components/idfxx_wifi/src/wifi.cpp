@@ -666,21 +666,7 @@ result<void> try_connect() {
     return check(esp_wifi_connect(), "Failed to connect WiFi");
 }
 
-result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
-    auto roles = try_get_roles();
-    if (!roles) {
-        return error(roles.error());
-    }
-    if (auto r = try_set_roles(*roles | role::sta); !r) {
-        return error(r.error());
-    }
-    if (auto r = try_set_sta_config(cfg); !r) {
-        return error(r.error());
-    }
-    if (auto r = try_start(); !r) {
-        return error(r.error());
-    }
-
+result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout) {
     struct waiter {
         std::mutex mutex;
         std::condition_variable cv;
@@ -730,6 +716,21 @@ result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milli
     }
     ESP_LOGD(TAG, "Timed out waiting for an address");
     return wifi_error(ESP_ERR_WIFI_TIMEOUT);
+}
+
+result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
+    // The driver restores its mode from NVS at init, so inheriting it could start an access point
+    // left over from an earlier session; set the station as the only role instead.
+    if (auto r = try_set_roles(role::sta); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_set_sta_config(cfg); !r) {
+        return error(r.error());
+    }
+    if (auto r = try_start(); !r) {
+        return error(r.error());
+    }
+    return try_connect(timeout);
 }
 
 result<void> try_disconnect() {
