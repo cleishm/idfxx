@@ -7,8 +7,8 @@ Type-safe persistent key-value storage in flash memory.
 ## Features
 
 - NVS namespace lifecycle management
-- Type-safe storage for integers (8-64 bits), `float`/`double` (ESP-IDF 6.1+), strings, and binary
-  blobs
+- Type-safe storage for integers (8-64 bits), `float`/`double` (ESP-IDF 6.1+), strings, binary
+  blobs, and trivially copyable objects stored as blobs
 - Explicit commit model for atomic updates
 - Read-only mode support
 - Partition-based APIs for multi-partition NVS configurations
@@ -29,7 +29,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_nvs:
-    version: "^1.1.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_nvs` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -54,7 +54,7 @@ try {
     nvs.set_value<uint32_t>("counter", 42);
     nvs.set_string("name", "MyDevice");
 
-    std::vector<uint8_t> blob{0x01, 0x02, 0x03};
+    std::array<uint8_t, 3> blob{0x01, 0x02, 0x03};
     nvs.set_blob("data", blob);
 
     // Commit changes
@@ -63,7 +63,7 @@ try {
     // Read operations (throws if key doesn't exist)
     uint32_t counter = nvs.get_value<uint32_t>("counter");
     std::string name = nvs.get_string("name");
-    std::vector<uint8_t> data = nvs.get_blob("data");
+    std::vector<std::byte> data = nvs.get_blob("data");
 
     // Erase operations
     nvs.erase("old_key");
@@ -144,12 +144,40 @@ nvs.set_value<double>("offset", -0.0025);
 // Strings
 nvs.set_string("name", "MyDevice");
 
-// Binary data
-std::vector<uint8_t> blob{0x01, 0x02, 0x03, 0x04};
+// Binary data: any contiguous range of std::byte or uint8_t, or {ptr, len}
+std::array<uint8_t, 4> blob{0x01, 0x02, 0x03, 0x04};
 nvs.set_blob("data", blob);
+
+// Trivially copyable objects, stored as their bytes
+struct calibration {
+    int32_t offset;
+    uint16_t gain;
+};
+nvs.set_blob("cal", calibration{.offset = -12, .gain = 1024});
 
 // Must commit to persist changes
 nvs.commit();
+```
+
+### Reading Blobs
+
+```cpp
+idfxx::nvs nvs("storage", true);
+
+// Allocate a vector sized to the stored blob
+std::vector<std::byte> data = nvs.get_blob("data");
+
+// Read into your own buffer; returns the blob's length
+// (throws with idfxx::errc::invalid_size if the buffer is too small)
+std::array<uint8_t, 16> buf{};
+size_t len = nvs.get_blob("data", buf);
+
+// Read back an object (throws with idfxx::errc::invalid_size unless the stored length is
+// sizeof(calibration))
+calibration cal = nvs.get_blob<calibration>("cal");
+
+// Stored length without reading
+size_t size = nvs.blob_size("data");
 ```
 
 ### Read-Only Mode
@@ -229,15 +257,15 @@ The component provides two API styles:
 **Exception-based:**
 - `set_value<T>(key, value)` - throws on error
 - `set_string(key, value)` - throws on error
-- `set_blob(key, data, length)` - throws on error
-- `set_blob(key, data)` - throws on error (vector overload)
+- `set_blob(key, idfxx::byte_view data)` - throws on error
+- `set_blob(key, const T& value)` - stores a trivially copyable object; throws on error
 - `commit()` - throws on error
 
 **Result-based:**
 - `try_set_value<T>(key, value)` → `result<void>`
 - `try_set_string(key, value)` → `result<void>`
-- `try_set_blob(key, data, length)` → `result<void>`
-- `try_set_blob(key, data)` → `result<void>` (vector overload)
+- `try_set_blob(key, idfxx::byte_view data)` → `result<void>`
+- `try_set_blob(key, const T& value)` → `result<void>`
 - `try_commit()` → `result<void>`
 
 ### Reading Data
@@ -245,12 +273,18 @@ The component provides two API styles:
 **Exception-based:**
 - `get_value<T>(key)` → `T` (throws on error)
 - `get_string(key)` → `std::string` (throws on error)
-- `get_blob(key)` → `std::vector<uint8_t>` (throws on error)
+- `get_blob(key)` → `std::vector<std::byte>` (throws on error)
+- `get_blob(key, idfxx::byte_span buf)` → `size_t` blob length (throws on error)
+- `get_blob<T>(key)` → `T` (throws on error)
+- `blob_size(key)` → `size_t` (throws on error)
 
 **Result-based:**
 - `try_get_value<T>(key)` → `result<T>`
 - `try_get_string(key)` → `result<std::string>`
-- `try_get_blob(key)` → `result<std::vector<uint8_t>>`
+- `try_get_blob(key)` → `result<std::vector<std::byte>>`
+- `try_get_blob(key, idfxx::byte_span buf)` → `result<size_t>`
+- `try_get_blob<T>(key)` → `result<T>`
+- `try_blob_size(key)` → `result<size_t>`
 
 ### Erasing Data
 
@@ -308,6 +342,14 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
   `uint64_t`, `int64_t`
 - With ESP-IDF 6.1 or later, `float` and `double` are also supported; storing NaN fails with
   `idfxx::errc::invalid_arg`. On earlier versions these overloads do not exist
+- Reading a blob into a buffer smaller than the stored blob fails with `idfxx::errc::invalid_size`,
+  and leaves the buffer contents unspecified
+- `set_blob(key, value)` stores an object's exact bytes, including padding. `get_blob<T>()` fails
+  with `idfxx::errc::invalid_size` unless the stored length is `sizeof(T)`, and changing the type's
+  layout makes earlier blobs unreadable or misread. Arrays, spans, vectors and other ranges are
+  stored as their elements' bytes instead; ranges of other element types (e.g. `uint32_t`) are
+  passed as `std::as_bytes(std::span{values})`
+- `secure_config` keys (`eky`, `tky`) are `std::array<std::byte, 32>`
 
 ## License
 
