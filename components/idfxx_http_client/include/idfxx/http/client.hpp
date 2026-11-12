@@ -21,6 +21,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/http/types>
 
@@ -72,7 +73,7 @@ enum class event_id : int {
  */
 struct event_data {
     enum event_id id;              ///< Event type
-    std::span<const uint8_t> data; ///< Payload for on_data events
+    byte_view data;                ///< Payload for on_data events
     std::string_view header_key;   ///< Header name for on_header events
     std::string_view header_value; ///< Header value for on_header events
 };
@@ -331,15 +332,33 @@ public:
     [[nodiscard]] std::optional<std::string> get_header(std::string_view key) const;
 
     /**
-     * @brief Sets the POST request body.
+     * @brief Sets the POST request body to text.
+     *
+     * The client takes ownership of a copy of the text, keeping it alive
+     * for the duration of the request. Throws std::bad_alloc (or aborts)
+     * on allocation failure.
+     *
+     * The request is sent with `Content-Type: application/x-www-form-urlencoded`
+     * unless a Content-Type has been set with set_header().
+     *
+     * @param data POST body content.
+     */
+    void set_post_field(std::string_view data);
+
+    /**
+     * @brief Sets the POST request body to binary data.
      *
      * The client takes ownership of a copy of the data, keeping it alive
      * for the duration of the request. Throws std::bad_alloc (or aborts)
      * on allocation failure.
      *
+     * The request is sent with `Content-Type: application/x-www-form-urlencoded`
+     * unless a Content-Type has been set with set_header(); set one that
+     * describes the data, such as `application/octet-stream`.
+     *
      * @param data POST body content.
      */
-    void set_post_field(std::string_view data);
+    void set_post_field(byte_view data);
 
     /**
      * @brief Sets the username for authentication.
@@ -522,7 +541,7 @@ public:
          *         write or finish failed, or
          *         idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
          */
-        void write(std::span<const uint8_t> data) { unwrap(try_write(data)); }
+        void write(byte_view data) { unwrap(try_write(data)); }
 
         /**
          * @brief Sends string data as one chunk of the request body.
@@ -560,7 +579,7 @@ public:
          *         write or finish failed.
          * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
          */
-        [[nodiscard]] result<void> try_write(std::span<const uint8_t> data);
+        [[nodiscard]] result<void> try_write(byte_view data);
 
         /**
          * @brief Sends string data as one chunk of the request body.
@@ -696,14 +715,14 @@ public:
      * When the write fails, including on a timeout, an unspecified prefix of
      * @p data may already have been sent.
      *
-     * @param data Binary data to write.
-     * @return Number of bytes written.
+     * @param data Binary data to write. At most INT_MAX bytes.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
-     *         the timeout expires, `client::errc::write_data` when the write fails, and
+     *         the timeout expires, `client::errc::write_data` when the write fails,
+     *         `idfxx::errc::invalid_arg` when @p data is larger than INT_MAX bytes, and
      *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
-    [[nodiscard]] size_t write(std::span<const uint8_t> data) { return unwrap(try_write(data)); }
+    void write(byte_view data) { unwrap(try_write(data)); }
 
     /**
      * @brief Writes string data to the open connection.
@@ -712,14 +731,14 @@ public:
      * When the write fails, including on a timeout, an unspecified prefix of
      * @p data may already have been sent.
      *
-     * @param data String data to write.
-     * @return Number of bytes written.
+     * @param data String data to write. At most INT_MAX bytes.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
-     *         the timeout expires, `client::errc::write_data` when the write fails, and
+     *         the timeout expires, `client::errc::write_data` when the write fails,
+     *         `idfxx::errc::invalid_arg` when @p data is larger than INT_MAX bytes, and
      *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
-    [[nodiscard]] size_t write(std::string_view data) { return unwrap(try_write(data)); }
+    void write(std::string_view data) { unwrap(try_write(data)); }
 
     /**
      * @brief Reads and processes response headers.
@@ -757,7 +776,7 @@ public:
      *         before the response body is complete and no data was read, and
      *         `idfxx::errc::invalid_state` when a chunked request was abandoned.
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(byte_span buf) { return unwrap(try_read(buf)); }
 
     /**
      * @brief Reads response body data into a character buffer.
@@ -845,14 +864,15 @@ public:
      * When the write fails, including on a timeout, an unspecified prefix of
      * @p data may already have been sent.
      *
-     * @param data Binary data to write.
-     * @return Number of bytes written, or an error.
+     * @param data Binary data to write. At most INT_MAX bytes.
+     * @return Success once all of @p data has been written, or an error.
      * @retval client::errc::eagain The timeout expired while waiting to write.
      * @retval client::errc::write_data The write failed.
+     * @retval idfxx::errc::invalid_arg @p data is larger than INT_MAX bytes.
      * @retval idfxx::errc::invalid_state A chunked request was abandoned by
      *         discarding its chunk_writer before try_finish().
      */
-    [[nodiscard]] result<size_t> try_write(std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_write(byte_view data);
 
     /**
      * @brief Writes string data to the open connection.
@@ -861,14 +881,15 @@ public:
      * When the write fails, including on a timeout, an unspecified prefix of
      * @p data may already have been sent.
      *
-     * @param data String data to write.
-     * @return Number of bytes written, or an error.
+     * @param data String data to write. At most INT_MAX bytes.
+     * @return Success once all of @p data has been written, or an error.
      * @retval client::errc::eagain The timeout expired while waiting to write.
      * @retval client::errc::write_data The write failed.
+     * @retval idfxx::errc::invalid_arg @p data is larger than INT_MAX bytes.
      * @retval idfxx::errc::invalid_state A chunked request was abandoned by
      *         discarding its chunk_writer before try_finish().
      */
-    [[nodiscard]] result<size_t> try_write(std::string_view data);
+    [[nodiscard]] result<void> try_write(std::string_view data);
 
     /**
      * @brief Reads and processes response headers.
@@ -909,7 +930,7 @@ public:
      * @retval idfxx::errc::invalid_state A chunked request was abandoned by
      *         discarding its chunk_writer before try_finish().
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(byte_span buf);
 
     /**
      * @brief Reads response body data into a character buffer.

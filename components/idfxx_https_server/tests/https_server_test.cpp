@@ -165,7 +165,7 @@ TEST_CASE("https server handles POST with body", "[idfxx][https]") {
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_post("/echo", [](request& req) -> result<void> {
-        auto body = req.try_recv_body();
+        auto body = req.try_read_body();
         if (!body) return idfxx::error(body.error());
         if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send(*body);
@@ -184,8 +184,7 @@ TEST_CASE("https server handles POST with body", "[idfxx][https]") {
     std::string_view payload = "tls payload";
     auto r2 = c->try_open(payload.size());
     TEST_ASSERT_TRUE(r2.has_value());
-    auto written = c->try_write(payload);
-    TEST_ASSERT_TRUE(written.has_value());
+    TEST_ASSERT_TRUE(c->try_write(payload).has_value());
     auto r3 = c->try_fetch_headers();
     TEST_ASSERT_TRUE(r3.has_value());
     std::string body;

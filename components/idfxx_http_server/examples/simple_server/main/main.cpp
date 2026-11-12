@@ -40,7 +40,7 @@ static void register_routes(idfxx::http::server& srv) {
 
     // POST /echo — echoes the request body back
     srv.on_post("/echo", [](idfxx::http::request& req) -> idfxx::result<void> {
-        auto body = req.recv_body();
+        auto body = req.read_body();
         logger.info("Echoing {} bytes", body.size());
         req.set_content_type("text/plain");
         req.send(body);

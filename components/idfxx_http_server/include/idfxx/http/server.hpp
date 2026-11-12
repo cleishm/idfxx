@@ -21,6 +21,8 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/http/types>
@@ -313,61 +315,113 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Receives raw request body data into a buffer.
+     * @brief Reads the next part of the request body.
      *
-     * @param buf Buffer to receive data into.
-     * @return Number of bytes received.
+     * Blocks until some body data has been received, then reads up to
+     * `buf.size()` bytes into the front of @p buf. Fewer bytes may be read
+     * than requested even before the end of the body; keep reading until 0 is
+     * returned. The body ends after content_length() bytes; if the connection
+     * closes before then, the read fails instead. The request is an
+     * idfxx::byte_source, so the body can be passed to code that consumes any
+     * byte stream.
+     *
+     * @code
+     * srv.on_post("/upload", [](idfxx::http::request& req) -> idfxx::result<void> {
+     *     std::array<std::byte, 512> buf;
+     *     while (size_t n = req.read(buf)) {
+     *         store({buf.data(), n});
+     *     }
+     *     req.send("stored");
+     *     return {};
+     * });
+     * @endcode
+     *
+     * @param buf Buffer to read into.
+     * @return Number of bytes read, or 0 at the end of the body (or when @p buf is empty).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error with idfxx::errc::timeout if no data arrived within the
+     *         server's `recv_wait_timeout`, or server::errc::invalid_request if receiving failed
+     *         or the connection closed before content_length() bytes of body arrived.
      */
-    [[nodiscard]] size_t recv(std::span<uint8_t> buf) { return unwrap(try_recv(buf)); }
+    [[nodiscard]] size_t read(byte_span buf) { return unwrap(try_read(buf)); }
 
     /**
-     * @brief Receives raw request body data into a character buffer.
+     * @brief Reads the next part of the request body as text.
      *
-     * @param buf Buffer to receive data into.
-     * @return Number of bytes received.
+     * Behaves as the byte_span overload, reading into a character
+     * buffer.
+     *
+     * @param buf Buffer to read into.
+     * @return Number of characters read, or 0 at the end of the body (or when @p buf is empty).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error with idfxx::errc::timeout if no data arrived within the
+     *         server's `recv_wait_timeout`, or server::errc::invalid_request if receiving failed
+     *         or the connection closed before content_length() bytes of body arrived.
      */
-    [[nodiscard]] size_t recv(std::span<char> buf) { return unwrap(try_recv(buf)); }
+    [[nodiscard]] size_t read(std::span<char> buf) { return unwrap(try_read(buf)); }
 
     /**
-     * @brief Receives the entire request body as a string.
+     * @brief Reads the rest of the request body as a string.
      *
-     * Reads all remaining body data up to content_length() bytes.
+     * Reads the body data not yet read, up to content_length() bytes in all.
+     * Fails if the connection closes before the whole body has arrived.
      *
      * @return The request body string.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error with idfxx::errc::timeout if no data arrived within the
+     *         server's `recv_wait_timeout`, or server::errc::invalid_request if receiving failed
+     *         or the connection closed before content_length() bytes of body arrived.
      */
-    [[nodiscard]] std::string recv_body() { return unwrap(try_recv_body()); }
+    [[nodiscard]] std::string read_body() { return unwrap(try_read_body()); }
 #endif
 
     /**
-     * @brief Receives raw request body data into a buffer.
+     * @brief Reads the next part of the request body.
      *
-     * @param buf Buffer to receive data into.
-     * @return Number of bytes received, or an error.
+     * Blocks until some body data has been received, then reads up to
+     * `buf.size()` bytes into the front of @p buf. Fewer bytes may be read
+     * than requested even before the end of the body; keep reading until 0 is
+     * returned. The body ends after content_length() bytes; if the connection
+     * closes before then, the read fails instead. The request is an
+     * idfxx::byte_source, so the body can be passed to code that consumes any
+     * byte stream.
+     *
+     * @param buf Buffer to read into.
+     * @return Number of bytes read, 0 at the end of the body (or when @p buf is empty), or an
+     *         error.
+     * @retval idfxx::errc::timeout No data arrived within the server's `recv_wait_timeout`.
+     * @retval server::errc::invalid_request Receiving failed, or the connection closed before
+     *         content_length() bytes of body arrived.
      */
-    [[nodiscard]] result<size_t> try_recv(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(byte_span buf);
 
     /**
-     * @brief Receives raw request body data into a character buffer.
+     * @brief Reads the next part of the request body as text.
      *
-     * @param buf Buffer to receive data into.
-     * @return Number of bytes received, or an error.
+     * Behaves as the byte_span overload, reading into a character
+     * buffer.
+     *
+     * @param buf Buffer to read into.
+     * @return Number of characters read, 0 at the end of the body (or when @p buf is empty), or
+     *         an error.
+     * @retval idfxx::errc::timeout No data arrived within the server's `recv_wait_timeout`.
+     * @retval server::errc::invalid_request Receiving failed, or the connection closed before
+     *         content_length() bytes of body arrived.
      */
-    [[nodiscard]] result<size_t> try_recv(std::span<char> buf);
+    [[nodiscard]] result<size_t> try_read(std::span<char> buf);
 
     /**
-     * @brief Receives the entire request body as a string.
+     * @brief Reads the rest of the request body as a string.
      *
-     * Reads all remaining body data up to content_length() bytes.
+     * Reads the body data not yet read, up to content_length() bytes in all.
+     * Fails if the connection closes before the whole body has arrived.
      *
      * @return The request body string, or an error.
+     * @retval idfxx::errc::timeout No data arrived within the server's `recv_wait_timeout`.
+     * @retval server::errc::invalid_request Receiving failed, or the connection closed before
+     *         content_length() bytes of body arrived.
      */
-    [[nodiscard]] result<std::string> try_recv_body();
+    [[nodiscard]] result<std::string> try_read_body();
 
     // =========================================================================
     // Response Setup
@@ -508,19 +562,41 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void send(std::span<const uint8_t> body) { unwrap(try_send(body)); }
+    void send(byte_view body) { unwrap(try_send(body)); }
 
     /**
      * @brief Sends a chunk of a chunked response.
      *
      * Call repeatedly to stream data to the client. Call end_chunked()
-     * to finalize the chunked response.
+     * to finalize the chunked response. An empty chunk sends nothing, since a
+     * zero-length chunk would end the response.
+     *
+     * @code
+     * req.set_content_type("text/plain");
+     * for (const auto& line : lines) {
+     *     req.send_chunk(line);
+     * }
+     * req.end_chunked();
+     * @endcode
+     *
+     * @param chunk The chunk text to send.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     */
+    void send_chunk(std::string_view chunk) { unwrap(try_send_chunk(chunk)); }
+
+    /**
+     * @brief Sends a chunk of binary data of a chunked response.
+     *
+     * Call repeatedly to stream data to the client. Call end_chunked()
+     * to finalize the chunked response. An empty chunk sends nothing, since a
+     * zero-length chunk would end the response.
      *
      * @param chunk The chunk data to send.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void send_chunk(std::string_view chunk) { unwrap(try_send_chunk(chunk)); }
+    void send_chunk(byte_view chunk) { unwrap(try_send_chunk(chunk)); }
 
     /**
      * @brief Finalizes a chunked response.
@@ -559,18 +635,31 @@ public:
      * @param body The response body data.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_send(std::span<const uint8_t> body);
+    [[nodiscard]] result<void> try_send(byte_view body);
 
     /**
      * @brief Sends a chunk of a chunked response.
      *
      * Call repeatedly to stream data to the client. Call try_end_chunked()
-     * to finalize the chunked response.
+     * to finalize the chunked response. An empty chunk sends nothing, since a
+     * zero-length chunk would end the response.
+     *
+     * @param chunk The chunk text to send.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_send_chunk(std::string_view chunk);
+
+    /**
+     * @brief Sends a chunk of binary data of a chunked response.
+     *
+     * Call repeatedly to stream data to the client. Call try_end_chunked()
+     * to finalize the chunked response. An empty chunk sends nothing, since a
+     * zero-length chunk would end the response.
      *
      * @param chunk The chunk data to send.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_send_chunk(std::string_view chunk);
+    [[nodiscard]] result<void> try_send_chunk(byte_view chunk);
 
     /**
      * @brief Finalizes a chunked response.
@@ -672,9 +761,9 @@ public:
      * @brief WebSocket frame data.
      */
     struct ws_frame {
-        ws_frame_type type;            ///< Frame type
-        bool final = true;             ///< Whether this is the final fragment
-        std::span<const uint8_t> data; ///< Frame payload data
+        ws_frame_type type;  ///< Frame type
+        bool final = true;   ///< Whether this is the final fragment
+        byte_view data = {}; ///< Frame payload data
     };
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
@@ -685,7 +774,7 @@ public:
      * Obtained from request::ws_recv_begin(), which receives the frame header.
      * The payload is then read in parts of any size with read(), so frames
      * larger than the available buffer can be processed without holding the
-     * whole payload in memory. Each part is unmasked and returned as a span
+     * whole payload in memory. Each part is unmasked and returned as a view
      * into the caller's buffer.
      *
      * The reader refers to the request that created it and is only valid
@@ -716,9 +805,9 @@ public:
      *         reader.skip();
      *         return {};
      *     }
-     *     std::array<uint8_t, 256> buf;
+     *     std::array<std::byte, 256> buf;
      *     while (reader.remaining() > 0) {
-     *         auto part = reader.read(buf);
+     *         idfxx::byte_span part = reader.read(buf);
      *         process(part);
      *     }
      *     return {};
@@ -778,13 +867,13 @@ public:
          * @brief Reads the next part of the payload.
          *
          * Blocks until `std::min(buf.size(), remaining())` bytes have been
-         * received, unmasks them, and returns them as a span into @p buf.
-         * Returns an empty span, without receiving anything, once the whole
+         * received, unmasks them, and returns them as a view into @p buf.
+         * Returns an empty view, without receiving anything, once the whole
          * payload has been read.
          *
          * @param buf Buffer to receive the payload part into. Must not be empty
          *            while payload remains.
-         * @return The unmasked payload part, referencing @p buf.
+         * @return The unmasked payload part: the filled front of @p buf.
          * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
          * @throws std::system_error with idfxx::errc::invalid_arg if @p buf is empty while
          *         payload remains, idfxx::errc::invalid_state if an earlier read or skip
@@ -792,28 +881,26 @@ public:
          *         further is received after this, and the connection is closed when the
          *         handler returns).
          */
-        [[nodiscard]] std::span<const uint8_t> read(std::span<uint8_t> buf) {
-            return unwrap(try_read(buf));
-        }
+        [[nodiscard]] byte_span read(byte_span buf) { return unwrap(try_read(buf)); }
 #endif
 
         /**
          * @brief Reads the next part of the payload.
          *
          * Blocks until `std::min(buf.size(), remaining())` bytes have been
-         * received, unmasks them, and returns them as a span into @p buf.
-         * Returns an empty span, without receiving anything, once the whole
+         * received, unmasks them, and returns them as a view into @p buf.
+         * Returns an empty view, without receiving anything, once the whole
          * payload has been read.
          *
          * @param buf Buffer to receive the payload part into. Must not be empty
          *            while payload remains.
-         * @return The unmasked payload part referencing @p buf, or an error.
+         * @return The unmasked payload part (the filled front of @p buf), or an error.
          * @retval idfxx::errc::invalid_arg if @p buf is empty while payload remains.
          * @retval idfxx::errc::invalid_state if an earlier read or skip failed.
          * @retval other if the payload could not be received. Nothing further is received
          *         after this, and the connection is closed when the handler returns.
          */
-        [[nodiscard]] result<std::span<const uint8_t>> try_read(std::span<uint8_t> buf);
+        [[nodiscard]] result<byte_span> try_read(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
         /**
@@ -882,14 +969,14 @@ public:
      * likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
-     * @return The received frame with type and payload span referencing buf.
+     * @return The received frame, with its payload referencing @p buf.
      * @note Only available when CONFIG_HTTPD_WS_SUPPORT and CONFIG_COMPILER_CXX_EXCEPTIONS are
      * enabled.
      * @throws std::system_error with idfxx::errc::invalid_size if the payload is larger than
      *         @p buf, or another error if the frame could not be received. In either case
      *         the connection is closed when the handler returns.
      */
-    [[nodiscard]] ws_frame ws_recv(std::span<uint8_t> buf) { return unwrap(try_ws_recv(buf)); }
+    [[nodiscard]] ws_frame ws_recv(byte_span buf) { return unwrap(try_ws_recv(buf)); }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     /**
@@ -910,9 +997,9 @@ public:
      * @code
      * srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
      *     auto reader = req.ws_recv_begin();
-     *     std::array<uint8_t, 128> buf;
+     *     std::array<std::byte, 128> buf;
      *     while (reader.remaining() > 0) {
-     *         auto part = reader.read(buf);
+     *         idfxx::byte_span part = reader.read(buf);
      *         consume(part);
      *     }
      *     return {};
@@ -948,7 +1035,7 @@ public:
      * enabled.
      * @throws std::system_error on failure.
      */
-    void ws_send_binary(std::span<const uint8_t> data) { unwrap(try_ws_send_binary(data)); }
+    void ws_send_binary(byte_view data) { unwrap(try_ws_send_binary(data)); }
 
     /**
      * @brief Sends a WebSocket frame with the given type.
@@ -975,13 +1062,13 @@ public:
      * likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
-     * @return The received frame with type and payload span referencing buf, or an error.
+     * @return The received frame, with its payload referencing @p buf, or an error.
      * @retval idfxx::errc::invalid_size if the payload is larger than @p buf. The connection
      *         is closed when the handler returns.
      * @retval other if the frame could not be received. The connection is closed when the
      *         handler returns.
      */
-    [[nodiscard]] result<ws_frame> try_ws_recv(std::span<uint8_t> buf);
+    [[nodiscard]] result<ws_frame> try_ws_recv(byte_span buf);
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     /**
@@ -1024,7 +1111,7 @@ public:
      * @param data The binary data to send.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_ws_send_binary(std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_ws_send_binary(byte_view data);
 
     /**
      * @brief Sends a WebSocket frame with the given type.
@@ -1057,6 +1144,7 @@ private:
     std::list<std::pair<std::string, std::string>> _resp_headers;
     mutable bool _query_fetched = false;
     mutable std::optional<std::string> _query_cache;
+    size_t _body_received = 0;      // request body bytes read so far
     bool _close_connection = false; // an error response requires the connection to close
 #ifdef CONFIG_HTTPD_WS_SUPPORT
     bool _ws_payload_unread = false; // frame payload was left unread; the connection must close
@@ -1065,6 +1153,10 @@ private:
 #endif
 #endif
 };
+
+/** @cond INTERNAL */
+static_assert(idfxx::byte_source<idfxx::http::request>);
+/** @endcond */
 
 /**
  * @headerfile <idfxx/http/server>
@@ -1110,7 +1202,7 @@ public:
         // clang-format off
         handlers_full    = 0xb001, ///< All URI handler slots are full
         handler_exists   = 0xb002, ///< URI handler already registered for this method and URI
-        invalid_request  = 0xb003, ///< Invalid request pointer
+        invalid_request  = 0xb003, ///< Invalid or incomplete request, or receiving it failed
         result_truncated = 0xb004, ///< Result string was truncated
         resp_header      = 0xb005, ///< Too many response headers, or headers too large
         resp_send        = 0xb006, ///< Error sending response

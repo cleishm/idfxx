@@ -10,7 +10,7 @@ Type-safe HTTP server for ESP32.
 - Wildcard and any-method URI matching
 - Server-wide error handlers for custom error responses (e.g. 404 pages), also callable from URI
   handlers
-- Request header, query string, and body parsing
+- Request header, query string, and body parsing; the body is readable as an `idfxx::byte_source`
 - Chunked and complete response sending
 - Session open/close callbacks
 - WebSocket endpoint support (when `CONFIG_HTTPD_WS_SUPPORT` is enabled)
@@ -58,7 +58,7 @@ try {
     });
 
     srv.on_post("/api/data", [](idfxx::http::request& req) -> idfxx::result<void> {
-        auto body = req.recv_body();
+        auto body = req.read_body();
         idfxx::log::info("HTTP", "Received: {}", body);
         req.send("accepted");
         return {};
@@ -139,9 +139,9 @@ srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
         reader.skip(); // discard frames we don't handle
         return {};
     }
-    std::array<uint8_t, 256> buf;
+    std::array<std::byte, 256> buf;
     while (reader.remaining() > 0) {
-        auto part = reader.read(buf); // unmasked payload, referencing buf
+        idfxx::byte_span part = reader.read(buf); // unmasked payload, the front of buf
         process(part);
     }
     return {};
@@ -185,16 +185,20 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `query_param(key)` - Single query parameter (returns `std::optional`)
 
 **Body:**
-- `recv(buf)` / `try_recv(buf)` - Receive raw body data
-- `recv_body()` / `try_recv_body()` - Receive entire body as string
+- `read(buf)` / `try_read(buf)` - Read the next part of the body into a byte or `char` buffer; 0 at
+  the end of the body (after `content_length()` bytes), `invalid_request` if the connection closes
+  before then. `try_read(idfxx::byte_span)` makes the request an `idfxx::byte_source`
+- `read_body()` / `try_read_body()` - Read the rest of the body as a string; `invalid_request` if
+  the connection closes before the whole body arrives
 
 **Response:**
 - `set_status(code)` / `set_status(str)` / `try_set_status(str)` - Set response status
 - `set_content_type(type)` / `try_set_content_type(type)` - Set Content-Type
 - `set_header(field, value)` / `try_set_header(field, value)` - Add response header (at most
   `max_resp_headers`)
-- `send(body)` / `try_send(body)` - Send complete response
-- `send_chunk(data)` / `try_send_chunk(data)` - Send chunked data
+- `send(body)` / `try_send(body)` - Send complete response (text or bytes)
+- `send_chunk(data)` / `try_send_chunk(data)` - Send one chunk of a chunked response (text or
+  bytes); empty data sends nothing
 - `end_chunked()` / `try_end_chunked()` - End chunked response
 - `send_error(code, msg)` / `try_send_error(code, msg)` - Send error response
 - `handle_error(status)` / `try_handle_error(status)` - Respond with the server's error handler for
@@ -212,7 +216,8 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 
 - `type()` / `final()` - Frame type and FIN flag
 - `size()` / `remaining()` - Total payload length and bytes not yet read
-- `read(buf)` / `try_read(buf)` - Read the next part of the payload into `buf`
+- `read(buf)` / `try_read(buf)` - Read the next part of the payload into `buf`, returning the
+  filled front of `buf` as an `idfxx::byte_span`
 - `skip()` / `try_skip()` - Discard the rest of the payload
 
 ### `server`
@@ -245,7 +250,8 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - **HTTP server errors**: `server::errc` enum maps to ESP-IDF `ESP_ERR_HTTPD_*` codes
   - `handlers_full` - All URI handler slots are full
   - `handler_exists` - Duplicate handler registration
-  - `invalid_request` - Invalid request
+  - `invalid_request` - Invalid or incomplete request, or receiving it failed (including a
+    connection that closes before the whole request body arrives)
   - `result_truncated` - Result string truncated
   - `resp_header` - Too many response headers (over `max_resp_headers`), or headers too large
   - `resp_send` - Error sending response
