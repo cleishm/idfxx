@@ -790,17 +790,19 @@ size_t draw_text_box(
  * the display (e.g. `panel.write(band, 0, 40)`).
  *
  * A canvas may also place its surface within a larger drawing-coordinate
- * space. Constructing with an origin — `canvas(band, 0, y)` — declares that
- * the surface's top-left corner sits at (0, y) in the canvas's coordinates,
- * so a frame taller than the surface can be authored once in full-screen
+ * space. Constructing with an origin and the space's size —
+ * `canvas(band, 0, y, DISPLAY_W, DISPLAY_H)` — declares that the surface's
+ * top-left corner sits at (0, y) in a DISPLAY_W x DISPLAY_H space, so a
+ * frame taller than the surface can be authored once in full-screen
  * coordinates and rendered band by band, with everything outside the band
  * clipped (on all four sides — glyphs and lines straddling a band edge
- * render exactly their visible part):
+ * render exactly their visible part) and @ref width / @ref height reporting
+ * the full screen in every band:
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(DISPLAY_W, BAND_H);
  * for (size_t y = 0; y < DISPLAY_H; y += BAND_H) {
- *     idfxx::gfx::canvas canvas(band, 0, y);
+ *     idfxx::gfx::canvas canvas(band, 0, y, DISPLAY_W, DISPLAY_H);
  *     canvas.clear();
  *     draw_frame(canvas); // draws in full-screen coordinates
  *     panel.write(band, 0, y);
@@ -850,19 +852,48 @@ public:
      * uses the full-space coordinates; pixels landing outside the surface
      * are clipped on all four sides. @ref width and @ref height report the
      * far edges of the surface in canvas coordinates (@p x + the surface
-     * width, @p y + the surface height), so for a full-width band they
-     * match the frame dimensions.
+     * width, @p y + the surface height), so they depend on where the surface
+     * sits — for a band, @ref height is the band's bottom edge, not the
+     * frame's. When drawing reads the canvas size (layout relative to the
+     * bottom or right edge, or a @ref rotated view over the canvas), use the
+     * constructor that also takes the size of the drawing space.
      *
      * @param surface The surface to draw on; must outlive the canvas.
      * @param x       Canvas-coordinate column of the surface's left edge.
      * @param y       Canvas-coordinate row of the surface's top edge.
      */
     canvas(Surface& surface, size_t x, size_t y) noexcept
+        : canvas(surface, x, y, x + surface.width(), y + surface.height()) {}
+
+    /**
+     * @brief Creates a canvas for a @p width x @p height drawing space whose surface sits at
+     *        (@p x, @p y) in it.
+     *
+     * Declares that the surface holds the region of the drawing space whose
+     * top-left corner is (@p x, @p y) — the band-rendering mapping, with the
+     * space's size given so that @ref width and @ref height report the whole
+     * space (the full frame) wherever the surface sits. Drawing uses the
+     * space's coordinates; pixels landing outside the surface, or outside
+     * the space, are clipped on all four sides.
+     *
+     * @code
+     * idfxx::lcd::rgb565_framebuffer band(240, 40);
+     * idfxx::gfx::canvas canvas(band, 0, 80, 240, 320); // rows 80-119 of a 240x320 frame
+     * canvas.draw_text(idfxx::font::spleen_8x16, 8, canvas.height() - 20, "footer", white);
+     * @endcode
+     *
+     * @param surface The surface to draw on; must outlive the canvas.
+     * @param x       Canvas-coordinate column of the surface's left edge.
+     * @param y       Canvas-coordinate row of the surface's top edge.
+     * @param width   Width of the drawing space, in pixels.
+     * @param height  Height of the drawing space, in pixels.
+     */
+    canvas(Surface& surface, size_t x, size_t y, size_t width, size_t height) noexcept
         : _surface(&surface)
         , _dx(static_cast<ptrdiff_t>(x))
         , _dy(static_cast<ptrdiff_t>(y))
-        , _width(x + surface.width())
-        , _height(y + surface.height()) {}
+        , _width(width)
+        , _height(height) {}
 
     /** @brief Returns the underlying surface. */
     [[nodiscard]] Surface& surface() const noexcept { return *_surface; }
@@ -872,8 +903,9 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface width; for a translated canvas it
-     * is the surface's far column edge in canvas coordinates; for a
-     * @ref window it is the window width.
+     * is the drawing-space width it was constructed with, or else the
+     * surface's far column edge in canvas coordinates; for a @ref window it
+     * is the window width.
      */
     [[nodiscard]] size_t width() const noexcept { return _width; }
 
@@ -882,8 +914,9 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface height; for a translated canvas it
-     * is the surface's far row edge in canvas coordinates; for a
-     * @ref window it is the window height.
+     * is the drawing-space height it was constructed with, or else the
+     * surface's far row edge in canvas coordinates; for a @ref window it
+     * is the window height.
      */
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
@@ -1530,11 +1563,13 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and writes the band to
- * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
- * pass's band is clipped before drawing rather than discarded pixel by
- * pixel; content straddling band edges renders exactly its visible part, so
- * the assembled frame is identical to one drawn through a full-frame buffer.
+ * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
+ * so its width and height are the frame's in every pass), and writes the
+ * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
+ * outside the pass's band is clipped before drawing rather than discarded
+ * pixel by pixel; content straddling band edges renders exactly its visible
+ * part, so the assembled frame is identical to one drawn through a
+ * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
  * each time, as a pure function of the scene state — compute any state
@@ -1576,11 +1611,13 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and writes the band to
- * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
- * pass's band is clipped before drawing rather than discarded pixel by
- * pixel; content straddling band edges renders exactly its visible part, so
- * the assembled frame is identical to one drawn through a full-frame buffer.
+ * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
+ * so its width and height are the frame's in every pass), and writes the
+ * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
+ * outside the pass's band is clipped before drawing rather than discarded
+ * pixel by pixel; content straddling band edges renders exactly its visible
+ * part, so the assembled frame is identical to one drawn through a
+ * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
  * each time, as a pure function of the scene state — compute any state
@@ -1609,7 +1646,7 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
         return error(errc::invalid_arg);
     }
     for (size_t y = 0; y < frame_height; y += band_height) {
-        canvas c(band, 0, y);
+        canvas c(band, 0, y, band.width(), frame_height);
         c.clear();
         draw(c);
         if (auto written = dest.try_write(std::as_const(band), size_t{0}, y); !written) {

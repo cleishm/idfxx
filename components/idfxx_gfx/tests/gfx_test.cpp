@@ -1470,3 +1470,207 @@ TEST_CASE("text_align to_string and formatter", "[idfxx][gfx]") {
     TEST_ASSERT_EQUAL_STRING("center", s.c_str());
 #endif
 }
+
+// =============================================================================
+// Runtime tests: drawing-space canvas (explicit width and height)
+// =============================================================================
+
+TEST_CASE("gfx canvas with a drawing space reports the space size", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    canvas c(fb, 0, 16, 8, 32);
+    TEST_ASSERT_EQUAL(8, c.width());
+    TEST_ASSERT_EQUAL(32, c.height());
+
+    // The 3-argument form still reports the surface's far edges.
+    canvas c3(fb, 4, 16);
+    TEST_ASSERT_EQUAL(4 + 8, c3.width());
+    TEST_ASSERT_EQUAL(16 + 8, c3.height());
+
+    c.set_pixel(0, 16, true); // surface (0, 0)
+    c.set_pixel(7, 23, true); // surface (7, 7)
+    c.set_pixel(0, 15, true); // above the surface
+    c.set_pixel(0, 24, true); // below the surface, inside the space
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(7, 7));
+    TEST_ASSERT_EQUAL(2, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx clipping: a surface extending past the drawing space is clipped to it",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    canvas c(fb, 0, 4, 8, 8); // space rows 4-7 land on band rows 0-3; band rows 4-7 are outside
+    c.fill_rect(0, 0, 8, 12, true);
+    TEST_ASSERT_EQUAL(8 * 4, count_set_rows(fb, 0, 4));
+    TEST_ASSERT_EQUAL(0, count_set_rows(fb, 4, 8));
+
+    c.clear();
+    c.fill(true);
+    TEST_ASSERT_EQUAL(8 * 4, count_set_rows(fb, 0, 4));
+    TEST_ASSERT_EQUAL(0, count_set_rows(fb, 4, 8));
+
+    sized_counter<8, 8> surf;
+    canvas cc(surf, 0, 4, 8, 8);
+    cc.draw_text(spleen_5x8, 0, 8, "ABC");
+    cc.draw_text(spleen_5x8, 0, 8, "ABC", true, 2);
+    cc.fill_rect(0, 8, 8, 4, true);
+    cc.draw_rect(0, 8, 8, 4, true);
+    cc.draw_line(0, 8, 7, 11, true);
+    cc.draw_line(7, 11, 0, 8, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+
+    // Sanity: content inside both the space and the surface writes.
+    cc.fill_rect(0, 4, 8, 1, true);
+    TEST_ASSERT_EQUAL(8, surf.writes);
+}
+
+TEST_CASE("gfx clipping: a window on a drawing-space canvas clamps to the space",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    canvas c(fb, 0, 4, 8, 8);
+
+    auto w = c.window(2, 6, 20, 20);
+    TEST_ASSERT_EQUAL(6, w.width());
+    TEST_ASSERT_EQUAL(2, w.height());
+    w.fill(true);
+    // Space rows 6-7 are band rows 2-3, columns 2-7.
+    TEST_ASSERT_EQUAL(6 * 2, count_set_pixels(fb));
+    TEST_ASSERT_EQUAL(6 * 2, count_set_rows(fb, 2, 4));
+
+    auto empty = c.window(0, 8, 8, 4); // wholly outside the space
+    TEST_ASSERT_EQUAL(0, empty.height());
+    empty.fill(true);
+    TEST_ASSERT_EQUAL(6 * 2, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx clipping: below-band content on a full-height canvas writes nothing",
+          "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 0, 8, 32); // the surface backs rows 0-7 of a 32-row space
+
+    c.draw_text(spleen_5x8, 0, 8, "ABC");
+    c.draw_text(spleen_5x8, 0, 8, "ABC", true, 2);
+    c.draw_text(spleen_8x16, 0, 16, "A");
+    c.draw_text(prop_font, 0, 16, "Ag");
+    c.draw_text_box(spleen_5x8, 0, 8, 8, "AB CD");
+    c.draw_text_box(prop_font, 0, 16, 8, "A A A");
+    c.fill_rect(0, 8, 8, 16, true);
+    c.draw_rect(0, 8, 8, 16, true);
+    c.draw_line(0, 8, 7, 31, true);
+    c.draw_line(7, 31, 0, 8, true);
+    c.draw_hline(0, 20, 8, true);
+    c.draw_vline(3, 8, 24, true);
+    draw_text(c, spleen_5x8, 0, 8, "ABC", true, 1);
+    draw_text(c, prop_font, 0, 16, "A", true);
+    draw_text_box(c, spleen_5x8, 0, 8, 8, "AB CD", true);
+    draw_text_box(c, prop_font, 0, 16, 8, "A A", true);
+    fill_rect(c, 0, 8, 8, 16, true);
+    draw_rect(c, 0, 8, 8, 16, true);
+    draw_line(c, 0, 8, 7, 31, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+
+    // Sanity: content reaching the band does write, for both font kinds.
+    c.draw_text(spleen_5x8, 0, 0, "A");
+    TEST_ASSERT_TRUE(surf.writes > 0);
+    surf.writes = 0;
+    c.draw_text(prop_font, 0, 3, "A");
+    TEST_ASSERT_EQUAL(4, surf.writes);
+    surf.writes = 0;
+    c.fill_rect(0, 7, 8, 5, true); // only row 7 is in the band
+    TEST_ASSERT_EQUAL(8, surf.writes);
+}
+
+// =============================================================================
+// Runtime tests: render_banded canvas size
+// =============================================================================
+
+namespace {
+
+// Draws a footer positioned from the canvas height, plus a header, so the
+// scene only assembles correctly when height() is the frame height in
+// every band.
+template<typename Canvas>
+void draw_footer_scene(Canvas& c) {
+    c.draw_text(spleen_5x8, 2, 2, "TOP");
+    c.fill_rect(0, c.height() - 3, c.width(), 3, true);
+    c.draw_text(spleen_5x8, 4, c.height() - 10, "END");
+    c.draw_rect(0, 0, c.width(), c.height(), true);
+}
+
+// Draws a scene in a canvas over a rotated view, in the rotated space.
+template<typename Canvas>
+void draw_rotated_scene(Canvas& lc) {
+    lc.draw_text(spleen_5x8, 2, 4, "RT");
+    lc.draw_text(prop_font, 2, 20, "Ag A");
+    lc.draw_line(0, 0, 31, 31, true);
+    lc.fill_rect(20, 8, 6, 12, true);
+    lc.draw_rect(1, 1, 30, 30, true);
+}
+
+// Returns true when the assembled target equals the frame.
+bool target_matches(const band_target& target, const mono_framebuffer& frame) {
+    for (size_t y = 0; y < 32; ++y) {
+        for (size_t x = 0; x < 32; ++x) {
+            if (frame.get_pixel(x, y) != target.pixels[y][x]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_CASE("gfx render_banded canvas reports the frame size in every pass", "[idfxx][gfx]") {
+    test_band band;
+    band_target target;
+    size_t passes = 0;
+    size_t wrong_height = 0;
+    size_t wrong_width = 0;
+    auto rendered = try_render_banded(band, target, 32, [&](canvas<test_band>& c) {
+        ++passes;
+        wrong_height += c.height() != 32;
+        wrong_width += c.width() != 32;
+    });
+    TEST_ASSERT_TRUE(rendered.has_value());
+    TEST_ASSERT_EQUAL(2, passes);
+    TEST_ASSERT_EQUAL(0, wrong_height);
+    TEST_ASSERT_EQUAL(0, wrong_width);
+}
+
+TEST_CASE("gfx render_banded footer placed from canvas height matches a full frame",
+          "[idfxx][gfx]") {
+    auto reference = make_fb(32, 32);
+    canvas ref_canvas(reference);
+    draw_footer_scene(ref_canvas);
+    TEST_ASSERT_TRUE(count_set_pixels(reference) > 0);
+
+    test_band band;
+    band_target target;
+    auto rendered = try_render_banded(band, target, 32, [&](canvas<test_band>& c) {
+        draw_footer_scene(c);
+    });
+    TEST_ASSERT_TRUE(rendered.has_value());
+    TEST_ASSERT_TRUE(target_matches(target, reference));
+}
+
+TEST_CASE("gfx render_banded rotated view over the canvas matches a full frame",
+          "[idfxx][gfx]") {
+    for (rotation rot : {rotation::cw90, rotation::ccw90}) {
+        auto reference = make_fb(32, 32);
+        canvas ref_canvas(reference);
+        rotated ref_view(ref_canvas, rot);
+        canvas ref_lc(ref_view);
+        draw_rotated_scene(ref_lc);
+        TEST_ASSERT_TRUE(count_set_pixels(reference) > 0);
+
+        test_band band;
+        band_target target;
+        auto rendered = try_render_banded(band, target, 32, [&](canvas<test_band>& c) {
+            rotated v(c, rot);
+            canvas lc(v);
+            draw_rotated_scene(lc);
+        });
+        TEST_ASSERT_TRUE(rendered.has_value());
+        TEST_ASSERT_TRUE(target_matches(target, reference));
+    }
+}
