@@ -287,6 +287,19 @@ PREDEFINED             += CONFIG_HTTPD_WS_SUPPORT
 PREDEFINED             += CONFIG_LWIP_IPV6
 PREDEFINED             += CONFIG_NVS_ENCRYPTION
 
+# PSA Crypto algorithm switches (from the mbedTLS configuration): enabled so every hash algorithm is
+# documented
+PREDEFINED             += PSA_WANT_ALG_MD5
+PREDEFINED             += PSA_WANT_ALG_SHA_1
+PREDEFINED             += PSA_WANT_ALG_SHA_224
+PREDEFINED             += PSA_WANT_ALG_SHA_256
+PREDEFINED             += PSA_WANT_ALG_SHA_384
+PREDEFINED             += PSA_WANT_ALG_SHA_512
+PREDEFINED             += PSA_WANT_ALG_SHA3_224
+PREDEFINED             += PSA_WANT_ALG_SHA3_256
+PREDEFINED             += PSA_WANT_ALG_SHA3_384
+PREDEFINED             += PSA_WANT_ALG_SHA3_512
+
 EXPAND_AS_DEFINED      =
 SKIP_FUNCTION_MACROS   = YES
 
