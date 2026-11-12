@@ -76,6 +76,7 @@ README](../README.md) for installation and conventions shared by every component
 | [idfxx_gfx](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gfx) | Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gfx.html) |
 | [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Bitmap font models (fixed-cell and proportional) and text metrics | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
 | [idfxx_font_spleen](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_spleen) | The Spleen bitmap fonts (5x8 and 8x16) as idfxx font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__spleen.html) |
+| [idfxx_font_inter](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_inter) | The Inter typeface (Regular, 16-48 px) as idfxx proportional font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__inter.html) |
 | [idfxx_image](https://github.com/cleishm/idfxx/tree/main/components/idfxx_image) | Pixel image views, owning buffers, EXIF orientation transforms, and placing images on a screen | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__image.html) |
 | [idfxx_jpeg](https://github.com/cleishm/idfxx/tree/main/components/idfxx_jpeg) | JPEG decoding into RGB888 images, with output scaling and EXIF orientation | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__jpeg.html) |
 

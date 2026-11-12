@@ -14,9 +14,10 @@
  * Provides two compact font representations — fixed-cell (@ref idfxx::font::mono_font)
  * and proportional (@ref idfxx::font::proportional_font) — plus text measurement.
  * Rendering lives in the @ref idfxx_gfx component; bundled fonts are
- * published as separate data packages (e.g. `idfxx_font_spleen`), each font
- * in its own translation unit so fonts an application never references are
- * dropped at link time. Generators for adding more fonts are included under
+ * published as separate data packages (`idfxx_font_spleen` for fixed-cell
+ * fonts, `idfxx_font_inter` for proportional ones), each font in its own
+ * translation unit so fonts an application never references are dropped at
+ * link time. Generators for adding more fonts are included under
  * `scripts/`: `bdf_to_c.py` (monospace BDF to @ref idfxx::font::mono_font) and
  * `ttf_to_c.py` (TrueType/OpenType to @ref idfxx::font::proportional_font).
  * @{

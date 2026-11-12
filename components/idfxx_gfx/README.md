@@ -34,7 +34,8 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
 
 - ESP-IDF 5.5 or later
 - C++23 compiler support
-- Components: `idfxx_font` (font packages such as `idfxx_font_spleen` provide the fonts themselves)
+- Components: `idfxx_font` (font packages such as `idfxx_font_spleen` and `idfxx_font_inter` provide
+  the fonts themselves)
 
 ## Installation
 
