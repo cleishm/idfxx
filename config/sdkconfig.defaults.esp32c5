@@ -4,5 +4,5 @@
 # OTA partitions. Matches the esp32c6 configuration; adjust if your module has 4MB flash.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=n
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
-CONFIG_PARTITION_TABLE_FILENAME="partitions_8mb.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="config/partitions_8mb.csv"
+CONFIG_PARTITION_TABLE_FILENAME="config/partitions_8mb.csv"

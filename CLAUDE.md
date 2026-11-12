@@ -18,20 +18,24 @@ work from a plain shell.
 
 ### Config Matrix Builds
 
+The sdkconfig fragments and partition tables live in `config/`, and each build dir holds its own
+generated `sdkconfig` (`build/sdkconfig` for the default build), so `idf.py fullclean` discards
+`menuconfig` changes; carry lasting ones into a `config/` fragment.
+
 CI builds a matrix of configs. The no-exceptions config is the only one that exercises the
 `try_*`-only API surface. Each uses an isolated build dir with its own `SDKCONFIG` (a plain
 `-D SDKCONFIG_DEFAULTS` on the existing `build/` does not switch configs):
 
 ```bash
-just build-noexc [target]                   # sdkconfig.defaults;sdkconfig.no-exceptions
-just build-noipv6 [target]                  # sdkconfig.defaults;sdkconfig.no-ipv6
+just build-noexc [target]                   # config/sdkconfig.defaults;config/sdkconfig.no-exceptions
+just build-noipv6 [target]                  # config/sdkconfig.defaults;config/sdkconfig.no-ipv6
 ```
 
 ### QEMU Testing
 
 For non-hardware tests, components can be tested in QEMU. `just qemu-test` replicates the CI
-qemu-test job locally (isolated `build-qemu/` from `sdkconfig.qemu`, merged 4MB flash image, runs
-the Unity suite watching for the `### TESTS COMPLETE ###` sentinel, then parses the summary):
+qemu-test job locally (isolated `build-qemu/` from `config/sdkconfig.qemu`, merged 4MB flash image,
+runs the Unity suite watching for the `### TESTS COMPLETE ###` sentinel, then parses the summary):
 
 ```bash
 # Build the QEMU flash image

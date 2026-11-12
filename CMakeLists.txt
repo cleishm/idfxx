@@ -26,6 +26,19 @@ if(IDFXX_TESTS)
     set(COMPONENTS tests)
 endif()
 
+# Config fragments and partition tables live in config/, so IDF's root-level
+# sdkconfig.defaults lookup needs pointing there; the target-specific
+# config/sdkconfig.defaults.<target> is still picked up beside it. An explicit
+# SDKCONFIG_DEFAULTS (-D or environment) replaces this, so pass the base
+# fragment too when layering one on top. The generated sdkconfig lives in the
+# build directory, keeping each build dir's config separate.
+if(NOT DEFINED SDKCONFIG_DEFAULTS AND NOT DEFINED ENV{SDKCONFIG_DEFAULTS})
+    set(SDKCONFIG_DEFAULTS "${CMAKE_SOURCE_DIR}/config/sdkconfig.defaults")
+endif()
+if(NOT DEFINED SDKCONFIG)
+    set(SDKCONFIG "${CMAKE_BINARY_DIR}/sdkconfig")
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(IDFXX_TESTS "${IDFXX_TESTS}")
 project(idfxx)

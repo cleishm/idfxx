@@ -13,7 +13,9 @@ just build-noipv6 [target]  # IPv6 disabled
 ```
 
 Each config builds in its own directory (`build-noexc/`, `build-noipv6/`) from its own sdkconfig
-defaults, so they don't disturb the default `build/`.
+defaults, so they don't disturb the default `build/`. The defaults and partition tables live in
+`config/`; the generated `sdkconfig` lives in the build directory, so `idf.py fullclean` discards
+`menuconfig` changes.
 
 The recipes compile through [ccache](https://ccache.dev) when it is installed (e.g.
 `brew install ccache`), which makes fresh build directories and config switches much faster. Set
@@ -35,8 +37,8 @@ Software tests run in the QEMU ESP32-S3 emulator, without physical hardware:
 just qemu-test
 ```
 
-This builds an isolated QEMU image in `build-qemu/` from `sdkconfig.qemu`, runs the Unity suite, and
-reports the pass/fail summary. Tests tagged `[hw]` are excluded.
+This builds an isolated QEMU image in `build-qemu/` from `config/sdkconfig.qemu`, runs the Unity
+suite, and reports the pass/fail summary. Tests tagged `[hw]` are excluded.
 
 While working on a component, run just its tests instead (the `idfxx_` prefix is optional):
 
