@@ -10,7 +10,7 @@ dependencies:
     public: true
     override_path: ../idfxx_core
   cleishm/idfxx_lcd:
-    version: "^3.0.0"
+    version: "^4.0.0"
     public: true
     override_path: ../idfxx_lcd
   cleishm/idfxx_panel_io:

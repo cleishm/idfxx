@@ -10,7 +10,8 @@ on an SPI bus.
 - Creating SPI panel I/O with `idfxx::panel_io` (CS and DC pins, 40 MHz pixel clock)
 - Creating an `idfxx::lcd::ili9341` panel with a reset pin, BGR color order and 16 bits per pixel,
   then turning it on with `display_on()`
-- Building colors with `idfxx::lcd::rgb565` and drawing 240x40 bands with `draw_bitmap()`
+- Building colors with `idfxx::lcd::rgb565` and drawing 240x40 bands with `draw_bitmap()`, passing
+  each band's bytes with `std::as_bytes`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).

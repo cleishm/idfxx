@@ -123,7 +123,7 @@ display.invert_color(true);
 // Mirror the display (affects subsequent draws only)
 display.mirror(true, false);
 
-// Swap X and Y axes (affects subsequent draws only)
+// Swap X and Y axes (affects subsequent draws only; framebuffer writes need the axes unswapped)
 display.swap_xy(true);
 
 // Turn display on/off
@@ -157,7 +157,8 @@ display.write_region(fb, 64, 20, 65, 21); // only one byte of page 2 is transfer
   `panel_io::i2c_config` pre-filled with the I2C framing the SSD1306 requires
 
 **Display Control:** (inherited from `panel` base class in `idfxx_lcd`)
-- `try_draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw page-packed pixel data (result-based)
+- `try_draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw page-packed pixel data, one byte per
+  column per page of the region (result-based)
 - `try_invert_color(invert)` - Invert display colors (result-based)
 - `try_swap_xy(swap)` - Swap X and Y axes (result-based)
 - `try_mirror(mirrorX, mirrorY)` - Mirror display (result-based)
@@ -231,7 +232,9 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
   and pages span the full width — the same layout `idfxx::lcd::mono_framebuffer` produces
 - Row coordinates passed to `draw_bitmap` must be **page-aligned** (multiples of 8);
   `panel::write_rows` / `write_region` handle this rounding for you when drawing a
-  `mono_framebuffer`
+  `mono_framebuffer`. While the axes are swapped, pages run along x, so the column coordinates must
+  be page-aligned instead. A misaligned region fails with `errc::invalid_arg`, and writing a
+  `mono_framebuffer` while the axes are swapped fails with `errc::invalid_state`
 - `swap_xy` and `mirror` only affect subsequent draws — redraw the frame after changing them
 - The `panel_io` must be created before the panel, and must outlive it
 - The `ssd1306` class inherits from the `panel` base class provided by `idfxx_lcd`

@@ -32,8 +32,9 @@ namespace idfxx::lcd {
  * @brief In-memory framebuffer for RGB565 (16 bits per pixel) color displays.
  *
  * Pixels are stored row-major as @ref rgb565 values (panel byte order), so
- * the buffer can be passed directly to a color panel's draw_bitmap. The
- * pixel (x, y) is at index `y * width() + x`.
+ * the buffer's bytes (`std::as_bytes(fb.data())`) can be passed directly to
+ * a color panel's draw_bitmap. The pixel (x, y) is at index
+ * `y * width() + x`.
  *
  * Draw into the framebuffer with @ref set_pixel and friends, then draw it on
  * a panel with @ref panel::write (or @ref panel::write_rows /
@@ -138,8 +139,9 @@ public:
      * @brief Returns the raw pixel data.
      *
      * The span holds `width() * height()` values in the row-major layout
-     * described in the class documentation, suitable for passing directly to
-     * a color panel's draw_bitmap.
+     * described in the class documentation; its bytes
+     * (`std::as_bytes(fb.data())`) are suitable for passing directly to a
+     * color panel's draw_bitmap.
      *
      * @return A read-only view of the pixel data.
      */

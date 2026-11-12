@@ -22,6 +22,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/lcd/color>
@@ -140,6 +141,32 @@ public:
      */
     [[nodiscard]] size_t display_height() const noexcept { return _swapped ? _width : _height; }
 
+    /**
+     * @brief Returns whether the X and Y axes are currently swapped.
+     *
+     * The axes are swapped by a successful @ref swap_xy and are not swapped
+     * initially.
+     *
+     * Writing a @ref mono_framebuffer needs the axes unswapped: its pages group
+     * rows, while a swapped 1-bpp panel pages along columns. Such writes fail
+     * with `errc::invalid_state` while the axes are swapped.
+     *
+     * @return true while the axes are swapped, false otherwise.
+     */
+    [[nodiscard]] bool axes_swapped() const noexcept { return _swapped; }
+
+    /**
+     * @brief Returns the size of a pixel in the panel's native format, in bits.
+     *
+     * This is the size of each pixel in the data passed to @ref draw_bitmap
+     * (e.g. 16 for RGB565, 1 for an SSD1306), which may exceed the configured
+     * color depth: an ILI9341 configured for 18 bpp reports 24, as it receives
+     * each pixel in three bytes.
+     *
+     * @return The bits per pixel of the panel's native format.
+     */
+    [[nodiscard]] size_t native_bits_per_pixel() const noexcept { return _bits_per_pixel; }
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Draws an RGB565 framebuffer to the display.
@@ -152,7 +179,8 @@ public:
      * @param x  Destination column of the framebuffer's left edge.
      * @param y  Destination row of the framebuffer's top edge.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
+     * @throws std::system_error on error, including `errc::invalid_size` if the panel does not
+     *         take 16 bits per pixel.
      */
     void write(const rgb565_framebuffer& fb, size_t x = 0, size_t y = 0) {
         unwrap(try_write(fb, x, y));
@@ -171,7 +199,9 @@ public:
      *           8-row pages).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
-     *         an unaligned @p y.
+     *         an unaligned @p y, `errc::invalid_size` if the panel does not
+     *         take 1 bit per pixel, and `errc::invalid_state` if the axes are
+     *         swapped (see @ref axes_swapped).
      */
     void write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0) {
         unwrap(try_write(fb, x, y));
@@ -195,7 +225,8 @@ public:
      * @param y         Destination row of the framebuffer origin.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
-     *         an invalid row range.
+     *         an invalid row range, and `errc::invalid_size` if the panel does
+     *         not take 16 bits per pixel.
      */
     void write_rows(
         const rgb565_framebuffer& fb,
@@ -228,7 +259,10 @@ public:
      *                  multiple of 8.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
-     *         an invalid row range or an unaligned @p y.
+     *         an invalid row range or an unaligned @p y, `errc::invalid_size`
+     *         if the panel does not take 1 bit per pixel, and
+     *         `errc::invalid_state` if the axes are swapped (see
+     *         @ref axes_swapped).
      */
     void write_rows(
         const mono_framebuffer& fb,
@@ -260,7 +294,8 @@ public:
      * @param y       Destination row of the framebuffer origin.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
-     *         an invalid region.
+     *         an invalid region, and `errc::invalid_size` if the panel does not
+     *         take 16 bits per pixel.
      */
     void write_region(
         const rgb565_framebuffer& fb,
@@ -297,7 +332,10 @@ public:
      *                multiple of 8.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
-     *         an invalid region or an unaligned @p y.
+     *         an invalid region or an unaligned @p y, `errc::invalid_size` if
+     *         the panel does not take 1 bit per pixel, and
+     *         `errc::invalid_state` if the axes are swapped (see
+     *         @ref axes_swapped).
      */
     void write_region(
         const mono_framebuffer& fb,
@@ -323,6 +361,8 @@ public:
      * @param x  Destination column of the framebuffer's left edge.
      * @param y  Destination row of the framebuffer's top edge.
      * @return Success, or an error.
+     * @retval idfxx::errc::invalid_size if the panel does not take 16 bits per
+     *         pixel.
      */
     [[nodiscard]] result<void> try_write(const rgb565_framebuffer& fb, size_t x = 0, size_t y = 0);
 
@@ -339,6 +379,9 @@ public:
      *           8-row pages).
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if @p y is not a multiple of 8.
+     * @retval idfxx::errc::invalid_size if the panel does not take 1 bit per
+     *         pixel.
+     * @retval idfxx::errc::invalid_state if the axes are swapped (see @ref axes_swapped).
      */
     [[nodiscard]] result<void> try_write(const mono_framebuffer& fb, size_t x = 0, size_t y = 0);
 
@@ -360,6 +403,8 @@ public:
      * @param y         Destination row of the framebuffer origin.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the row range is invalid.
+     * @retval idfxx::errc::invalid_size if the panel does not take 16 bits per
+     *         pixel.
      */
     [[nodiscard]] result<void> try_write_rows(
         const rgb565_framebuffer& fb,
@@ -391,6 +436,9 @@ public:
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the row range is invalid, or @p y
      *         is not a multiple of 8.
+     * @retval idfxx::errc::invalid_size if the panel does not take 1 bit per
+     *         pixel.
+     * @retval idfxx::errc::invalid_state if the axes are swapped (see @ref axes_swapped).
      */
     [[nodiscard]] result<void> try_write_rows(
         const mono_framebuffer& fb,
@@ -420,6 +468,8 @@ public:
      * @param y       Destination row of the framebuffer origin.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the region is invalid.
+     * @retval idfxx::errc::invalid_size if the panel does not take 16 bits per
+     *         pixel.
      */
     [[nodiscard]] result<void> try_write_region(
         const rgb565_framebuffer& fb,
@@ -455,6 +505,9 @@ public:
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the region is invalid, or @p y is
      *         not a multiple of 8.
+     * @retval idfxx::errc::invalid_size if the panel does not take 1 bit per
+     *         pixel.
+     * @retval idfxx::errc::invalid_state if the axes are swapped (see @ref axes_swapped).
      */
     [[nodiscard]] result<void> try_write_region(
         const mono_framebuffer& fb,
@@ -473,19 +526,31 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation. The
+     * monochrome OLEDs); consult the concrete driver's documentation.
+     * @p color_data must hold exactly
+     * `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
+     * (see @ref native_bits_per_pixel). To draw from part of a larger buffer,
+     * pass a view of just that part, e.g. `idfxx::byte_view{buf}.first(n)`. The
      * panel does not retain @p color_data: the buffer may be reused as soon as
      * the call returns.
      *
-     * @param x_start    Start column, inclusive.
-     * @param y_start    Start row, inclusive.
-     * @param x_end      End column, exclusive.
-     * @param y_end      End row, exclusive.
-     * @param color_data Pixel data in the panel's native format.
+     * @code
+     * std::vector<idfxx::lcd::rgb565> band(240 * 40, idfxx::lcd::rgb565(255, 0, 0));
+     * display.draw_bitmap(0, 0, 240, 40, std::as_bytes(std::span{band}));
+     * @endcode
+     *
+     * @param x_start    Start column, inclusive; must be non-negative.
+     * @param y_start    Start row, inclusive; must be non-negative.
+     * @param x_end      End column, exclusive; must be greater than @p x_start.
+     * @param y_end      End row, exclusive; must be greater than @p y_start.
+     * @param color_data Pixel data for the region in the panel's native format.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
+     * @throws std::system_error on error, including `errc::invalid_arg` for an
+     *         invalid region, `errc::invalid_size` if @p color_data is not
+     *         exactly the size of the region, and `errc::invalid_state` if the
+     *         panel has no ESP-IDF panel handle to draw through.
      */
-    void draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+    void draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data) {
         unwrap(try_draw_bitmap(x_start, y_start, x_end, y_end, color_data));
     }
 
@@ -529,21 +594,29 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation. The
+     * monochrome OLEDs); consult the concrete driver's documentation.
+     * @p color_data must hold exactly
+     * `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
+     * (see @ref native_bits_per_pixel). To draw from part of a larger buffer,
+     * pass a view of just that part, e.g. `idfxx::byte_view{buf}.first(n)`. The
      * panel does not retain @p color_data: the buffer may be reused as soon as
      * the call returns.
      *
-     * @param x_start    Start column, inclusive.
-     * @param y_start    Start row, inclusive.
-     * @param x_end      End column, exclusive.
-     * @param y_end      End row, exclusive.
-     * @param color_data Pixel data in the panel's native format.
+     * @param x_start    Start column, inclusive; must be non-negative.
+     * @param y_start    Start row, inclusive; must be non-negative.
+     * @param x_end      End column, exclusive; must be greater than @p x_start.
+     * @param y_end      End row, exclusive; must be greater than @p y_start.
+     * @param color_data Pixel data for the region in the panel's native format.
      * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg if a start coordinate is negative, or an
+     *         end coordinate is not greater than its start.
+     * @retval idfxx::errc::invalid_size if @p color_data is not exactly the
+     *         size of the region.
+     * @retval idfxx::errc::invalid_state if the panel has no ESP-IDF panel
+     *         handle to draw through.
      */
     [[nodiscard]] result<void>
-    try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
-        return do_draw_bitmap(x_start, y_start, x_end, y_end, color_data);
-    }
+    try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data);
 
     /**
      * @brief Inverts the color of the display.
@@ -555,8 +628,9 @@ public:
     /**
      * @brief Swaps the X and Y axes.
      *
-     * After a successful call, @ref display_width and @ref display_height
-     * report the dimensions with the axes exchanged.
+     * After a successful call, @ref axes_swapped reports @p swap, and
+     * @ref display_width and @ref display_height report the dimensions with
+     * the axes exchanged while it is true.
      *
      * @param swap true to swap, false for normal.
      * @return Success, or an error.
@@ -587,19 +661,33 @@ public:
     [[nodiscard]] result<void> try_display_on(bool on) { return do_display_on(on); }
 
 protected:
-    panel() = default;
-    /// Constructs a panel reporting the given native dimensions.
-    panel(size_t width, size_t height) noexcept
-        : _width(width)
-        , _height(height) {}
-    /// Constructs a panel reporting the given native dimensions, whose draws
-    /// wait for queued color transfers on @p queued_io before returning. Pass
-    /// the panel I/O handle when its color transfers continue in the
-    /// background after a write (`idfxx::panel_io::queues_color_transfers()`),
-    /// or nullptr when they complete before the write returns.
-    panel(size_t width, size_t height, esp_lcd_panel_io_handle_t queued_io) noexcept
+    /**
+     * @brief Constructs a panel with the given native dimensions and pixel size.
+     *
+     * @param width          Native width in pixels, or 0 if the driver does not
+     *                       report dimensions.
+     * @param height         Native height in pixels, or 0 if the driver does
+     *                       not report dimensions.
+     * @param bits_per_pixel Size of a pixel in the data the panel receives, in
+     *                       bits (e.g. 24 for an ILI9341 configured for 18 bpp,
+     *                       as each 18-bit pixel is sent in three bytes);
+     *                       @ref try_draw_bitmap checks the size of its data
+     *                       against this.
+     * @param queued_io      The panel I/O handle when its color transfers
+     *                       continue in the background after a write
+     *                       (`idfxx::panel_io::queues_color_transfers()`), so
+     *                       that draws wait for them before returning; nullptr
+     *                       when they complete before the write returns.
+     */
+    panel(
+        size_t width,
+        size_t height,
+        size_t bits_per_pixel,
+        esp_lcd_panel_io_handle_t queued_io = nullptr
+    ) noexcept
         : _width(width)
         , _height(height)
+        , _bits_per_pixel(bits_per_pixel)
         , _queued_io(queued_io) {}
     panel(panel&&) noexcept = default;
     panel& operator=(panel&&) noexcept = default;
@@ -613,13 +701,14 @@ protected:
 
     /// Hook for @ref idf_handle.
     [[nodiscard]] virtual esp_lcd_panel_handle_t do_idf_handle() const = 0;
-    /// Hook for @ref try_draw_bitmap. An override must not return until the
-    /// pixel data has been consumed, as callers may reuse the buffer at once.
-    /// The default implementation draws via the panel handle returned by
-    /// do_idf_handle(), then waits for queued color transfers on the panel
-    /// I/O handle given at construction, if any.
+    /// Hook for @ref try_draw_bitmap, called only with a valid region and with
+    /// @p color_data exactly the size of that region. An override must not
+    /// return until the pixel data has been consumed, as callers may reuse the
+    /// buffer at once. The default implementation draws via the panel handle
+    /// returned by do_idf_handle(), then waits for queued color transfers on
+    /// the panel I/O handle given at construction, if any.
     [[nodiscard]] virtual result<void>
-    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data);
+    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data);
     /// Hook for @ref try_invert_color. The default implementation inverts via
     /// the panel handle returned by do_idf_handle().
     [[nodiscard]] virtual result<void> do_invert_color(bool invert);
@@ -636,6 +725,7 @@ protected:
 private:
     size_t _width = 0;
     size_t _height = 0;
+    size_t _bits_per_pixel = 0;
     bool _swapped = false;
     esp_lcd_panel_io_handle_t _queued_io = nullptr;
 };

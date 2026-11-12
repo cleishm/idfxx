@@ -86,7 +86,7 @@ private:
 class screen_panel : public lcd::panel {
 public:
     screen_panel(size_t width, size_t height)
-        : lcd::panel(width, height)
+        : lcd::panel(width, height, 16)
         , pixels(width * height, untouched) {}
 
     std::vector<uint16_t> pixels;
@@ -100,14 +100,15 @@ private:
 
     [[nodiscard]] result<void> do_swap_xy(bool) override { return {}; }
 
-    [[nodiscard]] result<void>
-    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) override {
+    [[nodiscard]] result<void> do_draw_bitmap(
+        int x_start, int y_start, int x_end, int y_end, idfxx::byte_view color_data
+    ) override {
         if (draws.size() == fail_at_draw) {
             draws.push_back({});
             return idfxx::error(errc::not_allowed);
         }
         draws.push_back({x_start, y_start, static_cast<size_t>(x_end - x_start), static_cast<size_t>(y_end - y_start)});
-        const auto* data = static_cast<const lcd::rgb565*>(color_data);
+        const auto* data = reinterpret_cast<const lcd::rgb565*>(color_data.data());
         const size_t stride = display_width();
         for (int y = y_start; y < y_end; ++y) {
             for (int x = x_start; x < x_end; ++x) {

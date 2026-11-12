@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdint>
 #include <esp_lcd_touch.h>
+#include <span>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -47,7 +48,7 @@ static constexpr uint16_t COLOR_FG = rgb565(255, 255, 255);
 static void clear_screen(idfxx::lcd::panel& panel) {
     std::vector<uint16_t> band(DISPLAY_W * BAND_H, COLOR_BG);
     for (int y = 0; y < DISPLAY_H; y += BAND_H) {
-        panel.draw_bitmap(0, y, DISPLAY_W, y + BAND_H, band.data());
+        panel.draw_bitmap(0, y, DISPLAY_W, y + BAND_H, std::as_bytes(std::span{band}));
     }
 }
 
@@ -56,7 +57,7 @@ static void draw_dot(idfxx::lcd::panel& panel, uint16_t cx, uint16_t cy, uint16_
     int y1 = std::clamp(static_cast<int>(cy) - DOT_SIZE / 2, 0, DISPLAY_H - DOT_SIZE);
     std::array<uint16_t, DOT_SIZE * DOT_SIZE> buf;
     buf.fill(color);
-    panel.draw_bitmap(x1, y1, x1 + DOT_SIZE, y1 + DOT_SIZE, buf.data());
+    panel.draw_bitmap(x1, y1, x1 + DOT_SIZE, y1 + DOT_SIZE, std::as_bytes(std::span{buf}));
 }
 
 extern "C" void app_main() {

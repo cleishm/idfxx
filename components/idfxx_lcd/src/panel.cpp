@@ -7,30 +7,16 @@
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
+#include <span>
 
 namespace idfxx::lcd {
 
 result<void> panel::try_write(const rgb565_framebuffer& fb, size_t x, size_t y) {
-    return try_draw_bitmap(
-        static_cast<int>(x),
-        static_cast<int>(y),
-        static_cast<int>(x + fb.width()),
-        static_cast<int>(y + fb.height()),
-        fb.data().data()
-    );
+    return try_write_region(fb, 0, 0, fb.width(), fb.height(), x, y);
 }
 
 result<void> panel::try_write(const mono_framebuffer& fb, size_t x, size_t y) {
-    if (y % 8 != 0) {
-        return error(errc::invalid_arg);
-    }
-    return try_draw_bitmap(
-        static_cast<int>(x),
-        static_cast<int>(y),
-        static_cast<int>(x + fb.width()),
-        static_cast<int>(y + fb.height()),
-        fb.data().data()
-    );
+    return try_write_region(fb, 0, 0, fb.width(), fb.height(), x, y);
 }
 
 result<void> panel::try_write_rows(
@@ -66,7 +52,7 @@ result<void> panel::try_write_region(
     if (x_start >= x_end || x_end > width || y_start >= y_end || y_end > fb.height()) {
         return error(errc::invalid_arg);
     }
-    const rgb565* data = fb.data().data();
+    const auto data = fb.data();
     if (x_start == 0 && x_end == width) {
         // In the row-major layout a full-width band is contiguous, so a
         // single transfer covers all its rows.
@@ -75,7 +61,7 @@ result<void> panel::try_write_region(
             static_cast<int>(y + y_start),
             static_cast<int>(x + width),
             static_cast<int>(y + y_end),
-            data + y_start * width
+            std::as_bytes(data.subspan(y_start * width, (y_end - y_start) * width))
         );
     }
     for (size_t row = y_start; row < y_end; ++row) {
@@ -84,7 +70,7 @@ result<void> panel::try_write_region(
             static_cast<int>(y + row),
             static_cast<int>(x + x_end),
             static_cast<int>(y + row + 1),
-            data + row * width + x_start
+            std::as_bytes(data.subspan(row * width + x_start, x_end - x_start))
         );
         if (!drawn) {
             return drawn;
@@ -107,7 +93,14 @@ result<void> panel::try_write_region(
         y % 8 != 0) {
         return error(errc::invalid_arg);
     }
-    const uint8_t* data = fb.data().data();
+    if (_bits_per_pixel != 1) {
+        return error(errc::invalid_size);
+    }
+    if (_swapped) {
+        // The framebuffer's pages group rows; a swapped panel pages along columns.
+        return error(errc::invalid_state);
+    }
+    const auto data = fb.data();
     const size_t first_page = y_start / 8;
     const size_t end_page = (y_end + 7) / 8;
     if (x_start == 0 && x_end == width) {
@@ -118,7 +111,7 @@ result<void> panel::try_write_region(
             static_cast<int>(y + first_page * 8),
             static_cast<int>(x + width),
             static_cast<int>(y + end_page * 8),
-            data + first_page * width
+            data.subspan(first_page * width, (end_page - first_page) * width)
         );
     }
     for (size_t page = first_page; page < end_page; ++page) {
@@ -127,7 +120,7 @@ result<void> panel::try_write_region(
             static_cast<int>(y + page * 8),
             static_cast<int>(x + x_end),
             static_cast<int>(y + (page + 1) * 8),
-            data + page * width + x_start
+            data.subspan(page * width + x_start, x_end - x_start)
         );
         if (!drawn) {
             return drawn;
@@ -137,13 +130,30 @@ result<void> panel::try_write_region(
 }
 
 result<void>
-panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, const void* color_data) {
+panel::try_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data) {
+    if (x_start < 0 || y_start < 0 || x_start >= x_end || y_start >= y_end) {
+        return error(errc::invalid_arg);
+    }
+    const auto columns = static_cast<size_t>(x_end - x_start);
+    const auto rows = static_cast<size_t>(y_end - y_start);
+    // A region too large to compute the size of has more data than any view can hold.
+    size_t pixels = 0;
+    size_t bits = 0;
+    if (__builtin_mul_overflow(columns, rows, &pixels) ||
+        __builtin_mul_overflow(pixels, _bits_per_pixel, &bits) || color_data.size() != bits / 8) {
+        return error(errc::invalid_size);
+    }
+    return do_draw_bitmap(x_start, y_start, x_end, y_end, color_data);
+}
+
+result<void>
+panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data) {
     auto handle = do_idf_handle();
     if (handle == nullptr) {
         return error(errc::invalid_state);
     }
     auto drawn =
-        wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data));
+        wrap(esp_lcd_panel_draw_bitmap(handle, x_start, y_start, x_end, y_end, color_data.data()));
     if (_queued_io == nullptr) {
         return drawn;
     }

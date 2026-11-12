@@ -30,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_lcd:
-    version: "^3.0.0"
+    version: "^4.0.0"
 ```
 
 Or add `idfxx_lcd` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -119,9 +119,13 @@ for (size_t y = 0; y < display.height(); y += band.height()) {
 Concrete drivers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) inherit from `panel`:
 
 - `draw_bitmap(x_start, y_start, x_end, y_end, data)` / `try_draw_bitmap(...)` - Draw pixel data to
-  an end-exclusive region (buffer layout is panel-specific)
+  an end-exclusive region (buffer layout is panel-specific); `data` is an `idfxx::byte_view` of
+  exactly `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
+- `native_bits_per_pixel()` - Size of a pixel in the panel's native format (e.g. 24 for an ILI9341
+  configured for 18 bpp)
 - `invert_color(invert)` / `try_invert_color(invert)` - Invert display colors
 - `swap_xy(swap)` / `try_swap_xy(swap)` - Swap X and Y axes
+- `axes_swapped()` - Whether the axes are currently swapped by a successful `swap_xy`
 - `mirror(mirror_x, mirror_y)` / `try_mirror(...)` - Mirror the display
 - `display_on(on)` / `try_display_on(on)` - Turn the display on or off
 - `idf_handle()` - Get ESP-IDF panel handle
@@ -152,7 +156,7 @@ adjacent pixels; the byte for pixel (x, y) is `(y / 8) * width + x`, bit `y % 8`
 ### `rgb565` / `rgb565_framebuffer`
 
 `rgb565` is a 16-bit color value stored in panel byte order (big-endian data, the panel default), so
-arrays of it pass directly to `draw_bitmap`:
+the bytes of an array of it (`std::as_bytes(std::span{pixels})`) pass directly to `draw_bitmap`:
 
 - `rgb565(r, g, b)` - Pack 8-bit components into the 5-6-5 layout (constexpr)
 - `rgb565::from_value(v)` / `value()` - Packed RGB565 round trip
@@ -173,6 +177,14 @@ framebuffer is simply `mono_framebuffer fb(display.width(), display.height())`.
 - This component provides the panel base class and framebuffers; use a concrete driver (e.g.
   `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) or `idfxx_lcd_touch` for device control
 - The I/O layer (`idfxx::panel_io`) lives in the `idfxx_panel_io` component
+- `draw_bitmap` fails with `errc::invalid_size` unless the data is exactly the size of the region,
+  so a view of a larger buffer is rejected rather than read with the wrong row stride; pass
+  `idfxx::byte_view{buf}.first(n)` to draw from the start of a larger buffer. The `write` methods
+  fail the same way when the framebuffer's format doesn't match the panel's (e.g. an
+  `rgb565_framebuffer` on an SSD1306, or on an ILI9341 configured for 18 bpp)
+- Writing a `mono_framebuffer` to a 1-bpp panel needs the axes unswapped: while `swap_xy(true)` is
+  in effect the panel pages along columns rather than rows, so the write fails with
+  `errc::invalid_state`
 
 ## License
 

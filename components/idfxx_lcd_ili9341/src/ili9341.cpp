@@ -12,8 +12,11 @@ namespace idfxx::lcd {
 
 result<ili9341> ili9341::make(idfxx::panel_io& panel_io, panel::config cfg) {
     auto queued_io = panel_io.queues_color_transfers() ? panel_io.idf_handle() : nullptr;
+    // The driver accepts only 16 (RGB565) and 18 (RGB666) bpp, and sends each
+    // RGB666 pixel in three bytes.
+    size_t bits_per_pixel = cfg.bits_per_pixel == 18 ? 24 : cfg.bits_per_pixel;
     return detail::make_panel_handle(esp_lcd_new_panel_ili9341, panel_io.idf_handle(), cfg)
-        .transform([&](auto handle) { return ili9341{handle, queued_io}; });
+        .transform([&](auto handle) { return ili9341{handle, bits_per_pixel, queued_io}; });
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

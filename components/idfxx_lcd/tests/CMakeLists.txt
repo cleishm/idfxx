@@ -5,6 +5,7 @@
 set(IDFXX_LCD_TEST_SOURCES
     color_test.cpp
     mono_framebuffer_test.cpp
+    panel_test.cpp
     rgb565_framebuffer_test.cpp
 )
 

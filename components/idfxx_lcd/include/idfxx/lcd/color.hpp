@@ -43,9 +43,9 @@ enum class rgb_data_endian : int {
  * @brief A 16-bit RGB565 color, stored in panel byte order.
  *
  * The stored representation places the most significant byte first, the
- * order color panels expect by default (@ref rgb_data_endian::big), so
- * arrays of rgb565 values can be passed directly to
- * @ref panel::draw_bitmap without conversion.
+ * order color panels expect by default (@ref rgb_data_endian::big), so the
+ * bytes of an array of rgb565 values (`std::as_bytes(std::span{pixels})`)
+ * can be passed to @ref panel::draw_bitmap without conversion.
  *
  * @code
  * constexpr idfxx::lcd::rgb565 amber(255, 191, 0);
