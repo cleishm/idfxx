@@ -3,6 +3,7 @@
 
 #include <idfxx/app>
 
+#include <cstring>
 #include <esp_app_desc.h>
 
 namespace idfxx::app {
@@ -37,6 +38,13 @@ std::string_view idf_version() {
 
 uint32_t secure_version() {
     return desc().secure_version;
+}
+
+std::array<std::byte, 32> elf_sha256() {
+    static_assert(sizeof(esp_app_desc_t::app_elf_sha256) == 32);
+    std::array<std::byte, 32> digest;
+    std::memcpy(digest.data(), desc().app_elf_sha256, digest.size());
+    return digest;
 }
 
 std::string elf_sha256_hex() {

@@ -376,7 +376,9 @@ be moved out with `std::move(cfg.callback).get()`.
 - `app::compile_time()` / `app::compile_date()` - Build timestamps
 - `app::idf_version()` - ESP-IDF version used for the build
 - `app::secure_version()` - Secure version counter
-- `app::elf_sha256_hex()` - ELF SHA-256 hash as hex string
+- `app::elf_sha256()` - ELF SHA-256 digest as `std::array<std::byte, 32>`
+- `app::elf_sha256_hex()` - Leading hex digits of the ELF SHA-256 hash (length set by
+  `CONFIG_APP_RETRIEVE_LEN_ELF_SHA`)
 
 ### Random Numbers (`<idfxx/random>`)
 
