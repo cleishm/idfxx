@@ -106,7 +106,9 @@ namespace {
 
 // Returns true when the framebuffer pixel matches the glyph bitmap bit for
 // every pixel of the glyph cell rendered at (ox, oy) with the given scale.
-bool matches_glyph(const mono_framebuffer& fb, const mono_font& f, char c, size_t ox, size_t oy, unsigned scale = 1) {
+bool matches_glyph(
+    const mono_framebuffer& fb, const mono_font& f, char c, size_t ox, size_t oy, unsigned scale = 1
+) {
     for (size_t row = 0; row < f.height; ++row) {
         for (size_t col = 0; col < f.width; ++col) {
             const bool ink = f.ink_at(c, col, row);
@@ -165,6 +167,63 @@ mono_framebuffer make_fb(size_t width, size_t height) {
 
 rgb565_framebuffer make_color_fb(size_t width, size_t height) {
     return std::move(*rgb565_framebuffer::make(width, height));
+}
+
+// A bool surface of configurable size that counts every set_pixel call,
+// including ones outside its bounds, to prove clipped work is never attempted.
+template<size_t W, size_t H>
+struct sized_counter {
+    using pixel_type = bool;
+
+    std::array<bool, W * H> pixels{};
+    size_t writes = 0;
+
+    void set_pixel(size_t x, size_t y, bool value) noexcept {
+        ++writes;
+        if (x < W && y < H) {
+            pixels[y * W + x] = value;
+        }
+    }
+    [[nodiscard]] size_t width() const noexcept { return W; }
+    [[nodiscard]] size_t height() const noexcept { return H; }
+};
+
+// Counts the set pixels of rows [y0, y1) of the framebuffer.
+size_t count_set_rows(const mono_framebuffer& fb, size_t y0, size_t y1) {
+    size_t n = 0;
+    for (size_t y = y0; y < y1 && y < fb.height(); ++y) {
+        for (size_t x = 0; x < fb.width(); ++x) {
+            n += fb.get_pixel(x, y) ? 1 : 0;
+        }
+    }
+    return n;
+}
+
+// Renders draw(canvas) onto an unclipped (32 + dx)x32 frame and again into
+// four 32x8 bands through canvas(band, dx, y), each covering frame columns
+// [dx, dx + 32); true when every band equals its part of the frame and the
+// frame has ink.
+template<typename Draw>
+bool bands_match_frame(Draw draw, size_t dx = 0) {
+    auto full = make_fb(32 + dx, 32);
+    canvas full_canvas(full);
+    draw(full_canvas);
+    if (count_set_pixels(full) == 0) {
+        return false;
+    }
+    for (size_t y0 = 0; y0 < 32; y0 += 8) {
+        auto band = make_fb(32, 8);
+        canvas band_canvas(band, dx, y0);
+        draw(band_canvas);
+        for (size_t y = 0; y < 8; ++y) {
+            for (size_t x = 0; x < 32; ++x) {
+                if (band.get_pixel(x, y) != full.get_pixel(x + dx, y0 + y)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
 }
 
 } // namespace
@@ -474,6 +533,159 @@ TEST_CASE("gfx canvas window composes and clamps", "[idfxx][gfx]") {
     TEST_ASSERT_EQUAL(0, empty.width());
     empty.fill(true);
     TEST_ASSERT_EQUAL(1, count_set_pixels(fb)); // only the pixel set above
+}
+
+TEST_CASE("gfx clipping: nothing above a band reaches the surface", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 16); // the surface backs rows 16-23 only
+
+    c.draw_text(spleen_5x8, 0, 0, "ABC");
+    c.draw_text(spleen_5x8, 0, 0, "ABC", true, 2); // rows 0-15
+    c.draw_text(spleen_8x16, 0, 0, "A");
+    c.fill_rect(0, 0, 8, 16, true);
+    c.draw_rect(0, 0, 8, 16, true);
+    c.draw_line(0, 0, 7, 15, true);
+    c.draw_line(7, 15, 0, 0, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+
+    // Sanity: content that reaches the band does write.
+    c.fill_rect(0, 16, 8, 1, true);
+    TEST_ASSERT_EQUAL(8, surf.writes);
+}
+
+TEST_CASE("gfx clipping: free functions on a canvas clip to its band", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 16);
+
+    draw_text(c, spleen_5x8, 0, 0, "ABC", true, 1);
+    draw_text(c, spleen_5x8, 0, 0, "ABC", true, 2);
+    fill_rect(c, 0, 0, 8, 16, true);
+    draw_rect(c, 0, 0, 8, 16, true);
+    draw_line(c, 0, 0, 7, 15, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx clipping: a window outside the band draws nothing", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 16);
+    auto w = c.window(0, 0, 8, 8); // canvas rows 0-7, above the band
+
+    w.draw_text(spleen_5x8, 0, 0, "AB");
+    w.draw_text(spleen_5x8, 0, 0, "AB", true, 2);
+    w.fill_rect(0, 0, 8, 8, true);
+    w.draw_rect(0, 0, 8, 8, true);
+    w.draw_line(0, 0, 7, 7, true);
+    w.draw_text_box(spleen_5x8, 0, 0, 8, "AB CD");
+    draw_text(w, spleen_5x8, 0, 0, "A", true, 1);
+    fill_rect(w, 0, 0, 8, 8, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx clipping: mono text straddling a band edge writes only visible ink",
+          "[idfxx][gfx]") {
+    for (unsigned scale = 1; scale <= 3; ++scale) {
+        auto full = make_fb(32, 32);
+        draw_text(full, spleen_5x8, 0, 0, "ABC", true, scale);
+        TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+
+        // Every band position, so edges fall mid-block at scale 2 and 3.
+        for (size_t y0 = 0; y0 <= 24; ++y0) {
+            sized_counter<32, 8> surf;
+            canvas c(surf, 0, y0);
+            c.draw_text(spleen_5x8, 0, 0, "ABC", true, scale);
+            TEST_ASSERT_EQUAL(count_set_rows(full, y0, y0 + 8), surf.writes);
+        }
+    }
+}
+
+TEST_CASE("gfx clipping: mono text renders bands identical to a full frame at scale 2 and 3",
+          "[idfxx][gfx]") {
+    // The band edges (rows 8, 16, 24) fall mid-block in the scaled glyphs.
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_text(spleen_5x8, 1, 3, "AB", true, 2); })
+    );
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_text(spleen_5x8, 1, 1, "AB", true, 3); })
+    );
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_text(spleen_5x8, 2, 4, "MW", true, 3); })
+    );
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_text(spleen_8x16, 0, 2, "Q", true, 2); })
+    );
+}
+
+TEST_CASE("gfx clipping: lines render bands identical to a full frame", "[idfxx][gfx]") {
+    // Steep and shallow diagonals in every direction, crossing several bands.
+    // steep, down
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(3, 0, 10, 31, true); })
+    );
+    // shallow, right
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(0, 3, 31, 10, true); })
+    );
+    // right to left
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(31, 2, 0, 29, true); })
+    );
+    // bottom to top
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(28, 31, 5, 1, true); })
+    );
+    // steep, up
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(20, 31, 24, 0, true); })
+    );
+    // 45 degrees
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(0, 31, 31, 0, true); })
+    );
+    // shallow, up-left
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(30, 9, 1, 23, true); })
+    );
+    // vertical
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(7, 0, 7, 31, true); })
+    );
+    // horizontal
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(0, 12, 31, 12, true); })
+    );
+    // single point
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_line(9, 17, 9, 17, true); })
+    );
+}
+
+TEST_CASE("gfx clipping: a canvas with a nonzero x origin renders bands identical to a full frame",
+          "[idfxx][gfx]") {
+    TEST_ASSERT_TRUE(
+        bands_match_frame([](auto& c) { c.draw_text(spleen_5x8, 3, 5, "AB", true, 2); }, 5)
+    );
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_line(8, 2, 30, 30, true); }, 5));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.fill_rect(6, 5, 20, 22, true); }, 5));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_rect(5, 3, 20, 25, true); }, 5));
+}
+
+TEST_CASE("gfx clipping: a window partly off-band renders bands identical to a full frame",
+          "[idfxx][gfx]") {
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) {
+        auto w = c.window(2, 6, 20, 12); // spans the y=8 and y=16 band edges
+        w.fill_rect(1, 1, 5, 20, true);
+        w.draw_text(spleen_5x8, 3, 2, "AB", true, 2);
+        w.draw_line(0, 0, 30, 20, true);
+        w.draw_rect(0, 0, 20, 12, true);
+    }));
+    TEST_ASSERT_TRUE(bands_match_frame(
+        [](auto& c) {
+            auto w = c.window(2, 6, 20, 12);
+            w.draw_text(spleen_8x16, 1, 0, "Z", true, 1);
+            w.draw_text_box(spleen_5x8, 0, 0, 20, "AB CD E");
+        },
+        3
+    ));
 }
 
 // =============================================================================
@@ -788,14 +1000,22 @@ constexpr uint8_t prop_bitmap[] = {
     0x80,             // U+00AD
 };
 constexpr glyph_metrics prop_glyphs[] = {
-    {.bitmap_offset = 0, .width = 0, .height = 0, .advance = 2, .x_offset = 0, .y_offset = 0},  // ' '
-    {.bitmap_offset = 7, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1}, // '?'
-    {.bitmap_offset = 0, .width = 2, .height = 2, .advance = 3, .x_offset = 0, .y_offset = -2}, // 'A'
-    {.bitmap_offset = 2, .width = 1, .height = 3, .advance = 3, .x_offset = 1, .y_offset = -1}, // 'g'
-    {.bitmap_offset = 5, .width = 1, .height = 1, .advance = 2, .x_offset = -1, .y_offset = -1}, // 'j'
-    {.bitmap_offset = 6, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -4}, // U+00E9
-    {.bitmap_offset = 8, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -2}, // '-'
-    {.bitmap_offset = 9, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1}, // U+00AD
+    // ' '
+    {.bitmap_offset = 0, .width = 0, .height = 0, .advance = 2, .x_offset = 0, .y_offset = 0},
+    // '?'
+    {.bitmap_offset = 7, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1},
+    // 'A'
+    {.bitmap_offset = 0, .width = 2, .height = 2, .advance = 3, .x_offset = 0, .y_offset = -2},
+    // 'g'
+    {.bitmap_offset = 2, .width = 1, .height = 3, .advance = 3, .x_offset = 1, .y_offset = -1},
+    // 'j'
+    {.bitmap_offset = 5, .width = 1, .height = 1, .advance = 2, .x_offset = -1, .y_offset = -1},
+    // U+00E9
+    {.bitmap_offset = 6, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -4},
+    // '-'
+    {.bitmap_offset = 8, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -2},
+    // U+00AD
+    {.bitmap_offset = 9, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1},
 };
 constexpr glyph_range prop_ranges[] = {
     {.first = U' ', .last = U' ', .first_glyph = 0},
@@ -823,7 +1043,9 @@ constexpr proportional_font prop_font_no_replacement = [] {
 }();
 
 // Returns true when exactly the listed pixels are set.
-bool only_pixels(const mono_framebuffer& fb, std::initializer_list<std::pair<size_t, size_t>> expected) {
+bool only_pixels(
+    const mono_framebuffer& fb, std::initializer_list<std::pair<size_t, size_t>> expected
+) {
     for (const auto& [x, y] : expected) {
         if (!fb.get_pixel(x, y)) {
             return false;
@@ -844,7 +1066,9 @@ TEST_CASE("gfx draw_text proportional advances per glyph", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 0, "A A");
     // 'A' advances 3 and ' ' 2, so the second 'A' starts at column 5.
-    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}, {1, 1}, {0, 2}, {1, 2}, {5, 1}, {6, 1}, {5, 2}, {6, 2}}));
+    TEST_ASSERT_TRUE(
+        only_pixels(fb, {{0, 1}, {1, 1}, {0, 2}, {1, 2}, {5, 1}, {6, 1}, {5, 2}, {6, 2}})
+    );
     TEST_ASSERT_EQUAL(8, idfxx::font::text_width(prop_font, "A A"));
 }
 
@@ -879,14 +1103,16 @@ TEST_CASE("gfx draw_text proportional decodes UTF-8", "[idfxx][gfx]") {
     TEST_ASSERT_TRUE(only_pixels(fb, {{0, 3}, {1, 3}, {0, 4}, {1, 4}, {3, 1}}));
 }
 
-TEST_CASE("gfx draw_text proportional draws the replacement for missing code points", "[idfxx][gfx]") {
+TEST_CASE("gfx draw_text proportional draws the replacement for missing code points",
+          "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 0, "Z\xFF"); // missing, then malformed UTF-8
     TEST_ASSERT_TRUE(only_pixels(fb, {{0, 2}, {2, 2}}));
     TEST_ASSERT_EQUAL(4, idfxx::font::text_width(prop_font, "Z\xFF"));
 }
 
-TEST_CASE("gfx draw_text proportional skips missing code points without a replacement", "[idfxx][gfx]") {
+TEST_CASE("gfx draw_text proportional skips missing code points without a replacement",
+          "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font_no_replacement, 0, 0, "ZA"); // 'Z' takes no space
     TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}, {1, 1}, {0, 2}, {1, 2}}));
@@ -915,12 +1141,14 @@ TEST_CASE("gfx draw_text proportional renders color ink", "[idfxx][gfx]") {
 TEST_CASE("gfx draw_text proportional never draws soft hyphens", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     auto expected = make_fb(16, 8);
-    draw_text(fb, prop_font, 0, 0, "A\xC2\xAD" "A"); // the soft hyphen's glyph has ink and an advance
+    // the soft hyphen's glyph has ink and an advance
+    draw_text(fb, prop_font, 0, 0, "A\xC2\xAD" "A");
     draw_text(expected, prop_font, 0, 0, "AA");
     TEST_ASSERT_TRUE(same_pixels(expected, fb));
 }
 
-TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full frame", "[idfxx][gfx]") {
+TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full frame",
+          "[idfxx][gfx]") {
     auto full = make_fb(16, 16);
     canvas(full).draw_text(prop_font, 1, 5, "Agéj"); // baseline at row 8
 
@@ -932,6 +1160,121 @@ TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full f
         TEST_ASSERT_TRUE(band_matches(full, band, y0));
     }
     TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+}
+
+TEST_CASE("gfx clipping: proportional text above a band reaches no surface pixel", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 16);
+
+    c.draw_text(prop_font, 0, 0, "AgAjé");
+    draw_text(c, prop_font, 0, 0, "AgAjé", true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx clipping: proportional text straddling a band edge writes only visible ink",
+          "[idfxx][gfx]") {
+    auto full = make_fb(16, 16);
+    draw_text(full, prop_font, 1, 5, "Agéj");
+    TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+
+    for (size_t y0 = 0; y0 <= 12; ++y0) {
+        sized_counter<16, 4> surf;
+        canvas c(surf, 0, y0);
+        c.draw_text(prop_font, 1, 5, "Agéj");
+        TEST_ASSERT_EQUAL(count_set_rows(full, y0, y0 + 4), surf.writes);
+    }
+}
+
+TEST_CASE("gfx clipping: proportional overhang crossing a band edge renders identically",
+          "[idfxx][gfx]") {
+    // 'é' rises 4 rows and 'j' hangs one column left, with the baseline on
+    // or beside each band edge (rows 8, 16, 24).
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 5, "Agéj"); }));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 12, "Agéj"); }));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 21, "Agéj A"); }));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 6, "Agéj"); }, 5));
+}
+
+// Draws a scene across a 24x8 rotated view whose backed columns end at x = 8 (cw90) or begin at
+// x = 16 (ccw90): text, lines, rects and proportional text crossing and avoiding the boundary.
+template<typename Surface>
+void draw_rotated_band_scene(Surface& s) {
+    canvas c(s);
+    c.draw_text(spleen_5x8, 6, 0, "AB");
+    c.draw_text(spleen_5x8, 14, 0, "CD");
+    c.draw_text(spleen_5x8, 11, 0, "E", true, 2);
+    c.draw_line(0, 0, 23, 7, true);
+    c.draw_line(22, 1, 2, 6, true);
+    c.draw_rect(4, 1, 16, 6, true);
+    c.fill_rect(7, 2, 3, 2, true);
+    c.draw_text(prop_font, 5, 5, "Agéj A");
+    c.draw_text(prop_font, 13, 5, "Agéj A");
+}
+
+TEST_CASE("gfx clipping: rotated over a band canvas skips off-band work", "[idfxx][gfx]") {
+    for (const auto dir : {rotation::cw90, rotation::ccw90}) {
+        // The view is 24 wide and 8 high; the surface backs only 8 of its columns.
+        const size_t off = dir == rotation::cw90 ? 8 : 0; // first unbacked column
+        const size_t on = dir == rotation::cw90 ? 0 : 16; // first backed column
+        sized_counter<8, 8> surf;
+        canvas inner(surf, 0, 16);
+        rotated view(inner, dir);
+        TEST_ASSERT_EQUAL(24, view.width());
+        TEST_ASSERT_EQUAL(8, view.height());
+
+        draw_text(view, spleen_5x8, off, 0, "ABC", true, 1);
+        draw_text(view, spleen_5x8, off, 0, "A", true, 2);
+        draw_text(view, prop_font, off, 4, "Agéj A");
+        fill_rect(view, off, 0, 16, 8, true);
+        draw_line(view, off, 0, off + 15, 7, true);
+        draw_line(view, off + 15, 7, off, 0, true);
+        draw_rect(view, off, 0, 16, 8, true);
+        TEST_ASSERT_EQUAL(0, surf.writes);
+
+        canvas c(view);
+        c.draw_text(spleen_5x8, off, 0, "ABC");
+        c.draw_text(spleen_5x8, off, 0, "A", true, 2);
+        c.draw_text(prop_font, off, 4, "Agéj A");
+        c.fill_rect(off, 0, 16, 8, true);
+        c.draw_line(off, 0, off + 15, 7, true);
+        c.draw_line(off + 15, 7, off, 0, true);
+        c.draw_rect(off, 0, 16, 8, true);
+        TEST_ASSERT_EQUAL(0, surf.writes);
+
+        // Sanity: a fill wholly in the backed columns writes exactly its area.
+        c.fill_rect(on + 2, 1, 4, 3, true);
+        TEST_ASSERT_EQUAL(12, surf.writes);
+    }
+}
+
+TEST_CASE("gfx clipping: rotated over a band canvas renders the same pixels", "[idfxx][gfx]") {
+    for (const auto dir : {rotation::cw90, rotation::ccw90}) {
+        auto full = make_fb(8, 24);
+        canvas rc(full);
+        rotated rv(rc, dir);
+        draw_rotated_band_scene(rv);
+        TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+
+        auto band = make_fb(8, 8);
+        canvas bc(band, 0, 16);
+        rotated bv(bc, dir);
+        draw_rotated_band_scene(bv);
+        TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
+        TEST_ASSERT_TRUE(band_matches(full, band, 16));
+    }
+}
+
+TEST_CASE("gfx clipping: canvas draw_rect clips through fill_rect", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 4);
+
+    // A rect wholly above the band reaches no pixel.
+    c.draw_rect(0, 0, 8, 4, true);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+
+    // The left and right edges of rows 4-6 plus the full bottom row 7.
+    c.draw_rect(0, 0, 8, 8, true);
+    TEST_ASSERT_EQUAL(3 * 2 + 8, surf.writes);
 }
 
 // =============================================================================
@@ -1041,6 +1384,49 @@ TEST_CASE("gfx canvas draw_text_box draws like the free functions", "[idfxx][gfx
     TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
 }
 
+TEST_CASE("gfx clipping: text boxes above a band reach no surface pixel", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf, 0, 16);
+
+    c.draw_text_box(prop_font, 0, 0, 5, "A A"); // two lines, rows 0-11
+    c.draw_text_box(spleen_5x8, 0, 0, 12, "AB CD");
+    c.draw_text_box(spleen_5x8, 0, 0, 20, "AB", true, text_align::center, 2);
+    draw_text_box(c, prop_font, 0, 0, 5, "A A");
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx clipping: draw_text_box returns the same height in every band", "[idfxx][gfx]") {
+    auto full = make_fb(32, 32);
+    canvas full_canvas(full);
+    const size_t prop_height = 
+        full_canvas.draw_text_box(prop_font, 1, 3, 12, "A A A A", text_align::center);
+    const size_t mono_height = 
+        full_canvas.draw_text_box(spleen_5x8, 0, 12, 20, "AB CD EF", true, text_align::right, 2);
+    TEST_ASSERT_TRUE(prop_height > 0);
+    TEST_ASSERT_TRUE(mono_height > 0);
+
+    for (size_t y0 = 0; y0 < 32; y0 += 8) {
+        auto band = make_fb(32, 8);
+        canvas c(band, 0, y0);
+        TEST_ASSERT_EQUAL(
+            prop_height, c.draw_text_box(prop_font, 1, 3, 12, "A A A A", text_align::center)
+        );
+        TEST_ASSERT_EQUAL(
+            mono_height,
+            c.draw_text_box(spleen_5x8, 0, 12, 20, "AB CD EF", true, text_align::right, 2)
+        );
+        TEST_ASSERT_TRUE(band_matches(full, band, y0));
+    }
+
+    // A box wholly outside the band still reports its full height.
+    sized_counter<8, 8> surf;
+    canvas above(surf, 0, 16);
+    TEST_ASSERT_EQUAL(
+        prop_height, above.draw_text_box(prop_font, 1, 3, 12, "A A A A", text_align::center)
+    );
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
 TEST_CASE("gfx draw_text_box wraps mono text in scaled cells", "[idfxx][gfx]") {
     auto fb = make_fb(32, 48);
     // 5x8 cells: "AB" is 10 wide, so a 12-wide box breaks "AB CD" after the space.
@@ -1052,7 +1438,9 @@ TEST_CASE("gfx draw_text_box wraps mono text in scaled cells", "[idfxx][gfx]") {
 
     // At scale 2 lines are 16 rows apart and widths double: "AB" is 20 wide, centered in 30.
     fb.clear();
-    TEST_ASSERT_EQUAL(32, draw_text_box(fb, spleen_5x8, 0, 16, 30, "AB CD", true, text_align::center, 2));
+    TEST_ASSERT_EQUAL(
+        32, draw_text_box(fb, spleen_5x8, 0, 16, 30, "AB CD", true, text_align::center, 2)
+    );
     TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'A', 5, 16, 2));
     TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'C', 5, 32, 2));
     TEST_ASSERT_EQUAL(0, draw_text_box(fb, spleen_5x8, 0, 0, 30, "", true));

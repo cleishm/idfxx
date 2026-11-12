@@ -150,7 +150,8 @@ A full frame at 16 bpp is large (a 240x320 frame is ~150 KB), so color frames ar
 through a band-sized framebuffer. `render_banded` takes a callback that draws the whole frame in
 screen coordinates, runs it once per band, and writes each slice to its screen position with the
 destination's `try_write(band, x, y)` — content straddling a band boundary clips on all four sides
-and renders exactly its visible part:
+and renders exactly its visible part, and content outside the band is clipped before drawing rather
+than discarded pixel by pixel:
 
 ```cpp
 idfxx::lcd::rgb565_framebuffer band(240, 40);
