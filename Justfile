@@ -146,6 +146,17 @@ qemu-run dir timeout:
     failures=$(echo "$summary" | awk '{print $3}')
     [ "$failures" -eq 0 ] && echo "All tests passed" || { echo "$failures test(s) failed"; exit 1; }
 
+# Regenerate idfxx_font_inter's sources from its TTF (needs freetype-py in $IDFXX_FONT_PYTHON)
+gen-font-inter:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}/components/idfxx_font_inter"
+    for size in 16 24 32 48; do
+        "${IDFXX_FONT_PYTHON:-python3}" ../idfxx_font/scripts/ttf_to_c.py \
+            fonts/Inter-Regular.ttf "inter_$size" --size "$size" \
+            --header idfxx/font/inter.hpp --namespace idfxx::font -o "src/inter_$size.cpp"
+    done
+
 # Remove all build directories
 clean:
     rm -rf build build-noexc build-noipv6 build-qemu build-test qemu_output.log

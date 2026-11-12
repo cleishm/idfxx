@@ -8,7 +8,7 @@ README](../README.md) for installation and conventions shared by every component
 
 | Component | Description | Documentation |
 |-----------|-------------|---------------|
-| [idfxx_core](https://github.com/cleishm/idfxx/tree/main/components/idfxx_core) | Core utilities: error handling, memory allocators, chrono, scheduling, system info, app metadata, random, byte views and byte sources | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__core.html) |
+| [idfxx_core](https://github.com/cleishm/idfxx/tree/main/components/idfxx_core) | Core utilities: error handling, memory allocators, chrono, scheduling, system info, app metadata, random, byte views and byte sources, UTF-8 decoding | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__core.html) |
 | [idfxx_hw_support](https://github.com/cleishm/idfxx/tree/main/components/idfxx_hw_support) | Hardware support: interrupt allocation, chip info, MAC addresses | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__hw__support.html) |
 | [idfxx_log](https://github.com/cleishm/idfxx/tree/main/components/idfxx_log) | Type-safe logging with std::format | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__log.html) |
 
@@ -74,8 +74,9 @@ README](../README.md) for installation and conventions shared by every component
 | [idfxx_epaper_el133uf1](https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_el133uf1) | EL133UF1 ePaper panel driver (E Ink 13.3" 1200x1600 Spectra 6 six-color glass, e.g. Seeed T133A01 module in the reTerminal E1004) | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__epaper.html) |
 | [idfxx_epaper_image](https://github.com/cleishm/idfxx/tree/main/components/idfxx_epaper_image) | Decoded images on e-paper panels and surfaces, in a panel's measured colors, placed, sized and oriented on the screen | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__epaper__image.html) |
 | [idfxx_gfx](https://github.com/cleishm/idfxx/tree/main/components/idfxx_gfx) | Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__gfx.html) |
-| [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Fixed-cell bitmap font model and text metrics | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
+| [idfxx_font](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font) | Bitmap font models (fixed-cell and proportional) and text metrics | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font.html) |
 | [idfxx_font_spleen](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_spleen) | The Spleen bitmap fonts (5x8 and 8x16) as idfxx font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__spleen.html) |
+| [idfxx_font_inter](https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_inter) | The Inter typeface (Regular, 16-48 px) as idfxx proportional font data | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__font__inter.html) |
 | [idfxx_image](https://github.com/cleishm/idfxx/tree/main/components/idfxx_image) | Pixel image views, owning buffers, EXIF orientation transforms, and placing images on a screen | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__image.html) |
 | [idfxx_jpeg](https://github.com/cleishm/idfxx/tree/main/components/idfxx_jpeg) | JPEG decoding into RGB888 images, with output scaling and EXIF orientation | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__jpeg.html) |
 
