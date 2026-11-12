@@ -78,10 +78,9 @@ TEST_CASE("inter fonts cover accents and typographic punctuation", "[idfxx][font
             TEST_ASSERT_NOT_NULL_MESSAGE(g, "Windows-1252 glyph missing");
             TEST_ASSERT_TRUE(has_ink(*font, *g));
         }
-        // Soft hyphen is present but invisible and zero-width.
-        const glyph_metrics* shy = font->find(U'\u00AD');
-        TEST_ASSERT_NOT_NULL(shy);
-        TEST_ASSERT_EQUAL(0, shy->advance);
+        // The soft hyphen has no glyph; text measurement ignores it.
+        TEST_ASSERT_FALSE(font->contains(U'\u00AD'));
+        TEST_ASSERT_EQUAL(text_width(*font, "inter"), text_width(*font, "in\xC2\xAD" "ter"));
     }
 }
 

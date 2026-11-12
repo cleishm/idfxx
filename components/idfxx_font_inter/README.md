@@ -55,7 +55,7 @@ canvas.draw_text(body, 8, y, "Today — 18 °C", white);
 | `idfxx::font::inter_16` | 16 px | 20 px | 6.7 KB | Body text. |
 | `idfxx::font::inter_24` | 24 px | 30 px | 9.8 KB | Subheadings. |
 | `idfxx::font::inter_32` | 32 px | 39 px | 14.1 KB | Headings. |
-| `idfxx::font::inter_48` | 48 px | 59 px | 25.9 KB | Large headings and readouts. |
+| `idfxx::font::inter_48` | 48 px | 59 px | 25.8 KB | Large headings and readouts. |
 
 Sizes are em sizes; capitals are roughly three quarters of the size tall.
 

@@ -13,6 +13,9 @@ Bitmap font models (fixed-cell and proportional) and text metrics.
   metrics (`ascent`, `descent`, `line_height`)
 - Text measurement (`text_width`, per-glyph `advance`), fully `constexpr`; proportional fonts take
   UTF-8 text (decoded with `idfxx::utf8_view`)
+- Line breaking (`break_lines`): a lazy, non-allocating, `constexpr` view splitting text into lines
+  that fit a width — wrapping at spaces and after hyphens, honoring newlines, hyphenating at soft
+  hyphens (U+00AD) in proportional fonts, and splitting words too long for a line
 - Generators: `bdf_to_c.py` turns a monospace BDF font into a `mono_font`; `ttf_to_c.py` rasterizes
   a TrueType/OpenType font into a 1-bit `proportional_font` at the pixel size you draw it, also
   available as the `idfxx_font_generate()` CMake function
@@ -64,7 +67,26 @@ const size_t x = (display_width - w) / 2;               // centered
 const size_t next_line_y = y + idfxx::font::inter_48.line_height;
 ```
 
-Text drawing lives in `idfxx_gfx` (`idfxx::gfx::draw_text`).
+Break text into lines that fit a width with `break_lines`. Each line is a slice of the input, with
+its measured width; a line broken at a soft hyphen (`"\u00AD"`) needs a `'-'` drawn after it:
+
+```cpp
+using namespace idfxx::font;
+
+const std::string_view text = "Baked fresh daily with ingre\u00ADdients from local farms.";
+size_t y = 0;
+for (const text_line& line : break_lines(inter_16, text, 224)) {
+    const size_t x = 8 + (224 - line.width) / 2;          // centered in a 224 px box
+    canvas.draw_text(inter_16, x, y, line.text, white);
+    if (line.hyphenated) {
+        canvas.draw_text(inter_16, x + text_width(inter_16, line.text), y, "-", white);
+    }
+    y += inter_16.line_height;
+}
+```
+
+Text drawing lives in `idfxx_gfx`: `idfxx::gfx::draw_text` for a single line, and
+`idfxx::gfx::draw_text_box`, which runs the loop above (aligned left, centered or right).
 
 ## API Overview
 
@@ -81,6 +103,10 @@ Text drawing lives in `idfxx_gfx` (`idfxx::gfx::draw_text`).
 | `proportional_font::advance(cp)` | Pen advance for a code point (0 when skipped). |
 | `glyph_metrics` | Per-glyph `advance`, `x_offset`/`y_offset` from the pen and baseline, bitmap `width`/`height`. |
 | `text_width(font, text)` | Width of UTF-8 text in a proportional font (constexpr). |
+| `break_lines(font, text, max_width)` | Lazy view of the `text_line`s of UTF-8 text broken to fit `max_width` in a proportional font. |
+| `break_lines(font, text, max_width, scale)` | The same for a `mono_font` drawn at `scale`. |
+| `text_line` | One line: `text` (a slice of the input), `width` in pixels, `hyphenated` (draw a `'-'` after `text`). |
+| `line_break_view<Font>` | The forward view `break_lines` returns; non-owning, computes each line as it is reached. |
 
 ## Adding fonts
 
@@ -156,6 +182,12 @@ generated definition gets external linkage (see `idfxx_font_spleen` for the patt
   row, MSB = leftmost pixel), trimmed to each glyph's ink and placed by `x_offset` / `y_offset`
   relative to the pen position and baseline.
 - There is no kerning: text is set by per-glyph advances only.
+- U+00AD SOFT HYPHEN is invisible and zero-width in proportional text (`text_width`, `draw_text`),
+  even when the font has a glyph for it; it only marks where `break_lines` may hyphenate a word.
+  Mono fonts treat text as bytes and do not interpret it.
+- `break_lines` keeps leading spaces at the start of the text and after a `'\n'` as indentation, and
+  drops the spaces at each wrap point and at the end of a line. The view references the font and the
+  text, both of which must outlive it.
 
 ## License
 

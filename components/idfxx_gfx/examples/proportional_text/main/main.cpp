@@ -2,8 +2,9 @@
 
 // Draws a small café menu on an ILI9341 color LCD in the Inter typeface:
 // a centered heading and subtitle, left-aligned dishes stacked line by
-// line, and a right-aligned footer. Proportional fonts take UTF-8 text, so
-// accents and curly quotes are written as-is in the string literals.
+// line, a paragraph wrapped to the screen width, and a right-aligned
+// footer. Proportional fonts take UTF-8 text, so accents and curly quotes
+// are written as-is in the string literals.
 //
 // The whole 240x320 frame is authored once in screen coordinates in
 // draw_frame(); render_banded runs it once per 240x40 band and writes each
@@ -41,9 +42,11 @@ static constexpr size_t DISPLAY_W = 240;
 static constexpr size_t DISPLAY_H = 320;
 static constexpr size_t BAND_H = 40;
 
-// Left and right margin for aligned text.
+// Left and right margin; text is laid out in the box between them.
 static constexpr size_t MARGIN = 8;
+static constexpr size_t TEXT_W = DISPLAY_W - 2 * MARGIN;
 
+using idfxx::gfx::text_align;
 using idfxx::lcd::rgb565;
 using band_canvas = idfxx::gfx::canvas<idfxx::lcd::rgb565_framebuffer>;
 
@@ -69,20 +72,17 @@ static void draw_frame(band_canvas& canvas) {
     const auto& body = idfxx::font::inter_16;
 
     // Text is placed by the top-left corner of its line, so each line
-    // starts one line_height below the previous one.
+    // starts one line_height below the previous one. draw_text_box returns
+    // the height it drew, which moves y past it.
     size_t y = 4;
 
-    // Heading and subtitle, centered by their measured widths.
-    const std::string_view title = "Café";
-    const size_t title_w = idfxx::font::text_width(heading, title);
-    canvas.draw_text(heading, (DISPLAY_W - title_w) / 2, y, title, amber);
-    y += heading.line_height;
-
-    const std::string_view tagline = "Menu du jour";
-    const size_t tagline_w = idfxx::font::text_width(subtitle, tagline);
-    canvas.draw_text(subtitle, (DISPLAY_W - tagline_w) / 2, y, tagline, white);
-    y += subtitle.line_height + 4;
-    canvas.draw_hline(MARGIN, y, DISPLAY_W - 2 * MARGIN, gray);
+    // Heading and subtitle, centered in the text box.
+    y += canvas.draw_text_box(heading, MARGIN, y, TEXT_W, "Café", amber, text_align::center);
+    y += canvas.draw_text_box(
+        subtitle, MARGIN, y, TEXT_W, "Menu du jour", white, text_align::center
+    );
+    y += 4;
+    canvas.draw_hline(MARGIN, y, TEXT_W, gray);
     y += 8;
 
     // Dishes, left-aligned: a name in the 32 px font, then a description
@@ -94,11 +94,21 @@ static void draw_frame(band_canvas& canvas) {
         y += body.line_height + 12;
     }
 
+    // A paragraph wrapped to the text box: lines break between words, and
+    // the soft hyphen (U+00AD) marks where a long word may be hyphenated.
+    canvas.draw_text_box(
+        body, MARGIN, y, TEXT_W, "Baked fresh daily with ingre\u00ADdients from local farms.", white
+    );
+
     // Footer, right-aligned against the bottom of the screen.
-    const std::string_view hours = "Served daily, 8–11 am";
-    const size_t hours_w = idfxx::font::text_width(body, hours);
-    canvas.draw_text(
-        body, DISPLAY_W - MARGIN - hours_w, DISPLAY_H - body.line_height - 2, hours, amber
+    canvas.draw_text_box(
+        body,
+        MARGIN,
+        DISPLAY_H - body.line_height - 2,
+        TEXT_W,
+        "Served daily, 8–11 am",
+        amber,
+        text_align::right
     );
 }
 

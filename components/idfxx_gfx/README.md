@@ -24,6 +24,9 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
 - Text in proportional fonts (`proportional_font`) rasterized at their real size from
   TrueType/OpenType faces: UTF-8 input, per-glyph advances, a shared baseline, and clean 1-bit edges
   at any size
+- Text boxes (`draw_text_box`): text wrapped to a width — at spaces, after hyphens and at soft
+  hyphens, honoring newlines — with each line aligned left, centered or right (`text_align`), in
+  either kind of font; returns the height drawn, for placing what follows
 - Ink-only rendering: only the requested pixels are written, so drawing composes over existing
   content; on monochrome surfaces `ink = false` draws inverse text over filled regions
 - Header-only, zero per-pixel dispatch overhead — the ink value is typed to the surface's pixel type
@@ -96,25 +99,50 @@ panel.write(band, 0, 40);           // next band down
 
 ### Proportional text
 
-For large or polished text, generate a proportional font from an outline face at the size you will
-draw it (see `idfxx_font`'s `idfxx_font_generate()` / `ttf_to_c.py`). Glyphs are drawn at their
+For large or polished text, use a proportional font drawn at its native size. The `idfxx_font_inter`
+package bundles the Inter typeface as `idfxx::font::inter_16`, `inter_24`, `inter_32` and
+`inter_48`; to use other faces or sizes, generate fonts from an outline face with `idfxx_font`'s
+`idfxx_font_generate()` / `ttf_to_c.py`. Glyphs are drawn at their
 native size, so a 48 px heading has smooth outlines instead of magnified pixels. The `y` coordinate
 is the line's top; the baseline sits `font.ascent` below it:
 
 ```cpp
-#include "fonts/inter.hpp"   // generated: fonts::inter_48
+#include <idfxx/font/inter>
 #include <idfxx/gfx>
 
 idfxx::gfx::canvas canvas(fb);
 const std::string_view title = "Crème brûlée";
-const size_t w = idfxx::font::text_width(fonts::inter_48, title);
-canvas.draw_text(fonts::inter_48, (canvas.width() - w) / 2, 40, title, true);
-canvas.draw_text(fonts::inter_48, 16, 40 + fonts::inter_48.line_height, "second line", true);
+const size_t w = idfxx::font::text_width(idfxx::font::inter_48, title);
+canvas.draw_text(idfxx::font::inter_48, (canvas.width() - w) / 2, 40, title, true);
+canvas.draw_text(idfxx::font::inter_48, 16, 40 + idfxx::font::inter_48.line_height, "second line", true);
 ```
 
 Text is UTF-8; code points the font lacks render as its replacement glyph (`?` or U+FFFD by
-default). `draw_text` sets one line and does not interpret newlines — break lines yourself,
-measuring words with `text_width`.
+default). `draw_text` sets one line and does not interpret newlines.
+
+### Text boxes
+
+`draw_text_box` lays out a block of text in a box of a given width: it breaks the text into lines
+that fit (with `idfxx::font::break_lines`), aligns each one, and draws them one line height apart.
+Lines wrap at spaces and after hyphens, `'\n'` starts a new line, a word too long for a line is
+split, and a soft hyphen (`"\u00AD"`) marks where a long word may be hyphenated — a `'-'` is drawn
+when it is. It returns the height drawn, so the next item can follow it:
+
+```cpp
+using idfxx::gfx::text_align;
+
+size_t y = 4;
+y += canvas.draw_text_box(idfxx::font::inter_48, 8, y, 224, "Café", amber, text_align::center);
+y += canvas.draw_text_box(idfxx::font::inter_16, 8, y, 224,
+                          "Baked fresh daily with ingre\u00ADdients from local farms.", white);
+canvas.draw_text_box(idfxx::font::inter_16, 8, 298, 224, "Served daily, 8–11 am", amber,
+                     text_align::right);
+```
+
+Fixed-cell fonts work the same way, with an optional `scale`
+(`canvas.draw_text_box(idfxx::font::spleen_8x16, 0, 0, 128, msg, true, text_align::left, 2)`).
+The box limits width only: every line is drawn, so check the returned height (or measure first with
+`break_lines`) when space is tight.
 
 ### Band rendering
 
@@ -178,6 +206,7 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | `canvas(surface, x, y)` | Translated canvas: the surface holds the region of a larger drawing space whose top-left corner is (x, y) — see Band rendering above. |
 | `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping; `fill`/`clear` affect only the sub-region. |
 | `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear` forward to the surface's. |
+| `to_string(rotation)` / `to_string(text_align)` | Enumerator name; also `std::formatter` specializations (with `CONFIG_IDFXX_STD_FORMAT`). |
 | `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and writes each slice with `dest.try_write(band, 0, y)` (also `try_render_banded`). |
 | `fill_rect(s, x, y, w, h, ink)` | Fill a rectangle. |
 | `draw_rect(s, x, y, w, h, ink)` | Outline a rectangle (one-pixel border). |
@@ -185,8 +214,12 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | `draw_line(s, x0, y0, x1, y1, ink)` | Line between two points (endpoints inclusive). |
 | `draw_text(s, font, x, y, text, ink, scale)` | Draw text in a `mono_font`; on bool surfaces `ink` defaults to true. |
 | `draw_text(s, font, x, y, text, ink)` | Draw UTF-8 text in a `proportional_font`, (x, y) the line's top-left; on bool surfaces `ink` defaults to true. |
+| `draw_text_box(s, font, x, y, width, text, ink, align)` | Draw UTF-8 text in a `proportional_font`, wrapped to `width` and aligned within it; returns the height drawn. On bool surfaces `ink` defaults to true. |
+| `draw_text_box(s, font, x, y, width, text, ink, align, scale)` | The same in a `mono_font` (bool surfaces: `ink` defaults to true, without `scale`). |
+| `text_align` | Line alignment in a text box: `left`, `center`, `right`. |
 
-Text measurement (`idfxx::font::text_width`) lives in `idfxx_font`.
+Text measurement (`idfxx::font::text_width`) and line breaking (`idfxx::font::break_lines`) live in
+`idfxx_font`.
 
 ## Error Handling
 
@@ -212,8 +245,11 @@ report whatever the destination's `try_write` reports (for the idfxx panels, pan
   `set_pixel`/`width`/`height` shape works, no inheritance needed.
 - Proportional glyphs may overhang the pen position slightly (e.g. `j` reaching left of `x`, accents
   on capitals above the line top); ink outside the surface is clipped, so leave a small margin.
+- A soft hyphen (U+00AD) in proportional text is never drawn and takes no space; it only marks where
+  `draw_text_box` may hyphenate a word.
 - This component is deliberately small: integer coordinates, one-pixel strokes, no anti-aliasing, no
-  kerning, no widgets, no layout. For a full UI toolkit, use LVGL with the panel's `idf_handle()`.
+  kerning, no widgets, and layout limited to wrapped, aligned text boxes. For a full UI toolkit, use
+  LVGL with the panel's `idf_handle()`.
 
 ## License
 

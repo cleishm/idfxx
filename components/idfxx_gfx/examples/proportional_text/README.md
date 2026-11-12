@@ -1,7 +1,7 @@
 # Proportional Text
 
 Draws a small café menu in the Inter typeface on an ILI9341 LCD: centered, left-aligned and
-right-aligned UTF-8 text with accents and curly quotes, in four sizes.
+right-aligned UTF-8 text with accents and curly quotes in four sizes, plus a wrapped paragraph.
 
 ## What it demonstrates
 
@@ -12,8 +12,10 @@ right-aligned UTF-8 text with accents and curly quotes, in four sizes.
   `idfxx::gfx::render_banded()`, so the framebuffer takes 19 KB instead of 150 KB
 - Drawing UTF-8 text with `draw_text()` and the proportional fonts `idfxx::font::inter_48`,
   `inter_32`, `inter_24` and `inter_16` from `idfxx_font_inter`, each at its native size
-- Measuring text with `idfxx::font::text_width()` to center and right-align it
-- Stacking lines with each font's `line_height`
+- Laying out text in a box between the margins with `draw_text_box()`: the heading and subtitle
+  centered and the footer right-aligned with `idfxx::gfx::text_align`, and a paragraph wrapped to
+  the box width, breaking between words and hyphenating a long word at a soft hyphen (`\u00AD`)
+- Stacking lines with each font's `line_height` and the height `draw_text_box()` returns
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).
@@ -63,7 +65,3 @@ idf.py -p PORT flash monitor
 
 Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
 the monitor.
-
-The display shows a large amber "Café" heading with "Menu du jour" centered beneath it, then two
-dishes, "Crème brûlée" and "Café au lait", each with a gray description below. At the bottom,
-"Served daily, 8–11 am" is right-aligned.

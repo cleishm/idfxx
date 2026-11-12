@@ -18,6 +18,7 @@
 #include <array>
 #include <concepts>
 #include <cstddef>
+#include <initializer_list>
 #include <utility>
 
 using namespace idfxx::gfx;
@@ -129,6 +130,30 @@ size_t count_set_pixels(const mono_framebuffer& fb) {
         }
     }
     return n;
+}
+
+// Returns true when both framebuffers hold the same pixels.
+bool same_pixels(const mono_framebuffer& a, const mono_framebuffer& b) {
+    for (size_t y = 0; y < a.height(); ++y) {
+        for (size_t x = 0; x < a.width(); ++x) {
+            if (a.get_pixel(x, y) != b.get_pixel(x, y)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Returns true when band holds the rows of full starting at row y0.
+bool band_matches(const mono_framebuffer& full, const mono_framebuffer& band, size_t y0) {
+    for (size_t y = 0; y < band.height(); ++y) {
+        for (size_t x = 0; x < band.width(); ++x) {
+            if (full.get_pixel(x, y0 + y) != band.get_pixel(x, y)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 // mono_framebuffer's dimension constructor throws and is compiled out when
@@ -379,11 +404,7 @@ TEST_CASE("gfx translated canvas renders bands identical to a full frame", "[idf
         canvas c(band, 0, band_y);
         c.clear();
         draw_band_test_scene(c);
-        for (size_t y = 0; y < band.height(); ++y) {
-            for (size_t x = 0; x < band.width(); ++x) {
-                TEST_ASSERT_EQUAL(reference.get_pixel(x, band_y + y), band.get_pixel(x, y));
-            }
-        }
+        TEST_ASSERT_TRUE(band_matches(reference, band, band_y));
     }
 }
 
@@ -755,13 +776,16 @@ using idfxx::font::proportional_font;
 // A tiny proportional font with ascent 3: 'A' is a 2x2 block on the
 // baseline, 'g' a 1x3 stroke descending two rows below it, 'j' a pixel
 // overhanging one column left of the pen, U+00E9 a pixel above the line
-// top, and '?' (the replacement) a pixel on the baseline row.
+// top, '?' (the replacement) a pixel on the baseline row, '-' a 1x1 dash
+// just above the baseline, and U+00AD an inked glyph that must never be drawn.
 constexpr uint8_t prop_bitmap[] = {
     0xC0, 0xC0,       // 'A'
     0x80, 0x80, 0x80, // 'g'
     0x80,             // 'j'
     0x80,             // U+00E9
     0x80,             // '?'
+    0x80,             // '-'
+    0x80,             // U+00AD
 };
 constexpr glyph_metrics prop_glyphs[] = {
     {.bitmap_offset = 0, .width = 0, .height = 0, .advance = 2, .x_offset = 0, .y_offset = 0},  // ' '
@@ -770,13 +794,17 @@ constexpr glyph_metrics prop_glyphs[] = {
     {.bitmap_offset = 2, .width = 1, .height = 3, .advance = 3, .x_offset = 1, .y_offset = -1}, // 'g'
     {.bitmap_offset = 5, .width = 1, .height = 1, .advance = 2, .x_offset = -1, .y_offset = -1}, // 'j'
     {.bitmap_offset = 6, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -4}, // U+00E9
+    {.bitmap_offset = 8, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -2}, // '-'
+    {.bitmap_offset = 9, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1}, // U+00AD
 };
 constexpr glyph_range prop_ranges[] = {
     {.first = U' ', .last = U' ', .first_glyph = 0},
+    {.first = U'-', .last = U'-', .first_glyph = 6},
     {.first = U'?', .last = U'?', .first_glyph = 1},
     {.first = U'A', .last = U'A', .first_glyph = 2},
     {.first = U'g', .last = U'g', .first_glyph = 3},
     {.first = U'j', .last = U'j', .first_glyph = 4},
+    {.first = U'\u00AD', .last = U'\u00AD', .first_glyph = 7},
     {.first = U'\u00E9', .last = U'\u00E9', .first_glyph = 5},
 };
 constexpr proportional_font prop_font{
@@ -788,25 +816,20 @@ constexpr proportional_font prop_font{
     .replacement = &prop_glyphs[1],
     .bitmap = prop_bitmap,
 };
-constexpr proportional_font prop_font_no_replacement{
-    .ascent = 3,
-    .descent = 2,
-    .line_height = 6,
-    .ranges = prop_ranges,
-    .glyphs = prop_glyphs,
-    .replacement = nullptr,
-    .bitmap = prop_bitmap,
-};
+constexpr proportional_font prop_font_no_replacement = [] {
+    proportional_font font = prop_font;
+    font.replacement = nullptr;
+    return font;
+}();
 
 // Returns true when exactly the listed pixels are set.
-template<size_t N>
-bool only_pixels(const mono_framebuffer& fb, const std::array<std::pair<size_t, size_t>, N>& expected) {
+bool only_pixels(const mono_framebuffer& fb, std::initializer_list<std::pair<size_t, size_t>> expected) {
     for (const auto& [x, y] : expected) {
         if (!fb.get_pixel(x, y)) {
             return false;
         }
     }
-    return count_set_pixels(fb) == N;
+    return count_set_pixels(fb) == expected.size();
 }
 
 } // namespace
@@ -814,21 +837,21 @@ bool only_pixels(const mono_framebuffer& fb, const std::array<std::pair<size_t, 
 TEST_CASE("gfx draw_text proportional sits glyphs on the baseline", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 1, 0, "A"); // baseline at row 3: the block covers rows 1-2
-    TEST_ASSERT_TRUE((only_pixels<4>(fb, {{{1, 1}, {2, 1}, {1, 2}, {2, 2}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 1}, {2, 1}, {1, 2}, {2, 2}}));
 }
 
 TEST_CASE("gfx draw_text proportional advances per glyph", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 0, "A A");
     // 'A' advances 3 and ' ' 2, so the second 'A' starts at column 5.
-    TEST_ASSERT_TRUE((only_pixels<8>(fb, {{{0, 1}, {1, 1}, {0, 2}, {1, 2}, {5, 1}, {6, 1}, {5, 2}, {6, 2}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}, {1, 1}, {0, 2}, {1, 2}, {5, 1}, {6, 1}, {5, 2}, {6, 2}}));
     TEST_ASSERT_EQUAL(8, idfxx::font::text_width(prop_font, "A A"));
 }
 
 TEST_CASE("gfx draw_text proportional applies glyph offsets", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 0, "g"); // one column right, descending to row 4
-    TEST_ASSERT_TRUE((only_pixels<3>(fb, {{{1, 2}, {1, 3}, {1, 4}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 2}, {1, 3}, {1, 4}}));
 }
 
 TEST_CASE("gfx draw_text proportional clips overhang at the left and top edges", "[idfxx][gfx]") {
@@ -839,7 +862,7 @@ TEST_CASE("gfx draw_text proportional clips overhang at the left and top edges",
 
     draw_text(fb, prop_font, 1, 0, "j");
     draw_text(fb, prop_font, 4, 2, "é");
-    TEST_ASSERT_TRUE((only_pixels<2>(fb, {{{0, 2}, {4, 1}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 2}, {4, 1}}));
 }
 
 TEST_CASE("gfx draw_text proportional clips at the right and bottom edges", "[idfxx][gfx]") {
@@ -847,26 +870,26 @@ TEST_CASE("gfx draw_text proportional clips at the right and bottom edges", "[id
     draw_text(fb, prop_font, 3, 0, "A"); // straddles the right edge
     draw_text(fb, prop_font, 0, 5, "g"); // descends past the bottom edge
     draw_text(fb, prop_font, 100, 100, "AAA");
-    TEST_ASSERT_TRUE((only_pixels<3>(fb, {{{3, 1}, {3, 2}, {1, 7}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{3, 1}, {3, 2}, {1, 7}}));
 }
 
 TEST_CASE("gfx draw_text proportional decodes UTF-8", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 2, "Aé"); // 'A' then the two-byte U+00E9 at column 3
-    TEST_ASSERT_TRUE((only_pixels<5>(fb, {{{0, 3}, {1, 3}, {0, 4}, {1, 4}, {3, 1}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 3}, {1, 3}, {0, 4}, {1, 4}, {3, 1}}));
 }
 
 TEST_CASE("gfx draw_text proportional draws the replacement for missing code points", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font, 0, 0, "Z\xFF"); // missing, then malformed UTF-8
-    TEST_ASSERT_TRUE((only_pixels<2>(fb, {{{0, 2}, {2, 2}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 2}, {2, 2}}));
     TEST_ASSERT_EQUAL(4, idfxx::font::text_width(prop_font, "Z\xFF"));
 }
 
 TEST_CASE("gfx draw_text proportional skips missing code points without a replacement", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
     draw_text(fb, prop_font_no_replacement, 0, 0, "ZA"); // 'Z' takes no space
-    TEST_ASSERT_TRUE((only_pixels<4>(fb, {{{0, 1}, {1, 1}, {0, 2}, {1, 2}}})));
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}, {1, 1}, {0, 2}, {1, 2}}));
     TEST_ASSERT_EQUAL(3, idfxx::font::text_width(prop_font_no_replacement, "ZA"));
 }
 
@@ -889,6 +912,14 @@ TEST_CASE("gfx draw_text proportional renders color ink", "[idfxx][gfx]") {
     TEST_ASSERT_TRUE(fb.get_pixel(1, 3) == rgb565{});
 }
 
+TEST_CASE("gfx draw_text proportional never draws soft hyphens", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    auto expected = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 0, "A\xC2\xAD" "A"); // the soft hyphen's glyph has ink and an advance
+    draw_text(expected, prop_font, 0, 0, "AA");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+}
+
 TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full frame", "[idfxx][gfx]") {
     auto full = make_fb(16, 16);
     canvas(full).draw_text(prop_font, 1, 5, "Agéj"); // baseline at row 8
@@ -898,13 +929,133 @@ TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full f
     for (size_t y0 = 0; y0 < 16; y0 += 8) {
         band.clear();
         canvas(band, 0, y0).draw_text(prop_font, 1, 5, "Agéj");
-        for (size_t y = 0; y < 8; ++y) {
-            for (size_t x = 0; x < 16; ++x) {
-                TEST_ASSERT_EQUAL(full.get_pixel(x, y0 + y), band.get_pixel(x, y));
-            }
-        }
+        TEST_ASSERT_TRUE(band_matches(full, band, y0));
     }
     TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+}
+
+// =============================================================================
+// Runtime tests: text boxes
+// =============================================================================
+
+TEST_CASE("gfx draw_text_box wraps lines one line_height apart", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto expected = make_fb(16, 16);
+    // 'A' advances 3 and ' ' 2: "A A" is 8 wide, so a 5-wide box takes one 'A' per line.
+    TEST_ASSERT_EQUAL(12, draw_text_box(fb, prop_font, 1, 2, 5, "A A"));
+    draw_text(expected, prop_font, 1, 2, "A");
+    draw_text(expected, prop_font, 1, 8, "A");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+
+    fb.clear();
+    TEST_ASSERT_EQUAL(6, draw_text_box(fb, prop_font, 1, 2, 8, "A A"));
+    TEST_ASSERT_EQUAL(0, draw_text_box(fb, prop_font, 1, 2, 8, ""));
+}
+
+TEST_CASE("gfx draw_text_box aligns lines within the box", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto expected = make_fb(16, 16);
+    // Lines 3 ("A") and 8 ("A A") wide in a 9-wide box at column 2.
+    TEST_ASSERT_EQUAL(12, draw_text_box(fb, prop_font, 2, 0, 9, "A\nA A", text_align::left));
+    draw_text(expected, prop_font, 2, 0, "A");
+    draw_text(expected, prop_font, 2, 6, "A A");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+
+    fb.clear();
+    expected.clear();
+    draw_text_box(fb, prop_font, 2, 0, 9, "A\nA A", text_align::center);
+    draw_text(expected, prop_font, 5, 0, "A");   // 2 + (9 - 3) / 2
+    draw_text(expected, prop_font, 2, 6, "A A"); // 2 + (9 - 8) / 2
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+
+    fb.clear();
+    expected.clear();
+    draw_text_box(fb, prop_font, 2, 0, 9, "A\nA A", text_align::right);
+    draw_text(expected, prop_font, 8, 0, "A");   // 2 + 9 - 3
+    draw_text(expected, prop_font, 3, 6, "A A"); // 2 + 9 - 8
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+}
+
+TEST_CASE("gfx draw_text_box starts lines wider than the box at its left edge", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto expected = make_fb(16, 16);
+    // Each 3-wide 'A' gets its own line in a 2-wide box, however aligned.
+    TEST_ASSERT_EQUAL(12, draw_text_box(fb, prop_font, 4, 0, 2, "AA", text_align::right));
+    draw_text(expected, prop_font, 4, 0, "A");
+    draw_text(expected, prop_font, 4, 6, "A");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+
+    fb.clear();
+    draw_text_box(fb, prop_font, 4, 0, 2, "AA", text_align::center);
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+}
+
+TEST_CASE("gfx draw_text_box draws a hyphen at a soft-hyphen break", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto expected = make_fb(16, 16);
+    // "AA" (6) plus '-' (2) fits an 8-wide box; "AAA" (9) does not.
+    TEST_ASSERT_EQUAL(12, draw_text_box(fb, prop_font, 0, 0, 8, "AA\xC2\xAD" "A"));
+    draw_text(expected, prop_font, 0, 0, "AA-");
+    draw_text(expected, prop_font, 0, 6, "A");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+
+    // Right-aligned, the hyphen counts toward the line's width.
+    fb.clear();
+    expected.clear();
+    draw_text_box(fb, prop_font, 0, 0, 10, "AA\xC2\xAD" "AA", text_align::right);
+    draw_text(expected, prop_font, 2, 0, "AA-");
+    draw_text(expected, prop_font, 4, 6, "AA");
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+}
+
+TEST_CASE("gfx draw_text_box renders color ink", "[idfxx][gfx]") {
+    auto fb = make_color_fb(8, 16);
+    constexpr rgb565 amber(255, 191, 0);
+    TEST_ASSERT_EQUAL(12, draw_text_box(fb, prop_font, 0, 0, 5, "A A", amber, text_align::right));
+    TEST_ASSERT_TRUE(fb.get_pixel(2, 1) == amber); // 'A' at column 2 = 0 + 5 - 3
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 8) == amber);
+    TEST_ASSERT_TRUE(fb.get_pixel(1, 1) == rgb565{});
+}
+
+TEST_CASE("gfx canvas draw_text_box draws like the free functions", "[idfxx][gfx]") {
+    auto fb = make_fb(32, 32);
+    auto expected = make_fb(32, 32);
+    canvas c(fb);
+    TEST_ASSERT_EQUAL(12, c.draw_text_box(prop_font, 1, 0, 5, "A A", text_align::center));
+    TEST_ASSERT_EQUAL(12, c.draw_text_box(prop_font, 1, 12, 5, "A A", true, text_align::right));
+    TEST_ASSERT_EQUAL(8, c.draw_text_box(spleen_5x8, 0, 24, 12, "AB", text_align::right));
+    TEST_ASSERT_EQUAL(16, c.draw_text_box(spleen_5x8, 12, 16, 10, "A", true, text_align::left, 2));
+    draw_text_box(expected, prop_font, 1, 0, 5, "A A", text_align::center);
+    draw_text_box(expected, prop_font, 1, 12, 5, "A A", true, text_align::right);
+    draw_text_box(expected, spleen_5x8, 0, 24, 12, "AB", text_align::right);
+    draw_text_box(expected, spleen_5x8, 12, 16, 10, "A", true, text_align::left, 2);
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+    TEST_ASSERT_TRUE(count_set_pixels(fb) > 0);
+
+    // A translated canvas lays the box out in canvas coordinates, clipping to its band.
+    auto full = make_fb(16, 16);
+    canvas(full).draw_text_box(prop_font, 1, 0, 5, "A A");
+    auto band = make_fb(16, 8);
+    canvas(band, 0, 4).draw_text_box(prop_font, 1, 0, 5, "A A");
+    TEST_ASSERT_TRUE(band_matches(full, band, 4));
+    TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
+}
+
+TEST_CASE("gfx draw_text_box wraps mono text in scaled cells", "[idfxx][gfx]") {
+    auto fb = make_fb(32, 48);
+    // 5x8 cells: "AB" is 10 wide, so a 12-wide box breaks "AB CD" after the space.
+    TEST_ASSERT_EQUAL(16, draw_text_box(fb, spleen_5x8, 0, 0, 12, "AB CD", text_align::right));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'A', 2, 0));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'B', 7, 0));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'C', 2, 8));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'D', 7, 8));
+
+    // At scale 2 lines are 16 rows apart and widths double: "AB" is 20 wide, centered in 30.
+    fb.clear();
+    TEST_ASSERT_EQUAL(32, draw_text_box(fb, spleen_5x8, 0, 16, 30, "AB CD", true, text_align::center, 2));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'A', 5, 16, 2));
+    TEST_ASSERT_TRUE(matches_glyph(fb, spleen_5x8, 'C', 5, 32, 2));
+    TEST_ASSERT_EQUAL(0, draw_text_box(fb, spleen_5x8, 0, 0, 30, "", true));
 }
 
 // =============================================================================
@@ -918,5 +1069,16 @@ TEST_CASE("rotation to_string and formatter", "[idfxx][gfx]") {
 #ifdef CONFIG_IDFXX_STD_FORMAT
     auto s = std::format("{}", rotation::cw90);
     TEST_ASSERT_EQUAL_STRING("cw90", s.c_str());
+#endif
+}
+
+TEST_CASE("text_align to_string and formatter", "[idfxx][gfx]") {
+    TEST_ASSERT_EQUAL_STRING("left", idfxx::to_string(text_align::left).c_str());
+    TEST_ASSERT_EQUAL_STRING("center", idfxx::to_string(text_align::center).c_str());
+    TEST_ASSERT_EQUAL_STRING("right", idfxx::to_string(text_align::right).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<text_align>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", text_align::center);
+    TEST_ASSERT_EQUAL_STRING("center", s.c_str());
 #endif
 }

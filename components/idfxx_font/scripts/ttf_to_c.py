@@ -16,9 +16,9 @@ typically around 0.7 PX tall.
 The glyph set is the union of the --charset (default cp1252: printable ASCII, Latin-1, and the
 printable characters Windows-1252 places in 0x80-0x9F), the code points in --chars, the --ranges
 (a comma-separated list of code points and inclusive ranges, e.g. "0x100-0x17F,0x2190"), and the
-replacement glyph. Requested code points the face lacks are omitted with a warning. A requested
-U+00AD SOFT HYPHEN is always emitted as an invisible, zero-width glyph (text rendering never breaks
-lines, so the soft hyphen never shows).
+replacement glyph. Requested code points the face lacks are omitted with a warning. U+00AD SOFT
+HYPHEN is never emitted: idfxx text measurement and drawing ignore it whatever the font, and
+idfxx::font::break_lines and idfxx::gfx::draw_text_box hyphenate there by drawing the font's '-'.
 
 The replacement glyph (drawn for code points the font does not cover) defaults to U+FFFD when the
 face has it, else '?'. Pass a single character, U+XXXX or 0xXXXX to choose another, or "none" to
@@ -96,6 +96,7 @@ class GenError(Exception):
     """A user-facing generation error."""
 
 
+# U+00AD SOFT HYPHEN: never emitted, since idfxx text measurement and drawing ignore it.
 SOFT_HYPHEN = 0xAD
 
 
@@ -164,9 +165,7 @@ def parse_replacement(text):
     if text.lower() == "none":
         return None
     if len(text) == 1:
-        cp = ord(text)
-        check_code_point(cp, f"U+{cp:04X}")
-        return cp
+        return ord(text)
     if text[:2].upper() not in ("U+", "0X"):
         raise GenError(
             f"invalid --replacement '{text}': use a single character, U+XXXX, 0xXXXX or none"
@@ -194,6 +193,7 @@ def charset_code_points(name):
                 continue  # unassigned in Windows-1252
             if not unicodedata.category(ch).startswith("C"):
                 cps.add(ord(ch))
+    cps.discard(SOFT_HYPHEN)
     return cps
 
 
@@ -207,13 +207,16 @@ def format_ranges(cps):
 
 def coalesce(sorted_cps):
     """Yields (first, last) runs of consecutive code points."""
-    runs = []
+    start = prev = None
     for cp in sorted_cps:
-        if runs and runs[-1][1] + 1 == cp:
-            runs[-1][1] = cp
-        else:
-            runs.append([cp, cp])
-    return [(a, b) for a, b in runs]
+        if prev is not None and cp == prev + 1:
+            prev = cp
+            continue
+        if start is not None:
+            yield start, prev
+        start = prev = cp
+    if start is not None:
+        yield start, prev
 
 
 # --------------------------------------------------------------------------------------------
@@ -255,8 +258,6 @@ def comment_lines(text, prefix="// ", indent="// "):
 
 def label(cp):
     """Comment label for a code point."""
-    if cp == 0x5C:
-        return "U+005C 'backslash'"
     if 0x21 <= cp <= 0x7E:
         return f"U+{cp:04X} '{chr(cp)}'"
     name = unicodedata.name(chr(cp), "")
@@ -417,18 +418,17 @@ class Font:
 
         # Pack bitmaps, sharing identical ones.
         self.bitmap = bytearray()
-        self.first_use = {}  # bitmap offset -> code point of the glyph that stored it
+        self.stored = []  # glyphs whose bitmap is stored, in bitmap order
         offsets = {}
         for g in glyphs:
             if not g.data:
-                g.bitmap_offset = 0
                 continue
             if g.data in offsets:
                 g.bitmap_offset = offsets[g.data]
                 continue
             g.bitmap_offset = len(self.bitmap)
             offsets[g.data] = g.bitmap_offset
-            self.first_use[g.bitmap_offset] = g.cp
+            self.stored.append(g)
             self.bitmap += g.data
 
         self._validate()
@@ -439,15 +439,12 @@ class Font:
         check_range(self.line_height, 0, UINT16_MAX, "line_height")
         for g in self.glyphs:
             what = label(g.cp)
-            check_range(g.bitmap_offset, 0, UINT32_MAX, f"{what} bitmap_offset")
             check_range(g.width, 0, UINT16_MAX, f"{what} width")
             check_range(g.height, 0, UINT16_MAX, f"{what} height")
             check_range(g.advance, 0, UINT16_MAX, f"{what} advance")
             check_range(g.x_offset, INT16_MIN, INT16_MAX, f"{what} x_offset")
             check_range(g.y_offset, INT16_MIN, INT16_MAX, f"{what} y_offset")
         check_range(len(self.bitmap), 0, UINT32_MAX, "bitmap size")
-        for first, last, first_glyph in self.ranges:
-            check_range(first_glyph, 0, UINT32_MAX, f"U+{first:04X} range first_glyph")
 
     # Mirrors proportional_font::find / resolve.
     def find(self, cp):
@@ -502,7 +499,7 @@ def build_font(face, cps, render, threshold):
 # Output
 
 
-def emit(font, args, face, names):
+def emit(font, args, face, names, extra_cps, replacement_cp):
     ident = args.identifier
     out = []
     family = to_ascii(decode_name(face.family_name))
@@ -520,7 +517,8 @@ def emit(font, args, face, names):
     for text in names:
         out.extend(comment_lines(text, indent="//   "))
     out.append("//")
-    out.extend(comment_lines(" ".join(regenerate_args(args)), "// regenerate: ", "//     "))
+    regenerate = regenerate_args(args, extra_cps, replacement_cp)
+    out.extend(comment_lines(" ".join(regenerate), "// regenerate: ", "//     "))
     out.append("")
     if args.header is None:
         out.append("#include <idfxx/font.hpp>")
@@ -538,9 +536,7 @@ def emit(font, args, face, names):
     out.append(f"constexpr uint8_t {ident}_bitmap[] = {{")
     if not font.bitmap:
         out.append("    0x00, // no glyph has ink")
-    for g in font.glyphs:
-        if not g.data or font.first_use.get(g.bitmap_offset) != g.cp:
-            continue
+    for g in font.stored:
         out.append(f"    // {label(g.cp)}")
         bpr = (g.width + 7) // 8
         for r in range(g.height):
@@ -586,11 +582,11 @@ def emit(font, args, face, names):
     return text
 
 
-def regenerate_args(args):
+def regenerate_args(args, extra_cps, replacement_cp):
     """The effective, data-affecting arguments, as an ASCII command line."""
     a = ["ttf_to_c.py", shlex.quote(to_ascii(os.path.basename(args.font))), args.identifier]
     a += ["--size", str(args.size), "--charset", args.charset]
-    extras = args.extra_cps - charset_code_points(args.charset)
+    extras = extra_cps - charset_code_points(args.charset)
     if extras:
         a += ["--ranges", format_ranges(extras)]
     if args.face_index:
@@ -598,8 +594,8 @@ def regenerate_args(args):
     if args.header is not None:
         a += ["--header", shlex.quote(args.header)]
     a += ["--namespace", args.namespace]
-    rcp = args.replacement_cp
-    a += ["--replacement", "none" if rcp is None else f"U+{rcp:04X}"]
+    rcp = "none" if replacement_cp is None else f"U+{replacement_cp:04X}"
+    a += ["--replacement", rcp]
     a += ["--render", args.render]
     if args.render == "threshold":
         a += ["--threshold", str(args.threshold)]
@@ -620,6 +616,8 @@ def render_preview(font, text, scale, path):
         baseline = top + font.ascent
         pen = margin
         for cp in (ord(ch) for ch in line):
+            if cp == SOFT_HYPHEN:
+                continue  # invisible and zero-width, as in idfxx::gfx::draw_text
             g = font.resolve(cp)
             if g is None:
                 continue
@@ -754,17 +752,14 @@ def parse_args(argv):
         p.error("--preview-scale must be at least 1")
     if args.header is not None and ('"' in args.header or "\n" in args.header):
         p.error("--header must not contain quotes or newlines")
+    if args.header is not None and not args.header.isascii():
+        p.error("--header must be ASCII")
     return args
 
 
 def run(args):
-    chars = decode_arg(args.chars)
-    extra = set()
-    for ch in chars:
-        check_code_point(ord(ch), f"U+{ord(ch):04X} in --chars")
-        extra.add(ord(ch))
-    extra |= parse_ranges(args.ranges)
-    args.extra_cps = extra
+    extra = {ord(ch) for ch in decode_arg(args.chars)} | parse_ranges(args.ranges)
+    extra.discard(SOFT_HYPHEN)
 
     face = open_face(args.font, args.face_index, args.size)
 
@@ -774,11 +769,8 @@ def run(args):
         replacement = parse_replacement(decode_arg(args.replacement))
     if replacement is not None and not face.get_char_index(replacement):
         raise GenError(f"the face has no glyph for the replacement {label(replacement)}")
-    args.replacement_cp = replacement
 
     requested = charset_code_points(args.charset) | extra
-    invisible = requested & {SOFT_HYPHEN}
-    requested -= invisible
     if replacement is not None:
         requested.add(replacement)
     missing = sorted(cp for cp in requested if not face.get_char_index(cp))
@@ -793,10 +785,8 @@ def run(args):
         raise GenError("the face has none of the requested code points")
 
     glyphs, ascent, descent, line_height = build_font(face, cps, args.render, args.threshold)
-    glyphs += [Glyph(cp, 0, 0, 0, 0, 0, b"") for cp in invisible - cps]
-    glyphs.sort(key=lambda g: g.cp)
     font = Font(ascent, descent, line_height, glyphs, replacement)
-    text = emit(font, args, face, font_names(face))
+    text = emit(font, args, face, font_names(face), extra, replacement)
 
     if args.preview is not None:
         preview_text = DEFAULT_PREVIEW_TEXT
@@ -815,9 +805,7 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         run(args)
-    except GenError as e:
-        sys.exit(f"error: {e}")
-    except OSError as e:
+    except (GenError, OSError) as e:
         sys.exit(f"error: {e}")
 
 

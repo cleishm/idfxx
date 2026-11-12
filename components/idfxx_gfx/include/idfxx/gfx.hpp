@@ -364,12 +364,14 @@ void draw_text(
  * untouched, so text composes over existing content (on a monochrome
  * surface, pass `ink = false` to erase ink pixels instead). Code points
  * the font lacks are drawn as its replacement glyph, or skipped if it has
- * none; control characters (including newlines) are not interpreted.
- * Pixels falling outside the surface are clipped, including ink that
- * overhangs the line's left or top edge.
+ * none; U+00AD SOFT HYPHEN is never drawn and takes no space; control
+ * characters (including newlines) are not interpreted — see
+ * @ref draw_text_box for wrapped, multi-line text. Pixels falling outside
+ * the surface are clipped, including ink that overhangs the line's left or
+ * top edge.
  *
  * @code
- * const auto& f = fonts::inter_48; // generated with ttf_to_c.py
+ * const auto& f = idfxx::font::inter_48;
  * const size_t w = idfxx::font::text_width(f, "Bonjour, café");
  * idfxx::gfx::draw_text(fb, f, (fb.width() - w) / 2, 100, "Bonjour, café", true);
  * @endcode
@@ -397,9 +399,9 @@ void draw_text(
     ptrdiff_t pen = static_cast<ptrdiff_t>(x);
 
     for (char32_t cp : utf8_view(text)) {
-        const font::glyph_metrics* g = font.resolve(cp);
+        const font::glyph_metrics* g = font::detail::text_glyph(font, cp);
         if (g == nullptr) {
-            continue;
+            continue; // skipped, or a soft hyphen (invisible)
         }
         const ptrdiff_t left = pen + g->x_offset;
         const ptrdiff_t top = baseline + g->y_offset;
@@ -454,6 +456,227 @@ void draw_text(
     std::string_view text
 ) noexcept {
     draw_text(surface, font, x, y, text, true);
+}
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Horizontal alignment of lines within a text box (see @ref draw_text_box).
+ */
+enum class text_align : uint8_t {
+    left,   ///< Lines start at the box's left edge.
+    center, ///< Lines are centered between the box's edges.
+    right,  ///< Lines end at the box's right edge.
+};
+
+/**
+ * @cond INTERNAL
+ * @brief Returns the left edge of a line of @p line_width aligned within a box.
+ */
+namespace detail {
+[[nodiscard]] constexpr size_t
+aligned_x(size_t x, size_t width, size_t line_width, text_align align) noexcept {
+    if (line_width >= width) {
+        return x;
+    }
+    switch (align) {
+    case text_align::center:
+        return x + (width - line_width) / 2;
+    case text_align::right:
+        return x + (width - line_width);
+    default:
+        return x;
+    }
+}
+} // namespace detail
+/** @endcond */
+
+/**
+ * @brief Draws text in a proportional font wrapped to a box, with the given ink.
+ *
+ * Breaks @p text into lines no wider than @p width with
+ * @ref font::break_lines — wrapping at spaces and after hyphens,
+ * hyphenating at soft hyphens (U+00AD), honoring `'\n'`, and splitting
+ * words too long for a line — then draws each line as @ref draw_text does,
+ * one `font.line_height` below the previous one, starting with the first
+ * line's top edge at @p y. Each line is aligned within the columns
+ * [@p x, @p x + @p width) by @p align; a line wider than the box (a single
+ * character that does not fit) starts at @p x. A line broken at a soft
+ * hyphen ends with a drawn `'-'`.
+ *
+ * The box limits line width only: all lines are drawn, however many there
+ * are, and the return value gives the height they take, for placing what
+ * follows. Rendering is ink-only and clips at the surface edges, as for
+ * @ref draw_text.
+ *
+ * @code
+ * size_t y = 8;
+ * y += idfxx::gfx::draw_text_box(fb, idfxx::font::inter_16, 8, y, fb.width() - 16,
+ *                                "Fresh pastries, baked every morning.", white,
+ *                                idfxx::gfx::text_align::center);
+ * @endcode
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the box, in pixels.
+ * @param y       Top edge of the first line, in pixels.
+ * @param width   Width of the box, in pixels.
+ * @param text    The UTF-8 text to draw.
+ * @param ink     The pixel value to write for glyph ink.
+ * @param align   Horizontal alignment of each line within the box.
+ * @return The height of the drawn text in pixels: the number of lines times
+ *         `font.line_height` (0 for empty text).
+ */
+template<pixel_surface Surface>
+size_t draw_text_box(
+    Surface& surface,
+    const font::proportional_font& font,
+    size_t x,
+    size_t y,
+    size_t width,
+    std::string_view text,
+    typename Surface::pixel_type ink,
+    text_align align = text_align::left
+) noexcept {
+    size_t lines = 0;
+    for (const font::text_line& line : font::break_lines(font, text, width)) {
+        const size_t left = detail::aligned_x(x, width, line.width, align);
+        const size_t top = y + lines * font.line_height;
+        draw_text(surface, font, left, top, line.text, ink);
+        if (line.hyphenated) {
+            draw_text(surface, font, left + line.width - font.advance(U'-'), top, "-", ink);
+        }
+        ++lines;
+    }
+    return lines * font.line_height;
+}
+
+/**
+ * @brief Draws text in a proportional font wrapped to a box on a monochrome surface, setting
+ *        glyph ink pixels.
+ *
+ * Equivalent to @ref draw_text_box with `ink = true`; see there for the
+ * full layout and rendering contract.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface with a
+ *                 `bool` pixel type).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the box, in pixels.
+ * @param y       Top edge of the first line, in pixels.
+ * @param width   Width of the box, in pixels.
+ * @param text    The UTF-8 text to draw.
+ * @param align   Horizontal alignment of each line within the box.
+ * @return The height of the drawn text in pixels: the number of lines times
+ *         `font.line_height` (0 for empty text).
+ */
+template<pixel_surface Surface>
+    requires std::same_as<typename Surface::pixel_type, bool>
+size_t draw_text_box(
+    Surface& surface,
+    const font::proportional_font& font,
+    size_t x,
+    size_t y,
+    size_t width,
+    std::string_view text,
+    text_align align = text_align::left
+) noexcept {
+    return draw_text_box(surface, font, x, y, width, text, true, align);
+}
+
+/**
+ * @brief Draws text in a fixed-cell font wrapped to a box, with the given ink.
+ *
+ * Breaks @p text into lines no wider than @p width with
+ * @ref font::break_lines — wrapping at spaces and after hyphens, honoring
+ * `'\n'`, and splitting words too long for a line — then draws each line
+ * as @ref draw_text does, `font.height * scale` rows below the previous
+ * one, starting with the first line's top edge at @p y. Each line is
+ * aligned within the columns [@p x, @p x + @p width) by @p align; a line
+ * wider than the box (a single character that does not fit) starts at
+ * @p x.
+ *
+ * The box limits line width only: all lines are drawn, however many there
+ * are, and the return value gives the height they take, for placing what
+ * follows. Rendering is ink-only and clips at the surface edges, as for
+ * @ref draw_text.
+ *
+ * @code
+ * idfxx::gfx::draw_text_box(fb, idfxx::font::spleen_5x8, 0, 16, fb.width(),
+ *                           "Battery low - plug in the charger", true,
+ *                           idfxx::gfx::text_align::center);
+ * @endcode
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the box, in pixels.
+ * @param y       Top edge of the first line, in pixels.
+ * @param width   Width of the box, in pixels.
+ * @param text    The text to draw.
+ * @param ink     The pixel value to write for glyph ink.
+ * @param align   Horizontal alignment of each line within the box.
+ * @param scale   Integer magnification factor (>= 1; 0 is treated as 1);
+ *                each font pixel becomes a scale x scale block.
+ * @return The height of the drawn text in pixels: the number of lines times
+ *         `font.height * scale` (0 for empty text).
+ */
+template<pixel_surface Surface>
+size_t draw_text_box(
+    Surface& surface,
+    const font::mono_font& font,
+    size_t x,
+    size_t y,
+    size_t width,
+    std::string_view text,
+    typename Surface::pixel_type ink,
+    text_align align = text_align::left,
+    unsigned scale = 1
+) noexcept {
+    if (scale == 0) {
+        scale = 1;
+    }
+    const size_t line_height = size_t{font.height} * scale;
+    size_t lines = 0;
+    for (const font::text_line& line : font::break_lines(font, text, width, scale)) {
+        const size_t left = detail::aligned_x(x, width, line.width, align);
+        draw_text(surface, font, left, y + lines * line_height, line.text, ink, scale);
+        ++lines;
+    }
+    return lines * line_height;
+}
+
+/**
+ * @brief Draws text in a fixed-cell font wrapped to a box on a monochrome surface, setting glyph
+ *        ink pixels.
+ *
+ * Equivalent to @ref draw_text_box with `ink = true`; see there for the
+ * full layout and rendering contract.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface with a
+ *                 `bool` pixel type).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the box, in pixels.
+ * @param y       Top edge of the first line, in pixels.
+ * @param width   Width of the box, in pixels.
+ * @param text    The text to draw.
+ * @param align   Horizontal alignment of each line within the box.
+ * @return The height of the drawn text in pixels: the number of lines times
+ *         `font.height` (0 for empty text).
+ */
+template<pixel_surface Surface>
+    requires std::same_as<typename Surface::pixel_type, bool>
+size_t draw_text_box(
+    Surface& surface,
+    const font::mono_font& font,
+    size_t x,
+    size_t y,
+    size_t width,
+    std::string_view text,
+    text_align align = text_align::left
+) noexcept {
+    return draw_text_box(surface, font, x, y, width, text, true, align);
 }
 
 /**
@@ -831,9 +1054,10 @@ public:
      * or align by. Only glyph "ink" pixels are written — the background is
      * left untouched (on a monochrome surface, pass `ink = false` to erase
      * ink pixels instead). Code points the font lacks are drawn as its
-     * replacement glyph, or skipped if it has none; control characters
-     * (including newlines) are not interpreted. Pixels falling outside the
-     * canvas are clipped.
+     * replacement glyph, or skipped if it has none; U+00AD SOFT HYPHEN is
+     * never drawn and takes no space; control characters (including
+     * newlines) are not interpreted — see @ref draw_text_box for wrapped,
+     * multi-line text. Pixels falling outside the canvas are clipped.
      *
      * @param font Font to render with.
      * @param x    Left edge of the line (the starting pen position), in pixels.
@@ -871,6 +1095,145 @@ public:
         requires std::same_as<pixel_type, bool>
     {
         gfx::draw_text(*this, font, x, y, text);
+    }
+
+    /**
+     * @brief Draws text in a proportional font wrapped to a box, with the given ink.
+     *
+     * Breaks @p text into lines no wider than @p width with
+     * @ref font::break_lines — wrapping at spaces and after hyphens,
+     * hyphenating at soft hyphens (U+00AD), honoring `'\n'`, and splitting
+     * words too long for a line — then draws each line as @ref draw_text
+     * does, one `font.line_height` below the previous one, starting with the
+     * first line's top edge at @p y. Each line is aligned within the columns
+     * [@p x, @p x + @p width) by @p align; a line wider than the box (a
+     * single character that does not fit) starts at @p x. A line broken at a
+     * soft hyphen ends with a drawn `'-'`. All lines are drawn, however many
+     * there are; pixels falling outside the canvas are clipped.
+     *
+     * @code
+     * size_t y = 8;
+     * y += canvas.draw_text_box(idfxx::font::inter_16, 8, y, canvas.width() - 16,
+     *                           "Fresh pastries, baked every morning.", white,
+     *                           idfxx::gfx::text_align::center);
+     * @endcode
+     *
+     * @param font  Font to render with.
+     * @param x     Left edge of the box, in pixels.
+     * @param y     Top edge of the first line, in pixels.
+     * @param width Width of the box, in pixels.
+     * @param text  The UTF-8 text to draw.
+     * @param ink   The pixel value to write for glyph ink.
+     * @param align Horizontal alignment of each line within the box.
+     * @return The height of the drawn text in pixels: the number of lines
+     *         times `font.line_height` (0 for empty text).
+     */
+    size_t draw_text_box(
+        const font::proportional_font& font,
+        size_t x,
+        size_t y,
+        size_t width,
+        std::string_view text,
+        pixel_type ink,
+        text_align align = text_align::left
+    ) noexcept {
+        return gfx::draw_text_box(*this, font, x, y, width, text, ink, align);
+    }
+
+    /**
+     * @brief Draws text in a proportional font wrapped to a box on a monochrome surface, setting
+     *        glyph ink pixels.
+     *
+     * Equivalent to @ref draw_text_box with `ink = true`; see there for the
+     * full layout and rendering contract.
+     *
+     * @param font  Font to render with.
+     * @param x     Left edge of the box, in pixels.
+     * @param y     Top edge of the first line, in pixels.
+     * @param width Width of the box, in pixels.
+     * @param text  The UTF-8 text to draw.
+     * @param align Horizontal alignment of each line within the box.
+     * @return The height of the drawn text in pixels: the number of lines
+     *         times `font.line_height` (0 for empty text).
+     */
+    size_t draw_text_box(
+        const font::proportional_font& font,
+        size_t x,
+        size_t y,
+        size_t width,
+        std::string_view text,
+        text_align align = text_align::left
+    ) noexcept
+        requires std::same_as<pixel_type, bool>
+    {
+        return gfx::draw_text_box(*this, font, x, y, width, text, align);
+    }
+
+    /**
+     * @brief Draws text in a fixed-cell font wrapped to a box, with the given ink.
+     *
+     * Breaks @p text into lines no wider than @p width with
+     * @ref font::break_lines — wrapping at spaces and after hyphens,
+     * honoring `'\n'`, and splitting words too long for a line — then draws
+     * each line as @ref draw_text does, `font.height * scale` rows below the
+     * previous one, starting with the first line's top edge at @p y. Each
+     * line is aligned within the columns [@p x, @p x + @p width) by
+     * @p align; a line wider than the box (a single character that does not
+     * fit) starts at @p x. All lines are drawn, however many there are;
+     * pixels falling outside the canvas are clipped.
+     *
+     * @param font  Font to render with.
+     * @param x     Left edge of the box, in pixels.
+     * @param y     Top edge of the first line, in pixels.
+     * @param width Width of the box, in pixels.
+     * @param text  The text to draw.
+     * @param ink   The pixel value to write for glyph ink.
+     * @param align Horizontal alignment of each line within the box.
+     * @param scale Integer magnification factor (>= 1; 0 is treated as 1);
+     *              each font pixel becomes a scale x scale block.
+     * @return The height of the drawn text in pixels: the number of lines
+     *         times `font.height * scale` (0 for empty text).
+     */
+    size_t draw_text_box(
+        const font::mono_font& font,
+        size_t x,
+        size_t y,
+        size_t width,
+        std::string_view text,
+        pixel_type ink,
+        text_align align = text_align::left,
+        unsigned scale = 1
+    ) noexcept {
+        return gfx::draw_text_box(*this, font, x, y, width, text, ink, align, scale);
+    }
+
+    /**
+     * @brief Draws text in a fixed-cell font wrapped to a box on a monochrome surface, setting
+     *        glyph ink pixels.
+     *
+     * Equivalent to @ref draw_text_box with `ink = true`; see there for the
+     * full layout and rendering contract.
+     *
+     * @param font  Font to render with.
+     * @param x     Left edge of the box, in pixels.
+     * @param y     Top edge of the first line, in pixels.
+     * @param width Width of the box, in pixels.
+     * @param text  The text to draw.
+     * @param align Horizontal alignment of each line within the box.
+     * @return The height of the drawn text in pixels: the number of lines
+     *         times `font.height` (0 for empty text).
+     */
+    size_t draw_text_box(
+        const font::mono_font& font,
+        size_t x,
+        size_t y,
+        size_t width,
+        std::string_view text,
+        text_align align = text_align::left
+    ) noexcept
+        requires std::same_as<pixel_type, bool>
+    {
+        return gfx::draw_text_box(*this, font, x, y, width, text, align);
     }
 
 private:
@@ -1150,6 +1513,26 @@ namespace idfxx {
     }
 }
 
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Returns a string representation of a text alignment.
+ *
+ * @param a The alignment to convert.
+ * @return The enumerator name (e.g. "center"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(gfx::text_align a) {
+    switch (a) {
+    case gfx::text_align::left:
+        return "left";
+    case gfx::text_align::center:
+        return "center";
+    case gfx::text_align::right:
+        return "right";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(a)) + ')';
+    }
+}
+
 } // namespace idfxx
 
 /** @} */ // end of idfxx_gfx
@@ -1165,6 +1548,16 @@ struct formatter<idfxx::gfx::rotation> {
 
     template<typename FormatContext>
     auto format(idfxx::gfx::rotation v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::gfx::text_align> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::gfx::text_align v, FormatContext& ctx) const {
         auto s = idfxx::to_string(v);
         return std::copy(s.begin(), s.end(), ctx.out());
     }
