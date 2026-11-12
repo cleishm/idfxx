@@ -11,9 +11,11 @@
  * @defgroup idfxx_crypto Cryptography
  * @brief Type-safe cryptographic primitives.
  *
- * Provides message digests (@ref idfxx_crypto_hash) in one-shot and incremental forms, with the
- * algorithm chosen at compile time or at runtime. Every operation is available both as a
- * `result<T>`-returning `try_*` function and, when exceptions are enabled, as a throwing function.
+ * Provides message digests (@ref idfxx_crypto_hash) and message authentication codes
+ * (@ref idfxx_crypto_mac) in one-shot and incremental forms, with the algorithm chosen at compile
+ * time or at runtime, and the keys MACs use (@ref idfxx_crypto_key). Every operation is available
+ * both as a `result<T>`-returning `try_*` function and, when exceptions are enabled, as a throwing
+ * function.
  *
  * Depends on @ref idfxx_core for error handling.
  *

@@ -1,5 +1,5 @@
 version: "1.0.0"
-description: "Type-safe cryptographic primitives: SHA-2, SHA-3, SHA-1 and MD5 message digests"
+description: "Type-safe cryptographic primitives: message digests (SHA-2, SHA-3, SHA-1, MD5) and MACs (HMAC, AES-CMAC)"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_crypto"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"

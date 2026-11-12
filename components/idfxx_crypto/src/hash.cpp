@@ -5,7 +5,6 @@
 
 #include <idfxx/crypto/hash>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -13,31 +12,7 @@
 
 namespace idfxx::crypto::hash {
 
-namespace {
-
-const uint8_t* as_psa(const std::byte* p) noexcept {
-    return reinterpret_cast<const uint8_t*>(p);
-}
-
-uint8_t* as_psa(std::byte* p) noexcept {
-    return reinterpret_cast<uint8_t*>(p);
-}
-
-#ifndef MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS
-// Without MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS (mbedTLS 3.6, ESP-IDF 5.5), each PSA call copies its
-// whole input to the heap first. Input is fed in chunks of this size to bound that copy.
-constexpr std::size_t input_chunk_size = 4096;
-#endif
-
-// Interprets the status of a PSA digest check: a mismatch is false, not an error.
-result<bool> verify_result(psa_status_t status) {
-    if (status == PSA_ERROR_INVALID_SIGNATURE) {
-        return false;
-    }
-    return detail::psa_wrap(status).transform([] { return true; });
-}
-
-} // namespace
+using detail::as_psa;
 
 struct operation::state {
     explicit state(hash::algorithm a) noexcept
@@ -75,16 +50,9 @@ struct operation::state {
         if (auto r = start(); !r) {
             return r;
         }
-#ifdef MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS
-        psa_status_t status = psa_hash_update(&op, as_psa(data.data()), data.size());
-#else
-        psa_status_t status = PSA_SUCCESS;
-        for (std::size_t pos = 0; status == PSA_SUCCESS && pos < data.size();
-             pos += input_chunk_size) {
-            const std::size_t n = std::min(input_chunk_size, data.size() - pos);
-            status = psa_hash_update(&op, as_psa(data.data() + pos), n);
-        }
-#endif
+        psa_status_t status = detail::feed_in_chunks(data, [this](const uint8_t* p, std::size_t n) {
+            return psa_hash_update(&op, p, n);
+        });
         if (status != PSA_SUCCESS) {
             discard();
         }
@@ -111,7 +79,7 @@ struct operation::state {
         }
         psa_status_t status = psa_hash_verify(&op, as_psa(expected.data()), expected.size());
         discard();
-        return verify_result(status);
+        return detail::verify_result(status);
     }
 
     // Copies the partially digested message, if any, into `copy`, a state that is not started. On
@@ -256,7 +224,7 @@ result<bool> operation::try_compare(hash::algorithm alg, byte_view data, byte_vi
     if (auto r = detail::psa_init(); !r) {
         return error(r.error());
     }
-    return verify_result(psa_hash_compare(
+    return detail::verify_result(psa_hash_compare(
         static_cast<psa_algorithm_t>(alg),
         as_psa(data.data()),
         data.size(),

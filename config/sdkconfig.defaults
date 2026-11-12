@@ -23,3 +23,13 @@ CONFIG_FATFS_LFN_HEAP=y
 
 # SHA-3 for idfxx_crypto tests (off by default)
 CONFIG_MBEDTLS_SHA3_C=y
+
+# AES-CMAC for idfxx_crypto tests (off by default on ESP-IDF 5.5)
+CONFIG_MBEDTLS_CMAC_C=y
+
+# Thread-safe keys for idfxx_crypto: the threading layer, with the pthread implementation (on
+# ESP-IDF 5.5 the threading layer is off by default, and its default ALT implementation has no locks
+# outside the ROM port)
+CONFIG_MBEDTLS_THREADING_C=y
+CONFIG_MBEDTLS_THREADING_PTHREAD=y
+# CONFIG_MBEDTLS_THREADING_ALT is not set
