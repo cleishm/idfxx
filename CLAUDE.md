@@ -106,6 +106,25 @@ with explicit cleanup in destructors that check for moved-from state. Parent-chi
 **Conditional Compilation**: Throwing methods are guarded by
 `#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS`. SOC-specific features use `#if SOC_*` guards.
 
+**Byte Buffers** (`<idfxx/byte_view>`):
+- Bytes going into an API are an `idfxx::byte_view` parameter; a buffer the API fills is an
+  `idfxx::byte_span`. Both accept `std::byte` and `uint8_t` ranges and `{ptr, len}`, so
+  don't add pointer-length or second span-type overloads.
+- Extra overloads only where they're the common case: `std::string_view` (and `std::span<char>`
+  for reads) where callers pass text, `std::initializer_list<uint8_t>` where they write literal
+  bytes (bus and register writes), and scalar single-byte forms. Never store an
+  `initializer_list`, and don't give a view a braced-list constructor: a stored view would
+  dangle.
+- Read into the caller's buffer. Allocate and return a container only when the caller can't know
+  the size up front; for small fixed reads add `template<size_t N> requires(N > 0)` forms returning
+  `std::array`.
+- What the API hands back: opaque data (payloads, file and blob contents, keys, digests) is
+  `std::byte`, values read as numbers (register reads) are `uint8_t`. Views into the API's own
+  storage are `byte_view`; the filled prefix of a caller's buffer is a `byte_span`.
+  SHA-256 digests are `std::array<std::byte, 32>`.
+- Struct fields holding caller buffers are views declared `= {}`. Generic code reads an
+  `idfxx::byte_source` through a `byte_span`.
+
 ## Code Requirements
 
 ### Line Width
