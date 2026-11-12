@@ -3135,7 +3135,11 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  * @brief Callback invoked when a matching vendor-specific IE is received.
  *
  * Receives the registered user context, the frame type carrying the IE, the
- * sender's MAC address, the vendor IE payload, and the frame's RSSI.
+ * sender's MAC address, the vendor IE, and the frame's RSSI.
+ *
+ * The IE is the complete element as received, in the layout set_vendor_ie() takes: element ID
+ * `0xDD`, length (the number of bytes that follow it), 3-byte OUI, OUI type, then the payload.
+ * The view is valid only until the callback returns; copy any bytes needed afterward.
  *
  * When exceptions are enabled, an exception thrown by the callback is logged
  * and otherwise ignored.
@@ -3144,7 +3148,7 @@ using vendor_ie_cb = void (*)(
     void* ctx,
     enum vendor_ie_type type,
     mac_address sa,
-    const vendor_ie_data_t* ie,
+    idfxx::byte_view ie,
     quanta::electro::dbm rssi
 );
 
