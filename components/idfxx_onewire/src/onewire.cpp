@@ -31,20 +31,38 @@ namespace idfxx::onewire {
 
 // -- CRC utilities -----------------------------------------------------------
 
-uint8_t crc8(std::span<const uint8_t> data) {
-    return onewire_crc8(data.data(), static_cast<uint8_t>(data.size()));
+// Computed here rather than by onewire_crc8/onewire_crc16, which limit the input length (a
+// uint8_t length and a uint16_t loop counter respectively). Results are identical.
+
+uint8_t crc8(byte_view data) {
+    uint8_t crc = 0;
+    for (uint8_t byte : std::span<const uint8_t>{data}) {
+        crc ^= byte;
+        for (int i = 0; i < 8; ++i) {
+            crc = static_cast<uint8_t>((crc & 0x01) ? (crc >> 1) ^ 0x8C : crc >> 1);
+        }
+    }
+    return crc;
 }
 
-uint16_t crc16(std::span<const uint8_t> data, uint16_t crc_iv) {
-    return onewire_crc16(data.data(), data.size(), crc_iv);
+uint16_t crc16(byte_view data, uint16_t crc_iv) {
+    uint16_t crc = crc_iv;
+    for (uint8_t byte : std::span<const uint8_t>{data}) {
+        crc ^= byte;
+        for (int i = 0; i < 8; ++i) {
+            crc = static_cast<uint16_t>((crc & 0x0001) ? (crc >> 1) ^ 0xA001 : crc >> 1);
+        }
+    }
+    return crc;
 }
 
-bool check_crc16(
-    std::span<const uint8_t> data,
-    std::span<const uint8_t, 2> inverted_crc,
-    uint16_t crc_iv
-) {
-    return onewire_check_crc16(data.data(), data.size(), inverted_crc.data(), crc_iv);
+bool check_crc16(byte_view data, byte_view inverted_crc, uint16_t crc_iv) {
+    if (inverted_crc.size() != 2) {
+        return false;
+    }
+    auto crc = static_cast<uint16_t>(~crc16(data, crc_iv));
+    return (crc & 0xFF) == std::to_integer<uint8_t>(inverted_crc[0]) &&
+        (crc >> 8) == std::to_integer<uint8_t>(inverted_crc[1]);
 }
 
 // -- bus ---------------------------------------------------------------------
@@ -106,12 +124,13 @@ result<void> bus::try_write(uint8_t value) {
     return {};
 }
 
-result<void> bus::try_write(std::span<const uint8_t> data) {
+result<void> bus::try_write(byte_view data) {
     if (!_mux) {
         return error(errc::invalid_state);
     }
     std::scoped_lock lock(*_mux);
-    if (!onewire_write_bytes(_pin.idf_num(), data.data(), data.size())) {
+    std::span<const uint8_t> bytes = data;
+    if (!onewire_write_bytes(_pin.idf_num(), bytes.data(), bytes.size())) {
         ESP_LOGD(TAG, "Failed to write %zu bytes", data.size());
         return error(errc::fail);
     }
@@ -131,12 +150,13 @@ result<uint8_t> bus::try_read() {
     return static_cast<uint8_t>(value);
 }
 
-result<void> bus::try_read(std::span<uint8_t> buf) {
+result<void> bus::try_read(byte_span buf) {
     if (!_mux) {
         return error(errc::invalid_state);
     }
     std::scoped_lock lock(*_mux);
-    if (!onewire_read_bytes(_pin.idf_num(), buf.data(), buf.size())) {
+    std::span<uint8_t> bytes = buf;
+    if (!onewire_read_bytes(_pin.idf_num(), bytes.data(), bytes.size())) {
         ESP_LOGD(TAG, "Failed to read %zu bytes", buf.size());
         return error(errc::fail);
     }

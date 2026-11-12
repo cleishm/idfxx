@@ -6,7 +6,8 @@
 
 - Typed 64-bit device address with family code extraction and hex formatting
 - Bus reset, ROM select, and skip ROM commands
-- Single-byte and multi-byte read/write operations
+- Single-byte and byte-buffer read/write operations accepting `uint8_t` or `std::byte` buffers,
+  literal byte lists and fixed-size array reads
 - Parasitic power control for battery-less devices
 - Device search with optional family code filtering
 - Thread-safe bus access (Lockable interface)
@@ -27,7 +28,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_onewire:
-    version: "^1.0.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_onewire` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -48,6 +49,19 @@ try {
     if (bus.reset()) {
         bus.skip_rom();
         bus.write(0x44);  // e.g., DS18B20 Convert T command
+    }
+
+    // Read each DS18B20's 9-byte scratchpad and verify its CRC
+    for (auto addr : bus.search(0x28)) {
+        if (!bus.reset()) {
+            continue;
+        }
+        bus.select(addr);
+        bus.write(0xBE);  // Read Scratchpad
+        auto scratchpad = bus.read<9>();
+        if (idfxx::onewire::crc8({scratchpad.data(), 8}) != scratchpad[8]) {
+            idfxx::log::warn("OW", "{}: scratchpad CRC mismatch", addr);
+        }
     }
 
 } catch (const std::system_error& e) {
@@ -121,9 +135,10 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 {
     std::lock_guard<idfxx::onewire::bus> lock(bus);
     // Exclusive access to the bus
-    bus.reset();
-    bus.skip_rom();
-    bus.write(0x44);
+    if (bus.reset()) {
+        bus.skip_rom();
+        bus.write(0x44);
+    }
 }
 ```
 
@@ -157,10 +172,13 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 - `skip_rom()` / `try_skip_rom()` - Select all devices
 
 **Data Transfer:**
-- `write(byte)` / `try_write(byte)` - Write single byte
-- `write(data)` / `try_write(data)` - Write multiple bytes
-- `read()` / `try_read()` - Read single byte
-- `read(buf)` / `try_read(buf)` - Read multiple bytes
+- `write(byte)` / `try_write(byte)` - Write a single byte, e.g. `write(0x44)`
+- `write(data)` / `try_write(data)` - Write a byte buffer (`uint8_t` or `std::byte` range, or
+  `{ptr, len}`)
+- `write({...})` / `try_write({...})` - Write literal bytes, e.g. `write({0xCC, 0x44})`
+- `read()` / `try_read()` - Read a single byte
+- `read<N>()` / `try_read<N>()` - Read `N` bytes into a returned `std::array<uint8_t, N>`
+- `read(buf)` / `try_read(buf)` - Fill a writable byte buffer
 
 **Power:**
 - `power()` / `try_power()` - Drive bus high for parasitic power
@@ -172,9 +190,9 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 
 ### Free Functions
 
-- `crc8(data)` - Compute 8-bit CRC
-- `crc16(data, iv)` - Compute 16-bit CRC
-- `check_crc16(data, crc, iv)` - Verify 16-bit CRC
+- `crc8(data)` - Compute 8-bit CRC of a byte buffer
+- `crc16(data, iv)` - Compute 16-bit CRC of a byte buffer
+- `check_crc16(data, crc, iv)` - Verify 16-bit CRC; `crc` is a byte view that must be exactly 2 bytes
 
 ## Error Handling
 

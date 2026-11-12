@@ -20,10 +20,14 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/gpio>
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <span>
@@ -117,7 +121,7 @@ class bus;
  * @param data The data bytes to checksum.
  * @return The computed 8-bit CRC.
  */
-[[nodiscard]] uint8_t crc8(std::span<const uint8_t> data);
+[[nodiscard]] uint8_t crc8(byte_view data);
 
 /**
  * @headerfile <idfxx/onewire>
@@ -132,22 +136,19 @@ class bus;
  * @note The CRC computed here is not what you'll get directly from the
  *       1-Wire network, as it is transmitted bitwise inverted.
  */
-[[nodiscard]] uint16_t crc16(std::span<const uint8_t> data, uint16_t crc_iv = 0);
+[[nodiscard]] uint16_t crc16(byte_view data, uint16_t crc_iv = 0);
 
 /**
  * @headerfile <idfxx/onewire>
  * @brief Verifies a 16-bit CRC against received data.
  *
  * @param data The data bytes to checksum.
- * @param inverted_crc The two CRC16 bytes as received from the device.
+ * @param inverted_crc The two CRC16 bytes as received from the device. Any other size is
+ *        rejected.
  * @param crc_iv The CRC starting value (default: 0).
- * @return true if the CRC matches, false otherwise.
+ * @return true if the CRC matches, false if it doesn't or @p inverted_crc is not exactly 2 bytes.
  */
-[[nodiscard]] bool check_crc16(
-    std::span<const uint8_t> data,
-    std::span<const uint8_t, 2> inverted_crc,
-    uint16_t crc_iv = 0
-);
+[[nodiscard]] bool check_crc16(byte_view data, byte_view inverted_crc, uint16_t crc_iv = 0);
 
 // -- bus ---------------------------------------------------------------------
 
@@ -291,26 +292,50 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Writes a single byte to the bus.
+     * @brief Writes a single byte, such as a command, to the bus.
      *
      * @param value The byte to write.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on bus communication failure.
+     *
+     * @code
+     * bus.write(0x44);  // Convert T
+     * @endcode
      */
     void write(uint8_t value) { unwrap(try_write(value)); }
 
     /**
-     * @brief Writes multiple bytes to the bus.
+     * @brief Writes bytes to the bus.
+     *
+     * @param data The bytes to write: any contiguous range of `uint8_t` or `std::byte`, or
+     *             `{ptr, len}`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on bus communication failure.
+     *
+     * @code
+     * std::array<uint8_t, 4> cmd{0x4E, th, tl, cfg};  // Write Scratchpad
+     * bus.write(cmd);
+     * @endcode
+     */
+    void write(byte_view data) { unwrap(try_write(data)); }
+
+    /**
+     * @brief Writes a short sequence of literal bytes, such as a command, to the bus.
      *
      * @param data The bytes to write.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on bus communication failure.
+     *
+     * @code
+     * bus.write({0xCC, 0x44});              // Skip ROM, Convert T
+     * bus.write({0x4E, 0x4B, 0x46, 0x7F});  // Write Scratchpad: TH, TL, config
+     * @endcode
      */
-    void write(std::span<const uint8_t> data) { unwrap(try_write(data)); }
+    void write(std::initializer_list<uint8_t> data) { unwrap(try_write(data)); }
 #endif
 
     /**
-     * @brief Writes a single byte to the bus.
+     * @brief Writes a single byte, such as a command, to the bus.
      *
      * @param value The byte to write.
      * @return Success, or an error on bus communication failure.
@@ -318,12 +343,23 @@ public:
     [[nodiscard]] result<void> try_write(uint8_t value);
 
     /**
-     * @brief Writes multiple bytes to the bus.
+     * @brief Writes bytes to the bus.
+     *
+     * @param data The bytes to write: any contiguous range of `uint8_t` or `std::byte`, or
+     *             `{ptr, len}`.
+     * @return Success, or an error on bus communication failure.
+     */
+    [[nodiscard]] result<void> try_write(byte_view data);
+
+    /**
+     * @brief Writes a short sequence of literal bytes, such as a command, to the bus.
      *
      * @param data The bytes to write.
      * @return Success, or an error on bus communication failure.
      */
-    [[nodiscard]] result<void> try_write(std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_write(std::initializer_list<uint8_t> data) {
+        return try_write(byte_view{data.begin(), data.size()});
+    }
 
     // -- Read operations -----------------------------------------------------
 
@@ -338,13 +374,39 @@ public:
     [[nodiscard]] uint8_t read() { return unwrap(try_read()); }
 
     /**
-     * @brief Reads multiple bytes from the bus into a buffer.
+     * @brief Reads a fixed number of bytes from the bus.
      *
-     * @param buf The buffer to read into.
+     * @tparam N The number of bytes to read.
+     * @return The bytes read.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on bus communication failure.
+     *
+     * @code
+     * if (bus.reset()) {
+     *     bus.select(addr);
+     *     bus.write(0xBE);  // Read Scratchpad
+     *     auto scratchpad = bus.read<9>();
+     *     if (idfxx::onewire::crc8({scratchpad.data(), 8}) != scratchpad[8]) {
+     *         // corrupted transfer
+     *     }
+     * }
+     * @endcode
+     */
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N> read() {
+        return unwrap(try_read<N>());
+    }
+
+    /**
+     * @brief Reads bytes from the bus, filling the whole buffer.
+     *
+     * @param buf The buffer to fill: any writable contiguous range of `uint8_t` or `std::byte`,
+     *            or `{ptr, len}`. Its whole length is read.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on bus communication failure.
      */
-    void read(std::span<uint8_t> buf) { unwrap(try_read(buf)); }
+    void read(byte_span buf) { unwrap(try_read(buf)); }
 #endif
 
     /**
@@ -355,12 +417,26 @@ public:
     [[nodiscard]] result<uint8_t> try_read();
 
     /**
-     * @brief Reads multiple bytes from the bus into a buffer.
+     * @brief Reads a fixed number of bytes from the bus.
      *
-     * @param buf The buffer to read into.
+     * @tparam N The number of bytes to read.
+     * @return The bytes read, or an error on bus communication failure.
+     */
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_read() {
+        std::array<uint8_t, N> buf{};
+        return try_read(byte_span{buf}).transform([&buf]() { return buf; });
+    }
+
+    /**
+     * @brief Reads bytes from the bus, filling the whole buffer.
+     *
+     * @param buf The buffer to fill: any writable contiguous range of `uint8_t` or `std::byte`,
+     *            or `{ptr, len}`. Its whole length is read.
      * @return Success, or an error on bus communication failure.
      */
-    [[nodiscard]] result<void> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<void> try_read(byte_span buf);
 
     // -- Parasitic power -----------------------------------------------------
 
