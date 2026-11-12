@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cassert>
 #include <cerrno>
+#include <cstddef>
 #include <cstdio>
 #include <diskio.h>
 #include <diskio_impl.h>
@@ -637,7 +638,7 @@ std::unexpected<std::error_code> stdio_error() {
     return error(std::error_code(errno != 0 ? errno : EIO, std::generic_category()));
 }
 
-result<void> write_all(FILE* file, std::span<const uint8_t> data) {
+result<void> write_all(FILE* file, byte_view data) {
     errno = 0;
     if (std::fwrite(data.data(), 1, data.size(), file) != data.size()) {
         return stdio_error();
@@ -1358,7 +1359,7 @@ result<void> volume::try_unmount() {
 // --- Replacing files ---------------------------------------------------------
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-void volume::replace_file(std::string_view path, std::span<const uint8_t> contents) {
+void volume::replace_file(std::string_view path, byte_view contents) {
     unwrap(try_replace_file(path, contents));
 }
 
@@ -1367,15 +1368,13 @@ void volume::replace_file(std::string_view path, std::string_view text) {
 }
 #endif
 
-result<void> volume::try_replace_file(std::string_view path, std::span<const uint8_t> contents) {
+result<void> volume::try_replace_file(std::string_view path, byte_view contents) {
     auto write = [contents](FILE* file) { return write_all(file, contents); };
     return _try_replace_file_with(path, &write, &_write<decltype(write)>);
 }
 
 result<void> volume::try_replace_file(std::string_view path, std::string_view text) {
-    return try_replace_file(
-        path, std::span(reinterpret_cast<const uint8_t*>(text.data()), text.size())
-    );
+    return try_replace_file(path, std::as_bytes(std::span{text}));
 }
 
 result<void> volume::_try_replace_file_from(std::string_view path, void* source, read_fn read) {
@@ -1384,8 +1383,8 @@ result<void> volume::_try_replace_file_from(std::string_view path, void* source,
         return error(p.error());
     }
     // Allocated once the path is checked.
-    auto storage = std::make_unique_for_overwrite<uint8_t[]>(replace_buffer_size);
-    const std::span<uint8_t> buf(storage.get(), replace_buffer_size);
+    auto storage = std::make_unique_for_overwrite<std::byte[]>(replace_buffer_size);
+    const byte_span buf{storage.get(), replace_buffer_size};
     auto write = [&](FILE* file) -> result<void> {
         while (true) {
             auto n = read(source, buf);

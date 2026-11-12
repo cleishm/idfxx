@@ -38,7 +38,7 @@ result<void> ip_io_socket_base::try_connect(const endpoint& peer) {
     return {};
 }
 
-result<std::span<std::byte>> ip_io_socket_base::try_recv(std::span<std::byte> buf) {
+result<byte_span> ip_io_socket_base::try_recv(byte_span buf) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }

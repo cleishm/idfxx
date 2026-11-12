@@ -12,7 +12,9 @@
 #include "idfxx/radio/types"
 #include "unity.h"
 
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <type_traits>
@@ -66,10 +68,10 @@ static_assert(static_cast<int>(bandwidth::bw_500) > static_cast<int>(bandwidth::
 // One-shot async data-path operations return futures; packet streams
 // (continuous / duty-cycled receive) stay event-based and return void.
 static_assert(std::is_same_v<
-              decltype(std::declval<lora_transceiver&>().try_start_transmit(std::declval<std::span<const uint8_t>>())),
+              decltype(std::declval<lora_transceiver&>().try_start_transmit(std::declval<idfxx::byte_view>())),
               idfxx::result<idfxx::future<void>>>);
 static_assert(std::is_same_v<
-              decltype(std::declval<lora_transceiver&>().try_start_receive(std::declval<std::span<uint8_t>>())),
+              decltype(std::declval<lora_transceiver&>().try_start_receive(std::declval<idfxx::byte_span>())),
               idfxx::result<idfxx::future<rx_info>>>);
 static_assert(std::is_same_v<
               decltype(std::declval<lora_transceiver&>().try_start_channel_scan()),
@@ -82,13 +84,30 @@ static_assert(
 // Blocking forms compose over the futures and keep their signatures.
 static_assert(std::is_same_v<
               decltype(std::declval<lora_transceiver&>()
-                           .try_transmit(std::declval<std::span<const uint8_t>>(), std::chrono::milliseconds{1})),
+                           .try_transmit(std::declval<idfxx::byte_view>(), std::chrono::milliseconds{1})),
               idfxx::result<void>>);
 static_assert(std::is_same_v<
               decltype(std::declval<lora_transceiver&>()
-                           .try_receive(std::declval<std::span<uint8_t>>(), std::chrono::milliseconds{1})),
+                           .try_receive(std::declval<idfxx::byte_span>(), std::chrono::milliseconds{1})),
               idfxx::result<rx_info>>);
 static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_scan_channel()), idfxx::result<cad_info>>);
+
+// Payloads are byte views: any contiguous range of std::byte or uint8_t is accepted, char ranges
+// (text) are not. Receive buffers must be writable lvalues, so received bytes cannot be lost in
+// a temporary.
+template<typename T>
+concept transmittable = requires(lora_transceiver& r, T&& t) { r.try_start_transmit(std::forward<T>(t)); };
+template<typename T>
+concept receivable = requires(lora_transceiver& r, T&& t) { r.try_start_receive(std::forward<T>(t)); };
+static_assert(transmittable<const std::array<std::byte, 4>&>);
+static_assert(transmittable<const std::array<uint8_t, 4>&>);
+static_assert(transmittable<std::span<const uint8_t>>);
+static_assert(!transmittable<const std::array<char, 4>&>);
+static_assert(receivable<std::array<std::byte, 4>&>);
+static_assert(receivable<std::array<uint8_t, 4>&>);
+static_assert(!receivable<std::array<uint8_t, 4>>);
+static_assert(!receivable<const std::array<uint8_t, 4>&>);
+static_assert(!receivable<std::array<char, 4>&>);
 
 // Chip-presence verification is part of the chip-agnostic interface.
 static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_probe()), idfxx::result<void>>);

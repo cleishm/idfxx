@@ -13,13 +13,13 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net/detail/ip_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 
 #include <chrono>
 #include <cstddef>
-#include <span>
 
 namespace idfxx::net::detail {
 
@@ -69,7 +69,7 @@ public:
      * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
      * the call returns immediately when no data is available.
      *
-     * An empty @p buf returns an empty span at once without receiving
+     * An empty @p buf returns an empty view at once without receiving
      * anything, so it cannot detect peer close; pass a non-empty buffer for
      * that.
      *
@@ -80,13 +80,11 @@ public:
      *         the receive timeout expires and `errc::operation_would_block` when
      *         a non-blocking socket has no data available.
      *
-     * @return Sub-span of @p buf with the bytes actually received. For a
-     *         non-empty @p buf, an empty span indicates the peer closed the
+     * @return View of the bytes received, at the start of @p buf. For a
+     *         non-empty @p buf, an empty view indicates the peer closed the
      *         connection.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv(buf));
-    }
+    [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
 
     /**
@@ -96,19 +94,19 @@ public:
      * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
      * the call returns immediately when no data is available.
      *
-     * An empty @p buf returns an empty span at once without receiving
+     * An empty @p buf returns an empty view at once without receiving
      * anything, so it cannot detect peer close; pass a non-empty buffer for
      * that.
      *
      * @param buf Buffer to receive into.
-     * @return Sub-span of @p buf with the bytes actually received (for a
-     *         non-empty @p buf, an empty span indicates the peer closed the
+     * @return View of the bytes received, at the start of @p buf (for a
+     *         non-empty @p buf, an empty view indicates the peer closed the
      *         connection), or an error.
      * @retval errc::timed_out The receive timeout expired before any data arrived.
      * @retval errc::operation_would_block The socket is non-blocking and no data
      *         is available.
      */
-    [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
+    [[nodiscard]] result<byte_span> try_recv(byte_span buf);
 
     /**
      * @brief Sets the kernel send buffer size in bytes. Equivalent to the POSIX

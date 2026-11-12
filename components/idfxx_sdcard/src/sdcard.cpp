@@ -821,50 +821,34 @@ result<void> card::try_probe() const {
 // =============================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-void card::read_sectors(size_t first, std::span<uint8_t> dst) const {
+void card::read_sectors(size_t first, byte_span dst) const {
     unwrap(try_read_sectors(first, dst));
-}
-
-void card::read_sectors(size_t first, void* dst, size_t size) const {
-    unwrap(try_read_sectors(first, dst, size));
 }
 #endif
 
-result<void> card::try_read_sectors(size_t first, std::span<uint8_t> dst) const {
-    return try_read_sectors(first, dst.data(), dst.size());
-}
-
-result<void> card::try_read_sectors(size_t first, void* dst, size_t size) const {
-    if (size == 0) {
+result<void> card::try_read_sectors(size_t first, byte_span dst) const {
+    if (dst.empty()) {
         return {};
     }
-    auto count = _state->sectors_for(first, size);
+    auto count = _state->sectors_for(first, dst.size());
     if (!count) {
         return error(count.error());
     }
     std::lock_guard lock(_state->mtx);
-    return wrap(sdmmc_read_sectors(&_state->card, dst, first, *count));
+    return wrap(sdmmc_read_sectors(&_state->card, dst.data(), first, *count));
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-void card::write_sectors(size_t first, std::span<const uint8_t> src) {
+void card::write_sectors(size_t first, byte_view src) {
     unwrap(try_write_sectors(first, src));
-}
-
-void card::write_sectors(size_t first, const void* src, size_t size) {
-    unwrap(try_write_sectors(first, src, size));
 }
 #endif
 
-result<void> card::try_write_sectors(size_t first, std::span<const uint8_t> src) {
-    return try_write_sectors(first, src.data(), src.size());
-}
-
-result<void> card::try_write_sectors(size_t first, const void* src, size_t size) {
-    if (size == 0) {
+result<void> card::try_write_sectors(size_t first, byte_view src) {
+    if (src.empty()) {
         return {};
     }
-    auto count = _state->sectors_for(first, size);
+    auto count = _state->sectors_for(first, src.size());
     if (!count) {
         return error(count.error());
     }
@@ -872,7 +856,7 @@ result<void> card::try_write_sectors(size_t first, const void* src, size_t size)
     if (_state->is_write_protected()) {
         return error(errc::invalid_state);
     }
-    return wrap(sdmmc_write_sectors(&_state->card, src, first, *count));
+    return wrap(sdmmc_write_sectors(&_state->card, src.data(), first, *count));
 }
 
 // =============================================================================

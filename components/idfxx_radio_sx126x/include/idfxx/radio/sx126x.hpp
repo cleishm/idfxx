@@ -12,6 +12,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/event>
@@ -24,14 +25,16 @@
 #include <idfxx/required>
 #include <idfxx/spi/master>
 
+#include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <quanta/decibel>
 #include <quanta/electro>
 #include <quanta/frequency>
-#include <span>
 
 namespace idfxx::radio {
 
@@ -496,83 +499,332 @@ public:
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Sends a command opcode with parameter bytes.
+     *
      * @param opcode Command opcode.
-     * @param params Parameter bytes to send after the opcode.
+     * @param params Parameter bytes to send after the opcode (at most 259).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p params is too
+     *         long for one frame.
      */
-    void write_command(uint8_t opcode, std::span<const uint8_t> params) {
+    void write_command(uint8_t opcode, byte_view params) {
+        unwrap(try_write_command(opcode, params));
+    }
+
+    /**
+     * @brief Sends a command opcode with literal parameter bytes.
+     *
+     * @param opcode Command opcode.
+     * @param params Parameter bytes to send after the opcode (at most 259).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p params is too
+     *         long for one frame.
+     *
+     * @code
+     * radio.write_command(0x8F, {0x00, 0x00}); // SetBufferBaseAddress(tx = 0, rx = 0)
+     * @endcode
+     */
+    void write_command(uint8_t opcode, std::initializer_list<uint8_t> params) {
         unwrap(try_write_command(opcode, params));
     }
 
     /**
      * @brief Sends a command opcode and reads the response bytes.
+     *
+     * Always fills the whole of @p response.
+     *
      * @param opcode   Command opcode.
-     * @param response Buffer to receive response bytes into.
+     * @param response Buffer to receive the response bytes into (at most 259); its size is the
+     *                 number of bytes read.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p response is too
+     *         long for one frame.
      */
-    void read_command(uint8_t opcode, std::span<uint8_t> response) {
+    void read_command(uint8_t opcode, byte_span response) {
         unwrap(try_read_command(opcode, response));
     }
 
     /**
-     * @brief Writes one or more chip registers.
-     * @param addr 16-bit register address.
-     * @param data Bytes to write.
+     * @brief Sends a command opcode and reads a fixed number of response bytes.
+     *
+     * @tparam N Number of response bytes to read; must be between 1 and 259.
+     * @param opcode Command opcode.
+     * @return The response bytes.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
+     *
+     * @code
+     * auto irq = radio.read_command<2>(0x12); // GetIrqStatus
+     * @endcode
      */
-    void write_register(uint16_t addr, std::span<const uint8_t> data) {
+    template<size_t N>
+        requires(N > 0 && N <= 259)
+    [[nodiscard]] std::array<uint8_t, N> read_command(uint8_t opcode) {
+        return unwrap(try_read_command<N>(opcode));
+    }
+
+    /**
+     * @brief Writes one or more consecutive chip registers.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Bytes to write (at most 257).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is too long
+     *         for one frame.
+     */
+    void write_register(uint16_t addr, byte_view data) { unwrap(try_write_register(addr, data)); }
+
+    /**
+     * @brief Writes literal bytes to one or more consecutive chip registers.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Bytes to write (at most 257).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is too long
+     *         for one frame.
+     *
+     * @code
+     * radio.write_register(0x0740, {0x34, 0x44}); // LoRa sync word (public network)
+     * @endcode
+     */
+    void write_register(uint16_t addr, std::initializer_list<uint8_t> data) {
         unwrap(try_write_register(addr, data));
     }
 
     /**
-     * @brief Reads one or more chip registers.
+     * @brief Writes a single chip register.
+     *
+     * @param addr  16-bit register address.
+     * @param value Byte to write.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * radio.write_register(0x08AC, 0x96); // boosted RX gain
+     * @endcode
+     */
+    void write_register(uint16_t addr, uint8_t value) { unwrap(try_write_register(addr, value)); }
+
+    /**
+     * @brief Reads one or more consecutive chip registers.
+     *
+     * Always fills the whole of @p data.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Buffer to receive the register values into (at most 256 bytes); its size is
+     *             the number of registers read.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is too long
+     *         for one frame.
+     */
+    void read_register(uint16_t addr, byte_span data) { unwrap(try_read_register(addr, data)); }
+
+    /**
+     * @brief Reads a fixed number of consecutive chip registers.
+     *
+     * @tparam N Number of registers to read; must be between 1 and 256.
+     * @param addr 16-bit address of the first register.
+     * @return The register values.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * auto sync = radio.read_register<2>(0x0740); // LoRa sync word
+     * @endcode
+     */
+    template<size_t N>
+        requires(N > 0 && N <= 256)
+    [[nodiscard]] std::array<uint8_t, N> read_register(uint16_t addr) {
+        return unwrap(try_read_register<N>(addr));
+    }
+
+    /**
+     * @brief Reads a single chip register.
+     *
      * @param addr 16-bit register address.
-     * @param data Buffer to receive into.
+     * @return The register value.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_register(uint16_t addr, std::span<uint8_t> data) {
-        unwrap(try_read_register(addr, data));
+    [[nodiscard]] uint8_t read_register(uint16_t addr) { return unwrap(try_read_register(addr)); }
+
+    /**
+     * @brief Writes the chip's data buffer at the specified offset.
+     *
+     * An access running past the end of the 256-byte buffer is not rejected; only the size of
+     * @p data is limited.
+     *
+     * @param offset Byte offset within the 256-byte chip buffer.
+     * @param data   Bytes to write (at most 256).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is larger
+     *         than 256 bytes.
+     */
+    void write_buffer(uint8_t offset, byte_view data) { unwrap(try_write_buffer(offset, data)); }
+
+    /**
+     * @brief Reads the chip's data buffer at the specified offset.
+     *
+     * Always fills the whole of @p data. An access running past the end of the 256-byte buffer
+     * is not rejected; only the size of @p data is limited.
+     *
+     * @param offset Byte offset within the 256-byte chip buffer.
+     * @param data   Buffer to receive into (at most 256 bytes); its size is the number of bytes
+     *               read.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is larger
+     *         than 256 bytes.
+     */
+    void read_buffer(uint8_t offset, byte_span data) { unwrap(try_read_buffer(offset, data)); }
+#endif
+
+    /**
+     * @brief Sends a command opcode with parameter bytes.
+     *
+     * @param opcode Command opcode.
+     * @param params Parameter bytes to send after the opcode (at most 259).
+     * @return Success, or an error.
+     * @retval invalid_arg @p params is too long for one frame.
+     */
+    [[nodiscard]] result<void> try_write_command(uint8_t opcode, byte_view params);
+
+    /**
+     * @brief Sends a command opcode with literal parameter bytes.
+     *
+     * @param opcode Command opcode.
+     * @param params Parameter bytes to send after the opcode (at most 259).
+     * @return Success, or an error.
+     * @retval invalid_arg @p params is too long for one frame.
+     */
+    [[nodiscard]] result<void>
+    try_write_command(uint8_t opcode, std::initializer_list<uint8_t> params) {
+        return try_write_command(opcode, byte_view(params.begin(), params.size()));
+    }
+
+    /**
+     * @brief Sends a command opcode and reads the response bytes.
+     *
+     * Always fills the whole of @p response.
+     *
+     * @param opcode   Command opcode.
+     * @param response Buffer to receive the response bytes into (at most 259); its size is the
+     *                 number of bytes read.
+     * @return Success, or an error.
+     * @retval invalid_arg @p response is too long for one frame.
+     */
+    [[nodiscard]] result<void> try_read_command(uint8_t opcode, byte_span response);
+
+    /**
+     * @brief Sends a command opcode and reads a fixed number of response bytes.
+     *
+     * @tparam N Number of response bytes to read; must be between 1 and 259.
+     * @param opcode Command opcode.
+     * @return The response bytes, or an error.
+     */
+    template<size_t N>
+        requires(N > 0 && N <= 259)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_read_command(uint8_t opcode) {
+        std::array<uint8_t, N> response{};
+        return try_read_command(opcode, response).transform([&] { return response; });
+    }
+
+    /**
+     * @brief Writes one or more consecutive chip registers.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Bytes to write (at most 257).
+     * @return Success, or an error.
+     * @retval invalid_arg @p data is too long for one frame.
+     */
+    [[nodiscard]] result<void> try_write_register(uint16_t addr, byte_view data);
+
+    /**
+     * @brief Writes literal bytes to one or more consecutive chip registers.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Bytes to write (at most 257).
+     * @return Success, or an error.
+     * @retval invalid_arg @p data is too long for one frame.
+     */
+    [[nodiscard]] result<void>
+    try_write_register(uint16_t addr, std::initializer_list<uint8_t> data) {
+        return try_write_register(addr, byte_view(data.begin(), data.size()));
+    }
+
+    /**
+     * @brief Writes a single chip register.
+     *
+     * @param addr  16-bit register address.
+     * @param value Byte to write.
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_write_register(uint16_t addr, uint8_t value) {
+        return try_write_register(addr, byte_view{&value, 1});
+    }
+
+    /**
+     * @brief Reads one or more consecutive chip registers.
+     *
+     * Always fills the whole of @p data.
+     *
+     * @param addr 16-bit address of the first register.
+     * @param data Buffer to receive the register values into (at most 256 bytes); its size is
+     *             the number of registers read.
+     * @return Success, or an error.
+     * @retval invalid_arg @p data is too long for one frame.
+     */
+    [[nodiscard]] result<void> try_read_register(uint16_t addr, byte_span data);
+
+    /**
+     * @brief Reads a fixed number of consecutive chip registers.
+     *
+     * @tparam N Number of registers to read; must be between 1 and 256.
+     * @param addr 16-bit address of the first register.
+     * @return The register values, or an error.
+     */
+    template<size_t N>
+        requires(N > 0 && N <= 256)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_read_register(uint16_t addr) {
+        std::array<uint8_t, N> values{};
+        return try_read_register(addr, values).transform([&] { return values; });
+    }
+
+    /**
+     * @brief Reads a single chip register.
+     *
+     * @param addr 16-bit register address.
+     * @return The register value, or an error.
+     */
+    [[nodiscard]] result<uint8_t> try_read_register(uint16_t addr) {
+        uint8_t value = 0;
+        return try_read_register(addr, byte_span{&value, 1}).transform([&] { return value; });
     }
 
     /**
      * @brief Writes the chip's data buffer at the specified offset.
+     *
+     * An access running past the end of the 256-byte buffer is not rejected; only the size of
+     * @p data is limited.
+     *
      * @param offset Byte offset within the 256-byte chip buffer.
-     * @param data   Bytes to write.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @param data   Bytes to write (at most 256).
+     * @return Success, or an error.
+     * @retval invalid_arg @p data is larger than 256 bytes.
      */
-    void write_buffer(uint8_t offset, std::span<const uint8_t> data) {
-        unwrap(try_write_buffer(offset, data));
-    }
+    [[nodiscard]] result<void> try_write_buffer(uint8_t offset, byte_view data);
 
     /**
      * @brief Reads the chip's data buffer at the specified offset.
+     *
+     * Always fills the whole of @p data. An access running past the end of the 256-byte buffer
+     * is not rejected; only the size of @p data is limited.
+     *
      * @param offset Byte offset within the 256-byte chip buffer.
-     * @param data   Buffer to receive into.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
+     * @param data   Buffer to receive into (at most 256 bytes); its size is the number of bytes
+     *               read.
+     * @return Success, or an error.
+     * @retval invalid_arg @p data is larger than 256 bytes.
      */
-    void read_buffer(uint8_t offset, std::span<uint8_t> data) {
-        unwrap(try_read_buffer(offset, data));
-    }
-#endif
-
-    /** @brief Result variant of @ref write_command. */
-    [[nodiscard]] result<void> try_write_command(uint8_t opcode, std::span<const uint8_t> params);
-    /** @brief Result variant of @ref read_command. */
-    [[nodiscard]] result<void> try_read_command(uint8_t opcode, std::span<uint8_t> response);
-    /** @brief Result variant of @ref write_register. */
-    [[nodiscard]] result<void> try_write_register(uint16_t addr, std::span<const uint8_t> data);
-    /** @brief Result variant of @ref read_register. */
-    [[nodiscard]] result<void> try_read_register(uint16_t addr, std::span<uint8_t> data);
-    /** @brief Result variant of @ref write_buffer. */
-    [[nodiscard]] result<void> try_write_buffer(uint8_t offset, std::span<const uint8_t> data);
-    /** @brief Result variant of @ref read_buffer. */
-    [[nodiscard]] result<void> try_read_buffer(uint8_t offset, std::span<uint8_t> data);
+    [[nodiscard]] result<void> try_read_buffer(uint8_t offset, byte_span data);
 
     /// @cond INTERNAL
     struct state;
@@ -590,8 +842,7 @@ private:
         std::chrono::microseconds rx_period,
         std::chrono::microseconds sleep_period
     ) override;
-    [[nodiscard]] result<idfxx::future<rx_info>>
-    do_start_receive(std::span<uint8_t> buffer) override;
+    [[nodiscard]] result<idfxx::future<rx_info>> do_start_receive(byte_span buffer) override;
     [[nodiscard]] result<idfxx::future<cad_info>> do_start_channel_scan() override;
     [[nodiscard]] result<void> do_set_frequency(quanta::frequency::hertz hz) override;
     [[nodiscard]] result<void>
@@ -599,9 +850,8 @@ private:
     [[nodiscard]] result<void> do_set_modulation(lora_modulation mod) override;
     [[nodiscard]] result<void> do_set_packet_params(lora_packet_params params) override;
     [[nodiscard]] result<void> do_set_sync_word(lora_network network) override;
-    [[nodiscard]] result<idfxx::future<void>>
-    do_start_transmit(std::span<const uint8_t> data) override;
-    [[nodiscard]] result<rx_info> do_read_received(std::span<uint8_t> buffer) override;
+    [[nodiscard]] result<idfxx::future<void>> do_start_transmit(byte_view data) override;
+    [[nodiscard]] result<rx_info> do_read_received(byte_span buffer) override;
     [[nodiscard]] result<void> do_probe() override;
     [[nodiscard]] result<packet_status> do_last_packet_status() override;
     [[nodiscard]] result<quanta::electro::centi_dbm> do_current_rssi() override;

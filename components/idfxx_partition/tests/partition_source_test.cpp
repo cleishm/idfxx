@@ -56,7 +56,7 @@ partition find_test_partition() {
 
 std::vector<uint8_t> read_direct(const partition& part, size_t offset, size_t length) {
     std::vector<uint8_t> out(length);
-    TEST_ASSERT_TRUE(part.try_read(offset, std::span<uint8_t>{out}).has_value());
+    TEST_ASSERT_TRUE(part.try_read(offset, out).has_value());
     return out;
 }
 
@@ -118,7 +118,7 @@ TEST_CASE("partition_source empty buffer reads nothing and does not advance", "[
     auto src = partition_source::make(part, 0, 16);
     TEST_ASSERT_TRUE(src.has_value());
 
-    auto n = src->try_read(std::span<uint8_t>{});
+    auto n = src->try_read(byte_span{});
     TEST_ASSERT_TRUE(n.has_value());
     TEST_ASSERT_EQUAL(0, *n);
     TEST_ASSERT_EQUAL(16, src->remaining());

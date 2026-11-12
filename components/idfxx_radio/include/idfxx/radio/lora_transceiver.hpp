@@ -27,6 +27,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/future>
 #include <idfxx/radio/airtime.hpp>
@@ -38,7 +39,6 @@
 #include <optional>
 #include <quanta/decibel>
 #include <quanta/frequency>
-#include <span>
 
 namespace idfxx::radio {
 
@@ -623,7 +623,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure or timeout.
      */
-    void transmit(std::span<const uint8_t> data) { unwrap(try_transmit(data)); }
+    void transmit(byte_view data) { unwrap(try_transmit(data)); }
 
     /**
      * @brief Transmits a packet and blocks until completion.
@@ -633,8 +633,7 @@ public:
      * @throws std::system_error on failure or timeout.
      */
     template<typename Rep, typename Period>
-    void
-    transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    void transmit(byte_view data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
     }
 
@@ -643,7 +642,8 @@ public:
      *
      * @param buffer  Buffer to receive into.
      * @param timeout Maximum time to wait for a packet.
-     * @return Information about the received packet (length, RSSI, SNR).
+     * @return Information about the received packet: its length (the number of bytes written to
+     *         the start of @p buffer), RSSI and SNR.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::timeout`,
      *         `errc::invalid_crc`, and `errc::invalid_size` (packet larger
@@ -651,7 +651,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] rx_info
-    receive(std::span<uint8_t> buffer, const std::chrono::duration<Rep, Period>& timeout) {
+    receive(byte_span buffer, const std::chrono::duration<Rep, Period>& timeout) {
         return unwrap(try_receive(buffer, timeout));
     }
 #endif
@@ -668,7 +668,7 @@ public:
      * @retval invalid_state Another transmit, receive, or scan is already in flight.
      * @retval timeout The transmit did not complete in time.
      */
-    [[nodiscard]] result<void> try_transmit(std::span<const uint8_t> data) {
+    [[nodiscard]] result<void> try_transmit(byte_view data) {
         return try_transmit(data, time_on_air(data.size()) + transmit_timeout_margin);
     }
 
@@ -688,7 +688,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
-    try_transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    try_transmit(byte_view data, const std::chrono::duration<Rep, Period>& timeout) {
         auto f = try_start_transmit(data);
         if (!f) {
             return error(f.error());
@@ -699,14 +699,15 @@ public:
     /**
      * @brief Receives a single packet, blocking until one arrives or the timeout expires.
      *
-     * Equivalent to @ref try_start_receive(std::span<uint8_t>) followed by a
+     * Equivalent to @ref try_start_receive(byte_span) followed by a
      * wait on the returned future. If no packet arrives within @p timeout the
      * radio is returned to standby and `errc::timeout` is reported.
      *
      * @param buffer  Buffer to receive into; size it for the largest packet
      *                expected (at most @ref max_payload_length bytes).
      * @param timeout Maximum time to wait for a packet.
-     * @return Information about the received packet, or an error.
+     * @return Information about the received packet (its length is the number of bytes written
+     *         to the start of @p buffer), or an error.
      * @retval timeout No packet arrived within the timeout.
      * @retval invalid_crc The received packet failed its CRC check.
      * @retval invalid_size The packet was larger than @p buffer; nothing was
@@ -715,7 +716,7 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<rx_info>
-    try_receive(std::span<uint8_t> buffer, const std::chrono::duration<Rep, Period>& timeout) {
+    try_receive(byte_span buffer, const std::chrono::duration<Rep, Period>& timeout) {
         auto f = try_start_receive(buffer);
         if (!f) {
             return error(f.error());
@@ -753,7 +754,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] idfxx::future<void> start_transmit(std::span<const uint8_t> data) {
+    [[nodiscard]] idfxx::future<void> start_transmit(byte_view data) {
         return unwrap(try_start_transmit(data));
     }
 
@@ -778,11 +779,12 @@ public:
      * completion remains observable through the `rx_done` event.
      *
      * @param buffer Buffer to receive the payload into.
-     * @return A future completing with information about the received packet.
+     * @return A future completing with information about the received packet (its length is
+     *         the number of bytes written to the start of @p buffer).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] idfxx::future<rx_info> start_receive(std::span<uint8_t> buffer) {
+    [[nodiscard]] idfxx::future<rx_info> start_receive(byte_span buffer) {
         return unwrap(try_start_receive(buffer));
     }
 
@@ -805,13 +807,14 @@ public:
      * the largest packet expected (at most @ref max_payload_length bytes).
      *
      * @param buffer Buffer to copy the payload into.
-     * @return Information about the packet (length, RSSI, SNR).
+     * @return Information about the packet: its length (the number of bytes written to the
+     *         start of @p buffer), RSSI and SNR.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::not_found` when
      *         nothing is queued and `errc::invalid_size` when the packet did
      *         not fit.
      */
-    [[nodiscard]] rx_info read_received(std::span<uint8_t> buffer) {
+    [[nodiscard]] rx_info read_received(byte_span buffer) {
         return unwrap(try_read_received(buffer));
     }
 #endif
@@ -836,7 +839,7 @@ public:
      * @retval invalid_arg The payload is empty or longer than 255 bytes.
      * @retval invalid_state Another transmit, receive, or scan is already in flight.
      */
-    [[nodiscard]] result<idfxx::future<void>> try_start_transmit(std::span<const uint8_t> data) {
+    [[nodiscard]] result<idfxx::future<void>> try_start_transmit(byte_view data) {
         if (data.empty() || data.size() > max_payload_length) {
             return error(errc::invalid_arg);
         }
@@ -865,11 +868,11 @@ public:
      * completion remains observable through the `rx_done` event.
      *
      * @param buffer Buffer to receive the payload into.
-     * @return A future completing with information about the received packet,
-     *         or an error.
+     * @return A future completing with information about the received packet (its length is
+     *         the number of bytes written to the start of @p buffer), or an error.
      * @retval invalid_state Another transmit, receive, or scan is already in flight.
      */
-    [[nodiscard]] result<idfxx::future<rx_info>> try_start_receive(std::span<uint8_t> buffer) {
+    [[nodiscard]] result<idfxx::future<rx_info>> try_start_receive(byte_span buffer) {
         return do_start_receive(buffer);
     }
 
@@ -884,12 +887,13 @@ public:
      *
      * @param buffer Buffer to copy the payload into; size it for the largest
      *               packet expected (at most @ref max_payload_length bytes).
-     * @return Information about the packet, or an error.
+     * @return Information about the packet (its length is the number of bytes written to the
+     *         start of @p buffer), or an error.
      * @retval not_found No undelivered packet is queued.
      * @retval invalid_size The packet was larger than @p buffer; it was popped
      *         and discarded, nothing written.
      */
-    [[nodiscard]] result<rx_info> try_read_received(std::span<uint8_t> buffer) {
+    [[nodiscard]] result<rx_info> try_read_received(byte_span buffer) {
         return do_read_received(buffer);
     }
 
@@ -1038,21 +1042,19 @@ protected:
     /// must complete when the packet has been sent, or with
     /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown).
-    [[nodiscard]] virtual result<idfxx::future<void>>
-    do_start_transmit(std::span<const uint8_t> data) = 0;
-    /// Hook for @ref try_start_receive(std::span<uint8_t>) (single-shot
+    [[nodiscard]] virtual result<idfxx::future<void>> do_start_transmit(byte_view data) = 0;
+    /// Hook for @ref try_start_receive(byte_span) (single-shot
     /// receive). The returned future must complete with the received packet's
     /// info (`errc::invalid_crc` on CRC failure, `errc::invalid_size` if the
     /// packet is larger than the buffer — never truncate), or with
     /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown); the buffer must never be written after the future
     /// completes.
-    [[nodiscard]] virtual result<idfxx::future<rx_info>>
-    do_start_receive(std::span<uint8_t> buffer) = 0;
+    [[nodiscard]] virtual result<idfxx::future<rx_info>> do_start_receive(byte_span buffer) = 0;
     /// Hook for @ref try_read_received. Must pop the oldest queued packet;
     /// `errc::not_found` when none is queued, `errc::invalid_size` (packet
     /// popped and discarded) if it is larger than the buffer — never truncate.
-    [[nodiscard]] virtual result<rx_info> do_read_received(std::span<uint8_t> buffer) = 0;
+    [[nodiscard]] virtual result<rx_info> do_read_received(byte_span buffer) = 0;
 
     /// Hook for @ref try_probe. Must exchange data with the chip in a way an
     /// absent or unresponsive chip cannot satisfy (e.g. round-trip a register),

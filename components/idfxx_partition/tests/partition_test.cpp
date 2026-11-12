@@ -7,6 +7,8 @@
 #include "idfxx/partition"
 #include "unity.h"
 
+#include <array>
+#include <cstddef>
 #include <cstring>
 #include <type_traits>
 #include <utility>
@@ -114,7 +116,7 @@ TEST_CASE("partition try_read on app partition", "[idfxx][partition]") {
 
     // Read first 16 bytes
     uint8_t buf[16] = {};
-    auto read_result = result->try_read(0, buf, sizeof(buf));
+    auto read_result = result->try_read(0, buf);
     TEST_ASSERT_TRUE(read_result.has_value());
 
     // At least some bytes should be non-zero (it's an app image)
@@ -128,14 +130,50 @@ TEST_CASE("partition try_read on app partition", "[idfxx][partition]") {
     TEST_ASSERT_TRUE(has_nonzero);
 }
 
-TEST_CASE("partition try_read with span", "[idfxx][partition]") {
+TEST_CASE("partition try_read into std::byte buffer matches uint8_t read", "[idfxx][partition]") {
     auto result = partition::try_find(partition::type::app, partition::subtype::app_ota_0);
     TEST_ASSERT_TRUE(result.has_value());
 
+    std::array<uint8_t, 16> expected{};
+    TEST_ASSERT_TRUE(result->try_read(0, expected).has_value());
+
+    std::array<std::byte, 16> buf{};
+    TEST_ASSERT_TRUE(result->try_read(0, buf).has_value());
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected.data(), buf.data(), buf.size()));
+}
+
+TEST_CASE("partition try_read into pointer and length reads only that range", "[idfxx][partition]") {
+    auto result = partition::try_find(partition::type::app, partition::subtype::app_ota_0);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    std::array<uint8_t, 16> expected{};
+    TEST_ASSERT_TRUE(result->try_read(0, expected).has_value());
+
     std::array<uint8_t, 16> buf{};
-    std::span<uint8_t> s{buf};
-    auto read_result = result->try_read(0, s);
-    TEST_ASSERT_TRUE(read_result.has_value());
+    buf.fill(0xA5);
+    TEST_ASSERT_TRUE(result->try_read(4, {buf.data() + 4, 8}).has_value());
+    for (size_t i = 0; i < buf.size(); ++i) {
+        if (i >= 4 && i < 12) {
+            TEST_ASSERT_EQUAL_HEX8(expected[i], buf[i]);
+        } else {
+            TEST_ASSERT_EQUAL_HEX8(0xA5, buf[i]);
+        }
+    }
+}
+
+TEST_CASE("partition try_read_raw on unencrypted partition matches try_read", "[idfxx][partition]") {
+    auto result = partition::try_find(partition::type::data, partition::subtype::data_phy);
+    TEST_ASSERT_TRUE(result.has_value());
+    if (result->encrypted()) {
+        TEST_IGNORE_MESSAGE("partition is encrypted");
+    }
+
+    std::array<std::byte, 32> expected{};
+    TEST_ASSERT_TRUE(result->try_read(0, expected).has_value());
+
+    std::array<std::byte, 32> raw{};
+    TEST_ASSERT_TRUE(result->try_read_raw(0, raw).has_value());
+    TEST_ASSERT_EQUAL(0, std::memcmp(expected.data(), raw.data(), raw.size()));
 }
 
 TEST_CASE("partition check_identity with same partition returns true", "[idfxx][partition][hw]") {
@@ -161,12 +199,24 @@ TEST_CASE("partition try_mmap with default config matches read", "[idfxx][partit
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+    TEST_ASSERT_TRUE(p->try_read(0, expected).has_value());
 
     auto mapped = p->try_mmap(0, len);
     TEST_ASSERT_TRUE(mapped.has_value());
     TEST_ASSERT_TRUE(static_cast<bool>(*mapped));
     TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped->data(), len));
+}
+
+TEST_CASE("partition mmap_handle bytes covers the mapped region", "[idfxx][partition]") {
+    auto p = partition::try_find(partition::type::data, partition::subtype::data_phy);
+    TEST_ASSERT_TRUE(p.has_value());
+
+    constexpr size_t len = 256;
+    auto mapped = p->try_mmap(0, len);
+    TEST_ASSERT_TRUE(mapped.has_value());
+    auto bytes = mapped->bytes();
+    TEST_ASSERT_EQUAL(mapped->size(), bytes.size());
+    TEST_ASSERT_TRUE(bytes.data() == mapped->data());
 }
 
 TEST_CASE("partition try_mmap with designated memory", "[idfxx][partition]") {
@@ -175,7 +225,7 @@ TEST_CASE("partition try_mmap with designated memory", "[idfxx][partition]") {
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+    TEST_ASSERT_TRUE(p->try_read(0, expected).has_value());
 
     auto mapped = p->try_mmap(0, len, {.memory = partition::mmap_memory::data});
     TEST_ASSERT_TRUE(mapped.has_value());
@@ -189,7 +239,7 @@ TEST_CASE("partition try_mmap with blocks_write matches read", "[idfxx][partitio
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    TEST_ASSERT_TRUE(p->try_read(0, expected, len).has_value());
+    TEST_ASSERT_TRUE(p->try_read(0, expected).has_value());
 
     auto mapped = p->try_mmap(0, len, {.blocks_write = true});
     TEST_ASSERT_TRUE(mapped.has_value());
@@ -205,10 +255,10 @@ TEST_CASE("partition try_sha256 on ota_0 app", "[idfxx][partition][hw]") {
     TEST_ASSERT_TRUE(hash_result.has_value());
 
     // Hash should be non-zero for a valid app partition
-    auto& hash = *hash_result;
+    std::array<std::byte, 32>& hash = *hash_result;
     bool has_nonzero = false;
     for (auto b : hash) {
-        if (b != 0) {
+        if (b != std::byte{0}) {
             has_nonzero = true;
             break;
         }
@@ -249,7 +299,7 @@ TEST_CASE("partition find nonexistent throws", "[idfxx][partition]") {
 TEST_CASE("partition read on ota_0 app", "[idfxx][partition]") {
     auto p = partition::find(partition::type::app, partition::subtype::app_ota_0);
     uint8_t buf[16] = {};
-    p.read(0, buf, sizeof(buf));
+    p.read(0, buf);
 
     bool has_nonzero = false;
     for (auto b : buf) {
@@ -266,7 +316,7 @@ TEST_CASE("partition mmap with default config and designated memory", "[idfxx][p
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    p.read(0, expected, len);
+    p.read(0, expected);
 
     auto a = p.mmap(0, len);
     TEST_ASSERT_EQUAL(0, std::memcmp(expected, a.data(), len));
@@ -280,7 +330,7 @@ TEST_CASE("partition mmap with blocks_write", "[idfxx][partition]") {
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    p.read(0, expected, len);
+    p.read(0, expected);
 
     auto mapped = p.mmap(0, len, {.blocks_write = true});
     TEST_ASSERT_EQUAL(0, std::memcmp(expected, mapped.data(), len));
@@ -295,7 +345,7 @@ TEST_CASE("partition deprecated mmap with memory overload", "[idfxx][partition]"
 
     constexpr size_t len = 256;
     uint8_t expected[len] = {};
-    p.read(0, expected, len);
+    p.read(0, expected);
 
     auto a = p.mmap(0, len, partition::mmap_memory::data);
     TEST_ASSERT_EQUAL(0, std::memcmp(expected, a.data(), len));

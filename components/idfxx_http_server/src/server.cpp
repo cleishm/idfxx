@@ -5,6 +5,7 @@
 #include <idfxx/http/detail/server_config.ipp>
 #include <idfxx/http/server>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstring>
@@ -726,7 +727,12 @@ std::optional<std::string> request::query_param(std::string_view key) const {
 // Request Body
 // =============================================================================
 
-result<size_t> request::try_recv(std::span<uint8_t> buf) {
+result<size_t> request::try_read(byte_span buf) {
+    // httpd rejects a null buffer, which an empty view may have. Once the whole body has been
+    // read, httpd returns 0 without receiving.
+    if (buf.empty() || _body_received >= _req->content_len) {
+        return 0;
+    }
     int ret = httpd_req_recv(_req, reinterpret_cast<char*>(buf.data()), buf.size());
     if (ret < 0) {
         if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
@@ -734,29 +740,37 @@ result<size_t> request::try_recv(std::span<uint8_t> buf) {
         }
         return http_server_error(ESP_ERR_HTTPD_INVALID_REQ);
     }
+    if (ret == 0) {
+        // Body remains, so the peer closed the connection before sending all of it
+        ESP_LOGD(
+            TAG,
+            "Request body ended after %zu of %zu bytes",
+            _body_received,
+            static_cast<size_t>(_req->content_len)
+        );
+        return http_server_error(ESP_ERR_HTTPD_INVALID_REQ);
+    }
+    _body_received += static_cast<size_t>(ret);
     return static_cast<size_t>(ret);
 }
 
-result<size_t> request::try_recv(std::span<char> buf) {
-    return try_recv(std::span<uint8_t>{reinterpret_cast<uint8_t*>(buf.data()), buf.size()});
+result<size_t> request::try_read(std::span<char> buf) {
+    return try_read(byte_span{std::as_writable_bytes(buf)});
 }
 
-result<std::string> request::try_recv_body() {
-    size_t len = _req->content_len;
+result<std::string> request::try_read_body() {
+    size_t len = _req->content_len - std::min(_body_received, _req->content_len);
     std::string body(len, '\0');
     size_t received = 0;
     while (received < len) {
-        int ret = httpd_req_recv(_req, body.data() + received, len - received);
-        if (ret < 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-                return error(idfxx::errc::timeout);
-            }
-            return http_server_error(ESP_ERR_HTTPD_INVALID_REQ);
+        auto n = try_read(std::span<char>{body}.subspan(received));
+        if (!n) {
+            return error(n.error());
         }
-        if (ret == 0) {
+        if (*n == 0) {
             break;
         }
-        received += static_cast<size_t>(ret);
+        received += *n;
     }
     body.resize(received);
     return body;
@@ -878,15 +892,10 @@ result<void> request::try_set_header(std::string_view field, std::string_view va
 // =============================================================================
 
 result<void> request::try_send(std::string_view body) {
-    esp_err_t err = httpd_resp_send(_req, body.data(), static_cast<ssize_t>(body.size()));
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "httpd_resp_send failed: %s", esp_err_to_name(err));
-        return http_server_error(err);
-    }
-    return {};
+    return try_send(byte_view{std::as_bytes(std::span{body})});
 }
 
-result<void> request::try_send(std::span<const uint8_t> body) {
+result<void> request::try_send(byte_view body) {
     esp_err_t err = httpd_resp_send(
         _req, reinterpret_cast<const char*>(body.data()), static_cast<ssize_t>(body.size())
     );
@@ -898,7 +907,17 @@ result<void> request::try_send(std::span<const uint8_t> body) {
 }
 
 result<void> request::try_send_chunk(std::string_view chunk) {
-    esp_err_t err = httpd_resp_send_chunk(_req, chunk.data(), static_cast<ssize_t>(chunk.size()));
+    return try_send_chunk(byte_view{std::as_bytes(std::span{chunk})});
+}
+
+result<void> request::try_send_chunk(byte_view chunk) {
+    // A zero-length chunk is the terminator, which only try_end_chunked() sends
+    if (chunk.empty()) {
+        return {};
+    }
+    esp_err_t err = httpd_resp_send_chunk(
+        _req, reinterpret_cast<const char*>(chunk.data()), static_cast<ssize_t>(chunk.size())
+    );
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "httpd_resp_send_chunk failed: %s", esp_err_to_name(err));
         return http_server_error(err);
@@ -996,7 +1015,7 @@ result<void> request::try_handle_error(error_status status) {
 // =============================================================================
 
 #ifdef CONFIG_HTTPD_WS_SUPPORT
-result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
+result<request::ws_frame> request::try_ws_recv(byte_span buf) {
     httpd_ws_frame_t ws_pkt{};
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
@@ -1015,7 +1034,7 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
         return ws_frame{
             .type = static_cast<ws_frame_type>(ws_pkt.type),
             .final = ws_pkt.final,
-            .data = std::span<const uint8_t>(buf.data(), 0),
+            .data = buf.first(0),
         };
     }
 
@@ -1029,7 +1048,7 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
         return error(idfxx::errc::invalid_size);
     }
 
-    ws_pkt.payload = buf.data();
+    ws_pkt.payload = reinterpret_cast<uint8_t*>(buf.data());
     err = httpd_ws_recv_frame(_req, &ws_pkt, ws_pkt.len);
     if (err != ESP_OK) {
         // Part of the payload may have been received, so the position in the
@@ -1042,7 +1061,7 @@ result<request::ws_frame> request::try_ws_recv(std::span<uint8_t> buf) {
     return ws_frame{
         .type = static_cast<ws_frame_type>(ws_pkt.type),
         .final = ws_pkt.final,
-        .data = std::span<const uint8_t>(buf.data(), ws_pkt.len),
+        .data = buf.first(ws_pkt.len),
     };
 }
 
@@ -1103,14 +1122,14 @@ void request::ws_frame_reader::_flag_if_unread() const noexcept {
     }
 }
 
-result<std::span<const uint8_t>> request::ws_frame_reader::try_read(std::span<uint8_t> buf) {
+result<byte_span> request::ws_frame_reader::try_read(byte_span buf) {
     if (!_req || _failed) {
         return error(idfxx::errc::invalid_state);
     }
     // Never call into httpd once the payload is consumed: with nothing left
     // (in particular for an empty frame) it would receive the next header.
     if (_remaining == 0) {
-        return std::span<const uint8_t>{};
+        return buf.first(0);
     }
     if (buf.empty()) {
         return error(idfxx::errc::invalid_arg);
@@ -1121,7 +1140,7 @@ result<std::span<const uint8_t>> request::ws_frame_reader::try_read(std::span<ui
     httpd_ws_frame_t ws_pkt{};
     ws_pkt.type = static_cast<httpd_ws_type_t>(_type);
     ws_pkt.final = _final;
-    ws_pkt.payload = buf.data();
+    ws_pkt.payload = reinterpret_cast<uint8_t*>(buf.data());
     ws_pkt.len = _size;
     ws_pkt.left_len = _remaining;
 
@@ -1137,14 +1156,14 @@ result<std::span<const uint8_t>> request::ws_frame_reader::try_read(std::span<ui
 
     size_t received = _remaining - ws_pkt.left_len;
     _remaining = ws_pkt.left_len;
-    return std::span<const uint8_t>{buf.data(), received};
+    return buf.first(received);
 }
 
 result<void> request::ws_frame_reader::try_skip() {
     if (!_req || _failed) {
         return error(idfxx::errc::invalid_state);
     }
-    std::array<uint8_t, 64> scratch;
+    std::array<std::byte, 64> scratch;
     while (_remaining > 0) {
         auto part = try_read(scratch);
         if (!part) {
@@ -1169,10 +1188,11 @@ result<void> request::try_ws_send_text(std::string_view text) {
     return {};
 }
 
-result<void> request::try_ws_send_binary(std::span<const uint8_t> data) {
+result<void> request::try_ws_send_binary(byte_view data) {
     httpd_ws_frame_t ws_pkt{};
     ws_pkt.type = HTTPD_WS_TYPE_BINARY;
-    ws_pkt.payload = const_cast<uint8_t*>(data.data());
+    // httpd only reads the payload of a frame it sends
+    ws_pkt.payload = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(data.data()));
     ws_pkt.len = data.size();
 
     esp_err_t err = httpd_ws_send_frame(_req, &ws_pkt);
@@ -1188,7 +1208,7 @@ result<void> request::try_ws_send(const ws_frame& frame) {
     ws_pkt.type = static_cast<httpd_ws_type_t>(frame.type);
     ws_pkt.final = frame.final;
     ws_pkt.fragmented = !frame.final;
-    ws_pkt.payload = const_cast<uint8_t*>(frame.data.data());
+    ws_pkt.payload = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(frame.data.data()));
     ws_pkt.len = frame.data.size();
 
     esp_err_t err = httpd_ws_send_frame(_req, &ws_pkt);

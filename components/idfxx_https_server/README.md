@@ -61,7 +61,7 @@ try {
     });
 
     srv.on_post("/api/data", [](idfxx::http::request& req) -> idfxx::result<void> {
-        auto body = req.recv_body();
+        auto body = req.read_body();
         idfxx::log::info("HTTPS", "Received: {}", body);
         req.send("accepted");
         return {};

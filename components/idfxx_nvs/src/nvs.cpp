@@ -5,6 +5,7 @@
 #include <idfxx/nvs>
 #include <idfxx/partition>
 
+#include <cstring>
 #include <esp_log.h>
 #include <esp_system.h>
 #include <nvs.h>
@@ -318,12 +319,12 @@ result<std::string> nvs::try_get_string(std::string_view key) {
     return value;
 }
 
-result<void> nvs::try_set_blob(std::string_view key, const void* data, size_t length) {
+result<void> nvs::try_set_blob(std::string_view key, byte_view data) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
     }
     std::string key_str{key};
-    esp_err_t err = nvs_set_blob(_handle, key_str.c_str(), data, length);
+    esp_err_t err = nvs_set_blob(_handle, key_str.c_str(), data.data(), data.size());
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "Failed to set blob key '%s': %s", key_str.c_str(), esp_err_to_name(err));
         return nvs_error(err);
@@ -331,34 +332,64 @@ result<void> nvs::try_set_blob(std::string_view key, const void* data, size_t le
     return {};
 }
 
-result<void> nvs::try_set_blob(std::string_view key, std::span<const uint8_t> data) {
-    return try_set_blob(key, data.data(), data.size());
-}
-
-result<std::vector<uint8_t>> nvs::try_get_blob(std::string_view key) {
+result<size_t> nvs::try_blob_size(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
     }
     std::string key_str{key};
+    size_t length = 0;
+    esp_err_t err = nvs_get_blob(_handle, key_str.c_str(), nullptr, &length);
+    if (err != ESP_OK) {
+        if (err != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGD(
+                TAG,
+                "Failed to get blob size for key '%s': %s",
+                key_str.c_str(),
+                esp_err_to_name(err)
+            );
+        }
+        return nvs_error(err);
+    }
+    return length;
+}
 
-    // First, get the required size
-    size_t required_size = 0;
-    esp_err_t err = nvs_get_blob(_handle, key_str.c_str(), nullptr, &required_size);
+result<size_t> nvs::try_get_blob(std::string_view key, byte_span buf) {
+    // nvs_get_blob() treats a null output pointer as a size query, so an empty buffer is checked
+    // against the stored length instead of being passed through.
+    if (buf.empty()) {
+        return try_blob_size(key).and_then([](size_t length) -> result<size_t> {
+            if (length != 0) {
+                return error(idfxx::errc::invalid_size);
+            }
+            return size_t{0};
+        });
+    }
+    if (_handle == 0) {
+        return error(nvs::errc::invalid_handle);
+    }
+    std::string key_str{key};
+    size_t length = buf.size();
+    esp_err_t err = nvs_get_blob(_handle, key_str.c_str(), buf.data(), &length);
+    if (err == ESP_ERR_NVS_INVALID_LENGTH) {
+        return error(idfxx::errc::invalid_size);
+    }
     if (err != ESP_OK) {
         if (err != ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGD(TAG, "Failed to get blob key '%s': %s", key_str.c_str(), esp_err_to_name(err));
         }
         return nvs_error(err);
     }
+    return length;
+}
 
-    // Allocate buffer and get the blob
-    std::vector<uint8_t> value(required_size);
-    err = nvs_get_blob(_handle, key_str.c_str(), value.data(), &required_size);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to get blob key '%s': %s", key_str.c_str(), esp_err_to_name(err));
-        return nvs_error(err);
-    }
-    return value;
+result<std::vector<std::byte>> nvs::try_get_blob(std::string_view key) {
+    return try_blob_size(key).and_then([&](size_t length) -> result<std::vector<std::byte>> {
+        std::vector<std::byte> value(length);
+        return try_get_blob(key, value).transform([&](size_t n) {
+            value.resize(n);
+            return std::move(value);
+        });
+    });
 }
 
 // Traits mapping each supported value type to its NVS get/set functions
@@ -447,8 +478,8 @@ result<void> nvs::flash::try_init() {
 
 result<void> nvs::flash::try_init(const secure_config& cfg) {
     nvs_sec_cfg_t nvs_cfg{};
-    std::copy(cfg.eky.begin(), cfg.eky.end(), nvs_cfg.eky);
-    std::copy(cfg.tky.begin(), cfg.tky.end(), nvs_cfg.tky);
+    std::memcpy(nvs_cfg.eky, cfg.eky.data(), key_size);
+    std::memcpy(nvs_cfg.tky, cfg.tky.data(), key_size);
     esp_err_t err = nvs_flash_secure_init(&nvs_cfg);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
     if (err != ESP_OK) {
@@ -484,8 +515,8 @@ result<void> nvs::flash::try_init(std::string_view partition_label) {
 
 result<void> nvs::flash::try_init(std::string_view partition_label, const secure_config& cfg) {
     nvs_sec_cfg_t nvs_cfg{};
-    std::copy(cfg.eky.begin(), cfg.eky.end(), nvs_cfg.eky);
-    std::copy(cfg.tky.begin(), cfg.tky.end(), nvs_cfg.tky);
+    std::memcpy(nvs_cfg.eky, cfg.eky.data(), key_size);
+    std::memcpy(nvs_cfg.tky, cfg.tky.data(), key_size);
     std::string label_str{partition_label};
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), &nvs_cfg);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
@@ -581,8 +612,8 @@ result<void> nvs::flash::try_init(const partition& part) {
 
 result<void> nvs::flash::try_init(const partition& part, const secure_config& cfg) {
     nvs_sec_cfg_t nvs_cfg{};
-    std::copy(cfg.eky.begin(), cfg.eky.end(), nvs_cfg.eky);
-    std::copy(cfg.tky.begin(), cfg.tky.end(), nvs_cfg.tky);
+    std::memcpy(nvs_cfg.eky, cfg.eky.data(), key_size);
+    std::memcpy(nvs_cfg.tky, cfg.tky.data(), key_size);
     // No nvs_flash_secure_init_partition_ptr — use label-based API
     std::string label_str{part.label()};
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), &nvs_cfg);
@@ -647,8 +678,8 @@ result<nvs::flash::secure_config> nvs::flash::try_generate_keys(const partition&
         return nvs_error(err);
     }
     secure_config cfg{};
-    std::copy(std::begin(nvs_cfg.eky), std::end(nvs_cfg.eky), cfg.eky.begin());
-    std::copy(std::begin(nvs_cfg.tky), std::end(nvs_cfg.tky), cfg.tky.begin());
+    std::memcpy(cfg.eky.data(), nvs_cfg.eky, key_size);
+    std::memcpy(cfg.tky.data(), nvs_cfg.tky, key_size);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
     return cfg;
 }
@@ -668,8 +699,8 @@ result<nvs::flash::secure_config> nvs::flash::try_read_security_cfg(const partit
         return nvs_error(err);
     }
     secure_config cfg{};
-    std::copy(std::begin(nvs_cfg.eky), std::end(nvs_cfg.eky), cfg.eky.begin());
-    std::copy(std::begin(nvs_cfg.tky), std::end(nvs_cfg.tky), cfg.tky.begin());
+    std::memcpy(cfg.eky.data(), nvs_cfg.eky, key_size);
+    std::memcpy(cfg.tky.data(), nvs_cfg.tky, key_size);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
     return cfg;
 }

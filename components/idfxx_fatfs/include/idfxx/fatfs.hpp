@@ -34,6 +34,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/partition>
 #include <idfxx/sdcard>
@@ -46,7 +47,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -899,21 +899,21 @@ public:
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for
-     *         try_replace_file(std::string_view, std::span<const uint8_t>).
+     *         try_replace_file(std::string_view, byte_view).
      *
      * @code
-     * std::vector<uint8_t> settings = encode_settings();
+     * std::vector<std::byte> settings = encode_settings();
      * vol.replace_file("/sdcard/settings.bin", settings);
      * @endcode
      */
-    void replace_file(std::string_view path, std::span<const uint8_t> contents);
+    void replace_file(std::string_view path, byte_view contents);
 
     /**
      * @brief Replaces a file with new text, so that a reset leaves either the old contents or the
      *        new.
      *
      * Writes the characters of @p text, as they are and with no terminating
-     * null, exactly as replace_file(std::string_view, std::span<const uint8_t>)
+     * null, exactly as replace_file(std::string_view, byte_view)
      * writes its contents. Once recover_file() has run for @p path, a reset at
      * any point leaves either the old contents or the new. Call
      * recover_file() at startup, before reading the file, for each file
@@ -924,14 +924,14 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file, as described for
-     *          replace_file(std::string_view, std::span<const uint8_t>).
+     *          replace_file(std::string_view, byte_view).
      *
      * @param path The file's path, under mount_path(): for example "/sdcard/config.json".
      * @param text The new contents.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for
-     *         try_replace_file(std::string_view, std::span<const uint8_t>).
+     *         try_replace_file(std::string_view, byte_view).
      *
      * @code
      * vol.replace_file("/sdcard/config.json", std::format(R"({{"brightness": {}}})", brightness));
@@ -952,7 +952,7 @@ public:
      * file replaced this way.
      *
      * The file is replaced in the steps described for
-     * replace_file(std::string_view, std::span<const uint8_t>), through
+     * replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If reading
      * @p source or writing the new contents fails, the temporary file is
      * removed and the file at @p path is left as it was; so it is when the
@@ -1013,7 +1013,7 @@ public:
      * @p writer runs, so it may call free_size(), for example.
      *
      * The file is replaced in the steps described for
-     * replace_file(std::string_view, std::span<const uint8_t>), through
+     * replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If writing the new
      * contents fails, the temporary file is removed and the file at @p path
      * is left as it was. If a rename or removal fails, the files are left as
@@ -1112,15 +1112,14 @@ public:
      * @retval fatfs::errc::not_enabled A format() whose remount failed left the volume without a
      *         mounted filesystem.
      */
-    [[nodiscard]] result<void>
-    try_replace_file(std::string_view path, std::span<const uint8_t> contents);
+    [[nodiscard]] result<void> try_replace_file(std::string_view path, byte_view contents);
 
     /**
      * @brief Replaces a file with new text, so that a reset leaves either the old contents or the
      *        new.
      *
      * Writes the characters of @p text, as they are and with no terminating
-     * null, exactly as try_replace_file(std::string_view, std::span<const uint8_t>)
+     * null, exactly as try_replace_file(std::string_view, byte_view)
      * writes its contents. Once recover_file() has run for @p path, a reset at
      * any point leaves either the old contents or the new. Call
      * recover_file() at startup, before reading the file, for each file
@@ -1131,13 +1130,13 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file, as described for
-     *          try_replace_file(std::string_view, std::span<const uint8_t>).
+     *          try_replace_file(std::string_view, byte_view).
      *
      * @param path The file's path, under mount_path(): for example "/sdcard/config.json".
      * @param text The new contents.
      *
      * @return Success, or an error; see
-     *         try_replace_file(std::string_view, std::span<const uint8_t>).
+     *         try_replace_file(std::string_view, byte_view).
      */
     [[nodiscard]] result<void> try_replace_file(std::string_view path, std::string_view text);
 
@@ -1154,7 +1153,7 @@ public:
      * file replaced this way.
      *
      * The file is replaced in the steps described for
-     * try_replace_file(std::string_view, std::span<const uint8_t>), through
+     * try_replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If reading
      * @p source or writing the new contents fails, the temporary file is
      * removed and the file at @p path is left as it was; so it is when the
@@ -1179,13 +1178,11 @@ public:
      *
      * @return Success, or an error: the source's own error, unchanged, if reading it fails,
      *         otherwise one of those listed for
-     *         try_replace_file(std::string_view, std::span<const uint8_t>).
+     *         try_replace_file(std::string_view, byte_view).
      */
     template<byte_source Source>
     [[nodiscard]] result<void> try_replace_file(std::string_view path, Source& source) {
-        auto read = [&source](std::span<uint8_t> buf) -> result<size_t> {
-            return source.try_read(buf);
-        };
+        auto read = [&source](byte_span buf) -> result<size_t> { return source.try_read(buf); };
         return _try_replace_file_from(path, &read, &_read<decltype(read)>);
     }
 
@@ -1211,7 +1208,7 @@ public:
      * @p writer runs, so it may call try_free_size(), for example.
      *
      * The file is replaced in the steps described for
-     * try_replace_file(std::string_view, std::span<const uint8_t>), through
+     * try_replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If writing the new
      * contents fails, the temporary file is removed and the file at @p path
      * is left as it was. If a rename or removal fails, the files are left as
@@ -1234,7 +1231,7 @@ public:
      *
      * @return Success, or an error: the error @p writer returned, an error in
      *         `std::generic_category()` holding the `errno` for a write it didn't report, or one of
-     *         those listed for try_replace_file(std::string_view, std::span<const uint8_t>).
+     *         those listed for try_replace_file(std::string_view, byte_view).
      */
     template<typename Writer>
         requires std::is_invocable_r_v<result<void>, Writer&, FILE*>
@@ -1253,7 +1250,7 @@ public:
      * file at @p path, if there is one, and renames `<HASH>.~RN` to @p path;
      * then removes `<HASH>.~RT`, if present, which may be incomplete. The
      * names are those described for
-     * replace_file(std::string_view, std::span<const uint8_t>). Does nothing
+     * replace_file(std::string_view, byte_view). Does nothing
      * when there is nothing to recover, including when the directory doesn't
      * exist. Running it again after a reset part-way through it is safe.
      *
@@ -1291,7 +1288,7 @@ public:
      * the file at @p path, if there is one, and renames `<HASH>.~RN` to
      * @p path; then removes `<HASH>.~RT`, if present, which may be
      * incomplete. The names are those described for
-     * try_replace_file(std::string_view, std::span<const uint8_t>). Does
+     * try_replace_file(std::string_view, byte_view). Does
      * nothing when there is nothing to recover, including when the directory
      * doesn't exist. Running it again after a reset part-way through it is
      * safe.
@@ -1331,11 +1328,11 @@ private:
     // Type-erased byte sources and writers for the replace_file() templates, which pass them to the
     // implementation: each is a callable of type F, passed as a void* with a function that calls
     // it.
-    using read_fn = result<size_t> (*)(void* source, std::span<uint8_t> buf);
+    using read_fn = result<size_t> (*)(void* source, byte_span buf);
     using write_fn = result<void> (*)(void* writer, FILE* file);
 
     template<typename F>
-    static result<size_t> _read(void* source, std::span<uint8_t> buf) {
+    static result<size_t> _read(void* source, byte_span buf) {
         return (*static_cast<F*>(source))(buf);
     }
 

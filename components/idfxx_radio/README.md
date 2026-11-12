@@ -42,7 +42,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_radio:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_radio` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -137,16 +137,20 @@ framing, and network in one call; `set_frequency`, `set_output_power`, `set_modu
 `set_packet_params`, and `set_sync_word` change them individually. `modulation()` /
 `packet_params()` read back the configured link parameters.
 
-**Data path (blocking):** `transmit(span)` (timeout self-sized from the packet's air-time),
-`transmit(span, timeout)`, `receive(span, timeout)`, `scan_channel()`, `channel_busy()`.
+**Data path (blocking):** `transmit(data)` (timeout self-sized from the packet's air-time),
+`transmit(data, timeout)`, `receive(buffer, timeout)`, `scan_channel()`, `channel_busy()`.
 
-**Data path (async, future-based):** `start_transmit(span)` → `idfxx::future<void>`,
+**Data path (async, future-based):** `start_transmit(data)` → `idfxx::future<void>`,
 `start_receive(buffer)` (single-shot) → `idfxx::future<rx_info>`, `start_channel_scan()` →
 `idfxx::future<cad_info>`.
 
 **Data path (event-loop streams):** `start_listening()` (continuous), `start_listening(rx, sleep)` /
 `start_listening(rx_duty_cycle)` (duty-cycled, also accepting `std::optional<rx_duty_cycle>` with
-continuous fallback), paired with `read_received`.
+continuous fallback), paired with `read_received(buffer)`.
+
+Payloads (`data`) are `idfxx::byte_view` and receive buffers are `idfxx::byte_span`, so any
+contiguous `std::byte` or `uint8_t` buffer works; pass text as `std::as_bytes(std::span{text})`. The
+returned `rx_info::length` is the number of bytes written to the start of the buffer.
 
 **Status:** `probe` (confirms the chip is present and answering), `last_packet_status`,
 `current_rssi`.

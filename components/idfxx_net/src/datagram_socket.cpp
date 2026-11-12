@@ -79,7 +79,7 @@ result<datagram_socket> datagram_socket::make(const config& cfg) {
     return s;
 }
 
-result<size_t> datagram_socket::try_send(std::span<const std::byte> buf) {
+result<size_t> datagram_socket::try_send(byte_view buf) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }

@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstddef>
 #include <cstdlib>
 #include <esp_idf_version.h>
 #include <freertos/FreeRTOS.h>
@@ -31,9 +32,10 @@
 #include <unistd.h>
 #include <utility>
 
+#include <vector>
+
 #if defined(CONFIG_HTTPD_WS_SUPPORT) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include <algorithm>
-#include <vector>
 #endif
 
 using namespace idfxx;
@@ -117,8 +119,8 @@ static_assert(std::is_nothrow_move_constructible_v<request::ws_frame_reader>);
 static_assert(std::is_nothrow_move_assignable_v<request::ws_frame_reader>);
 static_assert(std::is_same_v<decltype(std::declval<request&>().try_ws_recv_begin()), result<request::ws_frame_reader>>);
 static_assert(std::is_same_v<
-              decltype(std::declval<request::ws_frame_reader&>().try_read(std::declval<std::span<uint8_t>>())),
-              result<std::span<const uint8_t>>>);
+              decltype(std::declval<request::ws_frame_reader&>().try_read(std::declval<idfxx::byte_span>())),
+              result<idfxx::byte_span>>);
 static_assert(std::is_same_v<decltype(std::declval<request::ws_frame_reader&>().try_skip()), result<void>>);
 #endif
 #endif
@@ -259,7 +261,7 @@ TEST_CASE("http server handles POST with body", "[idfxx][http]") {
     TEST_ASSERT_TRUE(srv.has_value());
 
     auto r = srv->try_on_post("/echo", [](request& req) -> result<void> {
-        auto body = req.try_recv_body();
+        auto body = req.try_read_body();
         if (!body) return idfxx::error(body.error());
         if (auto hr = req.try_set_content_type("text/plain"); !hr) return hr;
         return req.try_send(*body);
@@ -273,8 +275,7 @@ TEST_CASE("http server handles POST with body", "[idfxx][http]") {
     std::string_view payload = "test payload";
     auto r2 = c->try_open(payload.size());
     TEST_ASSERT_TRUE(r2.has_value());
-    auto written = c->try_write(payload);
-    TEST_ASSERT_TRUE(written.has_value());
+    TEST_ASSERT_TRUE(c->try_write(payload).has_value());
     auto r3 = c->try_fetch_headers();
     TEST_ASSERT_TRUE(r3.has_value());
     std::string body;
@@ -290,6 +291,123 @@ TEST_CASE("http server handles POST with body", "[idfxx][http]") {
 
     TEST_ASSERT_EQUAL(200, c->status_code());
     TEST_ASSERT_EQUAL_STRING("test payload", body.c_str());
+}
+
+// The request body is a byte source
+static_assert(idfxx::byte_source<request>);
+
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+// A WebSocket frame's payload defaults to empty
+static_assert(request::ws_frame{.type = request::ws_frame_type::text}.data.empty());
+#endif
+
+/// Reads everything left in a byte source, in parts of at most 5 bytes.
+static result<std::vector<std::byte>> drain(idfxx::byte_source auto& src) {
+    std::vector<std::byte> out;
+    std::array<std::byte, 5> buf;
+    while (true) {
+        auto n = src.try_read(idfxx::byte_span{buf});
+        if (!n) return idfxx::error(n.error());
+        if (*n == 0) return out;
+        out.insert(out.end(), buf.begin(), buf.begin() + *n);
+    }
+}
+
+TEST_CASE("http server reads a request body in parts and streams a chunked response", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    // Replies "<empty read>:<first 4 bytes>:<rest>:end<read at end>", the rest sent as a byte chunk
+    auto r = srv->try_on_post("/parts", [](request& req) -> result<void> {
+        // An empty buffer reads nothing
+        auto none = req.try_read(idfxx::byte_span{});
+        if (!none) return idfxx::error(none.error());
+        // The first 4 bytes through the text form
+        std::array<char, 4> head;
+        size_t got = 0;
+        while (got < head.size()) {
+            auto n = req.try_read(std::span<char>{head}.subspan(got));
+            if (!n) return idfxx::error(n.error());
+            if (*n == 0) break;
+            got += *n;
+        }
+        // The rest through the generic byte source interface
+        auto rest = drain(req);
+        if (!rest) return idfxx::error(rest.error());
+        std::array<std::byte, 4> more;
+        auto end = req.try_read(more);
+        if (!end) return idfxx::error(end.error());
+
+        std::string prefix = std::to_string(*none) + ":" + std::string(head.data(), got) + ":";
+        if (auto sr = req.try_send_chunk(prefix); !sr) return sr;
+        if (auto sr = req.try_send_chunk(*rest); !sr) return sr;
+        // Empty chunks send nothing, so they don't end the response
+        if (auto sr = req.try_send_chunk(std::string_view{}); !sr) return sr;
+        if (auto sr = req.try_send_chunk(idfxx::byte_view{}); !sr) return sr;
+        if (auto sr = req.try_send_chunk(":end" + std::to_string(*end)); !sr) return sr;
+        return req.try_end_chunked();
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    auto url = "http://127.0.0.1:" + std::to_string(port) + "/parts";
+    auto c = client::make({.url = url, .method = method::post});
+    TEST_ASSERT_TRUE(c.has_value());
+    std::string_view payload = "abcdefghijklmnopqrstuvwxyz";
+    TEST_ASSERT_TRUE(c->try_open(payload.size()).has_value());
+    TEST_ASSERT_TRUE(c->try_write(std::as_bytes(std::span{payload})).has_value());
+    TEST_ASSERT_TRUE(c->try_fetch_headers().has_value());
+    std::string body;
+    std::array<std::byte, 16> buf;
+    while (true) {
+        auto n = c->try_read(buf);
+        TEST_ASSERT_TRUE(n.has_value());
+        if (*n == 0) break;
+        body.append(reinterpret_cast<const char*>(buf.data()), *n);
+    }
+    TEST_ASSERT_TRUE(c->try_close().has_value());
+
+    TEST_ASSERT_EQUAL(200, c->status_code());
+    TEST_ASSERT_EQUAL_STRING("0:abcd:efghijklmnopqrstuvwxyz:end0", body.c_str());
+}
+
+TEST_CASE("http server echoes a binary POST body sent with set_post_field", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    auto r = srv->try_on_post("/bin", [](request& req) -> result<void> {
+        auto body = drain(req);
+        if (!body) return idfxx::error(body.error());
+        if (auto hr = req.try_set_content_type("application/octet-stream"); !hr) return hr;
+        return req.try_send(*body);
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    // Binary data, including a null byte, collected from on_data events
+    const std::array<uint8_t, 6> bytes = {0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff};
+    std::vector<std::byte> received;
+    auto url = "http://127.0.0.1:" + std::to_string(port) + "/bin";
+    auto c = client::make({
+        .url = url,
+        .method = method::post,
+        .on_event =
+            [&received](const event_data& ev) {
+                if (ev.id == event_id::on_data) {
+                    received.insert(received.end(), ev.data.begin(), ev.data.end());
+                }
+            },
+    });
+    TEST_ASSERT_TRUE(c.has_value());
+    c->set_header("Content-Type", "application/octet-stream");
+    c->set_post_field(bytes);
+    TEST_ASSERT_TRUE(c->try_perform().has_value());
+
+    TEST_ASSERT_EQUAL(200, c->status_code());
+    TEST_ASSERT_EQUAL(bytes.size(), received.size());
+    TEST_ASSERT_EQUAL_MEMORY(bytes.data(), received.data(), bytes.size());
 }
 
 TEST_CASE("http server sets custom status code", "[idfxx][http]") {
@@ -691,15 +809,12 @@ public:
     http_test_conn(const http_test_conn&) = delete;
     http_test_conn& operator=(const http_test_conn&) = delete;
 
-    /// Sends a GET request without waiting for the response. Returns false if
-    /// the send fails, as it can once the server has closed the connection.
-    bool send_get(std::string_view uri) {
-        std::string req = "GET " + std::string(uri) + " HTTP/1.1\r\n"
-                          "Host: 127.0.0.1\r\n"
-                          "\r\n";
+    /// Sends raw bytes. Returns false if the send fails, as it can once the
+    /// server has closed the connection.
+    bool send_raw(std::string_view data) {
         size_t sent = 0;
-        while (sent < req.size()) {
-            int n = send(_fd, req.data() + sent, req.size() - sent, 0);
+        while (sent < data.size()) {
+            int n = send(_fd, data.data() + sent, data.size() - sent, 0);
             if (n <= 0) {
                 return false;
             }
@@ -708,11 +823,26 @@ public:
         return true;
     }
 
+    /// Ends the sending side of the connection, so the server sees the end of the stream.
+    void shutdown_send() { TEST_ASSERT_EQUAL(0, shutdown(_fd, SHUT_WR)); }
+
+    /// Sends a GET request without waiting for the response. Returns false if
+    /// the send fails, as it can once the server has closed the connection.
+    bool send_get(std::string_view uri) {
+        return send_raw("GET " + std::string(uri) + " HTTP/1.1\r\n"
+                        "Host: 127.0.0.1\r\n"
+                        "\r\n");
+    }
+
     /// Sends a GET request and receives the response, failing the test if
     /// no complete response arrives.
     response get(std::string_view uri) {
         TEST_ASSERT_TRUE(send_get(uri));
+        return get_response();
+    }
 
+    /// Receives a response, failing the test if no complete response arrives.
+    response get_response() {
         // Read the head one byte at a time so nothing past it is consumed
         std::string head;
         while (head.size() < 4 || head.compare(head.size() - 4, 4, "\r\n\r\n") != 0) {
@@ -753,6 +883,107 @@ private:
 };
 
 } // namespace
+
+// =============================================================================
+// Truncated request bodies
+// =============================================================================
+
+namespace {
+
+/// The outcome of a handler's body read, recorded on the server task for the test to check.
+struct body_read_outcome {
+    std::atomic<bool> done{false};
+    std::error_code error;
+};
+
+/// Sends a POST to @p path whose body stops 90 bytes short of its Content-Length, then ends the
+/// stream, and checks that the handler's read failed and the server closed the connection.
+void check_truncated_post(uint16_t port, std::string_view path, const body_read_outcome& outcome) {
+    http_test_conn conn{port};
+    TEST_ASSERT_TRUE(conn.send_raw("POST " + std::string(path) + " HTTP/1.1\r\n"
+                                   "Host: 127.0.0.1\r\n"
+                                   "Content-Length: 100\r\n"
+                                   "\r\n"
+                                   "only ten b"));
+    conn.shutdown_send();
+    for (int i = 0; i < 50 && !outcome.done.load(); ++i) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    TEST_ASSERT_TRUE(outcome.done.load());
+    TEST_ASSERT_TRUE(outcome.error == server::errc::invalid_request);
+    TEST_ASSERT_TRUE(conn.closed());
+}
+
+} // namespace
+
+TEST_CASE("http server reports a request body cut short by the connection closing", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    // Read in parts through the byte source interface
+    auto by_parts = std::make_shared<body_read_outcome>();
+    auto r = srv->try_on_post("/parts", [by_parts](request& req) -> result<void> {
+        auto body = drain(req);
+        by_parts->error = body ? std::error_code{} : body.error();
+        by_parts->done = true;
+        if (!body) return idfxx::error(body.error());
+        return req.try_send(*body);
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    // Read whole as a string
+    auto whole = std::make_shared<body_read_outcome>();
+    r = srv->try_on_post("/whole", [whole](request& req) -> result<void> {
+        auto body = req.try_read_body();
+        whole->error = body ? std::error_code{} : body.error();
+        whole->done = true;
+        if (!body) return idfxx::error(body.error());
+        return req.try_send(*body);
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    check_truncated_post(port, "/parts", *by_parts);
+    check_truncated_post(port, "/whole", *whole);
+}
+
+TEST_CASE("http server read_body returns the body left after a partial read", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
+    TEST_ASSERT_TRUE(srv.has_value());
+
+    // Replies "<first part>|<rest>|<size of a read_body at the end>"
+    auto r = srv->try_on_post("/rest", [](request& req) -> result<void> {
+        std::array<char, 4> head;
+        size_t got = 0;
+        while (got < head.size()) {
+            auto n = req.try_read(std::span<char>{head}.subspan(got));
+            if (!n) return idfxx::error(n.error());
+            if (*n == 0) break;
+            got += *n;
+        }
+        auto rest = req.try_read_body();
+        if (!rest) return idfxx::error(rest.error());
+        auto after = req.try_read_body();
+        if (!after) return idfxx::error(after.error());
+        return req.try_send(
+            std::string(head.data(), got) + "|" + *rest + "|" + std::to_string(after->size())
+        );
+    });
+    TEST_ASSERT_TRUE(r.has_value());
+
+    http_test_conn conn{port};
+    TEST_ASSERT_TRUE(conn.send_raw("POST /rest HTTP/1.1\r\n"
+                                   "Host: 127.0.0.1\r\n"
+                                   "Content-Length: 10\r\n"
+                                   "\r\n"
+                                   "0123456789"));
+    auto resp = conn.get_response();
+    TEST_ASSERT_EQUAL(200, resp.status);
+    TEST_ASSERT_EQUAL_STRING("0123|456789|0", resp.body.c_str());
+}
 
 TEST_CASE("http server error handler serves a custom not-found response", "[idfxx][http]") {
     ensure_event_loop();
@@ -1269,6 +1500,11 @@ result<server> make_ws_server(uint16_t port, server::handler_type handler) {
     return srv;
 }
 
+/// Returns the bytes of @p bytes as a string.
+std::string as_text(idfxx::byte_view bytes) {
+    return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
 /// Returns a payload that, once masked by ws_test_client, appears on the wire
 /// as @p wire. Lets a test place arbitrary bytes, such as a complete frame,
 /// inside a frame's payload as they will be seen by the server.
@@ -1291,7 +1527,7 @@ TEST_CASE("ws_recv keeps the connection in sync after an empty frame", "[idfxx][
         auto f = req.try_ws_recv(buf);
         if (!f) return idfxx::error(f.error());
         return req.try_ws_send_text(
-            "len=" + std::to_string(f->data.size()) + ":" + std::string(f->data.begin(), f->data.end())
+            "len=" + std::to_string(f->data.size()) + ":" + as_text(f->data)
         );
     });
     TEST_ASSERT_TRUE(srv.has_value());
@@ -1350,12 +1586,12 @@ TEST_CASE("ws_frame_reader reads a frame larger than its buffer in parts", "[idf
         if (!rd) return idfxx::error(rd.error());
 
         bool ok = true;
-        std::array<uint8_t, 64> buf;
+        std::array<std::byte, 64> buf;
         if (rd->remaining() > 0) {
-            auto e = rd->try_read(std::span<uint8_t>{});
+            auto e = rd->try_read(idfxx::byte_span{});
             ok = ok && !e && e.error() == idfxx::errc::invalid_arg;
         }
-        std::vector<uint8_t> payload;
+        std::vector<std::byte> payload;
         int parts = 0;
         while (rd->remaining() > 0) {
             size_t expect = std::min(buf.size(), rd->remaining());
@@ -1420,19 +1656,19 @@ TEST_CASE("ws_frame_reader skip discards the rest of a frame", "[idfxx][http]") 
 
         std::array<uint8_t, 16> buf;
         if (rd.size() > buf.size()) {
-            auto head = rd.try_read(std::span<uint8_t>{buf.data(), 10});
+            auto head = rd.try_read({buf.data(), 10});
             if (!head) return idfxx::error(head.error());
             auto sk = rd.try_skip();
             if (!sk) return sk;
             // Skipping again once everything is consumed does nothing
             auto sk2 = rd.try_skip();
             if (!sk2) return sk2;
-            std::string reply = "skip:" + std::string(head->begin(), head->end()) + ":" + std::to_string(rd.remaining());
+            std::string reply = "skip:" + as_text(*head) + ":" + std::to_string(rd.remaining());
             return req.try_ws_send_text(reply);
         }
         auto part = rd.try_read(buf);
         if (!part) return idfxx::error(part.error());
-        return req.try_ws_send_text("echo:" + std::string(part->begin(), part->end()));
+        return req.try_ws_send_text("echo:" + as_text(*part));
     });
     TEST_ASSERT_TRUE(srv.has_value());
 

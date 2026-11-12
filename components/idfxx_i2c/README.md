@@ -13,13 +13,16 @@ Type-safe I2C master bus driver for ESP32.
 - Register-based read/write operations (one-byte or two-byte register addresses), including single
   bytes and multi-byte integer values in a chosen byte order
 - Raw transmit/receive, multi-buffer transmit, and custom operation sequences
+- Byte buffers passed as `idfxx::byte_view` / `idfxx::byte_span`, so `uint8_t` and
+  `std::byte` containers both work; literal bytes as braced lists; fixed-size reads returned as
+  `std::array`
 - `std::chrono` timeout support
 
 ## Requirements
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
-- `idfxx_core` component (error handling)
+- `idfxx_core` component (error handling, byte views)
 - `idfxx_gpio` component (pin configuration)
 
 ## Installation
@@ -64,8 +67,8 @@ try {
     );
 
     // Read from register (throws on error)
-    auto data = device.read_register(0x00, 1);
-    idfxx::log::info("I2C", "Register value: 0x{:02X}", data[0]);
+    uint8_t value = device.read_register(0x00);
+    idfxx::log::info("I2C", "Register value: 0x{:02X}", value);
 
 } catch (const std::system_error& e) {
     idfxx::log::error("I2C", "I2C error: {}", e.what());
@@ -109,11 +112,11 @@ if (!dev_result) {
 auto device = std::move(*dev_result);
 
 // Read from register
-auto data_result = device.try_read_register(0x00, 1);
-if (data_result) {
-    idfxx::log::info("I2C", "Register value: 0x{:02X}", (*data_result)[0]);
+auto value_result = device.try_read_register(0x00);
+if (value_result) {
+    idfxx::log::info("I2C", "Register value: 0x{:02X}", *value_result);
 } else {
-    idfxx::log::error("I2C", "Read failed: {}", data_result.error().message());
+    idfxx::log::error("I2C", "Read failed: {}", value_result.error().message());
 }
 ```
 
@@ -171,15 +174,20 @@ Register addresses are one byte by default, which suits most devices:
 ```cpp
 idfxx::i2c::master_device sensor(bus, 0x68);
 
-// Write to a register
-std::vector<uint8_t> data{0x01, 0x02, 0x03};
+// Write to a register, from a buffer or as literal bytes
+std::array<uint8_t, 3> data{0x01, 0x02, 0x03};
 sensor.write_register(0x10, data);
+sensor.write_register(0x20, {0x47, 0x00});
 
-// Read from a register
-auto read_data = sensor.read_register(0x10, 3);
+// Read a fixed number of bytes from a register
+auto read_data = sensor.read_register<3>(0x10);
 for (uint8_t byte : read_data) {
     idfxx::log::info("I2C", "0x{:02X}", byte);
 }
+
+// Or read into a buffer of your own; the whole buffer is filled
+std::vector<uint8_t> block(32);
+sensor.read_register(0x40, block);
 ```
 
 Devices with 16-bit register addresses, such as larger EEPROMs, opt in with `register_address`:
@@ -191,7 +199,7 @@ idfxx::i2c::master_device eeprom(bus, 0x50, {
 
 // Register addresses are sent most significant byte first
 eeprom.write_register(0x1000, data);
-auto eeprom_data = eeprom.read_register(0x1000, 3);
+auto eeprom_data = eeprom.read_register<3>(0x1000);
 ```
 
 ### Raw Transmit/Receive
@@ -199,13 +207,20 @@ auto eeprom_data = eeprom.read_register(0x1000, 3);
 ```cpp
 idfxx::i2c::master_device device(bus, 0x3C);
 
-// Transmit raw bytes
+// Transmit raw bytes, from a buffer or as literal bytes
 std::vector<uint8_t> tx_data{0x00, 0x01, 0x02};
 device.transmit(tx_data);
+device.transmit({0x00, 0xAF});
 
-// Receive raw bytes
-auto rx_data = device.receive(4);
-idfxx::log::info("I2C", "Received {} bytes", rx_data.size());
+// Transmit several buffers in one transaction
+std::array<uint8_t, 1> header{0x40};
+std::array<std::byte, 2> payload{std::byte{0x12}, std::byte{0x34}};
+device.transmit(header, payload);
+
+// Receive a fixed number of bytes, or fill a buffer of your own
+auto status = device.receive<4>();
+std::vector<uint8_t> rx_data(16);
+device.receive(rx_data);
 ```
 
 ### Thread-Safe Access
@@ -242,7 +257,7 @@ using namespace std::chrono_literals;
 idfxx::i2c::master_device device(bus, 0x3C);
 
 // Read with custom timeout
-auto data = device.read_register(0x00, 1, 500ms);
+uint8_t value = device.read_register(0x00, 500ms);
 
 // Default timeout is 50ms (idfxx::i2c::DEFAULT_TIMEOUT)
 ```
@@ -270,6 +285,15 @@ finish in time fails with `idfxx::errc::invalid_response`, so raise the timeout 
   and `register_event_callbacks()` no longer exist, and every transfer finishes before the call
   returns. The ESP-IDF asynchronous mode can't report bus errors or reliably signal when the
   caller's buffers are free.
+- Byte buffers are `idfxx::byte_view` (writes) and `idfxx::byte_span` (reads), so
+  `std::byte` and `uint8_t` buffers both work. Pointer-and-length overloads are gone: pass
+  `{ptr, len}`. Literal bytes pass directly, as in `dev.transmit({0x01, 0x02})`.
+- `receive(size)` and `read_register(reg, size)` no longer return a `std::vector`: read into your
+  own buffer with `receive(buf)` / `read_register(reg, buf)`, or use `receive<N>()` /
+  `read_register<N>(reg)` for a `std::array<uint8_t, N>`.
+- `operation::write_data` / `read_data` are `byte_view` / `byte_span`.
+- A null buffer with a nonzero size is a precondition violation rather than an
+  `idfxx::errc::invalid_arg` error.
 
 ## API Overview
 
@@ -301,25 +325,31 @@ finish in time fails with `idfxx::errc::invalid_response`, so raise the timeout 
 - `make(bus, address)` - Convenience factory with defaults
 
 **Raw I/O:**
-- `transmit(data, [timeout])` / `try_transmit(...)` - Send data, from one buffer or several in one
-  transaction
-- `receive(size, [timeout])` / `try_receive(...)` - Receive data, into a new vector or a caller's
-  buffer
+- `transmit(data, [timeout])` / `try_transmit(...)` - Send data from a byte buffer or a braced list
+  of bytes
+- `transmit(buf1, buf2, ...)` / `transmit(buffers, [timeout])` / `try_transmit(...)` - Send several
+  buffers in one transaction
+- `receive(buf, [timeout])` / `try_receive(...)` - Fill a caller's buffer
+- `receive<N>([timeout])` / `try_receive<N>(...)` - Receive `N` bytes into a `std::array`
 - `execute_operations(ops, [timeout])` / `try_execute_operations(...)` - Run a custom
   START/WRITE/READ/STOP sequence
 - `probe([timeout])` / `try_probe([timeout])` - Probe the device
 
 **Register I/O** (register address size set by `config.register_address`):
-- `write_register(reg, data, [timeout])` / `try_write_register(...)` - Write to register
+- `write_register(reg, data, [timeout])` / `try_write_register(...)` - Write a byte buffer or a
+  braced list of bytes to a register
 - `write_register(reg, value, [timeout])` / `try_write_register(...)` - Write a single `uint8_t`
 - `write_register<T>(reg, value, order, [timeout])` / `try_write_register<T>(...)` - Write an
   unsigned integer in `std::endian` byte `order`
-- `read_register(reg, size, [timeout])` / `try_read_register(...)` - Read from register
+- `read_register(reg, buf, [timeout])` / `try_read_register(...)` - Read from a register, filling a
+  caller's buffer
+- `read_register<N>(reg, [timeout])` / `try_read_register<N>(...)` - Read `N` bytes from a register
+  into a `std::array`
 - `read_register(reg, [timeout])` / `try_read_register(...)` - Read a single `uint8_t`
 - `read_register<T>(reg, order, [timeout])` / `try_read_register<T>(...)` - Read an unsigned integer
   in `std::endian` byte `order`
-- `write_registers(regs, data, [timeout])` / `try_write_registers(...)` - Write to multiple
-  registers
+- `write_registers(regs, data, [timeout])` / `try_write_registers(...)` - Write the same byte buffer
+  or braced list of bytes to multiple registers
 
 **Addressing:**
 - `change_address(new_address, [timeout])` / `try_change_address(...)` - Change the device address
@@ -343,8 +373,8 @@ the exception-based methods).
   version, so raise the timeout for long transfers.
 - `idfxx::errc::timeout` - The bus could not be acquired within the timeout
 - `idfxx::errc::invalid_arg` - An argument was rejected before anything was sent: a register above
-  0xFF with one-byte register addresses, a null buffer with a nonzero size, a zero-byte register
-  read, or an address that doesn't fit the device's 7-bit or 10-bit addressing in `change_address`
+  0xFF with one-byte register addresses, an empty register read buffer, or an address that doesn't
+  fit the device's 7-bit or 10-bit addressing in `change_address`
 - Other driver errors are passed through
 
 **Probing** (`probe`, `scan_devices`):

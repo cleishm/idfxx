@@ -12,8 +12,8 @@
  * @brief Type-safe persistent key-value storage in flash memory.
  *
  * Provides NVS namespace lifecycle management with type-safe storage
- * for integers (8-64 bits), strings, and binary blobs. Features an
- * explicit commit model for atomic updates.
+ * for integers (8-64 bits), strings, binary blobs and trivially copyable
+ * objects. Features an explicit commit model for atomic updates.
  *
  * Depends on @ref idfxx_core for error handling.
  * @{
@@ -21,12 +21,19 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/partition>
 
+#include <array>
+#include <bit>
+#include <cstddef>
 #include <esp_idf_version.h>
+#include <ranges>
 #include <span>
+#include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 typedef uint32_t nvs_handle_t;
@@ -54,6 +61,18 @@ concept nvs_value = sized_integral<T>
     || std::same_as<T, float> || std::same_as<T, double>
 #endif
     ;
+
+/**
+ * @headerfile <idfxx/nvs>
+ * @brief Concept for objects storable as a blob with the typed set_blob()/get_blob<T>().
+ *
+ * Accepts trivially copyable types other than pointers, arrays and ranges. Byte buffers (arrays,
+ * vectors, spans, views) are stored through the idfxx::byte_view overloads instead.
+ */
+template<typename T>
+concept nvs_blob_value =
+    std::is_trivially_copyable_v<T> && !std::is_pointer_v<T> && !std::is_member_pointer_v<T> &&
+    !std::is_null_pointer_v<T> && !std::is_array_v<T> && !std::ranges::range<T>;
 /** @endcond */
 
 /**
@@ -231,25 +250,48 @@ public:
 
     /**
      * @brief Stores binary data.
-     * @param key    Key name.
-     * @param data   Data pointer.
-     * @param length Data size in bytes.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void set_blob(std::string_view key, const void* data, size_t length) {
-        unwrap(try_set_blob(key, data, length));
-    }
-
-    /**
-     * @brief Stores binary data.
+     *
+     * Accepts any contiguous range of `std::byte` or `uint8_t`, or `{ptr, len}`. Other data is
+     * stored through set_blob(key, value), or as bytes via `std::as_bytes`.
+     *
+     * @code
+     * std::array<uint8_t, 4> data{0x01, 0x02, 0x03, 0x04};
+     * nvs.set_blob("data", data);
+     * @endcode
+     *
      * @param key  Key name.
      * @param data Data to store.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    void set_blob(std::string_view key, std::span<const uint8_t> data) {
-        unwrap(try_set_blob(key, data));
+    void set_blob(std::string_view key, byte_view data) { unwrap(try_set_blob(key, data)); }
+
+    /**
+     * @brief Stores an object as a blob.
+     *
+     * Stores the object representation of @p value: its exact bytes, including any padding.
+     * Reading it back with get_blob<T>() requires a type of the same size and layout, so changing
+     * the type (adding or reordering members, or a different compiler layout) makes previously
+     * stored blobs unreadable or misinterpreted.
+     *
+     * @code
+     * struct calibration {
+     *     int32_t offset;
+     *     uint16_t gain;
+     * };
+     * nvs.set_blob("cal", calibration{.offset = -12, .gain = 1024});
+     * @endcode
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key   Key name.
+     * @param value Object to store.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    void set_blob(std::string_view key, const T& value) {
+        unwrap(try_set_blob(key, value));
     }
 
     /**
@@ -259,9 +301,63 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
-    [[nodiscard]] std::vector<uint8_t> get_blob(std::string_view key) {
+    [[nodiscard]] std::vector<std::byte> get_blob(std::string_view key) {
         return unwrap(try_get_blob(key));
     }
+
+    /**
+     * @brief Reads binary data into a caller-provided buffer.
+     *
+     * The blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf
+     * is smaller than the stored blob, the read fails with idfxx::errc::invalid_size and the
+     * contents of @p buf are unspecified.
+     *
+     * @code
+     * std::array<uint8_t, 32> buf{};
+     * size_t len = nvs.get_blob("data", buf);
+     * @endcode
+     *
+     * @param key Key name.
+     * @param buf Buffer to receive the blob.
+     * @return The length of the blob in bytes.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error, including idfxx::errc::invalid_size if @p buf is
+     *         smaller than the stored blob.
+     */
+    [[nodiscard]] size_t get_blob(std::string_view key, byte_span buf) {
+        return unwrap(try_get_blob(key, buf));
+    }
+
+    /**
+     * @brief Retrieves an object stored as a blob.
+     *
+     * Reads back an object stored with set_blob(key, value).
+     *
+     * @code
+     * auto cal = nvs.get_blob<calibration>("cal");
+     * @endcode
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key Key name.
+     * @return The object.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error, including idfxx::errc::invalid_size if the stored blob's
+     *         length is not `sizeof(T)`.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    [[nodiscard]] T get_blob(std::string_view key) {
+        return unwrap(try_get_blob<T>(key));
+    }
+
+    /**
+     * @brief Returns the length of a stored blob.
+     * @param key Key name.
+     * @return The length of the blob in bytes.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    [[nodiscard]] size_t blob_size(std::string_view key) { return unwrap(try_blob_size(key)); }
 
     /**
      * @brief Stores a numeric value.
@@ -333,27 +429,88 @@ public:
 
     /**
      * @brief Stores binary data.
-     * @param key    Key name.
-     * @param data   Data pointer.
-     * @param length Data size in bytes.
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_set_blob(std::string_view key, const void* data, size_t length);
-
-    /**
-     * @brief Stores binary data.
+     *
+     * Accepts any contiguous range of `std::byte` or `uint8_t`, or `{ptr, len}`. Other data is
+     * stored through try_set_blob(key, value), or as bytes via `std::as_bytes`.
+     *
      * @param key  Key name.
      * @param data Data to store.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_set_blob(std::string_view key, std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_set_blob(std::string_view key, byte_view data);
+
+    /**
+     * @brief Stores an object as a blob.
+     *
+     * Stores the object representation of @p value: its exact bytes, including any padding.
+     * Reading it back with try_get_blob<T>() requires a type of the same size and layout, so
+     * changing the type (adding or reordering members, or a different compiler layout) makes
+     * previously stored blobs unreadable or misinterpreted.
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key   Key name.
+     * @param value Object to store.
+     * @return Success, or an error.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    [[nodiscard]] result<void> try_set_blob(std::string_view key, const T& value) {
+        return try_set_blob(key, byte_view{std::as_bytes(std::span{&value, 1})});
+    }
 
     /**
      * @brief Retrieves binary data.
      * @param key Key name.
      * @return The data, or an error.
+     * @retval nvs::errc::not_found if no blob is stored under @p key.
      */
-    [[nodiscard]] result<std::vector<uint8_t>> try_get_blob(std::string_view key);
+    [[nodiscard]] result<std::vector<std::byte>> try_get_blob(std::string_view key);
+
+    /**
+     * @brief Reads binary data into a caller-provided buffer.
+     *
+     * The blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf
+     * is smaller than the stored blob, the read fails with idfxx::errc::invalid_size and the
+     * contents of @p buf are unspecified.
+     *
+     * @param key Key name.
+     * @param buf Buffer to receive the blob.
+     * @return The length of the blob in bytes, or an error.
+     * @retval idfxx::errc::invalid_size if @p buf is smaller than the stored blob.
+     * @retval nvs::errc::not_found if no blob is stored under @p key.
+     */
+    [[nodiscard]] result<size_t> try_get_blob(std::string_view key, byte_span buf);
+
+    /**
+     * @brief Retrieves an object stored as a blob.
+     *
+     * Reads back an object stored with try_set_blob(key, value).
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key Key name.
+     * @return The object, or an error.
+     * @retval idfxx::errc::invalid_size if the stored blob's length is not `sizeof(T)`.
+     * @retval nvs::errc::not_found if no blob is stored under @p key.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    [[nodiscard]] result<T> try_get_blob(std::string_view key) {
+        std::array<std::byte, sizeof(T)> buf;
+        return try_get_blob(key, byte_span{buf}).and_then([&buf](size_t len) -> result<T> {
+            if (len != sizeof(T)) {
+                return error(idfxx::errc::invalid_size);
+            }
+            return std::bit_cast<T>(buf);
+        });
+    }
+
+    /**
+     * @brief Returns the length of a stored blob.
+     * @param key Key name.
+     * @return The length of the blob in bytes, or an error.
+     * @retval nvs::errc::not_found if no blob is stored under @p key.
+     */
+    [[nodiscard]] result<size_t> try_blob_size(std::string_view key);
 
     /**
      * @brief Stores a numeric value.
@@ -425,8 +582,8 @@ public:
      * @brief Key for encryption and decryption
      */
     struct secure_config {
-        std::array<uint8_t, key_size> eky; /*!< XTS encryption and decryption key*/
-        std::array<uint8_t, key_size> tky; /*!< XTS tweak key */
+        std::array<std::byte, key_size> eky; /*!< XTS encryption and decryption key */
+        std::array<std::byte, key_size> tky; /*!< XTS tweak key */
     };
 
 public:

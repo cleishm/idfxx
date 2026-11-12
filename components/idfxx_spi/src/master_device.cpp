@@ -49,10 +49,13 @@ struct master_device::async_state {
     // 0->1 transition and released on 1->0 only: ESP-IDF's acquire deadlocks
     // if a device re-acquires a bus it already holds.
     int lock_depth = 0;
+    // Device configured with device_flags::halfduplex.
+    bool half_duplex;
 
-    explicit async_state(size_t qs)
+    explicit async_state(size_t qs, bool hd)
         : queue_size(qs)
-        , slots(std::make_unique<pool_slot[]>(qs)) {
+        , slots(std::make_unique<pool_slot[]>(qs))
+        , half_duplex(hd) {
         free_list.reserve(qs);
         for (size_t i = 0; i < qs; ++i) {
             free_list.push_back(static_cast<uint16_t>(i));
@@ -96,19 +99,34 @@ static result<spi_device_handle_t> add_device(master_bus& bus, const master_devi
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 master_device::master_device(master_bus& bus, const config& cfg)
-    : master_device(&bus, unwrap(add_device(bus, cfg)), static_cast<size_t>(cfg.queue_size)) {}
+    : master_device(
+          &bus,
+          unwrap(add_device(bus, cfg)),
+          static_cast<size_t>(cfg.queue_size),
+          cfg.flags.contains(device_flags::halfduplex)
+      ) {}
 #endif
 
 result<master_device> master_device::make(master_bus& bus, const config& cfg) {
     return add_device(bus, cfg).transform([&](auto handle) {
-        return master_device(&bus, handle, static_cast<size_t>(cfg.queue_size));
+        return master_device(
+            &bus,
+            handle,
+            static_cast<size_t>(cfg.queue_size),
+            cfg.flags.contains(device_flags::halfduplex)
+        );
     });
 }
 
-master_device::master_device(master_bus* bus, spi_device_handle_t handle, size_t queue_size)
+master_device::master_device(
+    master_bus* bus,
+    spi_device_handle_t handle,
+    size_t queue_size,
+    bool half_duplex
+)
     : _bus(bus)
     , _handle(handle)
-    , _async(std::make_unique<async_state>(queue_size)) {}
+    , _async(std::make_unique<async_state>(queue_size, half_duplex)) {}
 
 master_device::master_device(master_device&& other) noexcept
     : _bus(std::exchange(other._bus, nullptr))
@@ -184,13 +202,37 @@ quanta::frequency::hertz master_device::frequency() const {
 // Simple API helpers
 // =============================================================================
 
-void master_device::_prepare_idf_trans(spi_transaction_t& idf_trans, const transaction& trans) {
+size_t master_device::_data_bits(const transaction& trans) const {
+    if (trans.length) {
+        return *trans.length;
+    }
+    if (!trans.tx_buffer.empty()) {
+        return trans.tx_buffer.size() * 8;
+    }
+    // Receive-only: a full-duplex device clocks the reply during the data phase, while a
+    // half-duplex device reads it in a separate MISO phase sized by rx_length.
+    return _async->half_duplex ? 0 : trans.rx_buffer.size() * 8;
+}
+
+size_t master_device::_rx_bits(const transaction& trans) const {
+    if (trans.rx_length) {
+        return *trans.rx_length;
+    }
+    // A half-duplex MISO phase is sized by rx_length alone; in full duplex, 0 selects the driver
+    // default (the data length)
+    return _async->half_duplex ? trans.rx_buffer.size() * 8 : 0;
+}
+
+void master_device::_prepare_idf_trans(
+    spi_transaction_t& idf_trans,
+    const transaction& trans
+) const {
     idf_trans = {};
     idf_trans.flags = to_underlying(trans.flags);
     idf_trans.cmd = trans.cmd;
     idf_trans.addr = trans.addr;
-    idf_trans.length = trans.length;
-    idf_trans.rxlength = trans.rx_length;
+    idf_trans.length = _data_bits(trans);
+    idf_trans.rxlength = _rx_bits(trans);
     idf_trans.override_freq_hz = static_cast<int>(trans.override_freq.count());
     idf_trans.tx_buffer = trans.tx_buffer.data();
     idf_trans.rx_buffer = trans.rx_buffer.data();
@@ -199,7 +241,7 @@ void master_device::_prepare_idf_trans(spi_transaction_t& idf_trans, const trans
 void master_device::_prepare_idf_trans_ext(
     spi_transaction_ext_t& idf_ext,
     const transaction& trans
-) {
+) const {
     _prepare_idf_trans(idf_ext.base, trans);
     idf_ext.command_bits = trans.command_bits;
     idf_ext.address_bits = trans.address_bits;
@@ -212,23 +254,33 @@ static bool uses_variable_fields(const transaction& trans) {
     );
 }
 
-static result<void> validate_trans_buffers(const transaction& trans) {
-    if (!trans.tx_buffer.empty() && trans.length > trans.tx_buffer.size_bytes() * 8) {
+result<void> master_device::_validate_trans(const transaction& trans) const {
+    const size_t length = _data_bits(trans);
+    if (!trans.tx_buffer.empty() && length > trans.tx_buffer.size() * 8) {
         ESP_LOGD(
             TAG,
             "SPI transaction length %zu bits exceeds tx_buffer capacity %zu bits",
-            trans.length,
-            trans.tx_buffer.size_bytes() * 8
+            length,
+            trans.tx_buffer.size() * 8
         );
         return error(errc::invalid_arg);
     }
-    size_t rx_bits = trans.rx_length != 0 ? trans.rx_length : trans.length;
-    if (!trans.rx_buffer.empty() && rx_bits > trans.rx_buffer.size_bytes() * 8) {
+    if (!_async->half_duplex && trans.rx_length == 0) {
+        // The driver reads an rxlength of 0 as "same as length" in full duplex, so an explicit 0
+        // can't be honored
+        ESP_LOGD(TAG, "SPI transaction rx_length of 0 is not supported in full duplex");
+        return error(errc::invalid_arg);
+    }
+    size_t rx_bits = _rx_bits(trans);
+    if (rx_bits == 0 && !_async->half_duplex) {
+        rx_bits = length;
+    }
+    if (!trans.rx_buffer.empty() && rx_bits > trans.rx_buffer.size() * 8) {
         ESP_LOGD(
             TAG,
             "SPI transaction rx_length %zu bits exceeds rx_buffer capacity %zu bits",
             rx_bits,
-            trans.rx_buffer.size_bytes() * 8
+            trans.rx_buffer.size() * 8
         );
         return error(errc::invalid_arg);
     }
@@ -239,8 +291,7 @@ static result<void> validate_trans_buffers(const transaction& trans) {
 // Shared dispatch helpers
 // =============================================================================
 
-result<void>
-master_device::_simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn) {
+result<void> master_device::_simple_trans(idfxx::byte_view tx, idfxx::byte_span rx, _trans_fn fn) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -250,7 +301,9 @@ master_device::_simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx,
         trans.tx_buffer = tx.data();
     }
     if (!rx.empty()) {
-        if (trans.length == 0) {
+        // A half-duplex device reads in its own MISO phase, so a receive-only transfer has no
+        // MOSI phase
+        if (trans.length == 0 && !_async->half_duplex) {
             trans.length = rx.size() * 8;
         }
         trans.rxlength = rx.size() * 8;
@@ -263,7 +316,7 @@ result<void> master_device::_full_trans(const transaction& trans, _trans_fn fn) 
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    if (auto v = validate_trans_buffers(trans); !v) {
+    if (auto v = _validate_trans(trans); !v) {
         return v;
     }
     if (uses_variable_fields(trans)) {
@@ -280,24 +333,15 @@ result<void> master_device::_full_trans(const transaction& trans, _trans_fn fn) 
 // Simple API (interrupt-based blocking)
 // =============================================================================
 
-result<void> master_device::try_transmit(std::span<const uint8_t> tx_data) {
+result<void> master_device::try_transmit(idfxx::byte_view tx_data) {
     return _simple_trans(tx_data, {}, spi_device_transmit);
 }
 
-result<void> master_device::try_receive(std::span<uint8_t> rx_data) {
+result<void> master_device::try_receive(idfxx::byte_span rx_data) {
     return _simple_trans({}, rx_data, spi_device_transmit);
 }
 
-result<std::vector<uint8_t>> master_device::try_receive(size_t size) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    std::vector<uint8_t> buf(size);
-    return try_receive(std::span<uint8_t>(buf)).transform([&]() { return std::move(buf); });
-}
-
-result<void>
-master_device::try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+result<void> master_device::try_transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data) {
     return _simple_trans(tx_data, rx_data, spi_device_transmit);
 }
 
@@ -313,7 +357,7 @@ result<void> master_device::try_transmit(const transaction& trans) {
 // Polling API
 // =============================================================================
 
-result<void> master_device::try_polling_transmit(std::span<const uint8_t> tx_data) {
+result<void> master_device::try_polling_transmit(idfxx::byte_view tx_data) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -321,7 +365,7 @@ result<void> master_device::try_polling_transmit(std::span<const uint8_t> tx_dat
     return _simple_trans(tx_data, {}, spi_device_polling_transmit);
 }
 
-result<void> master_device::try_polling_receive(std::span<uint8_t> rx_data) {
+result<void> master_device::try_polling_receive(idfxx::byte_span rx_data) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -329,16 +373,8 @@ result<void> master_device::try_polling_receive(std::span<uint8_t> rx_data) {
     return _simple_trans({}, rx_data, spi_device_polling_transmit);
 }
 
-result<std::vector<uint8_t>> master_device::try_polling_receive(size_t size) {
-    if (_handle == nullptr) {
-        return error(errc::invalid_state);
-    }
-    std::vector<uint8_t> buf(size);
-    return try_polling_receive(std::span<uint8_t>(buf)).transform([&]() { return std::move(buf); });
-}
-
 result<void>
-master_device::try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+master_device::try_polling_transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -394,7 +430,7 @@ result<idfxx::future<void>> master_device::_try_queue_trans(
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    if (auto v = validate_trans_buffers(trans); !v) {
+    if (auto v = _validate_trans(trans); !v) {
         return error(v.error());
     }
 

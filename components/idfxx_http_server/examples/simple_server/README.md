@@ -10,7 +10,7 @@ endpoint that echoes the request body.
 - Starting an `idfxx::http::server` on port 80
 - Registering GET handlers with `on_get()`: `/api/status` returns a JSON request count, and `/hello`
   reads the `name` query parameter with `query_param()`
-- Registering a POST handler with `on_post()`: `/echo` reads the request body with `recv_body()` and
+- Registering a POST handler with `on_post()`: `/echo` reads the request body with `read_body()` and
   sends it back
 - Setting the response type with `set_content_type()` and sending the response with `send()`
 

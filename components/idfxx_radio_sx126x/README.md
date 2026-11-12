@@ -40,7 +40,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_radio_sx126x:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_radio_sx126x` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -191,8 +191,16 @@ match your board, or drop `config::tcxo` entirely if your module uses a plain cr
   overload selects `lora_network` semantically).
 - `irq_flag`, `irq_status()`, `clear_irq_status(mask)` — chip-register IRQ surface for
   advanced/diagnostic use.
-- `write_command` / `read_command` / `write_register` / `read_register` / `write_buffer` /
-  `read_buffer` — six low-level opcode primitives.
+- `write_command(opcode, params)` / `read_command(opcode, response)` /
+  `write_register(addr, data)` / `read_register(addr, buffer)` / `write_buffer(offset, data)` /
+  `read_buffer(offset, buffer)` — low-level opcode primitives. Writes take an `idfxx::byte_view`
+  (command and register writes also take literal bytes, e.g.
+  `write_register(0x0740, {0x34, 0x44})`); reads fill the whole of an `idfxx::byte_span`.
+  Buffer accesses carry at most the chip's 256-byte data buffer.
+- `read_command<N>(opcode)` / `read_register<N>(addr)` — fixed-size reads returning
+  `std::array<uint8_t, N>` (e.g. `read_command<2>(0x12)` for GetIrqStatus).
+- `write_register(addr, value)` / `read_register(addr)` — single-register write and read of a
+  `uint8_t` (e.g. `write_register(0x08AC, 0x96)`).
 - `spi()` returns the underlying `spi::master_device&`.
 
 ## Configuration
@@ -223,8 +231,9 @@ match your board, or drop `config::tcxo` entirely if your module uses a plain cr
 Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
 
 - `errc::timeout` — BUSY did not go low in time, or a blocking call timed out.
-- `errc::invalid_arg` — requested output power is outside the variant's supported range, or a
-  configuration value is out of range.
+- `errc::invalid_arg` — requested output power is outside the variant's supported range, a
+  configuration value is out of range, a low-level escape-hatch frame is too long, or a buffer
+  access is larger than the chip's 256-byte data buffer.
 - `errc::invalid_state` — operation called in an incompatible state.
 - `errc::not_found` — no chip answered on the SPI bus (cold-start construction or `probe()`), or
   `read_received` found no packet queued.

@@ -7,6 +7,11 @@
 #include "idfxx/app.hpp"
 #include "unity.h"
 
+#include <array>
+#include <cstddef>
+#include <string>
+#include <type_traits>
+
 using namespace idfxx;
 
 // =============================================================================
@@ -36,6 +41,23 @@ TEST_CASE("app::compile_date returns non-empty string", "[idfxx][app]") {
 TEST_CASE("app::idf_version returns non-empty string", "[idfxx][app]") {
     auto v = app::idf_version();
     TEST_ASSERT_FALSE(v.empty());
+}
+
+static_assert(std::is_same_v<decltype(app::elf_sha256()), std::array<std::byte, 32>>);
+
+TEST_CASE("app::elf_sha256 matches elf_sha256_hex prefix", "[idfxx][app]") {
+    auto sha = app::elf_sha256();
+    auto hex = app::elf_sha256_hex();
+    TEST_ASSERT_GREATER_THAN(0, hex.size());
+    TEST_ASSERT_LESS_OR_EQUAL(64, hex.size());
+
+    constexpr char digits[] = "0123456789abcdef";
+    std::string expected;
+    for (std::byte b : sha) {
+        expected += digits[std::to_integer<unsigned>(b) >> 4];
+        expected += digits[std::to_integer<unsigned>(b) & 0xf];
+    }
+    TEST_ASSERT_EQUAL_STRING(expected.substr(0, hex.size()).c_str(), hex.c_str());
 }
 
 TEST_CASE("app::elf_sha256_hex returns hex string", "[idfxx][app]") {

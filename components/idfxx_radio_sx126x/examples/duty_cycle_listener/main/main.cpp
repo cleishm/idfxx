@@ -158,13 +158,12 @@ extern "C" void app_main() {
             if (n <= 0) {
                 continue;
             }
-            const auto len = static_cast<size_t>(n);
-            auto tx_view = std::span{reinterpret_cast<const uint8_t*>(tx_buf.data()), len};
+            const std::string_view text{tx_buf.data(), static_cast<size_t>(n)};
 
-            auto tx = radio.start_transmit(tx_view);
-            logger.info("beacon tx started: {}", std::string_view{tx_buf.data(), len});
+            auto tx = radio.start_transmit(std::as_bytes(std::span{text}));
+            logger.info("beacon tx started: {}", text);
 
-            const auto watchdog = radio.time_on_air(len) + TX_WATCHDOG_SLACK;
+            const auto watchdog = radio.time_on_air(text.size()) + TX_WATCHDOG_SLACK;
             if (!tx.try_wait_for(watchdog)) {
                 // The transmit never reported done — recover the driver from
                 // its "busy" state so the next cycle can proceed.

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <esp_log.h>
 #include <memory>
 #include <mutex>
@@ -88,7 +89,7 @@ result<std::shared_ptr<internal::op_latch>> claim_data_path(
     sx126x::state& s,
     internal::driver_activity activity,
     chip_mode mode,
-    std::span<uint8_t> rx_target = {}
+    byte_span rx_target = {}
 ) {
     std::lock_guard g(s.mu);
     if (s.driver_state != internal::driver_activity::idle) {
@@ -113,7 +114,7 @@ result<std::shared_ptr<internal::op_latch>> claim_data_path(
 result<void> arm_stream_receive(
     sx126x::state& s,
     uint8_t opcode,
-    std::span<const uint8_t> params,
+    byte_view params,
     std::chrono::microseconds sleep_period
 ) {
     if (auto e = apply_rx_boost(s); !e) {
@@ -368,8 +369,7 @@ result<gpio::unique_isr_handle> setup_dio1_isr(sx126x::state& s) {
 // chip timeout. Unwinds to idle/standby on any post-claim error. The worker's
 // tx_done path completes the returned latch, resets the driver state, and
 // posts the event.
-result<std::shared_ptr<internal::op_latch>>
-begin_transmit(sx126x::state& s, std::span<const uint8_t> data) {
+result<std::shared_ptr<internal::op_latch>> begin_transmit(sx126x::state& s, byte_view data) {
     // The payload has already been validated (non-empty, <= 255 bytes) by the
     // lora_transceiver base-class wrappers.
 
@@ -389,7 +389,7 @@ begin_transmit(sx126x::state& s, std::span<const uint8_t> data) {
         return error(e.error());
     }
 
-    // Stage the payload directly from the caller's span into the chip data
+    // Stage the payload directly from the caller's buffer into the chip data
     // buffer (WriteBuffer, §13.2.3; the write completes before this returns, so
     // no internal copy is needed).
     if (auto e = s.write_buffer(0, data); !e) {
@@ -562,7 +562,7 @@ result<void> sx126x::state::wait_busy_waking() {
     return wait_busy();
 }
 
-result<void> sx126x::state::transfer(std::span<const uint8_t> tx, std::span<uint8_t> rx) {
+result<void> sx126x::state::transfer(byte_view tx, byte_span rx) {
     std::lock_guard guard(spi_mu);
     if (auto e = wait_busy_waking(); !e) {
         return e;
@@ -573,7 +573,7 @@ result<void> sx126x::state::transfer(std::span<const uint8_t> tx, std::span<uint
     return device.try_polling_transfer(tx, rx);
 }
 
-result<void> sx126x::state::transmit(std::span<const uint8_t> tx) {
+result<void> sx126x::state::transmit(byte_view tx) {
     std::lock_guard guard(spi_mu);
     if (auto e = wait_busy_waking(); !e) {
         return e;
@@ -589,31 +589,31 @@ namespace {
 // Stages `header` followed by `data` into a single frame and transmits it.
 // The staging buffer is deliberately left uninitialized: every transmitted
 // byte is written below.
-result<void>
-write_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<const uint8_t> data) {
-    std::array<uint8_t, internal::max_frame> buf;
+result<void> write_framed(sx126x::state& s, byte_view header, byte_view data) {
+    std::array<std::byte, internal::max_frame> buf;
     const size_t total = header.size() + data.size();
     if (total > buf.size()) {
         return error(errc::invalid_arg);
     }
-    auto it = std::copy(header.begin(), header.end(), buf.begin());
-    std::copy(data.begin(), data.end(), it);
-    return s.transmit({buf.data(), total});
+    auto it = std::ranges::copy(header, buf.begin()).out;
+    std::ranges::copy(data, it);
+    return s.transmit(byte_view{buf.data(), total});
 }
 
 // Transmits `header` (which includes the NOP turnaround byte), clocking out
 // one NOP per response byte, and copies the response into `out`.
-result<void>
-read_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<uint8_t> out) {
-    std::array<uint8_t, internal::max_frame> tx_buf;
-    std::array<uint8_t, internal::max_frame> rx_buf;
+result<void> read_framed(sx126x::state& s, byte_view header, byte_span out) {
+    std::array<std::byte, internal::max_frame> tx_buf;
+    std::array<std::byte, internal::max_frame> rx_buf;
     const size_t total = header.size() + out.size();
     if (total > tx_buf.size()) {
         return error(errc::invalid_arg);
     }
-    auto it = std::copy(header.begin(), header.end(), tx_buf.begin());
-    std::fill_n(it, out.size(), 0); // NOPs clocked while the chip answers
-    if (auto e = s.transfer({tx_buf.data(), total}, {rx_buf.data(), total}); !e) {
+    auto it = std::ranges::copy(header, tx_buf.begin()).out;
+    std::fill_n(it, out.size(), std::byte{0}); // NOPs clocked while the chip answers
+    const byte_view tx{tx_buf.data(), total};
+    const byte_span rx{rx_buf.data(), total};
+    if (auto e = s.transfer(tx, rx); !e) {
         return e;
     }
     std::copy_n(rx_buf.data() + header.size(), out.size(), out.data());
@@ -623,7 +623,7 @@ read_framed(sx126x::state& s, std::span<const uint8_t> header, std::span<uint8_t
 } // namespace
 
 result<void> sx126x::state::command(uint8_t opcode) {
-    return transmit({&opcode, 1});
+    return transmit(byte_view{&opcode, 1});
 }
 
 result<void> sx126x::state::command1(uint8_t opcode, uint8_t param) {
@@ -631,12 +631,12 @@ result<void> sx126x::state::command1(uint8_t opcode, uint8_t param) {
     return transmit(buf);
 }
 
-result<void> sx126x::state::write_command(uint8_t opcode, std::span<const uint8_t> params) {
+result<void> sx126x::state::write_command(uint8_t opcode, byte_view params) {
     std::array<uint8_t, 1> header{opcode};
     return write_framed(*this, header, params);
 }
 
-result<void> sx126x::state::read_command(uint8_t opcode, std::span<uint8_t> response) {
+result<void> sx126x::state::read_command(uint8_t opcode, byte_span response) {
     // The chip fetches each MISO byte about one byte-time before shifting it
     // out, so in a contiguous frame the first response byte (after the status
     // byte) is fetched as soon as the opcode has been clocked in. In STBY_RC
@@ -646,13 +646,13 @@ result<void> sx126x::state::read_command(uint8_t opcode, std::span<uint8_t> resp
     // with CS held, gives the chip the inter-transaction gap (a few us) to
     // prepare the reply. Register and buffer reads have address/offset bytes
     // ahead of their data and keep the single-frame path.
-    std::array<uint8_t, internal::max_frame> tx_buf;
-    std::array<uint8_t, internal::max_frame> rx_buf;
+    std::array<std::byte, internal::max_frame> tx_buf;
+    std::array<std::byte, internal::max_frame> rx_buf;
     const size_t total = 1 + response.size(); // NOP turnaround + response
     if (total > tx_buf.size()) {
         return error(errc::invalid_arg);
     }
-    std::fill_n(tx_buf.begin(), total, 0); // NOPs clocked while the chip answers
+    std::fill_n(tx_buf.begin(), total, std::byte{0}); // NOPs clocked while the chip answers
 
     std::lock_guard guard(spi_mu);
     if (auto e = wait_busy_waking(); !e) {
@@ -667,21 +667,23 @@ result<void> sx126x::state::read_command(uint8_t opcode, std::span<uint8_t> resp
     if (auto e = device.try_polling_transmit(op); !e) {
         return e;
     }
-    if (auto e = device.try_polling_transfer({tx_buf.data(), total}, {rx_buf.data(), total}); !e) {
+    const byte_view tx{tx_buf.data(), total};
+    const byte_span rx{rx_buf.data(), total};
+    if (auto e = device.try_polling_transfer(tx, rx); !e) {
         return e;
     }
     std::copy_n(rx_buf.data() + 1, response.size(), response.data());
     return {};
 }
 
-result<void> sx126x::state::write_register(uint16_t addr, std::span<const uint8_t> data) {
+result<void> sx126x::state::write_register(uint16_t addr, byte_view data) {
     std::array<uint8_t, 3> header{
         internal::op_write_register, static_cast<uint8_t>(addr >> 8), static_cast<uint8_t>(addr)
     };
     return write_framed(*this, header, data);
 }
 
-result<void> sx126x::state::read_register(uint16_t addr, std::span<uint8_t> data) {
+result<void> sx126x::state::read_register(uint16_t addr, byte_span data) {
     std::array<uint8_t, 4> header{
         internal::op_read_register,
         static_cast<uint8_t>(addr >> 8),
@@ -691,12 +693,18 @@ result<void> sx126x::state::read_register(uint16_t addr, std::span<uint8_t> data
     return read_framed(*this, header, data);
 }
 
-result<void> sx126x::state::write_buffer(uint8_t offset, std::span<const uint8_t> data) {
+result<void> sx126x::state::write_buffer(uint8_t offset, byte_view data) {
+    if (data.size() > internal::data_buffer_size) {
+        return error(errc::invalid_arg);
+    }
     std::array<uint8_t, 2> header{internal::op_write_buffer, offset};
     return write_framed(*this, header, data);
 }
 
-result<void> sx126x::state::read_buffer(uint8_t offset, std::span<uint8_t> data) {
+result<void> sx126x::state::read_buffer(uint8_t offset, byte_span data) {
+    if (data.size() > internal::data_buffer_size) {
+        return error(errc::invalid_arg);
+    }
     std::array<uint8_t, 3> header{
         internal::op_read_buffer, offset, 0x00
     }; // trailing NOP turnaround
@@ -1107,7 +1115,7 @@ result<void> sx126x::try_set_sync_word(uint16_t sync_word) {
 // Data path: async
 // =============================================================================
 
-result<idfxx::future<void>> sx126x::do_start_transmit(std::span<const uint8_t> data) {
+result<idfxx::future<void>> sx126x::do_start_transmit(byte_view data) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -1123,7 +1131,7 @@ result<idfxx::future<void>> sx126x::do_start_transmit(std::span<const uint8_t> d
     });
 }
 
-result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffer) {
+result<idfxx::future<rx_info>> sx126x::do_start_receive(byte_span buffer) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -1158,7 +1166,7 @@ result<idfxx::future<rx_info>> sx126x::do_start_receive(std::span<uint8_t> buffe
     });
 }
 
-result<rx_info> sx126x::do_read_received(std::span<uint8_t> buffer) {
+result<rx_info> sx126x::do_read_received(byte_span buffer) {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -1311,42 +1319,42 @@ result<void> sx126x::try_clear_irq_status(flags<irq_flag> mask) {
 // Low-level opcode escape hatch
 // =============================================================================
 
-result<void> sx126x::try_write_command(uint8_t opcode, std::span<const uint8_t> params) {
+result<void> sx126x::try_write_command(uint8_t opcode, byte_view params) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     return _state->write_command(opcode, params);
 }
 
-result<void> sx126x::try_read_command(uint8_t opcode, std::span<uint8_t> response) {
+result<void> sx126x::try_read_command(uint8_t opcode, byte_span response) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     return _state->read_command(opcode, response);
 }
 
-result<void> sx126x::try_write_register(uint16_t addr, std::span<const uint8_t> data) {
+result<void> sx126x::try_write_register(uint16_t addr, byte_view data) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     return _state->write_register(addr, data);
 }
 
-result<void> sx126x::try_read_register(uint16_t addr, std::span<uint8_t> data) {
+result<void> sx126x::try_read_register(uint16_t addr, byte_span data) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     return _state->read_register(addr, data);
 }
 
-result<void> sx126x::try_write_buffer(uint8_t offset, std::span<const uint8_t> data) {
+result<void> sx126x::try_write_buffer(uint8_t offset, byte_view data) {
     if (!_state) {
         return error(errc::invalid_state);
     }
     return _state->write_buffer(offset, data);
 }
 
-result<void> sx126x::try_read_buffer(uint8_t offset, std::span<uint8_t> data) {
+result<void> sx126x::try_read_buffer(uint8_t offset, byte_span data) {
     if (!_state) {
         return error(errc::invalid_state);
     }

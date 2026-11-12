@@ -283,8 +283,8 @@ esp_err_t client::_http_event_handler(esp_http_client_event* evt) {
         event_data data{
             .id = static_cast<event_id>(evt->event_id),
             .data = (evt->data && evt->data_len > 0)
-                ? std::span<const uint8_t>(static_cast<const uint8_t*>(evt->data), evt->data_len)
-                : std::span<const uint8_t>{},
+                ? byte_view{evt->data, static_cast<size_t>(evt->data_len)}
+                : byte_view{},
             .header_key = evt->header_key ? std::string_view(evt->header_key) : std::string_view{},
             .header_value =
                 evt->header_value ? std::string_view(evt->header_value) : std::string_view{},
@@ -569,13 +569,25 @@ std::optional<std::string> client::get_header(std::string_view key) const {
 }
 
 void client::set_post_field(std::string_view data) {
+    set_post_field(byte_view{std::as_bytes(std::span{data})});
+}
+
+void client::set_post_field(byte_view data) {
     if (!_handle) {
         return;
     }
-    _post_data = std::string(data);
+    // Kept as a string: the driver takes the body as a char pointer
+    _post_data.assign(reinterpret_cast<const char*>(data.data()), data.size());
     esp_err_t err = esp_http_client_set_post_field(
         _handle, _post_data.c_str(), static_cast<int>(_post_data.size())
     );
+    // ESP-IDF 6.x reports ESP_ERR_NOT_FOUND when no Content-Type header is set yet, after storing
+    // the body but before applying its default content type; apply that default here instead.
+    if (err == ESP_ERR_NOT_FOUND) {
+        err = esp_http_client_set_header(
+            _handle, "Content-Type", "application/x-www-form-urlencoded"
+        );
+    }
     if (err != ESP_OK) {
         idfxx::raise_no_mem();
     }
@@ -691,29 +703,31 @@ result<client::chunk_writer> client::try_open_chunked() {
     return chunk_writer{*this};
 }
 
-result<size_t> client::try_write(std::span<const uint8_t> data) {
+result<void> client::try_write(byte_view data) {
     if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
-    int len = static_cast<int>(std::min(data.size(), static_cast<size_t>(INT_MAX)));
-    int written = esp_http_client_write(_handle, reinterpret_cast<const char*>(data.data()), len);
-    if (written < 0) {
-        ESP_LOGD(TAG, "write failed");
-        return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
+    if (data.size() > static_cast<size_t>(INT_MAX)) {
+        return error(idfxx::errc::invalid_arg);
     }
-    if (written == 0 && len > 0) {
+    int len = static_cast<int>(data.size());
+    // A blocking write sends everything, or fails with a count that says nothing of what was sent
+    int written = esp_http_client_write(_handle, reinterpret_cast<const char*>(data.data()), len);
+    if (written == len) {
+        return {};
+    }
+    if (written == 0) {
         // The transport reports a write that timed out waiting for the socket
         // to become writable as 0 bytes written.
         ESP_LOGD(TAG, "write timed out");
         return http_client_error(ESP_ERR_HTTP_EAGAIN);
     }
-    return static_cast<size_t>(written);
+    ESP_LOGD(TAG, "write failed");
+    return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
 }
 
-result<size_t> client::try_write(std::string_view data) {
-    return try_write(
-        std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()}
-    );
+result<void> client::try_write(std::string_view data) {
+    return try_write(byte_view{std::as_bytes(std::span{data})});
 }
 
 result<int64_t> client::try_fetch_headers() {
@@ -733,7 +747,7 @@ result<int64_t> client::try_fetch_headers() {
     return content_length;
 }
 
-result<size_t> client::try_read(std::span<uint8_t> buf) {
+result<size_t> client::try_read(byte_span buf) {
     if (!_handle || _request_incomplete) {
         return error(idfxx::errc::invalid_state);
     }
@@ -751,7 +765,7 @@ result<size_t> client::try_read(std::span<uint8_t> buf) {
 }
 
 result<size_t> client::try_read(std::span<char> buf) {
-    return try_read(std::span<uint8_t>{reinterpret_cast<uint8_t*>(buf.data()), buf.size()});
+    return try_read(byte_span{std::as_writable_bytes(buf)});
 }
 
 result<void> client::try_flush_response() {
@@ -824,7 +838,7 @@ result<void> client::chunk_writer::_send(const char* data, size_t len) {
     return http_client_error(ESP_ERR_HTTP_WRITE_DATA);
 }
 
-result<void> client::chunk_writer::try_write(std::span<const uint8_t> data) {
+result<void> client::chunk_writer::try_write(byte_view data) {
     if (!_client || !_client->_handle || _stage != stage::open) {
         return error(idfxx::errc::invalid_state);
     }
@@ -846,9 +860,7 @@ result<void> client::chunk_writer::try_write(std::span<const uint8_t> data) {
 }
 
 result<void> client::chunk_writer::try_write(std::string_view data) {
-    return try_write(
-        std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(data.data()), data.size()}
-    );
+    return try_write(byte_view{std::as_bytes(std::span{data})});
 }
 
 result<void> client::chunk_writer::try_finish() {

@@ -222,8 +222,16 @@ master_device::_lock_bus(std::chrono::milliseconds timeout) const {
     return lock;
 }
 
-result<void>
-master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+// The driver takes byte buffers as uint8_t.
+static const uint8_t* as_u8(const std::byte* p) {
+    return reinterpret_cast<const uint8_t*>(p);
+}
+
+static uint8_t* as_u8(std::byte* p) {
+    return reinterpret_cast<uint8_t*>(p);
+}
+
+result<void> master_device::_try_transmit(byte_view data, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -231,11 +239,13 @@ master_device::_try_transmit(const uint8_t* buf, size_t size, std::chrono::milli
     if (!lock.owns_lock()) {
         return error(errc::timeout);
     }
-    return _map_xfer_error(i2c_master_transmit(_handle, buf, size, timeout.count()), "transmit");
+    return _map_xfer_error(
+        i2c_master_transmit(_handle, as_u8(data.data()), data.size(), timeout.count()), "transmit"
+    );
 }
 
 result<void> master_device::_try_multi_buffer_transmit(
-    std::span<const std::span<const uint8_t>> buffers,
+    std::span<const byte_view> buffers,
     std::chrono::milliseconds timeout
 ) {
     if (_handle == nullptr) {
@@ -258,9 +268,9 @@ result<void> master_device::_try_multi_buffer_transmit(
     }
     for (size_t i = 0; i < buffers.size(); ++i) {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-        info[i].write_buffer = buffers[i].data();
+        info[i].write_buffer = as_u8(buffers[i].data());
 #else
-        info[i].write_buffer = const_cast<uint8_t*>(buffers[i].data());
+        info[i].write_buffer = const_cast<uint8_t*>(as_u8(buffers[i].data()));
 #endif
         info[i].buffer_size = buffers[i].size();
     }
@@ -330,15 +340,15 @@ result<void> master_device::_try_execute_operations(
         case operation_command::write:
             job.write.ack_check = ops[i].ack_check;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-            job.write.data = ops[i].write_data.data();
+            job.write.data = as_u8(ops[i].write_data.data());
 #else
-            job.write.data = const_cast<uint8_t*>(ops[i].write_data.data());
+            job.write.data = const_cast<uint8_t*>(as_u8(ops[i].write_data.data()));
 #endif
             job.write.total_bytes = ops[i].write_data.size();
             break;
         case operation_command::read:
             job.read.ack_value = static_cast<i2c_ack_value_t>(std::to_underlying(ops[i].ack_type));
-            job.read.data = ops[i].read_data.data();
+            job.read.data = as_u8(ops[i].read_data.data());
             job.read.total_bytes = ops[i].read_data.size();
             break;
         default:
@@ -352,8 +362,7 @@ result<void> master_device::_try_execute_operations(
     );
 }
 
-result<void>
-master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout) {
+result<void> master_device::_try_receive(byte_span buf, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
@@ -361,22 +370,19 @@ master_device::_try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds
     if (!lock.owns_lock()) {
         return error(errc::timeout);
     }
-    return _map_xfer_error(i2c_master_receive(_handle, buf, size, timeout.count()), "receive");
+    return _map_xfer_error(
+        i2c_master_receive(_handle, as_u8(buf.data()), buf.size(), timeout.count()), "receive"
+    );
 }
 
-result<void> master_device::_try_write_register(
-    uint16_t reg,
-    const uint8_t* buf,
-    size_t size,
-    std::chrono::milliseconds timeout
-) {
-    return _try_write_registers(std::span<const uint16_t>(&reg, 1), buf, size, timeout);
+result<void>
+master_device::_try_write_register(uint16_t reg, byte_view buf, std::chrono::milliseconds timeout) {
+    return _try_write_registers(std::span<const uint16_t>(&reg, 1), buf, timeout);
 }
 
 result<void> master_device::_try_write_registers(
     std::span<const uint16_t> registers,
-    const uint8_t* buf,
-    size_t size,
+    byte_view buf,
     std::chrono::milliseconds timeout
 ) {
     if (_handle == nullptr) {
@@ -385,9 +391,6 @@ result<void> master_device::_try_write_registers(
     if (!std::ranges::all_of(registers, [this](uint16_t reg) {
             return register_fits(_register_address, reg);
         })) {
-        return error(errc::invalid_arg);
-    }
-    if (buf == nullptr && size > 0) {
         return error(errc::invalid_arg);
     }
     // Held across every register so the writes go out back to back
@@ -401,7 +404,7 @@ result<void> master_device::_try_write_registers(
     for (const auto& reg : registers) {
         uint8_t reg_bytes[2];
         auto reg_size = encode_register(_register_address, reg, reg_bytes);
-        const std::array<std::span<const uint8_t>, 2> buffers{{{reg_bytes, reg_size}, {buf, size}}};
+        const std::array<byte_view, 2> buffers{byte_view{reg_bytes, reg_size}, buf};
         if (auto r = _try_multi_buffer_transmit(buffers, timeout); !r) {
             return r;
         }
@@ -409,16 +412,12 @@ result<void> master_device::_try_write_registers(
     return {};
 }
 
-result<void> master_device::_try_read_register(
-    uint16_t reg,
-    uint8_t* buf,
-    size_t size,
-    std::chrono::milliseconds timeout
-) {
+result<void>
+master_device::_try_read_register(uint16_t reg, byte_span buf, std::chrono::milliseconds timeout) {
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    if (!register_fits(_register_address, reg) || buf == nullptr || size == 0) {
+    if (!register_fits(_register_address, reg) || buf.empty()) {
         return error(errc::invalid_arg);
     }
 
@@ -429,7 +428,9 @@ result<void> master_device::_try_read_register(
         return error(errc::timeout);
     }
     return _map_xfer_error(
-        i2c_master_transmit_receive(_handle, reg_bytes, reg_size, buf, size, timeout.count()),
+        i2c_master_transmit_receive(
+            _handle, reg_bytes, reg_size, as_u8(buf.data()), buf.size(), timeout.count()
+        ),
         "read_register"
     );
 }

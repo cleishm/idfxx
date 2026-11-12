@@ -20,6 +20,7 @@
 #include <cerrno>
 #include <cinttypes>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -87,8 +88,11 @@ template<typename T>
 concept replaceable_with = requires(volume& v, T&& t) {
     { v.try_replace_file(std::string_view{}, std::forward<T>(t)) } -> std::same_as<result<void>>;
 };
+static_assert(replaceable_with<byte_view>);
 static_assert(replaceable_with<std::span<const uint8_t>>);
 static_assert(replaceable_with<std::vector<uint8_t>&>);
+static_assert(replaceable_with<const std::vector<std::byte>&>);
+static_assert(replaceable_with<std::array<std::byte, 4>&>);
 static_assert(replaceable_with<memory_source&>);
 static_assert(replaceable_with<decltype([](FILE*) -> result<void> { return {}; })>);
 static_assert(replaceable_with<result<void> (&)(FILE*)>);
@@ -1136,7 +1140,7 @@ std::string complete_name(const char* dir, const char* name) {
     return replace_name(dir, name, ".~RN");
 }
 
-std::span<const uint8_t> bytes_of(const char* text) {
+byte_view bytes_of(const char* text) {
     return {reinterpret_cast<const uint8_t*>(text), std::strlen(text)};
 }
 
@@ -1144,12 +1148,12 @@ std::span<const uint8_t> bytes_of(const char* text) {
 // end of the data.
 class chunked_source {
 public:
-    chunked_source(std::span<const uint8_t> data, size_t chunk, std::error_code failure = {})
+    chunked_source(byte_view data, size_t chunk, std::error_code failure = {})
         : _src(data)
         , _chunk(chunk)
         , _failure(failure) {}
 
-    result<size_t> try_read(std::span<uint8_t> buf) {
+    result<size_t> try_read(byte_span buf) {
         if (_src.remaining() == 0 && _failure) {
             return error(_failure);
         }
@@ -1167,7 +1171,7 @@ static_assert(byte_source<chunked_source>);
 struct const_readable_source {
     mutable memory_source source;
 
-    result<size_t> try_read(std::span<uint8_t> buf) const { return source.try_read(buf); }
+    result<size_t> try_read(byte_span buf) const { return source.try_read(buf); }
 };
 static_assert(replaceable_with<const const_readable_source&>);
 
@@ -1235,6 +1239,14 @@ TEST_CASE("fatfs replace_file with contents in memory replaces a file and create
     TEST_ASSERT_EQUAL_UINT32(data.size(), back.size());
     TEST_ASSERT_EQUAL_MEMORY(data.data(), back.data(), data.size());
 
+    // std::byte contents are written the same way
+    const std::array<std::byte, 3> opaque{std::byte{0x00}, std::byte{0xFF}, std::byte{0x7E}};
+    r = vol.try_replace_file("/fat/dir/data.bin", opaque);
+    TEST_ASSERT_OK(r);
+    back = read_bytes("/fat/dir/data.bin");
+    TEST_ASSERT_EQUAL_UINT32(opaque.size(), back.size());
+    TEST_ASSERT_EQUAL_MEMORY(opaque.data(), back.data(), opaque.size());
+
     // Text is written as it is, with no terminating null
     r = vol.try_replace_file("/fat/cfg.txt", std::string("text\n"));
     TEST_ASSERT_OK(r);
@@ -1242,7 +1254,7 @@ TEST_CASE("fatfs replace_file with contents in memory replaces a file and create
     TEST_ASSERT_EQUAL_STRING("text\n", read_file("/fat/cfg.txt").c_str());
 
     // Empty contents give an empty file
-    r = vol.try_replace_file("/fat/cfg.txt", std::span<const uint8_t>{});
+    r = vol.try_replace_file("/fat/cfg.txt", byte_view{});
     TEST_ASSERT_TRUE(r.has_value());
     TEST_ASSERT_EQUAL_STRING("", read_file("/fat/cfg.txt").c_str());
 

@@ -5,7 +5,6 @@
 
 #include <array>
 #include <cstdint>
-#include <vector>
 
 using idfxx::nvs;
 
@@ -68,10 +67,12 @@ extern "C" void app_main() {
         nvs handle("demo_ns");
 
         std::array<uint8_t, 6> mac = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-        handle.set_blob("mac_addr", std::span<const uint8_t>(mac));
+        handle.set_blob("mac_addr", mac);
         handle.commit();
 
-        auto stored_mac = handle.get_blob("mac_addr");
+        std::array<uint8_t, 6> stored_mac{};
+        size_t len = handle.get_blob("mac_addr", stored_mac);
+        logger.info("Read {} bytes (stored size {})", len, handle.blob_size("mac_addr"));
         logger.info(
             "MAC address: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             stored_mac[0],

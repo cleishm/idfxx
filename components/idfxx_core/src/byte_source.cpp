@@ -9,7 +9,7 @@
 
 namespace idfxx {
 
-result<size_t> file_source::try_read(std::span<uint8_t> buf) {
+result<size_t> file_source::try_read(byte_span buf) {
     if (buf.empty()) {
         return 0;
     }

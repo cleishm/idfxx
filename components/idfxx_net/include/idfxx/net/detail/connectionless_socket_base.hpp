@@ -9,12 +9,12 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net/detail/ip_io_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 
 #include <cstddef>
-#include <span>
 
 namespace idfxx::net::detail {
 
@@ -43,13 +43,11 @@ public:
      *         `errc::operation_would_block` when a non-blocking socket has no
      *         datagram available.
      *
-     * @return Sub-span of @p buf with the datagram's bytes. An empty span is a
+     * @return View of the datagram's bytes, at the start of @p buf. An empty view is a
      *         received zero-length datagram — connectionless sockets have no
      *         end-of-stream, so it never signals peer close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv(buf));
-    }
+    [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
 
     /**
@@ -61,15 +59,15 @@ public:
      * expected datagram or use `try_recv_from`.
      *
      * @param buf Buffer to receive into.
-     * @return Sub-span of @p buf with the datagram's bytes, or an error. An empty
-     *         span is a received zero-length datagram — connectionless sockets
+     * @return View of the datagram's bytes, at the start of @p buf, or an error. An empty
+     *         view is a received zero-length datagram — connectionless sockets
      *         have no end-of-stream, so it never signals peer close.
      * @retval errc::message_too_long The datagram is larger than @p buf.
      * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
      * @retval errc::operation_would_block The socket is non-blocking and no
      *         datagram is available.
      */
-    [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
+    [[nodiscard]] result<byte_span> try_recv(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -101,7 +99,7 @@ public:
      * @return The number of bytes sent — always `buf.size()` on success, since a
      *         datagram is sent in full or not at all.
      */
-    size_t send_to(std::span<const std::byte> buf, const endpoint& to) {
+    size_t send_to(byte_view buf, const endpoint& to) {
         return idfxx::unwrap(try_send_to(buf, to));
     }
 #endif
@@ -114,7 +112,7 @@ public:
      * @return The number of bytes sent — always `buf.size()` on success, since a
      *         datagram is sent in full or not at all — or an error.
      */
-    [[nodiscard]] result<size_t> try_send_to(std::span<const std::byte> buf, const endpoint& to);
+    [[nodiscard]] result<size_t> try_send_to(byte_view buf, const endpoint& to);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -128,23 +126,21 @@ public:
      *         `errc::operation_would_block` when a non-blocking socket has no
      *         datagram available.
      *
-     * @return Datagram metadata (filled sub-span, source endpoint).
+     * @return Datagram metadata (filled view, source endpoint).
      */
-    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv_from(buf));
-    }
+    [[nodiscard]] datagram recv_from(byte_span buf) { return idfxx::unwrap(try_recv_from(buf)); }
 #endif
 
     /**
      * @brief Receives a datagram and reports the sender's endpoint.
      *
      * @param buf Buffer to fill.
-     * @return Datagram metadata (filled sub-span, source endpoint), or an error.
+     * @return Datagram metadata (filled view, source endpoint), or an error.
      * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
      * @retval errc::operation_would_block The socket is non-blocking and no
      *         datagram is available.
      */
-    [[nodiscard]] result<datagram> try_recv_from(std::span<std::byte> buf);
+    [[nodiscard]] result<datagram> try_recv_from(byte_span buf);
 
 protected:
     /// @cond INTERNAL

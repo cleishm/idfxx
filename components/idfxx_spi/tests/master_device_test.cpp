@@ -5,10 +5,16 @@
 #include "idfxx/spi/master"
 #include "unity.h"
 
+#include <array>
+#include <concepts>
+#include <cstddef>
 #include <driver/spi_master.h>
+#include <initializer_list>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 using namespace idfxx;
@@ -35,6 +41,56 @@ static_assert(std::is_move_constructible_v<transaction>);
 static_assert(std::is_move_assignable_v<transaction>);
 static_assert(std::is_trivially_copy_constructible_v<transaction>);
 static_assert(std::is_trivially_move_constructible_v<transaction>);
+static_assert(std::is_same_v<decltype(transaction::length), std::optional<size_t>>);
+static_assert(std::is_same_v<decltype(transaction::rx_length), std::optional<size_t>>);
+
+// Byte buffers of either element type, and literal byte lists, are accepted
+static_assert(requires(master_device& d, std::array<std::byte, 2> b, std::array<uint8_t, 2> u) {
+    { d.try_transmit(b) } -> std::same_as<result<void>>;
+    { d.try_transmit(u) } -> std::same_as<result<void>>;
+    { d.try_transmit({0x01, 0x02}) } -> std::same_as<result<void>>;
+    { d.try_polling_transmit({0x01}) } -> std::same_as<result<void>>;
+    { d.try_receive(b) } -> std::same_as<result<void>>;
+    { d.try_polling_receive(u) } -> std::same_as<result<void>>;
+    { d.try_transfer(u, b) } -> std::same_as<result<void>>;
+    { d.try_polling_transfer(b, u) } -> std::same_as<result<void>>;
+    // Literal tx lists, including ones that could read as {pointer, length} or an empty view,
+    // resolve to the initializer_list forms without ambiguity
+    { d.try_transfer({0x9F, 0, 0, 0}, u) } -> std::same_as<result<void>>;
+    { d.try_transfer({0, 0}, u) } -> std::same_as<result<void>>;
+    { d.try_transfer({}, b) } -> std::same_as<result<void>>;
+    { d.try_polling_transfer({0x05, 0x00}, b) } -> std::same_as<result<void>>;
+});
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(requires(master_device& d, std::array<uint8_t, 2> u) {
+    d.transfer({0x9F, 0x00}, u);
+    d.polling_transfer({0x05, 0x00}, u);
+});
+#endif
+// Fixed-size receives need at least one byte
+template<typename D, size_t N>
+concept receivable_n = requires(D& d) { d.template try_receive<N>(); };
+template<typename D, size_t N>
+concept polling_receivable_n = requires(D& d) { d.template try_polling_receive<N>(); };
+static_assert(receivable_n<master_device, 1>);
+static_assert(!receivable_n<master_device, 0>);
+static_assert(polling_receivable_n<master_device, 1>);
+static_assert(!polling_receivable_n<master_device, 0>);
+static_assert(std::is_same_v<decltype(std::declval<master_device&>().try_receive<4>()),
+                             result<std::array<uint8_t, 4>>>);
+static_assert(std::is_same_v<decltype(std::declval<master_device&>().try_polling_receive<3>()),
+                             result<std::array<uint8_t, 3>>>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_same_v<decltype(std::declval<master_device&>().receive<4>()),
+                             std::array<uint8_t, 4>>);
+static_assert(std::is_same_v<decltype(std::declval<master_device&>().polling_receive<3>()),
+                             std::array<uint8_t, 3>>);
+#endif
+// Receive buffers must be writable
+template<typename B>
+concept receivable_into = requires(master_device& d, B& b) { d.try_receive(b); };
+static_assert(receivable_into<std::array<uint8_t, 2>>);
+static_assert(!receivable_into<const std::array<uint8_t, 2>>);
 
 static_assert(std::to_underlying(device_flags::txbit_lsbfirst) == SPI_DEVICE_TXBIT_LSBFIRST);
 static_assert(std::to_underlying(device_flags::rxbit_lsbfirst) == SPI_DEVICE_RXBIT_LSBFIRST);
@@ -50,8 +106,6 @@ static_assert(std::to_underlying(device_flags::no_return_result) == SPI_DEVICE_N
 static_assert(std::to_underlying(trans_flags::mode_dio) == SPI_TRANS_MODE_DIO);
 static_assert(std::to_underlying(trans_flags::mode_qio) == SPI_TRANS_MODE_QIO);
 static_assert(std::to_underlying(trans_flags::mode_oct) == SPI_TRANS_MODE_OCT);
-static_assert(std::to_underlying(trans_flags::use_rxdata) == SPI_TRANS_USE_RXDATA);
-static_assert(std::to_underlying(trans_flags::use_txdata) == SPI_TRANS_USE_TXDATA);
 static_assert(std::to_underlying(trans_flags::multiline_addr) == SPI_TRANS_MULTILINE_ADDR);
 static_assert(std::to_underlying(trans_flags::multiline_cmd) == SPI_TRANS_MULTILINE_CMD);
 static_assert(std::to_underlying(trans_flags::variable_cmd) == SPI_TRANS_VARIABLE_CMD);
@@ -62,6 +116,14 @@ static_assert(std::to_underlying(trans_flags::dma_buffer_align_manual) == SPI_TR
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static_assert(std::to_underlying(trans_flags::dma_use_psram) == SPI_TRANS_DMA_USE_PSRAM);
 #endif
+// SPI_TRANS_USE_RXDATA / SPI_TRANS_USE_TXDATA are deliberately not exposed: they select the
+// driver's inline tx_data/rx_data storage, which a transaction cannot provide or return
+template<typename E>
+concept has_use_rxdata = requires { E::use_rxdata; };
+template<typename E>
+concept has_use_txdata = requires { E::use_txdata; };
+static_assert(!has_use_rxdata<trans_flags>);
+static_assert(!has_use_txdata<trans_flags>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -90,8 +152,8 @@ TEST_CASE("transaction default initialization", "[idfxx][spi]") {
     TEST_ASSERT_EQUAL(0, trans.addr);
     TEST_ASSERT_TRUE(trans.tx_buffer.empty());
     TEST_ASSERT_TRUE(trans.rx_buffer.empty());
-    TEST_ASSERT_EQUAL(0, trans.length);
-    TEST_ASSERT_EQUAL(0, trans.rx_length);
+    TEST_ASSERT_FALSE(trans.length.has_value());
+    TEST_ASSERT_FALSE(trans.rx_length.has_value());
     TEST_ASSERT_TRUE(trans.override_freq == 0_Hz);
     TEST_ASSERT_EQUAL(0, trans.command_bits);
     TEST_ASSERT_EQUAL(0, trans.address_bits);
@@ -179,8 +241,68 @@ TEST_CASE("master_device basic transmit", "[idfxx][spi][hw]") {
     TEST_ASSERT_TRUE(device.has_value());
 
     uint8_t data[] = {0x01, 0x02, 0x03, 0x04};
-    auto res = device->try_transmit(std::span<const uint8_t>(data));
+    auto res = device->try_transmit(data);
     TEST_ASSERT_TRUE(res.has_value());
+}
+
+TEST_CASE("master_device transmit accepts literal bytes", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    TEST_ASSERT_TRUE(device->try_transmit({0x9F}).has_value());
+    TEST_ASSERT_TRUE(device->try_transmit({0x02, 0x00, 0x10, 0xAA}).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transmit({0x06}).has_value());
+}
+
+TEST_CASE("master_device receive and transfer with byte buffers", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    std::array<std::byte, 4> rx{};
+    TEST_ASSERT_TRUE(device->try_receive(rx).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_receive(rx).has_value());
+
+    std::array<uint8_t, 4> tx = {0x01, 0x02, 0x03, 0x04};
+    TEST_ASSERT_TRUE(device->try_transfer(tx, rx).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transfer(tx, rx).has_value());
+}
+
+TEST_CASE("master_device receive fixed-size array", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    auto r = device->try_receive<3>();
+    TEST_ASSERT_TRUE(r.has_value());
+    TEST_ASSERT_EQUAL(3, r->size());
+
+    auto pr = device->try_polling_receive<2>();
+    TEST_ASSERT_TRUE(pr.has_value());
+    TEST_ASSERT_EQUAL(2, pr->size());
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    auto data = device->receive<4>();
+    TEST_ASSERT_EQUAL(4, data.size());
+    auto polled = device->polling_receive<4>();
+    TEST_ASSERT_EQUAL(4, polled.size());
+#endif
+}
+
+TEST_CASE("master_device rejects rx_length exceeding buffer", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    std::array<std::byte, 1> rx{};
+    transaction trans{};
+    trans.rx_buffer = rx;
+    trans.length = 16; // 2 bytes worth — exceeds 8-bit rx_buffer capacity
+
+    auto res = device->try_transmit(trans);
+    TEST_ASSERT_FALSE(res.has_value());
+    TEST_ASSERT_TRUE(res.error() == idfxx::errc::invalid_arg);
 }
 
 TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][spi][hw]") {
@@ -195,6 +317,140 @@ TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][
 
     auto res = device->try_transmit(trans);
     TEST_ASSERT_FALSE(res.has_value());
+}
+
+TEST_CASE("master_device rejects explicit rx_length exceeding buffer", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    uint8_t tx[2] = {0x00, 0x00};
+    std::array<std::byte, 1> rx{};
+    transaction trans{};
+    trans.tx_buffer = tx;
+    trans.rx_buffer = rx;
+    trans.rx_length = 16; // exceeds 8-bit rx_buffer capacity
+
+    auto res = device->try_transmit(trans);
+    TEST_ASSERT_FALSE(res.has_value());
+    TEST_ASSERT_TRUE(res.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("master_device derives transaction length from tx_buffer", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    uint8_t tx[4] = {0x01, 0x02, 0x03, 0x04};
+    std::array<std::byte, 4> rx{};
+    transaction trans{};
+    trans.tx_buffer = tx;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transmit(trans).has_value());
+
+    trans.rx_buffer = rx;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+
+    // An explicit length shorter than the buffers still applies
+    trans.rx_buffer = {rx.data(), 2};
+    trans.length = 16;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+}
+
+TEST_CASE("master_device rejects explicit zero rx_length in full duplex", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    uint8_t tx[2] = {0x01, 0x02};
+    std::array<std::byte, 2> rx{};
+    transaction trans{};
+    trans.tx_buffer = tx;
+    trans.rx_buffer = rx;
+    trans.rx_length = 0; // the driver would read this as "same as length"
+
+    auto res = device->try_transmit(trans);
+    TEST_ASSERT_FALSE(res.has_value());
+    TEST_ASSERT_TRUE(res.error() == idfxx::errc::invalid_arg);
+
+    auto polled = device->try_polling_transmit(trans);
+    TEST_ASSERT_FALSE(polled.has_value());
+    TEST_ASSERT_TRUE(polled.error() == idfxx::errc::invalid_arg);
+
+    auto queued = device->try_queue_trans(trans);
+    TEST_ASSERT_FALSE(queued.has_value());
+    TEST_ASSERT_TRUE(queued.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("master_device derived length is checked against rx_buffer", "[idfxx][spi]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    // The derived 32-bit length (and default rx_length) exceeds a 2-byte rx_buffer
+    uint8_t tx[4] = {0x01, 0x02, 0x03, 0x04};
+    std::array<std::byte, 2> rx{};
+    transaction trans{};
+    trans.tx_buffer = tx;
+    trans.rx_buffer = rx;
+
+    auto res = device->try_transmit(trans);
+    TEST_ASSERT_FALSE(res.has_value());
+    TEST_ASSERT_TRUE(res.error() == idfxx::errc::invalid_arg);
+
+    auto queued = device->try_queue_trans(trans);
+    TEST_ASSERT_FALSE(queued.has_value());
+    TEST_ASSERT_TRUE(queued.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("master_device derives receive-only length from rx_buffer", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto device = master_device::make(bus, default_device_config());
+    TEST_ASSERT_TRUE(device.has_value());
+
+    std::array<uint8_t, 3> rx{};
+    transaction trans{};
+    trans.rx_buffer = rx;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transmit(trans).has_value());
+
+    auto f = device->try_queue_trans(trans);
+    TEST_ASSERT_TRUE(f.has_value());
+    TEST_ASSERT_TRUE(f->try_wait().has_value());
+}
+
+TEST_CASE("master_device half-duplex receive derives its phase lengths", "[idfxx][spi][hw]") {
+    auto bus = make_test_bus();
+    auto dev_cfg = default_device_config();
+    dev_cfg.flags = device_flags::halfduplex;
+    auto device = master_device::make(bus, dev_cfg);
+    TEST_ASSERT_TRUE(device.has_value());
+
+    // Receive-only with just an rx_buffer: the derived length is 0 (the driver rejects a MOSI
+    // phase alongside the MISO phase on chips that can't combine them) and the derived rx_length
+    // covers the whole buffer
+    std::array<uint8_t, 3> rx{};
+    transaction trans{};
+    trans.rx_buffer = rx;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transmit(trans).has_value());
+    auto f = device->try_queue_trans(trans);
+    TEST_ASSERT_TRUE(f.has_value());
+    TEST_ASSERT_TRUE(f->try_wait().has_value());
+
+    // An explicit rx_length still applies
+    trans.rx_length = 16;
+    TEST_ASSERT_TRUE(device->try_transmit(trans).has_value());
+
+    // An explicit 0 means no MISO phase
+    uint8_t tx[2] = {0x01, 0x02};
+    transaction write{};
+    write.tx_buffer = tx;
+    write.rx_length = 0;
+    TEST_ASSERT_TRUE(device->try_transmit(write).has_value());
+
+    TEST_ASSERT_TRUE(device->try_receive(rx).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_receive(rx).has_value());
 }
 
 TEST_CASE("master_device queue_trans/wait per-transaction", "[idfxx][spi][hw]") {
@@ -258,7 +514,7 @@ TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi]
     std::vector<transaction> batch;
     for (size_t i = 0; i < 3; ++i) {
         transaction t{};
-        t.tx_buffer = std::span<const uint8_t>(data[i]);
+        t.tx_buffer = data[i];
         t.length = sizeof(data[i]) * 8;
         batch.push_back(t);
     }
@@ -342,7 +598,7 @@ TEST_CASE("master_device dropped future slot is eventually reclaimed", "[idfxx][
     for (int i = 0; i < 4; ++i) {
         uint8_t byte = static_cast<uint8_t>(0x30 + i);
         transaction t{};
-        t.tx_buffer = std::span<const uint8_t>(&byte, 1);
+        t.tx_buffer = {&byte, 1};
         t.length = 8;
         auto f = device->try_queue_trans(t);
         TEST_ASSERT_TRUE(f.has_value());
@@ -431,6 +687,6 @@ TEST_CASE("master_device polling transactions while holding lock", "[idfxx][spi]
     std::lock_guard lk(*device);
     uint8_t tx[] = {0x9F};
     uint8_t rx[3] = {};
-    TEST_ASSERT_TRUE(device->try_polling_transmit(std::span<const uint8_t>(tx)).has_value());
-    TEST_ASSERT_TRUE(device->try_polling_receive(std::span<uint8_t>(rx)).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_transmit(tx).has_value());
+    TEST_ASSERT_TRUE(device->try_polling_receive(rx).has_value());
 }

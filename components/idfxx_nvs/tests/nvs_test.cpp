@@ -8,10 +8,15 @@
 #include "idfxx/partition"
 #include "unity.h"
 
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <span>
+#include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 using namespace idfxx;
 
@@ -50,6 +55,94 @@ static_assert(!sized_integral<void*>);
 
 // nvs::errc is an error_code_enum
 static_assert(std::is_error_code_enum_v<nvs::errc>);
+
+// Typed blob test object
+namespace {
+struct blob_cfg {
+    uint32_t id;
+    int16_t offset;
+    uint8_t flags[2];
+};
+
+struct no_default_ctor {
+    explicit no_default_ctor(int v) : value(v) {}
+    int value;
+};
+
+// Overload routing probes
+template<typename N, typename A>
+concept can_set_blob = requires(N& n, A a) { n.try_set_blob("k", a); };
+template<typename N, typename A>
+concept can_set_typed_blob = requires(N& n, A a) { n.template try_set_blob<A>("k", a); };
+template<typename N, typename A>
+concept can_get_blob_into = requires(N& n, A& a) { n.try_get_blob("k", a); };
+} // namespace
+
+// nvs_blob_value accepts trivially copyable objects
+static_assert(nvs_blob_value<blob_cfg>);
+static_assert(nvs_blob_value<no_default_ctor>);
+static_assert(nvs_blob_value<uint32_t>);
+
+// nvs_blob_value rejects pointers, arrays and ranges (byte buffers go through byte_view)
+static_assert(!nvs_blob_value<std::array<uint8_t, 4>>);
+static_assert(!nvs_blob_value<std::span<const uint8_t>>);
+static_assert(!nvs_blob_value<std::vector<uint8_t>>);
+static_assert(!nvs_blob_value<byte_view>);
+static_assert(!nvs_blob_value<byte_span>);
+static_assert(!nvs_blob_value<std::string_view>);
+static_assert(!nvs_blob_value<uint8_t[4]>);
+static_assert(!nvs_blob_value<const char*>);
+static_assert(!nvs_blob_value<void*>);
+static_assert(!nvs_blob_value<std::nullptr_t>);
+
+// Objects take the typed overload; byte buffers can't
+static_assert(can_set_blob<nvs, blob_cfg>);
+static_assert(can_set_typed_blob<nvs, blob_cfg>);
+static_assert(!can_set_typed_blob<nvs, std::array<uint8_t, 4>>);
+static_assert(!can_set_typed_blob<nvs, std::span<const uint8_t>>);
+
+// Byte buffers take the byte_view overload
+static_assert(can_set_blob<nvs, std::array<uint8_t, 4>>);
+static_assert(can_set_blob<nvs, std::array<std::byte, 4>>);
+static_assert(can_set_blob<nvs, std::vector<uint8_t>>);
+static_assert(can_set_blob<nvs, std::span<const uint8_t>>);
+static_assert(can_set_blob<nvs, byte_view>);
+
+// Text and non-byte ranges are rejected (use std::as_bytes)
+static_assert(!can_set_blob<nvs, std::string>);
+static_assert(!can_set_blob<nvs, std::string_view>);
+static_assert(!can_set_blob<nvs, const char*>);
+static_assert(!can_set_blob<nvs, std::array<uint32_t, 2>>);
+
+// Read-into takes writable byte buffers only
+static_assert(can_get_blob_into<nvs, std::array<uint8_t, 4>>);
+static_assert(can_get_blob_into<nvs, std::vector<std::byte>>);
+static_assert(!can_get_blob_into<nvs, const std::array<uint8_t, 4>>);
+static_assert(!can_get_blob_into<nvs, blob_cfg>);
+
+// get_blob forms
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().try_get_blob("k")),
+                             result<std::vector<std::byte>>>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().try_get_blob<blob_cfg>("k")),
+                             result<blob_cfg>>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().try_get_blob(
+                                 "k", std::declval<std::array<uint8_t, 4>&>())),
+                             result<size_t>>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().try_blob_size("k")), result<size_t>>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().get_blob("k")), std::vector<std::byte>>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().get_blob<blob_cfg>("k")), blob_cfg>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().get_blob(
+                                 "k", std::declval<std::array<uint8_t, 4>&>())),
+                             size_t>);
+static_assert(std::is_same_v<decltype(std::declval<nvs&>().blob_size("k")), size_t>);
+#endif
+
+// Encryption keys are opaque bytes
+static_assert(std::is_same_v<decltype(nvs::flash::secure_config::eky),
+                             std::array<std::byte, nvs::flash::key_size>>);
+static_assert(std::is_same_v<decltype(nvs::flash::secure_config::tky),
+                             std::array<std::byte, nvs::flash::key_size>>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -186,16 +279,16 @@ TEST_CASE("nvs set and get blob", "[idfxx][nvs]") {
     TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), get_result.value().data(), 5);
 }
 
-TEST_CASE("nvs set and get blob with raw pointer", "[idfxx][nvs]") {
+TEST_CASE("nvs set and get blob with pointer and length", "[idfxx][nvs]") {
     ensure_nvs_init();
 
     auto nvs_handle = nvs::make("test_blobp");
     TEST_ASSERT_TRUE(nvs_handle.has_value());
     auto& nvs = *nvs_handle;
 
-    // Set a blob using raw pointer
-    uint8_t data[]{0xAA, 0xBB, 0xCC};
-    auto set_result = nvs.try_set_blob("blob2", data, sizeof(data));
+    // Set a blob from a pointer and length (only the first 3 bytes)
+    uint8_t data[]{0xAA, 0xBB, 0xCC, 0xDD};
+    auto set_result = nvs.try_set_blob("blob2", {data, 3});
     TEST_ASSERT_TRUE(set_result.has_value());
 
     TEST_ASSERT_TRUE(nvs.try_commit().has_value());
@@ -204,9 +297,213 @@ TEST_CASE("nvs set and get blob with raw pointer", "[idfxx][nvs]") {
     auto get_result = nvs.try_get_blob("blob2");
     TEST_ASSERT_TRUE(get_result.has_value());
     TEST_ASSERT_EQUAL(3, get_result.value().size());
-    TEST_ASSERT_EQUAL_HEX8(0xAA, get_result.value()[0]);
-    TEST_ASSERT_EQUAL_HEX8(0xBB, get_result.value()[1]);
-    TEST_ASSERT_EQUAL_HEX8(0xCC, get_result.value()[2]);
+    TEST_ASSERT_EQUAL_HEX8(0xAA, std::to_integer<uint8_t>(get_result.value()[0]));
+    TEST_ASSERT_EQUAL_HEX8(0xBB, std::to_integer<uint8_t>(get_result.value()[1]));
+    TEST_ASSERT_EQUAL_HEX8(0xCC, std::to_integer<uint8_t>(get_result.value()[2]));
+}
+
+TEST_CASE("nvs blob_size returns stored length", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_bsize");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    std::array<std::byte, 7> data{};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("b7", data).has_value());
+    TEST_ASSERT_TRUE(nvs.try_set_blob("b0", byte_view{}).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto size7 = nvs.try_blob_size("b7");
+    TEST_ASSERT_TRUE(size7.has_value());
+    TEST_ASSERT_EQUAL(7, *size7);
+
+    auto size0 = nvs.try_blob_size("b0");
+    TEST_ASSERT_TRUE(size0.has_value());
+    TEST_ASSERT_EQUAL(0, *size0);
+
+    auto missing = nvs.try_blob_size("missing");
+    TEST_ASSERT_FALSE(missing.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), missing.error().value());
+}
+
+TEST_CASE("nvs get_blob into buffer", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_binto");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    std::array<uint8_t, 4> data{0x10, 0x20, 0x30, 0x40};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("blob", data).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    // Exact-size buffer
+    std::array<uint8_t, 4> exact{};
+    auto exact_result = nvs.try_get_blob("blob", exact);
+    TEST_ASSERT_TRUE(exact_result.has_value());
+    TEST_ASSERT_EQUAL(4, *exact_result);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), exact.data(), 4);
+
+    // Larger buffer: blob goes to the front, the rest is untouched
+    std::array<uint8_t, 8> larger{};
+    larger.fill(0xEE);
+    auto larger_result = nvs.try_get_blob("blob", larger);
+    TEST_ASSERT_TRUE(larger_result.has_value());
+    TEST_ASSERT_EQUAL(4, *larger_result);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), larger.data(), 4);
+    TEST_ASSERT_EQUAL_HEX8(0xEE, larger[4]);
+
+    // std::byte buffer
+    std::vector<std::byte> bytes(6);
+    auto bytes_result = nvs.try_get_blob("blob", bytes);
+    TEST_ASSERT_TRUE(bytes_result.has_value());
+    TEST_ASSERT_EQUAL(4, *bytes_result);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), bytes.data(), 4);
+
+    // Too-small buffer
+    std::array<uint8_t, 3> small{};
+    auto small_result = nvs.try_get_blob("blob", small);
+    TEST_ASSERT_FALSE(small_result.has_value());
+    TEST_ASSERT_TRUE(small_result.error() == idfxx::errc::invalid_size);
+
+    // Empty buffer against a non-empty blob
+    auto empty_result = nvs.try_get_blob("blob", byte_span{});
+    TEST_ASSERT_FALSE(empty_result.has_value());
+    TEST_ASSERT_TRUE(empty_result.error() == idfxx::errc::invalid_size);
+
+    // Missing key
+    auto missing = nvs.try_get_blob("missing", exact);
+    TEST_ASSERT_FALSE(missing.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), missing.error().value());
+}
+
+TEST_CASE("nvs get_blob into buffer with empty blob", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_binto0");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_set_blob("empty", byte_view{}).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto empty_buf = nvs.try_get_blob("empty", byte_span{});
+    TEST_ASSERT_TRUE(empty_buf.has_value());
+    TEST_ASSERT_EQUAL(0, *empty_buf);
+
+    std::array<uint8_t, 4> buf{};
+    auto with_buf = nvs.try_get_blob("empty", buf);
+    TEST_ASSERT_TRUE(with_buf.has_value());
+    TEST_ASSERT_EQUAL(0, *with_buf);
+
+    auto missing = nvs.try_get_blob("missing", byte_span{});
+    TEST_ASSERT_FALSE(missing.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), missing.error().value());
+}
+
+TEST_CASE("nvs typed blob round-trip", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_btyped");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    blob_cfg cfg{};
+    cfg.id = 0xCAFEF00D;
+    cfg.offset = -1234;
+    cfg.flags[0] = 0x5A;
+    cfg.flags[1] = 0xA5;
+    TEST_ASSERT_TRUE(nvs.try_set_blob("cfg", cfg).has_value());
+    TEST_ASSERT_TRUE(nvs.try_set_blob("nodef", no_default_ctor{42}).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    // Stored as the object's bytes
+    auto size = nvs.try_blob_size("cfg");
+    TEST_ASSERT_TRUE(size.has_value());
+    TEST_ASSERT_EQUAL(sizeof(blob_cfg), *size);
+
+    auto result = nvs.try_get_blob<blob_cfg>("cfg");
+    TEST_ASSERT_TRUE(result.has_value());
+    TEST_ASSERT_EQUAL_HEX32(0xCAFEF00D, result->id);
+    TEST_ASSERT_EQUAL_INT16(-1234, result->offset);
+    TEST_ASSERT_EQUAL_HEX8(0x5A, result->flags[0]);
+    TEST_ASSERT_EQUAL_HEX8(0xA5, result->flags[1]);
+
+    // Types without a default constructor
+    auto nodef = nvs.try_get_blob<no_default_ctor>("nodef");
+    TEST_ASSERT_TRUE(nodef.has_value());
+    TEST_ASSERT_EQUAL(42, nodef->value);
+
+    // Missing key
+    auto missing = nvs.try_get_blob<blob_cfg>("missing");
+    TEST_ASSERT_FALSE(missing.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::not_found), missing.error().value());
+}
+
+TEST_CASE("nvs typed blob size mismatch returns invalid_size", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_btmm");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    // Stored blob smaller than the type
+    std::array<uint8_t, sizeof(blob_cfg) - 1> shorter{};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("short", shorter).has_value());
+
+    // Stored blob larger than the type
+    std::array<uint8_t, sizeof(blob_cfg) + 1> longer{};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("long", longer).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto short_result = nvs.try_get_blob<blob_cfg>("short");
+    TEST_ASSERT_FALSE(short_result.has_value());
+    TEST_ASSERT_TRUE(short_result.error() == idfxx::errc::invalid_size);
+
+    auto long_result = nvs.try_get_blob<blob_cfg>("long");
+    TEST_ASSERT_FALSE(long_result.has_value());
+    TEST_ASSERT_TRUE(long_result.error() == idfxx::errc::invalid_size);
+}
+
+TEST_CASE("nvs set_blob routes byte buffers and objects", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_broute");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    // A span stores the bytes it views, not the span object itself
+    std::vector<uint8_t> data{1, 2, 3, 4, 5};
+    static_assert(sizeof(std::span<const uint8_t>) != 3);
+    TEST_ASSERT_TRUE(nvs.try_set_blob("span", std::span<const uint8_t>{data}.first(3)).has_value());
+
+    // A built-in array stores its elements
+    uint8_t raw[5]{};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("raw", raw).has_value());
+
+    // A vector stores its elements
+    TEST_ASSERT_TRUE(nvs.try_set_blob("vec", data).has_value());
+
+    // An object stores its object representation
+    TEST_ASSERT_TRUE(nvs.try_set_blob("obj", blob_cfg{}).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto span_size = nvs.try_blob_size("span");
+    TEST_ASSERT_TRUE(span_size.has_value());
+    TEST_ASSERT_EQUAL(3, *span_size);
+
+    auto raw_size = nvs.try_blob_size("raw");
+    TEST_ASSERT_TRUE(raw_size.has_value());
+    TEST_ASSERT_EQUAL(5, *raw_size);
+
+    auto vec_size = nvs.try_blob_size("vec");
+    TEST_ASSERT_TRUE(vec_size.has_value());
+    TEST_ASSERT_EQUAL(5, *vec_size);
+
+    auto obj_size = nvs.try_blob_size("obj");
+    TEST_ASSERT_TRUE(obj_size.has_value());
+    TEST_ASSERT_EQUAL(sizeof(blob_cfg), *obj_size);
 }
 
 TEST_CASE("nvs set and get integer values", "[idfxx][nvs]") {
@@ -505,6 +802,19 @@ TEST_CASE("nvs empty blob value", "[idfxx][nvs]") {
     TEST_ASSERT_EQUAL(0, result.value().size());
 }
 
+TEST_CASE("nvs read-only handle cannot write typed blob", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    { auto rw = nvs::make("test_ro_tb"); TEST_ASSERT_TRUE(rw.has_value()); }
+
+    auto ro = nvs::make("test_ro_tb", true);
+    TEST_ASSERT_TRUE(ro.has_value());
+
+    auto result = ro->try_set_blob("cfg", blob_cfg{});
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::read_only), result.error().value());
+}
+
 // =============================================================================
 // Exception-based API tests
 // =============================================================================
@@ -636,6 +946,54 @@ TEST_CASE("nvs set_value and get_value via exception API", "[idfxx][nvs]") {
 
     auto val = ns.get_value<int32_t>("count");
     TEST_ASSERT_EQUAL(42, val);
+}
+
+TEST_CASE("nvs blobs via exception API", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc_blob");
+
+    std::array<uint8_t, 3> data{0x01, 0x02, 0x03};
+    ns.set_blob("bytes", data);
+
+    blob_cfg cfg{};
+    cfg.id = 7;
+    cfg.offset = -7;
+    ns.set_blob("cfg", cfg);
+    ns.commit();
+
+    TEST_ASSERT_EQUAL(3, ns.blob_size("bytes"));
+
+    auto vec = ns.get_blob("bytes");
+    TEST_ASSERT_EQUAL(3, vec.size());
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), vec.data(), 3);
+
+    std::array<uint8_t, 8> buf{};
+    TEST_ASSERT_EQUAL(3, ns.get_blob("bytes", buf));
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), buf.data(), 3);
+
+    auto read_cfg = ns.get_blob<blob_cfg>("cfg");
+    TEST_ASSERT_EQUAL_UINT32(7, read_cfg.id);
+    TEST_ASSERT_EQUAL_INT16(-7, read_cfg.offset);
+
+    bool threw = false;
+    try {
+        std::array<uint8_t, 2> small{};
+        (void)ns.get_blob("bytes", small);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_TRUE(e.code() == idfxx::errc::invalid_size);
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    threw = false;
+    try {
+        (void)ns.get_blob<blob_cfg>("bytes");
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_TRUE(e.code() == idfxx::errc::invalid_size);
+    }
+    TEST_ASSERT_TRUE(threw);
 }
 
 TEST_CASE("nvs read-only write throws", "[idfxx][nvs]") {

@@ -15,6 +15,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <esp_idf_version.h>
 #include <span>
@@ -59,6 +60,14 @@ static_assert(!std::is_copy_assignable_v<client::chunk_writer>);
 // chunk_writer is move-only
 static_assert(std::is_nothrow_move_constructible_v<client::chunk_writer>);
 static_assert(std::is_nothrow_move_assignable_v<client::chunk_writer>);
+
+// The response body is a byte source, and event payloads are byte views
+static_assert(idfxx::byte_source<client>);
+static_assert(std::is_same_v<decltype(event_data::data), idfxx::byte_view>);
+
+// A body write sends all of its data or fails
+static_assert(std::is_same_v<decltype(std::declval<client&>().try_write(std::declval<idfxx::byte_view>())), result<void>>);
+static_assert(std::is_same_v<decltype(std::declval<client&>().try_write(std::string_view{})), result<void>>);
 
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
@@ -199,6 +208,36 @@ TEST_CASE("http client get_header returns request headers set with set_header", 
     TEST_ASSERT_FALSE(c->get_header("X-Idfxx-Test").has_value());
 }
 
+TEST_CASE("http client set_post_field defaults the Content-Type to form-urlencoded", "[idfxx][http]") {
+    auto c = client::make({.url = "http://127.0.0.1/", .method = method::post});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    // No Content-Type set: the default applies (ESP-IDF 6.x reports this case as an error)
+    c->set_post_field("a=1&b=2");
+    auto type = c->get_header("Content-Type");
+    TEST_ASSERT_TRUE(type.has_value());
+    TEST_ASSERT_EQUAL_STRING("application/x-www-form-urlencoded", type->c_str());
+
+    // Setting it again keeps the Content-Type already set
+    const std::array<uint8_t, 3> bytes = {0x00, 0x01, 0xff};
+    c->set_post_field(bytes);
+    type = c->get_header("Content-Type");
+    TEST_ASSERT_TRUE(type.has_value());
+    TEST_ASSERT_EQUAL_STRING("application/x-www-form-urlencoded", type->c_str());
+}
+
+TEST_CASE("http client set_post_field keeps a Content-Type set with set_header", "[idfxx][http]") {
+    auto c = client::make({.url = "http://127.0.0.1/", .method = method::post});
+    TEST_ASSERT_TRUE(c.has_value());
+
+    c->set_header("Content-Type", "application/octet-stream");
+    const std::array<uint8_t, 3> bytes = {0x00, 0x01, 0xff};
+    c->set_post_field(bytes);
+    auto type = c->get_header("Content-Type");
+    TEST_ASSERT_TRUE(type.has_value());
+    TEST_ASSERT_EQUAL_STRING("application/octet-stream", type->c_str());
+}
+
 #if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
 TEST_CASE("http client get_response_header is empty before any response", "[idfxx][http]") {
     auto c = client::make({.url = "http://127.0.0.1/"});
@@ -264,6 +303,36 @@ TEST_CASE("http client try_read reports body timeout as eagain and early close a
     auto closed = c->try_read(buf);
     TEST_ASSERT_FALSE(closed.has_value());
     TEST_ASSERT_TRUE(closed.error() == client::errc::connection_closed);
+
+    std::ignore = c->try_close();
+}
+
+TEST_CASE("http client try_read reads a binary response body into a byte buffer", "[idfxx][http]") {
+    test::ensure_event_loop();
+    auto srv = make_loopback_server();
+    auto c = client::make({.url = loopback_url(srv)});
+    TEST_ASSERT_TRUE(c.has_value());
+    TEST_ASSERT_TRUE(c->try_open().has_value());
+    auto conn = srv.try_accept();
+    TEST_ASSERT_TRUE(conn.has_value());
+
+    constexpr char response[] = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n\x00\x01\xfe\xff";
+    TEST_ASSERT_TRUE(conn->try_send_all(std::string_view{response, sizeof(response) - 1}).has_value());
+    auto length = c->try_fetch_headers();
+    TEST_ASSERT_TRUE(length.has_value());
+    TEST_ASSERT_EQUAL_INT32(4, static_cast<int32_t>(*length));
+
+    std::array<std::byte, 16> buf{};
+    size_t total = 0;
+    while (true) {
+        auto n = c->try_read(idfxx::byte_span{buf}.subspan(total));
+        TEST_ASSERT_TRUE(n.has_value());
+        if (*n == 0) break;
+        total += *n;
+    }
+    const std::array<uint8_t, 4> expected = {0x00, 0x01, 0xfe, 0xff};
+    TEST_ASSERT_EQUAL_size_t(expected.size(), total);
+    TEST_ASSERT_EQUAL_MEMORY(expected.data(), buf.data(), expected.size());
 
     std::ignore = c->try_close();
 }
@@ -441,10 +510,7 @@ TEST_CASE("http client sends a chunked request body", "[idfxx][http]") {
     // Empty input sends nothing (a zero-length chunk would end the body)
     TEST_ASSERT_TRUE(w->try_write(std::string_view{}).has_value());
     constexpr std::string_view bytes = "0123456789abcdefg";
-    TEST_ASSERT_TRUE(
-        w->try_write(std::span<const uint8_t>{reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()})
-            .has_value()
-    );
+    TEST_ASSERT_TRUE(w->try_write(std::as_bytes(std::span{bytes})).has_value());
     TEST_ASSERT_TRUE(w->try_finish().has_value());
 
     std::string request;
@@ -517,8 +583,7 @@ TEST_CASE("http client chunked and fixed-length requests keep their own framing 
 
     // Fixed-length request first, which sets a Content-Length header
     TEST_ASSERT_TRUE(c->try_open(3).has_value());
-    auto written = c->try_write(std::string_view{"abc"});
-    TEST_ASSERT_TRUE(written.has_value());
+    TEST_ASSERT_TRUE(c->try_write(std::string_view{"abc"}).has_value());
     {
         auto conn = accept_request(srv, request, "\r\n\r\nabc");
         TEST_ASSERT_TRUE(contains(request_headers(request), "Content-Length: 3\r\n"));
@@ -542,8 +607,7 @@ TEST_CASE("http client chunked and fixed-length requests keep their own framing 
 
     // A following fixed-length request carries no Transfer-Encoding
     TEST_ASSERT_TRUE(c->try_open(2).has_value());
-    written = c->try_write(std::string_view{"de"});
-    TEST_ASSERT_TRUE(written.has_value());
+    TEST_ASSERT_TRUE(c->try_write(std::string_view{"de"}).has_value());
     {
         auto conn = accept_request(srv, request, "\r\n\r\nde");
         TEST_ASSERT_TRUE(contains(request_headers(request), "Content-Length: 2\r\n"));
@@ -646,8 +710,7 @@ TEST_CASE("http client refuses an abandoned chunked request and starts the next 
 
     // The next request closes the abandoned connection and uses a new one
     TEST_ASSERT_TRUE(c->try_open(2).has_value());
-    auto written = c->try_write(std::string_view{"ok"});
-    TEST_ASSERT_TRUE(written.has_value());
+    TEST_ASSERT_TRUE(c->try_write(std::string_view{"ok"}).has_value());
 
     // The first connection carries only the unterminated chunked request, then ends
     std::string abandoned;

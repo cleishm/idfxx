@@ -63,8 +63,7 @@ result<void> stream_channel::try_connect(const endpoint& peer) {
     return {};
 }
 
-result<size_t>
-stream_channel::try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags) {
+result<size_t> stream_channel::try_send(byte_view data, idfxx::flags<write_flag> flags) {
     if (_conn == nullptr) {
         return error(errc::invalid_state);
     }
@@ -109,7 +108,7 @@ result<buffer> stream_channel::try_recv() {
     return buffer(buf);
 }
 
-result<std::span<std::byte>> stream_channel::try_recv(std::span<std::byte> buf) {
+result<byte_span> stream_channel::try_recv(byte_span buf) {
     if (_conn == nullptr) {
         return error(errc::invalid_state);
     }
@@ -153,10 +152,8 @@ result<std::span<std::byte>> stream_channel::try_recv(std::span<std::byte> buf) 
     return buf.first(copied);
 }
 
-result<size_t> stream_channel::try_read(std::span<uint8_t> buf) {
-    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) {
-        return r.size();
-    });
+result<size_t> stream_channel::try_read(byte_span buf) {
+    return try_recv(buf).transform([](byte_span r) { return r.size(); });
 }
 
 result<void> stream_channel::try_close() {

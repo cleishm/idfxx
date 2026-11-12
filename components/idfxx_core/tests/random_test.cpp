@@ -7,6 +7,7 @@
 #include "idfxx/random.hpp"
 #include "unity.h"
 
+#include <algorithm>
 #include <array>
 #include <random>
 #include <type_traits>
@@ -61,6 +62,27 @@ TEST_CASE("fill_random with std::byte span", "[idfxx][random]") {
         }
     }
     TEST_ASSERT_FALSE(all_zero);
+}
+
+TEST_CASE("fill_random takes arrays directly", "[idfxx][random]") {
+    std::array<uint8_t, 32> u8{};
+    fill_random(u8);
+    TEST_ASSERT_FALSE(std::all_of(u8.begin(), u8.end(), [](uint8_t b) { return b == 0; }));
+
+    std::array<std::byte, 32> bytes{};
+    fill_random(bytes);
+    TEST_ASSERT_FALSE(
+        std::all_of(bytes.begin(), bytes.end(), [](std::byte b) { return b == std::byte{0}; }));
+}
+
+TEST_CASE("fill_random with a pointer and length leaves the rest untouched", "[idfxx][random]") {
+    std::array<uint8_t, 32> buf{};
+    fill_random({buf.data() + 8, 16});
+
+    TEST_ASSERT_TRUE(std::all_of(buf.begin(), buf.begin() + 8, [](uint8_t b) { return b == 0; }));
+    TEST_ASSERT_FALSE(
+        std::all_of(buf.begin() + 8, buf.begin() + 24, [](uint8_t b) { return b == 0; }));
+    TEST_ASSERT_TRUE(std::all_of(buf.begin() + 24, buf.end(), [](uint8_t b) { return b == 0; }));
 }
 
 TEST_CASE("random_device with uniform_int_distribution", "[idfxx][random]") {

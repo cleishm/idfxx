@@ -12,6 +12,8 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdio>
+#include <span>
+#include <string_view>
 
 using namespace quanta::electro_literals;
 using namespace quanta::frequency_literals;
@@ -76,13 +78,10 @@ extern "C" void app_main() {
         while (true) {
             int n = std::snprintf(payload.data(), payload.size(), "beacon %04" PRIu32, counter++);
             if (n > 0) {
+                const std::string_view text{payload.data(), static_cast<size_t>(n)};
                 // transmit sizes its own timeout from the packet's air-time.
-                radio.transmit(
-                    std::span{
-                        reinterpret_cast<const uint8_t*>(payload.data()), static_cast<size_t>(n)
-                    }
-                );
-                logger.info("sent: {}", std::string_view{payload.data(), static_cast<size_t>(n)});
+                radio.transmit(std::as_bytes(std::span{text}));
+                logger.info("sent: {}", text);
             }
             idfxx::delay(2s);
         }

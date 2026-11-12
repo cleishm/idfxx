@@ -4,6 +4,7 @@
 // socket. Demonstrates `raw_socket::send_to` / `recv_from` and the standard
 // Internet checksum.
 
+#include <idfxx/byte_view>
 #include <idfxx/event>
 #include <idfxx/event_group>
 #include <idfxx/log>
@@ -38,7 +39,7 @@ template<>
 inline constexpr bool idfxx::enable_flags_operators<sync_flag> = true;
 
 namespace {
-uint16_t internet_checksum(std::span<const std::byte> data) noexcept;
+uint16_t internet_checksum(idfxx::byte_view data) noexcept;
 idfxx::net::ipv4_addr connect_to_wifi();
 } // namespace
 
@@ -113,7 +114,7 @@ namespace {
 
 // 16-bit ones-complement Internet checksum per RFC 1071. Returns the value
 // already in network byte order, ready to be stored into the checksum field.
-uint16_t internet_checksum(std::span<const std::byte> data) noexcept {
+uint16_t internet_checksum(idfxx::byte_view data) noexcept {
     uint32_t sum = 0;
     for (size_t i = 0; i + 1 < data.size(); i += 2) {
         sum += (static_cast<uint16_t>(data[i]) << 8) | static_cast<uint16_t>(data[i + 1]);

@@ -27,6 +27,8 @@
  * @{
  */
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -76,9 +78,29 @@ namespace idfxx::app {
 [[nodiscard]] uint32_t secure_version();
 
 /**
- * @brief Returns the ELF SHA-256 hash as a hex string.
+ * @brief Returns the SHA-256 hash of the application's ELF file.
  *
- * @return A hex-encoded SHA-256 string (typically 64 characters).
+ * The full 32-byte digest embedded in the firmware image at build time. It identifies the exact
+ * build that is running, e.g. to match a device against the ELF file used for debugging.
+ *
+ * @return The raw SHA-256 digest.
+ *
+ * @code
+ * auto sha = idfxx::app::elf_sha256();
+ * if (sha != expected_sha) {
+ *     // running a different build
+ * }
+ * @endcode
+ */
+[[nodiscard]] std::array<std::byte, 32> elf_sha256();
+
+/**
+ * @brief Returns the leading digits of the ELF SHA-256 hash as a lowercase hex string.
+ *
+ * The length is set by CONFIG_APP_RETRIEVE_LEN_ELF_SHA (9 hex digits by default, up to the full
+ * 64). Use @ref elf_sha256 for the complete digest.
+ *
+ * @return The leading hex digits of the ELF SHA-256 hash.
  */
 [[nodiscard]] std::string elf_sha256_hex();
 

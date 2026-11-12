@@ -285,7 +285,7 @@ stream_socket::_try_connect_for(const endpoint& peer, std::chrono::milliseconds 
     return {};
 }
 
-result<size_t> stream_socket::try_send(std::span<const std::byte> buf) {
+result<size_t> stream_socket::try_send(byte_view buf) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
@@ -300,7 +300,7 @@ result<size_t> stream_socket::try_send(std::string_view buf) {
     return try_send(std::as_bytes(std::span<const char>(buf.data(), buf.size())));
 }
 
-result<void> stream_socket::try_send_all(std::span<const std::byte> buf) {
+result<void> stream_socket::try_send_all(byte_view buf) {
     while (!buf.empty()) {
         auto r = try_send(buf);
         if (!r) {
@@ -315,7 +315,7 @@ result<void> stream_socket::try_send_all(std::string_view buf) {
     return try_send_all(std::as_bytes(std::span<const char>(buf.data(), buf.size())));
 }
 
-result<void> stream_socket::try_recv_exact(std::span<std::byte> buf) {
+result<void> stream_socket::try_recv_exact(byte_span buf) {
     while (!buf.empty()) {
         auto r = try_recv(buf);
         if (!r) {
@@ -329,10 +329,8 @@ result<void> stream_socket::try_recv_exact(std::span<std::byte> buf) {
     return {};
 }
 
-result<size_t> stream_socket::try_read(std::span<uint8_t> buf) {
-    return try_recv(std::as_writable_bytes(buf)).transform([](std::span<std::byte> r) {
-        return r.size();
-    });
+result<size_t> stream_socket::try_read(byte_span buf) {
+    return try_recv(buf).transform([](byte_span r) { return r.size(); });
 }
 
 result<void> stream_socket::try_shutdown() {

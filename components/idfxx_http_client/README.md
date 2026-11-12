@@ -31,7 +31,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_http_client:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_http_client` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -108,10 +108,10 @@ try {
     auto content_length = c.fetch_headers();
     idfxx::log::info("HTTP", "Content-Length: {}", content_length);
 
-    std::array<uint8_t, 256> buf;
-    int total = 0;
+    std::array<std::byte, 256> buf;
+    size_t total = 0;
     while (true) {
-        int n = c.read(buf);
+        size_t n = c.read(buf);
         if (n == 0) break;
         total += n;
     }
@@ -203,7 +203,8 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `set_header(key, value)` - Set request header
 - `delete_header(key)` - Remove request header
 - `get_header(key)` - Get request header (returns `std::optional`)
-- `set_post_field(data)` - Set POST body
+- `set_post_field(data)` - Set POST body (text or bytes); Content-Type defaults to
+  `application/x-www-form-urlencoded` unless set with `set_header()`
 - `set_username(user)` - Set auth username
 - `set_password(pass)` - Set auth password
 - `set_auth_type(type)` - Set auth type
@@ -216,10 +217,10 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 - `open(write_len)` / `try_open(write_len)` - Open connection
 - `open_chunked()` / `try_open_chunked()` - Open connection for a chunked request body; returns a
   `chunk_writer`
-- `write(data)` / `try_write(data)` - Write request body
+- `write(data)` / `try_write(data)` - Write all of `data` to the request body (text or bytes)
 - `fetch_headers()` / `try_fetch_headers()` - Read response headers
-- `read(buf)` / `try_read(buf)` - Read response body; 0 at end of response.
-  `try_read(std::span<uint8_t>)` makes the client an `idfxx::byte_source`
+- `read(buf)` / `try_read(buf)` - Read response body into a byte or `char` buffer; 0 at end of
+  response. `try_read(idfxx::byte_span)` makes the client an `idfxx::byte_source`
 - `flush_response()` / `try_flush_response()` - Discard remaining data
 - `close()` / `try_close()` - Close connection
 
@@ -237,7 +238,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
 
 ### `client::chunk_writer`
 
-- `write(data)` / `try_write(data)` - Send data as one chunk; empty data sends nothing
+- `write(data)` / `try_write(data)` - Send text or bytes as one chunk; empty data sends nothing
 - `finish()` / `try_finish()` - Send the terminating chunk, completing the request body
 
 ## Error Handling
@@ -280,6 +281,9 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
   client's lifetime
 - **POST field ownership**: `set_post_field()` copies the data internally since ESP-IDF stores only
   a pointer
+- **POST field content type**: `set_post_field()` sends `Content-Type:
+  application/x-www-form-urlencoded` unless a Content-Type has been set with `set_header()`; set the
+  header for any other kind of body (JSON, binary data)
 - **Event callbacks**: The `on_event` callback runs in the context of the HTTP task; keep handlers
   brief
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `on_event` is logged

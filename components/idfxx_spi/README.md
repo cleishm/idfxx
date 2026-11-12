@@ -8,6 +8,8 @@ Type-safe SPI master bus driver for ESP32.
 
 - SPI bus lifecycle management
 - Support for DMA transfers
+- Byte-oriented device transfers from any `std::byte` or `uint8_t` buffer, plus literal byte lists
+- Full-control, polling and asynchronous queued transactions
 
 ## Requirements
 
@@ -23,7 +25,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_spi:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_spi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -108,6 +110,39 @@ idfxx::spi::master_bus bus(
 );
 ```
 
+### Talking to a Device
+
+```cpp
+#include <idfxx/spi/master>
+
+#include <array>
+#include <mutex>
+#include <vector>
+
+using namespace quanta::frequency_literals;
+
+idfxx::spi::master_device device(bus, {
+    .mode = 0,
+    .clock_speed = 10_MHz,
+    .cs = idfxx::gpio_5,
+});
+
+{
+    // Keep other tasks off the device between the request and the read
+    std::lock_guard lk(device);
+    device.transmit({0x01, 0x80});      // literal command bytes
+    auto status = device.receive<2>();  // std::array<uint8_t, 2>
+}
+
+std::array<uint8_t, 4> tx = {0x03, 0x00, 0x10, 0x00};
+std::array<std::byte, 4> rx;
+device.transfer(tx, rx);                // full-duplex; rx is filled completely
+device.transfer({0x9F, 0, 0, 0}, rx);   // literal tx bytes
+
+std::vector<uint8_t> block(256);
+device.receive(block);                  // fills the whole buffer
+```
+
 ### Integration with `idfxx_lcd`
 
 The SPI bus is commonly used with LCD panels.
@@ -148,6 +183,29 @@ idfxx::panel_io panel_io(
 **Lifetime:**
 - Non-copyable and move-only
 - Destructor automatically cleans up resources
+
+### `master_device`
+
+**Creation:**
+- `make(bus, config)` - Add a device to a bus (result-based)
+- `master_device(bus, config)` - Constructor (exception-based, if enabled)
+
+**Simple transfers** (each has a `try_*` result-based form and a `polling_*` busy-wait form):
+- `transmit(data)` - Send a `byte_view` (any `std::byte` or `uint8_t` buffer) or a literal list
+  such as `{0x9F, 0x00}`
+- `receive(buf)` - Fill a writable buffer completely
+- `receive<N>()` - Receive `N` bytes as a `std::array<uint8_t, N>`
+- `transfer(tx, rx)` - Full-duplex transfer into a writable buffer; `tx` is a `byte_view` or a
+  literal list
+
+**Full-control transactions:**
+- `transmit(transaction)` / `polling_transmit(transaction)` - Command, address, dummy and data
+  phases, lengths in bits; unset `length` / `rx_length` are derived from the buffers (and the
+  device's duplex mode)
+- `queue_trans(transaction)` - Queue asynchronously; returns an `idfxx::future<void>`
+
+**Bus exclusivity:**
+- `lock()`, `try_lock()`, `unlock()` - Lockable, for use with `std::lock_guard`
 
 ## SPI Hosts
 
