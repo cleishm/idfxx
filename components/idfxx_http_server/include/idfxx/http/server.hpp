@@ -1128,6 +1128,13 @@ public:
 
     /**
      * @brief Returns the underlying ESP-IDF request handle.
+     *
+     * @note The request counts the body bytes it reads, to detect a body cut short by the peer.
+     *       Bytes read through the handle (with `httpd_req_recv`) are not counted, so once a
+     *       handler has read body data that way, read() and read_body() fail with
+     *       server::errc::invalid_request at the end of the body, as though the peer had cut it
+     *       short. Read the body through the handle or through this request, not both.
+     *
      * @return The httpd_req_t pointer.
      */
     [[nodiscard]] httpd_req_t* idf_handle() const noexcept { return _req; }
