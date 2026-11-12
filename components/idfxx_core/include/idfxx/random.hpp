@@ -27,6 +27,8 @@
  * @{
  */
 
+#include <idfxx/byte_view>
+
 #include <cstdint>
 #include <esp_random.h>
 #include <limits>
@@ -49,18 +51,10 @@ namespace idfxx {
 /**
  * @brief Fills a buffer with hardware-generated random bytes.
  *
- * @param buf The buffer to fill with random data.
+ * @param buf The buffer to fill with random data: any contiguous range of
+ *            `std::byte` or `uint8_t`.
  */
-inline void fill_random(std::span<uint8_t> buf) noexcept {
-    esp_fill_random(buf.data(), buf.size());
-}
-
-/**
- * @brief Fills a buffer with hardware-generated random bytes.
- *
- * @param buf The buffer to fill with random data.
- */
-inline void fill_random(std::span<std::byte> buf) noexcept {
+inline void fill_random(byte_span buf) noexcept {
     esp_fill_random(buf.data(), buf.size());
 }
 

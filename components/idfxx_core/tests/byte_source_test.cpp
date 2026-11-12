@@ -31,11 +31,19 @@ struct wrong_return_source {
 };
 
 struct wrong_buffer_source {
-    result<size_t> try_read(std::span<std::byte>);
+    result<size_t> try_read(std::span<int>);
 };
 
 struct throwing_only_source {
     size_t read(std::span<uint8_t>);
+};
+
+struct span_u8_source {
+    result<size_t> try_read(std::span<uint8_t> buf);
+};
+
+struct span_byte_source {
+    result<size_t> try_read(std::span<std::byte> buf);
 };
 
 } // namespace
@@ -43,6 +51,10 @@ struct throwing_only_source {
 // The provided sources model byte_source
 static_assert(byte_source<memory_source>);
 static_assert(byte_source<file_source>);
+
+// So do user-defined sources taking either span flavor
+static_assert(byte_source<span_u8_source>);
+static_assert(byte_source<span_byte_source>);
 
 // Types without a matching try_read do not
 static_assert(!byte_source<int>);
@@ -88,6 +100,35 @@ std::vector<uint8_t> drain(byte_source auto& src, size_t chunk_size) {
         out.insert(out.end(), buf.begin(), buf.begin() + *n);
     }
     return out;
+}
+
+// A source that fills a buffer with a fixed value, written through a span of T.
+template<typename T>
+struct fill_source {
+    size_t remaining = 5;
+
+    result<size_t> try_read(std::span<T> buf) {
+        const size_t n = std::min(remaining, buf.size());
+        for (size_t i = 0; i < n; ++i) {
+            buf[i] = static_cast<T>(0x7E);
+        }
+        remaining -= n;
+        return n;
+    }
+};
+
+// A generic consumer that reads through a byte_span.
+size_t count_bytes(byte_source auto& src) {
+    std::array<uint8_t, 3> buf{};
+    size_t total = 0;
+    while (true) {
+        auto n = src.try_read(byte_span{buf});
+        TEST_ASSERT_TRUE(n.has_value());
+        if (*n == 0) {
+            return total;
+        }
+        total += *n;
+    }
 }
 
 FILE* open_test_file() {
@@ -369,6 +410,32 @@ TEST_CASE("file_source returns bytes read before an error, then the error", "[id
     TEST_ASSERT_TRUE(n.error() == std::error_code(EIO, std::generic_category()));
 
     std::fclose(f);
+}
+
+TEST_CASE("sources taking std::span<uint8_t> work through a byte_span", "[idfxx][byte_source]") {
+    fill_source<uint8_t> src;
+    static_assert(byte_source<fill_source<uint8_t>>);
+    TEST_ASSERT_EQUAL(5, count_bytes(src));
+    TEST_ASSERT_EQUAL(0, src.remaining);
+}
+
+TEST_CASE("sources taking std::span<std::byte> work through a byte_span", "[idfxx][byte_source]") {
+    fill_source<std::byte> src;
+    static_assert(byte_source<fill_source<std::byte>>);
+    TEST_ASSERT_EQUAL(5, count_bytes(src));
+    TEST_ASSERT_EQUAL(0, src.remaining);
+}
+
+TEST_CASE("memory_source reads std::byte data into a std::byte buffer", "[idfxx][byte_source]") {
+    std::array<std::byte, 4> data{std::byte{9}, std::byte{8}, std::byte{7}, std::byte{6}};
+    memory_source src{data};
+
+    std::array<std::byte, 8> buf{};
+    auto n = src.try_read(buf);
+    TEST_ASSERT_TRUE(n.has_value());
+    TEST_ASSERT_EQUAL(4, *n);
+    TEST_ASSERT_EQUAL_MEMORY(data.data(), buf.data(), data.size());
+    TEST_ASSERT_EQUAL(0, src.remaining());
 }
 
 // =============================================================================
