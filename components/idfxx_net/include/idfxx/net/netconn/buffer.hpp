@@ -16,6 +16,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 
@@ -23,7 +24,6 @@
 #include <iterator>
 #include <optional>
 #include <ranges>
-#include <span>
 
 // Forward declaration from lwIP.
 struct netbuf;
@@ -54,7 +54,7 @@ class connectionless_channel;
  * @warning `attach()` references external memory rather than copying it; the
  * referenced buffer must outlive the send (see the method documentation). To
  * send a transient buffer without that obligation, prefer the copying
- * `datagram_channel::try_send(std::span)` / `raw_channel::try_send(std::span)`
+ * `datagram_channel::try_send(byte_view)` / `raw_channel::try_send(byte_view)`
  * overloads, which manage the buffer's lifetime internally.
  */
 class [[nodiscard]] buffer {
@@ -105,7 +105,7 @@ public:
     /**
      * @brief A forward range over a buffer's data segments.
      *
-     * Each element is a `std::span<const std::byte>` referencing one segment of
+     * Each element is an `idfxx::byte_view` referencing one segment of
      * the received data, in order. Iteration does not modify the buffer, so the
      * range may be traversed more than once and the buffer remains usable
      * afterward.
@@ -117,17 +117,17 @@ public:
         /// @brief Forward iterator over a buffer's data segments.
         class iterator {
         public:
-            using value_type = std::span<const std::byte>;
+            using value_type = byte_view;
             using difference_type = std::ptrdiff_t;
             using iterator_concept = std::forward_iterator_tag;
-            // operator* yields a prvalue span, so the C++17 category tops out at
+            // operator* yields a prvalue view, so the C++17 category tops out at
             // input; iterator_concept above is what makes it a forward_iterator.
             using iterator_category = std::input_iterator_tag;
 
             /// @brief Constructs a past-the-end iterator.
             iterator() noexcept = default;
 
-            /// @brief Returns the current segment as a span.
+            /// @brief Returns a view of the current segment.
             [[nodiscard]] value_type operator*() const noexcept;
 
             /// @brief Advances to the next segment.
@@ -173,7 +173,7 @@ public:
      * Walk a multi-segment receive without copying:
      * @code
      * for (auto seg : buf.segments()) {
-     *     // process seg (std::span<const std::byte>) without copying
+     *     // process seg (an idfxx::byte_view) without copying
      * }
      * @endcode
      *
@@ -183,6 +183,16 @@ public:
      * @return A `segment_view` spanning the buffer's segments in order.
      */
     [[nodiscard]] segment_view segments() const noexcept { return segment_view{_buf}; }
+
+    /**
+     * @brief Copies the segments, in order, into a destination buffer.
+     *
+     * Copies `min(len(), dst.size())` bytes; any data beyond the end of @p dst is not copied.
+     *
+     * @param dst Destination buffer.
+     * @return Number of bytes copied (≤ `dst.size()`).
+     */
+    [[nodiscard]] size_t copy_into(byte_span dst) const noexcept;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -194,7 +204,7 @@ public:
      *          been handed to and consumed by a send
      *          (`netconn::datagram_channel::try_send` / `try_send_to` or the raw
      *          equivalents). Sending a transient buffer is a use-after-free; for
-     *          that case use the copying `*_channel::try_send(std::span)`
+     *          that case use the copying `*_channel::try_send(byte_view)`
      *          overloads, which manage the buffer's lifetime internally.
      *
      * @param data Buffer to reference.
@@ -202,16 +212,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      */
-    void attach(std::span<const std::byte> data) { idfxx::unwrap(try_attach(data)); }
+    void attach(byte_view data) { idfxx::unwrap(try_attach(data)); }
 #endif
-
-    /**
-     * @brief Copies all segments into a destination buffer.
-     *
-     * @param dst Destination buffer.
-     * @return Number of bytes copied (≤ `dst.size()`).
-     */
-    [[nodiscard]] size_t copy_into(std::span<std::byte> dst) const noexcept;
 
     /**
      * @brief Attaches an external (non-owned) buffer for sending.
@@ -222,13 +224,13 @@ public:
      *          been handed to and consumed by a send
      *          (`netconn::datagram_channel::try_send` / `try_send_to` or the raw
      *          equivalents). Sending a transient buffer is a use-after-free; for
-     *          that case use the copying `*_channel::try_send(std::span)`
+     *          that case use the copying `*_channel::try_send(byte_view)`
      *          overloads, which manage the buffer's lifetime internally.
      *
      * @param data Buffer to reference.
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_attach(std::span<const std::byte> data);
+    [[nodiscard]] result<void> try_attach(byte_view data);
 
 private:
     /// @cond INTERNAL

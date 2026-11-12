@@ -68,7 +68,7 @@ result<size_t> connectionless_channel::try_send_to(buffer& buf, const endpoint& 
     return sent;
 }
 
-result<size_t> connectionless_channel::try_send(std::span<const std::byte> data) {
+result<size_t> connectionless_channel::try_send(byte_view data) {
     auto nb = buffer::make();
     if (!nb) {
         return error(nb.error());
@@ -80,8 +80,7 @@ result<size_t> connectionless_channel::try_send(std::span<const std::byte> data)
     return try_send(*nb);
 }
 
-result<size_t>
-connectionless_channel::try_send_to(std::span<const std::byte> data, const endpoint& to) {
+result<size_t> connectionless_channel::try_send_to(byte_view data, const endpoint& to) {
     auto nb = buffer::make();
     if (!nb) {
         return error(nb.error());
@@ -105,7 +104,7 @@ result<buffer> connectionless_channel::try_recv() {
     return buffer(buf);
 }
 
-result<std::span<std::byte>> connectionless_channel::try_recv(std::span<std::byte> buf) {
+result<byte_span> connectionless_channel::try_recv(byte_span buf) {
     auto nb = try_recv();
     if (!nb) {
         return error(nb.error());
@@ -118,8 +117,7 @@ result<std::span<std::byte>> connectionless_channel::try_recv(std::span<std::byt
     return buf.first(nb->copy_into(buf));
 }
 
-result<connectionless_channel::datagram>
-connectionless_channel::try_recv_from(std::span<std::byte> buf) {
+result<connectionless_channel::datagram> connectionless_channel::try_recv_from(byte_span buf) {
     auto nb = try_recv();
     if (!nb) {
         return error(nb.error());

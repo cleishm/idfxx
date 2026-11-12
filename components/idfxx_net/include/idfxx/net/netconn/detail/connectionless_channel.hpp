@@ -6,18 +6,18 @@
 // Internal base class shared by `datagram_channel` and `raw_channel`, the
 // connectionless netconn-API channel types. Provides the connect / disconnect /
 // send / recv operations that have the same shape on both — per-message
-// addressing, default-peer support, and the buffer/span send and recv overloads.
+// addressing, default-peer support, and the buffer and byte-view send and recv overloads.
 // Mirrors the BSD-side `connectionless_socket_base`.
 
 #include "base_channel.hpp"
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 #include <idfxx/net/netconn/buffer>
 
 #include <cstddef>
-#include <span>
 
 namespace idfxx::net::netconn::detail {
 
@@ -102,7 +102,7 @@ public:
      * @return The number of bytes sent — always `data.size()` on success, since
      *         a connectionless packet is sent in full or not at all.
      */
-    size_t send(std::span<const std::byte> data) { return idfxx::unwrap(try_send(data)); }
+    size_t send(byte_view data) { return idfxx::unwrap(try_send(data)); }
 #endif
 
     /**
@@ -113,7 +113,7 @@ public:
      *         a connectionless packet is sent in full or not at all — or an
      *         error.
      */
-    [[nodiscard]] result<size_t> try_send(std::span<const std::byte> data);
+    [[nodiscard]] result<size_t> try_send(byte_view data);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -155,7 +155,7 @@ public:
      * @return The number of bytes sent — always `data.size()` on success, since
      *         a connectionless packet is sent in full or not at all.
      */
-    size_t send_to(std::span<const std::byte> data, const endpoint& to) {
+    size_t send_to(byte_view data, const endpoint& to) {
         return idfxx::unwrap(try_send_to(data, to));
     }
 #endif
@@ -169,7 +169,7 @@ public:
      *         a connectionless packet is sent in full or not at all — or an
      *         error.
      */
-    [[nodiscard]] result<size_t> try_send_to(std::span<const std::byte> data, const endpoint& to);
+    [[nodiscard]] result<size_t> try_send_to(byte_view data, const endpoint& to);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -204,13 +204,11 @@ public:
      * @throws std::system_error on failure, including `errc::message_too_long`
      *         when the packet is larger than @p buf.
      *
-     * @return Sub-span of @p buf with the packet's bytes. An empty span is a
+     * @return View of the packet's bytes, at the start of @p buf. An empty view is a
      *         received zero-length packet — connectionless channels have no
      *         end-of-stream, so it never signals peer close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv(buf));
-    }
+    [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
 
     /**
@@ -221,12 +219,12 @@ public:
      * buffer for the largest expected packet or use `try_recv_from`.
      *
      * @param buf Destination buffer.
-     * @return Sub-span of @p buf with the packet's bytes, or an error
+     * @return View of the packet's bytes, at the start of @p buf, or an error
      *         (`errc::message_too_long` when the packet is larger than @p buf).
-     *         An empty span is a received zero-length packet — connectionless
+     *         An empty view is a received zero-length packet — connectionless
      *         channels have no end-of-stream, so it never signals peer close.
      */
-    [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
+    [[nodiscard]] result<byte_span> try_recv(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -237,20 +235,18 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return Datagram metadata (filled sub-span, source endpoint).
+     * @return Datagram metadata (filled view, source endpoint).
      */
-    [[nodiscard]] datagram recv_from(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv_from(buf));
-    }
+    [[nodiscard]] datagram recv_from(byte_span buf) { return idfxx::unwrap(try_recv_from(buf)); }
 #endif
 
     /**
      * @brief Receives a packet and reports the sender's endpoint.
      *
      * @param buf Destination buffer.
-     * @return Datagram metadata (filled sub-span, source endpoint), or an error.
+     * @return Datagram metadata (filled view, source endpoint), or an error.
      */
-    [[nodiscard]] result<datagram> try_recv_from(std::span<std::byte> buf);
+    [[nodiscard]] result<datagram> try_recv_from(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**

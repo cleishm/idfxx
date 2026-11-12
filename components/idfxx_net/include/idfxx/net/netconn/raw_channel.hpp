@@ -22,7 +22,6 @@
 #include <idfxx/net/netconn/detail/connectionless_channel.hpp>
 
 #include <cstddef>
-#include <span>
 
 namespace idfxx::net::netconn {
 

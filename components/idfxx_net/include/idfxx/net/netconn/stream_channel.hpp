@@ -17,6 +17,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/flags>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
@@ -25,7 +26,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 namespace idfxx::net::netconn {
@@ -234,7 +234,7 @@ public:
      *
      * @return Number of bytes accepted.
      */
-    size_t send(std::span<const std::byte> data, idfxx::flags<write_flag> flags = {}) {
+    size_t send(byte_view data, idfxx::flags<write_flag> flags = {}) {
         return idfxx::unwrap(try_send(data, flags));
     }
 #endif
@@ -256,8 +256,7 @@ public:
      * @param flags Flags controlling copy behavior and PSH suppression.
      * @return Number of bytes accepted, or an error.
      */
-    [[nodiscard]] result<size_t>
-    try_send(std::span<const std::byte> data, idfxx::flags<write_flag> flags = {});
+    [[nodiscard]] result<size_t> try_send(byte_view data, idfxx::flags<write_flag> flags = {});
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -334,7 +333,7 @@ public:
     /**
      * @brief Receives data into a caller-provided buffer.
      *
-     * On graceful peer close the returned span is empty; this is the loop
+     * On graceful peer close the returned view is empty; this is the loop
      * termination signal and is not an error.
      *
      * @param buf Destination buffer.
@@ -342,28 +341,26 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return Sub-span of @p buf covering the bytes actually received, or an
-     *         empty span on graceful close.
+     * @return View of the bytes received, at the start of @p buf, or an
+     *         empty view on graceful close.
      */
-    [[nodiscard]] std::span<std::byte> recv(std::span<std::byte> buf) {
-        return idfxx::unwrap(try_recv(buf));
-    }
+    [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
 
     /**
      * @brief Receives data into a caller-provided buffer.
      *
      * @param buf Destination buffer.
-     * @return Sub-span of @p buf covering the bytes actually received (empty on
+     * @return View of the bytes received, at the start of @p buf (empty on
      *         graceful close), or an error.
      */
-    [[nodiscard]] result<std::span<std::byte>> try_recv(std::span<std::byte> buf);
+    [[nodiscard]] result<byte_span> try_recv(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Reads received bytes into a byte buffer.
      *
-     * Receives up to `buf.size()` bytes, as @ref recv(std::span<std::byte>)
+     * Receives up to `buf.size()` bytes, as @ref recv(byte_span)
      * does, and returns how many were received. A return of 0 for a non-empty
      * @p buf means the peer has closed the connection; an empty @p buf returns
      * 0 without waiting for data. Fewer bytes than requested may be returned
@@ -377,13 +374,13 @@ public:
      *
      * @return Number of bytes received, or 0 if the peer has closed the connection.
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return idfxx::unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(byte_span buf) { return idfxx::unwrap(try_read(buf)); }
 #endif
 
     /**
      * @brief Reads received bytes into a byte buffer.
      *
-     * Receives up to `buf.size()` bytes, as @ref try_recv(std::span<std::byte>)
+     * Receives up to `buf.size()` bytes, as @ref try_recv(byte_span)
      * does, and returns how many were received. A return of 0 for a non-empty
      * @p buf means the peer has closed the connection; an empty @p buf returns
      * 0 without waiting for data. Fewer bytes than requested may be returned
@@ -393,9 +390,9 @@ public:
      * @param buf Buffer to read into.
      * @return Number of bytes received (0 if the peer has closed the
      *         connection), or an error — the same errors as
-     *         @ref try_recv(std::span<std::byte>), including a receive timeout.
+     *         @ref try_recv(byte_span), including a receive timeout.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(byte_span buf);
 
     // ----- endpoint -----
 
@@ -430,11 +427,11 @@ private:
     // the BSD-style empty-buffer EOF instead of surfacing the stale error.
     bool _eof = false;
 
-    // Leftover from a previous `try_recv(std::span)` whose caller buffer was
+    // Leftover from a previous `try_recv(byte_span)` whose caller buffer was
     // smaller than the segment lwIP delivered. The netbuf-returning
     // `try_recv` has no partial-consume hook on the lwIP side, so when the
     // copy overshoots we keep the netbuf alive here and drain the remainder
-    // on subsequent span-recv calls. Cleared on close/shutdown and moved
+    // on subsequent buffer-recv calls. Cleared on close/shutdown and moved
     // along with the channel.
     buffer _pending;
     size_t _pending_offset = 0;

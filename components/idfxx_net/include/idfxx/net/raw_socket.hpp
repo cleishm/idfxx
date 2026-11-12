@@ -16,6 +16,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net/detail/connectionless_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
@@ -24,7 +25,6 @@
 #include <chrono>
 #include <cstddef>
 #include <optional>
-#include <span>
 #include <string_view>
 
 namespace idfxx::net {
@@ -160,7 +160,7 @@ public:
      * @return The number of bytes sent — always `buf.size()` on success, since a
      *         raw packet is sent in full or not at all.
      */
-    size_t send(std::span<const std::byte> buf) { return idfxx::unwrap(try_send(buf)); }
+    size_t send(byte_view buf) { return idfxx::unwrap(try_send(buf)); }
 #endif
 
     /**
@@ -170,7 +170,7 @@ public:
      * @return The number of bytes sent — always `buf.size()` on success, since a
      *         raw packet is sent in full or not at all — or an error.
      */
-    [[nodiscard]] result<size_t> try_send(std::span<const std::byte> buf);
+    [[nodiscard]] result<size_t> try_send(byte_view buf);
 
 private:
     struct from_fd_t {

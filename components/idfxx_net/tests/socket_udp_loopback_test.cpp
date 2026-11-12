@@ -3,6 +3,9 @@
 
 #include <idfxx/net/datagram_socket>
 
+#include <array>
+#include <chrono>
+#include <cstdint>
 #include <unity.h>
 
 using namespace idfxx::net;
@@ -74,7 +77,7 @@ TEST_CASE("udp loopback: connect + send/recv (stream-style)", "[net]") {
     TEST_ASSERT_EQUAL_size_t(payload.size(), received->data.size());
 }
 
-TEST_CASE("udp loopback: connected recv(span) reports oversize as message_too_long", "[net]") {
+TEST_CASE("udp loopback: connected recv(buf) reports oversize as message_too_long", "[net]") {
     auto rx = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(rx.has_value());
     rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
@@ -83,7 +86,7 @@ TEST_CASE("udp loopback: connected recv(span) reports oversize as message_too_lo
     auto tx = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(tx.has_value());
 
-    // Send 16 bytes, receive into a 4-byte buffer. The connected-mode recv(span)
+    // Send 16 bytes, receive into a 4-byte buffer. The connected-mode recv(buf)
     // must surface the overrun as an error rather than silently truncating.
     constexpr std::string_view payload = "0123456789ABCDEF";
     tx->try_send_to(std::as_bytes(std::span(payload)), local).value();
@@ -95,7 +98,7 @@ TEST_CASE("udp loopback: connected recv(span) reports oversize as message_too_lo
     TEST_ASSERT_TRUE(received.error() == idfxx::net::errc::message_too_long);
 }
 
-TEST_CASE("udp loopback: recv(span) of a zero-length datagram is empty, not EOF", "[net]") {
+TEST_CASE("udp loopback: recv(buf) of a zero-length datagram is empty, not EOF", "[net]") {
     auto rx = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(rx.has_value());
     rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
@@ -105,8 +108,8 @@ TEST_CASE("udp loopback: recv(span) of a zero-length datagram is empty, not EOF"
     TEST_ASSERT_TRUE(tx.has_value());
 
     // A zero-length datagram is real on UDP: recv must report it as a successful
-    // empty span, never as an end-of-stream signal.
-    tx->try_send_to(std::span<const std::byte>{}, local).value();
+    // empty view, never as an end-of-stream signal.
+    tx->try_send_to(idfxx::byte_view{}, local).value();
 
     rx->set_recv_timeout(std::chrono::seconds(1));
     std::array<std::byte, 8> buf{};
@@ -139,6 +142,37 @@ TEST_CASE("udp loopback: recv_from on a non-blocking socket with no datagram ret
     auto from = rx->try_recv_from(buf);
     TEST_ASSERT_FALSE(from.has_value());
     TEST_ASSERT_TRUE(from.error() == idfxx::net::errc::operation_would_block);
+}
+
+TEST_CASE("udp loopback: send_to, recv_from and recv take uint8_t buffers", "[net]") {
+    auto rx = datagram_socket::make(address_family::ipv4);
+    TEST_ASSERT_TRUE(rx.has_value());
+    rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
+    auto local = rx->local_endpoint().value();
+    rx->set_recv_timeout(std::chrono::seconds(1));
+
+    auto tx = datagram_socket::make(address_family::ipv4);
+    TEST_ASSERT_TRUE(tx.has_value());
+
+    const std::array<uint8_t, 4> out{0xDE, 0xAD, 0xBE, 0xEF};
+    auto sent = tx->try_send_to(out, local);
+    TEST_ASSERT_TRUE(sent.has_value());
+    TEST_ASSERT_EQUAL_size_t(out.size(), *sent);
+
+    std::array<uint8_t, 8> in{};
+    auto dg = rx->try_recv_from(in);
+    TEST_ASSERT_TRUE(dg.has_value());
+    TEST_ASSERT_FALSE(dg->truncated);
+    TEST_ASSERT_EQUAL_size_t(out.size(), dg->data.size());
+    TEST_ASSERT_EQUAL_PTR(in.data(), dg->data.data());
+    TEST_ASSERT_EQUAL_MEMORY(out.data(), in.data(), out.size());
+
+    // A pointer and a length send part of a buffer as one datagram.
+    tx->try_send_to({out.data() + 1, 2}, local).value();
+    auto received = rx->try_recv(in);
+    TEST_ASSERT_TRUE(received.has_value());
+    TEST_ASSERT_EQUAL_size_t(2, received->size());
+    TEST_ASSERT_EQUAL_MEMORY(out.data() + 1, received->data(), 2);
 }
 
 TEST_CASE("udp: broadcast off by default", "[net]") {

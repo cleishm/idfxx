@@ -74,7 +74,7 @@ std::optional<endpoint> buffer::from_endpoint() const noexcept {
     return net::detail::ip_addr_to_endpoint(netbuf_fromaddr(_buf), netbuf_fromport(_buf));
 }
 
-size_t buffer::copy_into(std::span<std::byte> dst) const noexcept {
+size_t buffer::copy_into(byte_span dst) const noexcept {
     if (_buf == nullptr) {
         return 0;
     }
@@ -83,7 +83,7 @@ size_t buffer::copy_into(std::span<std::byte> dst) const noexcept {
     return static_cast<size_t>(netbuf_copy_partial(_buf, dst.data(), to_copy, 0));
 }
 
-result<void> buffer::try_attach(std::span<const std::byte> data) {
+result<void> buffer::try_attach(byte_view data) {
     if (_buf == nullptr) {
         return error(errc::invalid_state);
     }

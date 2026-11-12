@@ -40,7 +40,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_net:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_net` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -98,8 +98,8 @@ while (true) {
 
 ### Reading a TCP stream as a byte source
 
-`read` receives into a `uint8_t` buffer and returns the byte count, with 0 once the peer has closed
-the connection, so a stream socket or channel can be passed to anything written against
+`read` receives into a byte buffer and returns the byte count, with 0 once the peer has closed the
+connection, so a stream socket or channel can be passed to anything written against
 `idfxx::byte_source`:
 
 ```cpp
@@ -110,7 +110,7 @@ sock.send_all("GET / HTTP/1.0\r\nHost: example.com\r\n\r\n");
 
 std::array<uint8_t, 512> buf;
 while (size_t n = sock.read(buf)) {
-    // process std::span{buf}.first(n)...
+    // process idfxx::byte_view{buf}.first(n)...
 }
 ```
 
@@ -164,7 +164,7 @@ while (true) {
     while (true) {
         nc::buffer buf = client.recv();
         if (!buf.is_open()) break;  // graceful peer close
-        for (auto data : buf.segments()) {  // span<const std::byte> per segment
+        for (auto data : buf.segments()) {  // idfxx::byte_view per segment
             // process data without copying
         }
     }
@@ -177,6 +177,12 @@ The component provides two API styles:
 - **Exception-based API** (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`) — methods throw
   `std::system_error` on error
 - **Result-based API** (always available) — methods prefixed with `try_*` return `result<T>`
+
+Byte buffers are passed as `idfxx::byte_view` (data to send) and `idfxx::byte_span`
+(buffers to receive into), so arrays, vectors and spans of `std::byte` or `uint8_t` all work
+directly, as does a `{ptr, len}` pair. `recv` returns a `byte_span` of the bytes received,
+at the start of the caller's buffer, and `recv_from` returns the same view in `datagram::data`.
+Stream `send` / `send_all` also accept a `std::string_view`.
 
 ### Endpoint
 
@@ -196,10 +202,10 @@ resolves a name and tries each candidate until one connects; the `_for` variants
 Key operations: `bind`, `connect`, `connect_for`, `send`, `recv`, `send_all`, `recv_exact`, `read`,
 `shutdown`, `wait_readable`, `wait_writable`.
 
-`read(buf)` / `try_read(buf)` receive into a `std::span<uint8_t>` and return the number of bytes
-received (`size_t` / `result<size_t>`), 0 once the peer has closed the connection (further reads
-then fail with `errc::not_connected`); errors, including receive timeouts, are those of `recv`. They
-make `stream_socket` an `idfxx::byte_source`.
+`read(buf)` / `try_read(buf)` receive into an `idfxx::byte_span` and return the number of
+bytes received (`size_t` / `result<size_t>`), 0 once the peer has closed the connection (further
+reads then fail with `errc::not_connected`); errors, including receive timeouts, are those of
+`recv`. They make `stream_socket` an `idfxx::byte_source`.
 
 ### Datagram Socket
 
@@ -288,7 +294,7 @@ different family (e.g. `set_multicast_interface_v4` on an IPv6 datagram socket).
   fails immediately with `errc::operation_would_block` instead.
 - **Timeout resolution**: receive and send timeouts have millisecond resolution; finer-grained
   `chrono` durations are rounded up.
-- **Stream receive**: `recv` with an empty buffer returns an empty span at once without receiving;
+- **Stream receive**: `recv` with an empty buffer returns an empty view at once without receiving;
   pass a non-empty buffer to detect the peer closing the connection. If `recv_exact` fails part-way
   (for example on a timeout), an unspecified number of bytes have been consumed and the position in
   the stream is no longer known.

@@ -23,7 +23,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 
 namespace idfxx::net::netconn {
 

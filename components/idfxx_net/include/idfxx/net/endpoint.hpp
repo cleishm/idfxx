@@ -16,12 +16,12 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/net>
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -218,18 +218,18 @@ private:
  * @brief A datagram received together with the sender's endpoint.
  *
  * Returned by `try_recv_from` on connectionless sockets and netconn
- * connections. `data` is a sub-span of the buffer the caller passed in, sized
- * to the bytes actually copied. If the datagram was larger than the buffer,
- * `truncated` is set and the excess bytes are discarded (datagrams cannot be
- * read in pieces).
+ * connections. `data` is a view of the start of the buffer the caller
+ * passed in, sized to the bytes actually copied. If the datagram was larger
+ * than the buffer, `truncated` is set and the excess bytes are discarded
+ * (datagrams cannot be read in pieces).
  *
  * @warning `data` aliases the caller's receive buffer — it does not own its
  *          storage and is valid only as long as that buffer remains alive and
  *          unmodified.
  */
 struct datagram {
-    std::span<std::byte> data; ///< Filled portion of the caller's receive buffer (aliases it).
-    endpoint from;             ///< Source endpoint of the datagram.
+    byte_span data; ///< Filled portion of the caller's receive buffer (aliases it).
+    endpoint from;  ///< Source endpoint of the datagram.
     /// True if the datagram was larger than the buffer; `data` holds the leading
     /// portion and the remainder was discarded.
     bool truncated = false;

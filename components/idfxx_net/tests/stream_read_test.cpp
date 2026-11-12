@@ -5,6 +5,7 @@
 // members that let them be used as idfxx::byte_source.
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/net/listener>
 #include <idfxx/net/netconn/stream_channel>
 #include <idfxx/net/stream_socket>
@@ -12,7 +13,6 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <span>
 #include <string_view>
 #include <system_error>
 #include <unity.h>
@@ -32,7 +32,7 @@ std::vector<uint8_t> drain(idfxx::byte_source auto& src, size_t chunk_size) {
     std::vector<uint8_t> out;
     std::vector<uint8_t> buf(chunk_size);
     while (true) {
-        auto n = src.try_read(buf);
+        auto n = src.try_read(idfxx::byte_span{buf});
         TEST_ASSERT_TRUE(n.has_value());
         TEST_ASSERT_TRUE(*n <= chunk_size);
         if (*n == 0) {
@@ -60,7 +60,7 @@ TEST_CASE("tcp loopback: try_read reads the stream until the peer closes", "[net
     TEST_ASSERT_TRUE(client->try_send_all(payload).has_value());
 
     // An empty buffer returns 0 straight away, whether or not data is pending
-    auto none = server_side->try_read(std::span<uint8_t>{});
+    auto none = server_side->try_read(idfxx::byte_span{});
     TEST_ASSERT_TRUE(none.has_value());
     TEST_ASSERT_EQUAL_size_t(0, *none);
 
@@ -94,7 +94,7 @@ TEST_CASE("tcp loopback: try_read passes a receive timeout through unchanged", "
     auto r = server_side->try_read(buf);
     TEST_ASSERT_FALSE(r.has_value());
 
-    auto expected = server_side->try_recv(std::as_writable_bytes(std::span{buf}));
+    auto expected = server_side->try_recv(buf);
     TEST_ASSERT_FALSE(expected.has_value());
     TEST_ASSERT_TRUE(r.error() == expected.error());
 }
@@ -115,7 +115,7 @@ TEST_CASE("netconn: tcp try_read reads the stream until the peer closes", "[net]
     TEST_ASSERT_TRUE(server_side->try_send_all(payload).has_value());
 
     // An empty buffer returns 0 straight away, whether or not data is pending
-    auto none = client->try_read(std::span<uint8_t>{});
+    auto none = client->try_read(idfxx::byte_span{});
     TEST_ASSERT_TRUE(none.has_value());
     TEST_ASSERT_EQUAL_size_t(0, *none);
 
@@ -150,7 +150,7 @@ TEST_CASE("netconn: tcp try_read passes a receive timeout through unchanged", "[
     auto r = client->try_read(buf);
     TEST_ASSERT_FALSE(r.has_value());
 
-    auto expected = client->try_recv(std::as_writable_bytes(std::span{buf}));
+    auto expected = client->try_recv(buf);
     TEST_ASSERT_FALSE(expected.has_value());
     TEST_ASSERT_TRUE(r.error() == expected.error());
 }

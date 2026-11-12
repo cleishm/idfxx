@@ -17,6 +17,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/net/detail/ip_io_socket_base.hpp>
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
@@ -26,7 +27,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <string_view>
 
 namespace idfxx::net {
@@ -474,9 +474,7 @@ public:
      *
      * @return Number of bytes sent.
      */
-    [[nodiscard]] size_t send(std::span<const std::byte> buf) {
-        return idfxx::unwrap(try_send(buf));
-    }
+    [[nodiscard]] size_t send(byte_view buf) { return idfxx::unwrap(try_send(buf)); }
 #endif
 
     /**
@@ -492,7 +490,7 @@ public:
      * @retval errc::operation_would_block The socket is non-blocking and has no
      *         buffer space.
      */
-    [[nodiscard]] result<size_t> try_send(std::span<const std::byte> buf);
+    [[nodiscard]] result<size_t> try_send(byte_view buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -538,7 +536,7 @@ public:
      *         `errc::operation_would_block` when a non-blocking socket runs out
      *         of buffer space.
      */
-    void send_all(std::span<const std::byte> buf) { idfxx::unwrap(try_send_all(buf)); }
+    void send_all(byte_view buf) { idfxx::unwrap(try_send_all(buf)); }
 #endif
 
     /**
@@ -553,7 +551,7 @@ public:
      * @retval errc::operation_would_block The socket is non-blocking and ran out
      *         of buffer space.
      */
-    [[nodiscard]] result<void> try_send_all(std::span<const std::byte> buf);
+    [[nodiscard]] result<void> try_send_all(byte_view buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -607,7 +605,7 @@ public:
      *         `errc::operation_would_block` when a non-blocking socket runs out of
      *         data.
      */
-    void recv_exact(std::span<std::byte> buf) { idfxx::unwrap(try_recv_exact(buf)); }
+    void recv_exact(byte_span buf) { idfxx::unwrap(try_recv_exact(buf)); }
 #endif
 
     /**
@@ -625,7 +623,7 @@ public:
      * @retval errc::operation_would_block The socket is non-blocking and ran out of
      *         data.
      */
-    [[nodiscard]] result<void> try_recv_exact(std::span<std::byte> buf);
+    [[nodiscard]] result<void> try_recv_exact(byte_span buf);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
@@ -648,7 +646,7 @@ public:
      *
      * @see recv
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return idfxx::unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(byte_span buf) { return idfxx::unwrap(try_read(buf)); }
 #endif
 
     /**
@@ -668,7 +666,7 @@ public:
      *
      * @see try_recv
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(byte_span buf);
 
     // ----- shutdown -----
 

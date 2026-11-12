@@ -13,7 +13,7 @@
 
 namespace idfxx::net::detail {
 
-result<std::span<std::byte>> connectionless_socket_base::try_recv(std::span<std::byte> buf) {
+result<byte_span> connectionless_socket_base::try_recv(byte_span buf) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
@@ -49,8 +49,7 @@ result<void> connectionless_socket_base::try_disconnect() {
     return {};
 }
 
-result<size_t>
-connectionless_socket_base::try_send_to(std::span<const std::byte> buf, const endpoint& to) {
+result<size_t> connectionless_socket_base::try_send_to(byte_view buf, const endpoint& to) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }
@@ -67,7 +66,7 @@ connectionless_socket_base::try_send_to(std::span<const std::byte> buf, const en
     return static_cast<size_t>(n);
 }
 
-result<datagram> connectionless_socket_base::try_recv_from(std::span<std::byte> buf) {
+result<datagram> connectionless_socket_base::try_recv_from(byte_span buf) {
     if (_fd < 0) {
         return error(errc::invalid_state);
     }

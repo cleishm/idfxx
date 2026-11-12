@@ -171,14 +171,14 @@ TEST_CASE("netconn: tcp recv returns empty buffer on graceful close", "[net]") {
     TEST_ASSERT_TRUE(eof.has_value());
     TEST_ASSERT_FALSE(eof->is_open());
 
-    // The recv(span) overload mirrors the BSD socket convention: empty span on close.
+    // The recv(buf) overload mirrors the BSD socket convention: empty view on close.
     std::array<std::byte, 16> buf{};
     auto eof_span = client->try_recv(buf);
     TEST_ASSERT_TRUE(eof_span.has_value());
     TEST_ASSERT_TRUE(eof_span->empty());
 }
 
-TEST_CASE("netconn: tcp recv(span) preserves bytes across small reads", "[net]") {
+TEST_CASE("netconn: tcp recv(buf) preserves bytes across small reads", "[net]") {
     // Regression test: when the caller buffer is smaller than the netbuf lwIP
     // delivered, the overflow bytes used to be silently dropped because the
     // netbuf was destroyed at the end of the call. The fix keeps the netbuf
@@ -217,7 +217,7 @@ TEST_CASE("netconn: tcp recv(span) preserves bytes across small reads", "[net]")
     TEST_ASSERT_EQUAL_MEMORY(payload.data(), assembled.data(), payload.size());
 }
 
-TEST_CASE("netconn: udp send_to(span) loopback to BSD socket", "[net]") {
+TEST_CASE("netconn: udp send_to(bytes) loopback to BSD socket", "[net]") {
     auto rx = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(rx.has_value());
     rx->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
