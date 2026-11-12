@@ -1,5 +1,5 @@
 # QEMU-specific configuration for ESP32-S3
-# This file should be copied to sdkconfig before building for QEMU
+# This file is copied to the build directory's sdkconfig before building for QEMU
 
 # Inherit base C++ settings from sdkconfig.defaults
 CONFIG_COMPILER_CXX_EXCEPTIONS=y
@@ -8,8 +8,8 @@ CONFIG_COMPILER_CXX_STD_23=y
 
 # Custom partition table for QEMU
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_qemu.csv"
-CONFIG_PARTITION_TABLE_FILENAME="partitions_qemu.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="config/partitions_qemu.csv"
+CONFIG_PARTITION_TABLE_FILENAME="config/partitions_qemu.csv"
 
 # Flash size for QEMU (4MB to fit the partition table)
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

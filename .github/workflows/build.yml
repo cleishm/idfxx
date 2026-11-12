@@ -124,11 +124,11 @@ jobs:
         target: [esp32, esp32s3, esp32c6, esp32p4]
         config:
           - name: with-exceptions
-            defaults: sdkconfig.defaults
+            defaults: config/sdkconfig.defaults
           - name: no-exceptions
-            defaults: "sdkconfig.defaults;sdkconfig.no-exceptions"
+            defaults: "config/sdkconfig.defaults;config/sdkconfig.no-exceptions"
           - name: no-ipv6
-            defaults: "sdkconfig.defaults;sdkconfig.no-ipv6"
+            defaults: "config/sdkconfig.defaults;config/sdkconfig.no-ipv6"
     name: build (${{ matrix.target }}, ${{ matrix.config.name }})
     steps:
       - name: Checkout
@@ -224,7 +224,7 @@ jobs:
           start=$(date +%s)
           ccache -z
           idf.py set-target ${{ matrix.target }}
-          cp sdkconfig.defaults sdkconfig
+          cp config/sdkconfig.defaults build/sdkconfig
           idf.py reconfigure
           idf.py build
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
@@ -325,7 +325,7 @@ jobs:
           start=$(date +%s)
           ccache -z
           idf.py set-target esp32s3
-          cp sdkconfig.qemu sdkconfig
+          cp config/sdkconfig.qemu build/sdkconfig
           idf.py reconfigure
           idf.py build
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"

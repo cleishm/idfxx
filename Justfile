@@ -50,7 +50,7 @@ build-noexc target="esp32s3":
     {{env_setup}}
     cd "{{justfile_directory()}}"
     if [ ! -f build-noexc/sdkconfig ]; then
-        idf.py -B build-noexc -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.no-exceptions" \
+        idf.py -B build-noexc -D SDKCONFIG_DEFAULTS="config/sdkconfig.defaults;config/sdkconfig.no-exceptions" \
             -D SDKCONFIG="{{justfile_directory()}}/build-noexc/sdkconfig" set-target {{target}}
     fi
     idf.py -B build-noexc build
@@ -62,7 +62,7 @@ build-noipv6 target="esp32s3":
     {{env_setup}}
     cd "{{justfile_directory()}}"
     if [ ! -f build-noipv6/sdkconfig ]; then
-        idf.py -B build-noipv6 -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.no-ipv6" \
+        idf.py -B build-noipv6 -D SDKCONFIG_DEFAULTS="config/sdkconfig.defaults;config/sdkconfig.no-ipv6" \
             -D SDKCONFIG="{{justfile_directory()}}/build-noipv6/sdkconfig" set-target {{target}}
     fi
     idf.py -B build-noipv6 build
@@ -74,8 +74,8 @@ qemu-build:
     {{env_setup}}
     cd "{{justfile_directory()}}"
     mkdir -p build-qemu
-    if [ ! -f build-qemu/sdkconfig ] || [ sdkconfig.qemu -nt build-qemu/sdkconfig ]; then
-        cp sdkconfig.qemu build-qemu/sdkconfig
+    if [ ! -f build-qemu/sdkconfig ] || [ config/sdkconfig.qemu -nt build-qemu/sdkconfig ]; then
+        cp config/sdkconfig.qemu build-qemu/sdkconfig
     fi
     idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" -D IDF_TARGET=esp32s3 build
     idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" \
@@ -99,12 +99,12 @@ test +components:
         tests="${tests:+$tests;}$c"
     done
     mkdir -p build-test
-    # sdkconfig.qemu supplies the values for options that are new to the
+    # config/sdkconfig.qemu supplies the values for options that are new to the
     # filtered set; regenerate the config when it changes.
-    if [ -f build-test/sdkconfig ] && [ sdkconfig.qemu -nt build-test/sdkconfig ]; then
+    if [ -f build-test/sdkconfig ] && [ config/sdkconfig.qemu -nt build-test/sdkconfig ]; then
         rm build-test/sdkconfig
     fi
-    args=(-B build-test -D SDKCONFIG="$PWD/build-test/sdkconfig" -D SDKCONFIG_DEFAULTS=sdkconfig.qemu)
+    args=(-B build-test -D SDKCONFIG="$PWD/build-test/sdkconfig" -D SDKCONFIG_DEFAULTS=config/sdkconfig.qemu)
     idf.py "${args[@]}" -D IDF_TARGET=esp32s3 -D IDFXX_TESTS="$tests" build
     idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB -o "$PWD/build-test/qemu_flash.bin"
     just qemu-run build-test 120

@@ -4,5 +4,5 @@
 # OTA partitions. esp32-c6-devkitc-1 ships with 8MB flash by default.
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=n
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
-CONFIG_PARTITION_TABLE_FILENAME="partitions_8mb.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="config/partitions_8mb.csv"
+CONFIG_PARTITION_TABLE_FILENAME="config/partitions_8mb.csv"
