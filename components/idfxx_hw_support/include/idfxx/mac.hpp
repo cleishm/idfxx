@@ -19,6 +19,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/error>
+#include <idfxx/hex>
 
 #include <array>
 #include <cstdint>
@@ -54,11 +55,14 @@ enum class mac_type : int {
  * @headerfile <idfxx/mac>
  * @brief A MAC-48 (6-byte) hardware address.
  *
- * Fixed-size value type for storing and comparing MAC addresses.
+ * Fixed-size value type for storing and comparing MAC addresses. With `CONFIG_IDFXX_STD_FORMAT`
+ * enabled, `std::format` renders the same text as `idfxx::to_string` and accepts the standard
+ * fill, alignment and width options (for example `{:>20}`).
  *
  * @code
  * auto mac = idfxx::base_mac_address();
- * auto s = idfxx::to_string(mac); // "AA:BB:CC:DD:EE:FF"
+ * auto s = idfxx::to_string(mac);          // "AA:BB:CC:DD:EE:FF"
+ * auto t = std::format("[{:>19}]", mac);   // "[  AA:BB:CC:DD:EE:FF]"
  * @endcode
  */
 class mac_address {
@@ -143,6 +147,13 @@ private:
  * @return A string in "AA:BB:CC:DD:EE:FF" format.
  */
 [[nodiscard]] std::string to_string(const mac_address& addr);
+
+/// @cond INTERNAL
+namespace detail {
+// How a MAC address renders as text, shared by to_string and the formatter.
+inline constexpr hex_options mac_hex_options{.separator = ":", .letter_case = hex_case::upper};
+} // namespace detail
+/// @endcond
 
 // =============================================================================
 // MAC address reading
@@ -285,17 +296,18 @@ void set_interface_mac_address(const mac_address& addr, mac_type type);
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
-#include <algorithm>
 #include <format>
 namespace std {
+// Composes std::formatter<idfxx::hex>, so the fill, align and width spec work.
 template<>
 struct formatter<idfxx::mac_address> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+    std::formatter<idfxx::hex> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
 
     template<typename FormatContext>
     auto format(const idfxx::mac_address& addr, FormatContext& ctx) const {
-        auto s = to_string(addr);
-        return std::copy(s.begin(), s.end(), ctx.out());
+        return _underlying.format(idfxx::hex(addr.bytes(), idfxx::detail::mac_hex_options), ctx);
     }
 };
 } // namespace std
