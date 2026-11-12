@@ -70,7 +70,7 @@ static void show_in_rectangle(lcd::panel& panel, std::span<const uint8_t> jpeg) 
         where,
         WRITE_OPTIONS,
         [&](lcd::rgb565_framebuffer& band, size_t x, size_t y) {
-            idfxx::gfx::canvas canvas(band, x, y);
+            idfxx::gfx::canvas canvas(band, x, y, panel.display_width(), panel.display_height());
             canvas.fill_rect(frame.x, frame.y + frame.height - 20, frame.width, 20, {0, 0, 0});
             canvas.draw_text(
                 idfxx::font::spleen_8x16,

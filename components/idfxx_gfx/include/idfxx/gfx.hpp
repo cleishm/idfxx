@@ -80,6 +80,56 @@ concept pixel_surface =
         { cs.height() } -> std::convertible_to<size_t>;
     };
 
+/** @cond INTERNAL */
+namespace detail {
+
+// The half-open rectangle [left, right) x [top, bottom) of a surface's
+// coordinates that can actually change pixels; empty when right <= left or
+// bottom <= top. Drawing functions skip work outside it.
+struct clip_rect {
+    size_t left;
+    size_t top;
+    size_t right;
+    size_t bottom;
+
+    [[nodiscard]] constexpr bool empty() const noexcept { return right <= left || bottom <= top; }
+
+    // Returns the part of the width x height rectangle at (x, y) inside this
+    // one, or an empty rectangle.
+    [[nodiscard]] constexpr clip_rect
+    intersect(size_t x, size_t y, size_t width, size_t height) const noexcept {
+        const size_t l = std::max(x, left);
+        const size_t t = std::max(y, top);
+        if (l >= right || t >= bottom || l - x >= width || t - y >= height) {
+            return {};
+        }
+        return {
+            l,
+            t,
+            l + std::min(width - (l - x), right - l),
+            t + std::min(height - (t - y), bottom - t),
+        };
+    }
+};
+
+// Returns the drawable rectangle of a surface: the one a surface reports
+// through a gfx_clip_rect(surface) found by argument-dependent lookup (a
+// canvas reports the part of its coordinate space its surface backs), or
+// otherwise the whole surface.
+template<pixel_surface Surface>
+[[nodiscard]] constexpr clip_rect clip_of(const Surface& surface) noexcept {
+    if constexpr (requires {
+                      { gfx_clip_rect(surface) } noexcept -> std::same_as<clip_rect>;
+                  }) {
+        return gfx_clip_rect(surface);
+    } else {
+        return {0, 0, static_cast<size_t>(surface.width()), static_cast<size_t>(surface.height())};
+    }
+}
+
+} // namespace detail
+/** @endcond */
+
 /**
  * @brief Fills a rectangle with the given ink.
  *
@@ -104,15 +154,9 @@ void fill_rect(
     size_t height,
     typename Surface::pixel_type ink
 ) noexcept {
-    const size_t surface_width = surface.width();
-    const size_t surface_height = surface.height();
-    if (x >= surface_width || y >= surface_height) {
-        return;
-    }
-    const size_t x_end = x + std::min(width, surface_width - x);
-    const size_t y_end = y + std::min(height, surface_height - y);
-    for (size_t py = y; py < y_end; ++py) {
-        for (size_t px = x; px < x_end; ++px) {
+    const detail::clip_rect r = detail::clip_of(surface).intersect(x, y, width, height);
+    for (size_t py = r.top; py < r.bottom; ++py) {
+        for (size_t px = r.left; px < r.right; ++px) {
             surface.set_pixel(px, py, ink);
         }
     }
@@ -166,6 +210,29 @@ void draw_vline(
     fill_rect(surface, x, y, 1, length, ink);
 }
 
+/** @cond INTERNAL */
+namespace detail {
+
+// Outlines the width x height rectangle at (x, y) as at most four filled
+// rectangles, passing each to fill(x, y, width, height).
+template<typename Fill>
+constexpr void outline_rect(size_t x, size_t y, size_t width, size_t height, Fill&& fill) {
+    if (width == 0 || height == 0) {
+        return;
+    }
+    if (width <= 2 || height <= 2) {
+        fill(x, y, width, height);
+        return;
+    }
+    fill(x, y, width, size_t{1});
+    fill(x, y + height - 1, width, size_t{1});
+    fill(x, y + 1, size_t{1}, height - 2);
+    fill(x + width - 1, y + 1, size_t{1}, height - 2);
+}
+
+} // namespace detail
+/** @endcond */
+
 /**
  * @brief Outlines a rectangle with the given ink.
  *
@@ -190,17 +257,9 @@ void draw_rect(
     size_t height,
     typename Surface::pixel_type ink
 ) noexcept {
-    if (width == 0 || height == 0) {
-        return;
-    }
-    if (width <= 2 || height <= 2) {
-        fill_rect(surface, x, y, width, height, ink);
-        return;
-    }
-    draw_hline(surface, x, y, width, ink);
-    draw_hline(surface, x, y + height - 1, width, ink);
-    draw_vline(surface, x, y + 1, height - 2, ink);
-    draw_vline(surface, x + width - 1, y + 1, height - 2, ink);
+    detail::outline_rect(x, y, width, height, [&](size_t rx, size_t ry, size_t rw, size_t rh) {
+        fill_rect(surface, rx, ry, rw, rh, ink);
+    });
 }
 
 /**
@@ -226,11 +285,19 @@ void draw_line(
     size_t y1,
     typename Surface::pixel_type ink
 ) noexcept {
-    if (std::min(x0, x1) >= surface.width() || std::min(y0, y1) >= surface.height()) {
-        return; // the endpoints' bounding box lies entirely off the surface
+    const detail::clip_rect clip = detail::clip_of(surface);
+    if (std::min(x0, x1) >= clip.right || std::max(x0, x1) < clip.left ||
+        std::min(y0, y1) >= clip.bottom || std::max(y0, y1) < clip.top) {
+        return; // the endpoints' bounding box lies entirely outside the clip
     }
-    // Bresenham's algorithm; the walk stays within the endpoints' bounding
-    // box, so intermediate coordinates never go negative.
+    // Bresenham's algorithm, always walked from the first endpoint with
+    // unclipped stepping so the pixels drawn never depend on the clip; the
+    // walk stays within the endpoints' bounding box, so intermediate
+    // coordinates never go negative.
+    const ptrdiff_t left = static_cast<ptrdiff_t>(clip.left);
+    const ptrdiff_t top = static_cast<ptrdiff_t>(clip.top);
+    const ptrdiff_t right = static_cast<ptrdiff_t>(clip.right);
+    const ptrdiff_t bottom = static_cast<ptrdiff_t>(clip.bottom);
     ptrdiff_t px = static_cast<ptrdiff_t>(x0);
     ptrdiff_t py = static_cast<ptrdiff_t>(y0);
     const ptrdiff_t ex = static_cast<ptrdiff_t>(x1);
@@ -241,7 +308,11 @@ void draw_line(
     const ptrdiff_t sy = py < ey ? 1 : -1;
     ptrdiff_t err = dx + dy;
     while (true) {
-        surface.set_pixel(static_cast<size_t>(px), static_cast<size_t>(py), ink);
+        if (px >= left && px < right && py >= top && py < bottom) {
+            surface.set_pixel(static_cast<size_t>(px), static_cast<size_t>(py), ink);
+        } else if ((sx > 0 ? px >= right : px < left) || (sy > 0 ? py >= bottom : py < top)) {
+            break; // walked past the clip's far edge; nothing further can draw
+        }
         if (px == ex && py == ey) {
             break;
         }
@@ -291,33 +362,43 @@ void draw_text(
     if (scale == 0) {
         scale = 1;
     }
-    if (y >= surface.height()) {
+    const detail::clip_rect clip = detail::clip_of(surface);
+    const size_t cell_width = size_t{font.width} * scale;
+    const size_t cell_height = size_t{font.height} * scale;
+    if (clip.empty() || y >= clip.bottom || y + cell_height <= clip.top) {
         return; // every glyph row would clip
     }
+    // Font rows with at least one visible output row.
+    const size_t row_begin = clip.top > y ? (clip.top - y) / scale : 0;
+    const size_t row_end = std::min<size_t>(font.height, (clip.bottom - y + scale - 1) / scale);
     const size_t bpr = font.bytes_per_row();
     size_t cell_x = x;
 
     for (char c : text) {
-        if (cell_x >= surface.width()) {
+        if (cell_x >= clip.right) {
             break; // rendering is left-to-right; nothing further can draw
         }
-        if (font.contains(c)) {
+        if (font.contains(c) && cell_x + cell_width > clip.left) {
+            // Font columns with at least one visible output column.
+            const size_t col_begin = clip.left > cell_x ? (clip.left - cell_x) / scale : 0;
+            const size_t col_end =
+                std::min<size_t>(font.width, (clip.right - cell_x + scale - 1) / scale);
             const uint8_t* glyph = font.glyph(c);
-            for (size_t row = 0; row < font.height; ++row) {
+            for (size_t row = row_begin; row < row_end; ++row) {
                 const uint8_t* row_bits = glyph + row * bpr;
-                uint8_t bits = 0;
-                for (size_t col = 0; col < font.width; ++col, bits <<= 1) {
-                    if (col % 8 == 0) {
-                        bits = row_bits[col / 8];
-                    }
-                    if (!(bits & 0x80u)) {
+                const size_t py = y + row * scale;
+                const size_t py_begin = std::max(py, clip.top);
+                const size_t py_end = std::min(py + scale, clip.bottom);
+                for (size_t col = col_begin; col < col_end; ++col) {
+                    if (!(row_bits[col / 8] & (0x80u >> (col % 8)))) {
                         continue;
                     }
                     const size_t px = cell_x + col * scale;
-                    const size_t py = y + row * scale;
-                    for (unsigned sy = 0; sy < scale; ++sy) {
-                        for (unsigned sx = 0; sx < scale; ++sx) {
-                            surface.set_pixel(px + sx, py + sy, ink);
+                    const size_t px_begin = std::max(px, clip.left);
+                    const size_t px_end = std::min(px + scale, clip.right);
+                    for (size_t sy = py_begin; sy < py_end; ++sy) {
+                        for (size_t sx = px_begin; sx < px_end; ++sx) {
+                            surface.set_pixel(sx, sy, ink);
                         }
                     }
                 }
@@ -393,8 +474,14 @@ void draw_text(
     std::string_view text,
     typename Surface::pixel_type ink
 ) noexcept {
-    const ptrdiff_t surface_width = static_cast<ptrdiff_t>(surface.width());
-    const ptrdiff_t surface_height = static_cast<ptrdiff_t>(surface.height());
+    const detail::clip_rect clip = detail::clip_of(surface);
+    if (clip.empty()) {
+        return;
+    }
+    const ptrdiff_t clip_left = static_cast<ptrdiff_t>(clip.left);
+    const ptrdiff_t clip_top = static_cast<ptrdiff_t>(clip.top);
+    const ptrdiff_t clip_right = static_cast<ptrdiff_t>(clip.right);
+    const ptrdiff_t clip_bottom = static_cast<ptrdiff_t>(clip.bottom);
     const ptrdiff_t baseline = static_cast<ptrdiff_t>(y) + font.ascent;
     ptrdiff_t pen = static_cast<ptrdiff_t>(x);
 
@@ -406,26 +493,22 @@ void draw_text(
         const ptrdiff_t left = pen + g->x_offset;
         const ptrdiff_t top = baseline + g->y_offset;
         pen += g->advance;
-        if (left >= surface_width || top >= surface_height) {
-            continue;
+        // Visible column and row span of the glyph bitmap.
+        const ptrdiff_t col_begin = std::max<ptrdiff_t>(0, clip_left - left);
+        const ptrdiff_t col_end = std::min<ptrdiff_t>(g->width, clip_right - left);
+        const ptrdiff_t row_begin = std::max<ptrdiff_t>(0, clip_top - top);
+        const ptrdiff_t row_end = std::min<ptrdiff_t>(g->height, clip_bottom - top);
+        if (col_begin >= col_end || row_begin >= row_end) {
+            continue; // no visible ink
         }
         const size_t bpr = g->bytes_per_row();
         const uint8_t* rows = font.glyph_bitmap(*g);
-        // Visible column and row span of the glyph bitmap.
-        const size_t col_begin = left < 0 ? static_cast<size_t>(-left) : 0;
-        const size_t row_begin = top < 0 ? static_cast<size_t>(-top) : 0;
-        const size_t col_end =
-            std::min<size_t>(g->width, static_cast<size_t>(surface_width - left));
-        const size_t row_end =
-            std::min<size_t>(g->height, static_cast<size_t>(surface_height - top));
-        for (size_t row = row_begin; row < row_end; ++row) {
-            const uint8_t* row_bits = rows + row * bpr;
-            const size_t py = static_cast<size_t>(top + static_cast<ptrdiff_t>(row));
-            for (size_t col = col_begin; col < col_end; ++col) {
+        for (ptrdiff_t row = row_begin; row < row_end; ++row) {
+            const uint8_t* row_bits = rows + static_cast<size_t>(row) * bpr;
+            const size_t py = static_cast<size_t>(top + row);
+            for (ptrdiff_t col = col_begin; col < col_end; ++col) {
                 if (row_bits[col / 8] & (0x80u >> (col % 8))) {
-                    surface.set_pixel(
-                        static_cast<size_t>(left + static_cast<ptrdiff_t>(col)), py, ink
-                    );
+                    surface.set_pixel(static_cast<size_t>(left + col), py, ink);
                 }
             }
         }
@@ -707,17 +790,19 @@ size_t draw_text_box(
  * the display (e.g. `panel.write(band, 0, 40)`).
  *
  * A canvas may also place its surface within a larger drawing-coordinate
- * space. Constructing with an origin — `canvas(band, 0, y)` — declares that
- * the surface's top-left corner sits at (0, y) in the canvas's coordinates,
- * so a frame taller than the surface can be authored once in full-screen
+ * space. Constructing with an origin and the space's size —
+ * `canvas(band, 0, y, DISPLAY_W, DISPLAY_H)` — declares that the surface's
+ * top-left corner sits at (0, y) in a DISPLAY_W x DISPLAY_H space, so a
+ * frame taller than the surface can be authored once in full-screen
  * coordinates and rendered band by band, with everything outside the band
  * clipped (on all four sides — glyphs and lines straddling a band edge
- * render exactly their visible part):
+ * render exactly their visible part) and @ref width / @ref height reporting
+ * the full screen in every band:
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(DISPLAY_W, BAND_H);
  * for (size_t y = 0; y < DISPLAY_H; y += BAND_H) {
- *     idfxx::gfx::canvas canvas(band, 0, y);
+ *     idfxx::gfx::canvas canvas(band, 0, y, DISPLAY_W, DISPLAY_H);
  *     canvas.clear();
  *     draw_frame(canvas); // draws in full-screen coordinates
  *     panel.write(band, 0, y);
@@ -760,26 +845,34 @@ public:
         , _height(surface.height()) {}
 
     /**
-     * @brief Creates a canvas whose surface sits at (@p x, @p y) in the canvas's coordinates.
+     * @brief Creates a canvas for a @p width x @p height drawing space whose surface sits at
+     *        (@p x, @p y) in it.
      *
      * Declares that the surface holds the region of the drawing space whose
-     * top-left corner is (@p x, @p y) — the band-rendering mapping. Drawing
-     * uses the full-space coordinates; pixels landing outside the surface
-     * are clipped on all four sides. @ref width and @ref height report the
-     * far edges of the surface in canvas coordinates (@p x + the surface
-     * width, @p y + the surface height), so for a full-width band they
-     * match the frame dimensions.
+     * top-left corner is (@p x, @p y) — the band-rendering mapping, with the
+     * space's size given so that @ref width and @ref height report the whole
+     * space (the full frame) wherever the surface sits. Drawing uses the
+     * space's coordinates; pixels landing outside the surface, or outside
+     * the space, are clipped on all four sides.
+     *
+     * @code
+     * idfxx::lcd::rgb565_framebuffer band(240, 40);
+     * idfxx::gfx::canvas canvas(band, 0, 80, 240, 320); // rows 80-119 of a 240x320 frame
+     * canvas.draw_text(idfxx::font::spleen_8x16, 8, canvas.height() - 20, "footer", white);
+     * @endcode
      *
      * @param surface The surface to draw on; must outlive the canvas.
      * @param x       Canvas-coordinate column of the surface's left edge.
      * @param y       Canvas-coordinate row of the surface's top edge.
+     * @param width   Width of the drawing space, in pixels.
+     * @param height  Height of the drawing space, in pixels.
      */
-    canvas(Surface& surface, size_t x, size_t y) noexcept
+    canvas(Surface& surface, size_t x, size_t y, size_t width, size_t height) noexcept
         : _surface(&surface)
         , _dx(static_cast<ptrdiff_t>(x))
         , _dy(static_cast<ptrdiff_t>(y))
-        , _width(x + surface.width())
-        , _height(y + surface.height()) {}
+        , _width(width)
+        , _height(height) {}
 
     /** @brief Returns the underlying surface. */
     [[nodiscard]] Surface& surface() const noexcept { return *_surface; }
@@ -789,7 +882,7 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface width; for a translated canvas it
-     * is the surface's far column edge in canvas coordinates; for a
+     * is the drawing-space width it was constructed with; for a
      * @ref window it is the window width.
      */
     [[nodiscard]] size_t width() const noexcept { return _width; }
@@ -799,7 +892,7 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface height; for a translated canvas it
-     * is the surface's far row edge in canvas coordinates; for a
+     * is the drawing-space height it was constructed with; for a
      * @ref window it is the window height.
      */
     [[nodiscard]] size_t height() const noexcept { return _height; }
@@ -916,20 +1009,18 @@ public:
      * @param ink    The pixel value to write.
      */
     void fill_rect(size_t x, size_t y, size_t width, size_t height, pixel_type ink) noexcept {
-        // Clamp the start to the drawable region in canvas coordinates so
-        // the translated start is never left of or above the surface; the
-        // surface-level fill_rect clips the far edges.
-        const size_t sx = std::max(x, _dx > 0 ? static_cast<size_t>(_dx) : size_t{0});
-        const size_t sy = std::max(y, _dy > 0 ? static_cast<size_t>(_dy) : size_t{0});
-        if (sx >= _width || sy >= _height || sx - x >= width || sy - y >= height) {
+        // Clip to the drawable region in canvas coordinates, then fill the
+        // translated rectangle on the surface directly.
+        const detail::clip_rect r = gfx_clip_rect(*this).intersect(x, y, width, height);
+        if (r.empty()) {
             return;
         }
         gfx::fill_rect(
             *_surface,
-            static_cast<size_t>(static_cast<ptrdiff_t>(sx) - _dx),
-            static_cast<size_t>(static_cast<ptrdiff_t>(sy) - _dy),
-            std::min(width - (sx - x), _width - sx),
-            std::min(height - (sy - y), _height - sy),
+            static_cast<size_t>(static_cast<ptrdiff_t>(r.left) - _dx),
+            static_cast<size_t>(static_cast<ptrdiff_t>(r.top) - _dy),
+            r.right - r.left,
+            r.bottom - r.top,
             ink
         );
     }
@@ -978,7 +1069,9 @@ public:
      * @param ink    The pixel value to write.
      */
     void draw_rect(size_t x, size_t y, size_t width, size_t height, pixel_type ink) noexcept {
-        gfx::draw_rect(*this, x, y, width, height, ink);
+        detail::outline_rect(x, y, width, height, [&](size_t rx, size_t ry, size_t rw, size_t rh) {
+            fill_rect(rx, ry, rw, rh, ink);
+        });
     }
 
     /**
@@ -1236,6 +1329,29 @@ public:
         return gfx::draw_text_box(*this, font, x, y, width, text, align);
     }
 
+    /**
+     * @cond INTERNAL
+     * @brief Returns the drawable rectangle in canvas coordinates: the
+     * canvas bounds intersected with the surface's own drawable rectangle
+     * placed at (_dx, _dy). Found by detail::clip_of through
+     * argument-dependent lookup.
+     */
+    [[nodiscard]] friend detail::clip_rect gfx_clip_rect(const canvas& c) noexcept {
+        const detail::clip_rect inner = detail::clip_of(*c._surface);
+        const auto bound = [](ptrdiff_t offset, size_t edge, size_t limit) {
+            return static_cast<size_t>(std::clamp<ptrdiff_t>(
+                offset + static_cast<ptrdiff_t>(edge), 0, static_cast<ptrdiff_t>(limit)
+            ));
+        };
+        return {
+            bound(c._dx, inner.left, c._width),
+            bound(c._dy, inner.top, c._height),
+            bound(c._dx, inner.right, c._width),
+            bound(c._dy, inner.bottom, c._height),
+        };
+    }
+    /** @endcond */
+
 private:
     // True when the drawable region spans the entire surface (the identity
     // and whole-band cases), enabling the surface's native fill/clear.
@@ -1368,6 +1484,28 @@ public:
         _surface->clear();
     }
 
+    /**
+     * @cond INTERNAL
+     * @brief Returns the surface's drawable rectangle turned into viewer
+     * coordinates. Found by detail::clip_of through argument-dependent
+     * lookup.
+     */
+    [[nodiscard]] friend detail::clip_rect gfx_clip_rect(const rotated& r) noexcept {
+        const detail::clip_rect s = detail::clip_of(*r._surface);
+        if (s.empty()) {
+            return {};
+        }
+        if (r._direction == rotation::cw90) {
+            // Viewer (x, y) is surface (y, height - 1 - x).
+            const size_t h = r._surface->height();
+            return {h - s.bottom, s.left, h - s.top, s.right};
+        }
+        // Viewer (x, y) is surface (width - 1 - y, x).
+        const size_t w = r._surface->width();
+        return {s.top, w - s.right, s.bottom, w - s.left};
+    }
+    /** @endcond */
+
 private:
     Surface* _surface;
     rotation _direction;
@@ -1402,10 +1540,12 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and writes the band to
- * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
- * pass's band clips; content straddling band edges renders exactly its
- * visible part, so the assembled frame is identical to one drawn through a
+ * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
+ * so its width and height are the frame's in every pass), and writes the
+ * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
+ * outside the pass's band is clipped before drawing rather than discarded
+ * pixel by pixel; content straddling band edges renders exactly its visible
+ * part, so the assembled frame is identical to one drawn through a
  * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
@@ -1448,10 +1588,12 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
  * covering `band.width()` x `band.height()` pixels, in
  * `frame_height / band.height()` passes. Each pass clears the band, invokes
  * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y)`), and writes the band to
- * @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content outside the
- * pass's band clips; content straddling band edges renders exactly its
- * visible part, so the assembled frame is identical to one drawn through a
+ * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
+ * so its width and height are the frame's in every pass), and writes the
+ * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
+ * outside the pass's band is clipped before drawing rather than discarded
+ * pixel by pixel; content straddling band edges renders exactly its visible
+ * part, so the assembled frame is identical to one drawn through a
  * full-frame buffer.
  *
  * The callback is invoked once per band and must draw the complete frame
@@ -1481,7 +1623,7 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
         return error(errc::invalid_arg);
     }
     for (size_t y = 0; y < frame_height; y += band_height) {
-        canvas c(band, 0, y);
+        canvas c(band, 0, y, band.width(), frame_height);
         c.clear();
         draw(c);
         if (auto written = dest.try_write(std::as_const(band), size_t{0}, y); !written) {

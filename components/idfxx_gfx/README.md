@@ -48,7 +48,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_gfx: "^2.1.0"
+  cleishm/idfxx_gfx: "^3.0.0"
   cleishm/idfxx_font_spleen: "^1.0.0"   # bundled fonts, if drawing text
 ```
 
@@ -150,7 +150,8 @@ A full frame at 16 bpp is large (a 240x320 frame is ~150 KB), so color frames ar
 through a band-sized framebuffer. `render_banded` takes a callback that draws the whole frame in
 screen coordinates, runs it once per band, and writes each slice to its screen position with the
 destination's `try_write(band, x, y)` — content straddling a band boundary clips on all four sides
-and renders exactly its visible part:
+and renders exactly its visible part, and content outside the band is clipped before drawing rather
+than discarded pixel by pixel:
 
 ```cpp
 idfxx::lcd::rgb565_framebuffer band(240, 40);
@@ -162,11 +163,11 @@ idfxx::gfx::render_banded(band, panel, 320, [&](auto& canvas) {
 });
 ```
 
-Under the hood each pass uses a translated canvas — `canvas(band, 0, y)` declares that the band's
-top-left corner sits at (0, y) in the frame — and that constructor is available directly for custom
-render loops (scrolling viewports, partial updates). The inverse mapping is
-`canvas.window(x, y, w, h)`: a sub-region canvas with its own local coordinates and clipping, e.g.
-for widget-local drawing.
+Under the hood each pass uses a translated canvas — `canvas(band, 0, y, width, height)` declares
+that the band's top-left corner sits at (0, y) in a `width` x `height` frame, so the canvas reports
+the frame's size in every band — and that constructor is available directly for custom render loops
+(scrolling viewports, partial updates). The inverse mapping is `canvas.window(x, y, w, h)`: a
+sub-region canvas with its own local coordinates and clipping, e.g. for widget-local drawing.
 
 ### Rotated surfaces
 
@@ -203,7 +204,7 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | ---- | ----------- |
 | `pixel_surface` | Concept: `pixel_type`, `set_pixel(x, y, pixel)`, `width()`, `height()`. |
 | `canvas(surface)` | Drawing view: the operations below as members, plus `fill(ink)` / `clear()` (using the surface's own fill/clear when present). |
-| `canvas(surface, x, y)` | Translated canvas: the surface holds the region of a larger drawing space whose top-left corner is (x, y) — see Band rendering above. |
+| `canvas(surface, x, y, w, h)` | Translated canvas: the surface holds the region of a w x h drawing space whose top-left corner is (x, y) — see Band rendering above. |
 | `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping; `fill`/`clear` affect only the sub-region. |
 | `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear` forward to the surface's. |
 | `to_string(rotation)` / `to_string(text_align)` | Enumerator name; also `std::formatter` specializations (with `CONFIG_IDFXX_STD_FORMAT`). |

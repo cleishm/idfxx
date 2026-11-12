@@ -269,12 +269,12 @@ void write_image(
  * @p draw with each band just before it is written. The panel must use the RGB565
  * format.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * auto overlay = [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
- *     idfxx::gfx::canvas canvas(band, x, y);
+ *     idfxx::gfx::canvas canvas(band, x, y, display.display_width(), display.display_height());
  *     canvas.draw_text(font, 10, 220, "Hello", idfxx::lcd::rgb565(255, 255, 255));
  * };
  * idfxx::lcd::write_image(display, dec, overlay);
@@ -310,8 +310,8 @@ void write_image(panel& display, Decoder& decoder, Overlay&& draw) {
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * idfxx::lcd::write_image(
@@ -319,7 +319,7 @@ void write_image(panel& display, Decoder& decoder, Overlay&& draw) {
  *     dec,
  *     {.target = idfxx::image::rect{.x = 0, .y = 0, .width = 320, .height = 120}},
  *     [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
- *         idfxx::gfx::canvas canvas(band, x, y);
+ *         idfxx::gfx::canvas canvas(band, x, y, display.display_width(), display.display_height());
  *         canvas.draw_text(font, 10, 100, "Hello", idfxx::lcd::rgb565(255, 255, 255));
  *     }
  * );
@@ -356,8 +356,8 @@ void write_image(panel& display, Decoder& decoder, const image::placement& where
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * idfxx::lcd::write_image(
@@ -366,7 +366,7 @@ void write_image(panel& display, Decoder& decoder, const image::placement& where
  *     {.target = idfxx::image::rect{.x = 0, .y = 0, .width = 320, .height = 120}},
  *     {.band_rows = 8},
  *     [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
- *         idfxx::gfx::canvas canvas(band, x, y);
+ *         idfxx::gfx::canvas canvas(band, x, y, display.display_width(), display.display_height());
  *         canvas.draw_text(font, 10, 100, "Hello", idfxx::lcd::rgb565(255, 255, 255));
  *     }
  * );

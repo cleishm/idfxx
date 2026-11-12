@@ -1672,7 +1672,7 @@ void check_overlay() {
     auto expected = make_framebuffer<Framebuffer>(w, h);
     fake_decoder plain(source());
     TEST_ASSERT_TRUE(epaper::try_write_image(expected, *kind.cal, plain).has_value());
-    gfx::canvas expected_canvas(expected, tx, ty);
+    gfx::canvas expected_canvas(expected, tx, ty, kind.cal->width(), kind.cal->height());
     expected_canvas.fill_rect(rx, ry, rw, rh, mark<Framebuffer>());
 
     for (const size_t band_rows : {1, 7, 16, 32, 100}) {
@@ -1691,7 +1691,7 @@ void check_overlay() {
                 TEST_ASSERT_EQUAL_UINT32(std::min(band_rows, h), band.height());
                 // This band is not yet on the panel.
                 TEST_ASSERT_EQUAL_UINT32(display.writes.size() * std::min(band_rows, h), y - ty);
-                gfx::canvas canvas(band, x, y);
+                gfx::canvas canvas(band, x, y, kind.cal->width(), kind.cal->height());
                 canvas.fill_rect(rx, ry, rw, rh, mark<Framebuffer>());
             }
         );
@@ -1746,7 +1746,7 @@ TEST_CASE("epaper write_image takes an overlay after the decoder or a placement"
     size_t calls = 0;
     const auto draw = [&](band_type& band, size_t x, size_t y) {
         ++calls;
-        gfx::canvas canvas(band, x, y);
+        gfx::canvas canvas(band, x, y, w, h);
         canvas.fill_rect(4, 4, 8, 8, epaper::gray4::black);
     };
 

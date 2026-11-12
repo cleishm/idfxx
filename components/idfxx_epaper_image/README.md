@@ -85,7 +85,8 @@ write_image<gray4_framebuffer>(
     },
     {.band_rows = 32},
     [&](gray4_framebuffer& band, size_t x, size_t y) {
-        idfxx::gfx::canvas canvas(band, x, y); // draw in screen coordinates
+        // a canvas the size of the screen: draw in screen coordinates
+        idfxx::gfx::canvas canvas(band, x, y, display.width(), display.height());
         canvas.draw_text(idfxx::font::spleen_8x16, 404, 342, "caption", gray4::black);
     }
 );
@@ -197,9 +198,9 @@ be spared.
   the way it's displayed needs no frame.
 - **The overlay runs once per band, not once per image,** and may be called with a band that only
   partly belongs to the picture. It must draw the same thing each time: draw in screen coordinates
-  (`gfx::canvas canvas(band, x, y)`) and let the canvas clip. The last band's unused rows are not
-  written to the panel. The caller names the band's type, `write_image<gray4_framebuffer>(...)`, and
-  it must match the calibration's color mode.
+  (`gfx::canvas canvas(band, x, y, screen_width, screen_height)`) and let the canvas clip. The last
+  band's unused rows are not written to the panel. The caller names the band's type,
+  `write_image<gray4_framebuffer>(...)`, and it must match the calibration's color mode.
 - **A decoder decodes once.** Create a new decoder (over a new source) to show the image again.
 
 ## License
