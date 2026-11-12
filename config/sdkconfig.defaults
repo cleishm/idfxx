@@ -20,3 +20,6 @@ CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES=y
 
 # Long file names for idfxx_fatfs (the default changed from none to heap in ESP-IDF 6.0)
 CONFIG_FATFS_LFN_HEAP=y
+
+# SHA-3 for idfxx_crypto tests (off by default)
+CONFIG_MBEDTLS_SHA3_C=y

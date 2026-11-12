@@ -1,0 +1,22 @@
+dependencies:
+  cleishm/idfxx_core:
+    version: "^1.3.0"
+    override_path: ../../../../idfxx_core
+  cleishm/idfxx_crypto:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_http_client:
+    version: "^3.0.0"
+    override_path: ../../../../idfxx_http_client
+  cleishm/idfxx_wifi:
+    version: "^4.0.0"
+    override_path: ../../../../idfxx_wifi
+  cleishm/idfxx_netif:
+    version: "^2.0.0"
+    override_path: ../../../../idfxx_netif
+  cleishm/idfxx_event:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_event
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../idfxx_log
