@@ -41,7 +41,11 @@ static_assert(std::is_convertible_v<const std::byte (&)[4], byte_view>);
 static_assert(std::is_convertible_v<uint8_t (&)[4], byte_view>);
 static_assert(std::is_convertible_v<const uint8_t (&)[4], byte_view>);
 static_assert(std::is_convertible_v<mutable_byte_view, byte_view>);
-static_assert(std::is_convertible_v<std::initializer_list<uint8_t>, byte_view>);
+// A braced list would dangle once stored, so views reject it
+template<typename V>
+concept takes_braced_bytes = requires(void (*f)(V)) { f({uint8_t{0x01}, uint8_t{0x02}}); };
+static_assert(!takes_braced_bytes<byte_view>);
+static_assert(!takes_braced_bytes<mutable_byte_view>);
 
 // byte_view rejects text and non-byte element types
 static_assert(!std::is_constructible_v<byte_view, std::string&>);
@@ -246,13 +250,6 @@ TEST_CASE("byte_view views the bytes of an object", "[idfxx][byte_view]") {
     TEST_ASSERT_TRUE(m.data() == reinterpret_cast<std::byte*>(&r));
 }
 
-TEST_CASE("byte_view views a braced list of bytes", "[idfxx][byte_view]") {
-    TEST_ASSERT_EQUAL(3, size_of({0x01, 0x02, 0xAE}));
-    TEST_ASSERT_EQUAL(0x01 + 0x02 + 0xAE, sum_of({0x01, 0x02, 0xAE}));
-    TEST_ASSERT_EQUAL(1, size_of({0xFF}));
-    TEST_ASSERT_EQUAL(0xFF, sum_of({0xFF}));
-}
-
 TEST_CASE("byte_view views a pointer and length", "[idfxx][byte_view]") {
     std::array<uint8_t, 8> buf{};
     const uint8_t* cp = buf.data() + 2;
@@ -442,6 +439,5 @@ TEST_CASE("byte_view overloads resolve against string_view", "[idfxx][byte_view]
     TEST_ASSERT_EQUAL_STRING("bytes", kind(vu).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind(sp).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind(std::as_bytes(std::span{text})).data());
-    TEST_ASSERT_EQUAL_STRING("bytes", kind({0x01, 0x02, 0xAE}).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind({au.data(), 2}).data());
 }

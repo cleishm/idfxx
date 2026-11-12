@@ -201,9 +201,9 @@ bool ok = memory::check_integrity();
 
 `idfxx::byte_view` (read-only) and `idfxx::mutable_byte_view` (writable) are non-owning views of
 contiguous bytes. An API that takes one accepts whatever the caller holds: a `std::array`,
-`std::vector`, `std::span` or built-in array of `std::byte` or `uint8_t`, the bytes of any object, a
-pointer and a length, or (for `byte_view`) a braced list of byte values. Ranges of `char` are not
-accepted, so a string literal never silently includes its terminating NUL:
+`std::vector`, `std::span` or built-in array of `std::byte` or `uint8_t`, the bytes of any object,
+or a pointer and a length. Ranges of `char` are not accepted, so a string literal never silently
+includes its terminating NUL:
 
 ```cpp
 #include <idfxx/byte_view>
@@ -218,15 +218,16 @@ struct { uint32_t time; int16_t value; } reading{};
 send(header);
 send(payload);
 send(std::as_bytes(std::span{&reading, 1})); // the bytes of any object
-send({0x01, 0xAE});                           // literal bytes
 
 std::array<std::byte, 64> buf{};
 size_t n = receive(buf);
 send(idfxx::byte_view{buf}.first(n));
 ```
 
-A view does not extend the lifetime of what it refers to, so use it as a function parameter. A
-`mutable_byte_view` rejects const buffers and temporary containers.
+A view does not extend the lifetime of what it refers to: the buffer must outlive every use of the
+view. Views are not built from braced lists of values, whose storage would end with the statement;
+APIs where callers commonly pass literal bytes offer an `std::initializer_list<uint8_t>` overload
+instead. A `mutable_byte_view` rejects const buffers and temporary containers.
 
 ### Byte Sources
 
@@ -386,7 +387,7 @@ be moved out with `std::move(cfg.callback).get()`.
 ### Byte Views (`<idfxx/byte_view>`)
 
 - `byte_view` - Read-only view of contiguous bytes; built from any contiguous range of `std::byte`
-  or `uint8_t`, a pointer and length, or a braced list of byte values; converts to
+  or `uint8_t`, or a pointer and length; converts to
   `std::span<const std::byte>` and `std::span<const uint8_t>`
 - `mutable_byte_view` - Writable view; built from lvalue ranges of non-const bytes or a pointer and
   length; converts to `byte_view` and to spans of `std::byte` or `uint8_t`, const or not

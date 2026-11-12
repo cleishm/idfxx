@@ -21,7 +21,6 @@
  *   built-in array, or another byte view
  * - the bytes of any object, through `std::as_bytes` / `std::as_writable_bytes`
  * - a pointer and a length, as `{ptr, len}`
- * - for `byte_view`, a braced list of byte values, as `{0x01, 0xAE}`
  *
  * Ranges of `char` are not accepted: text is passed through an API's `std::string_view` overload
  * where it has one, and otherwise as `std::as_bytes(std::span{str})`. This keeps a string literal
@@ -38,17 +37,18 @@
  * send(header);
  * send(payload);
  * send(std::as_bytes(std::span{&r, 1}));
- * send({0x01, 0xAE});
+ * send({header.data() + 2, 2});
  * @endcode
  *
- * Like a `std::span`, a view does not extend the lifetime of the buffer it refers to. The buffer
- * must outlive every use of the view; a view is best used as a function parameter.
+ * Like a `std::span`, a view does not extend the lifetime of the buffer it refers to: the buffer
+ * must outlive every use of the view. Views are not constructible from a braced list of values,
+ * whose storage would end with the full expression; APIs where callers commonly pass literal bytes
+ * offer a separate `std::initializer_list<uint8_t>` overload instead.
  * @{
  */
 
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <ranges>
 #include <span>
 #include <type_traits>
@@ -80,8 +80,8 @@ concept mutable_byte_range = byte_range<R> && std::ranges::borrowed_range<R> &&
  * @headerfile <idfxx/byte_view>
  * @brief A non-owning, read-only view of contiguous bytes.
  *
- * Constructible from any contiguous range of `std::byte` or `uint8_t`, from a pointer and a
- * length, and from a braced list of byte values. Converts implicitly to
+ * Constructible from any contiguous range of `std::byte` or `uint8_t`, and from a pointer and a
+ * length. Converts implicitly to
  * `std::span<const std::byte>` and to `std::span<const uint8_t>`.
  *
  * Views are cheap to copy (a pointer and a size) and are usually passed by value. Besides the
@@ -94,7 +94,6 @@ concept mutable_byte_range = byte_range<R> && std::ranges::borrowed_range<R> &&
  * std::vector<uint8_t> buf = ...;
  * write(buf);                     // the whole vector
  * write({buf.data() + 4, 8});     // 8 bytes from offset 4
- * write({0x00, 0x10, 0x20});      // three literal bytes
  * write(idfxx::byte_view{buf}.subspan(4, 8));
  * @endcode
  */
@@ -126,19 +125,6 @@ public:
     constexpr byte_view(R&& r) noexcept
         : _data(_as_bytes(std::ranges::data(r)))
         , _size(std::ranges::size(r)) {}
-
-    /**
-     * @brief Creates a view of a braced list of byte values.
-     *
-     * Lets a call pass literal bytes directly, as `f({0x01, 0xAE})`. The list's storage lives
-     * until the end of the full expression, so a view created this way is only valid as a
-     * function argument.
-     *
-     * @param bytes The byte values.
-     */
-    constexpr byte_view(std::initializer_list<uint8_t> bytes) noexcept
-        : _data(_as_bytes(bytes.begin()))
-        , _size(bytes.size()) {}
 
     /**
      * @brief Creates a view of @p size bytes starting at @p data.
