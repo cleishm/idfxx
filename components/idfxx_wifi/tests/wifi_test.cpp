@@ -29,6 +29,11 @@ static_assert(std::is_same_v<decltype(init_config::privacy_enhancements), std::o
 static_assert(std::is_same_v<decltype(init_config::rmac_auto_reset_interval), std::optional<std::chrono::hours>>);
 #endif
 
+// The vendor IE callback receives the whole element as a byte view
+static_assert(std::is_same_v<
+              vendor_ie_cb,
+              void (*)(void*, enum vendor_ie_type, idfxx::mac_address, idfxx::byte_view, quanta::electro::dbm)>);
+
 // =============================================================================
 // Connect overloads
 // =============================================================================

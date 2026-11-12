@@ -274,7 +274,7 @@ station privacy; these are available on ESP-IDF 6.1 and later only.
   `ftm_resp_set_offset(quanta::spatial::centimeters)`, `ftm_get_report(max_entries)`
 - **Raw 802.11**: `tx_80211(role, byte_view, en_sys_seq)`, `register_80211_tx_cb(callback)`
 - **Vendor IE**: `set_vendor_ie(enable, type, id, byte_view)` (the whole element, copied),
-  `set_vendor_ie_cb(callback, ctx)`
+  `set_vendor_ie_cb(callback, ctx)` (the callback receives each element as a `byte_view`)
 
 See the [full API documentation](https://cleishm.github.io/idfxx/group__idfxx__wifi.html) for
 complete details.

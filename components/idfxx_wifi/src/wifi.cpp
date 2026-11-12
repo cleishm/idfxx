@@ -98,8 +98,13 @@ static void vendor_ie_trampoline(
     }
     mac_address mac;
     std::memcpy(mac.data(), sa, 6);
+    // The element spans its ID and length bytes plus the length byte's count
+    idfxx::byte_view ie;
+    if (vnd_ie != nullptr) {
+        ie = idfxx::byte_view{static_cast<const void*>(vnd_ie), size_t{2} + vnd_ie->length};
+    }
     (void)invoke_guarded(TAG, "Vendor IE callback", [&] {
-        cb(ctx, static_cast<vendor_ie_type>(type), mac, vnd_ie, quanta::electro::dbm{rssi});
+        cb(ctx, static_cast<vendor_ie_type>(type), mac, ie, quanta::electro::dbm{rssi});
     });
 }
 
