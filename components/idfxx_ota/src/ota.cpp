@@ -157,8 +157,11 @@ uint32_t app_description::secure_version() const {
     return _desc.secure_version;
 }
 
-std::span<const uint8_t, 32> app_description::app_elf_sha256() const {
-    return std::span<const uint8_t, 32>(_desc.app_elf_sha256);
+std::array<std::byte, 32> app_description::app_elf_sha256() const {
+    static_assert(sizeof(_desc.app_elf_sha256) == 32);
+    std::array<std::byte, 32> hash;
+    std::memcpy(hash.data(), _desc.app_elf_sha256, hash.size());
+    return hash;
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
@@ -292,45 +295,30 @@ result<void> update::try_set_final_partition(const partition& final_part, bool c
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-void update::write(const void* data, size_t size) {
-    unwrap(try_write(data, size));
-}
-
-void update::write(std::span<const uint8_t> data) {
+void update::write(byte_view data) {
     unwrap(try_write(data));
 }
 
-void update::write_with_offset(uint32_t offset, const void* data, size_t size) {
-    unwrap(try_write_with_offset(offset, data, size));
-}
-
-void update::write_with_offset(uint32_t offset, std::span<const uint8_t> data) {
+void update::write_with_offset(uint32_t offset, byte_view data) {
     unwrap(try_write_with_offset(offset, data));
 }
 #endif
 
-result<void> update::try_write(const void* data, size_t size) {
+result<void> update::try_write(byte_view data) {
     if (_handle == 0) {
         return error(idfxx::errc::invalid_state);
     }
-    return checked(esp_ota_write(_handle, data, size), "esp_ota_write");
+    return checked(esp_ota_write(_handle, data.data(), data.size()), "esp_ota_write");
 }
 
-result<void> update::try_write(std::span<const uint8_t> data) {
-    return try_write(data.data(), data.size());
-}
-
-result<void> update::try_write_with_offset(uint32_t offset, const void* data, size_t size) {
+result<void> update::try_write_with_offset(uint32_t offset, byte_view data) {
     if (_handle == 0) {
         return error(idfxx::errc::invalid_state);
     }
     return checked(
-        esp_ota_write_with_offset(_handle, data, size, offset), "esp_ota_write_with_offset"
+        esp_ota_write_with_offset(_handle, data.data(), data.size(), offset),
+        "esp_ota_write_with_offset"
     );
-}
-
-result<void> update::try_write_with_offset(uint32_t offset, std::span<const uint8_t> data) {
-    return try_write_with_offset(offset, data.data(), data.size());
 }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -375,7 +363,7 @@ void set_boot_partition(const partition& part, skip_validation_t) {
     unwrap(try_set_boot_partition(part, skip_validation));
 }
 
-void check_image_validity(enum partition::type type, std::span<const uint8_t> image_start) {
+void check_image_validity(enum partition::type type, byte_view image_start) {
     unwrap(try_check_image_validity(type, image_start));
 }
 #endif
@@ -405,8 +393,7 @@ result<void> try_set_boot_partition(const partition& part, skip_validation_t) {
     );
 }
 
-result<void>
-try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start) {
+result<void> try_check_image_validity(enum partition::type type, byte_view image_start) {
     if (type != partition::type::app && type != partition::type::bootloader) {
         return error(idfxx::errc::invalid_arg);
     }
@@ -414,7 +401,7 @@ try_check_image_validity(enum partition::type type, std::span<const uint8_t> ima
     constexpr size_t app_desc_offset =
         sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
 
-    // Copy into aligned locals; the span's data may be unaligned
+    // Copy into aligned locals; the view's data may be unaligned
     esp_image_header_t header;
     esp_app_desc_t desc;
     const esp_app_desc_t* desc_ptr = nullptr;

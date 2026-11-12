@@ -9,7 +9,8 @@
 
 #include <algorithm>
 #include <array>
-#include <span>
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
@@ -38,6 +39,16 @@ static_assert(!std::is_default_constructible_v<app_description>);
 // app_description is copyable
 static_assert(std::is_copy_constructible_v<app_description>);
 static_assert(std::is_copy_assignable_v<app_description>);
+
+// app_elf_sha256 returns the digest by value, as opaque bytes
+static_assert(std::is_same_v<decltype(std::declval<const app_description&>().app_elf_sha256()),
+                             std::array<std::byte, 32>>);
+
+// update writes take a byte view: both std::byte and uint8_t buffers are accepted
+using try_write_fn = decltype(&update::try_write);
+static_assert(std::is_invocable_r_v<result<void>, try_write_fn, update&, byte_view>);
+static_assert(std::is_invocable_v<try_write_fn, update&, const std::array<uint8_t, 4>&>);
+static_assert(std::is_invocable_v<try_write_fn, update&, const std::array<std::byte, 4>&>);
 
 // ota::errc is an error_code_enum
 static_assert(std::is_error_code_enum_v<ota::errc>);
@@ -127,6 +138,18 @@ TEST_CASE("ota partition_description for running partition", "[idfxx][ota]") {
     TEST_ASSERT_TRUE(desc_result->idf_ver().length() > 0);
 }
 
+TEST_CASE("ota app_description app_elf_sha256 matches the description", "[idfxx][ota]") {
+    auto part_result = try_running_partition();
+    TEST_ASSERT_TRUE(part_result.has_value());
+
+    auto desc_result = try_partition_description(*part_result);
+    TEST_ASSERT_TRUE(desc_result.has_value());
+
+    std::array<std::byte, 32> hash = desc_result->app_elf_sha256();
+    TEST_ASSERT_EQUAL_MEMORY(desc_result->idf_handle().app_elf_sha256, hash.data(), hash.size());
+    TEST_ASSERT_TRUE(std::ranges::any_of(hash, [](std::byte b) { return b != std::byte{0}; }));
+}
+
 TEST_CASE("ota app_partition_count returns non-zero", "[idfxx][ota]") {
     size_t count = app_partition_count();
     TEST_ASSERT_GREATER_THAN(0, count);
@@ -182,11 +205,11 @@ TEST_CASE("ota try_check_image_validity rejects unsupported partition type", "[i
 
 TEST_CASE("ota try_check_image_validity rejects too-short input", "[idfxx][ota]") {
     std::array<uint8_t, 512> buf{};
-    auto r = try_check_image_validity(partition::type::app, std::span<const uint8_t>(buf).first(16));
+    auto r = try_check_image_validity(partition::type::app, {buf.data(), 16});
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_size);
 
-    r = try_check_image_validity(partition::type::bootloader, std::span<const uint8_t>(buf).first(4));
+    r = try_check_image_validity(partition::type::bootloader, byte_view{buf}.first(4));
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_size);
 }
@@ -202,7 +225,7 @@ TEST_CASE("ota try_check_image_validity accepts the running app's leading bytes"
     // Also with an unaligned start
     std::array<uint8_t, 513> shifted{};
     std::copy(buf.begin(), buf.end(), shifted.begin() + 1);
-    r = try_check_image_validity(partition::type::app, std::span<const uint8_t>(shifted).subspan(1));
+    r = try_check_image_validity(partition::type::app, byte_view{shifted}.subspan(1));
     TEST_ASSERT_TRUE(r.has_value());
 }
 

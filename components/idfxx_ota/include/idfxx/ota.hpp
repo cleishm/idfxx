@@ -20,14 +20,15 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/partition>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <esp_app_desc.h>
 #include <esp_idf_version.h>
-#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -162,8 +163,12 @@ public:
     /** @brief Returns the secure version counter. */
     [[nodiscard]] uint32_t secure_version() const;
 
-    /** @brief Returns the SHA-256 hash of the application ELF file. */
-    [[nodiscard]] std::span<const uint8_t, 32> app_elf_sha256() const;
+    /**
+     * @brief Returns the SHA-256 hash of the application ELF file.
+     *
+     * @return The 32-byte hash.
+     */
+    [[nodiscard]] std::array<std::byte, 32> app_elf_sha256() const;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     /**
@@ -198,7 +203,7 @@ private:
  * @code
  * auto part = idfxx::ota::next_update_partition();
  * idfxx::ota::update upd(part);
- * upd.write(data.data(), data.size());
+ * upd.write(data);
  * upd.end();
  * idfxx::ota::set_boot_partition(part);
  * @endcode
@@ -431,105 +436,52 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Writes data sequentially to the OTA partition.
+     * @brief Writes image data sequentially to the OTA partition.
      *
-     * @param data Pointer to the data buffer.
-     * @param size Number of bytes to write.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void write(const void* data, size_t size);
-
-    /**
-     * @brief Writes data sequentially to the OTA partition.
-     *
-     * @param data Data to write.
+     * @param data Image bytes to write, following those already written.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write(std::span<const uint8_t> data);
+    void write(byte_view data);
 
     /**
-     * @brief Writes data at a specific offset in the OTA partition.
+     * @brief Writes image data at a specific offset in the OTA partition.
      *
      * Supports non-contiguous writes. If flash encryption is enabled,
      * data should be 16-byte aligned.
      *
      * @param offset Offset within the partition.
-     * @param data   Pointer to the data buffer.
-     * @param size   Number of bytes to write.
+     * @param data   Image bytes to write.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_with_offset(uint32_t offset, const void* data, size_t size);
-
-    /**
-     * @brief Writes data at a specific offset in the OTA partition.
-     *
-     * Supports non-contiguous writes. If flash encryption is enabled,
-     * data should be 16-byte aligned.
-     *
-     * @param offset Offset within the partition.
-     * @param data   Data to write.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void write_with_offset(uint32_t offset, std::span<const uint8_t> data);
+    void write_with_offset(uint32_t offset, byte_view data);
 #endif
 
     /**
-     * @brief Writes data sequentially to the OTA partition.
+     * @brief Writes image data sequentially to the OTA partition.
      *
-     * @param data Pointer to the data buffer.
-     * @param size Number of bytes to write.
-     *
-     * @return Success, or an error.
-     * @retval ota::errc::validate_failed if the first byte contains an invalid image magic byte.
-     */
-    [[nodiscard]] result<void> try_write(const void* data, size_t size);
-
-    /**
-     * @brief Writes data sequentially to the OTA partition.
-     *
-     * @param data Data to write.
+     * @param data Image bytes to write, following those already written.
      *
      * @return Success, or an error.
      * @retval ota::errc::validate_failed if the first byte contains an invalid image magic byte.
      */
-    [[nodiscard]] result<void> try_write(std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_write(byte_view data);
 
     /**
-     * @brief Writes data at a specific offset in the OTA partition.
+     * @brief Writes image data at a specific offset in the OTA partition.
      *
      * Supports non-contiguous writes. If flash encryption is enabled,
      * data should be 16-byte aligned.
      *
      * @param offset Offset within the partition.
-     * @param data   Pointer to the data buffer.
-     * @param size   Number of bytes to write.
+     * @param data   Image bytes to write.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void>
-    try_write_with_offset(uint32_t offset, const void* data, size_t size);
-
-    /**
-     * @brief Writes data at a specific offset in the OTA partition.
-     *
-     * Supports non-contiguous writes. If flash encryption is enabled,
-     * data should be 16-byte aligned.
-     *
-     * @param offset Offset within the partition.
-     * @param data   Data to write.
-     *
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void>
-    try_write_with_offset(uint32_t offset, std::span<const uint8_t> data);
+    [[nodiscard]] result<void> try_write_with_offset(uint32_t offset, byte_view data);
 
     // =========================================================================
     // End / Abort
@@ -623,9 +575,9 @@ void set_boot_partition(const partition& part, skip_validation_t);
  * first bytes of the image.
  *
  * @code
- * std::array<uint8_t, 512> start;
+ * std::array<std::byte, 512> start;
  * size_t n = read_download(start);  // first bytes of the image
- * auto data = std::span<const uint8_t>(start).first(n);
+ * auto data = idfxx::byte_view{start}.first(n);
  * idfxx::ota::check_image_validity(idfxx::partition::type::app, data);
  * idfxx::ota::update upd(part);
  * upd.write(data);  // write the same bytes
@@ -643,7 +595,7 @@ void set_boot_partition(const partition& part, skip_validation_t);
  *         idfxx::errc::invalid_version if the chip ID or chip revision does not match, or
  *         ota::errc::spi_mode_mismatch if the flash mode does not match.
  */
-void check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
+void check_image_validity(enum partition::type type, byte_view image_start);
 #endif
 
 /**
@@ -728,7 +680,7 @@ void check_image_validity(enum partition::type type, std::span<const uint8_t> im
  * @note Requires ESP-IDF 6.1 or later.
  */
 [[nodiscard]] result<void>
-try_check_image_validity(enum partition::type type, std::span<const uint8_t> image_start);
+try_check_image_validity(enum partition::type type, byte_view image_start);
 #endif
 
 /**

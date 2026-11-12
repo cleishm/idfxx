@@ -28,7 +28,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_ota:
-    version: "^1.1.0"
+    version: "^2.0.0"
 ```
 
 Or add `idfxx_ota` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -51,7 +51,7 @@ try {
 
     // Write firmware data in chunks
     while (auto chunk = receive_next_chunk()) {
-        upd.write(chunk.data(), chunk.size());
+        upd.write(chunk);
     }
 
     // Validate and finalize the update
@@ -91,7 +91,7 @@ auto& upd = *upd_result;
 
 // Write firmware data
 while (auto chunk = receive_next_chunk()) {
-    if (auto r = upd.try_write(chunk.data(), chunk.size()); !r) {
+    if (auto r = upd.try_write(chunk); !r) {
         return; // Destructor will abort the update
     }
 }
@@ -153,9 +153,9 @@ The component provides two API styles:
 - `update::try_resume(partition, offset, erase_size)` → `result<update>`
 
 **Session methods (both APIs):**
-- `write(data, size)` / `try_write(data, size)` - Sequential write
-- `write(span)` / `try_write(span)` - Sequential write (span overload)
-- `write_with_offset(offset, data, size)` / `try_write_with_offset(...)` - Random-access write
+- `write(byte_view)` / `try_write(byte_view)` - Sequential write
+- `write_with_offset(offset, byte_view)` / `try_write_with_offset(offset, byte_view)` -
+  Random-access write
 - `end()` / `try_end()` - Validate and finalize
 - `try_abort()` - Cancel without validation
 - `set_final_partition(part, copy)` / `try_set_final_partition(...)` - Redirect final partition
@@ -165,8 +165,8 @@ The component provides two API styles:
 - `set_boot_partition(part)` / `try_set_boot_partition(part)` - Set next boot partition
 - `set_boot_partition(part, skip_validation)` / `try_set_boot_partition(part, skip_validation)` -
   Set next boot partition without validating the image (requires ESP-IDF 6.1)
-- `check_image_validity(type, image_start)` / `try_check_image_validity(type, image_start)` - Check
-  the leading bytes of an image (chip, revision, flash mode) before updating (requires ESP-IDF 6.1)
+- `check_image_validity(type, byte_view)` / `try_check_image_validity(type, byte_view)` - Check the
+  leading bytes of an image (chip, revision, flash mode) before updating (requires ESP-IDF 6.1)
 - `boot_partition()` / `try_boot_partition()` → `partition` - Get configured boot partition
 - `running_partition()` / `try_running_partition()` → `partition` - Get running app partition
 - `next_update_partition()` / `try_next_update_partition()` → `partition` - Get next OTA slot
@@ -174,6 +174,7 @@ The component provides two API styles:
 ### App Description
 
 - `partition_description(part)` / `try_partition_description(part)` → `app_description`
+- `app_description::app_elf_sha256()` → `std::array<std::byte, 32>` - SHA-256 of the app's ELF file
 - `app_description::flash_mode()` → `image_flash_mode` - Flash mode recorded in the image (requires
   ESP-IDF 6.1)
 
