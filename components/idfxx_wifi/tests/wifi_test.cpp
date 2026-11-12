@@ -243,6 +243,26 @@ TEST_CASE("wifi try_set_sta_config rejects zero listen interval", "[idfxx][wifi]
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }
 
+TEST_CASE("wifi try_set_sta_config rejects an over-long SSID or password", "[idfxx][wifi]") {
+    auto r = try_set_sta_config({.ssid = std::string(33, 'a'), .password = ""});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::ssid);
+
+    r = try_set_sta_config({.ssid = "net", .password = std::string(65, 'a')});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::password);
+}
+
+TEST_CASE("wifi try_set_ap_config rejects an over-long SSID or password", "[idfxx][wifi]") {
+    auto r = try_set_ap_config({.ssid = std::string(33, 'a'), .password = ""});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::ssid);
+
+    r = try_set_ap_config({.ssid = "net", .password = std::string(64, 'a')});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::password);
+}
+
 TEST_CASE("wifi try_set_vendor_ie rejects malformed elements", "[idfxx][wifi]") {
     auto set = [](idfxx::byte_view ie) {
         return try_set_vendor_ie(true, vendor_ie_type::beacon, vendor_ie_id::id_0, ie);
@@ -356,6 +376,52 @@ TEST_CASE("wifi set and get sta config", "[idfxx][wifi][hw]") {
     TEST_ASSERT_TRUE(get_result.has_value());
     TEST_ASSERT_EQUAL_STRING("roundtrip_test", get_result->ssid.c_str());
     TEST_ASSERT_EQUAL(6, get_result->channel);
+
+    auto deinit_result = try_deinit();
+    TEST_ASSERT_TRUE(deinit_result.has_value());
+}
+
+TEST_CASE("wifi sta config round-trips a 32-byte SSID and a 64-digit PSK", "[idfxx][wifi][hw]") {
+    auto init_result = try_init();
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    auto mode_result = try_set_roles(role::sta);
+    TEST_ASSERT_TRUE(mode_result.has_value());
+
+    // Both fill their driver fields completely, leaving no NUL terminator
+    const std::string ssid = "abcdefghijklmnopqrstuvwxyz012345";
+    const std::string psk(64, 'f');
+    TEST_ASSERT_EQUAL(32, ssid.size());
+    auto set_result = try_set_sta_config({.ssid = ssid, .password = psk});
+    TEST_ASSERT_TRUE(set_result.has_value());
+
+    auto get_result = try_get_sta_config();
+    TEST_ASSERT_TRUE(get_result.has_value());
+    TEST_ASSERT_TRUE(get_result->ssid == ssid);
+    TEST_ASSERT_TRUE(get_result->password == psk);
+
+    auto deinit_result = try_deinit();
+    TEST_ASSERT_TRUE(deinit_result.has_value());
+}
+
+TEST_CASE("wifi ap config round-trips a 32-byte SSID", "[idfxx][wifi][hw]") {
+    auto init_result = try_init();
+    TEST_ASSERT_TRUE(init_result.has_value());
+
+    auto mode_result = try_set_roles(role::ap);
+    TEST_ASSERT_TRUE(mode_result.has_value());
+
+    const std::string ssid = "abcdefghijklmnopqrstuvwxyz012345";
+    const std::string password(63, 'p');
+    auto set_result = try_set_ap_config(
+        {.ssid = ssid, .password = password, .authmode = auth_mode::wpa2_psk}
+    );
+    TEST_ASSERT_TRUE(set_result.has_value());
+
+    auto get_result = try_get_ap_config();
+    TEST_ASSERT_TRUE(get_result.has_value());
+    TEST_ASSERT_TRUE(get_result->ssid == ssid);
+    TEST_ASSERT_TRUE(get_result->password == password);
 
     auto deinit_result = try_deinit();
     TEST_ASSERT_TRUE(deinit_result.has_value());
