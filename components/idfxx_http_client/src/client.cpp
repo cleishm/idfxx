@@ -583,6 +583,9 @@ void client::set_post_field(byte_view data) {
     );
     // ESP-IDF 6.x reports ESP_ERR_NOT_FOUND when no Content-Type header is set yet, after storing
     // the body but before applying its default content type; apply that default here instead.
+    // Fixed upstream by espressif/esp-idf@22bb11ef22 ("fix(http_client): default Content-Type for
+    // post field", master), which no release branch had as of 6.1. Remove this once every
+    // supported ESP-IDF release includes the fix; until then it is a no-op on fixed versions.
     if (err == ESP_ERR_NOT_FOUND) {
         err = esp_http_client_set_header(
             _handle, "Content-Type", "application/x-www-form-urlencoded"
