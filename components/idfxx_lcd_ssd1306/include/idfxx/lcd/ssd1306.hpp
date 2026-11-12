@@ -35,8 +35,16 @@ namespace idfxx::lcd {
  * Pixel data for draw_bitmap must be page-packed: each byte holds 8
  * vertically adjacent pixels (bit 0 topmost), and pages (rows of 8 pixels)
  * are laid out top-to-bottom. Row coordinates passed to draw_bitmap must be
- * page-aligned (multiples of 8). `idfxx::lcd::mono_framebuffer` produces this
- * layout directly.
+ * page-aligned (multiples of 8), and the data holds one byte per column per
+ * page: `(x_end - x_start) * (y_end - y_start) / 8` bytes.
+ * `idfxx::lcd::mono_framebuffer` produces this layout directly.
+ *
+ * While the axes are swapped by swap_xy, the pages run along x instead: the
+ * column coordinates passed to draw_bitmap must then be page-aligned, and the
+ * data size is unchanged. draw_bitmap fails with `idfxx::errc::invalid_arg`
+ * when the coordinates along the page axis are not multiples of 8. Writing a
+ * `mono_framebuffer` needs the axes unswapped; while they are swapped, the
+ * write fails with `idfxx::errc::invalid_state`.
  */
 class ssd1306 : public panel {
 public:
@@ -155,12 +163,14 @@ private:
         size_t height,
         esp_lcd_panel_io_handle_t queued_io
     )
-        : panel(128, height, queued_io)
+        : panel(128, height, 1, queued_io)
         , _io_handle(io_handle)
         , _handle(handle) {}
 
     // lcd::panel customization hooks.
     [[nodiscard]] esp_lcd_panel_handle_t do_idf_handle() const override;
+    [[nodiscard]] result<void>
+    do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data) override;
 
     esp_lcd_panel_io_handle_t _io_handle = nullptr;
     esp_lcd_panel_handle_t _handle = nullptr;

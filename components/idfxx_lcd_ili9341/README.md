@@ -174,12 +174,14 @@ panel.display_on(true);
 
 ### Drawing
 
-`draw_bitmap` copies RGB565 pixel data to an end-exclusive region of the display:
+`draw_bitmap` copies pixel data to an end-exclusive region of the display. The data must be
+exactly the size of the region: 2 bytes per pixel (RGB565) at the default 16 bpp, or 3 bytes per
+pixel at 18 bpp:
 
 ```cpp
-// Fill the top 40 rows with red (RGB565, byte-swapped for big-endian panel data)
-std::vector<uint16_t> band(240 * 40, 0x00F8);
-panel.draw_bitmap(0, 0, 240, 40, band.data());
+// Fill the top 40 rows with red
+std::vector<idfxx::lcd::rgb565> band(240 * 40, idfxx::lcd::rgb565(255, 0, 0));
+panel.draw_bitmap(0, 0, 240, 40, std::as_bytes(std::span{band}));
 ```
 
 ### Display Orientation Examples
@@ -227,12 +229,14 @@ esp_lcd_panel_handle_t handle = panel.idf_handle();
 - `ili9341(panel_io, config)` - Constructor (exception-based, if enabled)
 
 **Display Control:** (inherited from `panel` base class in `idfxx_lcd`)
-- `try_draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data (result-based)
+- `try_draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data, exactly the region's size
+  (result-based)
 - `try_invert_color(invert)` - Invert display colors (result-based)
 - `try_swap_xy(swap)` - Swap X and Y axes (result-based)
 - `try_mirror(mirrorX, mirrorY)` - Mirror display (result-based)
 - `try_display_on(on)` - Turn display on/off (result-based)
-- `draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data (exception-based, if enabled)
+- `draw_bitmap(xStart, yStart, xEnd, yEnd, data)` - Draw pixel data, exactly the region's size
+  (exception-based, if enabled)
 - `invert_color(invert)` - Invert display colors (exception-based, if enabled)
 - `swap_xy(swap)` - Swap X and Y axes (exception-based, if enabled)
 - `mirror(mirrorX, mirrorY)` - Mirror display (exception-based, if enabled)

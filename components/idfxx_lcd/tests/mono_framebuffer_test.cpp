@@ -13,6 +13,7 @@
 #include <utility>
 
 using namespace idfxx::lcd;
+using idfxx_lcd_test::assert_error;
 using idfxx_lcd_test::recording_panel;
 
 // =============================================================================
@@ -136,7 +137,7 @@ TEST_CASE("panel write draws the full mono frame", "[idfxx][lcd]") {
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(1);
     TEST_ASSERT_TRUE(display.try_write(*fb).has_value());
 
     TEST_ASSERT_EQUAL(1, display.draws.size());
@@ -145,13 +146,14 @@ TEST_CASE("panel write draws the full mono frame", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(128, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(64, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+    TEST_ASSERT_EQUAL(128 * 64 / 8, display.draws[0].size);
 }
 
 TEST_CASE("panel write places a mono frame at a page-aligned offset", "[idfxx][lcd]") {
     auto fb = mono_framebuffer::make(64, 16);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(1);
 
     // A band written lower down and to the right.
     TEST_ASSERT_TRUE(display.try_write(*fb, 4, 24).has_value());
@@ -161,6 +163,7 @@ TEST_CASE("panel write places a mono frame at a page-aligned offset", "[idfxx][l
     TEST_ASSERT_EQUAL(68, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+    TEST_ASSERT_EQUAL(64 * 16 / 8, display.draws[0].size);
 
     // A destination row inside a page is rejected without drawing.
     display.draws.clear();
@@ -174,7 +177,7 @@ TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(1);
 
     // Rows [26, 30) round out to pages 3 (rows 24-31): one full-width draw.
     TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30).has_value());
@@ -184,6 +187,7 @@ TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]
     TEST_ASSERT_EQUAL(128, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(32, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
+    TEST_ASSERT_EQUAL(128, display.draws[0].size);
 
     // With a destination offset, framebuffer row r lands at display row y + r.
     display.draws.clear();
@@ -194,6 +198,7 @@ TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]
     TEST_ASSERT_EQUAL(130, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
+    TEST_ASSERT_EQUAL(128, display.draws[0].size);
 
     // Invalid row ranges are rejected.
     auto empty = display.try_write_rows(*fb, 30, 30);
@@ -214,7 +219,7 @@ TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]")
     auto fb = mono_framebuffer::make(128, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(1);
 
     // Columns [3, 5) over rows [10, 26): pages 1-3 (rows 8-32), one draw each.
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 26).has_value());
@@ -226,6 +231,7 @@ TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]")
         TEST_ASSERT_EQUAL(5, display.draws[i].x_end);
         TEST_ASSERT_EQUAL((page + 1) * 8, display.draws[i].y_end);
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + page * 128 + 3, display.draws[i].data);
+        TEST_ASSERT_EQUAL(2, display.draws[i].size);
     }
 
     // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
@@ -239,12 +245,14 @@ TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]")
         TEST_ASSERT_EQUAL(15, display.draws[i].x_end);
         TEST_ASSERT_EQUAL(16 + (page + 1) * 8, display.draws[i].y_end);
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + page * 128 + 3, display.draws[i].data);
+        TEST_ASSERT_EQUAL(2, display.draws[i].size);
     }
 
     // A full-width region collapses to a single transfer.
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 0, 0, 128, 64).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(128 * 64 / 8, display.draws[0].size);
 
     // Invalid column ranges are rejected.
     auto empty = display.try_write_region(*fb, 5, 0, 5, 8);
@@ -261,10 +269,48 @@ TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]")
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), unaligned.error().value());
 }
 
+TEST_CASE("panel rejects mono writes while a 1-bpp panel's axes are swapped", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(128, 64);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display(1);
+    TEST_ASSERT_TRUE(display.try_swap_xy(true).has_value());
+
+    // The framebuffer's pages group rows, which the swapped panel can't take.
+    assert_error(display.try_write(*fb), idfxx::errc::invalid_state);
+    assert_error(display.try_write_rows(*fb, 8, 16), idfxx::errc::invalid_state);
+    assert_error(display.try_write_region(*fb, 3, 10, 5, 26), idfxx::errc::invalid_state);
+    TEST_ASSERT_EQUAL(0, display.draws.size());
+
+    // An invalid argument is still reported as such.
+    assert_error(display.try_write(*fb, 0, 4), idfxx::errc::invalid_arg);
+    TEST_ASSERT_EQUAL(0, display.draws.size());
+
+    // Unswapping the axes allows the writes again.
+    TEST_ASSERT_TRUE(display.try_swap_xy(false).has_value());
+    TEST_ASSERT_TRUE(display.try_write(*fb).has_value());
+    TEST_ASSERT_TRUE(display.try_write_rows(*fb, 8, 16).has_value());
+    TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 26).has_value());
+    TEST_ASSERT_EQUAL(1 + 1 + 3, display.draws.size());
+}
+
+TEST_CASE("panel mono write on a swapped 16-bpp panel is a format mismatch", "[idfxx][lcd]") {
+    auto fb = mono_framebuffer::make(16, 8);
+    TEST_ASSERT_TRUE(fb.has_value());
+
+    recording_panel display(16);
+    TEST_ASSERT_TRUE(display.try_swap_xy(true).has_value());
+
+    assert_error(display.try_write(*fb), idfxx::errc::invalid_size);
+    assert_error(display.try_write_rows(*fb, 0, 8), idfxx::errc::invalid_size);
+    assert_error(display.try_write_region(*fb, 2, 0, 6, 8), idfxx::errc::invalid_size);
+    TEST_ASSERT_EQUAL(0, display.draws.size());
+}
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 TEST_CASE("panel write throws on an unaligned mono destination", "[idfxx][lcd]") {
     mono_framebuffer fb(16, 8);
-    recording_panel display;
+    recording_panel display(1);
 
     display.write(fb, 0, 8); // no throw on success
     TEST_ASSERT_EQUAL(1, display.draws.size());
@@ -280,7 +326,7 @@ TEST_CASE("panel write throws on an unaligned mono destination", "[idfxx][lcd]")
 #endif
 
 TEST_CASE("panel reports native dimensions", "[idfxx][lcd]") {
-    recording_panel display;
+    recording_panel display(1);
     TEST_ASSERT_EQUAL(0, display.width());
     TEST_ASSERT_EQUAL(0, display.height());
 }

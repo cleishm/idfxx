@@ -66,8 +66,12 @@ public:
     ili9341& operator=(ili9341&& other) noexcept;
 
 private:
-    explicit ili9341(esp_lcd_panel_handle_t handle, esp_lcd_panel_io_handle_t queued_io)
-        : panel(240, 320, queued_io)
+    explicit ili9341(
+        esp_lcd_panel_handle_t handle,
+        size_t bits_per_pixel,
+        esp_lcd_panel_io_handle_t queued_io
+    )
+        : panel(240, 320, bits_per_pixel, queued_io)
         , _handle(handle) {}
 
     // lcd::panel customization hooks.

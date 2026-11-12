@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <span>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -91,7 +92,9 @@ extern "C" void app_main() {
 
         for (size_t i = 0; i < colors.size(); ++i) {
             std::ranges::fill(band, colors[i]);
-            panel.draw_bitmap(0, i * BAND_H, DISPLAY_W, (i + 1) * BAND_H, band.data());
+            panel.draw_bitmap(
+                0, i * BAND_H, DISPLAY_W, (i + 1) * BAND_H, std::as_bytes(std::span{band})
+            );
         }
 
         logger.info("Drew {} color bands", colors.size());

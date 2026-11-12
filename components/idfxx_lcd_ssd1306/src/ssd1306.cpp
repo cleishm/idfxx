@@ -105,6 +105,19 @@ esp_lcd_panel_handle_t ssd1306::do_idf_handle() const {
     return _handle;
 }
 
+result<void>
+ssd1306::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view color_data) {
+    // The controller addresses whole 8-pixel pages along y, which swapping the
+    // axes moves to x; a region splitting a page would be misaddressed.
+    const bool swapped = axes_swapped();
+    const int page_start = swapped ? x_start : y_start;
+    const int page_end = swapped ? x_end : y_end;
+    if (page_start % 8 != 0 || page_end % 8 != 0) {
+        return error(errc::invalid_arg);
+    }
+    return panel::do_draw_bitmap(x_start, y_start, x_end, y_end, color_data);
+}
+
 panel_io::i2c_config
 ssd1306::i2c_io_config(uint16_t device_address, quanta::frequency::hertz scl_speed) noexcept {
     return {

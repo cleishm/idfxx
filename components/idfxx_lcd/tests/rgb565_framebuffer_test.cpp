@@ -21,8 +21,8 @@ using idfxx_lcd_test::recording_panel;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// rgb565 is a two-byte trivially copyable value type, so arrays of it can be
-// handed to draw_bitmap directly.
+// rgb565 is a two-byte trivially copyable value type, so the bytes of arrays
+// of it can be handed to draw_bitmap directly.
 static_assert(sizeof(rgb565) == 2);
 static_assert(std::is_trivially_copyable_v<rgb565>);
 
@@ -151,7 +151,7 @@ TEST_CASE("panel write draws the full rgb565 frame at an offset", "[idfxx][lcd]"
     auto fb = rgb565_framebuffer::make(240, 40);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(16);
 
     // Default offset: top-left corner.
     TEST_ASSERT_TRUE(display.try_write(*fb).has_value());
@@ -161,6 +161,7 @@ TEST_CASE("panel write draws the full rgb565 frame at an offset", "[idfxx][lcd]"
     TEST_ASSERT_EQUAL(240, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+    TEST_ASSERT_EQUAL(240 * 40 * 2, display.draws[0].size);
 
     // A band written lower down the frame.
     display.draws.clear();
@@ -169,6 +170,7 @@ TEST_CASE("panel write draws the full rgb565 frame at an offset", "[idfxx][lcd]"
     TEST_ASSERT_EQUAL(80, display.draws[0].y_start);
     TEST_ASSERT_EQUAL(120, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+    TEST_ASSERT_EQUAL(240 * 40 * 2, display.draws[0].size);
 
     // And shifted right.
     display.draws.clear();
@@ -179,6 +181,7 @@ TEST_CASE("panel write draws the full rgb565 frame at an offset", "[idfxx][lcd]"
     TEST_ASSERT_EQUAL(250, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(47, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data(), display.draws[0].data);
+    TEST_ASSERT_EQUAL(240 * 40 * 2, display.draws[0].size);
 }
 
 TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
@@ -187,7 +190,7 @@ TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
     auto fb = rgb565_framebuffer::make(width, height);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(16);
 
     TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
@@ -196,6 +199,7 @@ TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(width, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(30, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 26 * width, display.draws[0].data);
+    TEST_ASSERT_EQUAL(4 * width * 2, display.draws[0].size);
 
     // With a destination offset, framebuffer row r lands at display row y + r.
     display.draws.clear();
@@ -206,6 +210,7 @@ TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(width + 5, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(130, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 26 * width, display.draws[0].data);
+    TEST_ASSERT_EQUAL(4 * width * 2, display.draws[0].size);
 
     // Invalid row ranges are rejected.
     auto empty = display.try_write_rows(*fb, 30, 30);
@@ -223,7 +228,7 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
     auto fb = rgb565_framebuffer::make(width, height);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    recording_panel display;
+    recording_panel display(16);
 
     // Columns [3, 5) over rows [10, 13): one draw per row.
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 13).has_value());
@@ -235,6 +240,7 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
         TEST_ASSERT_EQUAL(5, display.draws[i].x_end);
         TEST_ASSERT_EQUAL(row + 1, display.draws[i].y_end);
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + row * width + 3, display.draws[i].data);
+        TEST_ASSERT_EQUAL(2 * 2, display.draws[i].size);
     }
 
     // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
@@ -248,12 +254,14 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
         TEST_ASSERT_EQUAL(12, display.draws[i].x_end);
         TEST_ASSERT_EQUAL(20 + row + 1, display.draws[i].y_end);
         TEST_ASSERT_EQUAL_PTR(fb->data().data() + row * width + 3, display.draws[i].data);
+        TEST_ASSERT_EQUAL(2 * 2, display.draws[i].size);
     }
 
     // A full-width region collapses to a single transfer.
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 0, 0, width, height).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
+    TEST_ASSERT_EQUAL(width * height * 2, display.draws[0].size);
 
     // Offset full-width regions stay a single transfer at the destination.
     display.draws.clear();
@@ -264,6 +272,7 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
     TEST_ASSERT_EQUAL(width + 16, display.draws[0].x_end);
     TEST_ASSERT_EQUAL(40, display.draws[0].y_end);
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 4 * width, display.draws[0].data);
+    TEST_ASSERT_EQUAL(4 * width * 2, display.draws[0].size);
 
     // Invalid column ranges are rejected.
     auto empty = display.try_write_region(*fb, 5, 0, 5, 8);
@@ -276,7 +285,7 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
 }
 
 TEST_CASE("panel display dimensions follow swap_xy", "[idfxx][lcd]") {
-    recording_panel display(240, 320);
+    recording_panel display(240, 320, 16);
 
     // The native dimensions are reported until the axes are swapped.
     TEST_ASSERT_EQUAL(240, display.width());
