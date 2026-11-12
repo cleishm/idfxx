@@ -188,8 +188,17 @@ struct glyph_range {
  *
  * Text is laid out on lines: a line's top edge sits @ref ascent rows above
  * its baseline and its bottom edge @ref descent rows below; consecutive
- * lines are @ref line_height rows apart. Accents on capitals and other tall
- * marks may extend above the line's top edge.
+ * lines are @ref line_height rows apart. Ink may reach outside this line
+ * box — accents on capitals above its top edge, a `j` left of the pen — so
+ * the font also bounds its ink: with the pen at column `pen_x` on baseline
+ * row `baseline_y`, every glyph's ink lies within rows
+ * [`baseline_y - ink_ascent`, `baseline_y + ink_descent`) and columns
+ * [`pen_x + min_left_bearing`, `pen_x + advance - min_right_bearing`).
+ * Reserve `ink_ascent - ascent` rows above a line (when positive) to keep
+ * every glyph's ink inside the area being drawn, and likewise for the
+ * other edges. The bounds cover every glyph, including the
+ * @ref replacement; they need not be tight but are never too small, so
+ * renderers may skip text whose ink box misses the area being drawn.
  *
  * Code points the font has no glyph for are drawn and measured as the
  * @ref replacement glyph, when the font has one; otherwise they are
@@ -205,6 +214,14 @@ struct proportional_font {
     uint16_t descent;
     /// Rows from one line's baseline to the next (ascent + descent + line gap).
     uint16_t line_height;
+    /// Most rows any glyph's ink reaches above the baseline.
+    uint16_t ink_ascent;
+    /// Most rows any glyph's ink reaches below the baseline (the baseline row counts as below).
+    uint16_t ink_descent;
+    /// Smallest columns from the pen to any glyph's ink (negative = ink left of the pen).
+    int16_t min_left_bearing;
+    /// Smallest columns from any glyph's ink to its advance (negative = ink past the advance).
+    int16_t min_right_bearing;
     /// Covered code points, sorted ascending and non-overlapping.
     std::span<const glyph_range> ranges;
     /// Glyph table indexed by the ranges.

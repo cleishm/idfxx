@@ -63,6 +63,10 @@ Sizes are em sizes; capitals are roughly three quarters of the size tall.
 
 - Text is drawn with the line's top-left corner at the given position; the baseline sits `ascent`
   rows below it. Step lines by `line_height`.
+- Some ink reaches past the line: accents on capitals rise above its top edge at the larger sizes,
+  and a few glyphs extend a column or two left of the pen or past their advance. Each font's
+  `ink_ascent`, `ink_descent`, `min_left_bearing` and `min_right_bearing` give the room to leave
+  around text that must show in full (see `idfxx_font`).
 - The fonts are generated from `fonts/Inter-Regular.ttf` with `idfxx_font`'s
   `scripts/ttf_to_c.py`. The TTF is kept in the idfxx repository, not in the published package;
   there, `just gen-font-inter` regenerates them (set `IDFXX_FONT_PYTHON` to a Python with

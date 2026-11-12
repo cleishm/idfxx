@@ -991,6 +991,8 @@ using idfxx::font::proportional_font;
 // top, '?' (the replacement) a pixel on the baseline row, '-' a 1x1 dash
 // just above the baseline, and U+00AD an inked glyph that must never be drawn.
 constexpr uint8_t prop_bitmap[] = {
+// Its ink reaches 4 rows above the baseline (one past the line top), 2 below
+// it, and one column left of the pen.
     0xC0, 0xC0,       // 'A'
     0x80, 0x80, 0x80, // 'g'
     0x80,             // 'j'
@@ -1032,6 +1034,10 @@ constexpr proportional_font prop_font{
     .descent = 2,
     .line_height = 6,
     .ranges = prop_ranges,
+    .ink_ascent = 4,
+    .ink_descent = 2,
+    .min_left_bearing = -1,
+    .min_right_bearing = 1,
     .glyphs = prop_glyphs,
     .replacement = &prop_glyphs[1],
     .bitmap = prop_bitmap,

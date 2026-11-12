@@ -7,7 +7,9 @@
 #include "idfxx/font/inter"
 #include "unity.h"
 
+#include <algorithm>
 #include <array>
+#include <climits>
 #include <cstddef>
 
 using namespace idfxx::font;
@@ -91,6 +93,43 @@ TEST_CASE("inter fonts draw uncovered code points as '?'", "[idfxx][font]") {
         TEST_ASSERT_FALSE(font->contains(U'\u4E2D'));
         TEST_ASSERT_EQUAL_PTR(font->replacement, font->resolve(U'\u4E2D'));
         TEST_ASSERT_EQUAL(font->advance(U'?'), font->advance(U'\U0001F600'));
+    }
+}
+
+TEST_CASE("inter fonts' ink extents bound every glyph exactly", "[idfxx][font]") {
+    for (const proportional_font* font : fonts) {
+        int ascent = 0;
+        int descent = 0;
+        int left = INT_MAX;
+        int right = INT_MAX;
+        for (const glyph_metrics& g : font->glyphs) {
+            if (g.width == 0 || g.height == 0) {
+                continue; // no ink
+            }
+            const int top = -g.y_offset;
+            const int bottom = g.y_offset + g.height;
+            const int left_bearing = g.x_offset;
+            const int right_bearing = g.advance - (g.x_offset + g.width);
+            TEST_ASSERT_LESS_OR_EQUAL(font->ink_ascent, top);
+            TEST_ASSERT_LESS_OR_EQUAL(font->ink_descent, bottom);
+            TEST_ASSERT_GREATER_OR_EQUAL(font->min_left_bearing, left_bearing);
+            TEST_ASSERT_GREATER_OR_EQUAL(font->min_right_bearing, right_bearing);
+            ascent = std::max(ascent, top);
+            descent = std::max(descent, bottom);
+            left = std::min(left, left_bearing);
+            right = std::min(right, right_bearing);
+        }
+        // The replacement is drawn for every uncovered code point; it must be bounded too.
+        const glyph_metrics& r = *font->replacement;
+        TEST_ASSERT_LESS_OR_EQUAL(font->ink_ascent, -r.y_offset);
+        TEST_ASSERT_LESS_OR_EQUAL(font->ink_descent, r.y_offset + r.height);
+        TEST_ASSERT_GREATER_OR_EQUAL(font->min_left_bearing, r.x_offset);
+        TEST_ASSERT_GREATER_OR_EQUAL(font->min_right_bearing, r.advance - (r.x_offset + r.width));
+        // And the bounds are tight.
+        TEST_ASSERT_EQUAL(ascent, font->ink_ascent);
+        TEST_ASSERT_EQUAL(descent, font->ink_descent);
+        TEST_ASSERT_EQUAL(left, font->min_left_bearing);
+        TEST_ASSERT_EQUAL(right, font->min_right_bearing);
     }
 }
 
