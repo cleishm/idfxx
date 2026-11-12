@@ -21,6 +21,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/cpu>
 #include <idfxx/error>
 #include <idfxx/flags>
@@ -28,17 +29,18 @@
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
 
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <driver/spi_master.h>
 #include <esp_idf_version.h>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <quanta/frequency>
-#include <span>
 #include <string>
-#include <vector>
 
 /**
  * @headerfile <idfxx/spi/master>
@@ -155,10 +157,6 @@ enum class trans_flags : uint32_t {
     mode_qio = SPI_TRANS_MODE_QIO,
     /// Transmit/receive data in 8-bit mode.
     mode_oct = SPI_TRANS_MODE_OCT,
-    /// Receive into inline rx_data instead of rx_buffer.
-    use_rxdata = SPI_TRANS_USE_RXDATA,
-    /// Transmit inline tx_data instead of tx_buffer.
-    use_txdata = SPI_TRANS_USE_TXDATA,
     /// Use multi-line mode for address phase.
     multiline_addr = SPI_TRANS_MULTILINE_ADDR,
     /// Use multi-line mode for command phase.
@@ -169,7 +167,8 @@ enum class trans_flags : uint32_t {
     variable_addr = SPI_TRANS_VARIABLE_ADDR,
     /// Use per-transaction dummy_bits length.
     variable_dummy = SPI_TRANS_VARIABLE_DUMMY,
-    /// Keep CS active after data transfer.
+    /// Keep CS active after data transfer, so the next transaction continues the same CS cycle.
+    /// The device must be locked (see master_device::lock()) across both transactions.
     cs_keep_active = SPI_TRANS_CS_KEEP_ACTIVE,
     /// Disable automatic DMA buffer re-alignment.
     dma_buffer_align_manual = SPI_TRANS_DMA_BUFFER_ALIGN_MANUAL,
@@ -216,13 +215,22 @@ struct transaction {
     /// Address data (length set by device config or variable_addr).
     uint64_t addr = 0;
     /// Transmit buffer, or empty for no MOSI phase.
-    std::span<const uint8_t> tx_buffer = {};
+    idfxx::byte_view tx_buffer = {};
     /// Receive buffer, or empty for no MISO phase.
-    std::span<uint8_t> rx_buffer = {};
-    /// Total data length in bits.
-    size_t length = 0;
-    /// Receive length in bits (0 = same as length).
-    size_t rx_length = 0;
+    idfxx::byte_span rx_buffer = {};
+    /// Data length in bits, or std::nullopt to derive it from the buffers: 8 × `tx_buffer.size()`
+    /// bits, or with no @c tx_buffer, 8 × `rx_buffer.size()` bits on a full-duplex device (a
+    /// receive-only transfer) and 0 on a half-duplex one (no MOSI phase). On a half-duplex device
+    /// it is the length of the MOSI phase only. An explicit value must not exceed
+    /// 8 × `tx_buffer.size()` bits (when @c tx_buffer is set), and may be less, including lengths
+    /// that are not a whole number of bytes.
+    std::optional<size_t> length = std::nullopt;
+    /// Receive length in bits, or std::nullopt to derive it. On a full-duplex device it derives
+    /// to the data length, and an explicit 0 is rejected with `errc::invalid_arg`. On a
+    /// half-duplex device it is the length of the MISO phase, deriving to 8 × `rx_buffer.size()`
+    /// bits (0, no MISO phase, without an @c rx_buffer); an explicit 0 also means no MISO phase.
+    /// Must not exceed 8 × `rx_buffer.size()` bits (when @c rx_buffer is set).
+    std::optional<size_t> rx_length = std::nullopt;
     /// Override clock speed for this transaction (0 = no override).
     quanta::frequency::hertz override_freq{0};
     /// Command length for variable_cmd flag.
@@ -563,39 +571,63 @@ public:
      * device.transmit(data);
      * @endcode
      */
-    void transmit(std::span<const uint8_t> tx_data) { unwrap(try_transmit(tx_data)); }
+    void transmit(idfxx::byte_view tx_data) { unwrap(try_transmit(tx_data)); }
 
     /**
-     * @brief Receives data from the device into the provided buffer.
+     * @brief Transmits literal bytes to the device.
      *
-     * @param rx_data Buffer to receive into.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void receive(std::span<uint8_t> rx_data) { unwrap(try_receive(rx_data)); }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @param size Number of bytes to receive.
-     *
-     * @return Received data.
+     * @param tx_data Bytes to transmit.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      *
      * @code
-     * auto data = device.receive(4);
+     * device.transmit({0x9F});
      * @endcode
      */
-    [[nodiscard]] std::vector<uint8_t> receive(size_t size) { return unwrap(try_receive(size)); }
+    void transmit(std::initializer_list<uint8_t> tx_data) { unwrap(try_transmit(tx_data)); }
+
+    /**
+     * @brief Receives data from the device, filling the whole buffer.
+     *
+     * @param rx_data Buffer to receive into. Every byte of it is written.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * std::array<uint8_t, 16> buf;
+     * device.receive(buf);
+     * @endcode
+     */
+    void receive(idfxx::byte_span rx_data) { unwrap(try_receive(rx_data)); }
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive (at least 1).
+     *
+     * @return The received bytes.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * auto data = device.receive<4>();
+     * @endcode
+     */
+    template<std::size_t N>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N> receive() {
+        return unwrap(try_receive<N>());
+    }
 
     /**
      * @brief Performs a full-duplex transfer.
      *
      * @param tx_data Data to transmit.
-     * @param rx_data Buffer for received data (must be same size as tx_data).
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -606,7 +638,26 @@ public:
      * device.transfer(tx, rx);
      * @endcode
      */
-    void transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+    void transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data) {
+        unwrap(try_transfer(tx_data, rx_data));
+    }
+
+    /**
+     * @brief Performs a full-duplex transfer of literal bytes.
+     *
+     * @param tx_data Bytes to transmit.
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * std::array<uint8_t, 4> rx;
+     * device.transfer({0x9F, 0x00, 0x00, 0x00}, rx);
+     * @endcode
+     */
+    void transfer(std::initializer_list<uint8_t> tx_data, idfxx::byte_span rx_data) {
         unwrap(try_transfer(tx_data, rx_data));
     }
 #endif
@@ -618,36 +669,66 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_transmit(std::span<const uint8_t> tx_data);
+    [[nodiscard]] result<void> try_transmit(idfxx::byte_view tx_data);
 
     /**
-     * @brief Receives data from the device into the provided buffer.
+     * @brief Transmits literal bytes to the device.
      *
-     * @param rx_data Buffer to receive into.
+     * @param tx_data Bytes to transmit.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_receive(std::span<uint8_t> rx_data);
+    [[nodiscard]] result<void> try_transmit(std::initializer_list<uint8_t> tx_data) {
+        return try_transmit(idfxx::byte_view(tx_data));
+    }
 
     /**
-     * @brief Receives data from the device.
+     * @brief Receives data from the device, filling the whole buffer.
      *
-     * @param size Number of bytes to receive.
+     * @param rx_data Buffer to receive into. Every byte of it is written on success.
      *
-     * @return Received data, or an error.
+     * @return Success, or an error.
      */
-    [[nodiscard]] result<std::vector<uint8_t>> try_receive(size_t size);
+    [[nodiscard]] result<void> try_receive(idfxx::byte_span rx_data);
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive (at least 1).
+     *
+     * @return The received bytes, or an error.
+     */
+    template<std::size_t N>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_receive() {
+        std::array<uint8_t, N> buf{};
+        return try_receive(buf).transform([&]() { return buf; });
+    }
 
     /**
      * @brief Performs a full-duplex transfer.
      *
      * @param tx_data Data to transmit.
-     * @param rx_data Buffer for received data (must be same size as tx_data).
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written on success.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data);
+
+    /**
+     * @brief Performs a full-duplex transfer of literal bytes.
+     *
+     * @param tx_data Bytes to transmit.
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written on success.
      *
      * @return Success, or an error.
      */
     [[nodiscard]] result<void>
-    try_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
+    try_transfer(std::initializer_list<uint8_t> tx_data, idfxx::byte_span rx_data) {
+        return try_transfer(idfxx::byte_view(tx_data), rx_data);
+    }
 
     // =========================================================================
     // Full transaction API (blocking)
@@ -689,50 +770,94 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void polling_transmit(std::span<const uint8_t> tx_data) {
+    void polling_transmit(idfxx::byte_view tx_data) { unwrap(try_polling_transmit(tx_data)); }
+
+    /**
+     * @brief Transmits literal bytes using polling (busy-wait).
+     *
+     * @param tx_data Bytes to transmit.
+     *
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * device.polling_transmit({0x06});
+     * @endcode
+     */
+    void polling_transmit(std::initializer_list<uint8_t> tx_data) {
         unwrap(try_polling_transmit(tx_data));
     }
 
     /**
-     * @brief Receives data using polling (busy-wait).
+     * @brief Receives data using polling (busy-wait), filling the whole buffer.
      *
-     * @param rx_data Buffer to receive into.
+     * @param rx_data Buffer to receive into. Every byte of it is written.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void polling_receive(std::span<uint8_t> rx_data) { unwrap(try_polling_receive(rx_data)); }
+    void polling_receive(idfxx::byte_span rx_data) { unwrap(try_polling_receive(rx_data)); }
 
     /**
-     * @brief Receives data using polling (busy-wait).
+     * @brief Receives a fixed number of bytes using polling (busy-wait).
      *
-     * @param size Number of bytes to receive.
+     * @tparam N Number of bytes to receive (at least 1).
      *
-     * @return Received data.
+     * @return The received bytes.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
+     *
+     * @code
+     * auto status = device.polling_receive<2>();
+     * @endcode
      */
-    [[nodiscard]] std::vector<uint8_t> polling_receive(size_t size) {
-        return unwrap(try_polling_receive(size));
+    template<std::size_t N>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N> polling_receive() {
+        return unwrap(try_polling_receive<N>());
     }
 
     /**
      * @brief Performs a full-duplex transfer using polling (busy-wait).
      *
      * @param tx_data Data to transmit.
-     * @param rx_data Buffer for received data (must be same size as tx_data).
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data) {
+    void polling_transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data) {
+        unwrap(try_polling_transfer(tx_data, rx_data));
+    }
+
+    /**
+     * @brief Performs a full-duplex transfer of literal bytes using polling (busy-wait).
+     *
+     * @param tx_data Bytes to transmit.
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written.
+     *
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure.
+     *
+     * @code
+     * std::array<uint8_t, 2> rx;
+     * device.polling_transfer({0x05, 0x00}, rx);
+     * @endcode
+     */
+    void polling_transfer(std::initializer_list<uint8_t> tx_data, idfxx::byte_span rx_data) {
         unwrap(try_polling_transfer(tx_data, rx_data));
     }
 
@@ -759,37 +884,57 @@ public:
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_polling_transmit(std::span<const uint8_t> tx_data);
+    [[nodiscard]] result<void> try_polling_transmit(idfxx::byte_view tx_data);
 
     /**
-     * @brief Receives data using polling (busy-wait).
+     * @brief Transmits literal bytes using polling (busy-wait).
      *
-     * @param rx_data Buffer to receive into.
+     * @param tx_data Bytes to transmit.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_polling_receive(std::span<uint8_t> rx_data);
+    [[nodiscard]] result<void> try_polling_transmit(std::initializer_list<uint8_t> tx_data) {
+        return try_polling_transmit(idfxx::byte_view(tx_data));
+    }
 
     /**
-     * @brief Receives data using polling (busy-wait).
+     * @brief Receives data using polling (busy-wait), filling the whole buffer.
      *
-     * @param size Number of bytes to receive.
+     * @param rx_data Buffer to receive into. Every byte of it is written on success.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
      *
-     * @return Received data, or an error.
+     * @return Success, or an error.
      */
-    [[nodiscard]] result<std::vector<uint8_t>> try_polling_receive(size_t size);
+    [[nodiscard]] result<void> try_polling_receive(idfxx::byte_span rx_data);
+
+    /**
+     * @brief Receives a fixed number of bytes using polling (busy-wait).
+     *
+     * @tparam N Number of bytes to receive (at least 1).
+     *
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
+     *
+     * @return The received bytes, or an error.
+     */
+    template<std::size_t N>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_polling_receive() {
+        std::array<uint8_t, N> buf{};
+        return try_polling_receive(buf).transform([&]() { return buf; });
+    }
 
     /**
      * @brief Performs a full-duplex transfer using polling (busy-wait).
      *
      * @param tx_data Data to transmit.
-     * @param rx_data Buffer for received data (must be same size as tx_data).
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written on success.
      *
      * @note Serialized against other polling calls and lock(). Hold the
      * device lock across multi-transaction sequences that must be atomic.
@@ -797,7 +942,24 @@ public:
      * @return Success, or an error.
      */
     [[nodiscard]] result<void>
-    try_polling_transfer(std::span<const uint8_t> tx_data, std::span<uint8_t> rx_data);
+    try_polling_transfer(idfxx::byte_view tx_data, idfxx::byte_span rx_data);
+
+    /**
+     * @brief Performs a full-duplex transfer of literal bytes using polling (busy-wait).
+     *
+     * @param tx_data Bytes to transmit.
+     * @param rx_data Buffer for received data (must be same size as tx_data). Every byte of it is
+     *                written on success.
+     *
+     * @note Serialized against other polling calls and lock(). Hold the
+     * device lock across multi-transaction sequences that must be atomic.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void>
+    try_polling_transfer(std::initializer_list<uint8_t> tx_data, idfxx::byte_span rx_data) {
+        return try_polling_transfer(idfxx::byte_view(tx_data), rx_data);
+    }
 
     /**
      * @brief Executes a full-control transaction using polling (busy-wait).
@@ -917,10 +1079,20 @@ public:
      * idf_handle(), bypassing this API). When
      * CONFIG_COMPILER_CXX_EXCEPTIONS is disabled, this aborts instead.
      *
+     * Each transaction is its own CS cycle: CS is released when it completes unless it sets
+     * trans_flags::cs_keep_active, which requires holding the lock.
+     *
      * @code
+     * std::array<uint8_t, 1> cmd = {0x9F};
+     * std::array<uint8_t, 3> id;
+     *
      * std::lock_guard lk(device);
-     * device.polling_transmit(cmd);
-     * device.polling_receive(response);
+     * // Keep CS asserted after the command so the reply is read in the same CS cycle
+     * device.polling_transmit(spi::transaction{
+     *     .flags = spi::trans_flags::cs_keep_active,
+     *     .tx_buffer = cmd,
+     * });
+     * device.polling_receive(id);
      * @endcode
      */
     void lock() const;
@@ -950,14 +1122,19 @@ private:
     // device's lifetime.
     struct async_state;
 
-    explicit master_device(master_bus* bus, spi_device_handle_t handle, size_t queue_size);
+    explicit master_device(
+        master_bus* bus,
+        spi_device_handle_t handle,
+        size_t queue_size,
+        bool half_duplex
+    );
 
     void _delete() noexcept;
 
     using _trans_fn = esp_err_t (*)(spi_device_handle_t, spi_transaction_t*);
 
     [[nodiscard]] result<void>
-    _simple_trans(std::span<const uint8_t> tx, std::span<uint8_t> rx, _trans_fn fn);
+    _simple_trans(idfxx::byte_view tx, idfxx::byte_span rx, _trans_fn fn);
     [[nodiscard]] result<void> _full_trans(const transaction& trans, _trans_fn fn);
 
     [[nodiscard]] result<idfxx::future<void>>
@@ -970,8 +1147,11 @@ private:
     [[nodiscard]] result<uint16_t> _acquire_slot(std::optional<std::chrono::milliseconds> timeout);
     void _release_slot(uint16_t slot_idx) noexcept;
 
-    static void _prepare_idf_trans(spi_transaction_t& idf_trans, const transaction& trans);
-    static void _prepare_idf_trans_ext(spi_transaction_ext_t& idf_ext, const transaction& trans);
+    [[nodiscard]] size_t _data_bits(const transaction& trans) const;
+    [[nodiscard]] size_t _rx_bits(const transaction& trans) const;
+    [[nodiscard]] result<void> _validate_trans(const transaction& trans) const;
+    void _prepare_idf_trans(spi_transaction_t& idf_trans, const transaction& trans) const;
+    void _prepare_idf_trans_ext(spi_transaction_ext_t& idf_ext, const transaction& trans) const;
 
     master_bus* _bus = nullptr;
     spi_device_handle_t _handle = nullptr;
