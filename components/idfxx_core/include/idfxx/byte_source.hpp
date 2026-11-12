@@ -31,6 +31,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 
 #include <algorithm>
@@ -46,9 +47,11 @@ namespace idfxx {
  * @headerfile <idfxx/byte_source>
  * @brief A sequential source of bytes.
  *
- * A type models `byte_source` if it provides
- * `try_read(std::span<uint8_t> buf)` returning `idfxx::result<size_t>`. Each
- * call reads the next bytes of the stream into the front of @p buf:
+ * A type models `byte_source` if it provides a `try_read(buf)` that accepts an
+ * `idfxx::mutable_byte_view` and returns `idfxx::result<size_t>`. The parameter
+ * may be a `mutable_byte_view`, or any type one converts to:
+ * `std::span<std::byte>` or `std::span<uint8_t>`. Each call reads the next
+ * bytes of the stream into the front of @p buf:
  *
  * - It reads at most `buf.size()` bytes and returns how many it read.
  * - For a non-empty @p buf, a return of 0 means the end of the stream has been
@@ -63,19 +66,19 @@ namespace idfxx {
  * - A failure is returned as an error; the source's error codes are passed
  *   through unchanged.
  *
- * Sources typically also provide a throwing `read(std::span<uint8_t>)` with
- * the same semantics, but generic code that accepts any `byte_source` can rely
- * only on `try_read`.
+ * Sources typically also provide a throwing `read(buf)` with the same
+ * semantics, but generic code that accepts any `byte_source` can rely only on
+ * `try_read`, called with a `mutable_byte_view`.
  *
  * @tparam T The type to check.
  *
  * @code
  * // Counts the bytes in any byte source.
  * idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
- *     std::array<uint8_t, 64> buf{};
+ *     std::array<std::byte, 64> buf{};
  *     size_t total = 0;
  *     while (true) {
- *         auto n = src.try_read(buf);
+ *         auto n = src.try_read(idfxx::mutable_byte_view{buf});
  *         if (!n) {
  *             return idfxx::error(n.error());
  *         }
@@ -88,7 +91,7 @@ namespace idfxx {
  * @endcode
  */
 template<typename T>
-concept byte_source = requires(T& s, std::span<uint8_t> buf) {
+concept byte_source = requires(T& s, mutable_byte_view buf) {
     { s.try_read(buf) } -> std::same_as<result<size_t>>;
 };
 
@@ -118,7 +121,7 @@ public:
      *
      * @param data The bytes to read. Must remain valid while the source is in use.
      */
-    explicit memory_source(std::span<const uint8_t> data) noexcept
+    explicit memory_source(byte_view data) noexcept
         : _data(data) {}
 
     /**
@@ -143,7 +146,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error Never thrown: reading from memory cannot fail.
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(mutable_byte_view buf) { return unwrap(try_read(buf)); }
 #endif
 
     /**
@@ -157,7 +160,7 @@ public:
      * @return The number of bytes read; 0 for a non-empty @p buf once the end
      *         of the data has been reached. Never returns an error.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf) noexcept {
+    [[nodiscard]] result<size_t> try_read(mutable_byte_view buf) noexcept {
         const size_t n = std::min(buf.size(), _data.size());
         std::copy_n(_data.begin(), n, buf.begin());
         _data = _data.subspan(n);
@@ -165,7 +168,7 @@ public:
     }
 
 private:
-    std::span<const uint8_t> _data;
+    byte_view _data;
 };
 
 /**
@@ -221,7 +224,7 @@ public:
      * @throws std::system_error if the stream reports a read error and no
      *         bytes could be read.
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(mutable_byte_view buf) { return unwrap(try_read(buf)); }
 #endif
 
     /**
@@ -238,7 +241,7 @@ public:
      *         in `std::generic_category()` holding the `errno` value the
      *         stream reported, or `EIO` if it reported none.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(mutable_byte_view buf);
 
 private:
     FILE* _file;

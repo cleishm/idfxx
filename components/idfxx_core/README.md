@@ -16,6 +16,8 @@ allocators, and chrono utilities for modern C++ ESP-IDF development.
 - **System information** — reset reason, restart, shutdown handlers
 - **Application metadata** — version, project name, build timestamps, ELF hash
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
+- **Byte views** — `byte_view` and `mutable_byte_view`, non-owning views that accept any `std::byte`
+  or `uint8_t` buffer, so one API serves callers holding either
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
   in-memory and `FILE*` sources
 - **Required config fields** — `required<T>` makes a configuration-struct field mandatory at compile
@@ -195,11 +197,43 @@ memory::walk(memory::capabilities::default_heap, [](memory::region rgn, memory::
 bool ok = memory::check_integrity();
 ```
 
+### Byte Views
+
+`idfxx::byte_view` (read-only) and `idfxx::mutable_byte_view` (writable) are non-owning views of
+contiguous bytes. An API that takes one accepts whatever the caller holds: a `std::array`,
+`std::vector`, `std::span` or built-in array of `std::byte` or `uint8_t`, the bytes of any object, a
+pointer and a length, or (for `byte_view`) a braced list of byte values. Ranges of `char` are not
+accepted, so a string literal never silently includes its terminating NUL:
+
+```cpp
+#include <idfxx/byte_view>
+
+void send(idfxx::byte_view data);
+size_t receive(idfxx::mutable_byte_view buf);
+
+std::array<uint8_t, 4> header{0xDE, 0xAD, 0xBE, 0xEF};
+std::vector<std::byte> payload = load_payload();
+struct { uint32_t time; int16_t value; } reading{};
+
+send(header);
+send(payload);
+send(std::as_bytes(std::span{&reading, 1})); // the bytes of any object
+send({0x01, 0xAE});                           // literal bytes
+
+std::array<std::byte, 64> buf{};
+size_t n = receive(buf);
+send(idfxx::byte_view{buf}.first(n));
+```
+
+A view does not extend the lifetime of what it refers to, so use it as a function parameter. A
+`mutable_byte_view` rejects const buffers and temporary containers.
+
 ### Byte Sources
 
-`idfxx::byte_source` is satisfied by anything with `result<size_t> try_read(std::span<uint8_t>)`, so
-a consumer written against it accepts in-memory data, files, partitions (`idfxx::partition_source`),
-network streams, and HTTP response bodies alike:
+`idfxx::byte_source` is satisfied by anything with a `result<size_t> try_read(...)` that accepts an
+`idfxx::mutable_byte_view` (a `std::span<uint8_t>` or `std::span<std::byte>` parameter qualifies),
+so a consumer written against it accepts in-memory data, files, partitions
+(`idfxx::partition_source`), network streams, and HTTP response bodies alike:
 
 ```cpp
 #include <idfxx/byte_source>
@@ -220,7 +254,8 @@ while (size_t n = file.read(buf)) {
 std::fclose(f);
 ```
 
-Generic code that accepts any byte source relies only on `try_read`:
+Generic code that accepts any byte source relies only on `try_read`, called with a
+`mutable_byte_view`:
 
 ```cpp
 #include <idfxx/byte_source>
@@ -229,7 +264,7 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
     std::array<uint8_t, 64> buf{};
     size_t total = 0;
     while (true) {
-        auto n = src.try_read(buf);
+        auto n = src.try_read(idfxx::mutable_byte_view{buf});
         if (!n) {
             return idfxx::error(n.error());
         }
@@ -345,15 +380,25 @@ be moved out with `std::move(cfg.callback).get()`.
 ### Random Numbers (`<idfxx/random>`)
 
 - `random()` - Hardware-generated random 32-bit value
-- `fill_random(span)` - Fill a buffer with random bytes
+- `fill_random(mutable_byte_view)` - Fill a buffer of `std::byte` or `uint8_t` with random bytes
 - `random_device` - `UniformRandomBitGenerator` for use with standard distributions
+
+### Byte Views (`<idfxx/byte_view>`)
+
+- `byte_view` - Read-only view of contiguous bytes; built from any contiguous range of `std::byte`
+  or `uint8_t`, a pointer and length, or a braced list of byte values; converts to
+  `std::span<const std::byte>` and `std::span<const uint8_t>`
+- `mutable_byte_view` - Writable view; built from lvalue ranges of non-const bytes or a pointer and
+  length; converts to `byte_view` and to spans of `std::byte` or `uint8_t`, const or not
+- `data()` / `size()` / `first(n)` / `last(n)` / `subspan(offset, count)` - Span-style access and
+  slicing
 
 ### Byte Sources (`<idfxx/byte_source>`)
 
-- `byte_source` - Concept for types with `try_read(std::span<uint8_t>)` → `result<size_t>`; returns
-  the bytes read, with 0 (for a non-empty buffer) meaning end of stream, after which callers stop
-  reading
-- `memory_source` - Reads a caller-owned `std::span<const uint8_t>`; `remaining()` reports the bytes
+- `byte_source` - Concept for types with a `try_read` accepting a `mutable_byte_view` and returning
+  `result<size_t>`; returns the bytes read, with 0 (for a non-empty buffer) meaning end of stream,
+  after which callers stop reading
+- `memory_source` - Reads caller-owned bytes given as a `byte_view`; `remaining()` reports the bytes
   left
 - `file_source` - Reads an open `FILE*` (not owned) from its current position
 - `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
