@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "detail/error.hpp"
+
 #include <idfxx/net/error>
 
 #include <errno.h>

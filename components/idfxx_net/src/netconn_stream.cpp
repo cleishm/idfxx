@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "detail/error.hpp"
 #include "detail/ip_addr.hpp"
 #include "detail/netconn.hpp"
 

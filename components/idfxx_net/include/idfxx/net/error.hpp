@@ -162,47 +162,6 @@ namespace idfxx::net {
     return {std::to_underlying(e), net_category()};
 }
 
-/** @cond INTERNAL */
-
-/**
- * @brief Translates a POSIX errno value to an `idfxx::net` error code.
- *
- * Used internally by the socket implementation. Maps common errno values
- * onto the matching `errc` enumerator; falls back to `errc::io_error`.
- * `ENOMEM` and `ENOBUFS` map to `errc::no_buffer_space` so PBUF/transient
- * memory pressure surfaces as a recoverable error rather than a fatal raise.
- *
- * @param errno_value The errno value (positive integer).
- * @return The corresponding `std::error_code`.
- */
-[[nodiscard]] std::error_code errno_to_error_code(int errno_value) noexcept;
-
-/**
- * @brief Translates an lwIP `err_t` value to an `idfxx::net` error code.
- *
- * Used internally by the netconn implementation. Maps `ERR_*` values onto
- * the matching `errc` enumerator. `ERR_MEM` maps to `errc::no_buffer_space`
- * so PBUF/transient memory pressure surfaces as a recoverable error rather
- * than a fatal raise.
- *
- * @param err_t_value The lwIP `err_t` value (negative on error).
- * @return The corresponding `std::error_code`.
- */
-[[nodiscard]] std::error_code lwip_err_to_error_code(int err_t_value) noexcept;
-
-/**
- * @brief Translates a `getaddrinfo` `EAI_*` value to an `idfxx::net` error code.
- *
- * Used internally by the resolver implementation. `EAI_MEMORY` maps to
- * `errc::no_buffer_space`.
- *
- * @param gai The `EAI_*` value.
- * @return The corresponding `std::error_code`.
- */
-[[nodiscard]] std::error_code gai_to_error_code(int gai) noexcept;
-
-/** @endcond */
-
 } // namespace idfxx::net
 
 /// @cond INTERNAL

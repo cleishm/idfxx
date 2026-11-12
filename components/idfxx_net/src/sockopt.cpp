@@ -3,6 +3,8 @@
 
 #include "detail/sockopt.hpp"
 
+#include "detail/error.hpp"
+
 #include <cstring>
 #include <errno.h>
 #include <fcntl.h>
