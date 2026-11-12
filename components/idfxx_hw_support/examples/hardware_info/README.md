@@ -11,7 +11,7 @@ Prints the chip model, revision, features and MAC addresses.
 - Reading the MAC address for each interface with `idfxx::read_mac()` and `idfxx::mac_type`,
   skipping the Wi-Fi and Bluetooth addresses on chips without them (`SOC_WIFI_SUPPORTED`,
   `CONFIG_ESP_MAC_ADDR_UNIVERSE_BT`)
-- Printing MAC addresses directly, and reading their individual bytes with `bytes()`
+- Printing MAC addresses directly, and printing their raw bytes with `bytes()` and `idfxx::hex`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).

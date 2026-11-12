@@ -9,7 +9,7 @@ Stores and reads back values in non-volatile storage (NVS) with `idfxx::nvs`.
 - Storing and reading integers of different sizes with `set_value()` and `get_value()`
 - Storing and reading strings with `set_string()` and `get_string()`
 - Storing binary data with `set_blob()`, reading it into a buffer with `get_blob()`, and checking
-  its stored size with `blob_size()`
+  its stored size with `blob_size()`, then printing the bytes with `idfxx::hex`
 - Saving changes with `commit()`, and removing keys with `erase()` and `erase_all()`
 - Catching the error from reading a key that doesn't exist
 - Opening a namespace read-only, and catching the error from writing to it
