@@ -14,8 +14,10 @@
 
 #include <array>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 using namespace quanta::electro_literals;
 using namespace idfxx::radio;
@@ -54,6 +56,68 @@ static_assert(std::is_same_v<decltype(&sx126x::try_adopt_pending), idfxx::result
 
 // Chip-presence verification is inherited from the chip-agnostic interface.
 static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_probe()), idfxx::result<void>>);
+
+// The opcode escape hatch takes byte views, plus literal-byte overloads for command and register
+// writes; reads fill a caller's writable buffer.
+static_assert(std::is_same_v<
+              decltype(std::declval<sx126x&>().try_write_command(uint8_t{0x8F}, {0x00, 0x00})),
+              idfxx::result<void>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<sx126x&>().try_write_register(uint16_t{0x08AC}, {0x96})),
+              idfxx::result<void>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<sx126x&>()
+                           .try_write_buffer(uint8_t{0}, std::declval<const std::array<std::byte, 4>&>())),
+              idfxx::result<void>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<sx126x&>()
+                           .try_read_register(uint16_t{0x0740}, std::declval<std::array<uint8_t, 2>&>())),
+              idfxx::result<void>>);
+template<typename T>
+concept command_readable = requires(sx126x& r, T&& t) { r.try_read_command(uint8_t{0x15}, std::forward<T>(t)); };
+static_assert(command_readable<std::array<uint8_t, 3>&>);
+static_assert(!command_readable<std::array<uint8_t, 3>>);
+static_assert(!command_readable<const std::array<uint8_t, 3>&>);
+
+// Single-register forms sit beside the multi-byte ones without ambiguity: a scalar picks the
+// single-byte write, a braced list (even of one element) the literal-bytes write, and reads are
+// told apart by arity and template arguments.
+static_assert(requires(sx126x& r) { r.try_write_register(uint16_t{0x08AC}, uint8_t{0x96}); });
+static_assert(requires(sx126x& r) { r.try_write_register(0x08AC, 0x96); });
+static_assert(requires(sx126x& r) { r.try_write_register(0x08AC, {0x96}); });
+static_assert(requires(sx126x& r) { r.try_write_register(0x08AC, {0x34, 0x44}); });
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_read_register(uint16_t{0x08AC})),
+                             idfxx::result<uint8_t>>);
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_read_register<2>(uint16_t{0x0740})),
+                             idfxx::result<std::array<uint8_t, 2>>>);
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_read_command<3>(uint8_t{0x14})),
+                             idfxx::result<std::array<uint8_t, 3>>>);
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(requires(sx126x& r) { r.write_register(0x08AC, 0x96); });
+static_assert(requires(sx126x& r) { r.write_register(0x08AC, {0x96}); });
+static_assert(requires(sx126x& r) { r.write_register(0x08AC, {0x34, 0x44}); });
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().read_register(uint16_t{0x08AC})), uint8_t>);
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().read_register<2>(uint16_t{0x0740})),
+                             std::array<uint8_t, 2>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<sx126x&>()
+                           .read_register(uint16_t{0x0740}, std::declval<std::array<uint8_t, 2>&>())),
+              void>);
+static_assert(std::is_same_v<decltype(std::declval<sx126x&>().read_command<3>(uint8_t{0x14})),
+                             std::array<uint8_t, 3>>);
+#endif
+
+// Fixed-size reads are bounded at compile time by what fits in one frame.
+template<size_t N>
+concept register_array_readable = requires(sx126x& r) { r.try_read_register<N>(uint16_t{0}); };
+static_assert(!register_array_readable<0>);
+static_assert(register_array_readable<256>);
+static_assert(!register_array_readable<257>);
+template<size_t N>
+concept command_array_readable = requires(sx126x& r) { r.try_read_command<N>(uint8_t{0}); };
+static_assert(!command_array_readable<0>);
+static_assert(command_array_readable<259>);
+static_assert(!command_array_readable<260>);
 
 // irq_flag has the documented bit layout.
 static_assert(std::to_underlying(sx126x::irq_flag::tx_done) == (1 << 0));
@@ -308,4 +372,63 @@ TEST_CASE("sx126x::try_probe with no chip attached reports not_found", "[idfxx][
     auto probed = radio->try_probe();
     TEST_ASSERT_FALSE(probed.has_value());
     TEST_ASSERT_TRUE(probed.error() == idfxx::errc::not_found);
+}
+
+TEST_CASE("sx126x escape hatch rejects frames longer than one transfer", "[idfxx][radio][sx126x][hw]") {
+    isr_service_guard isr;
+    auto bus = make_unpopulated_bus();
+    // A warm start issues no SPI traffic, and oversized frames are rejected
+    // before any transfer, so no chip is needed.
+    auto cfg = no_chip_config();
+    cfg.warm_start = true;
+    auto radio = sx126x::make(bus, cfg);
+    TEST_ASSERT_TRUE(radio.has_value());
+
+    std::array<std::byte, 300> big{};
+    auto wc = radio->try_write_command(0x8F, big);
+    TEST_ASSERT_FALSE(wc.has_value());
+    TEST_ASSERT_TRUE(wc.error() == idfxx::errc::invalid_arg);
+    auto rc = radio->try_read_command(0x15, big);
+    TEST_ASSERT_FALSE(rc.has_value());
+    TEST_ASSERT_TRUE(rc.error() == idfxx::errc::invalid_arg);
+    auto wr = radio->try_write_register(0x0740, big);
+    TEST_ASSERT_FALSE(wr.has_value());
+    TEST_ASSERT_TRUE(wr.error() == idfxx::errc::invalid_arg);
+    auto rr = radio->try_read_register(0x0740, big);
+    TEST_ASSERT_FALSE(rr.has_value());
+    TEST_ASSERT_TRUE(rr.error() == idfxx::errc::invalid_arg);
+    auto wb = radio->try_write_buffer(0, big);
+    TEST_ASSERT_FALSE(wb.has_value());
+    TEST_ASSERT_TRUE(wb.error() == idfxx::errc::invalid_arg);
+    auto rb = radio->try_read_buffer(0, big);
+    TEST_ASSERT_FALSE(rb.has_value());
+    TEST_ASSERT_TRUE(rb.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("sx126x buffer access is limited to the 256-byte data buffer", "[idfxx][radio][sx126x][hw]") {
+    isr_service_guard isr;
+    auto bus = make_unpopulated_bus();
+    // A warm start issues no SPI traffic, and oversized accesses are rejected
+    // before any transfer, so no chip is needed. The accepted full-buffer
+    // accesses below clock their frames onto the unpopulated bus.
+    auto cfg = no_chip_config();
+    cfg.warm_start = true;
+    auto radio = sx126x::make(bus, cfg);
+    TEST_ASSERT_TRUE(radio.has_value());
+
+    // 257 bytes still fit one frame, but not the chip's data buffer.
+    std::array<std::byte, 257> over{};
+    auto wb = radio->try_write_buffer(0, over);
+    TEST_ASSERT_FALSE(wb.has_value());
+    TEST_ASSERT_TRUE(wb.error() == idfxx::errc::invalid_arg);
+    auto rb = radio->try_read_buffer(0, over);
+    TEST_ASSERT_FALSE(rb.has_value());
+    TEST_ASSERT_TRUE(rb.error() == idfxx::errc::invalid_arg);
+
+    // The full buffer is accepted, from any offset.
+    std::array<std::byte, 256> full{};
+    auto wf = radio->try_write_buffer(0x80, full);
+    TEST_ASSERT_FALSE(!wf.has_value() && wf.error() == idfxx::errc::invalid_arg);
+    auto rf = radio->try_read_buffer(0x80, full);
+    TEST_ASSERT_FALSE(!rf.has_value() && rf.error() == idfxx::errc::invalid_arg);
 }

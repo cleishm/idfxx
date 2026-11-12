@@ -24,7 +24,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <span>
 
 namespace idfxx::radio::sx126x_internal {
 
@@ -175,6 +174,10 @@ struct tx_power_config {
 /// truncated.
 inline constexpr size_t max_frame = 260;
 
+/// Size of the chip's data buffer; the most a single WriteBuffer/ReadBuffer
+/// may transfer.
+inline constexpr size_t data_buffer_size = 256;
+
 /// High-level driver activity, distinct from the chip's hardware mode.
 enum class driver_activity : uint8_t {
     idle,
@@ -210,7 +213,7 @@ struct op_latch {
     std::atomic<int32_t> error{0};  ///< errc value; 0 = success.
     rx_info rx{};                   ///< Receive result (written before `done`, read after).
     bool cad_detected = false;      ///< Channel-scan result (written before `done`, read after).
-    std::span<uint8_t> rx_target{}; ///< Caller's buffer (single-shot receive only); cleared on cancel.
+    byte_span rx_target{};  ///< Caller's buffer (single-shot receive only); cleared on cancel.
 
     /// Publishes the operation result and wakes every waiter. The result
     /// fields (`rx`, `cad_detected`) must be written before this is called;
@@ -281,7 +284,7 @@ struct sx126x::state {
     // worker commits it.
     struct rx_slot {
         rx_info info{};
-        std::array<uint8_t, 256> buf{};
+        std::array<std::byte, 256> buf{};
     };
     static constexpr size_t rx_ring_slots = 4;
     std::array<rx_slot, rx_ring_slots> rx_ring{};
@@ -329,27 +332,27 @@ struct sx126x::state {
     /// that fails. Requires `spi_mu` held.
     [[nodiscard]] result<void> wait_busy_waking();
 
-    /// Full-duplex transfer of equal-length tx/rx spans.
-    [[nodiscard]] result<void> transfer(std::span<const uint8_t> tx, std::span<uint8_t> rx);
+    /// Full-duplex transfer of equal-length tx/rx buffers.
+    [[nodiscard]] result<void> transfer(byte_view tx, byte_span rx);
     /// Half-duplex transmit.
-    [[nodiscard]] result<void> transmit(std::span<const uint8_t> tx);
+    [[nodiscard]] result<void> transmit(byte_view tx);
 
     /// Single-opcode command, no parameters.
     [[nodiscard]] result<void> command(uint8_t opcode);
     /// Opcode + one parameter byte.
     [[nodiscard]] result<void> command1(uint8_t opcode, uint8_t param);
     /// Opcode + parameter bytes.
-    [[nodiscard]] result<void> write_command(uint8_t opcode, std::span<const uint8_t> params);
+    [[nodiscard]] result<void> write_command(uint8_t opcode, byte_view params);
     /// Opcode + 1-byte turnaround, then reads `response` bytes.
-    [[nodiscard]] result<void> read_command(uint8_t opcode, std::span<uint8_t> response);
+    [[nodiscard]] result<void> read_command(uint8_t opcode, byte_span response);
     /// Writes bytes to a 16-bit register address.
-    [[nodiscard]] result<void> write_register(uint16_t addr, std::span<const uint8_t> data);
+    [[nodiscard]] result<void> write_register(uint16_t addr, byte_view data);
     /// Reads bytes from a 16-bit register address.
-    [[nodiscard]] result<void> read_register(uint16_t addr, std::span<uint8_t> data);
+    [[nodiscard]] result<void> read_register(uint16_t addr, byte_span data);
     /// Writes bytes to the chip's data buffer at an offset.
-    [[nodiscard]] result<void> write_buffer(uint8_t offset, std::span<const uint8_t> data);
+    [[nodiscard]] result<void> write_buffer(uint8_t offset, byte_view data);
     /// Reads bytes from the chip's data buffer at an offset.
-    [[nodiscard]] result<void> read_buffer(uint8_t offset, std::span<uint8_t> data);
+    [[nodiscard]] result<void> read_buffer(uint8_t offset, byte_span data);
 
     /// Reads the 16-bit GetIrqStatus register.
     [[nodiscard]] result<uint16_t> read_irq_status();

@@ -173,16 +173,16 @@ extern "C" void app_main() {
                 logger.error("format failed");
                 return;
             }
-            auto tx_view = std::span{reinterpret_cast<const uint8_t*>(tx_buf.data()), n};
+            const std::string_view text{tx_buf.data(), n};
 
             // try_transmit sizes its own timeout from the packet's air-time
             // under the configured link parameters.
-            if (auto e = radio.try_transmit(tx_view); !e) {
+            if (auto e = radio.try_transmit(std::as_bytes(std::span{text})); !e) {
                 logger.error("tx failed: {}", e.error().message());
                 idfxx::delay(500ms);
                 continue;
             }
-            logger.info("tx: {}", std::string_view{tx_buf.data(), n});
+            logger.info("tx: {}", text);
 
             auto r = radio.try_receive(rx_buf, REPLY_TIMEOUT);
             if (!r) {
