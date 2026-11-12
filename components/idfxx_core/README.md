@@ -20,6 +20,8 @@ allocators, and chrono utilities for modern C++ ESP-IDF development.
   or `uint8_t` buffer, so one API serves callers holding either
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
   in-memory and `FILE*` sources
+- **UTF-8 decoding** — `utf8_view` iterates UTF-8 text as code points, replacing malformed input
+  with U+FFFD
 - **Required config fields** — `required<T>` makes a configuration-struct field mandatory at compile
   time
 - **Exception support** with `unwrap()` helper (when exceptions enabled)
@@ -277,6 +279,22 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
 }
 ```
 
+### UTF-8 Decoding
+
+`idfxx::utf8_view` iterates UTF-8 text as `char32_t` code points. Malformed input never stops the
+iteration: each maximal ill-formed subsequence yields one U+FFFD, and each iterator reports the byte
+offset of its code point:
+
+```cpp
+#include <idfxx/utf8>
+
+idfxx::utf8_view text{"caf\xC3\xA9 \xFF!"};
+for (auto it = text.begin(); it != text.end(); ++it) {
+    char32_t cp = *it;       // 'c', 'a', 'f', U+00E9, ' ', U+FFFD, '!'
+    size_t at = it.offset(); // 0, 1, 2, 3, 5, 6, 7
+}
+```
+
 ### Required Configuration Fields
 
 `idfxx::required<T>` marks a field of a configuration struct that has no safe default. It has no
@@ -405,6 +423,12 @@ be moved out with `std::move(cfg.callback).get()`.
   left
 - `file_source` - Reads an open `FILE*` (not owned) from its current position
 - `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
+
+### UTF-8 Decoding (`<idfxx/utf8>`)
+
+- `utf8_view(text)` - Forward range of the `char32_t` code points in UTF-8 text (non-owning);
+  malformed input yields `utf8_view::replacement_character` (U+FFFD)
+- `iterator::offset()` - Byte offset of the current code point in the text
 
 ### Required Fields (`<idfxx/required>`)
 

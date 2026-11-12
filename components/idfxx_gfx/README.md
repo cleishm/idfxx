@@ -19,7 +19,11 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
   landscape) — draw in viewer coordinates, the framebuffer keeps its native layout and is written to
   the display as usual
 - Filled and outlined rectangles, horizontal/vertical/arbitrary lines
-- Bitmap-font text rendering with integer scaling (`scale = 2` turns an 8x16 font into 16x32 glyphs)
+- Text in fixed-cell bitmap fonts (`mono_font`) with integer scaling (`scale = 2` turns an 8x16 font
+  into 16x32 glyphs)
+- Text in proportional fonts (`proportional_font`) rasterized at their real size from
+  TrueType/OpenType faces: UTF-8 input, per-glyph advances, a shared baseline, and clean 1-bit edges
+  at any size
 - Ink-only rendering: only the requested pixels are written, so drawing composes over existing
   content; on monochrome surfaces `ink = false` draws inverse text over filled regions
 - Header-only, zero per-pixel dispatch overhead — the ink value is typed to the surface's pixel type
@@ -40,7 +44,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_gfx: "^2.0.0"
+  cleishm/idfxx_gfx: "^2.1.0"
   cleishm/idfxx_font_spleen: "^1.0.0"   # bundled fonts, if drawing text
 ```
 
@@ -88,6 +92,28 @@ canvas.fill_rect(8, 8, 60, 24, rgb565(255, 0, 0));
 canvas.draw_rect(6, 6, 64, 28, rgb565(255, 255, 255));
 panel.write(band, 0, 40);           // next band down
 ```
+
+### Proportional text
+
+For large or polished text, generate a proportional font from an outline face at the size you will
+draw it (see `idfxx_font`'s `idfxx_font_generate()` / `ttf_to_c.py`). Glyphs are drawn at their
+native size, so a 48 px heading has smooth outlines instead of magnified pixels. The `y` coordinate
+is the line's top; the baseline sits `font.ascent` below it:
+
+```cpp
+#include "fonts/inter.hpp"   // generated: fonts::inter_48
+#include <idfxx/gfx>
+
+idfxx::gfx::canvas canvas(fb);
+const std::string_view title = "Crème brûlée";
+const size_t w = idfxx::font::text_width(fonts::inter_48, title);
+canvas.draw_text(fonts::inter_48, (canvas.width() - w) / 2, 40, title, true);
+canvas.draw_text(fonts::inter_48, 16, 40 + fonts::inter_48.line_height, "second line", true);
+```
+
+Text is UTF-8; code points the font lacks render as its replacement glyph (`?` or U+FFFD by
+default). `draw_text` sets one line and does not interpret newlines — break lines yourself,
+measuring words with `text_width`.
 
 ### Band rendering
 
@@ -156,7 +182,8 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 | `draw_rect(s, x, y, w, h, ink)` | Outline a rectangle (one-pixel border). |
 | `draw_hline(s, x, y, len, ink)` / `draw_vline(...)` | Horizontal / vertical line. |
 | `draw_line(s, x0, y0, x1, y1, ink)` | Line between two points (endpoints inclusive). |
-| `draw_text(s, font, x, y, text, ink, scale)` | Draw text; on bool surfaces `ink` defaults to true. |
+| `draw_text(s, font, x, y, text, ink, scale)` | Draw text in a `mono_font`; on bool surfaces `ink` defaults to true. |
+| `draw_text(s, font, x, y, text, ink)` | Draw UTF-8 text in a `proportional_font`, (x, y) the line's top-left; on bool surfaces `ink` defaults to true. |
 
 Text measurement (`idfxx::font::text_width`) lives in `idfxx_font`.
 
@@ -182,8 +209,10 @@ report whatever the destination's `try_write` reports (for the idfxx panels, pan
   (`display.write(fb)`, or `panel.write(band, 0, y)` for a band).
 - The `pixel_surface` concept is structural: any user-defined type with a matching
   `set_pixel`/`width`/`height` shape works, no inheritance needed.
+- Proportional glyphs may overhang the pen position slightly (e.g. `j` reaching left of `x`, accents
+  on capitals above the line top); ink outside the surface is clipped, so leave a small margin.
 - This component is deliberately small: integer coordinates, one-pixel strokes, no anti-aliasing, no
-  widgets, no layout. For a full UI toolkit, use LVGL with the panel's `idf_handle()`.
+  kerning, no widgets, no layout. For a full UI toolkit, use LVGL with the panel's `idf_handle()`.
 
 ## License
 

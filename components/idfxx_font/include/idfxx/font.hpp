@@ -9,16 +9,16 @@
  * @brief Bitmap font representation and text metrics.
  *
  * @defgroup idfxx_font Font Component
- * @brief Bitmap font models, UTF-8 decoding and text metrics.
+ * @brief Bitmap font models and text metrics.
  *
- * Provides two compact font representations — fixed-cell (@ref mono_font)
- * and proportional (@ref proportional_font) — plus text measurement.
+ * Provides two compact font representations — fixed-cell (@ref idfxx::font::mono_font)
+ * and proportional (@ref idfxx::font::proportional_font) — plus text measurement.
  * Rendering lives in the @ref idfxx_gfx component; bundled fonts are
  * published as separate data packages (e.g. `idfxx_font_spleen`), each font
  * in its own translation unit so fonts an application never references are
  * dropped at link time. Generators for adding more fonts are included under
- * `scripts/`: `bdf_to_c.py` (monospace BDF to @ref mono_font) and
- * `ttf_to_c.py` (TrueType/OpenType to @ref proportional_font).
+ * `scripts/`: `bdf_to_c.py` (monospace BDF to @ref idfxx::font::mono_font) and
+ * `ttf_to_c.py` (TrueType/OpenType to @ref idfxx::font::proportional_font).
  * @{
  */
 
