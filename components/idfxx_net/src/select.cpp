@@ -3,6 +3,8 @@
 
 #include "detail/select.hpp"
 
+#include "detail/error.hpp"
+
 #include <idfxx/net/error>
 
 #include <errno.h>

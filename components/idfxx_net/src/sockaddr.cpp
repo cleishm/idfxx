@@ -3,6 +3,8 @@
 
 #include "detail/sockaddr.hpp"
 
+#include "detail/error.hpp"
+
 #include <cstddef>
 #include <cstring>
 #include <errno.h>
