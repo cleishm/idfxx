@@ -914,9 +914,10 @@ struct pmf_config {
  * @brief Configuration for WiFi station mode.
  */
 struct sta_config {
-    /// SSID of the target access point.
+    /// SSID of the target access point, up to 32 bytes.
     std::string ssid;
-    /// Password for the target access point.
+    /// Password for the target access point: a passphrase of up to 63 characters, or a
+    /// 64-digit hexadecimal PSK.
     std::string password;
     /// Target AP BSSID (empty = any).
     std::optional<mac_address> bssid = {};
@@ -965,9 +966,9 @@ struct sta_config {
  * @brief Configuration for WiFi access point mode.
  */
 struct ap_config {
-    /// SSID of the access point.
+    /// SSID of the access point, up to 32 bytes.
     std::string ssid;
-    /// Password for the access point.
+    /// Password for the access point, up to 63 characters.
     std::string password;
     /// Channel number.
     uint8_t channel = 1;

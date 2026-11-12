@@ -3,6 +3,7 @@
 
 #include <idfxx/wifi>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -111,10 +112,18 @@ static void csi_trampoline(void* /*idf_ctx*/, wifi_csi_info_t* info) {
     (void)invoke_guarded(TAG, "CSI callback", [&] { cb(ctx, info); });
 }
 
+// The contents of a fixed-size driver string field: up to its first NUL, or the whole field when
+// the value fills it (a 32-byte SSID or a 64-digit hex PSK has no terminator).
+template<size_t N>
+static std::string field_string(const uint8_t (&field)[N]) {
+    const auto* chars = reinterpret_cast<const char*>(field);
+    return std::string(chars, strnlen(chars, N));
+}
+
 static ap_record from_idf_record(const wifi_ap_record_t& r) {
     ap_record record;
     std::memcpy(record.bssid.data(), r.bssid, 6);
-    record.ssid = std::string(reinterpret_cast<const char*>(r.ssid));
+    record.ssid = field_string(r.ssid);
     record.rssi = quanta::electro::dbm{r.rssi};
     record.primary_channel = r.primary;
     record.second = r.second == WIFI_SECOND_CHAN_NONE
@@ -303,8 +312,8 @@ static csi_config from_idf_csi_config(const wifi_csi_config_t& c) {
 
 static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
     sta_config cfg;
-    cfg.ssid = std::string(reinterpret_cast<const char*>(s.ssid));
-    cfg.password = std::string(reinterpret_cast<const char*>(s.password));
+    cfg.ssid = field_string(s.ssid);
+    cfg.password = field_string(s.password);
     if (s.bssid_set) {
         mac_address bssid;
         std::memcpy(bssid.data(), s.bssid, 6);
@@ -334,8 +343,14 @@ static sta_config from_idf_sta_config(const wifi_sta_config_t& s) {
 
 static ap_config from_idf_ap_config(const wifi_ap_config_t& a) {
     ap_config cfg;
-    cfg.ssid = std::string(reinterpret_cast<const char*>(a.ssid), a.ssid_len);
-    cfg.password = std::string(reinterpret_cast<const char*>(a.password));
+    if (a.ssid_len != 0) {
+        const size_t len = std::min<size_t>(a.ssid_len, sizeof(a.ssid));
+        cfg.ssid = std::string(reinterpret_cast<const char*>(a.ssid), len);
+    } else {
+        // A zero ssid_len means the SSID is NUL-terminated instead
+        cfg.ssid = field_string(a.ssid);
+    }
+    cfg.password = field_string(a.password);
     cfg.channel = a.channel;
     cfg.authmode = static_cast<auth_mode>(a.authmode);
     cfg.ssid_hidden = a.ssid_hidden;
@@ -536,12 +551,14 @@ result<void> try_set_sta_config(const sta_config& cfg) {
 
     wifi_config_t wifi_cfg{};
 
-    if (cfg.ssid.size() > sizeof(wifi_cfg.sta.ssid) - 1) {
+    // Both fields may be filled completely, with no terminator: a 32-byte SSID, or a 64-digit hex
+    // PSK in place of a passphrase
+    if (cfg.ssid.size() > sizeof(wifi_cfg.sta.ssid)) {
         return error(errc::ssid);
     }
     std::memcpy(wifi_cfg.sta.ssid, cfg.ssid.data(), cfg.ssid.size());
 
-    if (cfg.password.size() > sizeof(wifi_cfg.sta.password) - 1) {
+    if (cfg.password.size() > sizeof(wifi_cfg.sta.password)) {
         return error(errc::password);
     }
     std::memcpy(wifi_cfg.sta.password, cfg.password.data(), cfg.password.size());
