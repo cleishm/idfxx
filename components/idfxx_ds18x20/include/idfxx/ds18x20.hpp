@@ -22,6 +22,7 @@
 
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/hex>
 #include <idfxx/onewire>
 
 #include <array>
@@ -402,9 +403,8 @@ namespace idfxx {
     case ds18x20::family::max31850:
         return "MAX31850";
     default: {
-        static constexpr char hex[] = "0123456789ABCDEF";
         auto v = static_cast<uint8_t>(std::to_underlying(f));
-        return std::string("unknown(0x") + hex[v >> 4] + hex[v & 0xF] + ')';
+        return "unknown(0x" + to_string(hex({&v, 1}, {.letter_case = hex_case::upper})) + ')';
     }
     }
 }
@@ -427,9 +427,8 @@ namespace idfxx {
     case ds18x20::resolution::bits_12:
         return "12-bit";
     default: {
-        static constexpr char hex[] = "0123456789ABCDEF";
         auto v = static_cast<uint8_t>(std::to_underlying(r));
-        return std::string("unknown(0x") + hex[v >> 4] + hex[v & 0xF] + ')';
+        return "unknown(0x" + to_string(hex({&v, 1}, {.letter_case = hex_case::upper})) + ')';
     }
     }
 }

@@ -11,6 +11,7 @@
 #include <concepts>
 #include <cstddef>
 #include <mutex>
+#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -28,6 +29,17 @@ static_assert(address{}.raw() == 0);
 static_assert(address::any().raw() == 0);
 static_assert(address::none().raw() == 0xFFFFFFFFFFFFFFFF);
 static_assert(address{0x28}.family() == 0x28);
+
+// address bytes are in ROM transmit order: family code first, CRC last
+static_assert(
+    address{0x1234567890ABCD28}.bytes() ==
+    std::array<uint8_t, 8>{0x28, 0xCD, 0xAB, 0x90, 0x78, 0x56, 0x34, 0x12}
+);
+static_assert(
+    address{std::array<uint8_t, 8>{0x28, 0xCD, 0xAB, 0x90, 0x78, 0x56, 0x34, 0x12}}.raw() ==
+    0x1234567890ABCD28
+);
+static_assert(address{address::none().bytes()} == address::none());
 
 // address comparison
 static_assert(address{} == address::any());
@@ -140,6 +152,15 @@ TEST_CASE("address family extraction", "[idfxx][onewire]") {
     // DS18B20 family code in low byte
     address addr{0x1234567890ABCD28};
     TEST_ASSERT_EQUAL_UINT8(0x28, addr.family());
+}
+
+TEST_CASE("address bytes round-trip and carry a checkable CRC", "[idfxx][onewire]") {
+    address addr{0x9003160F1E64FF28};
+    auto rom = addr.bytes();
+    TEST_ASSERT_EQUAL_UINT8(addr.family(), rom[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x90, rom[7]);
+    TEST_ASSERT_EQUAL_UINT8(rom[7], crc8(std::span{rom}.first(7)));
+    TEST_ASSERT_TRUE(address{rom} == addr);
 }
 
 TEST_CASE("address equality comparison", "[idfxx][onewire]") {

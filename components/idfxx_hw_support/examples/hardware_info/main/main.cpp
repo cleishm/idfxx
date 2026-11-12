@@ -3,6 +3,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/chip>
+#include <idfxx/hex>
 #include <idfxx/log>
 #include <idfxx/mac>
 
@@ -49,15 +50,10 @@ extern "C" void app_main() {
     auto eth = idfxx::read_mac(idfxx::mac_type::ethernet);
     logger.info("Ethernet MAC: {}", eth);
 
-    // Access individual bytes of a MAC address
+    // Format the raw bytes of a MAC address
     logger.info(
-        "Base MAC bytes: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-        base.bytes()[0],
-        base.bytes()[1],
-        base.bytes()[2],
-        base.bytes()[3],
-        base.bytes()[4],
-        base.bytes()[5]
+        "Base MAC bytes: {}",
+        idfxx::hex(base.bytes(), {.separator = " ", .letter_case = idfxx::hex_case::upper})
     );
 
     logger.info("Done!");

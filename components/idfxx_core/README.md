@@ -18,6 +18,8 @@ allocators, and chrono utilities for modern C++ ESP-IDF development.
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Byte views** — `byte_view` and `byte_span`, non-owning views that accept any `std::byte`
   or `uint8_t` buffer, so one API serves callers holding either
+- **Hex formatting** — `hex(bytes, options)` renders any byte buffer as hexadecimal text, with an
+  optional separator and letter case, for `std::format` and `to_string`
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
   in-memory and `FILE*` sources
 - **Required config fields** — `required<T>` makes a configuration-struct field mandatory at compile
@@ -195,6 +197,23 @@ memory::walk(memory::capabilities::default_heap, [](memory::region rgn, memory::
 
 // Check heap integrity
 bool ok = memory::check_integrity();
+```
+
+### Hex Formatting
+
+`idfxx::hex` presents any byte buffer accepted by `idfxx::byte_view` as hexadecimal text, two digits
+per byte. Choose a separator and letter case with `hex_options`, and render it with `std::format`
+or `idfxx::to_string`:
+
+```cpp
+#include <idfxx/hex>
+
+std::array<uint8_t, 6> mac{0xAA, 0xBB, 0xCC, 0x01, 0x02, 0x03};
+
+auto plain = idfxx::to_string(idfxx::hex(mac)); // "aabbcc010203"
+
+idfxx::hex_options opts{.separator = ":", .letter_case = idfxx::hex_case::upper};
+auto text = std::format("MAC {}", idfxx::hex(mac, opts)); // "MAC AA:BB:CC:01:02:03"
 ```
 
 ### Byte Views
@@ -385,6 +404,16 @@ be moved out with `std::move(cfg.callback).get()`.
 - `random()` - Hardware-generated random 32-bit value
 - `fill_random(byte_span)` - Fill a buffer of `std::byte` or `uint8_t` with random bytes
 - `random_device` - `UniformRandomBitGenerator` for use with standard distributions
+
+### Hex Formatting (`<idfxx/hex>`)
+
+- `hex(bytes, options)` - Non-owning hexadecimal presentation of a `byte_view`-compatible buffer,
+  two digits per byte in buffer order; the bytes and separator must outlive its use
+- `hex_options` - `separator` (text between bytes, empty by default) and `letter_case`
+- `hex_case` - `lower` (default) or `upper` for the digits `a`-`f`
+- `to_string(hex)` - The text as a `std::string`; also usable with `std::format`, where the
+  standard fill, alignment and width spec applies to the whole text; precision and `?` are rejected
+  (requires `CONFIG_IDFXX_STD_FORMAT`)
 
 ### Byte Views (`<idfxx/byte_view>`)
 

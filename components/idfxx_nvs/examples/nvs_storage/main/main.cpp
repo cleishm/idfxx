@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include <idfxx/hex>
 #include <idfxx/log>
 #include <idfxx/nvs>
 
@@ -74,13 +75,8 @@ extern "C" void app_main() {
         size_t len = handle.get_blob("mac_addr", stored_mac);
         logger.info("Read {} bytes (stored size {})", len, handle.blob_size("mac_addr"));
         logger.info(
-            "MAC address: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-            stored_mac[0],
-            stored_mac[1],
-            stored_mac[2],
-            stored_mac[3],
-            stored_mac[4],
-            stored_mac[5]
+            "MAC address: {}",
+            idfxx::hex(stored_mac, {.separator = ":", .letter_case = idfxx::hex_case::upper})
         );
 
         handle.erase_all();
