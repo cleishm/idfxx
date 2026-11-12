@@ -78,7 +78,7 @@ template<byte_source Source>
     return {
         .source = const_cast<void*>(static_cast<const void*>(std::addressof(source))),
         .read = [](void* from, std::span<uint8_t> into) -> result<size_t> {
-            return static_cast<Source*>(from)->try_read(into);
+            return static_cast<Source*>(from)->try_read(byte_span{into});
         },
     };
 }

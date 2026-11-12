@@ -1184,7 +1184,7 @@ public:
     template<byte_source Source>
     [[nodiscard]] result<void> try_replace_file(std::string_view path, Source& source) {
         auto read = [&source](std::span<uint8_t> buf) -> result<size_t> {
-            return source.try_read(buf);
+            return source.try_read(byte_span{buf});
         };
         return _try_replace_file_from(path, &read, &_read<decltype(read)>);
     }
