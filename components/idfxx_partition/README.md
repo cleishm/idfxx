@@ -47,16 +47,16 @@ try {
     // Find a partition by label
     auto part = idfxx::partition::find("storage");
 
-    // Read data
-    std::array<uint8_t, 256> buf{};
-    part.read(0, buf.data(), buf.size());
+    // Read data (fills the whole buffer)
+    std::array<std::byte, 256> buf{};
+    part.read(0, buf);
 
     // Erase before writing (must be aligned to erase_size)
     part.erase_range(0, part.erase_size());
 
     // Write data
     std::array<uint8_t, 16> data{1, 2, 3, 4};
-    part.write(0, data.data(), data.size());
+    part.write(0, data);
 
     // Compute SHA-256 hash
     auto hash = part.sha256();
@@ -65,7 +65,7 @@ try {
     auto mapped = part.mmap(0, part.size());
     // Or, on ESP-IDF 6.1+, block flash writes instead of disabling the cache:
     // auto mapped = part.mmap(0, part.size(), {.blocks_write = true});
-    auto bytes = mapped.as_span<const uint8_t>();
+    auto bytes = mapped.bytes();
 
 } catch (const std::system_error& e) {
     // Handle error
@@ -88,8 +88,8 @@ if (!result) {
 auto part = *result;
 
 // Read data
-std::array<uint8_t, 256> buf{};
-if (auto r = part.try_read(0, buf.data(), buf.size()); !r) {
+std::array<std::byte, 256> buf{};
+if (auto r = part.try_read(0, buf); !r) {
     // Handle error
     return;
 }
@@ -129,9 +129,9 @@ auto part = idfxx::partition::find("storage");
 
 // Read bytes 0x100..0x1100 in chunks
 idfxx::partition_source src{part, 0x100, 0x1000};
-std::array<uint8_t, 256> buf{};
+std::array<std::byte, 256> buf{};
 while (size_t n = src.read(buf)) {
-    // process std::span{buf}.first(n)...
+    // process idfxx::byte_view{buf}.first(n)...
 }
 
 // Result-based: make() rejects a range that extends past the end of the partition
@@ -176,19 +176,19 @@ The component provides two API styles:
 ### Operations
 
 **Exception-based:**
-- `read(offset, dst, size)` / `read(offset, span)` - Read with decryption
-- `write(offset, src, size)` / `write(offset, span)` - Write with encryption
-- `read_raw(offset, dst, size)` / `read_raw(offset, span)` - Raw read
-- `write_raw(offset, src, size)` / `write_raw(offset, span)` - Raw write
+- `read(offset, byte_span)` - Read with decryption, filling the whole buffer
+- `write(offset, byte_view)` - Write with encryption
+- `read_raw(offset, byte_span)` - Raw read, filling the whole buffer
+- `write_raw(offset, byte_view)` - Raw write
 - `erase_range(offset, size)` - Erase region
-- `sha256()` → `std::array<uint8_t, 32>` - Compute hash
+- `sha256()` → `std::array<std::byte, 32>` - Compute hash
 - `mmap(offset, size, config)` → `mmap_handle` - Memory map (`mmap_config`: `memory`, and
   `blocks_write` on ESP-IDF 6.1+)
 
 **Result-based:**
 - `try_read`, `try_write`, `try_read_raw`, `try_write_raw` → `result<void>`
 - `try_erase_range` → `result<void>`
-- `try_sha256` → `result<std::array<uint8_t, 32>>`
+- `try_sha256` → `result<std::array<std::byte, 32>>`
 - `try_mmap` → `result<mmap_handle>`
 
 **Always available:**
@@ -198,6 +198,7 @@ The component provides two API styles:
 
 - `data()` → `const void*` - Access mapped memory
 - `size()` → `size_t` - Mapped region size
+- `bytes()` → `idfxx::byte_view` - Mapped region as read-only bytes
 - `as_span<T>()` → `std::span<T>` - Typed span over mapped memory
 - `release()` → `esp_partition_mmap_handle_t` - Release ownership without unmapping
 
@@ -210,8 +211,8 @@ Models `idfxx::byte_source`.
   out-of-range window)
 - `partition_source::make(part, offset, length)` → `result<partition_source>` - Read a byte range
 - `remaining()` → `size_t` - Bytes left in the range
-- `read(buf)` → `size_t` / `try_read(buf)` → `result<size_t>` - Read the next bytes, with
-  decryption; 0 at the end of the range
+- `read(byte_span)` → `size_t` / `try_read(byte_span)` → `result<size_t>` - Read
+  the next bytes, with decryption; 0 at the end of the range
 
 ## Error Handling
 

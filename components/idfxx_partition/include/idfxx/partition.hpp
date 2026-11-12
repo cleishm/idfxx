@@ -21,6 +21,7 @@
 #include "sdkconfig.h"
 
 #include <idfxx/byte_source>
+#include <idfxx/byte_view>
 #include <idfxx/error>
 
 #include <array>
@@ -48,8 +49,8 @@ namespace idfxx {
  *
  * @code
  * auto part = idfxx::partition::find("storage");
- * std::array<uint8_t, 256> buf{};
- * part.read(0, buf.data(), buf.size());
+ * std::array<std::byte, 256> buf{};
+ * part.read(0, buf);
  * @endcode
  */
 class partition {
@@ -276,106 +277,52 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Reads data from the partition with decryption if applicable.
+     * @brief Reads data from the partition, decrypting it if the partition is encrypted.
+     *
+     * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination buffer.
-     * @param size   Number of bytes to read.
+     * @param dst    Buffer to read into; its size is the number of bytes read.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read(size_t offset, void* dst, size_t size) const { unwrap(try_read(offset, dst, size)); }
+    void read(size_t offset, byte_span dst) const { unwrap(try_read(offset, dst)); }
 
     /**
-     * @brief Reads data from the partition with decryption if applicable.
+     * @brief Writes data to the partition, encrypting it if the partition is encrypted.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination span.
+     * @param src    Bytes to write.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read(size_t offset, std::span<uint8_t> dst) const { unwrap(try_read(offset, dst)); }
-
-    /**
-     * @brief Writes data to the partition with encryption if applicable.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source buffer.
-     * @param size   Number of bytes to write.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void write(size_t offset, const void* src, size_t size) {
-        unwrap(try_write(offset, src, size));
-    }
-
-    /**
-     * @brief Writes data to the partition with encryption if applicable.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source span.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void write(size_t offset, std::span<const uint8_t> src) { unwrap(try_write(offset, src)); }
+    void write(size_t offset, byte_view src) { unwrap(try_write(offset, src)); }
 
     /**
      * @brief Reads data from the partition without decryption.
      *
+     * Fills the whole of @p dst.
+     *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination buffer.
-     * @param size   Number of bytes to read.
+     * @param dst    Buffer to read into; its size is the number of bytes read.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void read_raw(size_t offset, void* dst, size_t size) const {
-        unwrap(try_read_raw(offset, dst, size));
-    }
-
-    /**
-     * @brief Reads data from the partition without decryption.
-     *
-     * @param offset Byte offset within the partition.
-     * @param dst    Destination span.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void read_raw(size_t offset, std::span<uint8_t> dst) const {
-        unwrap(try_read_raw(offset, dst));
-    }
+    void read_raw(size_t offset, byte_span dst) const { unwrap(try_read_raw(offset, dst)); }
 
     /**
      * @brief Writes data to the partition without encryption.
      *
      * @param offset Byte offset within the partition.
-     * @param src    Source buffer.
-     * @param size   Number of bytes to write.
+     * @param src    Bytes to write.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    void write_raw(size_t offset, const void* src, size_t size) {
-        unwrap(try_write_raw(offset, src, size));
-    }
-
-    /**
-     * @brief Writes data to the partition without encryption.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source span.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure.
-     */
-    void write_raw(size_t offset, std::span<const uint8_t> src) {
-        unwrap(try_write_raw(offset, src));
-    }
+    void write_raw(size_t offset, byte_view src) { unwrap(try_write_raw(offset, src)); }
 
     /**
      * @brief Erases a range of the partition.
@@ -398,14 +345,14 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
-    [[nodiscard]] std::array<uint8_t, 32> sha256() const { return unwrap(try_sha256()); }
+    [[nodiscard]] std::array<std::byte, 32> sha256() const { return unwrap(try_sha256()); }
 
     /**
      * @brief Memory-maps a region of the partition with default options.
      *
      * @code
      * auto mapped = part.mmap(0, part.size());
-     * auto bytes = mapped.as_span<const uint8_t>();
+     * auto bytes = mapped.bytes();
      * @endcode
      *
      * @param offset Byte offset within the partition (must be aligned to 0x10000 for data memory).
@@ -423,7 +370,7 @@ public:
      *
      * @code
      * auto mapped = part.mmap(0, part.size(), {.blocks_write = true});
-     * auto bytes = mapped.as_span<const uint8_t>();
+     * auto bytes = mapped.bytes();
      * @endcode
      *
      * @param offset Byte offset within the partition (must be aligned to 0x10000 for data,
@@ -456,88 +403,48 @@ public:
 #endif
 
     /**
-     * @brief Reads data from the partition with decryption if applicable.
+     * @brief Reads data from the partition, decrypting it if the partition is encrypted.
+     *
+     * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination buffer.
-     * @param size   Number of bytes to read.
+     * @param dst    Buffer to read into; its size is the number of bytes read.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read(size_t offset, void* dst, size_t size) const;
+    [[nodiscard]] result<void> try_read(size_t offset, byte_span dst) const;
 
     /**
-     * @brief Reads data from the partition with decryption if applicable.
+     * @brief Writes data to the partition, encrypting it if the partition is encrypted.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination span.
+     * @param src    Bytes to write.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read(size_t offset, std::span<uint8_t> dst) const;
-
-    /**
-     * @brief Writes data to the partition with encryption if applicable.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source buffer.
-     * @param size   Number of bytes to write.
-     *
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_write(size_t offset, const void* src, size_t size);
-
-    /**
-     * @brief Writes data to the partition with encryption if applicable.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source span.
-     *
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_write(size_t offset, std::span<const uint8_t> src);
+    [[nodiscard]] result<void> try_write(size_t offset, byte_view src);
 
     /**
      * @brief Reads data from the partition without decryption.
      *
+     * Fills the whole of @p dst.
+     *
      * @param offset Byte offset within the partition.
-     * @param dst    Destination buffer.
-     * @param size   Number of bytes to read.
+     * @param dst    Buffer to read into; its size is the number of bytes read.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_read_raw(size_t offset, void* dst, size_t size) const;
-
-    /**
-     * @brief Reads data from the partition without decryption.
-     *
-     * @param offset Byte offset within the partition.
-     * @param dst    Destination span.
-     *
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_read_raw(size_t offset, std::span<uint8_t> dst) const;
+    [[nodiscard]] result<void> try_read_raw(size_t offset, byte_span dst) const;
 
     /**
      * @brief Writes data to the partition without encryption.
      *
      * @param offset Byte offset within the partition.
-     * @param src    Source buffer.
-     * @param size   Number of bytes to write.
+     * @param src    Bytes to write.
      *
      * @return Success, or an error.
      */
-    [[nodiscard]] result<void> try_write_raw(size_t offset, const void* src, size_t size);
-
-    /**
-     * @brief Writes data to the partition without encryption.
-     *
-     * @param offset Byte offset within the partition.
-     * @param src    Source span.
-     *
-     * @return Success, or an error.
-     */
-    [[nodiscard]] result<void> try_write_raw(size_t offset, std::span<const uint8_t> src);
+    [[nodiscard]] result<void> try_write_raw(size_t offset, byte_view src);
 
     /**
      * @brief Erases a range of the partition.
@@ -556,7 +463,7 @@ public:
      *
      * @return A 32-byte SHA-256 hash, or an error.
      */
-    [[nodiscard]] result<std::array<uint8_t, 32>> try_sha256() const;
+    [[nodiscard]] result<std::array<std::byte, 32>> try_sha256() const;
 
     /**
      * @brief Memory-maps a region of the partition with default options.
@@ -635,7 +542,7 @@ private:
  * auto part =
  *     idfxx::partition::find(idfxx::partition::type::data, idfxx::partition::subtype::data_fat);
  * auto mapped = part.mmap(0, part.size());
- * auto bytes = mapped.as_span<const uint8_t>();
+ * auto bytes = mapped.bytes();
  * @endcode
  */
 class partition::mmap_handle {
@@ -662,6 +569,13 @@ public:
 
     /** @brief Returns the size of the mapped region in bytes. */
     [[nodiscard]] size_t size() const { return _size; }
+
+    /**
+     * @brief Returns the mapped memory region as a read-only byte view.
+     *
+     * @return A view covering the whole mapped region; empty if this handle has no mapping.
+     */
+    [[nodiscard]] idfxx::byte_view bytes() const noexcept { return idfxx::byte_view{_ptr, _size}; }
 
     /**
      * @brief Returns a typed span over the mapped memory region.
@@ -729,9 +643,9 @@ partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
  *
  * // Read the first 4 KiB of the partition in 256-byte chunks
  * idfxx::partition_source src{part, 0, 4096};
- * std::array<uint8_t, 256> buf{};
+ * std::array<std::byte, 256> buf{};
  * while (size_t n = src.read(buf)) {
- *     consume(std::span{buf}.first(n));
+ *     consume(idfxx::byte_view{buf}.first(n));
  * }
  * @endcode
  */
@@ -798,7 +712,7 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the flash read fails.
      */
-    [[nodiscard]] size_t read(std::span<uint8_t> buf) { return unwrap(try_read(buf)); }
+    [[nodiscard]] size_t read(byte_span buf) { return unwrap(try_read(buf)); }
 #endif
 
     /**
@@ -814,7 +728,7 @@ public:
      *         of the range has been reached. If the flash read fails, its
      *         error, as returned by partition::try_read.
      */
-    [[nodiscard]] result<size_t> try_read(std::span<uint8_t> buf);
+    [[nodiscard]] result<size_t> try_read(byte_span buf);
 
 private:
     // Takes the range first so it cannot be confused with the public

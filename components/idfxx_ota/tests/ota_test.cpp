@@ -195,7 +195,7 @@ TEST_CASE("ota try_check_image_validity accepts the running app's leading bytes"
     auto part = try_running_partition();
     TEST_ASSERT_TRUE(part.has_value());
     std::array<uint8_t, 512> buf{};
-    TEST_ASSERT_TRUE(part->try_read(0, buf.data(), buf.size()).has_value());
+    TEST_ASSERT_TRUE(part->try_read(0, buf).has_value());
     auto r = try_check_image_validity(partition::type::app, buf);
     TEST_ASSERT_TRUE(r.has_value());
 

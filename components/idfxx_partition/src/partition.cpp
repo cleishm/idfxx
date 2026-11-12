@@ -249,45 +249,29 @@ std::vector<partition> partition::find_all(enum type pt, enum subtype ps, std::s
 // Read / Write / Erase
 // =========================================================================
 
-result<void> partition::try_read(size_t offset, void* dst, size_t size) const {
-    return checked(esp_partition_read(_part, offset, dst, size), "read");
+result<void> partition::try_read(size_t offset, byte_span dst) const {
+    return checked(esp_partition_read(_part, offset, dst.data(), dst.size()), "read");
 }
 
-result<void> partition::try_read(size_t offset, std::span<uint8_t> dst) const {
-    return try_read(offset, dst.data(), dst.size());
+result<void> partition::try_write(size_t offset, byte_view src) {
+    return checked(esp_partition_write(_part, offset, src.data(), src.size()), "write");
 }
 
-result<void> partition::try_write(size_t offset, const void* src, size_t size) {
-    return checked(esp_partition_write(_part, offset, src, size), "write");
+result<void> partition::try_read_raw(size_t offset, byte_span dst) const {
+    return checked(esp_partition_read_raw(_part, offset, dst.data(), dst.size()), "read_raw");
 }
 
-result<void> partition::try_write(size_t offset, std::span<const uint8_t> src) {
-    return try_write(offset, src.data(), src.size());
-}
-
-result<void> partition::try_read_raw(size_t offset, void* dst, size_t size) const {
-    return checked(esp_partition_read_raw(_part, offset, dst, size), "read_raw");
-}
-
-result<void> partition::try_read_raw(size_t offset, std::span<uint8_t> dst) const {
-    return try_read_raw(offset, dst.data(), dst.size());
-}
-
-result<void> partition::try_write_raw(size_t offset, const void* src, size_t size) {
-    return checked(esp_partition_write_raw(_part, offset, src, size), "write_raw");
-}
-
-result<void> partition::try_write_raw(size_t offset, std::span<const uint8_t> src) {
-    return try_write_raw(offset, src.data(), src.size());
+result<void> partition::try_write_raw(size_t offset, byte_view src) {
+    return checked(esp_partition_write_raw(_part, offset, src.data(), src.size()), "write_raw");
 }
 
 result<void> partition::try_erase_range(size_t offset, size_t size) {
     return checked(esp_partition_erase_range(_part, offset, size), "erase_range");
 }
 
-result<std::array<uint8_t, 32>> partition::try_sha256() const {
-    std::array<uint8_t, 32> hash{};
-    esp_err_t err = esp_partition_get_sha256(_part, hash.data());
+result<std::array<std::byte, 32>> partition::try_sha256() const {
+    std::array<std::byte, 32> hash{};
+    esp_err_t err = esp_partition_get_sha256(_part, reinterpret_cast<uint8_t*>(hash.data()));
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "partition sha256 failed: %s", esp_err_to_name(err));
         return error(err);
@@ -386,7 +370,7 @@ partition_source::make(const partition& part, size_t offset, size_t length) {
     return partition_source{offset, offset + length, part};
 }
 
-result<size_t> partition_source::try_read(std::span<uint8_t> buf) {
+result<size_t> partition_source::try_read(byte_span buf) {
     const size_t n = std::min(buf.size(), remaining());
     if (n == 0) {
         return 0;
