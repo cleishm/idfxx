@@ -1,6 +1,6 @@
 dependencies:
   cleishm/idfxx_gfx:
-    version: "^2.1.0"
+    version: "^3.0.0"
     override_path: ../../..
   cleishm/idfxx_font_inter:
     version: "^1.0.0"

@@ -200,7 +200,7 @@ size_t count_set_rows(const mono_framebuffer& fb, size_t y0, size_t y1) {
 }
 
 // Renders draw(canvas) onto an unclipped (32 + dx)x32 frame and again into
-// four 32x8 bands through canvas(band, dx, y), each covering frame columns
+// four 32x8 bands through canvas(band, dx, y, w, h), each covering frame columns
 // [dx, dx + 32); true when every band equals its part of the frame and the
 // frame has ink.
 template<typename Draw>
@@ -213,7 +213,7 @@ bool bands_match_frame(Draw draw, size_t dx = 0) {
     }
     for (size_t y0 = 0; y0 < 32; y0 += 8) {
         auto band = make_fb(32, 8);
-        canvas band_canvas(band, dx, y0);
+        canvas band_canvas(band, dx, y0, 32 + dx, 32);
         draw(band_canvas);
         for (size_t y = 0; y < 8; ++y) {
             for (size_t x = 0; x < 32; ++x) {
@@ -430,7 +430,7 @@ void draw_band_test_scene(Canvas& c) {
 
 TEST_CASE("gfx translated canvas maps canvas coordinates onto the surface", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
-    canvas c(fb, 4, 16); // fb's top-left sits at (4, 16)
+    canvas c(fb, 4, 16, 20, 24); // fb's top-left sits at (4, 16)
 
     TEST_ASSERT_EQUAL(4 + 16, c.width());
     TEST_ASSERT_EQUAL(16 + 8, c.height());
@@ -460,7 +460,7 @@ TEST_CASE("gfx translated canvas renders bands identical to a full frame", "[idf
 
     auto band = make_fb(32, 16);
     for (size_t band_y = 0; band_y < 32; band_y += 16) {
-        canvas c(band, 0, band_y);
+        canvas c(band, 0, band_y, 32, 32);
         c.clear();
         draw_band_test_scene(c);
         TEST_ASSERT_TRUE(band_matches(reference, band, band_y));
@@ -469,7 +469,7 @@ TEST_CASE("gfx translated canvas renders bands identical to a full frame", "[idf
 
 TEST_CASE("gfx translated canvas fill and clear cover the whole band", "[idfxx][gfx]") {
     auto fb = make_fb(16, 8);
-    canvas c(fb, 0, 24);
+    canvas c(fb, 0, 24, 16, 32);
     c.fill(true);
     TEST_ASSERT_EQUAL(16 * 8, count_set_pixels(fb));
     c.clear();
@@ -537,7 +537,7 @@ TEST_CASE("gfx canvas window composes and clamps", "[idfxx][gfx]") {
 
 TEST_CASE("gfx clipping: nothing above a band reaches the surface", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 16); // the surface backs rows 16-23 only
+    canvas c(surf, 0, 16, 8, 24); // the surface backs rows 16-23 only
 
     c.draw_text(spleen_5x8, 0, 0, "ABC");
     c.draw_text(spleen_5x8, 0, 0, "ABC", true, 2); // rows 0-15
@@ -555,7 +555,7 @@ TEST_CASE("gfx clipping: nothing above a band reaches the surface", "[idfxx][gfx
 
 TEST_CASE("gfx clipping: free functions on a canvas clip to its band", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 16);
+    canvas c(surf, 0, 16, 8, 24);
 
     draw_text(c, spleen_5x8, 0, 0, "ABC", true, 1);
     draw_text(c, spleen_5x8, 0, 0, "ABC", true, 2);
@@ -567,7 +567,7 @@ TEST_CASE("gfx clipping: free functions on a canvas clip to its band", "[idfxx][
 
 TEST_CASE("gfx clipping: a window outside the band draws nothing", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 16);
+    canvas c(surf, 0, 16, 8, 24);
     auto w = c.window(0, 0, 8, 8); // canvas rows 0-7, above the band
 
     w.draw_text(spleen_5x8, 0, 0, "AB");
@@ -591,7 +591,7 @@ TEST_CASE("gfx clipping: mono text straddling a band edge writes only visible in
         // Every band position, so edges fall mid-block at scale 2 and 3.
         for (size_t y0 = 0; y0 <= 24; ++y0) {
             sized_counter<32, 8> surf;
-            canvas c(surf, 0, y0);
+            canvas c(surf, 0, y0, 32, 32);
             c.draw_text(spleen_5x8, 0, 0, "ABC", true, scale);
             TEST_ASSERT_EQUAL(count_set_rows(full, y0, y0 + 8), surf.writes);
         }
@@ -1156,7 +1156,7 @@ TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full f
     auto band = make_fb(16, 8);
     for (size_t y0 = 0; y0 < 16; y0 += 8) {
         band.clear();
-        canvas(band, 0, y0).draw_text(prop_font, 1, 5, "Agéj");
+        canvas(band, 0, y0, 16, 16).draw_text(prop_font, 1, 5, "Agéj");
         TEST_ASSERT_TRUE(band_matches(full, band, y0));
     }
     TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
@@ -1164,7 +1164,7 @@ TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full f
 
 TEST_CASE("gfx clipping: proportional text above a band reaches no surface pixel", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 16);
+    canvas c(surf, 0, 16, 8, 24);
 
     c.draw_text(prop_font, 0, 0, "AgAjé");
     draw_text(c, prop_font, 0, 0, "AgAjé", true);
@@ -1179,7 +1179,7 @@ TEST_CASE("gfx clipping: proportional text straddling a band edge writes only vi
 
     for (size_t y0 = 0; y0 <= 12; ++y0) {
         sized_counter<16, 4> surf;
-        canvas c(surf, 0, y0);
+        canvas c(surf, 0, y0, 16, 16);
         c.draw_text(prop_font, 1, 5, "Agéj");
         TEST_ASSERT_EQUAL(count_set_rows(full, y0, y0 + 4), surf.writes);
     }
@@ -1217,7 +1217,7 @@ TEST_CASE("gfx clipping: rotated over a band canvas skips off-band work", "[idfx
         const size_t off = dir == rotation::cw90 ? 8 : 0; // first unbacked column
         const size_t on = dir == rotation::cw90 ? 0 : 16; // first backed column
         sized_counter<8, 8> surf;
-        canvas inner(surf, 0, 16);
+        canvas inner(surf, 0, 16, 8, 24);
         rotated view(inner, dir);
         TEST_ASSERT_EQUAL(24, view.width());
         TEST_ASSERT_EQUAL(8, view.height());
@@ -1256,7 +1256,7 @@ TEST_CASE("gfx clipping: rotated over a band canvas renders the same pixels", "[
         TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
 
         auto band = make_fb(8, 8);
-        canvas bc(band, 0, 16);
+        canvas bc(band, 0, 16, 8, 24);
         rotated bv(bc, dir);
         draw_rotated_band_scene(bv);
         TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
@@ -1266,7 +1266,7 @@ TEST_CASE("gfx clipping: rotated over a band canvas renders the same pixels", "[
 
 TEST_CASE("gfx clipping: canvas draw_rect clips through fill_rect", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 4);
+    canvas c(surf, 0, 4, 8, 12);
 
     // A rect wholly above the band reaches no pixel.
     c.draw_rect(0, 0, 8, 4, true);
@@ -1379,14 +1379,14 @@ TEST_CASE("gfx canvas draw_text_box draws like the free functions", "[idfxx][gfx
     auto full = make_fb(16, 16);
     canvas(full).draw_text_box(prop_font, 1, 0, 5, "A A");
     auto band = make_fb(16, 8);
-    canvas(band, 0, 4).draw_text_box(prop_font, 1, 0, 5, "A A");
+    canvas(band, 0, 4, 16, 16).draw_text_box(prop_font, 1, 0, 5, "A A");
     TEST_ASSERT_TRUE(band_matches(full, band, 4));
     TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
 }
 
 TEST_CASE("gfx clipping: text boxes above a band reach no surface pixel", "[idfxx][gfx]") {
     sized_counter<8, 8> surf;
-    canvas c(surf, 0, 16);
+    canvas c(surf, 0, 16, 8, 24);
 
     c.draw_text_box(prop_font, 0, 0, 5, "A A"); // two lines, rows 0-11
     c.draw_text_box(spleen_5x8, 0, 0, 12, "AB CD");
@@ -1407,7 +1407,7 @@ TEST_CASE("gfx clipping: draw_text_box returns the same height in every band", "
 
     for (size_t y0 = 0; y0 < 32; y0 += 8) {
         auto band = make_fb(32, 8);
-        canvas c(band, 0, y0);
+        canvas c(band, 0, y0, 32, 32);
         TEST_ASSERT_EQUAL(
             prop_height, c.draw_text_box(prop_font, 1, 3, 12, "A A A A", text_align::center)
         );
@@ -1420,7 +1420,7 @@ TEST_CASE("gfx clipping: draw_text_box returns the same height in every band", "
 
     // A box wholly outside the band still reports its full height.
     sized_counter<8, 8> surf;
-    canvas above(surf, 0, 16);
+    canvas above(surf, 0, 16, 8, 24);
     TEST_ASSERT_EQUAL(
         prop_height, above.draw_text_box(prop_font, 1, 3, 12, "A A A A", text_align::center)
     );
@@ -1480,11 +1480,6 @@ TEST_CASE("gfx canvas with a drawing space reports the space size", "[idfxx][gfx
     canvas c(fb, 0, 16, 8, 32);
     TEST_ASSERT_EQUAL(8, c.width());
     TEST_ASSERT_EQUAL(32, c.height());
-
-    // The 3-argument form still reports the surface's far edges.
-    canvas c3(fb, 4, 16);
-    TEST_ASSERT_EQUAL(4 + 8, c3.width());
-    TEST_ASSERT_EQUAL(16 + 8, c3.height());
 
     c.set_pixel(0, 16, true); // surface (0, 0)
     c.set_pixel(7, 23, true); // surface (7, 7)

@@ -590,8 +590,8 @@ void write_image(
  * changes on the glass until the caller calls @ref panel::refresh. The caller names the type of
  * the band, which must match the calibration's color mode.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -599,7 +599,7 @@ void write_image(
  *     idfxx::epaper::calibration::gdey075t7_gray4(),
  *     dec,
  *     [&](idfxx::epaper::gray4_framebuffer& band, size_t x, size_t y) {
- *         idfxx::gfx::canvas canvas(band, x, y);
+ *         idfxx::gfx::canvas canvas(band, x, y, display.width(), display.height());
  *         canvas.draw_text(font, 10, 460, "Hello", idfxx::epaper::gray4::black);
  *     }
  * );
@@ -648,8 +648,8 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
  * placement that doesn't meet this is an error, unless
  * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -658,7 +658,7 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
  *     dec,
  *     {.target = idfxx::image::rect{.x = 0, .y = 0, .width = 800, .height = 240}},
  *     [&](idfxx::epaper::gray4_framebuffer& band, size_t x, size_t y) {
- *         idfxx::gfx::canvas canvas(band, x, y);
+ *         idfxx::gfx::canvas canvas(band, x, y, display.width(), display.height());
  *         canvas.draw_text(font, 10, 220, "Hello", idfxx::epaper::gray4::black);
  *     }
  * );
@@ -717,8 +717,8 @@ void write_image(
  * placement that doesn't meet this is an error, unless
  * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
  *
- * The band is drawn in screen coordinates through a canvas whose origin is the
- * band's top-left pixel on the screen:
+ * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
+ * band at its position on it:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -728,7 +728,7 @@ void write_image(
  *     {.target = idfxx::image::rect{.x = 0, .y = 0, .width = 800, .height = 240}},
  *     {.band_rows = 16},
  *     [&](idfxx::epaper::gray4_framebuffer& band, size_t x, size_t y) {
- *         idfxx::gfx::canvas canvas(band, x, y);
+ *         idfxx::gfx::canvas canvas(band, x, y, display.width(), display.height());
  *         canvas.draw_text(font, 10, 220, "Hello", idfxx::epaper::gray4::black);
  *     }
  * );

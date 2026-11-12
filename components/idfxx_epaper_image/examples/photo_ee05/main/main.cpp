@@ -73,7 +73,7 @@ static void show_in_rectangle(epaper::panel& panel, std::span<const uint8_t> jpe
         decoder,
         where,
         [&](epaper::gray4_framebuffer& band, size_t x, size_t y) {
-            idfxx::gfx::canvas canvas(band, x, y);
+            idfxx::gfx::canvas canvas(band, x, y, panel.width(), panel.height());
             canvas.fill_rect(
                 frame.x, frame.y + frame.height - 20, frame.width, 20, epaper::gray4::white
             );

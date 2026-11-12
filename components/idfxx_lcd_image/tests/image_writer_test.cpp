@@ -368,7 +368,7 @@ TEST_CASE("lcd write_image calls the overlay with each band before it is written
                 TEST_ASSERT_EQUAL_UINT32(band_rows, band.height());
                 // The picture is already in the band, and this is not yet on the panel.
                 TEST_ASSERT_EQUAL_UINT32(display.draws.size() * band_rows, y);
-                gfx::canvas canvas(band, x, y);
+                gfx::canvas canvas(band, x, y, screen_w, screen_h);
                 canvas.fill_rect(rx, ry, rw, rh, red);
             }
         );
@@ -423,7 +423,7 @@ TEST_CASE("lcd write_image takes an overlay after the decoder or a placement", "
     size_t calls = 0;
     const auto draw = [&](lcd::rgb565_framebuffer& band, size_t x, size_t y) {
         ++calls;
-        gfx::canvas canvas(band, x, y);
+        gfx::canvas canvas(band, x, y, screen_w, screen_h);
         canvas.fill_rect(14, 10, 8, 30, red);
     };
 

@@ -845,27 +845,6 @@ public:
         , _height(surface.height()) {}
 
     /**
-     * @brief Creates a canvas whose surface sits at (@p x, @p y) in the canvas's coordinates.
-     *
-     * Declares that the surface holds the region of the drawing space whose
-     * top-left corner is (@p x, @p y) — the band-rendering mapping. Drawing
-     * uses the full-space coordinates; pixels landing outside the surface
-     * are clipped on all four sides. @ref width and @ref height report the
-     * far edges of the surface in canvas coordinates (@p x + the surface
-     * width, @p y + the surface height), so they depend on where the surface
-     * sits — for a band, @ref height is the band's bottom edge, not the
-     * frame's. When drawing reads the canvas size (layout relative to the
-     * bottom or right edge, or a @ref rotated view over the canvas), use the
-     * constructor that also takes the size of the drawing space.
-     *
-     * @param surface The surface to draw on; must outlive the canvas.
-     * @param x       Canvas-coordinate column of the surface's left edge.
-     * @param y       Canvas-coordinate row of the surface's top edge.
-     */
-    canvas(Surface& surface, size_t x, size_t y) noexcept
-        : canvas(surface, x, y, x + surface.width(), y + surface.height()) {}
-
-    /**
      * @brief Creates a canvas for a @p width x @p height drawing space whose surface sits at
      *        (@p x, @p y) in it.
      *
@@ -903,9 +882,8 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface width; for a translated canvas it
-     * is the drawing-space width it was constructed with, or else the
-     * surface's far column edge in canvas coordinates; for a @ref window it
-     * is the window width.
+     * is the drawing-space width it was constructed with; for a
+     * @ref window it is the window width.
      */
     [[nodiscard]] size_t width() const noexcept { return _width; }
 
@@ -914,9 +892,8 @@ public:
      *
      * Coordinates at or beyond this bound clip. For a canvas covering its
      * whole surface this is the surface height; for a translated canvas it
-     * is the drawing-space height it was constructed with, or else the
-     * surface's far row edge in canvas coordinates; for a @ref window it
-     * is the window height.
+     * is the drawing-space height it was constructed with; for a
+     * @ref window it is the window height.
      */
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
