@@ -148,9 +148,11 @@ if (auto r = card.try_read_sectors(0, sector); !r) {
 - `is_write_protected()` - Write-protect pin (false when none is configured)
 - `probe()` / `try_probe()` - Check that the card responds
 
-**Raw sector I/O** (sizes in bytes, whole sectors only):
-- `read_sectors(first, dst)` / `try_read_sectors(...)`
-- `write_sectors(first, src)` / `try_write_sectors(...)`
+**Raw sector I/O** (buffer sizes in bytes, whole sectors only; the sector count follows from the
+size):
+- `read_sectors(first, byte_span)` / `try_read_sectors(first, byte_span)` - Fills
+  the whole buffer
+- `write_sectors(first, byte_view)` / `try_write_sectors(first, byte_view)`
 
 **Erase:**
 - `erase_sectors(first, count)` - Erase (trim on MMC/eMMC)

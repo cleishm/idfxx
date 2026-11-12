@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <driver/sdspi_host.h>
 #include <driver/spi_master.h>
@@ -827,14 +828,20 @@ TEST_CASE("sdcard raw read and write round-trip", "[idfxx][sdcard][hw]") {
     }
     TEST_ASSERT_TRUE(c.try_write_sectors(first, pattern).has_value());
 
-    std::vector<uint8_t> readback(bytes);
-    TEST_ASSERT_TRUE(c.try_read_sectors(first, readback.data(), readback.size()).has_value());
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(pattern.data(), readback.data(), bytes);
+    // std::byte buffers are accepted as well as uint8_t ones
+    std::vector<std::byte> readback(bytes);
+    TEST_ASSERT_TRUE(c.try_read_sectors(first, readback).has_value());
+    TEST_ASSERT_EQUAL_MEMORY(pattern.data(), readback.data(), bytes);
+
+    // A pointer and a length select part of a buffer: read the second sector alone
+    std::fill(readback.begin(), readback.end(), std::byte{0});
+    TEST_ASSERT_TRUE(c.try_read_sectors(first + 1, {readback.data(), c.sector_size()}).has_value());
+    TEST_ASSERT_EQUAL_MEMORY(pattern.data() + c.sector_size(), readback.data(), c.sector_size());
 
     // Restore the original contents
-    TEST_ASSERT_TRUE(c.try_write_sectors(first, original.data(), original.size()).has_value());
+    TEST_ASSERT_TRUE(c.try_write_sectors(first, {original.data(), original.size()}).has_value());
     TEST_ASSERT_TRUE(c.try_read_sectors(first, readback).has_value());
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(original.data(), readback.data(), bytes);
+    TEST_ASSERT_EQUAL_MEMORY(original.data(), readback.data(), bytes);
 }
 
 TEST_CASE("sdcard raw I/O rejects partial sectors and out-of-range sectors", "[idfxx][sdcard][hw]") {
@@ -843,20 +850,21 @@ TEST_CASE("sdcard raw I/O rejects partial sectors and out-of-range sectors", "[i
     auto& c = f.get();
     std::vector<uint8_t> buf(2 * c.sector_size());
 
-    auto r = c.try_read_sectors(0, buf.data(), c.sector_size() + 1);
+    auto r = c.try_read_sectors(0, {buf.data(), c.sector_size() + 1});
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
-    r = c.try_write_sectors(0, buf.data(), 100);
+    r = c.try_write_sectors(0, {buf.data(), 100});
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
 
     // The last sector is readable; one past it is not
-    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() - 1, buf.data(), c.sector_size()).has_value());
+    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() - 1, {buf.data(), c.sector_size()}).has_value());
     r = c.try_read_sectors(c.sector_count() - 1, buf);
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
     r = c.try_erase_sectors(c.sector_count(), 1);
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
 
     // Empty operations succeed without contacting the card
-    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() + 10, buf.data(), 0).has_value());
+    TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() + 10, byte_span{}).has_value());
+    TEST_ASSERT_TRUE(c.try_write_sectors(c.sector_count() + 10, byte_view{}).has_value());
     TEST_ASSERT_TRUE(c.try_erase_sectors(c.sector_count() + 10, 0).has_value());
 
     // Sanitize is MMC-only, and the timeout must be positive

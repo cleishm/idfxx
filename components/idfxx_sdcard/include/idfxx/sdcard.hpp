@@ -24,6 +24,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/required>
@@ -38,7 +39,6 @@
 #include <quanta/frequency>
 #include <sd_protocol_types.h>
 #include <soc/soc_caps.h>
-#include <span>
 #include <string>
 #include <string_view>
 
@@ -276,7 +276,7 @@ private:
  * idfxx::sdcard::card card(bus, {.cs = idfxx::gpio_10, .card_detect = idfxx::gpio_4});
  *
  * std::println("{} card, {} bytes", card.type(), card.size());
- * std::vector<uint8_t> sector(card.sector_size());
+ * std::vector<std::byte> sector(card.sector_size());
  * card.read_sectors(0, sector);
  * @endcode
  */
@@ -727,89 +727,57 @@ public:
     /**
      * @brief Reads whole sectors from the card.
      *
-     * Reading no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
+     * Fills the whole of @p dst, whose size must be a multiple of sector_size(): the number of
+     * sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without checking
+     * @p first or contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to read.
      * @param dst   Buffer to read into; its size is the number of bytes to read, a multiple of
-     * sector_size().
+     *              sector_size().
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for try_read_sectors().
      *
      * @code
-     * std::vector<uint8_t> buf(card.sector_size() * 4);
+     * std::vector<std::byte> buf(card.sector_size() * 4);
      * card.read_sectors(100, buf);
      * @endcode
      */
-    void read_sectors(size_t first, std::span<uint8_t> dst) const;
-
-    /**
-     * @brief Reads whole sectors from the card.
-     *
-     * Reading no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
-     *
-     * @param first The first sector to read.
-     * @param dst   Buffer to read into.
-     * @param size  Number of bytes to read, a multiple of sector_size().
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, with the error codes listed for try_read_sectors().
-     */
-    void read_sectors(size_t first, void* dst, size_t size) const;
+    void read_sectors(size_t first, byte_span dst) const;
 #endif
 
     /**
      * @brief Reads whole sectors from the card.
      *
-     * Reading no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
+     * Fills the whole of @p dst, whose size must be a multiple of sector_size(): the number of
+     * sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without checking
+     * @p first or contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to read.
      * @param dst   Buffer to read into; its size is the number of bytes to read, a multiple of
-     * sector_size().
+     *              sector_size().
      *
      * @return Success, or an error.
-     * @retval errc::invalid_size The size is not a multiple of sector_size(), or the range extends
-     * past the end of the card.
+     * @retval errc::invalid_size The size of @p dst is not a multiple of sector_size(), or the
+     *         range extends past the end of the card.
      * @retval errc::not_found The card-detect pin reports that the card has been removed.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response.
      * @retval errc::invalid_crc Data failed its CRC check.
      */
-    [[nodiscard]] result<void> try_read_sectors(size_t first, std::span<uint8_t> dst) const;
-
-    /**
-     * @brief Reads whole sectors from the card.
-     *
-     * Reading no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
-     *
-     * @param first The first sector to read.
-     * @param dst   Buffer to read into.
-     * @param size  Number of bytes to read, a multiple of sector_size().
-     *
-     * @return Success, or an error.
-     * @retval errc::invalid_size The size is not a multiple of sector_size(), or the range extends
-     * past the end of the card.
-     * @retval errc::not_found The card-detect pin reports that the card has been removed.
-     * @retval errc::timeout The card did not respond.
-     * @retval errc::invalid_response The card sent an invalid response.
-     * @retval errc::invalid_crc Data failed its CRC check.
-     */
-    [[nodiscard]] result<void> try_read_sectors(size_t first, void* dst, size_t size) const;
+    [[nodiscard]] result<void> try_read_sectors(size_t first, byte_span dst) const;
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Writes whole sectors to the card.
      *
-     * Writing no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
+     * The size of @p src must be a multiple of sector_size(): the number of sectors written is
+     * `src.size() / sector_size()`. Writing no bytes succeeds without checking @p first or
+     * contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to write.
      * @param src   Data to write; its size is the number of bytes to write, a multiple of
-     * sector_size().
+     *              sector_size().
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for try_write_sectors().
@@ -819,65 +787,30 @@ public:
      * card.write_sectors(100, buf);
      * @endcode
      */
-    void write_sectors(size_t first, std::span<const uint8_t> src);
-
-    /**
-     * @brief Writes whole sectors to the card.
-     *
-     * Writing no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
-     *
-     * @param first The first sector to write.
-     * @param src   Data to write.
-     * @param size  Number of bytes to write, a multiple of sector_size().
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure, with the error codes listed for try_write_sectors().
-     */
-    void write_sectors(size_t first, const void* src, size_t size);
+    void write_sectors(size_t first, byte_view src);
 #endif
 
     /**
      * @brief Writes whole sectors to the card.
      *
-     * Writing no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
+     * The size of @p src must be a multiple of sector_size(): the number of sectors written is
+     * `src.size() / sector_size()`. Writing no bytes succeeds without checking @p first or
+     * contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to write.
      * @param src   Data to write; its size is the number of bytes to write, a multiple of
-     * sector_size().
+     *              sector_size().
      *
      * @return Success, or an error.
-     * @retval errc::invalid_size The size is not a multiple of sector_size(), or the range extends
-     * past the end of the card.
+     * @retval errc::invalid_size The size of @p src is not a multiple of sector_size(), or the
+     *         range extends past the end of the card.
      * @retval errc::invalid_state The write-protect pin reports that the card is write-protected.
      * @retval errc::not_found The card-detect pin reports that the card has been removed.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response or reported a write error.
      * @retval errc::invalid_crc The card reported a CRC error in the data.
      */
-    [[nodiscard]] result<void> try_write_sectors(size_t first, std::span<const uint8_t> src);
-
-    /**
-     * @brief Writes whole sectors to the card.
-     *
-     * Writing no bytes succeeds without checking @p first or contacting the
-     * card. Must not be used while a filesystem is mounted on the card.
-     *
-     * @param first The first sector to write.
-     * @param src   Data to write.
-     * @param size  Number of bytes to write, a multiple of sector_size().
-     *
-     * @return Success, or an error.
-     * @retval errc::invalid_size The size is not a multiple of sector_size(), or the range extends
-     * past the end of the card.
-     * @retval errc::invalid_state The write-protect pin reports that the card is write-protected.
-     * @retval errc::not_found The card-detect pin reports that the card has been removed.
-     * @retval errc::timeout The card did not respond.
-     * @retval errc::invalid_response The card sent an invalid response or reported a write error.
-     * @retval errc::invalid_crc The card reported a CRC error in the data.
-     */
-    [[nodiscard]] result<void> try_write_sectors(size_t first, const void* src, size_t size);
+    [[nodiscard]] result<void> try_write_sectors(size_t first, byte_view src);
 
     // =========================================================================
     // Erase
