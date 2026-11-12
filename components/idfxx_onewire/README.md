@@ -4,7 +4,7 @@
 
 ## Features
 
-- Typed 64-bit device address with family code extraction and hex formatting
+- Typed 64-bit device address with family code extraction, ROM byte access and hex formatting
 - Bus reset, ROM select, and skip ROM commands
 - Single-byte and byte-buffer read/write operations accepting `uint8_t` or `std::byte` buffers,
   literal byte lists and fixed-size array reads
@@ -153,9 +153,11 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 
 - `address()` - Default construction (equivalent to `any()`)
 - `address(uint64_t)` - Construction from raw 64-bit value
+- `address(std::array<uint8_t, 8>)` - Construction from the 8 ROM bytes (family code first)
 - `any()` - Wildcard address for single-device buses
 - `none()` - Invalid sentinel address
 - `raw()` - Underlying 64-bit value
+- `bytes()` - The 8 ROM bytes in bus transmit order: family code, serial number, CRC
 - `family()` - Family code (low byte)
 
 ### `bus`

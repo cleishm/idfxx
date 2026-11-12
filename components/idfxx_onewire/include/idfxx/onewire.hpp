@@ -23,6 +23,7 @@
 #include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/gpio>
+#include <idfxx/hex>
 
 #include <array>
 #include <cstddef>
@@ -63,6 +64,20 @@ public:
         : _raw(raw) {}
 
     /**
+     * @brief Constructs an address from its 8 ROM bytes.
+     *
+     * The inverse of bytes(): family code first, then the 48-bit serial number (least significant
+     * byte first), then the CRC.
+     *
+     * @param bytes The 8-byte ROM code, in the order it is transmitted on the bus.
+     */
+    constexpr explicit address(std::array<uint8_t, 8> bytes) noexcept {
+        for (std::size_t i = 0; i < bytes.size(); ++i) {
+            _raw |= static_cast<uint64_t>(bytes[i]) << (i * 8);
+        }
+    }
+
+    /**
      * @brief Returns the wildcard address for single-device buses.
      *
      * When only one device is connected, this address can be used to skip
@@ -97,6 +112,28 @@ public:
      * @return The 8-bit family code.
      */
     [[nodiscard]] constexpr uint8_t family() const { return static_cast<uint8_t>(_raw & 0xFF); }
+
+    /**
+     * @brief Returns the 8 ROM bytes of the address.
+     *
+     * The bytes are in the order the ROM code is transmitted on the bus: the family code first,
+     * then the 48-bit serial number (least significant byte first), then the CRC. The CRC can be
+     * checked with crc8():
+     *
+     * @code
+     * auto rom = addr.bytes();
+     * bool valid = idfxx::onewire::crc8(std::span{rom}.first(7)) == rom[7];
+     * @endcode
+     *
+     * @return The ROM code as 8 bytes.
+     */
+    [[nodiscard]] constexpr std::array<uint8_t, 8> bytes() const noexcept {
+        std::array<uint8_t, 8> result{};
+        for (std::size_t i = 0; i < result.size(); ++i) {
+            result[i] = static_cast<uint8_t>(_raw >> (i * 8));
+        }
+        return result;
+    }
 
     /** @brief Compares two addresses for equality. */
     [[nodiscard]] constexpr bool operator==(const address&) const noexcept = default;
@@ -553,36 +590,27 @@ namespace idfxx {
     if (addr == onewire::address::none()) {
         return "ONEWIRE_NONE";
     }
-    static constexpr char hex[] = "0123456789ABCDEF";
-    std::string result;
-    result.reserve(23);
-    auto raw = addr.raw();
-    for (int i = 0; i < 8; ++i) {
-        if (i > 0) {
-            result += ':';
-        }
-        auto byte = static_cast<uint8_t>((raw >> (i * 8)) & 0xFF);
-        result += hex[byte >> 4];
-        result += hex[byte & 0xF];
-    }
-    return result;
+    // Low byte (the family code) first.
+    return to_string(hex(addr.bytes(), {.separator = ":", .letter_case = hex_case::upper}));
 }
 
 } // namespace idfxx
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 /** @cond INTERNAL */
-#include <algorithm>
 #include <format>
+#include <string_view>
 namespace std {
+// Composes std::formatter<std::string_view>, so the standard fill, align and width spec work.
 template<>
 struct formatter<idfxx::onewire::address> {
-    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+    std::formatter<std::string_view> _underlying;
+
+    constexpr auto parse(format_parse_context& ctx) { return _underlying.parse(ctx); }
 
     template<typename FormatContext>
     auto format(idfxx::onewire::address addr, FormatContext& ctx) const {
-        auto s = idfxx::to_string(addr);
-        return std::copy(s.begin(), s.end(), ctx.out());
+        return _underlying.format(idfxx::to_string(addr), ctx);
     }
 };
 } // namespace std
