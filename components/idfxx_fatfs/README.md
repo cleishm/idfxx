@@ -177,8 +177,9 @@ if (auto r = vol.try_unmount(); !r) {
 - `unmount()` / `try_unmount()` - Unmount now, reporting errors
 
 **Replacing files** (paths are full paths under the mount path, such as "/sdcard/config.json"):
-- `replace_file(path, contents)` / `try_replace_file(path, contents)` - Replace a file with a span
-  of bytes, so that a reset leaves either the old contents or the new
+- `replace_file(path, contents)` / `try_replace_file(path, contents)` - Replace a file with bytes
+  (an `idfxx::byte_view`: any contiguous `std::byte` or `uint8_t` buffer), so that a reset leaves
+  either the old contents or the new
 - `replace_file(path, text)` / `try_replace_file(path, text)` - The same, with the characters of a
   `std::string_view`
 - `replace_file(path, source)` / `try_replace_file(path, source)` - The same, reading an
