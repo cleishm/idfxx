@@ -71,7 +71,7 @@ concept has_register_event_callbacks = requires(D& d) { d.register_event_callbac
 static_assert(!has_try_register_event_callbacks<master_device>);
 static_assert(!has_register_event_callbacks<master_device>);
 
-// A 2.x-style (high, low) register read is rejected instead of binding the literal 0 to the buffer pointer
+// A 2.x-style (high, low, size) register read doesn't compile
 template<typename D>
 concept try_read_register_high_low = requires(D& d) { d.try_read_register(uint16_t{0x10}, 0, size_t{3}); };
 template<typename D>
@@ -81,18 +81,98 @@ concept try_read_register_high_low_timeout = requires(D& d) {
 static_assert(!try_read_register_high_low<master_device>);
 static_assert(!try_read_register_high_low_timeout<master_device>);
 
-// The single-register read forms still resolve
+// The single-register read forms resolve: into any writable byte buffer, or a fixed-size array
 template<typename D>
-concept try_read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> s) {
-    { d.try_read_register(uint16_t{0x10}, size_t{3}) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
-    { d.try_read_register(uint16_t{0x10}, size_t{3}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
-    { d.try_read_register(0x10, 3) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
-    { d.try_read_register(uint16_t{0x10}, p, size_t{3}) } -> std::same_as<idfxx::result<void>>;
-    { d.try_read_register(uint16_t{0x10}, p, size_t{3}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+concept try_read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> s, std::array<std::byte, 4>& b) {
     { d.try_read_register(uint16_t{0x10}, s) } -> std::same_as<idfxx::result<void>>;
     { d.try_read_register(uint16_t{0x10}, s, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_read_register(uint16_t{0x10}, b) } -> std::same_as<idfxx::result<void>>;
+    { d.try_read_register(uint16_t{0x10}, {p, size_t{3}}) } -> std::same_as<idfxx::result<void>>;
+    { d.try_read_register(uint16_t{0x10}, {p, size_t{3}}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.template try_read_register<3>(uint16_t{0x10}) } -> std::same_as<idfxx::result<std::array<uint8_t, 3>>>;
+    { d.template try_read_register<3>(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<std::array<uint8_t, 3>>>;
 };
 static_assert(try_read_register_forms<master_device>);
+
+// A size is not a buffer: there is no allocating read, and a zero-byte fixed-size read doesn't compile
+template<typename D>
+concept try_read_register_sized = requires(D& d) { d.try_read_register(0x10, 3); };
+template<typename D>
+concept try_read_register_sized_timeout = requires(D& d) {
+    d.try_read_register(uint16_t{0x10}, size_t{3}, std::chrono::milliseconds(100));
+};
+template<typename D>
+concept try_read_register_zero = requires(D& d) { d.template try_read_register<0>(uint16_t{0x10}); };
+template<typename D>
+concept try_receive_sized = requires(D& d) { d.try_receive(size_t{4}); };
+static_assert(!try_read_register_sized<master_device>);
+static_assert(!try_read_register_sized_timeout<master_device>);
+static_assert(!try_read_register_zero<master_device>);
+static_assert(!try_receive_sized<master_device>);
+
+// Byte buffers are passed as views, so pointer-and-length arguments don't resolve; {ptr, len} does
+template<typename D>
+concept try_transmit_pointer_length = requires(D& d, const uint8_t* p) { d.try_transmit(p, size_t{2}); };
+template<typename D>
+concept try_receive_pointer_length = requires(D& d, uint8_t* p) { d.try_receive(p, size_t{2}); };
+template<typename D>
+concept try_write_register_pointer_length = requires(D& d, const uint8_t* p) {
+    d.try_write_register(uint16_t{0x10}, p, size_t{2});
+};
+static_assert(!try_transmit_pointer_length<master_device>);
+static_assert(!try_receive_pointer_length<master_device>);
+static_assert(!try_write_register_pointer_length<master_device>);
+
+// Transmit and register writes take any byte buffer, literal bytes, or several buffers at once
+template<typename D>
+concept try_write_forms = requires(
+    D& d,
+    const uint8_t* p,
+    std::vector<uint8_t>& v,
+    std::array<std::byte, 2>& b,
+    std::array<idfxx::byte_view, 2>& views,
+    std::span<const uint16_t> regs
+) {
+    { d.try_transmit(v) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit(b, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit({p, size_t{2}}) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit({0x01, 0x02}) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit({0x01}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit(v, b) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit(views) } -> std::same_as<idfxx::result<void>>;
+    { d.try_transmit(views, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, b) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, {0x01, 0x02}) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_register(uint16_t{0x10}, {0x01}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_registers(regs, b) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_registers(regs, {0x00}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_registers({0x10, 0x11}, v) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_registers({0x10, 0x11}, {0x00, 0x01}) } -> std::same_as<idfxx::result<void>>;
+    { d.try_write_registers({0x10, 0x11}, {0x00, 0x01}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+};
+static_assert(try_write_forms<master_device>);
+
+// Receives fill any writable byte buffer, or return a fixed-size array
+template<typename D>
+concept try_receive_forms = requires(D& d, std::vector<uint8_t>& v, std::array<std::byte, 2>& b) {
+    { d.try_receive(v) } -> std::same_as<idfxx::result<void>>;
+    { d.try_receive(b, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<void>>;
+    { d.template try_receive<2>() } -> std::same_as<idfxx::result<std::array<uint8_t, 2>>>;
+    { d.template try_receive<2>(std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<std::array<uint8_t, 2>>>;
+};
+static_assert(try_receive_forms<master_device>);
+
+// Text and temporaries are not byte buffers
+template<typename D>
+concept try_transmit_chars = requires(D& d, std::array<char, 2>& c) { d.try_transmit(c); };
+template<typename D>
+concept try_receive_temporary = requires(D& d) { d.try_receive(std::array<uint8_t, 2>{}); };
+static_assert(!try_transmit_chars<master_device>);
+static_assert(!try_receive_temporary<master_device>);
+
+// Custom operations hold views of the caller's buffers
+static_assert(std::is_same_v<decltype(operation::write_data), idfxx::byte_view>);
+static_assert(std::is_same_v<decltype(operation::read_data), idfxx::byte_span>);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 template<typename D>
@@ -105,16 +185,69 @@ static_assert(!read_register_high_low<master_device>);
 static_assert(!read_register_high_low_timeout<master_device>);
 
 template<typename D>
-concept read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> s) {
-    { d.read_register(uint16_t{0x10}, size_t{3}) } -> std::same_as<std::vector<uint8_t>>;
-    { d.read_register(uint16_t{0x10}, size_t{3}, std::chrono::milliseconds(100)) } -> std::same_as<std::vector<uint8_t>>;
-    { d.read_register(0x10, 3) } -> std::same_as<std::vector<uint8_t>>;
-    { d.read_register(uint16_t{0x10}, p, size_t{3}) } -> std::same_as<void>;
-    { d.read_register(uint16_t{0x10}, p, size_t{3}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+concept read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> s, std::array<std::byte, 4>& b) {
     { d.read_register(uint16_t{0x10}, s) } -> std::same_as<void>;
     { d.read_register(uint16_t{0x10}, s, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.read_register(uint16_t{0x10}, b) } -> std::same_as<void>;
+    { d.read_register(uint16_t{0x10}, {p, size_t{3}}) } -> std::same_as<void>;
+    { d.read_register(uint16_t{0x10}, {p, size_t{3}}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.template read_register<3>(uint16_t{0x10}) } -> std::same_as<std::array<uint8_t, 3>>;
+    { d.template read_register<3>(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<std::array<uint8_t, 3>>;
 };
 static_assert(read_register_forms<master_device>);
+
+template<typename D>
+concept read_register_sized = requires(D& d) { d.read_register(0x10, 3); };
+template<typename D>
+concept read_register_sized_timeout = requires(D& d) {
+    d.read_register(uint16_t{0x10}, size_t{3}, std::chrono::milliseconds(100));
+};
+template<typename D>
+concept read_register_zero = requires(D& d) { d.template read_register<0>(uint16_t{0x10}); };
+template<typename D>
+concept receive_sized = requires(D& d) { d.receive(size_t{4}); };
+template<typename D>
+concept transmit_pointer_length = requires(D& d, const uint8_t* p) { d.transmit(p, size_t{2}); };
+static_assert(!read_register_sized<master_device>);
+static_assert(!read_register_sized_timeout<master_device>);
+static_assert(!read_register_zero<master_device>);
+static_assert(!receive_sized<master_device>);
+static_assert(!transmit_pointer_length<master_device>);
+
+template<typename D>
+concept write_forms = requires(
+    D& d,
+    std::vector<uint8_t>& v,
+    std::array<std::byte, 2>& b,
+    std::array<idfxx::byte_view, 2>& views,
+    std::span<const uint16_t> regs
+) {
+    { d.transmit(v) } -> std::same_as<void>;
+    { d.transmit(b, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.transmit({0x01, 0x02}) } -> std::same_as<void>;
+    { d.transmit({0x01}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.transmit(v, b) } -> std::same_as<void>;
+    { d.transmit(views) } -> std::same_as<void>;
+    { d.transmit(views, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, b) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, {0x01, 0x02}) } -> std::same_as<void>;
+    { d.write_register(uint16_t{0x10}, {0x01}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.write_registers(regs, b) } -> std::same_as<void>;
+    { d.write_registers(regs, {0x00}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.write_registers({0x10, 0x11}, v) } -> std::same_as<void>;
+    { d.write_registers({0x10, 0x11}, {0x00, 0x01}) } -> std::same_as<void>;
+    { d.write_registers({0x10, 0x11}, {0x00, 0x01}, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+};
+static_assert(write_forms<master_device>);
+
+template<typename D>
+concept receive_forms = requires(D& d, std::vector<uint8_t>& v, std::array<std::byte, 2>& b) {
+    { d.receive(v) } -> std::same_as<void>;
+    { d.receive(b, std::chrono::milliseconds(100)) } -> std::same_as<void>;
+    { d.template receive<2>() } -> std::same_as<std::array<uint8_t, 2>>;
+    { d.template receive<2>(std::chrono::milliseconds(100)) } -> std::same_as<std::array<uint8_t, 2>>;
+};
+static_assert(receive_forms<master_device>);
 #endif
 
 // The configured SCL speed is readable from the device
@@ -169,11 +302,11 @@ static_assert(decoded<uint32_t>(encoded<uint32_t>(0xDEADBEEF, std::endian::big),
 static_assert(decoded<uint32_t>(encoded<uint32_t>(0xDEADBEEF, std::endian::little), std::endian::little) == 0xDEADBEEF);
 static_assert(decoded<uint64_t>(encoded<uint64_t>(0x0123456789ABCDEF, std::endian::big), std::endian::big) == 0x0123456789ABCDEF);
 
-// The single-byte and multi-byte value forms resolve, alongside the sized read
+// The single-byte and multi-byte value forms resolve, alongside the fixed-size read
 template<typename D>
 concept try_register_value_forms = requires(D& d) {
-    { d.try_read_register(uint16_t{0x10}, size_t{1}) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
-    { d.try_read_register(uint16_t{0x10}, 1) } -> std::same_as<idfxx::result<std::vector<uint8_t>>>;
+    { d.template try_read_register<1>(uint16_t{0x10}) } -> std::same_as<idfxx::result<std::array<uint8_t, 1>>>;
+    { d.template try_read_register<uint8_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<idfxx::result<uint8_t>>;
     { d.try_read_register(uint16_t{0x10}) } -> std::same_as<idfxx::result<uint8_t>>;
     { d.try_read_register(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<idfxx::result<uint8_t>>;
     { d.template try_read_register<uint16_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<idfxx::result<uint16_t>>;
@@ -221,8 +354,8 @@ static_assert(!try_read_bool_value<master_device>);
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 template<typename D>
 concept register_value_forms = requires(D& d) {
-    { d.read_register(uint16_t{0x10}, size_t{1}) } -> std::same_as<std::vector<uint8_t>>;
-    { d.read_register(uint16_t{0x10}, 1) } -> std::same_as<std::vector<uint8_t>>;
+    { d.template read_register<1>(uint16_t{0x10}) } -> std::same_as<std::array<uint8_t, 1>>;
+    { d.template read_register<uint8_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<uint8_t>;
     { d.read_register(uint16_t{0x10}) } -> std::same_as<uint8_t>;
     { d.read_register(uint16_t{0x10}, std::chrono::milliseconds(100)) } -> std::same_as<uint8_t>;
     { d.template read_register<uint16_t>(uint16_t{0x10}, std::endian::big) } -> std::same_as<uint16_t>;
@@ -453,9 +586,16 @@ TEST_CASE("master_device transmit API compiles", "[idfxx][i2c][master_device]") 
 
                 // Verify API exists (will likely fail without actual device)
                 std::vector<uint8_t> data{0x01, 0x02, 0x03};
+                std::array<std::byte, 2> payload{std::byte{0x04}, std::byte{0x05}};
+                std::array<idfxx::byte_view, 2> parts{data, payload};
                 [[maybe_unused]] auto result1 = device.try_transmit(data);
-                [[maybe_unused]] auto result2 = device.try_transmit(data.data(), data.size());
+                [[maybe_unused]] auto result2 = device.try_transmit({data.data(), data.size()});
                 [[maybe_unused]] auto result3 = device.try_transmit(data, std::chrono::milliseconds(100));
+                [[maybe_unused]] auto result4 = device.try_transmit({0x01, 0x02});
+                [[maybe_unused]] auto result5 = device.try_transmit({0x01, 0x02}, std::chrono::milliseconds(100));
+                [[maybe_unused]] auto result6 = device.try_transmit(data, payload);
+                [[maybe_unused]] auto result7 = device.try_transmit(parts);
+                [[maybe_unused]] auto result8 = device.try_transmit(parts, std::chrono::milliseconds(100));
             }
         }
     }
@@ -475,8 +615,10 @@ TEST_CASE("master_device receive API compiles", "[idfxx][i2c][master_device]") {
                 // Verify API exists
                 std::vector<uint8_t> buffer(10);
                 [[maybe_unused]] auto result1 = device.try_receive(buffer);
-                [[maybe_unused]] auto result2 = device.try_receive(buffer.data(), buffer.size());
+                [[maybe_unused]] auto result2 = device.try_receive({buffer.data(), buffer.size()});
                 [[maybe_unused]] auto result3 = device.try_receive(buffer, std::chrono::milliseconds(100));
+                [[maybe_unused]] auto result4 = device.try_receive<4>();
+                [[maybe_unused]] auto result5 = device.try_receive<4>(std::chrono::milliseconds(100));
             }
         }
     }
@@ -496,8 +638,10 @@ TEST_CASE("master_device write_register API compiles", "[idfxx][i2c][master_devi
                 // Verify register API exists
                 std::vector<uint8_t> data{0xAB, 0xCD};
                 [[maybe_unused]] auto result1 = device.try_write_register(0x0010, data);
-                [[maybe_unused]] auto result2 = device.try_write_register(0x0010, data.data(), data.size());
+                [[maybe_unused]] auto result2 = device.try_write_register(0x0010, {data.data(), data.size()});
                 [[maybe_unused]] auto result3 = device.try_write_register(0x0010, data, std::chrono::milliseconds(100));
+                [[maybe_unused]] auto result4 = device.try_write_register(0x0010, {0xAB, 0xCD});
+                [[maybe_unused]] auto result5 = device.try_write_register(0x0010, {0xAB, 0xCD}, std::chrono::milliseconds(100));
             }
         }
     }
@@ -517,8 +661,10 @@ TEST_CASE("master_device read_register API compiles", "[idfxx][i2c][master_devic
                 // Verify register API exists
                 std::vector<uint8_t> buffer(10);
                 [[maybe_unused]] auto result1 = device.try_read_register(0x0010, buffer);
-                [[maybe_unused]] auto result2 = device.try_read_register(0x0010, buffer.data(), buffer.size());
+                [[maybe_unused]] auto result2 = device.try_read_register(0x0010, {buffer.data(), buffer.size()});
                 [[maybe_unused]] auto result3 = device.try_read_register(0x0010, buffer, std::chrono::milliseconds(100));
+                [[maybe_unused]] auto result4 = device.try_read_register<4>(0x0010);
+                [[maybe_unused]] auto result5 = device.try_read_register<4>(0x0010, std::chrono::milliseconds(100));
             }
         }
     }
@@ -539,8 +685,11 @@ TEST_CASE("master_device write_registers API compiles", "[idfxx][i2c][master_dev
                 std::vector<uint16_t> registers{0x0010, 0x0011, 0x0012};
                 std::vector<uint8_t> data{0xAB, 0xCD, 0xEF};
                 [[maybe_unused]] auto result1 = device.try_write_registers(registers, data);
-                [[maybe_unused]] auto result2 = device.try_write_registers(registers, data.data(), data.size());
+                [[maybe_unused]] auto result2 = device.try_write_registers(registers, {data.data(), data.size()});
                 [[maybe_unused]] auto result3 = device.try_write_registers(registers, data, std::chrono::milliseconds(10));
+                [[maybe_unused]] auto result4 = device.try_write_registers(registers, {0xAB, 0xCD});
+                [[maybe_unused]] auto result5 = device.try_write_registers({0x0010, 0x0011}, data);
+                [[maybe_unused]] auto result6 = device.try_write_registers({0x0010, 0x0011}, {0xAB}, std::chrono::milliseconds(10));
             }
         }
     }
@@ -566,7 +715,7 @@ TEST_CASE("master_device bus accessor works", "[idfxx][i2c][master_device]") {
 
 TEST_CASE("master_device one-byte register address rejects registers above 0xFF", "[idfxx][i2c][master_device]") {
     bool device_created = false;
-    std::error_code read_ec, write_ec, multi_ec;
+    std::error_code read_ec, read_fixed_ec, read_into_ec, write_ec, write_literal_ec, multi_ec, multi_literal_ec;
     {
         auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
         if (bus_result.has_value()) {
@@ -578,21 +727,30 @@ TEST_CASE("master_device one-byte register address rejects registers above 0xFF"
 
                 std::vector<uint8_t> data{0xAB};
                 std::vector<uint16_t> registers{0x0010, 0x0100};
-                read_ec = error_of(device.try_read_register(0x100, 1));
+                std::array<uint8_t, 2> buffer{};
+                read_ec = error_of(device.try_read_register(0x100));
+                read_fixed_ec = error_of(device.try_read_register<2>(0x100));
+                read_into_ec = error_of(device.try_read_register(0x100, buffer));
                 write_ec = error_of(device.try_write_register(0x100, data));
+                write_literal_ec = error_of(device.try_write_register(0x100, {0xAB, 0xCD}));
                 multi_ec = error_of(device.try_write_registers(registers, data));
+                multi_literal_ec = error_of(device.try_write_registers({0x0010, 0x0100}, {0xAB}));
             }
         }
     }
     TEST_ASSERT_TRUE_MESSAGE(device_created, "Failed to create I2C bus or device");
     TEST_ASSERT_TRUE_MESSAGE(read_ec == idfxx::errc::invalid_arg, read_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(read_fixed_ec == idfxx::errc::invalid_arg, read_fixed_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(read_into_ec == idfxx::errc::invalid_arg, read_into_ec.message().c_str());
     TEST_ASSERT_TRUE_MESSAGE(write_ec == idfxx::errc::invalid_arg, write_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(write_literal_ec == idfxx::errc::invalid_arg, write_literal_ec.message().c_str());
     TEST_ASSERT_TRUE_MESSAGE(multi_ec == idfxx::errc::invalid_arg, multi_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(multi_literal_ec == idfxx::errc::invalid_arg, multi_literal_ec.message().c_str());
 }
 
 TEST_CASE("master_device read_register with an empty buffer fails with invalid_arg", "[idfxx][i2c][master_device]") {
     bool device_created = false;
-    std::error_code zero_ec, null_ec;
+    std::error_code default_ec, empty_vector_ec;
     {
         auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
         if (bus_result.has_value()) {
@@ -600,31 +758,53 @@ TEST_CASE("master_device read_register with an empty buffer fails with invalid_a
             if (device_result.has_value()) {
                 device_created = true;
                 auto& device = *device_result;
-                zero_ec = error_of(device.try_read_register(0x10, size_t{0}));
-                null_ec = error_of(device.try_read_register(0x10, nullptr, size_t{3}));
+                std::vector<uint8_t> empty;
+                default_ec = error_of(device.try_read_register(0x10, idfxx::byte_span{}));
+                empty_vector_ec = error_of(device.try_read_register(0x10, empty));
             }
         }
     }
     TEST_ASSERT_TRUE_MESSAGE(device_created, "Failed to create I2C bus or device");
-    TEST_ASSERT_TRUE_MESSAGE(zero_ec == idfxx::errc::invalid_arg, zero_ec.message().c_str());
-    TEST_ASSERT_TRUE_MESSAGE(null_ec == idfxx::errc::invalid_arg, null_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(default_ec == idfxx::errc::invalid_arg, default_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(empty_vector_ec == idfxx::errc::invalid_arg, empty_vector_ec.message().c_str());
 }
 
-TEST_CASE("master_device write_register with a null buffer fails with invalid_arg", "[idfxx][i2c][master_device]") {
+TEST_CASE("master_device fixed-size, read-into and literal forms reach the bus", "[idfxx][i2c][master_device]") {
+    // No device is present at 0x50, so each form that gets as far as the bus is NACKed (or times out on the bus) and
+    // reports invalid_response, rather than being rejected before anything is sent.
     bool device_created = false;
-    std::error_code ec;
+    std::error_code transmit_literal_ec, transmit_multi_ec, receive_into_ec, receive_fixed_ec, read_into_ec,
+        read_fixed_ec, write_literal_ec, multi_literal_ec;
     {
         auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
         if (bus_result.has_value()) {
             auto device_result = master_device::make(*bus_result, 0x50);
             if (device_result.has_value()) {
                 device_created = true;
-                ec = error_of(device_result->try_write_register(0x10, nullptr, size_t{3}));
+                auto& device = *device_result;
+                std::array<uint8_t, 1> reg{0x10};
+                std::array<std::byte, 2> payload{std::byte{0x01}, std::byte{0x02}};
+                std::array<std::byte, 3> buffer{};
+                transmit_literal_ec = error_of(device.try_transmit({0xAB, 0xCD}));
+                transmit_multi_ec = error_of(device.try_transmit(reg, payload));
+                receive_into_ec = error_of(device.try_receive(buffer));
+                receive_fixed_ec = error_of(device.try_receive<2>());
+                read_into_ec = error_of(device.try_read_register(0x10, buffer));
+                read_fixed_ec = error_of(device.try_read_register<2>(0x10));
+                write_literal_ec = error_of(device.try_write_register(0x10, {0xAB, 0xCD}));
+                multi_literal_ec = error_of(device.try_write_registers({0x10, 0x11}, {0xAB}));
             }
         }
     }
     TEST_ASSERT_TRUE_MESSAGE(device_created, "Failed to create I2C bus or device");
-    TEST_ASSERT_TRUE_MESSAGE(ec == idfxx::errc::invalid_arg, ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(transmit_literal_ec == idfxx::errc::invalid_response, transmit_literal_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(transmit_multi_ec == idfxx::errc::invalid_response, transmit_multi_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(receive_into_ec == idfxx::errc::invalid_response, receive_into_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(receive_fixed_ec == idfxx::errc::invalid_response, receive_fixed_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(read_into_ec == idfxx::errc::invalid_response, read_into_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(read_fixed_ec == idfxx::errc::invalid_response, read_fixed_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(write_literal_ec == idfxx::errc::invalid_response, write_literal_ec.message().c_str());
+    TEST_ASSERT_TRUE_MESSAGE(multi_literal_ec == idfxx::errc::invalid_response, multi_literal_ec.message().c_str());
 }
 
 TEST_CASE("master_device transfer the device doesn't acknowledge fails with invalid_response", "[idfxx][i2c][master_device]") {
@@ -664,7 +844,7 @@ TEST_CASE("master_device transfer fails with timeout while another task holds th
                     std::vector<uint8_t> data{0xAB};
                     uint8_t buffer[2];
                     transmit_ec = error_of(device.try_transmit(data, std::chrono::milliseconds(10)));
-                    read_ec = error_of(device.try_read_register(0x10, buffer, sizeof(buffer), std::chrono::milliseconds(10)));
+                    read_ec = error_of(device.try_read_register(0x10, buffer, std::chrono::milliseconds(10)));
                 });
                 contender.join();
             }

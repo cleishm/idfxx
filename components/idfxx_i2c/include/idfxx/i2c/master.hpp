@@ -20,6 +20,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/error>
 #include <idfxx/gpio>
 #include <idfxx/intr_alloc>
@@ -138,8 +139,8 @@ enum class ack_value : uint8_t {
 struct operation {
     operation_command command;           ///< The operation to perform.
     bool ack_check = true;               ///< (write) Whether to check for ACK.
-    std::span<const uint8_t> write_data; ///< (write) Data to send.
-    std::span<uint8_t> read_data;        ///< (read) Buffer to receive into.
+    byte_view write_data = {};           ///< (write) Data to send.
+    byte_span read_data = {};            ///< (read) Buffer to receive into.
     ack_value ack_type = ack_value::ack; ///< (read) ACK value to send after reading.
 };
 
@@ -781,46 +782,14 @@ public:
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
-     */
-    void transmit(std::span<const uint8_t> data) { unwrap(try_transmit(data)); }
-
-    /**
-     * @brief Transmits data from multiple buffers in a single I2C transaction.
-     *
-     * Convenience overload that accepts two or more buffers as separate arguments.
-     *
-     * @tparam Buffers Types convertible to std::span<const uint8_t>.
-     * @param buffers Buffers to transmit, in order.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
      *
      * @code
-     * std::array<uint8_t, 1> reg{0x10};
-     * std::array<uint8_t, 4> data{0x01, 0x02, 0x03, 0x04};
-     * device.transmit(std::span{reg}, std::span{data});
+     * std::array<uint8_t, 3> cmd{0x00, 0xAF, 0x01};
+     * device.transmit(cmd);
+     * device.transmit({cmd.data() + 1, 2}); // the last two bytes
      * @endcode
      */
-    template<std::convertible_to<std::span<const uint8_t>>... Buffers>
-        requires(sizeof...(Buffers) > 1)
-    void transmit(Buffers... buffers) {
-        unwrap(try_transmit(buffers...));
-    }
-
-    /**
-     * @brief Transmits data from multiple buffers in a single I2C transaction.
-     *
-     * Performs a scatter-gather transmit, sending data from each buffer
-     * sequentially without intermediate stop conditions.
-     *
-     * @param buffers Buffers to transmit, in order.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void transmit(std::span<const std::span<const uint8_t>> buffers) {
-        unwrap(try_transmit(buffers));
-    }
+    void transmit(byte_view data) { unwrap(try_transmit(data)); }
 
     /**
      * @brief Transmits data to the device.
@@ -835,10 +804,87 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void
-    transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
+    void transmit(byte_view data, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_transmit(data, timeout));
     }
+
+    /**
+     * @brief Transmits literal bytes to the device.
+     *
+     * @param data Bytes to transmit, written as a braced list.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     *
+     * @code
+     * device.transmit({0x00, 0xAF});
+     * @endcode
+     */
+    void transmit(std::initializer_list<uint8_t> data) { unwrap(try_transmit(data)); }
+
+    /**
+     * @brief Transmits literal bytes to the device.
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param data Bytes to transmit, written as a braced list.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<typename Rep, typename Period>
+    void transmit(
+        std::initializer_list<uint8_t> data,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        unwrap(try_transmit(data, timeout));
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Convenience overload that accepts two or more buffers as separate arguments.
+     *
+     * @tparam Buffers Types convertible to idfxx::byte_view, such as std::array, std::vector or
+     *                 std::span of uint8_t or std::byte.
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     *
+     * @code
+     * std::array<uint8_t, 1> reg{0x10};
+     * std::array<uint8_t, 4> data{0x01, 0x02, 0x03, 0x04};
+     * device.transmit(reg, data);
+     * @endcode
+     */
+    template<std::convertible_to<byte_view>... Buffers>
+        requires(sizeof...(Buffers) > 1)
+    void transmit(const Buffers&... buffers) {
+        unwrap(try_transmit(buffers...));
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     *
+     * @code
+     * std::array<uint8_t, 1> reg{0x10};
+     * std::array<std::byte, 2> payload{std::byte{0x12}, std::byte{0x34}};
+     * std::array<idfxx::byte_view, 2> parts{reg, payload};
+     * device.transmit(parts);
+     * @endcode
+     */
+    void transmit(std::span<const byte_view> buffers) { unwrap(try_transmit(buffers)); }
 
     /**
      * @brief Transmits data from multiple buffers in a single I2C transaction.
@@ -857,40 +903,10 @@ public:
      */
     template<typename Rep, typename Period>
     void transmit(
-        std::span<const std::span<const uint8_t>> buffers,
+        std::span<const byte_view> buffers,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         unwrap(try_transmit(buffers, timeout));
-    }
-
-    /**
-     * @brief Transmits data to the device.
-     *
-     * @param buf  Data to transmit.
-     * @param size Number of bytes.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void transmit(const uint8_t* buf, size_t size) { unwrap(try_transmit(buf, size)); }
-
-    /**
-     * @brief Transmits data to the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param buf     Data to transmit.
-     * @param size    Number of bytes.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    template<typename Rep, typename Period>
-    void
-    transmit(const uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        unwrap(try_transmit(buf, size, timeout));
     }
 #endif
 
@@ -900,43 +916,9 @@ public:
      * @param data Data to transmit.
      *
      * @return Success, or an error.
-     *
      */
-    [[nodiscard]] result<void> try_transmit(std::span<const uint8_t> data) {
+    [[nodiscard]] result<void> try_transmit(byte_view data) {
         return try_transmit(data, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Transmits data from multiple buffers in a single I2C transaction.
-     *
-     * Convenience overload that accepts two or more buffers as separate arguments.
-     *
-     * @tparam Buffers Types convertible to std::span<const uint8_t>.
-     * @param buffers Buffers to transmit, in order.
-     *
-     * @return Success, or an error.
-     *
-     */
-    template<std::convertible_to<std::span<const uint8_t>>... Buffers>
-        requires(sizeof...(Buffers) > 1)
-    [[nodiscard]] result<void> try_transmit(Buffers... buffers) {
-        std::array<std::span<const uint8_t>, sizeof...(Buffers)> arr{buffers...};
-        return try_transmit(std::span<const std::span<const uint8_t>>{arr});
-    }
-
-    /**
-     * @brief Transmits data from multiple buffers in a single I2C transaction.
-     *
-     * Performs a scatter-gather transmit, sending data from each buffer
-     * sequentially without intermediate stop conditions.
-     *
-     * @param buffers Buffers to transmit, in order.
-     *
-     * @return Success, or an error.
-     *
-     */
-    [[nodiscard]] result<void> try_transmit(std::span<const std::span<const uint8_t>> buffers) {
-        return try_transmit(buffers, DEFAULT_TIMEOUT);
     }
 
     /**
@@ -949,12 +931,73 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
-     *
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
-    try_transmit(std::span<const uint8_t> data, const std::chrono::duration<Rep, Period>& timeout) {
-        return try_transmit(data.data(), data.size(), timeout);
+    try_transmit(byte_view data, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_transmit(data, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    /**
+     * @brief Transmits literal bytes to the device.
+     *
+     * @param data Bytes to transmit, written as a braced list.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_transmit(std::initializer_list<uint8_t> data) {
+        return try_transmit(data, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Transmits literal bytes to the device.
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param data Bytes to transmit, written as a braced list.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_transmit(
+        std::initializer_list<uint8_t> data,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return try_transmit(byte_view{data.begin(), data.size()}, timeout);
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Convenience overload that accepts two or more buffers as separate arguments.
+     *
+     * @tparam Buffers Types convertible to idfxx::byte_view, such as std::array, std::vector or
+     *                 std::span of uint8_t or std::byte.
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @return Success, or an error.
+     */
+    template<std::convertible_to<byte_view>... Buffers>
+        requires(sizeof...(Buffers) > 1)
+    [[nodiscard]] result<void> try_transmit(const Buffers&... buffers) {
+        const std::array<byte_view, sizeof...(Buffers)> views{byte_view(buffers)...};
+        return try_transmit(std::span<const byte_view>{views});
+    }
+
+    /**
+     * @brief Transmits data from multiple buffers in a single I2C transaction.
+     *
+     * Performs a scatter-gather transmit, sending data from each buffer
+     * sequentially without intermediate stop conditions.
+     *
+     * @param buffers Buffers to transmit, in order.
+     *
+     * @return Success, or an error.
+     */
+    [[nodiscard]] result<void> try_transmit(std::span<const byte_view> buffers) {
+        return try_transmit(buffers, DEFAULT_TIMEOUT);
     }
 
     /**
@@ -970,51 +1013,15 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
-     *
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_transmit(
-        std::span<const std::span<const uint8_t>> buffers,
+        std::span<const byte_view> buffers,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return _try_multi_buffer_transmit(
             buffers, std::chrono::ceil<std::chrono::milliseconds>(timeout)
         );
-    }
-
-    /**
-     * @brief Transmits data to the device.
-     *
-     * @param buf  Data to transmit.
-     * @param size Number of bytes.
-     *
-     * @return Success, or an error.
-     *
-     */
-    [[nodiscard]] result<void> try_transmit(const uint8_t* buf, size_t size) {
-        return try_transmit(buf, size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Transmits data to the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param buf     Data to transmit.
-     * @param size    Number of bytes.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Success, or an error.
-     *
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_transmit(
-        const uint8_t* buf,
-        size_t size,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
-        return _try_transmit(buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1121,10 +1128,10 @@ public:
      * device.execute_operations(std::array{
      *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::start},
      *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::write,
-     *                           .write_data = std::span{&reg, 1}},
+     *                           .write_data = {&reg, 1}},
      *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::start},
      *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::read,
-     *                           .read_data = std::span{buf},
+     *                           .read_data = buf,
      *                           .ack_type = idfxx::i2c::ack_value::nack},
      *     idfxx::i2c::operation{.command = idfxx::i2c::operation_command::stop},
      * });
@@ -1203,65 +1210,34 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Receives data from the device.
+     * @brief Receives data from the device, filling a buffer.
      *
-     * @param size Number of bytes to receive.
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer.
      *
-     * @return Received data.
+     * @param buf Buffer for received data.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
+     *
+     * @code
+     * std::vector<uint8_t> buf(16);
+     * device.receive(buf);
+     * @endcode
      */
-    [[nodiscard]] std::vector<uint8_t> receive(size_t size) { return unwrap(try_receive(size)); }
+    void receive(byte_span buf) { unwrap(try_receive(buf)); }
 
     /**
-     * @brief Receives data from the device.
+     * @brief Receives data from the device, filling a buffer.
+     *
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
-     * @param size    Number of bytes to receive.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Received data.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] std::vector<uint8_t>
-    receive(size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        return unwrap(try_receive(size, timeout));
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @param buf  Buffer for received data.
-     * @param size Number of bytes to receive.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void receive(uint8_t* buf, size_t size) { unwrap(try_receive(buf, size)); }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param buf    Buffer for received data.
-     * @param size   Number of bytes to receive.
+     * @param buf     Buffer for received data.
      * @param timeout Maximum time to wait for completion.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
@@ -1271,86 +1247,64 @@ public:
      * @throws std::system_error on error.
      */
     template<typename Rep, typename Period>
-    void receive(uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        unwrap(try_receive(buf, size, timeout));
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @param buf  Buffer for received data.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    void receive(std::span<uint8_t> buf) { unwrap(try_receive(buf)); }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param buf    Buffer for received data.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on error.
-     */
-    template<typename Rep, typename Period>
-    void receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
+    void receive(byte_span buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_receive(buf, timeout));
+    }
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive.
+     *
+     * @return The bytes received.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     *
+     * @code
+     * auto status = device.receive<2>();
+     * @endcode
+     */
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N> receive() {
+        return unwrap(try_receive<N>());
+    }
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The bytes received.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on error.
+     */
+    template<size_t N, typename Rep, typename Period>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N>
+    receive(const std::chrono::duration<Rep, Period>& timeout) {
+        return unwrap(try_receive<N>(timeout));
     }
 #endif
 
     /**
-     * @brief Receives data from the device.
+     * @brief Receives data from the device, filling a buffer.
      *
-     * @param size Number of bytes to receive.
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer.
      *
-     * @return Received data, or an error.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    [[nodiscard]] result<std::vector<uint8_t>> try_receive(size_t size) {
-        return try_receive(size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param size    Number of bytes to receive.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Received data, or an error.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<std::vector<uint8_t>>
-    try_receive(size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        std::vector<uint8_t> buf(size);
-        return try_receive(buf, timeout).transform([&]() { return std::move(buf); });
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @param buf  Buffer for received data.
-     * @param size Number of bytes to receive.
+     * @param buf Buffer for received data.
      *
      * @return Success, or an error.
      *
@@ -1358,54 +1312,19 @@ public:
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
-    [[nodiscard]] result<void> try_receive(uint8_t* buf, size_t size) {
-        return try_receive(buf, size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param buf    Buffer for received data.
-     * @param size   Number of bytes to receive.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Success, or an error.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<void>
-    try_receive(uint8_t* buf, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        return _try_receive(buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout));
-    }
-
-    /**
-     * @brief Receives data from the device.
-     *
-     * @param buf  Buffer for received data.
-     *
-     * @return Success, or an error.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    [[nodiscard]] result<void> try_receive(std::span<uint8_t> buf) {
+    [[nodiscard]] result<void> try_receive(byte_span buf) {
         return try_receive(buf, DEFAULT_TIMEOUT);
     }
 
     /**
-     * @brief Receives data from the device.
+     * @brief Receives data from the device, filling a buffer.
+     *
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
-     * @param buf    Buffer for received data.
+     * @param buf     Buffer for received data.
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
@@ -1416,8 +1335,48 @@ public:
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
-    try_receive(std::span<uint8_t> buf, const std::chrono::duration<Rep, Period>& timeout) {
-        return try_receive(buf.data(), buf.size(), timeout);
+    try_receive(byte_span buf, const std::chrono::duration<Rep, Period>& timeout) {
+        return _try_receive(buf, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive.
+     *
+     * @return The bytes received, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_receive() {
+        return try_receive<N>(DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Receives a fixed number of bytes from the device.
+     *
+     * @tparam N Number of bytes to receive.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The bytes received, or an error.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<size_t N, typename Rep, typename Period>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>>
+    try_receive(const std::chrono::duration<Rep, Period>& timeout) {
+        std::array<uint8_t, N> buf{};
+        return try_receive(buf, timeout).transform([&]() { return buf; });
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -1430,10 +1389,13 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * std::array<uint8_t, 3> data{0x01, 0x02, 0x03};
+     * sensor.write_register(0x10, data);
+     * @endcode
      */
-    void write_register(uint16_t reg, std::span<const uint8_t> buf) {
-        unwrap(try_write_register(reg, buf));
-    }
+    void write_register(uint16_t reg, byte_view buf) { unwrap(try_write_register(reg, buf)); }
 
     /**
      * @brief Writes data to a register.
@@ -1450,54 +1412,50 @@ public:
      *         using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
-    void write_register(
-        uint16_t reg,
-        std::span<const uint8_t> buf,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
+    void
+    write_register(uint16_t reg, byte_view buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_write_register(reg, buf, timeout));
     }
 
     /**
-     * @brief Writes data to a register.
+     * @brief Writes literal bytes to a register.
      *
      * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Data to write.
-     * @param size Number of bytes.
+     * @param data Bytes to write, written as a braced list.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null and @p size is nonzero
-     *         (nothing is sent), or on error.
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * sensor.write_register(0x20, {0x47, 0x00});
+     * @endcode
      */
-    void write_register(uint16_t reg, const uint8_t* buf, size_t size) {
-        unwrap(try_write_register(reg, buf, size));
+    void write_register(uint16_t reg, std::initializer_list<uint8_t> data) {
+        unwrap(try_write_register(reg, data));
     }
 
     /**
-     * @brief Writes data to a register.
+     * @brief Writes literal bytes to a register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Data to write.
-     * @param size Number of bytes.
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param data    Bytes to write, written as a braced list.
      * @param timeout Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null and @p size is nonzero
-     *         (nothing is sent), or on error.
+     *         using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
     void write_register(
         uint16_t reg,
-        const uint8_t* buf,
-        size_t size,
+        std::initializer_list<uint8_t> data,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        unwrap(try_write_register(reg, buf, size, timeout));
+        unwrap(try_write_register(reg, data, timeout));
     }
 
     /**
@@ -1620,8 +1578,8 @@ public:
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
      *         addresses; nothing is sent.
      */
-    [[nodiscard]] result<void> try_write_register(uint16_t reg, std::span<const uint8_t> buf) {
-        return try_write_register(reg, buf.data(), buf.size(), DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void> try_write_register(uint16_t reg, byte_view buf) {
+        return try_write_register(reg, buf, DEFAULT_TIMEOUT);
     }
 
     /**
@@ -1641,52 +1599,48 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
         uint16_t reg,
-        std::span<const uint8_t> buf,
+        byte_view buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return try_write_register(reg, buf.data(), buf.size(), timeout);
+        return _try_write_register(reg, buf, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
     /**
-     * @brief Writes data to a register.
+     * @brief Writes literal bytes to a register.
      *
      * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Data to write.
-     * @param size Number of bytes.
+     * @param data Bytes to write, written as a braced list.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is null and @p size is nonzero; nothing is sent.
+     *         addresses; nothing is sent.
      */
-    [[nodiscard]] result<void> try_write_register(uint16_t reg, const uint8_t* buf, size_t size) {
-        return try_write_register(reg, buf, size, DEFAULT_TIMEOUT);
+    [[nodiscard]] result<void>
+    try_write_register(uint16_t reg, std::initializer_list<uint8_t> data) {
+        return try_write_register(reg, data, DEFAULT_TIMEOUT);
     }
 
     /**
-     * @brief Writes data to a register.
+     * @brief Writes literal bytes to a register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Data to write.
-     * @param size Number of bytes.
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param data    Bytes to write, written as a braced list.
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is null and @p size is nonzero; nothing is sent.
+     *         addresses; nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
         uint16_t reg,
-        const uint8_t* buf,
-        size_t size,
+        std::initializer_list<uint8_t> data,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_write_register(
-            reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
-        );
+        return try_write_register(reg, byte_view{data.begin(), data.size()}, timeout);
     }
 
     /**
@@ -1724,7 +1678,7 @@ public:
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return _try_write_register(
-            reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+            reg, byte_view{&value, 1}, std::chrono::ceil<std::chrono::milliseconds>(timeout)
         );
     }
 
@@ -1779,9 +1733,7 @@ public:
     ) {
         std::array<uint8_t, sizeof(T)> buf;
         detail::encode_register_value<T>(value, order, buf);
-        return _try_write_register(
-            reg, buf.data(), buf.size(), std::chrono::ceil<std::chrono::milliseconds>(timeout)
-        );
+        return _try_write_register(reg, buf, std::chrono::ceil<std::chrono::milliseconds>(timeout));
     }
 
     /** @cond INTERNAL */
@@ -1806,13 +1758,19 @@ public:
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
      *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * std::array<uint16_t, 3> channels{0x06, 0x0A, 0x0E};
+     * std::array<uint8_t, 4> off{0x00, 0x00, 0x00, 0x10};
+     * pwm.write_registers(channels, off);
+     * @endcode
      */
-    void write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
+    void write_registers(std::span<const uint16_t> registers, byte_view buf) {
         unwrap(try_write_registers(registers, buf));
     }
 
@@ -1827,7 +1785,7 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      * @param timeout   Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -1837,34 +1795,32 @@ public:
     template<typename Rep, typename Period>
     void write_registers(
         std::span<const uint16_t> registers,
-        std::span<const uint8_t> buf,
+        byte_view buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         unwrap(try_write_registers(registers, buf, timeout));
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
-     *         0xFF on a device using one-byte register addresses, or if @p buf is null and
-     *         @p size is nonzero (nothing is sent), or on error.
+     *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
      */
-    void write_registers(std::span<const uint16_t> registers, const uint8_t* buf, size_t size) {
-        unwrap(try_write_registers(registers, buf, size));
+    void write_registers(std::span<const uint16_t> registers, std::initializer_list<uint8_t> data) {
+        unwrap(try_write_registers(registers, data));
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
@@ -1874,27 +1830,24 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      * @param timeout   Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
-     *         0xFF on a device using one-byte register addresses, or if @p buf is null and
-     *         @p size is nonzero (nothing is sent), or on error.
+     *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
     void write_registers(
         std::span<const uint16_t> registers,
-        const uint8_t* buf,
-        size_t size,
+        std::initializer_list<uint8_t> data,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        unwrap(try_write_registers(registers, buf, size, timeout));
+        unwrap(try_write_registers(registers, data, timeout));
     }
 
     // C++23: std::span cannot be constructed from a braced initializer list until C++26 (P2447).
-    // Remove these overloads when C++26 becomes the minimum standard.
+    // Remove the initializer_list register overloads when C++26 becomes the minimum standard.
 
     /**
      * @brief Writes data to multiple registers.
@@ -1904,14 +1857,14 @@ public:
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
      *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
      */
-    void write_registers(std::initializer_list<uint16_t> registers, std::span<const uint8_t> buf) {
-        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf);
+    void write_registers(std::initializer_list<uint16_t> registers, byte_view buf) {
+        unwrap(try_write_registers(registers, buf));
     }
 
     /**
@@ -1925,7 +1878,7 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      * @param timeout   Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -1935,37 +1888,39 @@ public:
     template<typename Rep, typename Period>
     void write_registers(
         std::initializer_list<uint16_t> registers,
-        std::span<const uint8_t> buf,
+        byte_view buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        write_registers(
-            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, timeout
-        );
+        unwrap(try_write_registers(registers, buf, timeout));
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
-     *         0xFF on a device using one-byte register addresses, or if @p buf is null and
-     *         @p size is nonzero (nothing is sent), or on error.
+     *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * pwm.write_registers({0x06, 0x0A, 0x0E}, {0x00, 0x00, 0x00, 0x10});
+     * @endcode
      */
-    void
-    write_registers(std::initializer_list<uint16_t> registers, const uint8_t* buf, size_t size) {
-        write_registers(std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size);
+    void write_registers(
+        std::initializer_list<uint16_t> registers,
+        std::initializer_list<uint8_t> data
+    ) {
+        unwrap(try_write_registers(registers, data));
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
@@ -1975,25 +1930,20 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      * @param timeout   Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if a register in @p registers exceeds
-     *         0xFF on a device using one-byte register addresses, or if @p buf is null and
-     *         @p size is nonzero (nothing is sent), or on error.
+     *         0xFF on a device using one-byte register addresses (nothing is sent), or on error.
      */
     template<typename Rep, typename Period>
     void write_registers(
         std::initializer_list<uint16_t> registers,
-        const uint8_t* buf,
-        size_t size,
+        std::initializer_list<uint8_t> data,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        write_registers(
-            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout
-        );
+        unwrap(try_write_registers(registers, data, timeout));
     }
 #endif
 
@@ -2005,14 +1955,14 @@ public:
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
      *         one-byte register addresses; nothing is sent.
      */
     [[nodiscard]] result<void>
-    try_write_registers(std::span<const uint16_t> registers, std::span<const uint8_t> buf) {
+    try_write_registers(std::span<const uint16_t> registers, byte_view buf) {
         return try_write_registers(registers, buf, DEFAULT_TIMEOUT);
     }
 
@@ -2027,7 +1977,7 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      * @param timeout   Maximum time to wait for completion.
      *
      * @return Success, or an error.
@@ -2037,67 +1987,62 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
         std::span<const uint16_t> registers,
-        std::span<const uint8_t> buf,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
-        return try_write_registers(registers, buf.data(), buf.size(), timeout);
-    }
-
-    /**
-     * @brief Writes data to multiple registers.
-     *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
-     *
-     * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
-     *
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses, or @p buf is null and @p size is nonzero; nothing is
-     *         sent.
-     */
-    [[nodiscard]] result<void>
-    try_write_registers(std::span<const uint16_t> registers, const uint8_t* buf, size_t size) {
-        return try_write_registers(registers, buf, size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Writes data to multiple registers.
-     *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
-     * @param timeout   Maximum time to wait for completion.
-     *
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses, or @p buf is null and @p size is nonzero; nothing is
-     *         sent.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_write_registers(
-        std::span<const uint16_t> registers,
-        const uint8_t* buf,
-        size_t size,
+        byte_view buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return _try_write_registers(
-            registers, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
+            registers, buf, std::chrono::ceil<std::chrono::milliseconds>(timeout)
         );
     }
 
+    /**
+     * @brief Writes literal bytes to multiple registers.
+     *
+     * Each register is written as a separate transaction, back to back. Devices that need a
+     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
+     * register.
+     *
+     * @param registers Register addresses, each sent in the size set by config::register_address.
+     * @param data      Bytes to write to each register, written as a braced list.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
+     *         one-byte register addresses; nothing is sent.
+     */
+    [[nodiscard]] result<void>
+    try_write_registers(std::span<const uint16_t> registers, std::initializer_list<uint8_t> data) {
+        return try_write_registers(registers, data, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Writes literal bytes to multiple registers.
+     *
+     * Each register is written as a separate transaction, back to back. Devices that need a
+     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
+     * register.
+     *
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param registers Register addresses, each sent in the size set by config::register_address.
+     * @param data      Bytes to write to each register, written as a braced list.
+     * @param timeout   Maximum time to wait for completion.
+     *
+     * @return Success, or an error.
+     * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
+     *         one-byte register addresses; nothing is sent.
+     */
+    template<typename Rep, typename Period>
+    [[nodiscard]] result<void> try_write_registers(
+        std::span<const uint16_t> registers,
+        std::initializer_list<uint8_t> data,
+        const std::chrono::duration<Rep, Period>& timeout
+    ) {
+        return try_write_registers(registers, byte_view{data.begin(), data.size()}, timeout);
+    }
+
     // C++23: std::span cannot be constructed from a braced initializer list until C++26 (P2447).
-    // Remove these overloads when C++26 becomes the minimum standard.
+    // Remove the initializer_list register overloads when C++26 becomes the minimum standard.
 
     /**
      * @brief Writes data to multiple registers.
@@ -2107,17 +2052,15 @@ public:
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
      *         one-byte register addresses; nothing is sent.
      */
     [[nodiscard]] result<void>
-    try_write_registers(std::initializer_list<uint16_t> registers, std::span<const uint8_t> buf) {
-        return try_write_registers(
-            std::span<const uint16_t>{registers.begin(), registers.size()}, buf
-        );
+    try_write_registers(std::initializer_list<uint16_t> registers, byte_view buf) {
+        return try_write_registers(registers, buf, DEFAULT_TIMEOUT);
     }
 
     /**
@@ -2131,7 +2074,7 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
+     * @param buf       Data to write to each register.
      * @param timeout   Maximum time to wait for completion.
      *
      * @return Success, or an error.
@@ -2141,7 +2084,7 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
         std::initializer_list<uint16_t> registers,
-        std::span<const uint8_t> buf,
+        byte_view buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return try_write_registers(
@@ -2150,33 +2093,28 @@ public:
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
      * register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses, or @p buf is null and @p size is nonzero; nothing is
-     *         sent.
+     *         one-byte register addresses; nothing is sent.
      */
     [[nodiscard]] result<void> try_write_registers(
         std::initializer_list<uint16_t> registers,
-        const uint8_t* buf,
-        size_t size
+        std::initializer_list<uint8_t> data
     ) {
-        return try_write_registers(
-            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size
-        );
+        return try_write_registers(registers, data, DEFAULT_TIMEOUT);
     }
 
     /**
-     * @brief Writes data to multiple registers.
+     * @brief Writes literal bytes to multiple registers.
      *
      * Each register is written as a separate transaction, back to back. Devices that need a
      * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
@@ -2186,106 +2124,58 @@ public:
      * @tparam Period Duration period type.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
-     * @param buf       Data to write.
-     * @param size      Number of bytes per register.
+     * @param data      Bytes to write to each register, written as a braced list.
      * @param timeout   Maximum time to wait for completion.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses, or @p buf is null and @p size is nonzero; nothing is
-     *         sent.
+     *         one-byte register addresses; nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
         std::initializer_list<uint16_t> registers,
-        const uint8_t* buf,
-        size_t size,
+        std::initializer_list<uint8_t> data,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
         return try_write_registers(
-            std::span<const uint16_t>{registers.begin(), registers.size()}, buf, size, timeout
+            std::span<const uint16_t>{registers.begin(), registers.size()},
+            byte_view{data.begin(), data.size()},
+            timeout
         );
     }
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Reads data from a register.
+     * @brief Reads data from a register, filling a buffer.
      *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
-     * @param size Number of bytes to read.
-     *
-     * @return Received data.
+     * @param buf Buffer for received data.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p size is 0 (nothing is sent),
-     *         or on error.
+     *         using one-byte register addresses, or if @p buf is empty (nothing is sent), or on
+     *         error.
+     *
+     * @code
+     * std::vector<uint8_t> page(32);
+     * eeprom.read_register(0x1000, page);
+     * @endcode
      */
-    [[nodiscard]] std::vector<uint8_t> read_register(uint16_t reg, size_t size) {
-        return unwrap(try_read_register(reg, size));
-    }
+    void read_register(uint16_t reg, byte_span buf) { unwrap(try_read_register(reg, buf)); }
 
     /**
-     * @brief Reads data from a register.
+     * @brief Reads data from a register, filling a buffer.
      *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param reg     Register address, sent in the size set by config::register_address.
-     * @param size    Number of bytes to read.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Received data.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p size is 0 (nothing is sent),
-     *         or on error.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] std::vector<uint8_t>
-    read_register(uint16_t reg, size_t size, const std::chrono::duration<Rep, Period>& timeout) {
-        return unwrap(try_read_register(reg, size, timeout));
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Buffer for received data.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is empty (nothing is sent),
-     *         or on error.
-     */
-    void read_register(uint16_t reg, std::span<uint8_t> buf) {
-        unwrap(try_read_register(reg, buf));
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2299,70 +2189,72 @@ public:
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is empty (nothing is sent),
-     *         or on error.
+     *         using one-byte register addresses, or if @p buf is empty (nothing is sent), or on
+     *         error.
      */
     template<typename Rep, typename Period>
-    void read_register(
-        uint16_t reg,
-        std::span<uint8_t> buf,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
+    void
+    read_register(uint16_t reg, byte_span buf, const std::chrono::duration<Rep, Period>& timeout) {
         unwrap(try_read_register(reg, buf, timeout));
     }
 
     /**
-     * @brief Reads data from a register.
+     * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
      * Devices that need a gap between them can use transmit() then receive().
      *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Buffer for received data.
-     * @param size Number of bytes to read.
+     * @tparam N Number of bytes to read; must be at least 1.
      *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
+     * @param reg Register address, sent in the size set by config::register_address.
+     *
+     * @return The bytes read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is
-     * sent), or on error.
+     *         using one-byte register addresses (nothing is sent), or on error.
+     *
+     * @code
+     * // Accelerometer X, Y and Z, two bytes each
+     * auto xyz = sensor.read_register<6>(0x28);
+     * @endcode
      */
-    void read_register(uint16_t reg, uint8_t* buf, size_t size) {
-        unwrap(try_read_register(reg, buf, size));
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N> read_register(uint16_t reg) {
+        return unwrap(try_read_register<N>(reg));
     }
 
     /**
-     * @brief Reads data from a register.
+     * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
      * Devices that need a gap between them can use transmit() then receive().
      *
+     * @tparam N Number of bytes to read; must be at least 1.
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
      * @param reg     Register address, sent in the size set by config::register_address.
-     * @param buf     Buffer for received data.
-     * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
+     * @return The bytes read.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
-     *         using one-byte register addresses, or if @p buf is null or @p size is 0 (nothing is
-     * sent), or on error.
+     *         using one-byte register addresses (nothing is sent), or on error.
      */
-    template<typename Rep, typename Period>
-    void read_register(
-        uint16_t reg,
-        uint8_t* buf,
-        size_t size,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
-        unwrap(try_read_register(reg, buf, size, timeout));
+    template<size_t N, typename Rep, typename Period>
+        requires(N > 0)
+    [[nodiscard]] std::array<uint8_t, N>
+    read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+        return unwrap(try_read_register<N>(reg, timeout));
     }
 
     /**
@@ -2484,83 +2376,17 @@ public:
     ) {
         return unwrap(try_read_register<T>(reg, order, timeout));
     }
-
-    /** @cond INTERNAL */
-    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single
-    // uint16_t and set config::register_address for two-byte devices. These keep an old
-    // read_register(high, 0x00, size) call from silently binding the literal 0 to the buffer
-    // pointer.
-    template<std::integral T>
-    void read_register(uint16_t, T, size_t) = delete;
-    template<std::integral T, typename Rep, typename Period>
-    void read_register(uint16_t, T, size_t, const std::chrono::duration<Rep, Period>&) = delete;
-    /** @endcond */
 #endif
 
     /**
-     * @brief Reads data from a register.
+     * @brief Reads data from a register, filling a buffer.
      *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
-     * @param size Number of bytes to read.
-     *
-     * @return Received data, or an error.
-     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p size is 0; nothing is sent.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    [[nodiscard]] result<std::vector<uint8_t>> try_read_register(uint16_t reg, size_t size) {
-        return try_read_register(reg, size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param reg     Register address, sent in the size set by config::register_address.
-     * @param size    Number of bytes to read.
-     * @param timeout Maximum time to wait for completion.
-     *
-     * @return Received data, or an error.
-     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p size is 0; nothing is sent.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<std::vector<uint8_t>> try_read_register(
-        uint16_t reg,
-        size_t size,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
-        // Reject invalid arguments before allocating the result
-        if (size == 0 || (_register_address == register_address_size::one_byte && reg > 0xFF)) {
-            return error(errc::invalid_arg);
-        }
-        std::vector<uint8_t> buf(size);
-        return try_read_register(reg, buf, timeout).transform([&]() { return std::move(buf); });
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Buffer for received data.
+     * @param buf Buffer for received data.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
@@ -2570,79 +2396,27 @@ public:
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
-    [[nodiscard]] result<void> try_read_register(uint16_t reg, std::span<uint8_t> buf) {
+    [[nodiscard]] result<void> try_read_register(uint16_t reg, byte_span buf) {
         return try_read_register(reg, buf, DEFAULT_TIMEOUT);
     }
 
     /**
-     * @brief Reads data from a register.
+     * @brief Reads data from a register, filling a buffer.
      *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @tparam Rep Duration arithmetic type.
-     * @tparam Period Duration period type.
-     *
-     * @param reg Register address, sent in the size set by config::register_address.
-     * @param buf Buffer for received data.
-     * @param timeout Maximum time to wait for the operation.
-     *
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is empty; nothing is sent.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    template<typename Rep, typename Period>
-    [[nodiscard]] result<void> try_read_register(
-        uint16_t reg,
-        std::span<uint8_t> buf,
-        const std::chrono::duration<Rep, Period>& timeout
-    ) {
-        return try_read_register(reg, buf.data(), buf.size(), timeout);
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
-     *
-     * @param reg  Register address, sent in the size set by config::register_address.
-     * @param buf  Buffer for received data.
-     * @param size Number of bytes to read.
-     *
-     * @return Success, or an error.
-     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is null or @p size is 0; nothing is sent.
-     *
-     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
-     *       `idfxx::errc::invalid_arg`.
-     */
-    [[nodiscard]] result<void> try_read_register(uint16_t reg, uint8_t* buf, size_t size) {
-        return try_read_register(reg, buf, size, DEFAULT_TIMEOUT);
-    }
-
-    /**
-     * @brief Reads data from a register.
-     *
-     * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
+     * the read are sent as one transaction with a repeated START. Devices that need a gap between
+     * them can use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
      * @param reg     Register address, sent in the size set by config::register_address.
      * @param buf     Buffer for received data.
-     * @param size    Number of bytes to read.
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is null or @p size is 0; nothing is sent.
+     *         addresses, or @p buf is empty; nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
      *       must reside in internal RAM (not PSRAM); otherwise the call fails with
@@ -2651,13 +2425,64 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_read_register(
         uint16_t reg,
-        uint8_t* buf,
-        size_t size,
+        byte_span buf,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        return _try_read_register(
-            reg, buf, size, std::chrono::ceil<std::chrono::milliseconds>(timeout)
-        );
+        return _try_read_register(reg, buf, std::chrono::ceil<std::chrono::milliseconds>(timeout));
+    }
+
+    /**
+     * @brief Reads a fixed number of bytes from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @tparam N Number of bytes to read; must be at least 1.
+     *
+     * @param reg Register address, sent in the size set by config::register_address.
+     *
+     * @return The bytes read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<size_t N>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>> try_read_register(uint16_t reg) {
+        return try_read_register<N>(reg, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * @brief Reads a fixed number of bytes from a register.
+     *
+     * The register address and the read are sent as one transaction with a repeated START.
+     * Devices that need a gap between them can use transmit() then receive().
+     *
+     * @tparam N Number of bytes to read; must be at least 1.
+     * @tparam Rep Duration arithmetic type.
+     * @tparam Period Duration period type.
+     *
+     * @param reg     Register address, sent in the size set by config::register_address.
+     * @param timeout Maximum time to wait for completion.
+     *
+     * @return The bytes read, or an error.
+     * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
+     *         addresses; nothing is sent.
+     *
+     * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
+     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
+     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     */
+    template<size_t N, typename Rep, typename Period>
+        requires(N > 0)
+    [[nodiscard]] result<std::array<uint8_t, N>>
+    try_read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
+        std::array<uint8_t, N> buf{};
+        return _try_read_register(reg, buf, std::chrono::ceil<std::chrono::milliseconds>(timeout))
+            .transform([&]() { return buf; });
     }
 
     /**
@@ -2703,11 +2528,7 @@ public:
     template<typename Rep, typename Period>
     [[nodiscard]] result<uint8_t>
     try_read_register(uint16_t reg, const std::chrono::duration<Rep, Period>& timeout) {
-        uint8_t value = 0;
-        return _try_read_register(
-                   reg, &value, 1, std::chrono::ceil<std::chrono::milliseconds>(timeout)
-        )
-            .transform([&]() { return value; });
+        return try_read_register<1>(reg, timeout).transform([](const auto& buf) { return buf[0]; });
     }
 
     /**
@@ -2768,26 +2589,10 @@ public:
         std::endian order,
         const std::chrono::duration<Rep, Period>& timeout
     ) {
-        std::array<uint8_t, sizeof(T)> buf{};
-        return _try_read_register(
-                   reg,
-                   buf.data(),
-                   buf.size(),
-                   std::chrono::ceil<std::chrono::milliseconds>(timeout)
-        )
-            .transform([&]() -> T { return detail::decode_register_value<T>(buf, order); });
+        return try_read_register<sizeof(T)>(reg, timeout).transform([order](const auto& buf) -> T {
+            return detail::decode_register_value<T>(buf, order);
+        });
     }
-
-    /** @cond INTERNAL */
-    // The (high, low) register overloads were removed in 3.0.0: pass the register as a single
-    // uint16_t and set config::register_address for two-byte devices. These keep an old
-    // try_read_register(high, 0x00, size) call from silently binding the literal 0 to the buffer
-    // pointer.
-    template<std::integral T>
-    void try_read_register(uint16_t, T, size_t) = delete;
-    template<std::integral T, typename Rep, typename Period>
-    void try_read_register(uint16_t, T, size_t, const std::chrono::duration<Rep, Period>&) = delete;
-    /** @endcond */
 
 private:
     explicit master_device(
@@ -2806,33 +2611,26 @@ private:
     [[nodiscard]] std::unique_lock<std::recursive_timed_mutex>
     _lock_bus(std::chrono::milliseconds timeout) const;
 
-    [[nodiscard]] result<void>
-    _try_transmit(const uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void> _try_transmit(byte_view data, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_multi_buffer_transmit(
-        std::span<const std::span<const uint8_t>> buffers,
+        std::span<const byte_view> buffers,
         std::chrono::milliseconds timeout
     );
     [[nodiscard]] result<void>
     _try_change_address(uint16_t new_address, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void>
     _try_execute_operations(std::span<const operation> ops, std::chrono::milliseconds timeout);
-    [[nodiscard]] result<void>
-    _try_receive(uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    [[nodiscard]] result<void> _try_receive(byte_span buf, std::chrono::milliseconds timeout);
 
-    [[nodiscard]] result<void> _try_write_register(
-        uint16_t reg,
-        const uint8_t* buf,
-        size_t size,
-        std::chrono::milliseconds timeout
-    );
+    [[nodiscard]] result<void>
+    _try_write_register(uint16_t reg, byte_view buf, std::chrono::milliseconds timeout);
     [[nodiscard]] result<void> _try_write_registers(
         std::span<const uint16_t> registers,
-        const uint8_t* buf,
-        size_t size,
+        byte_view buf,
         std::chrono::milliseconds timeout
     );
     [[nodiscard]] result<void>
-    _try_read_register(uint16_t reg, uint8_t* buf, size_t size, std::chrono::milliseconds timeout);
+    _try_read_register(uint16_t reg, byte_span buf, std::chrono::milliseconds timeout);
 
     master_bus* _bus = nullptr;
     i2c_master_dev_handle_t _handle = nullptr;
