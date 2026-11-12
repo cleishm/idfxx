@@ -22,6 +22,7 @@ set(IDFXX_CORE_TEST_SOURCES
     uart_test.cpp
     byte_source_test.cpp
     byte_view_test.cpp
+    hex_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,
