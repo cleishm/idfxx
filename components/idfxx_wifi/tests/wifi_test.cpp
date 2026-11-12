@@ -3,14 +3,21 @@
 
 #include <idfxx/wifi>
 
+#include <array>
 #include <chrono>
+#include <concepts>
+#include <cstddef>
+#include <cstdint>
 #include <esp_idf_version.h>
 #include <limits>
 #include <optional>
+#include <span>
+#include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <unity.h>
 #include <utility>
+#include <vector>
 
 using namespace idfxx::wifi;
 
@@ -32,6 +39,44 @@ static_assert(std::is_same_v<decltype(try_connect(std::chrono::seconds{30})), id
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 static_assert(std::is_same_v<decltype(connect()), void>);
 static_assert(std::is_same_v<decltype(connect(std::chrono::seconds{30})), idfxx::net::ipv4_info>);
+#endif
+
+// =============================================================================
+// Raw 802.11
+// =============================================================================
+
+// tx_80211 takes the frame as a byte view: byte or uint8_t ranges, or {ptr, len}
+template<typename T>
+concept tx_80211_accepts = requires(T frame) {
+    { try_tx_80211(role::sta, frame, false) } -> std::same_as<idfxx::result<void>>;
+};
+static_assert(tx_80211_accepts<std::array<uint8_t, 24>&>);
+static_assert(tx_80211_accepts<const std::vector<std::byte>&>);
+static_assert(tx_80211_accepts<std::span<const uint8_t>>);
+static_assert(!tx_80211_accepts<std::string_view>);
+static_assert(requires(const uint8_t* p, size_t n) { { try_tx_80211(role::ap, {p, n}, true) } -> std::same_as<idfxx::result<void>>; });
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(requires(std::array<std::byte, 24> frame) { { tx_80211(role::sta, frame, false) } -> std::same_as<void>; });
+#endif
+
+// =============================================================================
+// Vendor IE
+// =============================================================================
+
+// set_vendor_ie takes the whole element as a byte view: byte or uint8_t ranges, or {ptr, len}
+template<typename T>
+concept vendor_ie_accepts = requires(T ie) {
+    { try_set_vendor_ie(true, vendor_ie_type::beacon, vendor_ie_id::id_0, ie) } -> std::same_as<idfxx::result<void>>;
+};
+static_assert(vendor_ie_accepts<std::array<uint8_t, 8>&>);
+static_assert(vendor_ie_accepts<const std::vector<std::byte>&>);
+static_assert(vendor_ie_accepts<std::span<const uint8_t>>);
+static_assert(!vendor_ie_accepts<std::string_view>);
+static_assert(!vendor_ie_accepts<const void*>);
+static_assert(requires(const uint8_t* p, size_t n) { { try_set_vendor_ie(true, vendor_ie_type::probe_resp, vendor_ie_id::id_1, {p, n}) } -> std::same_as<idfxx::result<void>>; });
+static_assert(requires { { try_set_vendor_ie(false, vendor_ie_type::beacon, vendor_ie_id::id_0, {}) } -> std::same_as<idfxx::result<void>>; });
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+static_assert(requires(std::array<std::byte, 8> ie) { { set_vendor_ie(true, vendor_ie_type::beacon, vendor_ie_id::id_0, ie) } -> std::same_as<void>; });
 #endif
 
 // =============================================================================
@@ -194,6 +239,41 @@ TEST_CASE("wifi try_set_sta_config rejects zero listen interval", "[idfxx][wifi]
     sta_config cfg;
     cfg.listen_interval = 0;
     auto r = try_set_sta_config(cfg);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+}
+
+TEST_CASE("wifi try_set_vendor_ie rejects malformed elements", "[idfxx][wifi]") {
+    auto set = [](idfxx::byte_view ie) {
+        return try_set_vendor_ie(true, vendor_ie_type::beacon, vendor_ie_id::id_0, ie);
+    };
+
+    // Empty
+    auto r = set({});
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+
+    // Shorter than the 6-byte header (ID, length, OUI, OUI type)
+    std::array<uint8_t, 5> short_ie{0xDD, 3, 0x12, 0x34, 0x56};
+    r = set(short_ie);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+
+    // Wrong element ID
+    std::array<uint8_t, 8> wrong_id{0xDC, 6, 0x12, 0x34, 0x56, 0x01, 0xCA, 0xFE};
+    r = set(wrong_id);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+
+    // Length byte larger than the bytes that follow it
+    std::array<uint8_t, 8> long_len{0xDD, 7, 0x12, 0x34, 0x56, 0x01, 0xCA, 0xFE};
+    r = set(long_len);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
+
+    // Length byte smaller than the bytes that follow it
+    std::array<uint8_t, 8> short_len{0xDD, 5, 0x12, 0x34, 0x56, 0x01, 0xCA, 0xFE};
+    r = set(short_len);
     TEST_ASSERT_FALSE(r.has_value());
     TEST_ASSERT_TRUE(r.error() == idfxx::errc::invalid_arg);
 }

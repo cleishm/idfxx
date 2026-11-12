@@ -21,6 +21,7 @@
 
 #include "sdkconfig.h"
 
+#include <idfxx/byte_view>
 #include <idfxx/chrono>
 #include <idfxx/cpu>
 #include <idfxx/error>
@@ -38,7 +39,6 @@
 #include <quanta/decibel>
 #include <quanta/spatial>
 #include <soc/soc_caps.h>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -3084,13 +3084,13 @@ using tx_80211_done_cb = void (*)(const esp_80211_tx_info_t* tx_info);
  * @brief Transmits a raw 802.11 frame.
  *
  * @param iface The WiFi interface to transmit on.
- * @param buffer The raw frame data.
+ * @param buffer The raw frame, starting with the 802.11 MAC header.
  * @param en_sys_seq Whether to use system-managed sequence numbers.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
-void tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq);
+void tx_80211(enum role iface, idfxx::byte_view buffer, bool en_sys_seq);
 
 /**
  * @brief Registers a callback for 802.11 TX completion.
@@ -3110,12 +3110,11 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  * @brief Transmits a raw 802.11 frame.
  *
  * @param iface The WiFi interface to transmit on.
- * @param buffer The raw frame data.
+ * @param buffer The raw frame, starting with the 802.11 MAC header.
  * @param en_sys_seq Whether to use system-managed sequence numbers.
  * @return Success, or an error.
  */
-[[nodiscard]] result<void>
-try_tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq);
+[[nodiscard]] result<void> try_tx_80211(enum role iface, idfxx::byte_view buffer, bool en_sys_seq);
 
 /**
  * @brief Registers a callback for 802.11 TX completion.
@@ -3151,17 +3150,45 @@ using vendor_ie_cb = void (*)(
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets a vendor-specific information element.
+ * @brief Adds or removes a vendor-specific information element.
  *
- * @param enable Whether to enable or disable the vendor IE.
- * @param type The frame type for the vendor IE.
- * @param id The vendor IE index.
- * @param vnd_ie Pointer to the vendor IE data.
+ * Adds the element to, or removes it from, the frames of the given type. Each frame type holds up
+ * to two vendor elements, selected by @p id.
+ *
+ * The element is copied: @p vnd_ie need not remain valid after the call returns. An element
+ * already set at @p type / @p id must be removed before a new one is set there.
+ *
+ * @param enable True to add the element, false to remove the element set at @p type / @p id.
+ * @param type The frame type carrying the element.
+ * @param id The element slot (each frame type has two).
+ * @param vnd_ie The complete 802.11 vendor-specific element: element ID `0xDD`, length (the
+ *               number of bytes that follow it, at least 4), 3-byte OUI, OUI type, then the
+ *               payload. Ignored when @p enable is false (pass `{}`).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
- * @throws std::system_error on failure.
+ * @throws std::system_error with `idfxx::errc::invalid_arg` if @p enable is true and @p vnd_ie
+ *         is shorter than 6 bytes, does not start with `0xDD`, or its length byte does not match
+ *         its size; or on another failure.
+ *
+ * @code
+ * // Element ID, length, OUI, OUI type, payload
+ * constexpr std::array<uint8_t, 8> ie{0xDD, 6, 0x12, 0x34, 0x56, 0x01, 0xCA, 0xFE};
+ * idfxx::wifi::set_vendor_ie(
+ *     true, idfxx::wifi::vendor_ie_type::beacon, idfxx::wifi::vendor_ie_id::id_0, ie
+ * );
+ *
+ * // Later, remove it
+ * idfxx::wifi::set_vendor_ie(
+ *     false, idfxx::wifi::vendor_ie_type::beacon, idfxx::wifi::vendor_ie_id::id_0, {}
+ * );
+ * @endcode
  */
-void set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie);
+void set_vendor_ie(
+    bool enable,
+    enum vendor_ie_type type,
+    enum vendor_ie_id id,
+    idfxx::byte_view vnd_ie
+);
 
 /**
  * @brief Registers a callback for received vendor-specific IEs.
@@ -3176,16 +3203,30 @@ void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx);
 #endif
 
 /**
- * @brief Sets a vendor-specific information element.
+ * @brief Adds or removes a vendor-specific information element.
  *
- * @param enable Whether to enable or disable the vendor IE.
- * @param type The frame type for the vendor IE.
- * @param id The vendor IE index.
- * @param vnd_ie Pointer to the vendor IE data.
+ * Adds the element to, or removes it from, the frames of the given type. Each frame type holds up
+ * to two vendor elements, selected by @p id.
+ *
+ * The element is copied: @p vnd_ie need not remain valid after the call returns. An element
+ * already set at @p type / @p id must be removed before a new one is set there.
+ *
+ * @param enable True to add the element, false to remove the element set at @p type / @p id.
+ * @param type The frame type carrying the element.
+ * @param id The element slot (each frame type has two).
+ * @param vnd_ie The complete 802.11 vendor-specific element: element ID `0xDD`, length (the
+ *               number of bytes that follow it, at least 4), 3-byte OUI, OUI type, then the
+ *               payload. Ignored when @p enable is false (pass `{}`).
  * @return Success, or an error.
+ * @retval idfxx::errc::invalid_arg @p enable is true and @p vnd_ie is shorter than 6 bytes, does
+ *         not start with `0xDD`, or its length byte does not match its size.
  */
-[[nodiscard]] result<void>
-try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie);
+[[nodiscard]] result<void> try_set_vendor_ie(
+    bool enable,
+    enum vendor_ie_type type,
+    enum vendor_ie_id id,
+    idfxx::byte_view vnd_ie
+);
 
 /**
  * @brief Registers a callback for received vendor-specific IEs.
@@ -3765,7 +3806,7 @@ inline flags<promiscuous_ctrl_filter> get_promiscuous_ctrl_filter() {
 }
 
 // Raw 802.11
-inline void tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq) {
+inline void tx_80211(enum role iface, idfxx::byte_view buffer, bool en_sys_seq) {
     unwrap(try_tx_80211(iface, buffer, en_sys_seq));
 }
 inline void register_80211_tx_cb(tx_80211_done_cb cb) {
@@ -3773,8 +3814,12 @@ inline void register_80211_tx_cb(tx_80211_done_cb cb) {
 }
 
 // Vendor IE
-inline void
-set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
+inline void set_vendor_ie(
+    bool enable,
+    enum vendor_ie_type type,
+    enum vendor_ie_id id,
+    idfxx::byte_view vnd_ie
+) {
     unwrap(try_set_vendor_ie(enable, type, id, vnd_ie));
 }
 inline void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx) {

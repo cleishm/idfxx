@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstring>
 #include <esp_idf_version.h>
 #include <esp_log.h>
@@ -16,7 +17,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <span>
 #include <string_view>
 #include <utility>
 
@@ -1230,7 +1230,7 @@ result<flags<promiscuous_ctrl_filter>> try_get_promiscuous_ctrl_filter() {
 // Raw 802.11
 // =============================================================================
 
-result<void> try_tx_80211(enum role iface, std::span<const uint8_t> buffer, bool en_sys_seq) {
+result<void> try_tx_80211(enum role iface, idfxx::byte_view buffer, bool en_sys_seq) {
     return check(
         esp_wifi_80211_tx(to_wifi_if(iface), buffer.data(), buffer.size(), en_sys_seq),
         "Failed to transmit 802.11 frame"
@@ -1245,14 +1245,27 @@ result<void> try_register_80211_tx_cb(tx_80211_done_cb cb) {
 // Vendor IE
 // =============================================================================
 
-result<void>
-try_set_vendor_ie(bool enable, enum vendor_ie_type type, enum vendor_ie_id id, const void* vnd_ie) {
+result<void> try_set_vendor_ie(
+    bool enable,
+    enum vendor_ie_type type,
+    enum vendor_ie_id id,
+    idfxx::byte_view vnd_ie
+) {
+    // Header: element ID, length, 3-byte OUI, OUI type (vendor_ie_data_t)
+    constexpr size_t header_size = sizeof(vendor_ie_data_t);
+    static_assert(header_size == 6);
+    if (enable &&
+        (vnd_ie.size() < header_size ||
+         std::to_integer<uint8_t>(vnd_ie[0]) != WIFI_VENDOR_IE_ELEMENT_ID ||
+         vnd_ie.size() != 2 + std::to_integer<size_t>(vnd_ie[1]))) {
+        return error(idfxx::errc::invalid_arg);
+    }
     return check(
         esp_wifi_set_vendor_ie(
             enable,
             static_cast<wifi_vendor_ie_type_t>(type),
             static_cast<wifi_vendor_ie_id_t>(id),
-            vnd_ie
+            enable ? vnd_ie.data() : nullptr
         ),
         "Failed to set vendor IE"
     );
