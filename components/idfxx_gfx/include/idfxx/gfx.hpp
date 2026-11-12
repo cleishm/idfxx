@@ -483,9 +483,15 @@ void draw_text(
     const ptrdiff_t clip_right = static_cast<ptrdiff_t>(clip.right);
     const ptrdiff_t clip_bottom = static_cast<ptrdiff_t>(clip.bottom);
     const ptrdiff_t baseline = static_cast<ptrdiff_t>(y) + font.ascent;
+    if (baseline - font.ink_ascent >= clip_bottom || baseline + font.ink_descent <= clip_top) {
+        return; // no glyph's ink reaches the clip rows
+    }
     ptrdiff_t pen = static_cast<ptrdiff_t>(x);
 
     for (char32_t cp : utf8_view(text)) {
+        if (pen + font.min_left_bearing >= clip_right) {
+            break; // this and every later glyph's ink starts right of the clip
+        }
         const font::glyph_metrics* g = font::detail::text_glyph(font, cp);
         if (g == nullptr) {
             continue; // skipped, or a soft hyphen (invisible)

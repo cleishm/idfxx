@@ -186,6 +186,7 @@ struct sized_counter {
     }
     [[nodiscard]] size_t width() const noexcept { return W; }
     [[nodiscard]] size_t height() const noexcept { return H; }
+    [[nodiscard]] bool get_pixel(size_t x, size_t y) const noexcept { return pixels[y * W + x]; }
 };
 
 // Counts the set pixels of rows [y0, y1) of the framebuffer.
@@ -990,6 +991,8 @@ using idfxx::font::proportional_font;
 // overhanging one column left of the pen, U+00E9 a pixel above the line
 // top, '?' (the replacement) a pixel on the baseline row, '-' a 1x1 dash
 // just above the baseline, and U+00AD an inked glyph that must never be drawn.
+// Its ink reaches 4 rows above the baseline (one past the line top), 2 below
+// it, and one column left of the pen.
 constexpr uint8_t prop_bitmap[] = {
     0xC0, 0xC0,       // 'A'
     0x80, 0x80, 0x80, // 'g'
@@ -1031,6 +1034,10 @@ constexpr proportional_font prop_font{
     .ascent = 3,
     .descent = 2,
     .line_height = 6,
+    .ink_ascent = 4,
+    .ink_descent = 2,
+    .min_left_bearing = -1,
+    .min_right_bearing = 1,
     .ranges = prop_ranges,
     .glyphs = prop_glyphs,
     .replacement = &prop_glyphs[1],
@@ -1052,6 +1059,19 @@ bool only_pixels(
         }
     }
     return count_set_pixels(fb) == expected.size();
+}
+
+// Returns true when tile holds the pixels of full whose top-left corner is (x0, y0).
+template<typename Tile>
+bool tile_matches(const mono_framebuffer& full, const Tile& tile, size_t x0, size_t y0) {
+    for (size_t y = 0; y < tile.height(); ++y) {
+        for (size_t x = 0; x < tile.width(); ++x) {
+            if (full.get_pixel(x0 + x, y0 + y) != tile.get_pixel(x, y)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 } // namespace
@@ -1193,6 +1213,94 @@ TEST_CASE("gfx clipping: proportional overhang crossing a band edge renders iden
     TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 12, "Agéj"); }));
     TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 21, "Agéj A"); }));
     TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { c.draw_text(prop_font, 1, 6, "Agéj"); }, 5));
+}
+
+TEST_CASE("gfx clipping: proportional accents reach a band above the line top", "[idfxx][gfx]") {
+    // The band holds rows 8-15 and the line top is row 16, its bottom edge;
+    // only the é rises into the band, one row above the line top (column 3, row 15).
+    auto band = make_fb(16, 8);
+    canvas(band, 0, 8, 16, 24).draw_text(prop_font, 0, 16, "Aé");
+    TEST_ASSERT_TRUE(only_pixels(band, {{3, 7}}));
+}
+
+TEST_CASE("gfx clipping: proportional left overhang reaches a clip left of the pen",
+          "[idfxx][gfx]") {
+    // The pen starts on the clip's right edge; the j's ink lies one column left of it.
+    auto fb = make_fb(4, 8);
+    draw_text(fb, prop_font, 4, 0, "j");
+    TEST_ASSERT_TRUE(only_pixels(fb, {{3, 2}}));
+
+    // Mid-string: after 'A', the pen reaches the edge at column 4.
+    fb.clear();
+    draw_text(fb, prop_font, 1, 0, "Aj");
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 1}, {2, 1}, {1, 2}, {2, 2}, {3, 2}}));
+
+    // A band holding frame columns 4-7, with the pen on its right edge.
+    auto band = make_fb(4, 8);
+    canvas(band, 4, 0, 16, 8).draw_text(prop_font, 8, 0, "j");
+    TEST_ASSERT_TRUE(only_pixels(band, {{3, 2}}));
+}
+
+TEST_CASE("gfx clipping: proportional text draws nothing in bands outside its ink rows",
+          "[idfxx][gfx]") {
+    // With the line top at row 8 (baseline row 11), the ink covers rows 7-12.
+    // A font whose line box ends one row above the g's last ink row: ink may
+    // reach past the line box, and the font's ink extents still cover it.
+    constexpr proportional_font short_descent = [] {
+        proportional_font font = prop_font;
+        font.descent = 1;
+        return font;
+    }();
+    for (const proportional_font* font : {&prop_font, &short_descent}) {
+        // Bands just above and just below the ink rows.
+        for (size_t y0 : {3, 13}) {
+            sized_counter<16, 4> surf;
+            canvas(surf, 0, y0, 16, 32).draw_text(*font, 1, 8, "Agéj A");
+            TEST_ASSERT_EQUAL(0, surf.writes);
+        }
+        // One row inward, each band gets one pixel: the é (row 7), the g's tail (row 12).
+        for (size_t y0 : {4, 12}) {
+            sized_counter<16, 4> surf;
+            canvas(surf, 0, y0, 16, 32).draw_text(*font, 1, 8, "Agéj A");
+            TEST_ASSERT_EQUAL(1, surf.writes);
+        }
+    }
+}
+
+TEST_CASE("gfx clipping: proportional text in one-row and one-column bands equals a full render",
+          "[idfxx][gfx]") {
+    auto full = make_fb(16, 16);
+    canvas(full).draw_text(prop_font, 0, 5, "Agéj A?");
+    TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+
+    for (size_t y0 = 0; y0 < 16; ++y0) {
+        sized_counter<16, 1> band;
+        canvas(band, 0, y0, 16, 16).draw_text(prop_font, 0, 5, "Agéj A?");
+        TEST_ASSERT_TRUE(tile_matches(full, band, 0, y0));
+    }
+    for (size_t x0 = 0; x0 < 16; ++x0) {
+        sized_counter<1, 16> band;
+        canvas(band, x0, 0, 16, 16).draw_text(prop_font, 0, 5, "Agéj A?");
+        TEST_ASSERT_TRUE(tile_matches(full, band, x0, 0));
+    }
+}
+
+TEST_CASE("gfx clipping: proportional text past the clip's right edge draws its visible part",
+          "[idfxx][gfx]") {
+    auto full = make_fb(32, 16);
+    draw_text(full, prop_font, 1, 5, "Agéj Agéj A");
+    TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+
+    // A surface narrower than the text, and a band ending mid-string.
+    auto narrow = make_fb(8, 16);
+    draw_text(narrow, prop_font, 1, 5, "Agéj Agéj A");
+    TEST_ASSERT_TRUE(tile_matches(full, narrow, 0, 0));
+    TEST_ASSERT_TRUE(count_set_pixels(narrow) > 0);
+
+    auto band = make_fb(8, 16);
+    canvas(band, 8, 0, 32, 16).draw_text(prop_font, 1, 5, "Agéj Agéj A");
+    TEST_ASSERT_TRUE(tile_matches(full, band, 8, 0));
+    TEST_ASSERT_TRUE(count_set_pixels(band) > 0);
 }
 
 // Draws a scene across a 24x8 rotated view whose backed columns end at x = 8 (cw90) or begin at

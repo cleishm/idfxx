@@ -411,6 +411,14 @@ class Font:
         self.index = {g.cp: i for i, g in enumerate(glyphs)}
         self.replacement = None if replacement_cp is None else self.index[replacement_cp]
 
+        # Ink extents over every inked glyph (the replacement is one of the glyphs); all 0 when no
+        # glyph has ink.
+        inked = [g for g in glyphs if g.width and g.height]
+        self.ink_ascent = max([0] + [-g.y_offset for g in inked])
+        self.ink_descent = max([0] + [g.y_offset + g.height for g in inked])
+        self.min_left_bearing = min((g.x_offset for g in inked), default=0)
+        self.min_right_bearing = min((g.advance - (g.x_offset + g.width) for g in inked), default=0)
+
         # Ranges of consecutive code points, each pointing at its first glyph.
         self.ranges = []
         for first, last in coalesce([g.cp for g in glyphs]):
@@ -437,6 +445,10 @@ class Font:
         check_range(self.ascent, 0, UINT16_MAX, "ascent")
         check_range(self.descent, 0, UINT16_MAX, "descent")
         check_range(self.line_height, 0, UINT16_MAX, "line_height")
+        check_range(self.ink_ascent, 0, UINT16_MAX, "ink_ascent")
+        check_range(self.ink_descent, 0, UINT16_MAX, "ink_descent")
+        check_range(self.min_left_bearing, INT16_MIN, INT16_MAX, "min_left_bearing")
+        check_range(self.min_right_bearing, INT16_MIN, INT16_MAX, "min_right_bearing")
         for g in self.glyphs:
             what = label(g.cp)
             check_range(g.width, 0, UINT16_MAX, f"{what} width")
@@ -563,6 +575,10 @@ def emit(font, args, face, names, extra_cps, replacement_cp):
     out.append(f"    .ascent = {font.ascent},")
     out.append(f"    .descent = {font.descent},")
     out.append(f"    .line_height = {font.line_height},")
+    out.append(f"    .ink_ascent = {font.ink_ascent},")
+    out.append(f"    .ink_descent = {font.ink_descent},")
+    out.append(f"    .min_left_bearing = {font.min_left_bearing},")
+    out.append(f"    .min_right_bearing = {font.min_right_bearing},")
     out.append(f"    .ranges = {ident}_ranges,")
     out.append(f"    .glyphs = {ident}_glyphs,")
     if font.replacement is None:
@@ -607,14 +623,19 @@ def regenerate_args(args, extra_cps, replacement_cp):
 
 
 def render_preview(font, text, scale, path):
+    # Each margin also holds the ink the font's extents allow past that edge of the text.
     margin = 4
+    left = margin + max(0, -font.min_left_bearing)
+    right = margin + max(0, -font.min_right_bearing)
+    top_margin = margin + max(0, font.ink_ascent - font.ascent)
+    bottom = margin + max(0, font.ink_descent - font.descent)
     ink = set()
     max_pen = 0
     lines = text.split("\n")
     for i, line in enumerate(lines):
-        top = margin + i * font.line_height
+        top = top_margin + i * font.line_height
         baseline = top + font.ascent
-        pen = margin
+        pen = left
         for cp in (ord(ch) for ch in line):
             if cp == SOFT_HYPHEN:
                 continue  # invisible and zero-width, as in idfxx::gfx::draw_text
@@ -630,20 +651,12 @@ def render_preview(font, text, scale, path):
             pen += g.advance
         max_pen = max(max_pen, pen)
 
-    width = max_pen + margin
-    height = margin + (len(lines) - 1) * font.line_height + font.ascent + font.descent + margin
-    dx = dy = 0
-    if ink:
-        dx = max(0, -min(x for x, _ in ink))
-        dy = max(0, -min(y for _, y in ink))
-        width = max(width, max(x for x, _ in ink) + 1 + margin)
-        height = max(height, max(y for _, y in ink) + 1 + margin)
-    width += dx
-    height += dy
+    width = max_pen + right
+    height = top_margin + (len(lines) - 1) * font.line_height + font.ascent + font.descent + bottom
 
     rows = [[False] * width for _ in range(height)]
     for x, y in ink:
-        rows[y + dy][x + dx] = True
+        rows[y][x] = True
     write_png(path, rows, scale)
 
 

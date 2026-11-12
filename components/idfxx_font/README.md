@@ -9,8 +9,9 @@ Bitmap font models (fixed-cell and proportional) and text metrics.
 - Compact fixed-cell font representation (`mono_font`): contiguous character range, one cell size,
   row-major MSB-first glyph data
 - Proportional font representation (`proportional_font`): per-glyph advance and offsets, bitmaps
-  trimmed to the ink, any set of Unicode code points, a replacement glyph for the rest, and line
-  metrics (`ascent`, `descent`, `line_height`)
+  trimmed to the ink, any set of Unicode code points, a replacement glyph for the rest, line
+  metrics (`ascent`, `descent`, `line_height`), and ink extents bounding every glyph (`ink_ascent`,
+  `ink_descent`, `min_left_bearing`, `min_right_bearing`)
 - Text measurement (`text_width`, per-glyph `advance`), fully `constexpr`; proportional fonts take
   UTF-8 text (decoded with `idfxx::utf8_view`)
 - Line breaking (`break_lines`): a lazy, non-allocating, `constexpr` view splitting text into lines
@@ -97,7 +98,7 @@ Text drawing lives in `idfxx_gfx`: `idfxx::gfx::draw_text` for a single line, an
 | `mono_font::glyph(c)` | Pointer to the glyph's bitmap rows. |
 | `mono_font::advance(c)` | Cursor advance for `c` (one cell width). |
 | `text_width(font, text, scale)` | Rendered width in pixels (constexpr). |
-| `proportional_font` | Proportional font: `ascent`, `descent`, `line_height`, `ranges`, `glyphs`, `replacement`, `bitmap`. |
+| `proportional_font` | Proportional font: `ascent`, `descent`, `line_height`, `ink_ascent`, `ink_descent`, `min_left_bearing`, `min_right_bearing`, `ranges`, `glyphs`, `replacement`, `bitmap`. |
 | `proportional_font::find(cp)` / `contains(cp)` | The font's own glyph for a code point (or null). |
 | `proportional_font::resolve(cp)` | The glyph drawn for a code point: its own, else the replacement (or null). |
 | `proportional_font::advance(cp)` | Pen advance for a code point (0 when skipped). |
@@ -178,6 +179,13 @@ generated definition gets external linkage (see `idfxx_font_spleen` for the patt
 - In a `proportional_font`, code points without a glyph measure and draw as the replacement glyph,
   or take no space when the font has none. Generated fonts set the line top `ascent` rows above the
   baseline; accents on capitals may rise above it.
+- A `proportional_font`'s ink extents bound where its glyphs' ink can fall: from `ink_ascent` rows
+  above the baseline to `ink_descent` rows below it, and from `min_left_bearing` columns right of
+  the pen to `min_right_bearing` columns left of the advance (negative values reach past them).
+  Reserve `ink_ascent - ascent` rows above a line (when positive) to show every glyph in full, and
+  likewise for the other edges. Generated fonts set them exactly; in a font written by hand they
+  must cover every glyph, including the replacement, and may be loose but never too small: renderers
+  may skip text whose ink box misses the area being drawn.
 - Proportional glyph bitmaps use the same row layout as `mono_font` (`ceil(width / 8)` bytes per
   row, MSB = leftmost pixel), trimmed to each glyph's ink and placed by `x_offset` / `y_offset`
   relative to the pen position and baseline.

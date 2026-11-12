@@ -244,8 +244,11 @@ report whatever the destination's `try_write` reports (for the idfxx panels, pan
   (`display.write(fb)`, or `panel.write(band, 0, y)` for a band).
 - The `pixel_surface` concept is structural: any user-defined type with a matching
   `set_pixel`/`width`/`height` shape works, no inheritance needed.
-- Proportional glyphs may overhang the pen position slightly (e.g. `j` reaching left of `x`, accents
-  on capitals above the line top); ink outside the surface is clipped, so leave a small margin.
+- Proportional glyphs may overhang the line (e.g. `j` reaching left of `x`, accents on capitals
+  above the line top), and ink outside the surface is clipped. The font's ink extents give the room
+  to leave: `ink_ascent - ascent` rows above the line top, `ink_descent - descent` rows below the
+  line's bottom edge, `-min_left_bearing` columns left of `x` and `-min_right_bearing` columns past
+  the text's width (each only when positive).
 - A soft hyphen (U+00AD) in proportional text is never drawn and takes no space; it only marks where
   `draw_text_box` may hyphenate a word.
 - This component is deliberately small: integer coordinates, one-pixel strokes, no anti-aliasing, no
