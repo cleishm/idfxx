@@ -59,12 +59,15 @@ namespace idfxx {
 namespace detail {
 
 template<typename T>
-concept byte_element = std::same_as<std::remove_cv_t<T>, std::byte> ||
-    std::same_as<std::remove_cv_t<T>, unsigned char>;
+concept byte_element = std::same_as<std::remove_const_t<T>, std::byte> ||
+    std::same_as<std::remove_const_t<T>, unsigned char>;
 
 template<typename R>
 concept byte_range = std::ranges::contiguous_range<R> && std::ranges::sized_range<R> &&
     byte_element<std::ranges::range_value_t<R>>;
+
+template<typename T>
+concept byte_pointee = std::same_as<std::remove_const_t<T>, void> || byte_element<T>;
 
 template<typename R>
 concept mutable_byte_range = byte_range<R> && std::ranges::borrowed_range<R> &&
@@ -81,7 +84,9 @@ concept mutable_byte_range = byte_range<R> && std::ranges::borrowed_range<R> &&
  * length, and from a braced list of byte values. Converts implicitly to
  * `std::span<const std::byte>` and to `std::span<const uint8_t>`.
  *
- * Views are cheap to copy (a pointer and a size) and are usually passed by value.
+ * Views are cheap to copy (a pointer and a size) and are usually passed by value. Besides the
+ * members below, the view provides `empty()`, `operator[]`, `front()` and `back()` through
+ * `std::ranges::view_interface`.
  *
  * @code
  * void write(idfxx::byte_view data);
@@ -138,11 +143,15 @@ public:
     /**
      * @brief Creates a view of @p size bytes starting at @p data.
      *
-     * @param data The first byte. May be null only if @p size is 0.
+     * @tparam T `void`, `std::byte` or `uint8_t`, const or not. Pointers to other types are
+     *           rejected: view an object's bytes with `std::as_bytes` instead.
+     * @param data The first byte. Must not be null unless @p size is 0.
      * @param size The number of bytes.
      */
-    byte_view(const void* data, size_type size) noexcept
-        : _data(static_cast<const std::byte*>(data))
+    template<typename T>
+        requires detail::byte_pointee<T>
+    constexpr byte_view(T* data, size_type size) noexcept
+        : _data(_as_bytes(data))
         , _size(size) {}
 
     /**
@@ -210,8 +219,10 @@ public:
 private:
     template<typename T>
     static constexpr const std::byte* _as_bytes(T* p) noexcept {
-        if constexpr (std::same_as<std::remove_cv_t<T>, std::byte>) {
+        if constexpr (std::same_as<std::remove_const_t<T>, std::byte>) {
             return p;
+        } else if constexpr (std::is_void_v<T>) {
+            return static_cast<const std::byte*>(p);
         } else {
             return reinterpret_cast<const std::byte*>(p);
         }
@@ -229,7 +240,9 @@ private:
  * call (an lvalue container, or a span), and from a pointer and a length. Converts implicitly to
  * `byte_view`, and to spans of `std::byte` or `uint8_t`, const or not.
  *
- * Temporary containers are rejected: bytes written into them would be lost.
+ * Temporary containers are rejected: bytes written into them would be lost. Besides the members
+ * below, the view provides `empty()`, `operator[]`, `front()` and `back()` through
+ * `std::ranges::view_interface`.
  *
  * @code
  * size_t read(idfxx::mutable_byte_view buf);
@@ -272,11 +285,15 @@ public:
     /**
      * @brief Creates a view of @p size bytes starting at @p data.
      *
-     * @param data The first byte. May be null only if @p size is 0.
+     * @tparam T `void`, `std::byte` or `uint8_t`, not const. Pointers to other types are
+     *           rejected: view an object's bytes with `std::as_writable_bytes` instead.
+     * @param data The first byte. Must not be null unless @p size is 0.
      * @param size The number of bytes.
      */
-    mutable_byte_view(void* data, size_type size) noexcept
-        : _data(static_cast<std::byte*>(data))
+    template<typename T>
+        requires(detail::byte_pointee<T> && !std::is_const_v<T>)
+    constexpr mutable_byte_view(T* data, size_type size) noexcept
+        : _data(_as_bytes(data))
         , _size(size) {}
 
     /**
@@ -354,6 +371,8 @@ private:
     static constexpr std::byte* _as_bytes(T* p) noexcept {
         if constexpr (std::same_as<T, std::byte>) {
             return p;
+        } else if constexpr (std::is_void_v<T>) {
+            return static_cast<std::byte*>(p);
         } else {
             return reinterpret_cast<std::byte*>(p);
         }

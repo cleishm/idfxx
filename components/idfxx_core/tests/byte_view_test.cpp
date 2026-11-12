@@ -78,6 +78,22 @@ static_assert(!std::is_constructible_v<mutable_byte_view, std::span<int>>);
 static_assert(!std::is_constructible_v<mutable_byte_view, byte_view>);
 static_assert(!std::is_convertible_v<byte_view, mutable_byte_view>);
 
+// Pointer and length: only void, std::byte and uint8_t pointees
+static_assert(std::is_constructible_v<byte_view, const void*, size_t>);
+static_assert(std::is_constructible_v<byte_view, const std::byte*, size_t>);
+static_assert(std::is_constructible_v<byte_view, const uint8_t*, size_t>);
+static_assert(std::is_constructible_v<byte_view, uint8_t*, size_t>);
+static_assert(!std::is_constructible_v<byte_view, const char*, size_t>);
+static_assert(!std::is_constructible_v<byte_view, const int*, size_t>);
+static_assert(!std::is_constructible_v<byte_view, const volatile uint8_t*, size_t>);
+static_assert(std::is_constructible_v<mutable_byte_view, void*, size_t>);
+static_assert(std::is_constructible_v<mutable_byte_view, std::byte*, size_t>);
+static_assert(std::is_constructible_v<mutable_byte_view, uint8_t*, size_t>);
+static_assert(!std::is_constructible_v<mutable_byte_view, const void*, size_t>);
+static_assert(!std::is_constructible_v<mutable_byte_view, const uint8_t*, size_t>);
+static_assert(!std::is_constructible_v<mutable_byte_view, char*, size_t>);
+static_assert(!std::is_constructible_v<mutable_byte_view, int*, size_t>);
+
 // Conversions to spans
 static_assert(std::is_convertible_v<byte_view, std::span<const std::byte>>);
 static_assert(std::is_convertible_v<byte_view, std::span<const uint8_t>>);
@@ -117,6 +133,7 @@ struct reading {
     uint32_t time;
     int16_t value;
 };
+static_assert(!std::is_constructible_v<byte_view, const reading*, size_t>);
 
 const std::byte* data_of(byte_view v) {
     return v.data();
@@ -245,8 +262,9 @@ TEST_CASE("byte_view views a pointer and length", "[idfxx][byte_view]") {
     TEST_ASSERT_TRUE(data_of({buf.data() + 2, 4}) == reinterpret_cast<const std::byte*>(cp));
 
     reading r{};
-    TEST_ASSERT_EQUAL(sizeof(r), size_of({&r, sizeof(r)}));
-    TEST_ASSERT_TRUE(data_of({&r, sizeof(r)}) == reinterpret_cast<const std::byte*>(&r));
+    const void* vp = &r;
+    TEST_ASSERT_EQUAL(sizeof(r), size_of({vp, sizeof(r)}));
+    TEST_ASSERT_TRUE(data_of({vp, sizeof(r)}) == reinterpret_cast<const std::byte*>(&r));
 }
 
 TEST_CASE("byte_view empty braces are an empty view", "[idfxx][byte_view]") {
@@ -417,6 +435,7 @@ TEST_CASE("byte_view overloads resolve against string_view", "[idfxx][byte_view]
     TEST_ASSERT_EQUAL_STRING("text", kind(text).data());
     TEST_ASSERT_EQUAL_STRING("text", kind("abc").data());
     TEST_ASSERT_EQUAL_STRING("text", kind(std::string_view{"abc"}).data());
+    TEST_ASSERT_EQUAL_STRING("text", kind({text.data(), 2}).data());
 
     TEST_ASSERT_EQUAL_STRING("bytes", kind(au).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind(ab).data());
@@ -424,4 +443,5 @@ TEST_CASE("byte_view overloads resolve against string_view", "[idfxx][byte_view]
     TEST_ASSERT_EQUAL_STRING("bytes", kind(sp).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind(std::as_bytes(std::span{text})).data());
     TEST_ASSERT_EQUAL_STRING("bytes", kind({0x01, 0x02, 0xAE}).data());
+    TEST_ASSERT_EQUAL_STRING("bytes", kind({au.data(), 2}).data());
 }

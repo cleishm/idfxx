@@ -540,7 +540,7 @@ private:
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
         try {
 #endif
-            result<size_t> r = static_cast<Src*>(source)->try_read(buf);
+            result<size_t> r = static_cast<Src*>(source)->try_read(mutable_byte_view{buf});
             if (!r) {
                 failure.error = r.error();
                 return false;
