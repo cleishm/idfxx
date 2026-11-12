@@ -354,6 +354,109 @@ void draw_text(
 }
 
 /**
+ * @brief Draws text in a proportional font with the given ink.
+ *
+ * Decodes @p text as UTF-8 and renders it as one line, left-to-right, with
+ * the line's top-left corner at (@p x, @p y): the baseline is
+ * `font.ascent` rows below @p y, and each glyph moves the pen right by its
+ * own advance, so @ref font::text_width gives the width to center or align
+ * by. Only glyph "ink" pixels are written — the background is left
+ * untouched, so text composes over existing content (on a monochrome
+ * surface, pass `ink = false` to erase ink pixels instead). Code points
+ * the font lacks are drawn as its replacement glyph, or skipped if it has
+ * none; control characters (including newlines) are not interpreted.
+ * Pixels falling outside the surface are clipped, including ink that
+ * overhangs the line's left or top edge.
+ *
+ * @code
+ * const auto& f = fonts::inter_48; // generated with ttf_to_c.py
+ * const size_t w = idfxx::font::text_width(f, "Bonjour, café");
+ * idfxx::gfx::draw_text(fb, f, (fb.width() - w) / 2, 100, "Bonjour, café", true);
+ * @endcode
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the line (the starting pen position), in pixels.
+ * @param y       Top edge of the line, in pixels.
+ * @param text    The UTF-8 text to draw.
+ * @param ink     The pixel value to write for glyph ink.
+ */
+template<pixel_surface Surface>
+void draw_text(
+    Surface& surface,
+    const font::proportional_font& font,
+    size_t x,
+    size_t y,
+    std::string_view text,
+    typename Surface::pixel_type ink
+) noexcept {
+    const ptrdiff_t surface_width = static_cast<ptrdiff_t>(surface.width());
+    const ptrdiff_t surface_height = static_cast<ptrdiff_t>(surface.height());
+    const ptrdiff_t baseline = static_cast<ptrdiff_t>(y) + font.ascent;
+    ptrdiff_t pen = static_cast<ptrdiff_t>(x);
+
+    for (char32_t cp : utf8_view(text)) {
+        const font::glyph_metrics* g = font.resolve(cp);
+        if (g == nullptr) {
+            continue;
+        }
+        const ptrdiff_t left = pen + g->x_offset;
+        const ptrdiff_t top = baseline + g->y_offset;
+        pen += g->advance;
+        if (left >= surface_width || top >= surface_height) {
+            continue;
+        }
+        const size_t bpr = g->bytes_per_row();
+        const uint8_t* rows = font.glyph_bitmap(*g);
+        // Visible column and row span of the glyph bitmap.
+        const size_t col_begin = left < 0 ? static_cast<size_t>(-left) : 0;
+        const size_t row_begin = top < 0 ? static_cast<size_t>(-top) : 0;
+        const size_t col_end =
+            std::min<size_t>(g->width, static_cast<size_t>(surface_width - left));
+        const size_t row_end =
+            std::min<size_t>(g->height, static_cast<size_t>(surface_height - top));
+        for (size_t row = row_begin; row < row_end; ++row) {
+            const uint8_t* row_bits = rows + row * bpr;
+            const size_t py = static_cast<size_t>(top + static_cast<ptrdiff_t>(row));
+            for (size_t col = col_begin; col < col_end; ++col) {
+                if (row_bits[col / 8] & (0x80u >> (col % 8))) {
+                    surface.set_pixel(
+                        static_cast<size_t>(left + static_cast<ptrdiff_t>(col)), py, ink
+                    );
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Draws text in a proportional font on a monochrome surface, setting glyph ink pixels.
+ *
+ * Equivalent to @ref draw_text with `ink = true`; see there for the full
+ * rendering contract.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface with a
+ *                 `bool` pixel type).
+ * @param surface The surface to draw on.
+ * @param font    Font to render with.
+ * @param x       Left edge of the line (the starting pen position), in pixels.
+ * @param y       Top edge of the line, in pixels.
+ * @param text    The UTF-8 text to draw.
+ */
+template<pixel_surface Surface>
+    requires std::same_as<typename Surface::pixel_type, bool>
+void draw_text(
+    Surface& surface,
+    const font::proportional_font& font,
+    size_t x,
+    size_t y,
+    std::string_view text
+) noexcept {
+    draw_text(surface, font, x, y, text, true);
+}
+
+/**
  * @headerfile <idfxx/gfx>
  * @brief A drawing view bundling a pixel surface with the drawing primitives.
  *
@@ -713,6 +816,58 @@ public:
      * @param text The text to draw.
      */
     void draw_text(const font::mono_font& font, size_t x, size_t y, std::string_view text) noexcept
+        requires std::same_as<pixel_type, bool>
+    {
+        gfx::draw_text(*this, font, x, y, text);
+    }
+
+    /**
+     * @brief Draws text in a proportional font with the given ink.
+     *
+     * Decodes @p text as UTF-8 and renders it as one line, left-to-right,
+     * with the line's top-left corner at (@p x, @p y): the baseline is
+     * `font.ascent` rows below @p y, and each glyph moves the pen right by
+     * its own advance, so @ref font::text_width gives the width to center
+     * or align by. Only glyph "ink" pixels are written — the background is
+     * left untouched (on a monochrome surface, pass `ink = false` to erase
+     * ink pixels instead). Code points the font lacks are drawn as its
+     * replacement glyph, or skipped if it has none; control characters
+     * (including newlines) are not interpreted. Pixels falling outside the
+     * canvas are clipped.
+     *
+     * @param font Font to render with.
+     * @param x    Left edge of the line (the starting pen position), in pixels.
+     * @param y    Top edge of the line, in pixels.
+     * @param text The UTF-8 text to draw.
+     * @param ink  The pixel value to write for glyph ink.
+     */
+    void draw_text(
+        const font::proportional_font& font,
+        size_t x,
+        size_t y,
+        std::string_view text,
+        pixel_type ink
+    ) noexcept {
+        gfx::draw_text(*this, font, x, y, text, ink);
+    }
+
+    /**
+     * @brief Draws text in a proportional font on a monochrome surface, setting glyph ink pixels.
+     *
+     * Equivalent to @ref draw_text with `ink = true`; see there for the full
+     * rendering contract.
+     *
+     * @param font Font to render with.
+     * @param x    Left edge of the line (the starting pen position), in pixels.
+     * @param y    Top edge of the line, in pixels.
+     * @param text The UTF-8 text to draw.
+     */
+    void draw_text(
+        const font::proportional_font& font,
+        size_t x,
+        size_t y,
+        std::string_view text
+    ) noexcept
         requires std::same_as<pixel_type, bool>
     {
         gfx::draw_text(*this, font, x, y, text);

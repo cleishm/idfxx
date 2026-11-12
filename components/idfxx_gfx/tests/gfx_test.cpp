@@ -743,6 +743,171 @@ TEST_CASE("gfx draw_text renders color ink on an rgb565 surface", "[idfxx][gfx]"
 }
 
 // =============================================================================
+// Runtime tests: proportional text
+// =============================================================================
+
+namespace {
+
+using idfxx::font::glyph_metrics;
+using idfxx::font::glyph_range;
+using idfxx::font::proportional_font;
+
+// A tiny proportional font with ascent 3: 'A' is a 2x2 block on the
+// baseline, 'g' a 1x3 stroke descending two rows below it, 'j' a pixel
+// overhanging one column left of the pen, U+00E9 a pixel above the line
+// top, and '?' (the replacement) a pixel on the baseline row.
+constexpr uint8_t prop_bitmap[] = {
+    0xC0, 0xC0,       // 'A'
+    0x80, 0x80, 0x80, // 'g'
+    0x80,             // 'j'
+    0x80,             // U+00E9
+    0x80,             // '?'
+};
+constexpr glyph_metrics prop_glyphs[] = {
+    {.bitmap_offset = 0, .width = 0, .height = 0, .advance = 2, .x_offset = 0, .y_offset = 0},  // ' '
+    {.bitmap_offset = 7, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -1}, // '?'
+    {.bitmap_offset = 0, .width = 2, .height = 2, .advance = 3, .x_offset = 0, .y_offset = -2}, // 'A'
+    {.bitmap_offset = 2, .width = 1, .height = 3, .advance = 3, .x_offset = 1, .y_offset = -1}, // 'g'
+    {.bitmap_offset = 5, .width = 1, .height = 1, .advance = 2, .x_offset = -1, .y_offset = -1}, // 'j'
+    {.bitmap_offset = 6, .width = 1, .height = 1, .advance = 2, .x_offset = 0, .y_offset = -4}, // U+00E9
+};
+constexpr glyph_range prop_ranges[] = {
+    {.first = U' ', .last = U' ', .first_glyph = 0},
+    {.first = U'?', .last = U'?', .first_glyph = 1},
+    {.first = U'A', .last = U'A', .first_glyph = 2},
+    {.first = U'g', .last = U'g', .first_glyph = 3},
+    {.first = U'j', .last = U'j', .first_glyph = 4},
+    {.first = U'\u00E9', .last = U'\u00E9', .first_glyph = 5},
+};
+constexpr proportional_font prop_font{
+    .ascent = 3,
+    .descent = 2,
+    .line_height = 6,
+    .ranges = prop_ranges,
+    .glyphs = prop_glyphs,
+    .replacement = &prop_glyphs[1],
+    .bitmap = prop_bitmap,
+};
+constexpr proportional_font prop_font_no_replacement{
+    .ascent = 3,
+    .descent = 2,
+    .line_height = 6,
+    .ranges = prop_ranges,
+    .glyphs = prop_glyphs,
+    .replacement = nullptr,
+    .bitmap = prop_bitmap,
+};
+
+// Returns true when exactly the listed pixels are set.
+template<size_t N>
+bool only_pixels(const mono_framebuffer& fb, const std::array<std::pair<size_t, size_t>, N>& expected) {
+    for (const auto& [x, y] : expected) {
+        if (!fb.get_pixel(x, y)) {
+            return false;
+        }
+    }
+    return count_set_pixels(fb) == N;
+}
+
+} // namespace
+
+TEST_CASE("gfx draw_text proportional sits glyphs on the baseline", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 1, 0, "A"); // baseline at row 3: the block covers rows 1-2
+    TEST_ASSERT_TRUE((only_pixels<4>(fb, {{{1, 1}, {2, 1}, {1, 2}, {2, 2}}})));
+}
+
+TEST_CASE("gfx draw_text proportional advances per glyph", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 0, "A A");
+    // 'A' advances 3 and ' ' 2, so the second 'A' starts at column 5.
+    TEST_ASSERT_TRUE((only_pixels<8>(fb, {{{0, 1}, {1, 1}, {0, 2}, {1, 2}, {5, 1}, {6, 1}, {5, 2}, {6, 2}}})));
+    TEST_ASSERT_EQUAL(8, idfxx::font::text_width(prop_font, "A A"));
+}
+
+TEST_CASE("gfx draw_text proportional applies glyph offsets", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 0, "g"); // one column right, descending to row 4
+    TEST_ASSERT_TRUE((only_pixels<3>(fb, {{{1, 2}, {1, 3}, {1, 4}}})));
+}
+
+TEST_CASE("gfx draw_text proportional clips overhang at the left and top edges", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 0, "j"); // ink at column -1
+    draw_text(fb, prop_font, 4, 0, "é"); // ink at row -1
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    draw_text(fb, prop_font, 1, 0, "j");
+    draw_text(fb, prop_font, 4, 2, "é");
+    TEST_ASSERT_TRUE((only_pixels<2>(fb, {{{0, 2}, {4, 1}}})));
+}
+
+TEST_CASE("gfx draw_text proportional clips at the right and bottom edges", "[idfxx][gfx]") {
+    auto fb = make_fb(4, 8);
+    draw_text(fb, prop_font, 3, 0, "A"); // straddles the right edge
+    draw_text(fb, prop_font, 0, 5, "g"); // descends past the bottom edge
+    draw_text(fb, prop_font, 100, 100, "AAA");
+    TEST_ASSERT_TRUE((only_pixels<3>(fb, {{{3, 1}, {3, 2}, {1, 7}}})));
+}
+
+TEST_CASE("gfx draw_text proportional decodes UTF-8", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 2, "Aé"); // 'A' then the two-byte U+00E9 at column 3
+    TEST_ASSERT_TRUE((only_pixels<5>(fb, {{{0, 3}, {1, 3}, {0, 4}, {1, 4}, {3, 1}}})));
+}
+
+TEST_CASE("gfx draw_text proportional draws the replacement for missing code points", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font, 0, 0, "Z\xFF"); // missing, then malformed UTF-8
+    TEST_ASSERT_TRUE((only_pixels<2>(fb, {{{0, 2}, {2, 2}}})));
+    TEST_ASSERT_EQUAL(4, idfxx::font::text_width(prop_font, "Z\xFF"));
+}
+
+TEST_CASE("gfx draw_text proportional skips missing code points without a replacement", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_text(fb, prop_font_no_replacement, 0, 0, "ZA"); // 'Z' takes no space
+    TEST_ASSERT_TRUE((only_pixels<4>(fb, {{{0, 1}, {1, 1}, {0, 2}, {1, 2}}})));
+    TEST_ASSERT_EQUAL(3, idfxx::font::text_width(prop_font_no_replacement, "ZA"));
+}
+
+TEST_CASE("gfx draw_text proportional with ink=false erases ink pixels", "[idfxx][gfx]") {
+    auto fb = make_fb(4, 8);
+    fb.fill(true);
+    draw_text(fb, prop_font, 0, 0, "A", false);
+    TEST_ASSERT_EQUAL(32 - 4, count_set_pixels(fb));
+    TEST_ASSERT_FALSE(fb.get_pixel(0, 1));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+}
+
+TEST_CASE("gfx draw_text proportional renders color ink", "[idfxx][gfx]") {
+    auto fb = make_color_fb(8, 8);
+    constexpr rgb565 amber(255, 191, 0);
+    draw_text(fb, prop_font, 1, 0, "A", amber);
+    TEST_ASSERT_TRUE(fb.get_pixel(1, 1) == amber);
+    TEST_ASSERT_TRUE(fb.get_pixel(2, 2) == amber);
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 1) == rgb565{});
+    TEST_ASSERT_TRUE(fb.get_pixel(1, 3) == rgb565{});
+}
+
+TEST_CASE("gfx canvas draw_text proportional renders bands identical to a full frame", "[idfxx][gfx]") {
+    auto full = make_fb(16, 16);
+    canvas(full).draw_text(prop_font, 1, 5, "Agéj"); // baseline at row 8
+
+    // Two 8-row bands: glyphs straddling the band edge render their visible part in each.
+    auto band = make_fb(16, 8);
+    for (size_t y0 = 0; y0 < 16; y0 += 8) {
+        band.clear();
+        canvas(band, 0, y0).draw_text(prop_font, 1, 5, "Agéj");
+        for (size_t y = 0; y < 8; ++y) {
+            for (size_t x = 0; x < 16; ++x) {
+                TEST_ASSERT_EQUAL(full.get_pixel(x, y0 + y), band.get_pixel(x, y));
+            }
+        }
+    }
+    TEST_ASSERT_TRUE(count_set_pixels(full) > 0);
+}
+
+// =============================================================================
 // to_string / formatter tests
 // =============================================================================
 
