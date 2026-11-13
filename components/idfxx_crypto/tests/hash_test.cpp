@@ -4,6 +4,7 @@
 // Unit tests for idfxx crypto hashing
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 
+#include "crypto_test_utils.hpp"
 #include "idfxx/crypto/hash"
 #include "idfxx/hex"
 #include "unity.h"
@@ -22,6 +23,7 @@
 #include <vector>
 
 using namespace idfxx;
+using namespace idfxx_crypto_test;
 
 namespace {
 
@@ -39,15 +41,6 @@ struct vectors {
 constexpr std::string_view msg_abc = "abc";
 constexpr std::string_view msg_448 = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
 
-// n bytes: 0, 1, ..., 255, 0, 1, ...
-std::vector<uint8_t> patterned_message(std::size_t n) {
-    std::vector<uint8_t> msg(n);
-    for (size_t i = 0; i < msg.size(); ++i) {
-        msg[i] = static_cast<uint8_t>(i & 0xff);
-    }
-    return msg;
-}
-
 // "a" repeated n times
 std::string msg_all_a(size_t n) {
     return std::string(n, 'a');
@@ -57,37 +50,28 @@ std::span<const uint8_t> u8_of(std::string_view s) {
     return {reinterpret_cast<const uint8_t*>(s.data()), s.size()};
 }
 
-std::span<const std::byte> bytes_of(std::string_view s) {
-    return std::as_bytes(std::span<const char>{s.data(), s.size()});
-}
+// The known digests through the hasher's own API: compute, compare, and update and finish or verify
+// incrementally. The helpers that test a hasher's own API are templates: the full set runs only on
+// SHA-256, SHA-512 and SHA3-256 (SHA-2 with 64- and 128-byte blocks, and SHA-3), and the others
+// get this check. The helpers that test hash::operation take the algorithm at runtime and run for
+// every algorithm.
+template<typename H>
+void check_digests(const vectors& v) {
+    auto msg = patterned_message(1000); // several blocks of every algorithm
+    TEST_ASSERT_DIGEST(v.empty, ok(H::try_compute(std::string_view{})));
+    TEST_ASSERT_DIGEST(v.abc, ok(H::try_compute(msg_abc)));
+    TEST_ASSERT_DIGEST(v.m448, ok(H::try_compute(msg_448)));
+    TEST_ASSERT_DIGEST(v.multi, ok(H::try_compute(msg)));
+    auto good = from_hex(v.abc);
+    TEST_ASSERT_TRUE(ok(H::try_compare(msg_abc, good)));
+    TEST_ASSERT_FALSE(ok(H::try_compare(msg_448, good)));
 
-std::vector<uint8_t> from_hex(std::string_view hex) {
-    std::vector<uint8_t> out;
-    for (size_t i = 0; i + 1 < hex.size(); i += 2) {
-        out.push_back(static_cast<uint8_t>(std::stoul(std::string(hex.substr(i, 2)), nullptr, 16)));
-    }
-    return out;
+    H h;
+    ok(h.try_update(msg));
+    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
+    ok(h.try_update(msg_abc));
+    TEST_ASSERT_TRUE(ok(h.try_verify(good)));
 }
-
-std::vector<std::byte> bytes_from_hex(std::string_view hex) {
-    auto u8 = from_hex(hex);
-    std::vector<std::byte> out(u8.size());
-    std::memcpy(out.data(), u8.data(), u8.size());
-    return out;
-}
-
-template<typename T>
-T ok(result<T> r) {
-    TEST_ASSERT_TRUE_MESSAGE(r.has_value(), r ? "" : r.error().message().c_str());
-    return std::move(*r);
-}
-
-void ok(result<void> r) {
-    TEST_ASSERT_TRUE_MESSAGE(r.has_value(), r ? "" : r.error().message().c_str());
-}
-
-#define TEST_ASSERT_DIGEST(expected_hex, digest) \
-    TEST_ASSERT_EQUAL_STRING((expected_hex), idfxx::to_string(idfxx::hex(digest)).c_str())
 
 template<typename H>
 void check_known_answers(const vectors& v) {
@@ -140,40 +124,6 @@ void check_known_answers(const vectors& v) {
 }
 
 template<typename H>
-void check_split_updates(const vectors& v) {
-    auto msg = patterned_message(1000); // several blocks of every algorithm
-    std::span<const uint8_t> all{msg};
-    H h;
-
-    // One byte at a time
-    for (size_t i = 0; i < all.size(); ++i) {
-        ok(h.try_update(all.subspan(i, 1)));
-    }
-    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
-
-    // Chunks that end just before, on and just after block boundaries
-    constexpr size_t b = H::block_size;
-    const size_t sizes[] = {1, b - 2, 3, b, b + 1, 7, 2 * b - 1};
-    size_t pos = 0;
-    for (size_t i = 0; pos < all.size(); ++i) {
-        size_t n = std::min(sizes[i % std::size(sizes)], all.size() - pos);
-        ok(h.try_update(std::as_bytes(all.subspan(pos, n))));
-        pos += n;
-    }
-    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
-
-    // Split exactly on a block boundary
-    ok(h.try_update(all.first(b)));
-    ok(h.try_update(all.subspan(b)));
-    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
-
-    // Text split mid-message
-    ok(h.try_update(msg_448.substr(0, 5)));
-    ok(h.try_update(msg_448.substr(5)));
-    TEST_ASSERT_DIGEST(v.m448, ok(h.try_finish()));
-}
-
-template<typename H>
 void check_compare_and_verify(const vectors& v) {
     auto good = from_hex(v.abc);
     TEST_ASSERT_EQUAL(H::digest_size, good.size());
@@ -187,6 +137,7 @@ void check_compare_and_verify(const vectors& v) {
     too_long.push_back(0);
     auto too_long_bytes = good_bytes;
     too_long_bytes.push_back(std::byte{0});
+    auto empty = from_hex(v.empty);
 
     // Expected digests of each supported form resolve to an overload unambiguously
     typename H::digest_type digest = ok(H::try_compute(msg_abc));
@@ -205,7 +156,7 @@ void check_compare_and_verify(const vectors& v) {
     TEST_ASSERT_TRUE(ok(H::try_compare(msg_abc, digest)));
     TEST_ASSERT_TRUE(ok(H::try_compare(msg_abc, u8_array)));
     TEST_ASSERT_TRUE(ok(H::try_compare(msg_abc, u8_c_array)));
-    TEST_ASSERT_TRUE(ok(H::try_compare(std::string_view{}, from_hex(v.empty))));
+    TEST_ASSERT_TRUE(ok(H::try_compare(std::string_view{}, empty)));
 
     TEST_ASSERT_FALSE(ok(H::try_compare(msg_abc, flipped)));
     TEST_ASSERT_FALSE(ok(H::try_compare(bytes_of(msg_abc), flipped_bytes)));
@@ -219,7 +170,7 @@ void check_compare_and_verify(const vectors& v) {
 
     // Incremental; verify leaves the hasher ready for a new message whatever the outcome
     H h;
-    TEST_ASSERT_TRUE(ok(h.try_verify(from_hex(v.empty))));
+    TEST_ASSERT_TRUE(ok(h.try_verify(empty)));
     ok(h.try_update(msg_abc));
     TEST_ASSERT_TRUE(ok(h.try_verify(good)));
     TEST_ASSERT_DIGEST(v.empty, ok(h.try_finish()));
@@ -314,6 +265,77 @@ void check_lifecycle(const vectors& v) {
 }
 
 template<typename H>
+void check_split_updates(const vectors& v) {
+    auto msg = patterned_message(1000); // several blocks of every algorithm
+    std::span<const uint8_t> all{msg};
+    H h;
+
+    // One byte at a time
+    for (size_t i = 0; i < all.size(); ++i) {
+        ok(h.try_update(all.subspan(i, 1)));
+    }
+    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
+
+    // Chunks that end just before, on and just after block boundaries
+    constexpr size_t b = H::block_size;
+    const size_t sizes[] = {1, b - 2, 3, b, b + 1, 7, 2 * b - 1};
+    size_t pos = 0;
+    for (size_t i = 0; pos < all.size(); ++i) {
+        size_t n = std::min(sizes[i % std::size(sizes)], all.size() - pos);
+        ok(h.try_update(std::as_bytes(all.subspan(pos, n))));
+        pos += n;
+    }
+    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
+
+    // Split exactly on a block boundary
+    ok(h.try_update(all.first(b)));
+    ok(h.try_update(all.subspan(b)));
+    TEST_ASSERT_DIGEST(v.multi, ok(h.try_finish()));
+
+    // Text split mid-message
+    ok(h.try_update(msg_448.substr(0, 5)));
+    ok(h.try_update(msg_448.substr(5)));
+    TEST_ASSERT_DIGEST(v.m448, ok(h.try_finish()));
+}
+
+// A message fed to hash::operation in pieces: one byte at a time, in chunks that end just before,
+// on and just after the algorithm's block boundaries, split exactly on a block boundary, and as
+// text split mid-message.
+void check_split_operation(crypto::hash::algorithm alg, const vectors& v) {
+    auto msg = patterned_message(1000); // several blocks of every algorithm
+    std::span<const uint8_t> all{msg};
+    std::array<std::byte, 64> buf; // as large as any digest
+    auto op = ok(crypto::hash::operation::make(alg));
+
+    // One byte at a time
+    for (size_t i = 0; i < all.size(); ++i) {
+        ok(op.try_update(all.subspan(i, 1)));
+    }
+    TEST_ASSERT_DIGEST(v.multi, ok(op.try_finish(buf)));
+
+    // Chunks that end just before, on and just after block boundaries
+    const size_t b = crypto::hash::block_size(alg);
+    const size_t sizes[] = {1, b - 2, 3, b, b + 1, 7, 2 * b - 1};
+    size_t pos = 0;
+    for (size_t i = 0; pos < all.size(); ++i) {
+        size_t n = std::min(sizes[i % std::size(sizes)], all.size() - pos);
+        ok(op.try_update(std::as_bytes(all.subspan(pos, n))));
+        pos += n;
+    }
+    TEST_ASSERT_DIGEST(v.multi, ok(op.try_finish(buf)));
+
+    // Split exactly on a block boundary
+    ok(op.try_update(all.first(b)));
+    ok(op.try_update(all.subspan(b)));
+    TEST_ASSERT_DIGEST(v.multi, ok(op.try_finish(buf)));
+
+    // Text split mid-message
+    ok(op.try_update(msg_448.substr(0, 5)));
+    ok(op.try_update(msg_448.substr(5)));
+    TEST_ASSERT_DIGEST(v.m448, ok(op.try_finish(buf)));
+}
+
+template<typename H>
 void check_independence(const vectors& v) {
     auto msg = patterned_message(1000); // several blocks of every algorithm
     std::span<const uint8_t> all{msg};
@@ -373,6 +395,70 @@ void check_independence(const vectors& v) {
     }
 }
 
+// Two hash::operations interleaved, one-shot calls while a message is in progress, and clones taken
+// mid-message that continue independently.
+void check_operation_independence(crypto::hash::algorithm alg, const vectors& v) {
+    using crypto::hash::operation;
+    auto msg = patterned_message(1000); // several blocks of every algorithm
+    std::span<const uint8_t> all{msg};
+    auto prefix = all.first(300);
+    auto rest = all.subspan(300);
+    std::array<std::byte, 64> buf; // as large as any digest
+    auto prefix_digest = idfxx::to_string(idfxx::hex(ok(operation::try_compute(alg, prefix, buf))));
+
+    // Two operations interleaved
+    {
+        auto other = all.subspan(500);
+        auto other_digest =
+            idfxx::to_string(idfxx::hex(ok(operation::try_compute(alg, other, buf))));
+        auto a = ok(operation::make(alg));
+        auto b = ok(operation::make(alg));
+        ok(a.try_update(prefix));
+        ok(b.try_update(other.first(250)));
+        ok(a.try_update(rest));
+        ok(b.try_update(other.subspan(250)));
+        TEST_ASSERT_DIGEST(v.multi, ok(a.try_finish(buf)));
+        TEST_ASSERT_DIGEST(other_digest.c_str(), ok(b.try_finish(buf)));
+    }
+
+    // One-shot calls, of this and other algorithms, while an incremental message is in progress
+    // don't disturb it
+    {
+        auto op = ok(operation::make(alg));
+        ok(op.try_update(prefix));
+        TEST_ASSERT_DIGEST(v.abc, ok(operation::try_compute(alg, msg_abc, buf)));
+        TEST_ASSERT_TRUE(ok(operation::try_compare(alg, msg_abc, from_hex(v.abc))));
+        TEST_ASSERT_DIGEST(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            ok(crypto::hash::sha256::try_compute(msg_abc))
+        );
+        TEST_ASSERT_DIGEST(
+            "e61cfffe0d9195a525fc6cf06ca2d77119c24a40",
+            ok(crypto::hash::sha1::try_compute(msg_all_a(200)))
+        );
+        ok(op.try_update(rest));
+        TEST_ASSERT_DIGEST(v.multi, ok(op.try_finish(buf)));
+    }
+
+    // Clone mid-message: the copies continue independently
+    {
+        auto op = ok(operation::make(alg));
+        ok(op.try_update(prefix));
+        auto c = ok(op.try_clone());
+        ok(c.try_update(rest));
+        TEST_ASSERT_DIGEST(v.multi, ok(c.try_finish(buf)));
+        TEST_ASSERT_DIGEST(prefix_digest.c_str(), ok(op.try_finish(buf)));
+    }
+    {
+        auto op = ok(operation::make(alg));
+        ok(op.try_update(prefix));
+        auto c = ok(op.try_clone());
+        ok(op.try_update(rest));
+        TEST_ASSERT_DIGEST(v.multi, ok(op.try_finish(buf)));
+        TEST_ASSERT_DIGEST(prefix_digest.c_str(), ok(c.try_finish(buf)));
+    }
+}
+
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 template<typename H>
 void check_throwing_api(const vectors& v) {
@@ -419,7 +505,8 @@ void check_error(result<T> r, crypto::errc expected) {
     TEST_ASSERT_TRUE(r.error() == expected);
 }
 
-// Input longer than the chunk size, whole and in pieces that straddle chunk boundaries
+// Input longer than the chunk size, whole and in pieces that straddle chunk boundaries, through a
+// hasher
 template<typename H>
 void check_chunked_input(const vectors& v) {
     // Several of the 4096-byte chunks in which input is fed to PSA where it would otherwise copy
@@ -450,17 +537,37 @@ void check_chunked_input(const vectors& v) {
         pos += n;
     }
     TEST_ASSERT_DIGEST(v.chunked, ok(h.try_finish()));
+}
 
-    // The same through hash::operation
+// The same as check_chunked_input, through hash::operation
+void check_chunked_operation(crypto::hash::algorithm alg, const vectors& v) {
+    using crypto::hash::operation;
+    auto msg = patterned_message(3 * 4096 + 7);
+    std::span<const uint8_t> all{msg};
+    auto good = from_hex(v.chunked);
+    auto flipped = good;
+    flipped.back() ^= 0x01;
     std::array<std::byte, 64> buf;
-    TEST_ASSERT_DIGEST(v.chunked, ok(crypto::hash::operation::try_compute(H::algorithm, all, buf)));
-    TEST_ASSERT_TRUE(ok(crypto::hash::operation::try_compare(H::algorithm, all, good)));
-    TEST_ASSERT_FALSE(ok(crypto::hash::operation::try_compare(H::algorithm, all, flipped)));
-    auto op = ok(crypto::hash::operation::make(H::algorithm));
+
+    TEST_ASSERT_DIGEST(v.chunked, ok(operation::try_compute(alg, all, buf)));
+    TEST_ASSERT_TRUE(ok(operation::try_compare(alg, all, good)));
+    TEST_ASSERT_FALSE(ok(operation::try_compare(alg, all, flipped)));
+    auto op = ok(operation::make(alg));
     ok(op.try_update(all));
     TEST_ASSERT_DIGEST(v.chunked, ok(op.try_finish(buf)));
     ok(op.try_update(all));
     TEST_ASSERT_TRUE(ok(op.try_verify(good)));
+    ok(op.try_update(all));
+    TEST_ASSERT_FALSE(ok(op.try_verify(flipped)));
+
+    const size_t sizes[] = {4095, 4098, 1, 8191};
+    size_t pos = 0;
+    for (size_t i = 0; pos < all.size(); ++i) {
+        size_t n = std::min(sizes[i % std::size(sizes)], all.size() - pos);
+        ok(op.try_update(all.subspan(pos, n)));
+        pos += n;
+    }
+    TEST_ASSERT_DIGEST(v.chunked, ok(op.try_finish(buf)));
 }
 
 // hash::operation with the algorithm given at runtime: the same results as the hasher alias
@@ -708,38 +815,24 @@ const vectors md5_vectors{
 } // namespace
 
 TEST_CASE("crypto md5 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::md5>(md5_vectors);
+    check_digests<crypto::hash::md5>(md5_vectors);
 }
 
 TEST_CASE("crypto md5 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::md5>(md5_vectors);
+    check_split_operation(crypto::hash::algorithm::md5, md5_vectors);
 }
 
-TEST_CASE("crypto md5 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::md5>(md5_vectors);
-}
-
-TEST_CASE("crypto md5 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::md5>(md5_vectors);
-}
-
-TEST_CASE("crypto md5 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::md5>(md5_vectors);
+TEST_CASE("crypto md5 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::md5, md5_vectors);
 }
 
 TEST_CASE("crypto md5 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::md5>(md5_vectors);
+    check_chunked_operation(crypto::hash::algorithm::md5, md5_vectors);
 }
 
 TEST_CASE("crypto md5 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::md5, md5_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto md5 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::md5>(md5_vectors);
-}
-#endif
 
 
 namespace {
@@ -753,38 +846,24 @@ const vectors sha1_vectors{
 } // namespace
 
 TEST_CASE("crypto sha1 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha1>(sha1_vectors);
+    check_digests<crypto::hash::sha1>(sha1_vectors);
 }
 
 TEST_CASE("crypto sha1 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha1>(sha1_vectors);
+    check_split_operation(crypto::hash::algorithm::sha1, sha1_vectors);
 }
 
-TEST_CASE("crypto sha1 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha1>(sha1_vectors);
-}
-
-TEST_CASE("crypto sha1 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha1>(sha1_vectors);
-}
-
-TEST_CASE("crypto sha1 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::sha1>(sha1_vectors);
+TEST_CASE("crypto sha1 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::sha1, sha1_vectors);
 }
 
 TEST_CASE("crypto sha1 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha1>(sha1_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha1, sha1_vectors);
 }
 
 TEST_CASE("crypto sha1 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha1, sha1_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha1 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha1>(sha1_vectors);
-}
-#endif
 
 
 namespace {
@@ -798,42 +877,30 @@ const vectors sha224_vectors{
 } // namespace
 
 TEST_CASE("crypto sha224 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha224>(sha224_vectors);
+    check_digests<crypto::hash::sha224>(sha224_vectors);
 }
 
 TEST_CASE("crypto sha224 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha224>(sha224_vectors);
-}
-
-TEST_CASE("crypto sha224 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha224>(sha224_vectors);
-}
-
-TEST_CASE("crypto sha224 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha224>(sha224_vectors);
+    check_split_operation(crypto::hash::algorithm::sha224, sha224_vectors);
 }
 
 // QEMU's esp32s3 SHA peripheral model produces a wrong digest when a SHA-224 operation resumes
 // after another SHA-224 operation has used the peripheral (ESP-IDF 5.5 and 6.x alike). ESP32-S3
 // silicon gives the correct digests, so this runs on hardware only.
 
-TEST_CASE("crypto sha224 interleaved and cloned hashers are independent", "[idfxx][crypto][hw]") {
-    check_independence<crypto::hash::sha224>(sha224_vectors);
+TEST_CASE(
+    "crypto sha224 interleaved and cloned operations are independent", "[idfxx][crypto][hw]"
+) {
+    check_operation_independence(crypto::hash::algorithm::sha224, sha224_vectors);
 }
 
 TEST_CASE("crypto sha224 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha224>(sha224_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha224, sha224_vectors);
 }
 
 TEST_CASE("crypto sha224 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha224, sha224_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha224 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha224>(sha224_vectors);
-}
-#endif
 
 
 namespace {
@@ -852,6 +919,7 @@ TEST_CASE("crypto sha256 known-answer vectors", "[idfxx][crypto]") {
 
 TEST_CASE("crypto sha256 split updates match one-shot", "[idfxx][crypto]") {
     check_split_updates<crypto::hash::sha256>(sha256_vectors);
+    check_split_operation(crypto::hash::algorithm::sha256, sha256_vectors);
 }
 
 TEST_CASE("crypto sha256 compare and verify", "[idfxx][crypto]") {
@@ -862,12 +930,14 @@ TEST_CASE("crypto sha256 reset, destroy and move", "[idfxx][crypto]") {
     check_lifecycle<crypto::hash::sha256>(sha256_vectors);
 }
 
-TEST_CASE("crypto sha256 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
+TEST_CASE("crypto sha256 interleaved and cloned operations are independent", "[idfxx][crypto]") {
     check_independence<crypto::hash::sha256>(sha256_vectors);
+    check_operation_independence(crypto::hash::algorithm::sha256, sha256_vectors);
 }
 
 TEST_CASE("crypto sha256 input spanning several chunks", "[idfxx][crypto]") {
     check_chunked_input<crypto::hash::sha256>(sha256_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha256, sha256_vectors);
 }
 
 TEST_CASE("crypto sha256 hash::operation", "[idfxx][crypto]") {
@@ -892,38 +962,24 @@ const vectors sha384_vectors{
 } // namespace
 
 TEST_CASE("crypto sha384 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha384>(sha384_vectors);
+    check_digests<crypto::hash::sha384>(sha384_vectors);
 }
 
 TEST_CASE("crypto sha384 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha384>(sha384_vectors);
+    check_split_operation(crypto::hash::algorithm::sha384, sha384_vectors);
 }
 
-TEST_CASE("crypto sha384 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha384>(sha384_vectors);
-}
-
-TEST_CASE("crypto sha384 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha384>(sha384_vectors);
-}
-
-TEST_CASE("crypto sha384 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::sha384>(sha384_vectors);
+TEST_CASE("crypto sha384 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::sha384, sha384_vectors);
 }
 
 TEST_CASE("crypto sha384 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha384>(sha384_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha384, sha384_vectors);
 }
 
 TEST_CASE("crypto sha384 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha384, sha384_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha384 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha384>(sha384_vectors);
-}
-#endif
 
 
 namespace {
@@ -942,6 +998,7 @@ TEST_CASE("crypto sha512 known-answer vectors", "[idfxx][crypto]") {
 
 TEST_CASE("crypto sha512 split updates match one-shot", "[idfxx][crypto]") {
     check_split_updates<crypto::hash::sha512>(sha512_vectors);
+    check_split_operation(crypto::hash::algorithm::sha512, sha512_vectors);
 }
 
 TEST_CASE("crypto sha512 compare and verify", "[idfxx][crypto]") {
@@ -952,12 +1009,14 @@ TEST_CASE("crypto sha512 reset, destroy and move", "[idfxx][crypto]") {
     check_lifecycle<crypto::hash::sha512>(sha512_vectors);
 }
 
-TEST_CASE("crypto sha512 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
+TEST_CASE("crypto sha512 interleaved and cloned operations are independent", "[idfxx][crypto]") {
     check_independence<crypto::hash::sha512>(sha512_vectors);
+    check_operation_independence(crypto::hash::algorithm::sha512, sha512_vectors);
 }
 
 TEST_CASE("crypto sha512 input spanning several chunks", "[idfxx][crypto]") {
     check_chunked_input<crypto::hash::sha512>(sha512_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha512, sha512_vectors);
 }
 
 TEST_CASE("crypto sha512 hash::operation", "[idfxx][crypto]") {
@@ -982,38 +1041,24 @@ const vectors sha3_224_vectors{
 } // namespace
 
 TEST_CASE("crypto sha3_224 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha3_224>(sha3_224_vectors);
+    check_digests<crypto::hash::sha3_224>(sha3_224_vectors);
 }
 
 TEST_CASE("crypto sha3_224 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha3_224>(sha3_224_vectors);
+    check_split_operation(crypto::hash::algorithm::sha3_224, sha3_224_vectors);
 }
 
-TEST_CASE("crypto sha3_224 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha3_224>(sha3_224_vectors);
-}
-
-TEST_CASE("crypto sha3_224 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha3_224>(sha3_224_vectors);
-}
-
-TEST_CASE("crypto sha3_224 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::sha3_224>(sha3_224_vectors);
+TEST_CASE("crypto sha3_224 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::sha3_224, sha3_224_vectors);
 }
 
 TEST_CASE("crypto sha3_224 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha3_224>(sha3_224_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha3_224, sha3_224_vectors);
 }
 
 TEST_CASE("crypto sha3_224 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha3_224, sha3_224_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha3_224 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha3_224>(sha3_224_vectors);
-}
-#endif
 
 
 namespace {
@@ -1032,6 +1077,7 @@ TEST_CASE("crypto sha3_256 known-answer vectors", "[idfxx][crypto]") {
 
 TEST_CASE("crypto sha3_256 split updates match one-shot", "[idfxx][crypto]") {
     check_split_updates<crypto::hash::sha3_256>(sha3_256_vectors);
+    check_split_operation(crypto::hash::algorithm::sha3_256, sha3_256_vectors);
 }
 
 TEST_CASE("crypto sha3_256 compare and verify", "[idfxx][crypto]") {
@@ -1042,12 +1088,14 @@ TEST_CASE("crypto sha3_256 reset, destroy and move", "[idfxx][crypto]") {
     check_lifecycle<crypto::hash::sha3_256>(sha3_256_vectors);
 }
 
-TEST_CASE("crypto sha3_256 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
+TEST_CASE("crypto sha3_256 interleaved and cloned operations are independent", "[idfxx][crypto]") {
     check_independence<crypto::hash::sha3_256>(sha3_256_vectors);
+    check_operation_independence(crypto::hash::algorithm::sha3_256, sha3_256_vectors);
 }
 
 TEST_CASE("crypto sha3_256 input spanning several chunks", "[idfxx][crypto]") {
     check_chunked_input<crypto::hash::sha3_256>(sha3_256_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha3_256, sha3_256_vectors);
 }
 
 TEST_CASE("crypto sha3_256 hash::operation", "[idfxx][crypto]") {
@@ -1072,38 +1120,24 @@ const vectors sha3_384_vectors{
 } // namespace
 
 TEST_CASE("crypto sha3_384 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha3_384>(sha3_384_vectors);
+    check_digests<crypto::hash::sha3_384>(sha3_384_vectors);
 }
 
 TEST_CASE("crypto sha3_384 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha3_384>(sha3_384_vectors);
+    check_split_operation(crypto::hash::algorithm::sha3_384, sha3_384_vectors);
 }
 
-TEST_CASE("crypto sha3_384 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha3_384>(sha3_384_vectors);
-}
-
-TEST_CASE("crypto sha3_384 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha3_384>(sha3_384_vectors);
-}
-
-TEST_CASE("crypto sha3_384 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::sha3_384>(sha3_384_vectors);
+TEST_CASE("crypto sha3_384 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::sha3_384, sha3_384_vectors);
 }
 
 TEST_CASE("crypto sha3_384 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha3_384>(sha3_384_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha3_384, sha3_384_vectors);
 }
 
 TEST_CASE("crypto sha3_384 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha3_384, sha3_384_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha3_384 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha3_384>(sha3_384_vectors);
-}
-#endif
 
 
 namespace {
@@ -1117,38 +1151,24 @@ const vectors sha3_512_vectors{
 } // namespace
 
 TEST_CASE("crypto sha3_512 known-answer vectors", "[idfxx][crypto]") {
-    check_known_answers<crypto::hash::sha3_512>(sha3_512_vectors);
+    check_digests<crypto::hash::sha3_512>(sha3_512_vectors);
 }
 
 TEST_CASE("crypto sha3_512 split updates match one-shot", "[idfxx][crypto]") {
-    check_split_updates<crypto::hash::sha3_512>(sha3_512_vectors);
+    check_split_operation(crypto::hash::algorithm::sha3_512, sha3_512_vectors);
 }
 
-TEST_CASE("crypto sha3_512 compare and verify", "[idfxx][crypto]") {
-    check_compare_and_verify<crypto::hash::sha3_512>(sha3_512_vectors);
-}
-
-TEST_CASE("crypto sha3_512 reset, destroy and move", "[idfxx][crypto]") {
-    check_lifecycle<crypto::hash::sha3_512>(sha3_512_vectors);
-}
-
-TEST_CASE("crypto sha3_512 interleaved and cloned hashers are independent", "[idfxx][crypto]") {
-    check_independence<crypto::hash::sha3_512>(sha3_512_vectors);
+TEST_CASE("crypto sha3_512 interleaved and cloned operations are independent", "[idfxx][crypto]") {
+    check_operation_independence(crypto::hash::algorithm::sha3_512, sha3_512_vectors);
 }
 
 TEST_CASE("crypto sha3_512 input spanning several chunks", "[idfxx][crypto]") {
-    check_chunked_input<crypto::hash::sha3_512>(sha3_512_vectors);
+    check_chunked_operation(crypto::hash::algorithm::sha3_512, sha3_512_vectors);
 }
 
 TEST_CASE("crypto sha3_512 hash::operation", "[idfxx][crypto]") {
     check_operation(crypto::hash::algorithm::sha3_512, sha3_512_vectors);
 }
-
-#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
-TEST_CASE("crypto sha3_512 exception-based API", "[idfxx][crypto]") {
-    check_throwing_api<crypto::hash::sha3_512>(sha3_512_vectors);
-}
-#endif
 
 TEST_CASE("crypto hash::operation rejects values it cannot use", "[idfxx][crypto]") {
     using crypto::errc;

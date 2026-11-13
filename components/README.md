@@ -17,7 +17,7 @@ README](../README.md) for installation and conventions shared by every component
 | Component | Description | Documentation |
 |-----------|-------------|---------------|
 | [idfxx_console](https://github.com/cleishm/idfxx/tree/main/components/idfxx_console) | Interactive console REPL and command management | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__console.html) |
-| [idfxx_crypto](https://github.com/cleishm/idfxx/tree/main/components/idfxx_crypto) | Cryptographic hashing: SHA-2, SHA-3, SHA-1 and MD5 digests, one-shot or incremental | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__crypto.html) |
+| [idfxx_crypto](https://github.com/cleishm/idfxx/tree/main/components/idfxx_crypto) | Cryptographic primitives: message digests (SHA-2, SHA-3, SHA-1, MD5) and MACs (HMAC, AES-CMAC), one-shot or incremental | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__crypto.html) |
 | [idfxx_event](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event) | Type-safe event loop for asynchronous events | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event.html) |
 | [idfxx_event_group](https://github.com/cleishm/idfxx/tree/main/components/idfxx_event_group) | Type-safe FreeRTOS event group for inter-task synchronization | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__event__group.html) |
 | [idfxx_queue](https://github.com/cleishm/idfxx/tree/main/components/idfxx_queue) | Type-safe FreeRTOS queue for inter-task communication | [API Docs](https://cleishm.github.io/idfxx/group__idfxx__queue.html) |
