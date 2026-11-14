@@ -132,7 +132,10 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   breaking (`break_lines`), and `ttf_to_c.py` with the `idfxx_font_generate()` CMake function for
   generating fonts from TrueType and OpenType faces. Requires idfxx_core `^1.3.0`
 - `idfxx_netif` `2.1.0` — adds `interface::take(handle, destroy_fn)` to release a handle with a
-  given function. `sntp::sync_wait` rounds sub-millisecond timeouts up instead of down
+  given function, and `dhcp_server_start(dhcp_server_config)` to set the DHCP server's lease time,
+  lease range, router and DNS offers and captive-portal URI before starting it.
+  `sntp::sync_wait` rounds sub-millisecond timeouts up instead of down. The DHCP server API is left
+  out when `CONFIG_LWIP_DHCPS` is disabled, which previously failed to link
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
 
 ### Fixes
