@@ -22,7 +22,6 @@
 #include <idfxx/sched>
 #include <idfxx/spi/master>
 
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -67,7 +66,7 @@ static constexpr std::array<rgb565, 6> PALETTE{{
 }};
 
 struct point {
-    size_t x, y;
+    int x, y;
 };
 
 // Everything the drawing pass needs, derived from the simulation each tick
@@ -119,10 +118,10 @@ static void advance(square& sq) {
     }
 }
 
-// Rounds a screen coordinate to a pixel index (negatives clamp to 0; the
-// canvas clips the far edges).
-static size_t to_pixel(float v) {
-    return static_cast<size_t>(std::lround(std::max(0.0f, v)));
+// Rounds a screen coordinate to a pixel position (the canvas clips anything
+// off-screen).
+static int to_pixel(float v) {
+    return static_cast<int>(std::lround(v));
 }
 
 // Samples the four rotated corners and the current color into a frame.

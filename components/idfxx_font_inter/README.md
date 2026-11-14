@@ -42,7 +42,7 @@ const size_t w = idfxx::font::text_width(title, "Crème brûlée");
 canvas.draw_text(title, (canvas.width() - w) / 2, 8, "Crème brûlée", white);
 
 const auto& body = idfxx::font::inter_16;
-size_t y = 8 + title.line_height;
+int y = 8 + title.line_height;
 canvas.draw_text(body, 8, y, "“naïve” café", white);
 y += body.line_height;
 canvas.draw_text(body, 8, y, "Today — 18 °C", white);
