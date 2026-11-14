@@ -619,7 +619,7 @@ private:
  * @code
  * using namespace idfxx::font;
  * std::string_view text = "Fresh pastries, baked every morning.";
- * size_t y = 0;
+ * int y = 0;
  * for (const text_line& line : break_lines(inter_16, text, 120)) {
  *     canvas.draw_text(inter_16, 0, y, line.text, white);
  *     if (line.hyphenated) {
@@ -650,7 +650,7 @@ break_lines(const proportional_font& font, std::string_view text, size_t max_wid
  *
  * @code
  * using namespace idfxx::font;
- * size_t y = 0;
+ * int y = 0;
  * for (const text_line& line : break_lines(spleen_5x8, "Battery low - plug in", 60)) {
  *     canvas.draw_text(spleen_5x8, 0, y, line.text);
  *     y += spleen_5x8.height;

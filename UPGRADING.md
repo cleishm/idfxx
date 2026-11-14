@@ -17,6 +17,12 @@ gives the per-component details. Releases are listed newest first.
   2.x its `height()` was the bottom of the current band, which put layout anchored to the bottom
   edge, and `gfx::rotated` views of the canvas, in the wrong place. Remove any code that worked
   around the per-band `height()`.
+- Drawing positions are `int`: the x and y of rectangles, lines, text and text boxes, the canvas
+  origin, and `canvas::window`. Sizes (`width`, `height`, `length`) stay `size_t`, and `size_t`
+  arguments still convert, so most calls compile unchanged. Code that stores positions in `size_t`
+  may want `int`, so a position can go negative and draw partly off the top or left edge. A
+  position computed with `size_t` arithmetic that wraps below zero (such as `x - 10` with `x < 10`)
+  was a huge value that clipped away in 2.x; it now converts to the negative position and draws.
 
 ### idfxx_http_client 2.0.0 → 3.0.0
 

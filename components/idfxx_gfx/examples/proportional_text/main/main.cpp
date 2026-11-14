@@ -74,7 +74,7 @@ static void draw_frame(band_canvas& canvas) {
     // Text is placed by the top-left corner of its line, so each line
     // starts one line_height below the previous one. draw_text_box returns
     // the height it drew, which moves y past it.
-    size_t y = 4;
+    int y = 4;
 
     // Heading and subtitle, centered in the text box.
     y += canvas.draw_text_box(heading, MARGIN, y, TEXT_W, "Café", amber, text_align::center);

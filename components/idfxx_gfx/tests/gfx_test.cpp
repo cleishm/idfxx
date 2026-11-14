@@ -16,8 +16,10 @@
 #include "unity.h"
 
 #include <array>
+#include <climits>
 #include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <utility>
 
@@ -1776,4 +1778,395 @@ TEST_CASE("gfx render_banded rotated view over the canvas matches a full frame",
         TEST_ASSERT_TRUE(rendered.has_value());
         TEST_ASSERT_TRUE(target_matches(target, reference));
     }
+}
+
+// =============================================================================
+// Runtime tests: signed positions
+// =============================================================================
+
+TEST_CASE("gfx rectangles and lines partly off the left and top draw their visible part",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    fill_rect(fb, -2, -3, 5, 6, true); // columns 0-2, rows 0-2
+    TEST_ASSERT_EQUAL(3 * 3, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(2, 2));
+    TEST_ASSERT_FALSE(fb.get_pixel(3, 0));
+    TEST_ASSERT_FALSE(fb.get_pixel(0, 3));
+
+    fb.clear();
+    draw_hline(fb, -4, 5, 6, true);   // columns 0-1 of row 5
+    draw_vline(fb, 7, -10, 12, true); // rows 0-1 of column 7
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 5}, {1, 5}, {7, 0}, {7, 1}}));
+
+    // The outline's top and left edges fall off the surface; its bottom
+    // (row 2, columns 0-3) and right (column 3, rows 0-1) edges remain.
+    fb.clear();
+    draw_rect(fb, -2, -2, 6, 5, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 2}, {1, 2}, {2, 2}, {3, 2}, {3, 0}, {3, 1}}));
+
+    // The canvas members clip the same way.
+    auto via_canvas = make_fb(16, 16);
+    canvas c(via_canvas);
+    c.draw_rect(-2, -2, 6, 5, true);
+    TEST_ASSERT_TRUE(same_pixels(fb, via_canvas));
+    via_canvas.clear();
+    c.fill_rect(-2, -3, 5, 6, true);
+    c.draw_hline(-4, 5, 6, true);
+    c.draw_vline(7, -10, 12, true);
+    TEST_ASSERT_EQUAL(3 * 3 + 2 + 2, count_set_pixels(via_canvas));
+    TEST_ASSERT_TRUE(via_canvas.get_pixel(2, 2));
+    TEST_ASSERT_TRUE(via_canvas.get_pixel(1, 5));
+    TEST_ASSERT_TRUE(via_canvas.get_pixel(7, 1));
+}
+
+TEST_CASE("gfx draw_line with negative endpoints draws the same pixels as unclipped",
+          "[idfxx][gfx]") {
+    // Each line is drawn on a 48x48 frame with both endpoints on it, and
+    // again on a 16x16 surface whose (0, 0) is frame (16, 16), so endpoints
+    // left of or above the surface are negative. The surface must hold
+    // exactly its part of the frame, for lines of every slope and direction.
+    auto full = make_fb(48, 48);
+    auto part = make_fb(16, 16);
+    canvas c(part);
+    uint32_t state = 1;
+    const auto next = [&state] {
+        state = state * 1103515245u + 12345u;
+        return static_cast<int>((state >> 16) % 40) + 4; // [4, 44)
+    };
+    size_t crossing = 0;
+    for (int i = 0; i < 400; ++i) {
+        const int x0 = next(), y0 = next(), x1 = next(), y1 = next();
+        full.clear();
+        part.clear();
+        draw_line(full, x0, y0, x1, y1, true);
+        if (i % 2 == 0) {
+            draw_line(part, x0 - 16, y0 - 16, x1 - 16, y1 - 16, true);
+        } else {
+            c.draw_line(x0 - 16, y0 - 16, x1 - 16, y1 - 16, true);
+        }
+        TEST_ASSERT_TRUE(tile_matches(full, part, 16, 16));
+        crossing += count_set_pixels(part) > 0 ? 1 : 0;
+    }
+    TEST_ASSERT_TRUE(crossing > 50); // plenty of the lines cross the surface
+}
+
+TEST_CASE("gfx mono text at negative positions clips glyph columns and rows", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+
+    // Two columns left of the surface: glyph columns 2-4 land on columns 0-2.
+    draw_text(fb, spleen_5x8, -2, 0, "A");
+    size_t ink = 0;
+    for (size_t row = 0; row < spleen_5x8.height; ++row) {
+        for (size_t col = 2; col < spleen_5x8.width; ++col) {
+            TEST_ASSERT_EQUAL(spleen_5x8.ink_at('A', col, row), fb.get_pixel(col - 2, row));
+            ink += spleen_5x8.ink_at('A', col, row) ? 1 : 0;
+        }
+    }
+    TEST_ASSERT_TRUE(ink > 0);
+    TEST_ASSERT_EQUAL(ink, count_set_pixels(fb));
+
+    // Three rows above the surface: glyph rows 3-7 land on rows 0-4.
+    fb.clear();
+    draw_text(fb, spleen_5x8, 0, -3, "A");
+    ink = 0;
+    for (size_t row = 3; row < spleen_5x8.height; ++row) {
+        for (size_t col = 0; col < spleen_5x8.width; ++col) {
+            TEST_ASSERT_EQUAL(spleen_5x8.ink_at('A', col, row), fb.get_pixel(col, row - 3));
+            ink += spleen_5x8.ink_at('A', col, row) ? 1 : 0;
+        }
+    }
+    TEST_ASSERT_TRUE(ink > 0);
+    TEST_ASSERT_EQUAL(ink, count_set_pixels(fb));
+
+    // Scaled text and a text box starting off both edges match a frame
+    // drawn with the same text wholly on it.
+    auto full = make_fb(48, 48);
+    draw_text(full, spleen_5x8, 12, 11, "AB", true, 3);
+    draw_text_box(full, spleen_5x8, 9, 30, 30, "AB CD EF", true, text_align::center);
+    fb.clear();
+    draw_text(fb, spleen_5x8, 12 - 16, 11 - 16, "AB", true, 3); // a block straddles column 0
+    const size_t height =
+        draw_text_box(fb, spleen_5x8, 9 - 16, 30 - 16, 30, "AB CD EF", true, text_align::center);
+    TEST_ASSERT_EQUAL(2 * spleen_5x8.height, height);
+    TEST_ASSERT_TRUE(count_set_pixels(fb) > 0);
+    TEST_ASSERT_TRUE(tile_matches(full, fb, 16, 16));
+}
+
+TEST_CASE("gfx proportional text at negative positions draws its visible part", "[idfxx][gfx]") {
+    auto full = make_fb(32, 32);
+    draw_text(full, prop_font, 7, 6, "AgjAé");
+    draw_text_box(full, prop_font, 5, 14, 12, "A A­A j", true, text_align::right);
+
+    auto fb = make_fb(16, 16);
+    draw_text(fb, prop_font, 7 - 8, 6 - 8, "AgjAé");
+    draw_text_box(fb, prop_font, 5 - 8, 14 - 8, 12, "A A­A j", true, text_align::right);
+    TEST_ASSERT_TRUE(count_set_pixels(fb) > 0);
+    TEST_ASSERT_TRUE(tile_matches(full, fb, 8, 8));
+
+    // Ink entirely left of or above the surface writes nothing.
+    sized_counter<8, 8> surf;
+    canvas c(surf);
+    c.draw_text(prop_font, -8, 0, "AAA"); // the last 'A' ends at column -1
+    c.draw_text(prop_font, 0, -5, "Ag");  // 'g' descends to row -1
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx drawing wholly off the left or top writes nothing", "[idfxx][gfx]") {
+    sized_counter<8, 8> surf;
+    canvas c(surf);
+    c.fill_rect(-10, 0, 10, 8, true); // ends at column -1
+    c.fill_rect(0, -5, 8, 5, true);   // ends at row -1
+    c.fill_rect(-10, -10, 10, 20, true);
+    c.draw_rect(-20, -20, 10, 10, true);
+    c.draw_rect(-1, -1, 10, 10, true); // its border runs just outside the surface
+    c.draw_hline(-8, 3, 8, true);
+    c.draw_vline(3, -8, 8, true);
+    c.draw_line(-10, -1, -1, -10, true);
+    c.draw_line(-5, 4, -1, 4, true);
+    c.draw_line(-2, 1, 8, -9, true); // passes just outside the corner
+    c.draw_text(spleen_5x8, -5, 0, "A");
+    c.draw_text(spleen_5x8, -20, 0, "AB", true, 2);
+    c.draw_text(spleen_5x8, 0, -8, "A");
+    c.draw_text_box(spleen_5x8, 0, -16, 8, "A B", true);
+    c.window(-8, -8, 8, 8).fill(true);
+    c.window(-4, 0, 4, 8).draw_text(spleen_5x8, 0, 0, "A");
+    TEST_ASSERT_EQUAL(0, surf.writes);
+}
+
+TEST_CASE("gfx positions at the int limits do not overflow", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+
+    // A rectangle from INT_MIN spanning SIZE_MAX covers the whole surface.
+    fill_rect(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, true);
+    TEST_ASSERT_EQUAL(16 * 16, count_set_pixels(fb));
+
+    fb.clear();
+    fill_rect(fb, INT_MAX, INT_MAX, SIZE_MAX, SIZE_MAX, true);
+    fill_rect(fb, INT_MIN, 0, 16, 16, true);
+    draw_rect(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, true); // every edge off the surface
+    draw_rect(fb, INT_MAX - 1, INT_MAX - 1, SIZE_MAX, SIZE_MAX, true);
+    draw_hline(fb, INT_MAX, 0, SIZE_MAX, true);
+    draw_vline(fb, 0, INT_MIN, 16, true);
+    draw_text(fb, spleen_5x8, INT_MAX, INT_MAX, "AB", true, 4);
+    draw_text(fb, spleen_5x8, INT_MIN, 0, "ABCDEFGH", true, 4);
+    draw_text(fb, spleen_5x8, 0, INT_MIN, "A", true, 4);
+    draw_text(fb, prop_font, INT_MAX, INT_MAX, "Ag");
+    draw_text(fb, prop_font, INT_MAX, 0, "j");
+    draw_text(fb, prop_font, INT_MIN, INT_MIN, "Aé");
+    // Text boxes whose lines and hyphens land past INT_MAX still report
+    // the height of every line.
+    TEST_ASSERT_EQUAL(
+        4 * spleen_5x8.height, draw_text_box(fb, spleen_5x8, 0, INT_MAX - 7, 5, "A A A A", true)
+    );
+    TEST_ASSERT_EQUAL(
+        2 * prop_font.line_height,
+        draw_text_box(fb, prop_font, INT_MAX, 0, 8, "AA­AA", true, text_align::right)
+    );
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    // Lines between endpoints at the int limits draw exactly their visible
+    // part, without walking the whole line.
+    draw_line(fb, INT_MIN, INT_MIN, INT_MAX, INT_MAX, true); // the diagonal x == y
+    for (size_t i = 0; i < 16; ++i) {
+        TEST_ASSERT_TRUE(fb.get_pixel(i, i));
+    }
+    TEST_ASSERT_EQUAL(16, count_set_pixels(fb));
+
+    fb.clear();
+    draw_line(fb, INT_MAX, 5, INT_MIN, 5, true);
+    draw_line(fb, 9, INT_MIN, 9, INT_MAX, true);
+    TEST_ASSERT_EQUAL(16 + 15, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 5));
+    TEST_ASSERT_TRUE(fb.get_pixel(15, 5));
+    TEST_ASSERT_TRUE(fb.get_pixel(9, 0));
+    TEST_ASSERT_TRUE(fb.get_pixel(9, 15));
+
+    // A shallow line spanning the whole int range: one pixel per column.
+    fb.clear();
+    draw_line(fb, INT_MIN, 0, INT_MAX, 15, true);
+    for (size_t x = 0; x < 16; ++x) {
+        size_t in_column = 0;
+        for (size_t y = 0; y < 16; ++y) {
+            in_column += fb.get_pixel(x, y) ? 1 : 0;
+        }
+        TEST_ASSERT_EQUAL(1, in_column);
+    }
+
+    // Windows and translated canvases at the limits clip without wrapping.
+    fb.clear();
+    canvas c(fb);
+    c.window(INT_MIN, INT_MIN, 4, 4).fill(true);
+    TEST_ASSERT_EQUAL(0, c.window(INT_MAX, 0, 4, 4).width());
+    c.window(INT_MAX, INT_MAX, SIZE_MAX, SIZE_MAX).fill(true);
+    canvas far(fb, INT_MIN, INT_MIN, 16, 16); // the surface lies wholly outside the space
+    far.fill(true);
+    far.draw_line(0, 0, 15, 15, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+    // A window's local coordinates stop short of INT_MAX: one spanning
+    // SIZE_MAX from INT_MIN would hold the canvas at local columns and rows
+    // from 2^31, so it holds none of it, and one from INT_MIN + 16 holds all
+    // but the last column and row.
+    c.window(INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX).fill(true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+    c.window(INT_MIN + 16, INT_MIN + 16, SIZE_MAX, SIZE_MAX).fill(true);
+    TEST_ASSERT_EQUAL(15 * 15, count_set_pixels(fb));
+    TEST_ASSERT_FALSE(fb.get_pixel(15, 0));
+    c.window(INT_MIN + 17, INT_MIN + 17, SIZE_MAX, SIZE_MAX).fill(true);
+    TEST_ASSERT_EQUAL(16 * 16, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx coordinate spaces reaching INT_MAX stop short of it", "[idfxx][gfx]") {
+    auto fb = make_fb(12, 8);
+
+    // The surface's columns 0-1 sit at columns INT_MAX - 2 and INT_MAX - 1;
+    // the rest lie at INT_MAX and beyond, outside the space. A rectangle
+    // whose right edge lies past INT_MAX draws only its top and bottom
+    // edges' visible part, not a right edge clamped to column INT_MAX.
+    canvas c(fb, INT_MAX - 2, 0, 0xffffffff, 4);
+    c.draw_rect(0, 0, 0x80000005, 4, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 0}, {1, 0}, {0, 3}, {1, 3}}));
+    TEST_ASSERT_EQUAL(INT_MAX, c.width());
+
+    // A window holding the surface at the same local columns.
+    fb.clear();
+    auto w = canvas(fb).window(INT_MIN + 3, 0, 0xffffffff, 4);
+    w.draw_rect(0, 0, 0x80000005, 4, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 0}, {1, 0}, {0, 3}, {1, 3}}));
+    TEST_ASSERT_EQUAL(INT_MAX, w.width());
+
+    // A right-aligned line of 'j' (ink one column left of the pen) whose pen
+    // lands at INT_MAX inks column INT_MAX - 1; one landing at INT_MAX + 1
+    // inks nothing.
+    fb.clear();
+    c.draw_text_box(prop_font, INT_MAX - 6, 0, 8, "j", true, text_align::right);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 2}}));
+    fb.clear();
+    c.draw_text_box(prop_font, INT_MAX - 5, 0, 8, "j", true, text_align::right);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    // Text box lines starting past INT_MAX draw nothing, rather than
+    // overprinting at row INT_MAX. Line 1 shows its glyph rows 0-1 on
+    // surface rows 0-1 ('A' row 1 is inked at columns 1-2); line 2 starts at
+    // INT_MAX + 6.
+    fb.clear();
+    canvas tc(fb, 0, INT_MAX - 2, 12, 0xffffffff);
+    TEST_ASSERT_EQUAL(
+        3 * spleen_5x8.height, tc.draw_text_box(spleen_5x8, 0, INT_MAX - 10, 5, "A A A", true)
+    );
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 1}, {2, 1}}));
+    TEST_ASSERT_EQUAL(INT_MAX, tc.height());
+
+    // A line of U+00E9 (ink one row above the line top) starting at row
+    // INT_MAX inks row INT_MAX - 1; one starting at INT_MAX + 1 inks nothing.
+    fb.clear();
+    tc.draw_text_box(prop_font, 0, INT_MAX - 6, 8, "A\né", true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}}));
+    fb.clear();
+    tc.draw_text_box(prop_font, 0, INT_MAX - 5, 8, "A\né", true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+namespace {
+
+// A 9-column, one-row font: 'A' is inked only at column 0, 'B' only at
+// column 7.
+constexpr uint8_t wide_cell_bitmap[] = {0x80, 0x00, 0x01, 0x00};
+constexpr mono_font wide_cell_font{
+    .width = 9,
+    .height = 1,
+    .first_char = 'A',
+    .last_char = 'B',
+    .bitmap = wide_cell_bitmap,
+};
+
+} // namespace
+
+TEST_CASE("gfx scaled mono text near the int limits draws the right glyph columns",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(12, 8);
+    canvas c(fb);
+
+    // Glyph columns are 2^29 pixels wide from INT_MIN. This window would
+    // hold the surface at local columns from 2^31 (glyph column 8), past
+    // INT_MAX, so it holds none of it and nothing draws.
+    auto past = c.window(INT_MIN, 0, 0xffffffff, 4);
+    past.draw_text(wide_cell_font, INT_MIN, 0, "A", true, 1u << 29);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    // The surface at local columns INT_MAX - 12 to INT_MAX - 1, 2^32 - 13
+    // to 2^32 - 1 pixels from INT_MIN: all in glyph column 7.
+    auto w = c.window(INT_MIN + 13, 0, 0xffffffff, 4);
+    TEST_ASSERT_EQUAL(INT_MAX, w.width());
+    w.draw_text(wide_cell_font, INT_MIN, 0, "A", true, 1u << 29);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+    w.draw_text(wide_cell_font, INT_MIN, 0, "B", true, 1u << 29);
+    TEST_ASSERT_EQUAL(12 * 4, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx canvas window may start off its parent canvas", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    canvas c(fb);
+
+    // Its local origin stays at (-4, -2) on the canvas: local columns 0-3
+    // and rows 0-1 clip, and the reported size is the requested one.
+    auto w = c.window(-4, -2, 8, 6);
+    TEST_ASSERT_EQUAL(8, w.width());
+    TEST_ASSERT_EQUAL(6, w.height());
+    w.set_pixel(3, 1, true); // canvas (-1, -1)
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+    w.set_pixel(4, 2, true); // canvas (0, 0)
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
+    w.fill(true);
+    TEST_ASSERT_EQUAL(4 * 4, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 3));
+
+    // Drawing in a window off the canvas's corner matches the same content
+    // drawn on the canvas, shifted.
+    auto shifted = make_fb(16, 16);
+    canvas sc(shifted);
+    fb.clear();
+    auto corner = c.window(-4, -2, 20, 18);
+    corner.draw_text(spleen_5x8, 1, 0, "AB");
+    corner.draw_line(0, 0, 7, 5, true);
+    sc.draw_text(spleen_5x8, 1 - 4, 0 - 2, "AB");
+    sc.draw_line(-4, -2, 3, 3, true);
+    TEST_ASSERT_TRUE(count_set_pixels(fb) > 0);
+    TEST_ASSERT_TRUE(same_pixels(fb, shifted));
+
+    // A window reaching past a window's left and top stays inside it.
+    fb.fill(true);
+    auto parent = c.window(4, 4, 8, 8);
+    parent.window(-6, -6, 20, 20).clear();
+    TEST_ASSERT_EQUAL(16 * 16 - 8 * 8, count_set_pixels(fb));
+    TEST_ASSERT_FALSE(fb.get_pixel(4, 4));
+    TEST_ASSERT_FALSE(fb.get_pixel(11, 11));
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 4));
+    TEST_ASSERT_TRUE(fb.get_pixel(12, 11));
+}
+
+TEST_CASE("gfx canvas with a negative origin clips the surface outside its space",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    fb.fill(true);
+    // The surface's (0, 0) sits at (-4, -4): its columns and rows 0-3 lie
+    // outside the 16x16 space.
+    canvas c(fb, -4, -4, 16, 16);
+    c.clear();
+    TEST_ASSERT_EQUAL(16 * 16 - 12 * 12, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 15));
+    TEST_ASSERT_FALSE(fb.get_pixel(4, 4));
+
+    // A window spanning the whole surface still clips to the space, so its
+    // clear and fill must not use the surface's whole-buffer clear and fill.
+    fb.fill(true);
+    auto w = c.window(-4, -4, 20, 20);
+    w.clear();
+    TEST_ASSERT_EQUAL(16 * 16 - 12 * 12, count_set_pixels(fb));
+    fb.clear();
+    w.fill(true);
+    TEST_ASSERT_EQUAL(12 * 12, count_set_pixels(fb));
+    fb.clear();
+    w.set_pixel(0, 0, true); // surface (0, 0), outside the space
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
 }

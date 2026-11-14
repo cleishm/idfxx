@@ -80,8 +80,10 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
 - `idfxx_epaper_el133uf1` `2.0.0` — requires idfxx_spi `^3.0.0`
 - `idfxx_gfx` `3.0.0` — the `canvas(surface, x, y)` constructor is removed; pass the drawing-space
   size too. A `render_banded` canvas reports the whole frame's size in every band, so layout
-  anchored to the bottom edge and rotated views land correctly. Adds proportional UTF-8 text and
-  wrapped, aligned text boxes (`draw_text_box`, `text_align`), with a `proportional_text` example
+  anchored to the bottom edge and rotated views land correctly. Drawing positions are signed `int`,
+  so shapes and text can start off the top or left edge and draw their visible part, and canvas
+  windows can start off their parent canvas. Adds proportional UTF-8 text and wrapped, aligned text
+  boxes (`draw_text_box`, `text_align`), with a `proportional_text` example
 - `idfxx_onewire` `2.0.0` — `check_crc16` takes two `byte_view`s, and a CRC that isn't two bytes
   returns `false`. Adds `address::bytes()`, an `address` constructor from ROM bytes, `read<N>()`,
   and fill, alignment and width in the address formatter. `crc8` no longer truncates data over 255
