@@ -80,6 +80,31 @@ struct divider_ratio {
      * @brief Compares two divider ratios for equality.
      */
     [[nodiscard]] constexpr bool operator==(const divider_ratio&) const noexcept = default;
+
+    /**
+     * @brief Returns the source voltage for a voltage measured at the pin.
+     *
+     * Multiplies by `num / den`, truncating toward zero, without overflowing for any result that
+     * `millivolts` can hold. It is the conversion @ref input::read_voltage applies to the
+     * calibrated pin voltage.
+     *
+     * @code
+     * idfxx::adc::input battery({.pin = idfxx::gpio_3, .divider = {2, 1}});
+     * quanta::electro::millivolts at_pin = battery.read_pin_voltage();
+     * quanta::electro::millivolts at_source = battery.divider().source_voltage(at_pin);
+     * @endcode
+     *
+     * @param pin The voltage at the pin.
+     * @return The voltage at the source.
+     */
+    [[nodiscard]] constexpr quanta::electro::millivolts
+    source_voltage(quanta::electro::millivolts pin) const noexcept {
+        // pin × num / den, split as (q × den + r) × num / den so no intermediate exceeds the
+        // result: q and r share pin's sign, so the truncated parts add exactly.
+        const auto q = pin.count() / den;
+        const auto r = pin.count() % den;
+        return quanta::electro::millivolts{q * num + r * num / den};
+    }
 };
 
 /**
@@ -104,7 +129,7 @@ public:
         enum attenuation attenuation = attenuation::db_12; ///< Input range selection.
         /// External voltage-divider ratio between the source and the pin.
         /// @ref read_voltage scales by it to report the source voltage;
-        /// @ref read_raw is unaffected.
+        /// @ref read_pin_voltage and @ref read_raw are unaffected.
         divider_ratio divider{};
 
         /**
@@ -175,7 +200,8 @@ public:
      * @brief Reads the input voltage.
      *
      * Returns the source voltage: the calibrated voltage at the pin, scaled
-     * by the configured @ref config::divider (1:1 by default).
+     * by the configured @ref config::divider (1:1 by default). Use
+     * @ref read_pin_voltage for the unscaled voltage at the pin.
      *
      * @return The calibrated, divider-scaled voltage.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -185,6 +211,23 @@ public:
      *         result is invalid or the ADC unit is in use by another reader.
      */
     [[nodiscard]] quanta::electro::millivolts read_voltage() { return unwrap(try_read_voltage()); }
+
+    /**
+     * @brief Reads the voltage at the pin.
+     *
+     * Returns the calibrated voltage at the pin itself, not scaled by the configured
+     * @ref config::divider. Use @ref read_voltage for the source voltage.
+     *
+     * @return The calibrated voltage at the pin.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including
+     *         `idfxx::errc::not_supported` when the chip has no usable
+     *         calibration data, and `idfxx::errc::timeout` when the conversion
+     *         result is invalid or the ADC unit is in use by another reader.
+     */
+    [[nodiscard]] quanta::electro::millivolts read_pin_voltage() {
+        return unwrap(try_read_pin_voltage());
+    }
 #endif
 
     /**
@@ -199,7 +242,8 @@ public:
      * @brief Reads the input voltage.
      *
      * Returns the source voltage: the calibrated voltage at the pin, scaled
-     * by the configured @ref config::divider (1:1 by default).
+     * by the configured @ref config::divider (1:1 by default). Use
+     * @ref try_read_pin_voltage for the unscaled voltage at the pin.
      *
      * @return The calibrated, divider-scaled voltage, or an error.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
@@ -208,6 +252,20 @@ public:
      *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<quanta::electro::millivolts> try_read_voltage();
+
+    /**
+     * @brief Reads the voltage at the pin.
+     *
+     * Returns the calibrated voltage at the pin itself, not scaled by the configured
+     * @ref config::divider. Use @ref try_read_voltage for the source voltage.
+     *
+     * @return The calibrated voltage at the pin, or an error.
+     * @retval idfxx::errc::not_supported The chip has no usable calibration
+     *         data (check @ref calibrated).
+     * @retval idfxx::errc::timeout The conversion result was invalid, or the
+     *         ADC unit is in use by another reader. The read may be retried.
+     */
+    [[nodiscard]] result<quanta::electro::millivolts> try_read_pin_voltage();
 
 private:
     /// @cond INTERNAL

@@ -170,6 +170,14 @@ result<int> input::try_read_raw() {
 }
 
 result<quanta::electro::millivolts> input::try_read_voltage() {
+    auto pin_mv = try_read_pin_voltage();
+    if (!pin_mv) {
+        return error(pin_mv.error());
+    }
+    return _state->cfg.divider.source_voltage(*pin_mv);
+}
+
+result<quanta::electro::millivolts> input::try_read_pin_voltage() {
     if (!_state) {
         return error(errc::invalid_state);
     }
@@ -184,11 +192,7 @@ result<quanta::electro::millivolts> input::try_read_voltage() {
     if (auto e = wrap(adc_cali_raw_to_voltage(_state->cali, *raw, &mv)); !e) {
         return error(e.error());
     }
-    // Scale by the configured external divider to report the source voltage.
-    const auto& div = _state->cfg.divider;
-    return quanta::electro::millivolts{
-        static_cast<int>(static_cast<int64_t>(mv) * div.num / div.den)
-    };
+    return quanta::electro::millivolts{mv};
 }
 
 struct sampler::state {

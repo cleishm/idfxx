@@ -143,6 +143,9 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   lease range, router and DNS offers and captive-portal URI before starting it.
   `sntp::sync_wait` rounds sub-millisecond timeouts up instead of down. The DHCP server API is left
   out when `CONFIG_LWIP_DHCPS` is disabled, which previously failed to link
+- `idfxx_adc` `2.1.0` — adds `input::read_pin_voltage()` for the calibrated voltage at the pin, not
+  scaled by the divider, and `divider_ratio::source_voltage()` to convert a pin voltage to the
+  source voltage
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
 
 ### Fixes
