@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include <idfxx/nvs>
 #include <idfxx/wifi>
 
 #include <array>
@@ -129,7 +130,20 @@ static_assert(idfxx::enable_flags_operators<event_mask>);
 // Runtime tests
 // =============================================================================
 
+// The Wi-Fi driver's default init keeps its configuration in NVS, so NVS flash must be initialized
+// first.
+static void ensure_nvs_init() {
+    auto result = idfxx::nvs::flash::try_init();
+    if (!result && (result.error() == idfxx::nvs::errc::no_free_pages ||
+                    result.error() == idfxx::nvs::errc::new_version_found)) {
+        TEST_ASSERT_TRUE(idfxx::nvs::flash::try_erase().has_value());
+        result = idfxx::nvs::flash::try_init();
+    }
+    TEST_ASSERT_TRUE(result.has_value());
+}
+
 TEST_CASE("wifi init and deinit", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto result = try_init();
     TEST_ASSERT_TRUE(result.has_value());
 
@@ -138,6 +152,7 @@ TEST_CASE("wifi init and deinit", "[idfxx][wifi][hw]") {
 }
 
 TEST_CASE("wifi init, set roles, set sta config, start, stop, deinit", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -158,6 +173,7 @@ TEST_CASE("wifi init, set roles, set sta config, start, stop, deinit", "[idfxx][
 }
 
 TEST_CASE("wifi get roles after set", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -183,6 +199,7 @@ TEST_CASE("wifi error code conversion", "[idfxx][wifi]") {
 }
 
 TEST_CASE("wifi AP role lifecycle", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -325,6 +342,7 @@ TEST_CASE("wifi try_init rejects out-of-range rmac interval", "[idfxx][wifi]") {
 #endif
 
 TEST_CASE("wifi get and set country", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -342,6 +360,7 @@ TEST_CASE("wifi get and set country", "[idfxx][wifi][hw]") {
 }
 
 TEST_CASE("wifi get and set max tx power", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -367,6 +386,7 @@ TEST_CASE("wifi get and set max tx power", "[idfxx][wifi][hw]") {
 }
 
 TEST_CASE("wifi set and get sta config", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -387,6 +407,7 @@ TEST_CASE("wifi set and get sta config", "[idfxx][wifi][hw]") {
 }
 
 TEST_CASE("wifi sta config round-trips a 32-byte SSID and a 64-digit PSK", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
@@ -410,6 +431,7 @@ TEST_CASE("wifi sta config round-trips a 32-byte SSID and a 64-digit PSK", "[idf
 }
 
 TEST_CASE("wifi ap config round-trips a 32-byte SSID", "[idfxx][wifi][hw]") {
+    ensure_nvs_init();
     auto init_result = try_init();
     TEST_ASSERT_TRUE(init_result.has_value());
 
