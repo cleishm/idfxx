@@ -2,7 +2,7 @@
 get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 
 set(IDFXX_TEST_REQUIRES
-    unity idfxx_core idfxx_crypto idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_sdcard esp_driver_sdspi idfxx_fatfs idfxx_panel_io idfxx_lcd
+    unity idfxx_core idfxx_crypto esp_mm idfxx_hw_support idfxx_gpio idfxx_nvs idfxx_partition idfxx_ota idfxx_i2c idfxx_spi idfxx_sdcard esp_driver_sdspi idfxx_fatfs idfxx_panel_io idfxx_lcd
     idfxx_lcd_ili9341 idfxx_lcd_ssd1306 idfxx_lcd_touch idfxx_lcd_touch_stmpe610 idfxx_onewire idfxx_ds18x20
     idfxx_timer idfxx_event
     idfxx_event_group idfxx_task idfxx_queue idfxx_log idfxx_http idfxx_http_client idfxx_http_server
@@ -77,6 +77,23 @@ if(idfxx_tests)
     set(IDFXX_TEST_SOURCES ${_selected_sources})
 endif()
 target_sources(${COMPONENT_LIB} PRIVATE ${IDFXX_TEST_SOURCES})
+
+# Link options that tests need, such as --wrap to inject failures, declared in
+# components/<name>/tests/link_options.cmake (set(test_link_options ...)). Applied only while that
+# directory's tests are in the app, as they define the symbols the options refer to.
+set(_test_dirs)
+foreach(_source ${IDFXX_TEST_SOURCES})
+    get_filename_component(_dir "${_source}" DIRECTORY)
+    list(APPEND _test_dirs "${_dir}")
+endforeach()
+list(REMOVE_DUPLICATES _test_dirs)
+foreach(_dir ${_test_dirs})
+    if(EXISTS "${_dir}/link_options.cmake")
+        set(test_link_options)
+        include("${_dir}/link_options.cmake")
+        target_link_options(${COMPONENT_LIB} INTERFACE ${test_link_options})
+    endif()
+endforeach()
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++23)
 
