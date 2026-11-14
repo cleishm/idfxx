@@ -6,6 +6,155 @@ The repository follows [calendar versioning](https://calver.org/); individual co
 [semantic versioning](https://semver.org/) independently. A component's version only bumps when that
 component changes.
 
+## Unreleased
+
+Six new components add SD and MMC card access, FAT filesystems on cards and flash, message digests
+and MACs, a real-time clock interface with a PCF8563 driver, and the Inter typeface. idfxx_gfx draws
+proportional UTF-8 text with line wrapping. Byte buffers across the library move to
+`idfxx::byte_view` and `idfxx::byte_span`, and the I2C, SPI and panel I/O components take breaking
+changes; those shared across components are summarized under Upgrading. Only components that
+changed since v2026.11.08 are listed, each with its new version.
+
+### Upgrading
+
+These changes apply across many of the components listed below:
+
+- **Byte buffers.** Bytes passed in are `idfxx::byte_view`, and buffers the API fills are
+  `idfxx::byte_span`. Both accept `std::byte` and `uint8_t` containers and `{ptr, len}`, so most
+  calls compile unchanged. Pointer-and-length overloads are removed: pass `{ptr, len}`, which takes
+  `void`, `std::byte` and `uint8_t` pointers; view other objects with `std::as_bytes`. Opaque data
+  handed back, such as blobs, payloads and digests, is `std::byte`; use `std::to_integer` where you
+  need a number.
+- **Bus majors.** idfxx_i2c, idfxx_spi and idfxx_panel_io are now `3.0.0`, and the LCD, touch and
+  ePaper drivers built on them require the new versions. Raise their constraints together.
+- **WiFi `connect_sta` is station-only.** `connect_sta()` makes the station the only role, stopping
+  a running AP. For AP+STA, set the roles and configs, call `start()`, then the new
+  `connect(timeout)`.
+
+See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
+
+### New components
+
+- `idfxx_sdcard` `1.0.0` — SD and MMC/eMMC cards over SPI (any target) or SDMMC (esp32, esp32s3,
+  esp32p4), with card identification and capacity, card-detect and write-protect pins, SDMMC speed
+  modes, and raw sector read, write, erase and discard
+- `idfxx_fatfs` `1.0.0` — FAT filesystems on SD cards or wear-leveled flash partitions, used through
+  standard C and C++ file I/O, plus read-only prebuilt images; optional formatting, free-space
+  queries and reset-safe `replace_file()` / `recover_file()`
+- `idfxx_crypto` `1.0.0` — message digests (SHA-1, SHA-2, SHA-3, MD5) and MACs (HMAC and AES-CMAC),
+  one type per algorithm, with one-shot and incremental APIs and constant-time verification;
+  hardware SHA and AES are used where the chip has them
+- `idfxx_rtc` `1.0.0` — abstract `idfxx::rtc::clock` interface for battery-backed RTC chips, in UTC
+  `sys_seconds`; `now()` returns `std::nullopt` until the chip holds a trustworthy time
+- `idfxx_rtc_pcf8563` `1.0.0` — NXP PCF8563 RTC driver with alarm, countdown timer, CLKOUT and
+  oscillator-stop detection, and `sync_time` and `alarm_wake` examples
+- `idfxx_font_inter` `1.0.0` — the Inter typeface (SIL OFL 1.1) as 16, 24, 32 and 48 px proportional
+  fonts with Windows-1252 coverage; unused sizes drop at link time
+
+### Breaking changes
+
+- `idfxx_i2c` `3.0.0` — register addresses are one byte by default, set per device with
+  `register_address`. `read_register` uses a repeated START, and the fixed register delays are
+  gone. Asynchronous transfers are removed. Failed transfers report `errc::invalid_response` or the
+  driver's error, and the bus-lock wait is bounded by the timeout. `receive(size)` and
+  `read_register(reg, size)` no longer return vectors. Adds single-byte and byte-ordered register
+  values, `scl_speed()` and timed bus locking
+- `idfxx_spi` `3.0.0` — `transaction::length` and `rx_length` are optional and derived from the
+  buffers when unset. `use_txdata` / `use_rxdata` and the vector-returning `receive(size)` are
+  removed. `max_transaction_length()` no longer reports 0 before a device is attached
+- `idfxx_panel_io` `3.0.0` — requires idfxx_spi and idfxx_i2c `^3.0.0`
+- `idfxx_lcd` `4.0.0` — `draw_bitmap` takes a `byte_view` and checks its size against the region
+  and the panel's pixel format (`errc::invalid_size`); invalid regions fail with
+  `errc::invalid_arg`. Panel drivers pass bits per pixel to the `panel` constructor. Adds
+  `axes_swapped()` and `native_bits_per_pixel()`
+- `idfxx_lcd_ili9341` `4.0.0` — requires idfxx_lcd `^4.0.0` and idfxx_panel_io `^3.0.0`. In 18-bit
+  color, `draw_bitmap` data must be three bytes per pixel, and RGB565 framebuffer writes fail with
+  `errc::invalid_size`
+- `idfxx_lcd_ssd1306` `3.0.0` — requires idfxx_lcd `^4.0.0` and idfxx_panel_io `^3.0.0`.
+  `draw_bitmap` regions not aligned to 8-pixel pages fail with `errc::invalid_arg` instead of
+  drawing in the wrong place, and writing a framebuffer while the axes are swapped fails with
+  `errc::invalid_state`
+- `idfxx_lcd_touch_stmpe610` `4.0.0` — requires idfxx_panel_io `^3.0.0`
+- `idfxx_lcd_image` `2.0.0` — requires idfxx_lcd `^4.0.0`
+- `idfxx_epaper_ssd1680` `3.0.0`, `idfxx_epaper_uc8179` `3.0.0` — require idfxx_panel_io `^3.0.0`
+- `idfxx_epaper_el133uf1` `2.0.0` — requires idfxx_spi `^3.0.0`
+- `idfxx_gfx` `3.0.0` — the `canvas(surface, x, y)` constructor is removed; pass the drawing-space
+  size too. A `render_banded` canvas reports the whole frame's size in every band, so layout
+  anchored to the bottom edge and rotated views land correctly. Adds proportional UTF-8 text and
+  wrapped, aligned text boxes (`draw_text_box`, `text_align`), with a `proportional_text` example
+- `idfxx_onewire` `2.0.0` — `check_crc16` takes two `byte_view`s, and a CRC that isn't two bytes
+  returns `false`. Adds `address::bytes()`, an `address` constructor from ROM bytes, `read<N>()`,
+  and fill, alignment and width in the address formatter. `crc8` no longer truncates data over 255
+  bytes, and `crc16` no longer hangs on data over 65535 bytes
+- `idfxx_ds18x20` `4.0.0` — requires idfxx_onewire `^2.0.0`
+- `idfxx_radio` `3.0.0` — the `do_start_transmit`, `do_start_receive` and `do_read_received` hooks
+  take `byte_view` / `byte_span`
+- `idfxx_radio_sx126x` `3.0.0` — requires idfxx_radio and idfxx_spi `^3.0.0`. Buffer reads and
+  writes over 256 bytes fail with `errc::invalid_arg`. Adds single-byte register access and
+  `read_command<N>()` / `read_register<N>()`
+- `idfxx_net` `3.0.0` — socket and channel buffers, `recv` results and `datagram::data` are
+  `byte_view` / `byte_span`, so `uint8_t` buffers work directly
+- `idfxx_wifi` `4.0.0` — `connect_sta()` is station-only; adds `connect(timeout)`. `set_vendor_ie`
+  takes the whole element as a `byte_view` and validates it, and `vendor_ie_cb` receives the element
+  as a `byte_view`. Full-length station SSIDs and 64-digit hex PSKs are accepted, and reading back
+  configs and scan records no longer runs past fixed-size fields. The netifs from `make_sta_netif()`
+  and `make_ap_netif()` are released fully, fixing a leak and a crash when WiFi restarts with a role
+  whose netif was destroyed
+- `idfxx_http_client` `3.0.0` — `write` returns nothing, and a partial write fails with
+  `client::errc::write_data` instead of returning a short count. `event_data::data` is a
+  `byte_view`. Adds `set_post_field(byte_view)`; `set_post_field` sets a form Content-Type when none
+  is set, so it no longer fails on ESP-IDF 6
+- `idfxx_http_server` `3.0.0` — `recv*` are renamed `read`, `try_read` and `read_body`, and a body
+  cut short fails with `errc::invalid_request`; `request` is a byte source. The string response
+  setters throw, with `try_set_status`, `try_set_content_type` and `try_set_header` for result-based
+  code; header text is validated, and exceeding `max_resp_headers` is an error. An empty
+  `send_chunk` no longer ends the response. WebSocket frame data is `std::byte`. Adding a response
+  header no longer corrupts earlier ones
+- `idfxx_https_server` `4.0.0` — requires idfxx_http_server `^3.0.0`, whose request changes apply
+  to its handlers
+- `idfxx_nvs` `2.0.0` — blobs are written from a `byte_view` or any trivially copyable value, and
+  `get_blob` returns `std::vector<std::byte>`; the pointer-and-length `set_blob` is removed. Adds
+  `get_blob(key, buf)`, `get_blob<T>` and `blob_size`. `secure_config` keys are `std::byte` arrays
+- `idfxx_ota` `2.0.0` — `update::write` and `write_with_offset` take a `byte_view`, replacing the
+  pointer-and-length overloads, and `app_elf_sha256()` returns `std::array<std::byte, 32>`
+- `idfxx_partition` `2.0.0` — `read`, `write`, `read_raw` and `write_raw` take `byte_span` /
+  `byte_view`, replacing the pointer-and-length overloads, and `sha256()` returns
+  `std::array<std::byte, 32>`. Adds `mmap_handle::bytes()`
+
+### Enhancements
+
+- `idfxx_core` `1.3.0` — adds `byte_view` and `byte_span`, `idfxx::hex` for formatting bytes,
+  `utf8_view`, `chrono::set_system_time` and `app::elf_sha256()`. Byte sources read through a
+  `byte_span`. A `file_source` read error with no errno reports `EIO` instead of `errc::fail`
+- `idfxx_font` `1.1.0` — adds proportional fonts with UTF-8 text metrics and ink extents, line
+  breaking (`break_lines`), and `ttf_to_c.py` with the `idfxx_font_generate()` CMake function for
+  generating fonts from TrueType and OpenType faces. Requires idfxx_core `^1.3.0`
+- `idfxx_netif` `2.1.0` — adds `interface::take(handle, destroy_fn)` to release a handle with a
+  given function. `sntp::sync_wait` rounds sub-millisecond timeouts up instead of down
+- `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
+
+### Fixes
+
+- `idfxx_epaper` `2.0.1`, `idfxx_jpeg` `1.0.1` — accept byte sources whose `try_read` takes
+  `std::span<std::byte>` or `idfxx::byte_span`; require idfxx_core `^1.3.0`
+- `idfxx_gpio` `1.1.1` — `deep_sleep_hold_enable()` and `deep_sleep_hold_disable()` are left out on
+  esp32p4, where ESP-IDF has no all-pins deep-sleep hold
+- `idfxx_epaper_image` `1.0.1` — documentation fixes
+
+### Other changes
+
+- UPGRADING.md collects the migration steps for each release's breaking component versions.
+- The README is reorganized around a component catalog, and building, testing and code style move
+  to CONTRIBUTING.md.
+- Documentation uses American English spelling throughout, and Markdown wraps at 100 columns.
+- The API docs document tag constants instead of their tag types.
+- CI also builds for esp32, and for esp32p4 with ESP-IDF 5.5, and caches compiler output between
+  runs.
+- Component uploads run in batches, so a large release no longer fails partway through when the
+  upload token expires.
+- The sdkconfig fragments and partition tables move into `config/`, and `just test <component>...`
+  builds and runs only the named components' tests.
+
 ## v2026.11.08
 
 Five new components add an image pipeline (JPEG decoding, and showing images on LCD and ePaper

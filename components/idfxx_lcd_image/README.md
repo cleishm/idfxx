@@ -34,7 +34,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_lcd_image: "^1.0.0"
+  cleishm/idfxx_lcd_image: "^2.0.0"
 ```
 
 ## Usage

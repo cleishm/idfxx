@@ -1,4 +1,4 @@
-version: "1.0.1"
+version: "2.0.0"
 description: "Decoded images on RGB565 LCD panels and surfaces, placed, sized and oriented on the screen"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_lcd_image"
 repository: "https://github.com/cleishm/idfxx.git"

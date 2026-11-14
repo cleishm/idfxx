@@ -3,7 +3,7 @@ dependencies:
     version: "^1.0.0"
     override_path: ../../..
   cleishm/idfxx_epaper_el133uf1:
-    version: "^1.0.0"
+    version: "^2.0.0"
     override_path: ../../../../idfxx_epaper_el133uf1
   cleishm/idfxx_epaper:
     version: "^2.0.0"
