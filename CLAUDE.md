@@ -16,33 +16,54 @@ Common tasks are captured in the `Justfile` at the repo root (`just --list` to s
 recipes source the ESP-IDF environment automatically when `idf.py` is not already on PATH, so they
 work from a plain shell.
 
-### Config Matrix Builds
-
 The sdkconfig fragments and partition tables live in `config/`, and each build dir holds its own
 generated `sdkconfig` (`build/sdkconfig` for the default build), so `idf.py fullclean` discards
 `menuconfig` changes; carry lasting ones into a `config/` fragment.
 
-CI builds a matrix of configs. The no-exceptions config is the only one that exercises the
-`try_*`-only API surface. Each uses an isolated build dir with its own `SDKCONFIG` (a plain
-`-D SDKCONFIG_DEFAULTS` on the existing `build/` does not switch configs):
+### Test Groups
+
+The project is the Unity test app, split into groups (`system`, `network`, `display`), one app each,
+so that each fits the `ota_0` partition. `tests/groups.cmake` is the single source of truth: every
+component with tests is in exactly one group (configuring fails otherwise), and the Justfile and CI
+read the group list from it. Add a new component to a group there; when an app outgrows `ota_0`,
+split or rebalance the groups rather than growing the partition.
+
+`-D IDFXX_TEST_GROUP=<group>` selects a group's app; `-D IDFXX_TESTS="idfxx_dht;..."` (what
+`just test` uses) selects components. With neither, as in a plain `idf.py reconfigure` (enough for
+`format`, `format-check` and `docs`), the app holds every group's tests and need not fit `ota_0`.
+The build recipes take group names (default: every group) and build each into its own dir
+(`build-<group>/`, `build-noexc-<group>/`, ...):
 
 ```bash
-just build-noexc [target]                   # config/sdkconfig.defaults;config/sdkconfig.no-exceptions
-just build-noipv6 [target]                  # config/sdkconfig.defaults;config/sdkconfig.no-ipv6
+just build [group...] [target]              # config/sdkconfig.defaults
+just flash <group> [port]                   # build-<group>/, then flash and monitor
+```
+
+### Config Matrix Builds
+
+CI builds a matrix of configs, each building every group. The no-exceptions config is the only one
+that exercises the `try_*`-only API surface. Each uses an isolated build dir with its own
+`SDKCONFIG` (a plain `-D SDKCONFIG_DEFAULTS` on an existing build dir does not switch configs):
+
+```bash
+just build-noexc [group...] [target]        # config/sdkconfig.defaults;config/sdkconfig.no-exceptions
+just build-noipv6 [group...] [target]       # config/sdkconfig.defaults;config/sdkconfig.no-ipv6
 ```
 
 ### QEMU Testing
 
 For non-hardware tests, components can be tested in QEMU. `just qemu-test` replicates the CI
-qemu-test job locally (isolated `build-qemu/` from `config/sdkconfig.qemu`, merged 4MB flash image,
-runs the Unity suite watching for the `### TESTS COMPLETE ###` sentinel, then parses the summary):
+qemu-test job locally: for each group, an isolated `build-qemu-<group>/` from
+`config/sdkconfig.qemu` and a merged 4MB flash image, then it runs the app watching for the
+`### TESTS COMPLETE ###` sentinel (log in `qemu_output_<group>.log`) and parses the summary. It
+fails if any group fails or reports no summary:
 
 ```bash
-# Build the QEMU flash image
-just qemu-build
+# Build the QEMU flash images
+just qemu-build [group...]
 
-# Build (if needed) and run the Unity suite in QEMU
-just qemu-test [timeout]
+# Build (if needed) and run the Unity suite in QEMU (timeout per app, default 300 s)
+just qemu-test [group...] [timeout]
 
 # Build and run only some components' tests (isolated build-test/; seconds per rebuild)
 just test dht gpio
@@ -50,7 +71,10 @@ just test dht gpio
 
 A component whose tests use idfxx components outside its own dependencies lists them in
 `components/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise
-`just test <name>` fails to build while the full suite still passes.
+`just test <name>` fails to build, and so does its group's app if no other component in the group
+happens to pull them in. Each group app runs its tests
+without the other groups' tests before them, so a test must set up what it needs itself (NVS, the
+default event loop) rather than rely on an earlier test having done so.
 
 CI runs a matrix of builds: with-exceptions, no-exceptions, no-ipv6, and qemu-test configurations.
 

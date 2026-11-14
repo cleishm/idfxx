@@ -18,11 +18,58 @@ if(NOT DEFINED ENV{IDF_PATH} OR "$ENV{IDF_PATH}" STREQUAL "")
     message(FATAL_ERROR "IDF_PATH is not set. Source ESP-IDF export.sh before configuring.")
 endif()
 
-# Filtered test app: -D IDFXX_TESTS="idfxx_dht;idfxx_gpio" builds only those
-# components' tests, and the components they need, instead of the whole suite
-# (`just test` drives it). tests/CMakeLists.txt reads the list as a build
+# The test suite is split into groups, one Unity app each (tests/groups.cmake).
+# Every component with tests must be in exactly one group.
+include("${CMAKE_SOURCE_DIR}/tests/groups.cmake")
+set(_idfxx_grouped)
+foreach(_group ${IDFXX_TEST_GROUPS})
+    foreach(_component ${IDFXX_TEST_GROUP_${_group}})
+        if(NOT IS_DIRECTORY "${CMAKE_SOURCE_DIR}/components/${_component}")
+            message(FATAL_ERROR
+                "tests/groups.cmake: group ${_group} names ${_component}, which is not a component")
+        endif()
+        if(_component IN_LIST _idfxx_grouped)
+            message(FATAL_ERROR "tests/groups.cmake: ${_component} is in more than one group")
+        endif()
+        list(APPEND _idfxx_grouped ${_component})
+    endforeach()
+endforeach()
+# CONFIGURE_DEPENDS makes a build reconfigure when test files or test requirements are added or
+# removed, so that the check reruns and tests/CMakeLists.txt sees them.
+file(GLOB _idfxx_test_files CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/components/*/tests/*_test.cpp")
+file(GLOB _idfxx_test_cmake_files CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/components/*/tests/requires.cmake"
+    "${CMAKE_SOURCE_DIR}/components/*/tests/link_options.cmake")
+foreach(_file ${_idfxx_test_files})
+    string(REGEX REPLACE "^.*/components/([^/]+)/tests/[^/]+$" "\\1" _component "${_file}")
+    if(NOT _component IN_LIST _idfxx_grouped)
+        message(FATAL_ERROR "tests/groups.cmake: ${_component} has tests but is in no group")
+    endif()
+endforeach()
+
+# Which components' tests the app holds:
+#   -D IDFXX_TEST_GROUP=network               one group's (the Justfile and CI build each group)
+#   -D IDFXX_TESTS="idfxx_dht;idfxx_gpio"     just those components' (`just test` drives it)
+#   neither                                   every group's
+# A selection builds only the tests component and the components it requires,
+# instead of every component. tests/CMakeLists.txt reads the list as a build
 # property, since IDF's requirements pass doesn't see ordinary variables.
-if(IDFXX_TESTS)
+if(IDFXX_TEST_GROUP)
+    if(IDFXX_TESTS)
+        message(FATAL_ERROR
+            "Set IDFXX_TEST_GROUP or IDFXX_TESTS, not both (use a fresh build directory)")
+    endif()
+    if(NOT IDFXX_TEST_GROUP IN_LIST IDFXX_TEST_GROUPS)
+        string(REPLACE ";" ", " _groups "${IDFXX_TEST_GROUPS}")
+        message(FATAL_ERROR "Unknown IDFXX_TEST_GROUP '${IDFXX_TEST_GROUP}' (groups: ${_groups})")
+    endif()
+    set(_idfxx_tests ${IDFXX_TEST_GROUP_${IDFXX_TEST_GROUP}})
+elseif(IDFXX_TESTS)
+    set(_idfxx_tests ${IDFXX_TESTS})
+else()
+    set(_idfxx_tests ${_idfxx_grouped})
+endif()
+if(IDFXX_TEST_GROUP OR IDFXX_TESTS)
     set(COMPONENTS tests)
 endif()
 
@@ -40,7 +87,7 @@ if(NOT DEFINED SDKCONFIG)
 endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-idf_build_set_property(IDFXX_TESTS "${IDFXX_TESTS}")
+idf_build_set_property(IDFXX_TESTS "${_idfxx_tests}")
 project(idfxx)
 
 # Formatting
