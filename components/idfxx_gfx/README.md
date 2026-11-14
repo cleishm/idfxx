@@ -1,6 +1,6 @@
 # idfxx_gfx
 
-Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
+Drawing primitives for pixel surfaces: shapes, lines, 1-bit bitmaps, and bitmap-font text.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__gfx.html)**
 
@@ -19,6 +19,12 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
   landscape) — draw in viewer coordinates, the framebuffer keeps its native layout and is written to
   the display as usual
 - Filled and outlined rectangles, horizontal/vertical/arbitrary lines
+- Filled and outlined rounded rectangles, ellipses, circles and triangles, with exact integer pixel
+  rules: a pixel is filled when its center lies inside the shape (a triangle's fill also covers its
+  outline), outlines are the fill's one-pixel boundary, and ellipses work for even and odd sizes
+  alike
+- 1-bit bitmaps (`mono_bitmap`, MSB- or LSB-first rows, the latter matching XBM): drawn
+  transparently, so images at one origin layer in different inks, or opaquely over a paper value
 - Text in fixed-cell bitmap fonts (`mono_font`) with integer scaling (`scale = 2` turns an 8x16 font
   into 16x32 glyphs)
 - Text in proportional fonts (`proportional_font`) rasterized at their real size from
@@ -190,6 +196,44 @@ display.write(fb);                                                     // native
 right); `rotation::ccw90` the opposite. A rotated view is itself a `pixel_surface`, so it composes
 with everything else here — canvases, windows, and the free functions.
 
+### Shapes and icons
+
+Rounded rectangles, ellipses, circles and triangles fill or outline in one call, and 1-bit icons
+(`constexpr` tables of packed rows) draw with `draw_bitmap`. Together with
+`idfxx::font::text_ink_bounds`, which gives the box of pixels a label inks, that makes a button
+with an icon and a label centered by its ink:
+
+```cpp
+using namespace idfxx;
+
+static constexpr uint8_t wifi_bits[] = {0x3C, 0x42, 0x81, 0x3C, 0x42, 0x18, 0x00, 0x18};
+static constexpr gfx::mono_bitmap wifi_icon{wifi_bits, 8, 8};
+
+canvas.fill_round_rect(10, 10, 120, 36, 8, black);           // the button
+canvas.draw_bitmap(20, 24, wifi_icon, white);                // set bits only
+if (const auto ink = font::text_ink_bounds(font::inter_16, "Connect")) {
+    // Center the label's ink in the part of the button right of the icon.
+    const int x = 36 + (88 - static_cast<int>(ink->width)) / 2;
+    const int y = 10 + (36 - static_cast<int>(ink->height)) / 2;
+    canvas.draw_text(font::inter_16, x - ink->left, y - ink->top, "Connect", white);
+}
+canvas.draw_circle(150, 28, 10, black);                      // a status light
+canvas.fill_triangle(170, 20, 184, 28, 170, 36, black);      // a "play" arrow
+```
+
+A circle of radius `r` is the ellipse in the `2r + 1` square box around its center, and a rounded
+rectangle's corners are quadrants of the ellipse in a `2r` square box, so shapes of the same family
+line up pixel for pixel. Triangle vertices name pixels (like `draw_line` endpoints), and
+`draw_triangle` draws each edge as `draw_line` does from its upper endpoint (the left one for a
+horizontal edge). `fill_triangle` fills every pixel whose center lies inside the triangle or on an
+edge, together with the pixels `draw_triangle` draws. Neither depends on the order of the vertices,
+so a filled triangle with a `draw_triangle` border lines up, and triangles sharing an edge leave no
+gap.
+
+Bitmaps drawn without a paper value write only their set bits, so layers drawn at one origin
+compose — an outline in black and a level in red, say. With a paper value
+(`draw_bitmap(x, y, icon, ink, paper)`) every pixel the bitmap covers is written.
+
 ### Free functions
 
 Every `canvas` drawing member is also available as a free function taking the surface as its first
@@ -212,20 +256,28 @@ Drawing positions (`x`, `y`, `x0`, ...) are `int` and may be negative or beyond 
 | `canvas(surface, x, y, w, h)` | Translated canvas: the surface holds the region of a w x h drawing space whose top-left corner is (x, y) — see Band rendering above. |
 | `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping (it may start off the canvas); `fill`/`clear` affect only the sub-region. |
 | `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear` forward to the surface's. |
-| `to_string(rotation)` / `to_string(text_align)` | Enumerator name; also `std::formatter` specializations (with `CONFIG_IDFXX_STD_FORMAT`). |
+| `to_string(rotation)` / `to_string(text_align)` / `to_string(bit_order)` | Enumerator name; also `std::formatter` specializations (with `CONFIG_IDFXX_STD_FORMAT`). |
 | `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and writes each slice with `dest.try_write(band, 0, y)` (also `try_render_banded`). |
 | `fill_rect(s, x, y, w, h, ink)` | Fill a rectangle. |
 | `draw_rect(s, x, y, w, h, ink)` | Outline a rectangle (one-pixel border). |
 | `draw_hline(s, x, y, len, ink)` / `draw_vline(...)` | Horizontal / vertical line. |
 | `draw_line(s, x0, y0, x1, y1, ink)` | Line between two points (endpoints inclusive). |
+| `fill_round_rect(s, x, y, w, h, r, ink)` / `draw_round_rect(...)` | Fill / outline a rectangle with corners of radius `r` (clamped to half the shorter side; 0 is a plain rectangle). |
+| `fill_ellipse(s, x, y, w, h, ink)` / `draw_ellipse(...)` | Fill / outline the ellipse inscribed in a `w` x `h` box. |
+| `fill_circle(s, cx, cy, r, ink)` / `draw_circle(...)` | Fill / outline a circle: the ellipse in the `2r + 1` square box centered on pixel (cx, cy). |
+| `fill_triangle(s, x0, y0, x1, y1, x2, y2, ink)` | Fill the pixels centered inside a triangle or on its edges, and its `draw_triangle` outline. |
+| `draw_triangle(s, x0, y0, x1, y1, x2, y2, ink)` | Outline a triangle with three `draw_line` edges, each from its upper (or, if horizontal, left) endpoint. |
+| `mono_bitmap` | A 1-bit image: `data` (a `std::span<const uint8_t>`), `width`, `height`, `order` (`bit_order::msb_first` or `lsb_first`); rows of `bytes_per_row()` bytes. |
+| `draw_bitmap(s, x, y, bitmap, ink)` | Draw a bitmap's set bits in `ink`, leaving the rest untouched. |
+| `draw_bitmap(s, x, y, bitmap, ink, paper)` | Draw a bitmap opaquely: set bits in `ink`, clear bits in `paper`. |
 | `draw_text(s, font, x, y, text, ink, scale)` | Draw text in a `mono_font`; on bool surfaces `ink` defaults to true. |
 | `draw_text(s, font, x, y, text, ink)` | Draw UTF-8 text in a `proportional_font`, (x, y) the line's top-left; on bool surfaces `ink` defaults to true. |
 | `draw_text_box(s, font, x, y, width, text, ink, align)` | Draw UTF-8 text in a `proportional_font`, wrapped to `width` and aligned within it; returns the height drawn. On bool surfaces `ink` defaults to true. |
 | `draw_text_box(s, font, x, y, width, text, ink, align, scale)` | The same in a `mono_font` (bool surfaces: `ink` defaults to true, without `scale`). |
 | `text_align` | Line alignment in a text box: `left`, `center`, `right`. |
 
-Text measurement (`idfxx::font::text_width`) and line breaking (`idfxx::font::break_lines`) live in
-`idfxx_font`.
+Text measurement (`idfxx::font::text_width`, and `idfxx::font::text_ink_bounds` for the pixels text
+inks) and line breaking (`idfxx::font::break_lines`) live in `idfxx_font`.
 
 ## Error Handling
 
@@ -238,7 +290,17 @@ report whatever the destination's `try_write` reports (for the idfxx panels, pan
 ## Important Notes
 
 - Drawing is ink-only: to replace previous content, clear (or redraw) the background first —
-  `canvas.clear()` + redraw is the simplest pattern.
+  `canvas.clear()` + redraw is the simplest pattern. The one exception is `draw_bitmap` with a
+  paper value, which writes every pixel the bitmap covers.
+- Shape geometry is exact and integer: an ellipse fills the pixels whose centers lie inside the
+  ellipse inscribed in its box, so very thin boxes may leave end rows empty, a radius-1 circle is a
+  3 x 3 square, and a radius-1 rounded rectangle has square corners. `fill_triangle` covers the
+  line pixels `draw_triangle` draws, and both are the same for any order of the vertices; a
+  degenerate (flat) triangle fills the pixels `draw_triangle` draws for it. A `draw_line` along an
+  edge matches it when drawn from the edge's upper endpoint; drawn the other way, it can differ at
+  half-pixel ties.
+- `draw_bitmap` never reads past a `mono_bitmap`'s `data`: when it holds fewer than `height`
+  complete rows, only the rows it holds are drawn.
 - A `canvas` is a non-owning view: the surface must outlive it. It itself satisfies `pixel_surface`,
   so it can be passed anywhere a surface is expected. Its coordinate bounds are captured at
   construction.
@@ -257,7 +319,8 @@ report whatever the destination's `try_write` reports (for the idfxx panels, pan
 - A soft hyphen (U+00AD) in proportional text is never drawn and takes no space; it only marks where
   `draw_text_box` may hyphenate a word.
 - This component is deliberately small: integer coordinates, one-pixel strokes, no anti-aliasing, no
-  kerning, no widgets, and layout limited to wrapped, aligned text boxes. For a full UI toolkit, use
+  arcs or polygons, no bitmap scaling, no kerning, no widgets, and layout limited to wrapped,
+  aligned text boxes. For a full UI toolkit, use
   LVGL with the panel's `idf_handle()`.
 
 ## License

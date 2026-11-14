@@ -1,5 +1,5 @@
 version: "3.0.0"
-description: "Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text"
+description: "Drawing primitives for pixel surfaces: shapes, lines, 1-bit bitmaps, and bitmap-font text"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_gfx"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"

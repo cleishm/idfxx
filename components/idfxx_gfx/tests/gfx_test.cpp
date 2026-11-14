@@ -15,12 +15,16 @@
 #include "idfxx/lcd/rgb565_framebuffer"
 #include "unity.h"
 
+#include <algorithm>
 #include <array>
 #include <climits>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <optional>
+#include <span>
+#include <string_view>
 #include <utility>
 
 using namespace idfxx::gfx;
@@ -2169,4 +2173,1084 @@ TEST_CASE("gfx canvas with a negative origin clips the surface outside its space
     fb.clear();
     w.set_pixel(0, 0, true); // surface (0, 0), outside the space
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+// =============================================================================
+// Runtime tests: ellipses, circles and rounded rectangles
+// =============================================================================
+
+namespace {
+
+// A shape of the round family, for the reference tests: the ellipse
+// inscribed in a w x h box (r < 0), or a w x h rectangle with corners of
+// radius r.
+struct round_shape {
+    long w;
+    long h;
+    long r;
+};
+
+// True when the center of pixel (i, j) of a w x h box lies inside or on
+// the ellipse inscribed in the box.
+bool in_ellipse(long w, long h, long i, long j) {
+    if (i < 0 || j < 0 || i >= w || j >= h) {
+        return false;
+    }
+    const int64_t u = 2 * i + 1 - w;
+    const int64_t v = 2 * j + 1 - h;
+    return u * u * h * h + v * v * w * w <= int64_t{w} * w * h * h;
+}
+
+// True when pixel (i, j) of the shape's box is inside the shape, straight
+// from the documented contract.
+bool in_round_shape(const round_shape& s, long i, long j) {
+    if (s.r < 0) {
+        return in_ellipse(s.w, s.h, i, j);
+    }
+    if (i < 0 || j < 0 || i >= s.w || j >= s.h) {
+        return false;
+    }
+    const long r = std::min(s.r, std::min(s.w, s.h) / 2);
+    // Corner pixels map onto the ellipse in the 2r x 2r box.
+    const long ci = i < r ? i : (i >= s.w - r ? i - (s.w - 2 * r) : -1);
+    const long cj = j < r ? j : (j >= s.h - r ? j - (s.h - 2 * r) : -1);
+    return ci < 0 || cj < 0 || in_ellipse(2 * r, 2 * r, ci, cj);
+}
+
+// True when fill holds exactly the shape's pixels with its box at (ox, oy),
+// and outline exactly those of them with a horizontal or vertical neighbor
+// outside the shape.
+bool matches_round_shape(
+    const mono_framebuffer& fill,
+    const mono_framebuffer& outline,
+    int ox,
+    int oy,
+    const round_shape& s
+) {
+    for (long y = 0; y < static_cast<long>(fill.height()); ++y) {
+        for (long x = 0; x < static_cast<long>(fill.width()); ++x) {
+            const long i = x - ox;
+            const long j = y - oy;
+            const bool inside = in_round_shape(s, i, j);
+            const bool boundary = inside &&
+                (!in_round_shape(s, i - 1, j) || !in_round_shape(s, i + 1, j) ||
+                 !in_round_shape(s, i, j - 1) || !in_round_shape(s, i, j + 1));
+            if (fill.get_pixel(x, y) != inside || outline.get_pixel(x, y) != boundary) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_CASE("gfx ellipses fill the pixels centered inside and outline the fill's boundary",
+          "[idfxx][gfx]") {
+    // Even and odd sizes, inside the surface and clipped off every edge.
+    auto fill = make_fb(16, 16);
+    auto outline = make_fb(16, 16);
+    for (size_t w = 0; w <= 13; ++w) {
+        for (size_t h = 0; h <= 13; ++h) {
+            for (const int ox : {-7, 3, 10}) {
+                for (const int oy : {-6, 2, 9}) {
+                    fill.clear();
+                    outline.clear();
+                    fill_ellipse(fill, ox, oy, w, h, true);
+                    draw_ellipse(outline, ox, oy, w, h, true);
+                    TEST_ASSERT_TRUE(matches_round_shape(
+                        fill, outline, ox, oy, {static_cast<long>(w), static_cast<long>(h), -1}
+                    ));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("gfx rounded rectangles fill and outline ellipse-quadrant corners", "[idfxx][gfx]") {
+    auto fill = make_fb(16, 16);
+    auto outline = make_fb(16, 16);
+    for (size_t w = 0; w <= 13; ++w) {
+        for (size_t h = 0; h <= 13; h += (h < 4 ? 1 : 3)) {
+            for (size_t r = 0; r <= 7; ++r) {
+                for (const int o : {-5, 3, 9}) {
+                    fill.clear();
+                    outline.clear();
+                    fill_round_rect(fill, o, o - 1, w, h, r, true);
+                    draw_round_rect(outline, o, o - 1, w, h, r, true);
+                    TEST_ASSERT_TRUE(matches_round_shape(
+                        fill,
+                        outline,
+                        o,
+                        o - 1,
+                        {static_cast<long>(w), static_cast<long>(h), static_cast<long>(r)}
+                    ));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("gfx ellipses are symmetric and transpose with their box", "[idfxx][gfx]") {
+    auto a = make_fb(16, 16);
+    auto t = make_fb(16, 16);
+    for (size_t w = 1; w <= 12; ++w) {
+        for (size_t h = 1; h <= 12; ++h) {
+            a.clear();
+            t.clear();
+            fill_ellipse(a, 0, 0, w, h, true);
+            fill_ellipse(t, 0, 0, h, w, true);
+            bool symmetric = true;
+            for (size_t y = 0; y < h; ++y) {
+                for (size_t x = 0; x < w; ++x) {
+                    const bool p = a.get_pixel(x, y);
+                    symmetric = symmetric && p == a.get_pixel(w - 1 - x, y) &&
+                        p == a.get_pixel(x, h - 1 - y) && p == t.get_pixel(y, x);
+                }
+            }
+            TEST_ASSERT_TRUE(symmetric);
+        }
+    }
+}
+
+TEST_CASE("gfx circles are ellipses in a 2r + 1 box", "[idfxx][gfx]") {
+    auto circle = make_fb(24, 24);
+    auto ellipse = make_fb(24, 24);
+    for (size_t r = 0; r <= 7; ++r) {
+        const int corner = static_cast<int>(r);
+        circle.clear();
+        ellipse.clear();
+        fill_circle(circle, 9, 10, r, true);
+        fill_ellipse(ellipse, 9 - corner, 10 - corner, 2 * r + 1, 2 * r + 1, true);
+        TEST_ASSERT_TRUE(same_pixels(circle, ellipse));
+
+        circle.clear();
+        ellipse.clear();
+        draw_circle(circle, 9, 10, r, true);
+        draw_ellipse(ellipse, 9 - corner, 10 - corner, 2 * r + 1, 2 * r + 1, true);
+        TEST_ASSERT_TRUE(same_pixels(circle, ellipse));
+    }
+
+    // The pixels centered within r + 0.5 of the center pixel's center:
+    // radius 0 is the center pixel, radius 1 the 3 x 3 square around it,
+    // and radius 2 that square plus two pixels along each axis.
+    auto fb = make_fb(8, 8);
+    fill_circle(fb, 3, 3, 0, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{3, 3}}));
+    fb.clear();
+    draw_circle(fb, 3, 3, 0, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{3, 3}}));
+    fb.clear();
+    fill_circle(fb, 3, 3, 1, true);
+    TEST_ASSERT_EQUAL(9, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(2, 2) && fb.get_pixel(4, 4));
+    fb.clear();
+    draw_circle(fb, 3, 3, 1, true);
+    TEST_ASSERT_EQUAL(8, count_set_pixels(fb));
+    TEST_ASSERT_FALSE(fb.get_pixel(3, 3));
+    fb.clear();
+    fill_circle(fb, 3, 3, 2, true);
+    TEST_ASSERT_EQUAL(21, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(1, 2) && fb.get_pixel(5, 4) && fb.get_pixel(3, 1));
+    TEST_ASSERT_FALSE(fb.get_pixel(1, 1) || fb.get_pixel(5, 5));
+}
+
+TEST_CASE("gfx rounded rectangles reduce to ellipses and rectangles", "[idfxx][gfx]") {
+    auto a = make_fb(16, 16);
+    auto b = make_fb(16, 16);
+    // A 2r x 2r rounded rectangle of radius r is the ellipse in that box.
+    for (size_t r = 1; r <= 7; ++r) {
+        a.clear();
+        b.clear();
+        fill_round_rect(a, 1, 2, 2 * r, 2 * r, r, true);
+        fill_ellipse(b, 1, 2, 2 * r, 2 * r, true);
+        TEST_ASSERT_TRUE(same_pixels(a, b));
+        a.clear();
+        b.clear();
+        draw_round_rect(a, 1, 2, 2 * r, 2 * r, r, true);
+        draw_ellipse(b, 1, 2, 2 * r, 2 * r, true);
+        TEST_ASSERT_TRUE(same_pixels(a, b));
+    }
+    // Radius 0 is the plain rectangle, and so is radius 1 (the 2 x 2
+    // corner ellipse covers its whole box).
+    for (const size_t r : {0, 1}) {
+        a.clear();
+        b.clear();
+        fill_round_rect(a, 2, 3, 9, 6, r, true);
+        fill_rect(b, 2, 3, 9, 6, true);
+        TEST_ASSERT_TRUE(same_pixels(a, b));
+        a.clear();
+        b.clear();
+        draw_round_rect(a, 2, 3, 9, 6, r, true);
+        draw_rect(b, 2, 3, 9, 6, true);
+        TEST_ASSERT_TRUE(same_pixels(a, b));
+    }
+    // Radii 2 and 3 each trim one pixel from each corner.
+    for (const size_t r : {2, 3}) {
+        a.clear();
+        fill_round_rect(a, 2, 3, 9, 6, r, true);
+        TEST_ASSERT_EQUAL(9 * 6 - 4, count_set_pixels(a));
+        TEST_ASSERT_FALSE(
+            a.get_pixel(2, 3) || a.get_pixel(10, 3) || a.get_pixel(2, 8) || a.get_pixel(10, 8)
+        );
+    }
+    // The radius is clamped to half the shorter side.
+    a.clear();
+    b.clear();
+    fill_round_rect(a, 2, 3, 9, 6, SIZE_MAX, true);
+    fill_round_rect(b, 2, 3, 9, 6, 3, true);
+    TEST_ASSERT_TRUE(same_pixels(a, b));
+}
+
+TEST_CASE("gfx thin even ellipses leave rows without a pixel center inside empty",
+          "[idfxx][gfx]") {
+    // In a 2 x 8 box, no pixel center of the top and bottom rows lies inside
+    // the ellipse: its ink spans rows 1-6 of the box.
+    auto fb = make_fb(4, 16);
+    fill_ellipse(fb, 1, 1, 2, 8, true);
+    TEST_ASSERT_EQUAL(0, count_set_rows(fb, 0, 2));
+    TEST_ASSERT_EQUAL(0, count_set_rows(fb, 8, 16));
+    TEST_ASSERT_EQUAL(12, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx round shapes with a zero size draw nothing", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    fill_ellipse(fb, 2, 2, 0, 4, true);
+    fill_ellipse(fb, 2, 2, 4, 0, true);
+    draw_ellipse(fb, 2, 2, 0, 0, true);
+    fill_round_rect(fb, 2, 2, 0, 4, 1, true);
+    draw_round_rect(fb, 2, 2, 4, 0, 1, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+TEST_CASE("gfx round shapes at the int and size limits clip exactly", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+
+    // A box from INT_MIN spanning SIZE_MAX is centered near the origin, so
+    // the whole surface lies inside its ellipse and rounded rectangle, and
+    // their outlines lie far off the surface.
+    fill_ellipse(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, true);
+    TEST_ASSERT_EQUAL(16 * 16, count_set_pixels(fb));
+    fb.clear();
+    fill_round_rect(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, SIZE_MAX, true);
+    TEST_ASSERT_EQUAL(16 * 16, count_set_pixels(fb));
+    fb.clear();
+    draw_ellipse(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, true);
+    draw_round_rect(fb, INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX, 40, true);
+    fill_ellipse(fb, INT_MAX, INT_MAX, SIZE_MAX, SIZE_MAX, true);
+    fill_circle(fb, INT_MIN, INT_MIN, 100, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+
+    // A circle of radius 2^30 + 3 centered 2^30 left of the surface reaches
+    // columns 0-3 of every visible row; its terms near 2^124 need the full
+    // 128-bit test.
+    fill_circle(fb, -(1 << 30), 4, (size_t{1} << 30) + 3, true);
+    TEST_ASSERT_EQUAL(4 * 16, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 15) && !fb.get_pixel(4, 0));
+    fb.clear();
+    draw_circle(fb, -(1 << 30), 4, (size_t{1} << 30) + 3, true);
+    TEST_ASSERT_EQUAL(16, count_set_pixels(fb)); // the outline: column 3
+    TEST_ASSERT_TRUE(fb.get_pixel(3, 0) && fb.get_pixel(3, 15));
+
+    // A radius past INT_MAX is treated as INT_MAX: centered at INT_MIN + 1,
+    // the circle reaches column 0 alone.
+    fb.clear();
+    fill_circle(fb, INT_MIN + 1, 4, SIZE_MAX, true);
+    TEST_ASSERT_EQUAL(16, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(0, 0) && fb.get_pixel(0, 15));
+}
+
+// =============================================================================
+// Runtime tests: triangles
+// =============================================================================
+
+namespace {
+
+// True when the center of pixel (px, py) lies inside or on the triangle
+// with vertices (v[0], v[1]), (v[2], v[3]) and (v[4], v[5]); a degenerate
+// triangle holds its segment.
+bool in_triangle(const int (&v)[6], long px, long py) {
+    const auto edge = [&](int a, int b) {
+        return int64_t{v[b] - v[a]} * (py - v[a + 1]) - int64_t{v[b + 1] - v[a + 1]} * (px - v[a]);
+    };
+    const int64_t e0 = edge(0, 2);
+    const int64_t e1 = edge(2, 4);
+    const int64_t e2 = edge(4, 0);
+    const int64_t area =
+        int64_t{v[2] - v[0]} * (v[5] - v[1]) - int64_t{v[3] - v[1]} * (v[4] - v[0]);
+    if (area != 0) {
+        return (e0 >= 0 && e1 >= 0 && e2 >= 0) || (e0 <= 0 && e1 <= 0 && e2 <= 0);
+    }
+    const auto on_segment = [&](int a, int b, int64_t e) {
+        return e == 0 && px >= std::min(v[a], v[b]) && px <= std::max(v[a], v[b]) &&
+            py >= std::min(v[a + 1], v[b + 1]) && py <= std::max(v[a + 1], v[b + 1]);
+    };
+    return on_segment(0, 2, e0) || on_segment(2, 4, e1) || on_segment(4, 0, e2);
+}
+
+// Pixel (x, y) of fb, false off its edges.
+bool pixel_at(const mono_framebuffer& fb, long x, long y) {
+    return x >= 0 && y >= 0 && fb.get_pixel(x, y);
+}
+
+// True when fb holds fill_triangle's documented result for v: the pixels
+// centered inside the triangle or on an edge, together with the pixels of
+// outline, the triangle drawn by draw_triangle. With `rows`, also true only
+// when every row of that oracle is one run (checked on the oracle itself).
+bool fills_union(
+    const mono_framebuffer& fb,
+    const mono_framebuffer& outline,
+    const int (&v)[6],
+    bool rows
+) {
+    for (long y = 0; y < static_cast<long>(fb.height()); ++y) {
+        long runs = 0;
+        bool previous = false;
+        for (long x = 0; x < static_cast<long>(fb.width()); ++x) {
+            const bool expected = in_triangle(v, x, y) || outline.get_pixel(x, y);
+            if (fb.get_pixel(x, y) != expected) {
+                return false;
+            }
+            runs += expected && !previous ? 1 : 0;
+            previous = expected;
+        }
+        if (rows && runs > 1) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// True when outline's pixels are all in fill, and every fill pixel with a
+// horizontal or vertical neighbor outside the fill is an outline pixel.
+bool outline_bounds_fill(const mono_framebuffer& fill, const mono_framebuffer& outline) {
+    for (long y = 0; y < static_cast<long>(fill.height()); ++y) {
+        for (long x = 0; x < static_cast<long>(fill.width()); ++x) {
+            if (outline.get_pixel(x, y) && !fill.get_pixel(x, y)) {
+                return false;
+            }
+            const bool edge = !pixel_at(fill, x - 1, y) || !pixel_at(fill, x + 1, y) ||
+                !pixel_at(fill, x, y - 1) || !pixel_at(fill, x, y + 1);
+            if (fill.get_pixel(x, y) && edge && !outline.get_pixel(x, y)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// True when fb's set pixels (at most 32 x 32 of them) are 8-connected.
+bool eight_connected(const mono_framebuffer& fb) {
+    const long w = static_cast<long>(fb.width());
+    const long h = static_cast<long>(fb.height());
+    std::array<bool, 32 * 32> seen{};
+    std::array<int16_t, 32 * 32> stack{};
+    size_t depth = 0;
+    size_t total = 0;
+    for (long i = 0; i < w * h; ++i) {
+        if (fb.get_pixel(i % w, i / w)) {
+            if (total++ == 0) {
+                stack[depth++] = static_cast<int16_t>(i);
+                seen[i] = true;
+            }
+        }
+    }
+    size_t reached = 0;
+    while (depth > 0) {
+        const long i = stack[--depth];
+        ++reached;
+        for (long dy = -1; dy <= 1; ++dy) {
+            for (long dx = -1; dx <= 1; ++dx) {
+                const long x = i % w + dx;
+                const long y = i / w + dy;
+                if (x >= 0 && y >= 0 && x < w && y < h && !seen[y * w + x] && fb.get_pixel(x, y)) {
+                    seen[y * w + x] = true;
+                    stack[depth++] = static_cast<int16_t>(y * w + x);
+                }
+            }
+        }
+    }
+    return reached == total;
+}
+
+} // namespace
+
+TEST_CASE("gfx fill_triangle fills the pixels centered inside and those draw_triangle draws",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto outline = make_fb(16, 16);
+    // Pseudo-random triangles over and around the surface, clipped at every
+    // edge, every seventh one degenerate.
+    uint32_t seed = 1;
+    const auto next = [&seed] {
+        seed = seed * 1103515245u + 12345u;
+        return static_cast<int>((seed >> 16) % 24) - 4;
+    };
+    for (int n = 0; n < 1000; ++n) {
+        int v[6];
+        for (int& c : v) {
+            c = next();
+        }
+        if (n % 7 == 0) {
+            v[4] = v[0] + 2 * (v[2] - v[0]);
+            v[5] = v[1] + 2 * (v[3] - v[1]);
+        }
+        fb.clear();
+        outline.clear();
+        fill_triangle(fb, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        draw_triangle(outline, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        TEST_ASSERT_TRUE(fills_union(fb, outline, v, false));
+    }
+}
+
+TEST_CASE("gfx fill_triangle covers its outline, which bounds the fill", "[idfxx][gfx]") {
+    // Every triangle with its vertices in a 5x5 grid (degenerate, collinear,
+    // flat-topped and flat-bottomed ones included), drawn at least a pixel in
+    // from the surface's edges so no neighbor is clipped: each row of the
+    // fill is one run, the outline lies in the fill, and the fill's boundary
+    // is the outline. The outline is each edge drawn as a line from its upper
+    // endpoint (the grid points a <= b <= c are in that order), and every
+    // order of the same vertices fills and outlines exactly the same pixels.
+    auto fb = make_fb(8, 8);
+    auto outline = make_fb(8, 8);
+    auto lines = make_fb(8, 8);
+    auto other_fb = make_fb(8, 8);
+    auto other_outline = make_fb(8, 8);
+    const int orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+    size_t count = 0;
+    for (int a = 0; a < 25; ++a) {
+        for (int b = a; b < 25; ++b) {
+            for (int c = b; c < 25; ++c) {
+                const int v[6] = {1 + a % 5, 1 + a / 5, 1 + b % 5, 1 + b / 5, 1 + c % 5, 1 + c / 5};
+                fb.clear();
+                outline.clear();
+                fill_triangle(fb, v[0], v[1], v[2], v[3], v[4], v[5], true);
+                draw_triangle(outline, v[0], v[1], v[2], v[3], v[4], v[5], true);
+                const bool ok = fills_union(fb, outline, v, true) &&
+                    outline_bounds_fill(fb, outline) && eight_connected(fb);
+                TEST_ASSERT_TRUE(ok);
+                lines.clear();
+                draw_line(lines, v[0], v[1], v[2], v[3], true);
+                draw_line(lines, v[2], v[3], v[4], v[5], true);
+                draw_line(lines, v[0], v[1], v[4], v[5], true);
+                TEST_ASSERT_TRUE(same_pixels(lines, outline));
+                for (const auto& o : orders) {
+                    const int* p = &v[2 * o[0]];
+                    const int* q = &v[2 * o[1]];
+                    const int* r = &v[2 * o[2]];
+                    other_fb.clear();
+                    other_outline.clear();
+                    fill_triangle(other_fb, p[0], p[1], q[0], q[1], r[0], r[1], true);
+                    draw_triangle(other_outline, p[0], p[1], q[0], q[1], r[0], r[1], true);
+                    const bool same =
+                        same_pixels(fb, other_fb) && same_pixels(outline, other_outline);
+                    TEST_ASSERT_TRUE(same);
+                }
+                ++count;
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL(25 * 26 * 27 / 6, count); // every multiset of three grid points
+}
+
+TEST_CASE("gfx fill_triangle of slivers and sharp tips is connected and bounded by its outline",
+          "[idfxx][gfx]") {
+    // Long thin triangles across a 32x32 surface: the third vertex sits up
+    // to a pixel off a point along the first two's segment, or just past an
+    // end of it (a sharp tip).
+    auto fb = make_fb(32, 32);
+    auto outline = make_fb(32, 32);
+    uint32_t seed = 7;
+    const auto next = [&seed](int range) {
+        seed = seed * 1103515245u + 12345u;
+        return static_cast<int>((seed >> 16) % range);
+    };
+    for (int n = 0; n < 1500; ++n) {
+        int v[6];
+        for (int i = 0; i < 4; ++i) {
+            v[i] = 1 + next(30);
+        }
+        const int t = next(7) - 1; // -1/4 to 5/4 of the way along
+        v[4] = std::clamp(v[0] + (v[2] - v[0]) * t / 4 + next(3) - 1, 1, 30);
+        v[5] = std::clamp(v[1] + (v[3] - v[1]) * t / 4 + next(3) - 1, 1, 30);
+        fb.clear();
+        outline.clear();
+        fill_triangle(fb, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        draw_triangle(outline, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        const bool ok = fills_union(fb, outline, v, true) && outline_bounds_fill(fb, outline) &&
+            eight_connected(fb);
+        TEST_ASSERT_TRUE(ok);
+    }
+}
+
+TEST_CASE("gfx fill_triangle includes its vertices and edges in any vertex order",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    auto first = make_fb(8, 8);
+    fill_triangle(first, 1, 1, 3, 1, 1, 3, true);
+    TEST_ASSERT_TRUE(only_pixels(first, {{1, 1}, {2, 1}, {3, 1}, {1, 2}, {2, 2}, {1, 3}}));
+    const int v[3][2] = {{1, 1}, {3, 1}, {1, 3}};
+    const int orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+    for (const auto& o : orders) {
+        fb.clear();
+        const auto& a = v[o[0]];
+        const auto& b = v[o[1]];
+        const auto& c = v[o[2]];
+        fill_triangle(fb, a[0], a[1], b[0], b[1], c[0], c[1], true);
+        TEST_ASSERT_TRUE(same_pixels(first, fb));
+    }
+
+    // A clipped triangle with an edge with half-pixel ties fills and
+    // outlines the same pixels in every order.
+    auto fill = make_fb(16, 16);
+    auto outline = make_fb(16, 16);
+    auto first_fill = make_fb(16, 16);
+    auto first_outline = make_fb(16, 16);
+    const int w[3][2] = {{-3, -7}, {14, 5}, {1, 1}};
+    fill_triangle(first_fill, -3, -7, 14, 5, 1, 1, true);
+    draw_triangle(first_outline, -3, -7, 14, 5, 1, 1, true);
+    for (const auto& o : orders) {
+        fill.clear();
+        outline.clear();
+        const auto& a = w[o[0]];
+        const auto& b = w[o[1]];
+        const auto& c = w[o[2]];
+        fill_triangle(fill, a[0], a[1], b[0], b[1], c[0], c[1], true);
+        draw_triangle(outline, a[0], a[1], b[0], b[1], c[0], c[1], true);
+        TEST_ASSERT_TRUE(same_pixels(first_fill, fill) && same_pixels(first_outline, outline));
+    }
+}
+
+TEST_CASE("gfx degenerate triangles fill the pixels draw_triangle draws", "[idfxx][gfx]") {
+    auto fb = make_fb(8, 8);
+    auto outline = make_fb(8, 8);
+    fill_triangle(fb, 4, 4, 4, 4, 4, 4, true); // a point
+    TEST_ASSERT_TRUE(only_pixels(fb, {{4, 4}}));
+    fb.clear();
+    fill_triangle(fb, 1, 2, 6, 2, 3, 2, true); // horizontal
+    TEST_ASSERT_TRUE(only_pixels(fb, {{1, 2}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 2}}));
+    fb.clear();
+    fill_triangle(fb, 0, 0, 4, 4, 2, 2, true); // diagonal
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}}));
+    fb.clear();
+    // Steep, with half-pixel ties: every edge is walked down from its upper
+    // endpoint, so the long edge's pixels match the two short ones'.
+    fill_triangle(fb, 0, 0, 1, 2, 2, 4, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 0}, {1, 1}, {1, 2}, {2, 3}, {2, 4}}));
+    fb.clear();
+    fill_triangle(fb, 2, 4, 1, 2, 0, 0, true);
+    TEST_ASSERT_TRUE(only_pixels(fb, {{0, 0}, {1, 1}, {1, 2}, {2, 3}, {2, 4}}));
+
+    // Each fills exactly its outline.
+    const int degenerate[][6] = {
+        {4, 4, 4, 4, 4, 4},
+        {1, 2, 6, 2, 3, 2},
+        {0, 0, 4, 4, 2, 2},
+        {0, 0, 1, 2, 2, 4},
+        {7, 1, 1, 4, 5, 2},
+    };
+    for (const auto& v : degenerate) {
+        fb.clear();
+        outline.clear();
+        fill_triangle(fb, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        draw_triangle(outline, v[0], v[1], v[2], v[3], v[4], v[5], true);
+        TEST_ASSERT_TRUE(same_pixels(outline, fb));
+    }
+}
+
+TEST_CASE("gfx triangles sharing edges tile without gaps", "[idfxx][gfx]") {
+    // A rectangle split along a diagonal, and a hexagon fanned around an
+    // inner point, fill exactly the pixels of the whole.
+    auto fb = make_fb(16, 16);
+    fill_triangle(fb, 1, 1, 13, 1, 13, 9, true);
+    fill_triangle(fb, 1, 1, 13, 9, 1, 9, true);
+    auto whole = make_fb(16, 16);
+    fill_rect(whole, 1, 1, 13, 9, true);
+    TEST_ASSERT_TRUE(same_pixels(whole, fb));
+
+    fb.clear();
+    const int hex[6][2] = {{7, 0}, {14, 4}, {14, 11}, {7, 15}, {0, 11}, {0, 4}};
+    for (int i = 0; i < 6; ++i) {
+        const auto& a = hex[i];
+        const auto& b = hex[(i + 1) % 6];
+        fill_triangle(fb, 6, 8, a[0], a[1], b[0], b[1], true);
+    }
+    whole.clear();
+    fill_triangle(whole, 7, 0, 14, 4, 14, 11, true);
+    fill_triangle(whole, 7, 0, 14, 11, 7, 15, true);
+    fill_triangle(whole, 7, 0, 7, 15, 0, 11, true);
+    fill_triangle(whole, 7, 0, 0, 11, 0, 4, true);
+    TEST_ASSERT_TRUE(same_pixels(whole, fb));
+}
+
+TEST_CASE("gfx draw_triangle draws each edge as a line from its upper endpoint",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    auto lines = make_fb(16, 16);
+    draw_triangle(fb, -3, 2, 14, 5, 6, 19, true);
+    draw_line(lines, -3, 2, 14, 5, true);
+    draw_line(lines, 14, 5, 6, 19, true);
+    draw_line(lines, -3, 2, 6, 19, true);
+    TEST_ASSERT_TRUE(same_pixels(lines, fb));
+
+    // The edge between (1, 1) and (-3, -7) has half-pixel ties, which a line
+    // drawn up from (1, 1) rounds differently: the triangle draws it down.
+    fb.clear();
+    lines.clear();
+    draw_triangle(fb, -3, -7, 14, 5, 1, 1, true);
+    draw_line(lines, -3, -7, 14, 5, true);
+    draw_line(lines, 1, 1, 14, 5, true);
+    draw_line(lines, -3, -7, 1, 1, true);
+    TEST_ASSERT_TRUE(same_pixels(lines, fb));
+    lines.clear();
+    draw_line(lines, -3, -7, 14, 5, true);
+    draw_line(lines, 14, 5, 1, 1, true);
+    draw_line(lines, 1, 1, -3, -7, true);
+    TEST_ASSERT_FALSE(same_pixels(lines, fb));
+}
+
+TEST_CASE("gfx triangles at the int limits clip exactly", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 16);
+    // Far vertices with the edge x + y = 15 crossing the surface fill the
+    // pixels with x + y <= 15.
+    fill_triangle(fb, INT_MIN, INT_MIN, INT_MAX, 15 - INT_MAX, 15 - INT_MAX, INT_MAX, true);
+    TEST_ASSERT_EQUAL(16 * 17 / 2, count_set_pixels(fb));
+    TEST_ASSERT_TRUE(fb.get_pixel(15, 0) && fb.get_pixel(0, 15) && fb.get_pixel(7, 8));
+    TEST_ASSERT_FALSE(fb.get_pixel(8, 8));
+
+    fb.clear();
+    fill_triangle(fb, INT_MIN, INT_MIN, INT_MAX, INT_MIN, INT_MIN, INT_MAX, true); // x + y <= -1
+    fill_triangle(fb, INT_MAX, INT_MAX, INT_MAX, INT_MAX, INT_MAX, INT_MAX, true);
+    draw_triangle(fb, INT_MIN, INT_MIN, INT_MAX, INT_MIN, INT_MIN, INT_MIN, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+// =============================================================================
+// Runtime tests: bitmaps
+// =============================================================================
+
+namespace {
+
+// A 10x3 image, two bytes per row, with padding bits set in both bit
+// orders. MSB-first its rows are X......X.X, ..XXXX.... and X.........;
+// LSB-first X......XXX, ..XXXX..XX and .......XXX.
+constexpr uint8_t bitmap_bits[] = {0x81, 0x7F, 0x3C, 0x3F, 0x80, 0x3F};
+constexpr mono_bitmap msb_image{bitmap_bits, 10, 3};
+constexpr mono_bitmap lsb_image{bitmap_bits, 10, 3, bit_order::lsb_first};
+
+static_assert(msb_image.bytes_per_row() == 2);
+static_assert(mono_bitmap{{}, 8, 1}.bytes_per_row() == 1);
+static_assert(mono_bitmap{{}, 0, 1}.bytes_per_row() == 0);
+static_assert(mono_bitmap{{}, SIZE_MAX, 1}.bytes_per_row() == SIZE_MAX / 8 + 1);
+
+// A bitmap over a constexpr table is itself a constant expression (the
+// documented icon-table form), and refers to the whole table.
+constexpr uint8_t check_bits[] = {0x01, 0x03, 0x86, 0xCC, 0x78, 0x30};
+constexpr mono_bitmap check{check_bits, 8, 6};
+static_assert(check.data.data() == check_bits && check.data.size() == 6);
+static_assert(msb_image.data.size() == std::size(bitmap_bits));
+static_assert(mono_bitmap{.width = 8, .height = 1}.data.empty());
+
+// True when pixel (col, row) of a test image is set, decoded apart from gfx.
+bool image_bit(const mono_bitmap& b, size_t col, size_t row) {
+    const uint8_t byte = b.data[row * ((b.width + 7) / 8) + col / 8];
+    return b.order == bit_order::msb_first ? (byte & (0x80u >> (col % 8))) != 0
+                                           : (byte & (1u << (col % 8))) != 0;
+}
+
+// True when fb shows image b drawn at (ox, oy) over a background of
+// `background`: set bits are true, and clear bits *paper (or the
+// background, when paper is null).
+bool shows_image(
+    const mono_framebuffer& fb,
+    const mono_bitmap& b,
+    int ox,
+    int oy,
+    bool background,
+    const bool* paper
+) {
+    for (long y = 0; y < static_cast<long>(fb.height()); ++y) {
+        for (long x = 0; x < static_cast<long>(fb.width()); ++x) {
+            const long col = x - ox;
+            const long row = y - oy;
+            bool expected = background;
+            if (col >= 0 && row >= 0 && col < static_cast<long>(b.width) &&
+                row < static_cast<long>(b.height)) {
+                expected = image_bit(b, col, row) || (paper != nullptr ? *paper : background);
+            }
+            if (fb.get_pixel(x, y) != expected) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_CASE("bit_order to_string and formatter", "[idfxx][gfx]") {
+    TEST_ASSERT_EQUAL_STRING("msb_first", idfxx::to_string(bit_order::msb_first).c_str());
+    TEST_ASSERT_EQUAL_STRING("lsb_first", idfxx::to_string(bit_order::lsb_first).c_str());
+    TEST_ASSERT_EQUAL_STRING("unknown(99)", idfxx::to_string(static_cast<bit_order>(99)).c_str());
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    auto s = std::format("{}", bit_order::lsb_first);
+    TEST_ASSERT_EQUAL_STRING("lsb_first", s.c_str());
+#endif
+}
+
+TEST_CASE("gfx draw_bitmap decodes both bit orders and ignores row padding", "[idfxx][gfx]") {
+    auto fb = make_fb(16, 8);
+    draw_bitmap(fb, 2, 1, msb_image, true);
+    TEST_ASSERT_TRUE(
+        only_pixels(fb, {{2, 1}, {9, 1}, {11, 1}, {4, 2}, {5, 2}, {6, 2}, {7, 2}, {2, 3}})
+    );
+    fb.clear();
+    draw_bitmap(fb, 2, 1, lsb_image, true);
+    TEST_ASSERT_TRUE(only_pixels(
+        fb,
+        {{2, 1}, {9, 1}, {10, 1}, {11, 1},
+         {4, 2}, {5, 2}, {6, 2}, {7, 2}, {10, 2}, {11, 2},
+         {9, 3}, {10, 3}, {11, 3}}
+    ));
+}
+
+TEST_CASE("gfx draw_bitmap is transparent, or opaque with a paper value", "[idfxx][gfx]") {
+    const bool paper = false;
+    auto fb = make_fb(16, 8);
+    for (const mono_bitmap* b : {&msb_image, &lsb_image}) {
+        // Transparent: clear bits leave the background, set or not.
+        for (const bool background : {false, true}) {
+            fb.fill(background);
+            draw_bitmap(fb, 3, 2, *b, true);
+            TEST_ASSERT_TRUE(shows_image(fb, *b, 3, 2, background, nullptr));
+        }
+        // Opaque: every pixel the image covers is replaced.
+        fb.fill(true);
+        draw_bitmap(fb, 3, 2, *b, true, false);
+        TEST_ASSERT_TRUE(shows_image(fb, *b, 3, 2, true, &paper));
+        // Inverse: ink false punches the image out of a filled area.
+        fb.fill(true);
+        draw_bitmap(fb, 3, 2, *b, false);
+        for (size_t row = 0; row < b->height; ++row) {
+            for (size_t col = 0; col < b->width; ++col) {
+                TEST_ASSERT_EQUAL(!image_bit(*b, col, row), fb.get_pixel(3 + col, 2 + row));
+            }
+        }
+    }
+}
+
+TEST_CASE("gfx draw_bitmap draws only the complete rows its data holds", "[idfxx][gfx]") {
+    // The image's first two rows and half its third, then bytes with every
+    // bit set: a read past the data would draw them.
+    constexpr uint8_t bits[] = {0x81, 0x7F, 0x3C, 0x3F, 0x80, 0xFF, 0xFF, 0xFF, 0xFF};
+    const mono_bitmap short_image{std::span(bits).first(5), 10, 4};
+    const mono_bitmap two_rows{bitmap_bits, 10, 2};
+    auto fb = make_fb(16, 8);
+    auto expected = make_fb(16, 8);
+    draw_bitmap(fb, 2, 1, short_image, true);
+    draw_bitmap(expected, 2, 1, two_rows, true);
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+    TEST_ASSERT_TRUE(shows_image(fb, two_rows, 2, 1, false, nullptr));
+
+    // Opaque, through a canvas: only the two complete rows are written.
+    counting_surface surface;
+    canvas c(surface);
+    c.draw_bitmap(-3, 2, short_image, 1, 2);
+    TEST_ASSERT_EQUAL(7 * 2, surface.writes);
+    for (size_t y = 0; y < 8; ++y) {
+        for (size_t x = 0; x < 8; ++x) {
+            const bool covered = x < 7 && (y == 2 || y == 3);
+            const int value = !covered ? 0 : (image_bit(two_rows, x + 3, y - 2) ? 1 : 2);
+            TEST_ASSERT_EQUAL(value, surface.pixels[y][x]);
+        }
+    }
+
+    // No data, or less than one row, draws nothing.
+    surface = {};
+    draw_bitmap(surface, 0, 0, mono_bitmap{{}, 10, 4}, 1, 2);
+    draw_bitmap(surface, 0, 0, mono_bitmap{std::span(bits).first(1), 10, 4}, 1, 2);
+    c.draw_bitmap(0, 0, mono_bitmap{std::span(bits).first(1), 10, 4}, 1);
+    TEST_ASSERT_EQUAL(0, surface.writes);
+}
+
+TEST_CASE("gfx draw_bitmap layers transparent images in different inks", "[idfxx][gfx]") {
+    // A battery outline and its level, drawn at one origin: each ink lands
+    // only on its own layer's set bits.
+    constexpr uint8_t outline_bits[] = {0xF0, 0x90, 0xF0};
+    constexpr uint8_t level_bits[] = {0x00, 0x60, 0x00};
+    counting_surface surface;
+    draw_bitmap(surface, 1, 2, mono_bitmap{outline_bits, 4, 3}, 1);
+    draw_bitmap(surface, 1, 2, mono_bitmap{level_bits, 4, 3}, 2);
+    TEST_ASSERT_EQUAL(12, surface.writes);
+    for (size_t y = 0; y < 8; ++y) {
+        for (size_t x = 0; x < 8; ++x) {
+            const bool box = x >= 1 && x < 5 && y >= 2 && y < 5;
+            const bool level = box && y == 3 && (x == 2 || x == 3);
+            TEST_ASSERT_EQUAL(level ? 2 : (box ? 1 : 0), surface.pixels[y][x]);
+        }
+    }
+}
+
+TEST_CASE("gfx draw_bitmap clips off every edge", "[idfxx][gfx]") {
+    const bool paper = false;
+    auto fb = make_fb(8, 8);
+    for (const int ox : {-9, -4, -1, 0, 3, 7, 8}) {
+        for (const int oy : {-3, -1, 0, 6, 8}) {
+            fb.clear();
+            draw_bitmap(fb, ox, oy, msb_image, true);
+            TEST_ASSERT_TRUE(shows_image(fb, msb_image, ox, oy, false, nullptr));
+            fb.fill(true);
+            draw_bitmap(fb, ox, oy, lsb_image, true, false);
+            TEST_ASSERT_TRUE(shows_image(fb, lsb_image, ox, oy, true, &paper));
+        }
+    }
+    fb.clear();
+    draw_bitmap(fb, INT_MIN, INT_MIN, msb_image, true, true);
+    draw_bitmap(fb, INT_MAX, 0, msb_image, true, true);
+    draw_bitmap(fb, 0, INT_MAX, msb_image, true, true);
+    draw_bitmap(fb, 0, 0, mono_bitmap{bitmap_bits, 0, 3}, true, true);
+    draw_bitmap(fb, 0, 0, mono_bitmap{bitmap_bits, 10, 0}, true, true);
+    TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
+}
+
+// =============================================================================
+// Runtime tests: shapes through canvases and bands
+// =============================================================================
+
+namespace {
+
+constexpr uint8_t icon_bits[] = {0x3C, 0x42, 0xA5, 0x81, 0xA5, 0x99, 0x42, 0x3C};
+constexpr mono_bitmap icon{icon_bits, 8, 8};
+
+// Draws every shape and bitmap primitive across a 32x32 frame, crossing
+// band edges.
+template<typename Canvas>
+void draw_shape_scene(Canvas& c) {
+    c.fill_ellipse(-3, 2, 15, 11, true);
+    c.draw_ellipse(10, 5, 20, 14, true);
+    c.fill_circle(24, 24, 6, true);
+    c.draw_circle(8, 22, 9, true);
+    c.fill_round_rect(14, 0, 12, 9, 4, true);
+    c.draw_round_rect(2, 14, 26, 15, 5, true);
+    c.fill_triangle(0, 31, 12, 18, 20, 30, true);
+    c.draw_triangle(31, 0, 18, 15, 29, 20, true);
+    c.draw_bitmap(12, 4, icon, false);
+    c.draw_bitmap(26, 14, icon, true, false);
+}
+
+} // namespace
+
+TEST_CASE("gfx canvas shape members draw like the free functions", "[idfxx][gfx]") {
+    auto fb = make_fb(32, 32);
+    canvas c(fb);
+    draw_shape_scene(c);
+
+    auto expected = make_fb(32, 32);
+    fill_ellipse(expected, -3, 2, 15, 11, true);
+    draw_ellipse(expected, 10, 5, 20, 14, true);
+    fill_circle(expected, 24, 24, 6, true);
+    draw_circle(expected, 8, 22, 9, true);
+    fill_round_rect(expected, 14, 0, 12, 9, 4, true);
+    draw_round_rect(expected, 2, 14, 26, 15, 5, true);
+    fill_triangle(expected, 0, 31, 12, 18, 20, 30, true);
+    draw_triangle(expected, 31, 0, 18, 15, 29, 20, true);
+    draw_bitmap(expected, 12, 4, icon, false);
+    draw_bitmap(expected, 26, 14, icon, true, false);
+    TEST_ASSERT_TRUE(same_pixels(expected, fb));
+}
+
+TEST_CASE("gfx clipping: shapes render bands identical to a full frame", "[idfxx][gfx]") {
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { draw_shape_scene(c); }));
+    TEST_ASSERT_TRUE(bands_match_frame([](auto& c) { draw_shape_scene(c); }, 5));
+}
+
+TEST_CASE("gfx clipping: shapes write each visible pixel once and nothing outside the band",
+          "[idfxx][gfx]") {
+    // The surface backs columns 0-7 of rows 16-23 of a 32x32 space.
+    sized_counter<8, 8> surf;
+    canvas band(surf, 0, 16, 32, 32);
+    const auto set_pixels = [&surf] {
+        size_t n = 0;
+        for (size_t y = 0; y < 8; ++y) {
+            for (size_t x = 0; x < 8; ++x) {
+                n += surf.get_pixel(x, y) ? 1 : 0;
+            }
+        }
+        return n;
+    };
+
+    // Shapes whose bounding boxes miss the band reach no set_pixel call.
+    band.fill_ellipse(0, 0, 30, 15, true);
+    band.draw_circle(10, 6, 5, true);
+    band.fill_round_rect(0, 24, 8, 8, 2, true);
+    band.fill_triangle(0, 0, 31, 0, 0, 15, true);
+    band.draw_bitmap(0, 8, icon, true, false);
+    band.draw_bitmap(8, 16, icon, true, false);
+    TEST_ASSERT_EQUAL(0, surf.writes);
+
+    // Shapes crossing the band write each of its pixels they cover once.
+    band.fill_circle(4, 20, 6, true);
+    TEST_ASSERT_TRUE(surf.writes > 0);
+    TEST_ASSERT_EQUAL(set_pixels(), surf.writes);
+    surf = {};
+    band.draw_round_rect(-2, 10, 9, 20, 3, true);
+    TEST_ASSERT_TRUE(surf.writes > 0);
+    TEST_ASSERT_EQUAL(set_pixels(), surf.writes);
+    surf = {};
+    band.fill_triangle(-5, 10, 20, 18, 3, 30, true);
+    TEST_ASSERT_TRUE(surf.writes > 0);
+    TEST_ASSERT_EQUAL(set_pixels(), surf.writes);
+    surf = {};
+    band.draw_bitmap(-3, 14, icon, true, false); // covers columns 0-4 of rows 16-21
+    TEST_ASSERT_EQUAL(5 * 6, surf.writes);
+}
+
+// =============================================================================
+// Runtime tests: text ink bounds
+// =============================================================================
+
+namespace {
+
+using idfxx::font::ink_bounds;
+using idfxx::font::text_ink_bounds;
+
+// Returns the bounding box of fb's set pixels relative to (ox, oy), or
+// nullopt when none is set.
+std::optional<ink_bounds> inked_box(const mono_framebuffer& fb, long ox, long oy) {
+    long left = LONG_MAX;
+    long top = LONG_MAX;
+    long right = LONG_MIN;
+    long bottom = LONG_MIN;
+    for (long y = 0; y < static_cast<long>(fb.height()); ++y) {
+        for (long x = 0; x < static_cast<long>(fb.width()); ++x) {
+            if (fb.get_pixel(x, y)) {
+                left = std::min(left, x);
+                top = std::min(top, y);
+                right = std::max(right, x);
+                bottom = std::max(bottom, y);
+            }
+        }
+    }
+    if (right < left) {
+        return std::nullopt;
+    }
+    return ink_bounds{
+        static_cast<int>(left - ox),
+        static_cast<int>(top - oy),
+        static_cast<size_t>(right - left + 1),
+        static_cast<size_t>(bottom - top + 1),
+    };
+}
+
+} // namespace
+
+TEST_CASE("gfx text_ink_bounds matches the ink draw_text draws in a proportional font",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(48, 16);
+    // Negative left bearings ('j'), accents above the line ('é'),
+    // descenders ('g'), soft hyphens (never drawn), and a missing code point
+    // drawn as the replacement glyph, or skipped without one ('Z').
+    for (const std::string_view text :
+         {"A", "Agéj Agéj A", "j", "é", "g", "jA", "A­A", " A ", "Z", "AZ", "-", "", " ",
+          "­"}) {
+        fb.clear();
+        draw_text(fb, prop_font, 10, 6, text);
+        TEST_ASSERT_TRUE(inked_box(fb, 10, 6) == text_ink_bounds(prop_font, text));
+        fb.clear();
+        draw_text(fb, prop_font_no_replacement, 10, 6, text);
+        TEST_ASSERT_TRUE(inked_box(fb, 10, 6) == text_ink_bounds(prop_font_no_replacement, text));
+    }
+    TEST_ASSERT_FALSE(text_ink_bounds(prop_font, " ­ ").has_value());
+    TEST_ASSERT_FALSE(text_ink_bounds(prop_font_no_replacement, "ZZ").has_value());
+
+    // Drawing at (x - left, y - top) puts the ink's top-left pixel at (x, y).
+    const auto ink = text_ink_bounds(prop_font, "jAé");
+    TEST_ASSERT_TRUE(ink.has_value());
+    fb.clear();
+    draw_text(fb, prop_font, 20 - ink->left, 5 - ink->top, "jAé");
+    TEST_ASSERT_TRUE(inked_box(fb, 0, 0) == (ink_bounds{20, 5, ink->width, ink->height}));
+}
+
+TEST_CASE("gfx text_ink_bounds matches the ink of hyphenated text box lines", "[idfxx][gfx]") {
+    // Each line from break_lines, drawn in its place by draw_text_box, inks
+    // what text_ink_bounds reports for it, the drawn hyphen included.
+    const std::string_view text = "AA­AA­Agé j­A";
+    auto fb = make_fb(48, 64);
+    auto line_fb = make_fb(48, 64);
+    size_t hyphenated = 0;
+    for (const size_t width : {5, 8, 11, 14}) {
+        fb.clear();
+        draw_text_box(fb, prop_font, 6, 4, width, text, true);
+        size_t index = 0;
+        for (const auto& line : idfxx::font::break_lines(prop_font, text, width)) {
+            // Keep only this line's rows: its ink reaches one row above its
+            // top and stops before the next line's ink begins.
+            const long top = 4 + static_cast<long>(index * prop_font.line_height);
+            line_fb.clear();
+            for (long y = top - 1; y < top + prop_font.line_height - 1; ++y) {
+                for (size_t x = 0; x < 48; ++x) {
+                    line_fb.set_pixel(x, y, fb.get_pixel(x, y));
+                }
+            }
+            TEST_ASSERT_TRUE(inked_box(line_fb, 6, top) == text_ink_bounds(prop_font, line));
+            hyphenated += line.hyphenated ? 1 : 0;
+            ++index;
+        }
+        TEST_ASSERT_TRUE(index > 1);
+    }
+    TEST_ASSERT_TRUE(hyphenated > 0);
+}
+
+TEST_CASE("gfx text_ink_bounds clamps ink past the int range", "[idfxx][gfx]") {
+    // A hyphenated line as wide as a 32-bit size_t puts its '-' past
+    // INT_MAX: the box is clamped to the int range, and ink wholly past it
+    // leaves nothing.
+    using idfxx::font::text_line;
+    const size_t far = UINT32_MAX;
+    TEST_ASSERT_FALSE(text_ink_bounds(prop_font, text_line{"", far, true}).has_value());
+
+    const auto a = text_ink_bounds(prop_font, "A");
+    const auto hyphen = text_ink_bounds(prop_font, "-");
+    TEST_ASSERT_TRUE(a.has_value() && hyphen.has_value());
+    const auto ink = text_ink_bounds(prop_font, text_line{"A", far, true});
+    TEST_ASSERT_TRUE(ink.has_value());
+    const int top = std::min(a->top, hyphen->top);
+    const int bottom = std::max(
+        a->top + static_cast<int>(a->height), hyphen->top + static_cast<int>(hyphen->height)
+    );
+    TEST_ASSERT_EQUAL(a->left, ink->left);
+    TEST_ASSERT_EQUAL(top, ink->top);
+    TEST_ASSERT_TRUE(ink->width == static_cast<size_t>(INT_MAX - a->left));
+    TEST_ASSERT_TRUE(ink->height == static_cast<size_t>(bottom - top));
+}
+
+TEST_CASE("gfx text_ink_bounds matches the ink draw_text draws in a fixed-cell font",
+          "[idfxx][gfx]") {
+    auto fb = make_fb(64, 40);
+    for (const std::string_view text :
+         {"A", "Hi!", " .", "j_", "'", "  ", "", "\x01\x02", "\x01" "A"}) {
+        fb.clear();
+        draw_text(fb, spleen_5x8, 3, 2, text);
+        TEST_ASSERT_TRUE(inked_box(fb, 3, 2) == text_ink_bounds(spleen_5x8, text));
+        // Scaled text inks the unscaled box times the scale.
+        fb.clear();
+        draw_text(fb, spleen_5x8, 3, 2, text, true, 3);
+        const auto unscaled = text_ink_bounds(spleen_5x8, text);
+        const auto scaled = inked_box(fb, 3, 2);
+        TEST_ASSERT_EQUAL(unscaled.has_value(), scaled.has_value());
+        if (unscaled && scaled) {
+            TEST_ASSERT_TRUE(
+                *scaled ==
+                (ink_bounds{
+                    unscaled->left * 3, unscaled->top * 3, unscaled->width * 3, unscaled->height * 3
+                })
+            );
+        }
+    }
+    // A line from a text box inks what its text does.
+    for (const auto& line : idfxx::font::break_lines(spleen_5x8, "ab cd", 12)) {
+        TEST_ASSERT_TRUE(
+            text_ink_bounds(spleen_5x8, line) == text_ink_bounds(spleen_5x8, line.text)
+        );
+    }
 }

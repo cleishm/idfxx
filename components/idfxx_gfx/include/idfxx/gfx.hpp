@@ -9,14 +9,18 @@
  * @brief Drawing primitives for pixel surfaces.
  *
  * @defgroup idfxx_gfx Graphics Component
- * @brief Rectangles, lines, and text drawing on any pixel surface.
+ * @brief Shapes, lines, bitmaps and text drawing on any pixel surface.
  *
  * Provides integer drawing primitives over the @ref idfxx::gfx::pixel_surface
  * concept: any type with `set_pixel(x, y, pixel)` and reported dimensions can
  * be drawn on, with the ink value matching the surface's pixel type — `bool`
- * for monochrome framebuffers, `idfxx::lcd::rgb565` for color ones. All
- * functions render "ink only": they write the requested pixels and leave
- * everything else untouched, so drawing composes over existing content.
+ * for monochrome framebuffers, `idfxx::lcd::rgb565` for color ones. The
+ * primitives are rectangles (plain and rounded), ellipses and circles,
+ * triangles, lines, 1-bit bitmaps, and text in fixed-cell and proportional
+ * fonts. Drawing renders "ink only": it writes the requested pixels and
+ * leaves everything else untouched, so it composes over existing content
+ * (only an opaque @ref idfxx::gfx::draw_bitmap also writes the pixels under
+ * its clear bits).
  *
  * Positions are signed (`int`) and sizes unsigned (`size_t`): a shape or a
  * line of text may start or extend off any edge of the surface — scrolling
@@ -50,12 +54,14 @@
 #include <idfxx/font.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -222,21 +228,24 @@ struct clip_rect {
     }
 };
 
-// The visible bitmap columns and rows of a proportional glyph.
-struct glyph_spans {
+// The visible columns and rows of a packed 1-bit bitmap (a mono_bitmap or a
+// proportional glyph).
+struct bitmap_spans {
     unit_span cols;
     unit_span rows;
 };
 
-// Returns the visible part of glyph g's bitmap drawn with the pen at pen on
-// the baseline row baseline; both spans are empty when none is visible.
-[[nodiscard, gnu::noinline]] inline glyph_spans
-clip_glyph(const clip_rect& clip, wide pen, wide baseline, const font::glyph_metrics& g) noexcept {
-    const unit_span cols = clip_units(pen + g.x_offset, g.width, 1, clip.left, clip.right);
+// Returns the visible part of a width x height bitmap with its top-left
+// pixel at (x, y); both spans are empty when none is visible. The position
+// is wide so text can place glyphs past the int range exactly; callers pass
+// either an int position or a glyph-sized bitmap (see clip_units).
+[[nodiscard, gnu::noinline]] inline bitmap_spans
+clip_bitmap(const clip_rect& clip, wide x, wide y, size_t width, size_t height) noexcept {
+    const unit_span cols = clip_units(x, width, 1, clip.left, clip.right);
     if (cols.first >= cols.last) {
         return {};
     }
-    return {cols, clip_units(baseline + g.y_offset, g.height, 1, clip.top, clip.bottom)};
+    return {cols, clip_units(y, height, 1, clip.top, clip.bottom)};
 }
 
 // Returns the drawable rectangle of a canvas, in its coordinates: its
@@ -642,6 +651,932 @@ void draw_line(
 /** @cond INTERNAL */
 namespace detail {
 
+// The pixels of one row of a shape, inside the clip: row y's columns
+// [first.begin, first.end) and [second.begin, second.end), either or both
+// possibly empty.
+struct row_spans {
+    size_t y;
+    interval first;
+    interval second;
+};
+
+// Produces a shape's rows one at a time from the state it points to:
+// stores the next row in out and returns true, or returns false once the
+// shape has no rows left inside the clip.
+using span_source = bool (*)(void* state, row_spans& out) noexcept;
+
+// Writes ink to every pixel of every row a span source produces. All the
+// filled and outlined shapes draw through this one loop, so each surface
+// type instantiates it once whatever shapes it draws.
+template<pixel_surface Surface>
+void fill_spans(
+    Surface& surface,
+    span_source next,
+    void* state,
+    typename Surface::pixel_type ink
+) noexcept {
+    for (row_spans r; next(state, r);) {
+        for (size_t px = r.first.begin; px < r.first.end; ++px) {
+            surface.set_pixel(px, r.y, ink);
+        }
+        for (size_t px = r.second.begin; px < r.second.end; ++px) {
+            surface.set_pixel(px, r.y, ink);
+        }
+    }
+}
+
+// An unsigned 128-bit value, for the exact ellipse test.
+struct u128 {
+    uint64_t hi;
+    uint64_t lo;
+};
+
+// Returns the full product a * b.
+[[nodiscard]] constexpr u128 multiply(uint64_t a, uint64_t b) noexcept {
+    const uint64_t a_lo = a & 0xFFFFFFFFu;
+    const uint64_t a_hi = a >> 32;
+    const uint64_t b_lo = b & 0xFFFFFFFFu;
+    const uint64_t b_hi = b >> 32;
+    const uint64_t ll = a_lo * b_lo;
+    const uint64_t lh = a_lo * b_hi;
+    const uint64_t hl = a_hi * b_lo;
+    const uint64_t mid = (ll >> 32) + (lh & 0xFFFFFFFFu) + (hl & 0xFFFFFFFFu);
+    return {a_hi * b_hi + (lh >> 32) + (hl >> 32) + (mid >> 32), (mid << 32) | (ll & 0xFFFFFFFFu)};
+}
+
+[[nodiscard]] constexpr bool less_equal(const u128& a, const u128& b) noexcept {
+    return a.hi < b.hi || (a.hi == b.hi && a.lo <= b.lo);
+}
+
+// The largest box side the ellipse test handles exactly; longer sides are
+// clamped to it (only reachable where size_t is wider than 32 bits).
+inline constexpr uint64_t max_ellipse_side = 0xFFFFFFFFu;
+
+// Returns the inset marking a row of a w-wide box with no pixel inside.
+[[nodiscard]] constexpr uint64_t empty_inset(uint64_t w) noexcept {
+    return (w + 1) / 2;
+}
+
+// Returns the columns on each side of row j of a w x h box (0 < w, h <=
+// max_ellipse_side, j < h) outside the ellipse inscribed in it: the row's
+// pixels inside are [inset, w - inset), none when 2 * inset >= w.
+//
+// Pixel (i, j) is inside when its center lies inside or on the ellipse.
+// With u = 2i + 1 - w and v = 2j + 1 - h (twice the center's offsets from
+// the box's center), that is u^2 h^2 + v^2 w^2 <= w^2 h^2, or
+// (u h)^2 <= w^2 (h^2 - v^2) with h^2 - v^2 = (2j + 1) (2h - 2j - 1): both
+// sides are below 2^128 and every factor below 2^64.
+[[nodiscard, gnu::noinline]] inline uint64_t
+ellipse_inset(uint64_t w, uint64_t h, uint64_t j) noexcept {
+    const u128 room = multiply(w * w, (2 * j + 1) * (2 * h - 2 * j - 1));
+    // The largest u in [0, w) with (u h)^2 <= room, found bit by bit (the
+    // test holds for every u up to it).
+    uint64_t u = 0;
+    for (uint64_t bit = std::bit_floor(w); bit != 0; bit >>= 1) {
+        const uint64_t t = u | bit;
+        if (t < w && less_equal(multiply(t * h, t * h), room)) {
+            u = t;
+        }
+    }
+    // u takes the parity of w - 1: step down to the largest such value.
+    if (((u ^ (w - 1)) & 1) != 0) {
+        if (u == 0) {
+            return empty_inset(w); // no pixel of the row is inside
+        }
+        --u;
+    }
+    return (w - 1 - u) / 2;
+}
+
+// A box with rounded corners at (x, y): rows of w x h whose corners are the
+// quadrants of the ellipse inscribed in a cw x ch box (cw <= w, ch <= h).
+// An ellipse is the box with cw = w and ch = h, a rectangle the box with
+// cw = ch = 0. Sides are at most max_ellipse_side.
+struct round_box {
+    wide x;
+    wide y;
+    uint64_t w;
+    uint64_t h;
+    uint64_t cw;
+    uint64_t ch;
+};
+
+// Returns the columns on each side of row j (< b.h) of a round box outside
+// it: the row's pixels inside are [inset, b.w - inset), none when
+// 2 * inset >= b.w. The top ch / 2 rows are those of the corner ellipse's
+// top half, the bottom ch / 2 rows those of its bottom half, and the rows
+// between span the whole box.
+[[nodiscard, gnu::noinline]] inline uint64_t round_inset(const round_box& b, uint64_t j) noexcept {
+    const uint64_t half = b.ch / 2;
+    if (j >= half && j < b.h - half) {
+        return 0;
+    }
+    return ellipse_inset(b.cw, b.ch, j < half ? j : j - (b.h - b.ch));
+}
+
+// The ellipse inscribed in the width x height box at (x, y).
+[[nodiscard]] constexpr round_box ellipse_box(int x, int y, size_t width, size_t height) noexcept {
+    const uint64_t w = std::min<uint64_t>(width, max_ellipse_side);
+    const uint64_t h = std::min<uint64_t>(height, max_ellipse_side);
+    return {x, y, w, h, w, h};
+}
+
+// The circle of a radius (clamped to INT_MAX) around (cx, cy): the ellipse
+// inscribed in the box of 2 * radius + 1 pixels centered on it.
+[[nodiscard]] constexpr round_box circle_box(int cx, int cy, size_t radius) noexcept {
+    const uint64_t r = std::min<uint64_t>(radius, static_cast<uint64_t>(coordinate_limit));
+    const uint64_t d = 2 * r + 1;
+    return {wide{cx} - static_cast<wide>(r), wide{cy} - static_cast<wide>(r), d, d, d, d};
+}
+
+// The width x height rectangle at (x, y) with corners of a radius clamped
+// to half its shorter side.
+[[nodiscard]] constexpr round_box
+round_rect_box(int x, int y, size_t width, size_t height, size_t radius) noexcept {
+    const uint64_t w = std::min<uint64_t>(width, max_ellipse_side);
+    const uint64_t h = std::min<uint64_t>(height, max_ellipse_side);
+    const uint64_t r = std::min<uint64_t>(radius, std::min(w, h) / 2);
+    return {x, y, w, h, 2 * r, 2 * r};
+}
+
+// The state of filling or outlining a round box inside a clip, a row at a
+// time: surface rows [row, end) remain. For outlines, once primed, above
+// and inset hold the insets of the box rows at row - 1 and row (an inset of
+// empty_inset marking a row outside the box).
+struct round_walk {
+    round_box box;
+    size_t left;
+    size_t right;
+    size_t row;
+    size_t end;
+    uint64_t above;
+    uint64_t inset;
+    bool primed;
+};
+
+// Starts a walk over the rows of b inside clip; it has no rows when b's
+// bounding box misses the clip.
+[[nodiscard, gnu::noinline]] inline round_walk
+start_round(const clip_rect& clip, const round_box& b) noexcept {
+    round_walk w{b, clip.left, clip.right, 0, 0, 0, 0, false};
+    const interval cols = clip_span(b.x, b.w, clip.left, clip.right);
+    const interval rows = clip_span(b.y, b.h, clip.top, clip.bottom);
+    if (cols.begin >= cols.end || rows.begin >= rows.end) {
+        return w;
+    }
+    w.row = rows.begin;
+    w.end = rows.end;
+    return w;
+}
+
+// Starts a walk over the ellipse inscribed in the width x height box at (x, y).
+[[nodiscard, gnu::noinline]] inline round_walk
+start_ellipse(const clip_rect& clip, int x, int y, size_t width, size_t height) noexcept {
+    return start_round(clip, ellipse_box(x, y, width, height));
+}
+
+// Starts a walk over the circle of a radius around (cx, cy).
+[[nodiscard, gnu::noinline]] inline round_walk
+start_circle(const clip_rect& clip, int cx, int cy, size_t radius) noexcept {
+    return start_round(clip, circle_box(cx, cy, radius));
+}
+
+// Starts a walk over the width x height rectangle at (x, y) with rounded corners.
+[[nodiscard, gnu::noinline]] inline round_walk start_round_rect(
+    const clip_rect& clip,
+    int x,
+    int y,
+    size_t width,
+    size_t height,
+    size_t radius
+) noexcept {
+    return start_round(clip, round_rect_box(x, y, width, height, radius));
+}
+
+// Returns the columns [inset, b.w - inset) of b's rows, clipped to [left, right).
+[[nodiscard]] inline interval
+clip_inset(const round_box& b, uint64_t inset, size_t left, size_t right) noexcept {
+    if (2 * inset >= b.w) {
+        return {};
+    }
+    return clip_span(b.x + static_cast<wide>(inset), b.w - 2 * inset, left, right);
+}
+
+// The span_source of a filled round box (state: a round_walk).
+[[nodiscard, gnu::noinline]] inline bool next_round_fill(void* state, row_spans& out) noexcept {
+    round_walk& w = *static_cast<round_walk*>(state);
+    if (w.row >= w.end) {
+        return false;
+    }
+    const uint64_t j = static_cast<uint64_t>(static_cast<wide>(w.row) - w.box.y);
+    out = {w.row, clip_inset(w.box, round_inset(w.box, j), w.left, w.right), {}};
+    ++w.row;
+    return true;
+}
+
+// The span_source of an outlined round box (state: a round_walk): each
+// row's pixels inside the box with a horizontal or vertical neighbor
+// outside it. The neighbors come from the box's geometry, not the clip.
+[[nodiscard, gnu::noinline]] inline bool next_round_outline(void* state, row_spans& out) noexcept {
+    round_walk& w = *static_cast<round_walk*>(state);
+    if (w.row >= w.end) {
+        return false;
+    }
+    const round_box& b = w.box;
+    const uint64_t j = static_cast<uint64_t>(static_cast<wide>(w.row) - b.y);
+    if (!w.primed) {
+        // The walk's first row: look up it and the row above it.
+        w.above = j != 0 ? round_inset(b, j - 1) : empty_inset(b.w);
+        w.inset = round_inset(b, j);
+        w.primed = true;
+    }
+    const uint64_t below = j + 1 < b.h ? round_inset(b, j + 1) : empty_inset(b.w);
+    const uint64_t a = w.inset;
+    // Pixels [m, b.w - m) have all four neighbors inside.
+    const uint64_t m = std::max({a + 1, w.above, below});
+    out.y = w.row;
+    if (2 * m >= b.w) {
+        out.first = clip_inset(b, a, w.left, w.right);
+        out.second = {};
+    } else {
+        out.first = clip_span(b.x + static_cast<wide>(a), m - a, w.left, w.right);
+        out.second = clip_span(b.x + static_cast<wide>(b.w - m), m - a, w.left, w.right);
+    }
+    w.above = a;
+    w.inset = below;
+    ++w.row;
+    return true;
+}
+
+} // namespace detail
+/** @endcond */
+
+/**
+ * @brief Fills an ellipse with the given ink.
+ *
+ * Fills the ellipse inscribed in the box whose top-left corner is at
+ * (@p x, @p y) and which spans @p width columns and @p height rows: a pixel
+ * of the box is filled when its center lies inside the ellipse or on it.
+ * The test is exact, so the ellipse is symmetric about both of the box's
+ * center lines, and boxes of even and odd sizes work alike (an even-sized
+ * box has no center pixel). Very thin boxes may leave their end rows or
+ * columns empty, where no pixel center lies inside. A zero @p width or
+ * @p height draws nothing. Any part falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Left edge of the bounding box, in pixels; may be negative or off the surface.
+ * @param y       Top edge of the bounding box, in pixels; may be negative or off the surface.
+ * @param width   Width of the bounding box, in pixels.
+ * @param height  Height of the bounding box, in pixels.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void fill_ellipse(
+    Surface& surface,
+    int x,
+    int y,
+    size_t width,
+    size_t height,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk = detail::start_ellipse(detail::clip_of(surface), x, y, width, height);
+    detail::fill_spans(surface, &detail::next_round_fill, &walk, ink);
+}
+
+/**
+ * @brief Outlines an ellipse with the given ink.
+ *
+ * Draws the one-pixel boundary of the ellipse @ref fill_ellipse fills with
+ * the same arguments: the pixels it fills that have a horizontal or
+ * vertical neighbor it does not fill. The outline has no gaps, and filling
+ * the same ellipse covers it exactly. A zero @p width or @p height draws
+ * nothing. Any part falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Left edge of the bounding box, in pixels; may be negative or off the surface.
+ * @param y       Top edge of the bounding box, in pixels; may be negative or off the surface.
+ * @param width   Width of the bounding box, in pixels.
+ * @param height  Height of the bounding box, in pixels.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void draw_ellipse(
+    Surface& surface,
+    int x,
+    int y,
+    size_t width,
+    size_t height,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk = detail::start_ellipse(detail::clip_of(surface), x, y, width, height);
+    detail::fill_spans(surface, &detail::next_round_outline, &walk, ink);
+}
+
+/**
+ * @brief Fills a circle with the given ink.
+ *
+ * Fills the circle of @p radius pixels around the pixel (@p cx, @p cy): by
+ * definition, the ellipse @ref fill_ellipse fills in the square box of
+ * `2 * radius + 1` pixels centered on that pixel, so its pixels are those
+ * whose centers lie within `radius + 0.5` of the center pixel's. A radius
+ * of 0 fills the center pixel alone, and a radius of 1 the 3 x 3 square
+ * around it. A radius past `INT_MAX` is treated as `INT_MAX`. Any part
+ * falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param cx      Column of the center pixel; may be negative or off the surface.
+ * @param cy      Row of the center pixel; may be negative or off the surface.
+ * @param radius  Radius, in pixels, from the center pixel to the edge pixels.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void fill_circle(
+    Surface& surface,
+    int cx,
+    int cy,
+    size_t radius,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk = detail::start_circle(detail::clip_of(surface), cx, cy, radius);
+    detail::fill_spans(surface, &detail::next_round_fill, &walk, ink);
+}
+
+/**
+ * @brief Outlines a circle with the given ink.
+ *
+ * Draws the one-pixel boundary of the circle @ref fill_circle fills with
+ * the same arguments (the outline @ref draw_ellipse draws in the square box
+ * of `2 * radius + 1` pixels centered on (@p cx, @p cy)). A radius of 0
+ * draws the center pixel alone. A radius past `INT_MAX` is treated as
+ * `INT_MAX`. Any part falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param cx      Column of the center pixel; may be negative or off the surface.
+ * @param cy      Row of the center pixel; may be negative or off the surface.
+ * @param radius  Radius, in pixels, from the center pixel to the edge pixels.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void draw_circle(
+    Surface& surface,
+    int cx,
+    int cy,
+    size_t radius,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk = detail::start_circle(detail::clip_of(surface), cx, cy, radius);
+    detail::fill_spans(surface, &detail::next_round_outline, &walk, ink);
+}
+
+/**
+ * @brief Fills a rectangle with rounded corners with the given ink.
+ *
+ * The rectangle's top-left corner is at (@p x, @p y) and it spans @p width
+ * columns and @p height rows. Each corner is a quadrant of the ellipse
+ * @ref fill_ellipse fills in a `2 * radius` square box, so
+ * `fill_round_rect(s, x, y, 2 * r, 2 * r, r, ink)` fills the same pixels as
+ * `fill_ellipse(s, x, y, 2 * r, 2 * r, ink)`, and a radius of 0 fills the
+ * plain rectangle. The radius is clamped to half the shorter side. Small
+ * radii round little: a radius of 1 trims no pixel from the corners, and
+ * radii of 2 and 3 trim one pixel from each. A zero @p width or @p height
+ * draws nothing. Any part falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Left edge of the rectangle, in pixels; may be negative or off the surface.
+ * @param y       Top edge of the rectangle, in pixels; may be negative or off the surface.
+ * @param width   Width of the rectangle, in pixels.
+ * @param height  Height of the rectangle, in pixels.
+ * @param radius  Corner radius, in pixels; clamped to `min(width, height) / 2`.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void fill_round_rect(
+    Surface& surface,
+    int x,
+    int y,
+    size_t width,
+    size_t height,
+    size_t radius,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk =
+        detail::start_round_rect(detail::clip_of(surface), x, y, width, height, radius);
+    detail::fill_spans(surface, &detail::next_round_fill, &walk, ink);
+}
+
+/**
+ * @brief Outlines a rectangle with rounded corners with the given ink.
+ *
+ * Draws the one-pixel boundary of the rounded rectangle
+ * @ref fill_round_rect fills with the same arguments: the pixels it fills
+ * that have a horizontal or vertical neighbor it does not fill. The outline
+ * has no gaps, and with a radius of 0 it is the outline @ref draw_rect
+ * draws. A zero @p width or @p height draws nothing. Any part falling
+ * outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Left edge of the rectangle, in pixels; may be negative or off the surface.
+ * @param y       Top edge of the rectangle, in pixels; may be negative or off the surface.
+ * @param width   Width of the rectangle, in pixels.
+ * @param height  Height of the rectangle, in pixels.
+ * @param radius  Corner radius, in pixels; clamped to `min(width, height) / 2`.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void draw_round_rect(
+    Surface& surface,
+    int x,
+    int y,
+    size_t width,
+    size_t height,
+    size_t radius,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::round_walk walk =
+        detail::start_round_rect(detail::clip_of(surface), x, y, width, height, radius);
+    detail::fill_spans(surface, &detail::next_round_outline, &walk, ink);
+}
+
+/** @cond INTERNAL */
+namespace detail {
+
+// The state of filling a triangle inside a clip, a row at a time: surface
+// rows [row, end) remain. The vertices are sorted by row and, within a row,
+// by column (top, middle, bottom), so each edge runs from its upper endpoint
+// (the left one for a horizontal edge), as draw_triangle draws it. long_left
+// tells whether the top-to-bottom edge bounds the rows on the left (the
+// middle vertex lies right of it).
+struct triangle_walk {
+    wide tx;
+    wide ty;
+    wide mx;
+    wide my;
+    wide bx;
+    wide by;
+    wide min_x;
+    wide max_x;
+    size_t left;
+    size_t right;
+    size_t row;
+    size_t end;
+    bool long_left;
+};
+
+// True when (x1, y1) comes before (x0, y0) by row, then column: a triangle
+// edge between them starts at (x1, y1), its upper endpoint (the left one for
+// a horizontal edge), where the outline and the fill both draw it from.
+[[nodiscard]] constexpr bool edge_reversed(int x0, int y0, int x1, int y1) noexcept {
+    return y1 < y0 || (y1 == y0 && x1 < x0);
+}
+
+// An inclusive run [first, last] of a row's columns; empty when first > last.
+struct column_run {
+    wide first;
+    wide last;
+};
+
+// Returns the columns of row y holding pixels of the line draw_line draws
+// from (x0, y0) to (x1, y1), empty when the line misses the row. Its walk
+// steps once along the major (longer) axis per pixel, and its step k lies
+// at the minor step skip_line places it at, so a row at minor step t of an
+// x-major line holds the steps from the first at minor step t up to the one
+// before the first at t + 1, and a row of a y-major line holds the one
+// pixel at major step t.
+[[nodiscard]] constexpr column_run line_row(wide x0, wide y0, wide x1, wide y1, wide y) noexcept {
+    if (y < std::min(y0, y1) || y > std::max(y0, y1)) {
+        return {1, 0};
+    }
+    const uint64_t dx = static_cast<uint64_t>(x1 > x0 ? x1 - x0 : x0 - x1);
+    const uint64_t dy = static_cast<uint64_t>(y1 > y0 ? y1 - y0 : y0 - y1);
+    const uint64_t t = static_cast<uint64_t>(y > y0 ? y - y0 : y0 - y);
+    const wide sx = x0 < x1 ? 1 : -1;
+    if (dx < dy) {
+        const wide x = x0 + sx * static_cast<wide>(skip_line(dy, dx, t, 0).minor);
+        return {x, x};
+    }
+    uint64_t first = 0;
+    uint64_t last = dx;
+    if (dy != 0) {
+        first = skip_line(dx, dy, 0, t).major;
+        last = t == dy ? dx : skip_line(dx, dy, 0, t + 1).major - 1;
+    }
+    const wide a = x0 + sx * static_cast<wide>(first);
+    const wide b = x0 + sx * static_cast<wide>(last);
+    return {std::min(a, b), std::max(a, b)};
+}
+
+// The columns where an edge crosses a row: the floor and ceiling of its
+// exact (rational) column there.
+struct edge_crossing {
+    wide floor;
+    wide ceil;
+};
+
+// Returns where the edge from (ax, ay) down to (bx, by), ay < by, crosses
+// row y, ay <= y <= by. The offsets are below 2^32, so their product fits
+// 64 bits; the sign is handled apart from the magnitude.
+[[nodiscard]] constexpr edge_crossing
+cross_edge(wide ax, wide ay, wide bx, wide by, wide y) noexcept {
+    const uint64_t n = static_cast<uint64_t>(y - ay);
+    const uint64_t d = static_cast<uint64_t>(by - ay);
+    const wide dx = bx - ax;
+    const uint64_t product = n * static_cast<uint64_t>(dx < 0 ? -dx : dx);
+    const wide q = static_cast<wide>(product / d); // at most |dx|, since n <= d
+    const wide frac = product % d != 0 ? 1 : 0;
+    if (dx >= 0) {
+        return {ax + q, ax + q + frac};
+    }
+    return {ax - q - frac, ax - q};
+}
+
+// Returns the sign of a * b - c * d, for factors below 2^32 in magnitude
+// with b, c >= 0.
+[[nodiscard]] constexpr int compare_products(wide a, wide b, wide c, wide d) noexcept {
+    const bool p_neg = a < 0;
+    const bool q_neg = d < 0;
+    const uint64_t p = static_cast<uint64_t>(p_neg ? -a : a) * static_cast<uint64_t>(b);
+    const uint64_t q = static_cast<uint64_t>(c) * static_cast<uint64_t>(q_neg ? -d : d);
+    // Compare the signed values -p or p against -q or q.
+    const auto signed_order = [](bool neg, uint64_t v) { return neg && v != 0 ? -1 : (v != 0); };
+    const int ps = signed_order(p_neg, p);
+    const int qs = signed_order(q_neg, q);
+    if (ps != qs) {
+        return ps < qs ? -1 : 1;
+    }
+    if (p == q) {
+        return 0;
+    }
+    return (p > q) == (ps > 0) ? 1 : -1;
+}
+
+// Starts a walk over the rows of the triangle with the given vertices
+// inside clip; it has no rows when the triangle's bounding box misses the
+// clip.
+[[nodiscard, gnu::noinline]] inline triangle_walk
+start_triangle(const clip_rect& clip, int x0, int y0, int x1, int y1, int x2, int y2) noexcept {
+    triangle_walk w{};
+    // Sort the vertices by row, then column: equal vertices are the same
+    // point, so every order of the same three gives the same walk.
+    if (edge_reversed(x0, y0, x1, y1)) {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+    if (edge_reversed(x1, y1, x2, y2)) {
+        std::swap(x1, x2);
+        std::swap(y1, y2);
+    }
+    if (edge_reversed(x0, y0, x1, y1)) {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+    w.tx = x0;
+    w.ty = y0;
+    w.mx = x1;
+    w.my = y1;
+    w.bx = x2;
+    w.by = y2;
+    w.min_x = std::min({x0, x1, x2});
+    w.max_x = std::max({x0, x1, x2});
+    w.left = clip.left;
+    w.right = clip.right;
+    const interval cols =
+        clip_span(w.min_x, static_cast<uint64_t>(w.max_x - w.min_x) + 1, clip.left, clip.right);
+    const interval rows =
+        clip_span(w.ty, static_cast<uint64_t>(w.by - w.ty) + 1, clip.top, clip.bottom);
+    if (cols.begin >= cols.end || rows.begin >= rows.end) {
+        return w;
+    }
+    w.row = rows.begin;
+    w.end = rows.end;
+    // The middle vertex lies right of the top-to-bottom edge when the cross
+    // product of that edge and the top-to-middle offset is negative (rows
+    // grow downward).
+    w.long_left = compare_products(w.bx - w.tx, w.my - w.ty, w.by - w.ty, w.mx - w.tx) < 0;
+    return w;
+}
+
+// The span_source of a filled triangle (state: a triangle_walk): each row's
+// pixels whose centers lie inside the triangle or on its edges, together
+// with the pixels of its edges as draw_triangle draws them (top to middle,
+// middle to bottom and top to bottom, each from its upper endpoint). Each part
+// reaches the other's columns or the columns next to them (a line's pixels
+// in a row include the floor or the ceiling of the edge's exact column
+// there), so together they are one run from the leftmost to the rightmost.
+[[nodiscard, gnu::noinline]] inline bool next_triangle(void* state, row_spans& out) noexcept {
+    triangle_walk& w = *static_cast<triangle_walk*>(state);
+    if (w.row >= w.end) {
+        return false;
+    }
+    const wide y = static_cast<wide>(w.row);
+    wide begin = w.min_x;
+    wide last = w.max_x;
+    if (w.ty != w.by) {
+        const edge_crossing along = cross_edge(w.tx, w.ty, w.bx, w.by, y);
+        const edge_crossing across = y < w.my ? cross_edge(w.tx, w.ty, w.mx, w.my, y)
+            : y > w.my                        ? cross_edge(w.mx, w.my, w.bx, w.by, y)
+                                              : edge_crossing{w.mx, w.mx};
+        begin = w.long_left ? along.ceil : across.ceil;
+        last = w.long_left ? across.floor : along.floor;
+    } // else every vertex is on this one row: the row spans them all
+    const column_run edges[] = {
+        line_row(w.tx, w.ty, w.mx, w.my, y),
+        line_row(w.mx, w.my, w.bx, w.by, y),
+        line_row(w.tx, w.ty, w.bx, w.by, y),
+    };
+    for (const column_run& edge : edges) {
+        if (edge.first > edge.last) {
+            continue;
+        }
+        if (begin > last) {
+            begin = edge.first;
+            last = edge.last;
+        } else {
+            begin = std::min(begin, edge.first);
+            last = std::max(last, edge.last);
+        }
+    }
+    out = {w.row, {}, {}};
+    if (begin <= last) {
+        out.first = clip_span(begin, static_cast<uint64_t>(last - begin) + 1, w.left, w.right);
+    }
+    ++w.row;
+    return true;
+}
+
+} // namespace detail
+/** @endcond */
+
+/**
+ * @brief Fills a triangle with the given ink.
+ *
+ * Each vertex names a pixel, as a @ref draw_line endpoint does, and the
+ * triangle's edges run between those pixels' centers. A pixel is filled
+ * when its center lies inside the triangle or on one of its edges, and so
+ * is every pixel @ref draw_triangle draws for the same vertices. The fill
+ * thus covers the outline, and every fill pixel with a horizontal or
+ * vertical neighbor outside the fill is an outline pixel, so a filled
+ * triangle with a border drawn by @ref draw_triangle lines up. Neither the
+ * fill nor the outline depends on the order the vertices are given in.
+ * Triangles sharing an edge leave no gap between them, and a degenerate
+ * triangle (all vertices on one line) fills the pixels @ref draw_triangle
+ * draws for it. Any part falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x0      Column of the first vertex, in pixels; may be negative or off the surface.
+ * @param y0      Row of the first vertex, in pixels; may be negative or off the surface.
+ * @param x1      Column of the second vertex, in pixels; may be negative or off the surface.
+ * @param y1      Row of the second vertex, in pixels; may be negative or off the surface.
+ * @param x2      Column of the third vertex, in pixels; may be negative or off the surface.
+ * @param y2      Row of the third vertex, in pixels; may be negative or off the surface.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void fill_triangle(
+    Surface& surface,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::triangle_walk walk =
+        detail::start_triangle(detail::clip_of(surface), x0, y0, x1, y1, x2, y2);
+    detail::fill_spans(surface, &detail::next_triangle, &walk, ink);
+}
+
+/**
+ * @brief Outlines a triangle with the given ink.
+ *
+ * Draws each of the triangle's three edges as @ref draw_line does from the
+ * edge's upper endpoint (the left one for a horizontal edge) to the other,
+ * including both, so the pixels drawn don't depend on the order the
+ * vertices are given in. @ref fill_triangle fills these pixels too for the
+ * same vertices, so a filled triangle and its outline line up. Any part
+ * falling outside the surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x0      Column of the first vertex, in pixels; may be negative or off the surface.
+ * @param y0      Row of the first vertex, in pixels; may be negative or off the surface.
+ * @param x1      Column of the second vertex, in pixels; may be negative or off the surface.
+ * @param y1      Row of the second vertex, in pixels; may be negative or off the surface.
+ * @param x2      Column of the third vertex, in pixels; may be negative or off the surface.
+ * @param y2      Row of the third vertex, in pixels; may be negative or off the surface.
+ * @param ink     The pixel value to write.
+ */
+template<pixel_surface Surface>
+void draw_triangle(
+    Surface& surface,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    typename Surface::pixel_type ink
+) noexcept {
+    // Each edge from its upper endpoint, or the left one of a horizontal edge.
+    const auto edge = [&surface, ink](int ax, int ay, int bx, int by) {
+        if (detail::edge_reversed(ax, ay, bx, by)) {
+            std::swap(ax, bx);
+            std::swap(ay, by);
+        }
+        draw_line(surface, ax, ay, bx, by, ink);
+    };
+    edge(x0, y0, x1, y1);
+    edge(x1, y1, x2, y2);
+    edge(x2, y2, x0, y0);
+}
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Order of the pixels packed into each byte of a @ref mono_bitmap row.
+ */
+enum class bit_order : uint8_t {
+    /// The most significant bit of each byte is its leftmost pixel (the layout of the font
+    /// bitmaps).
+    msb_first,
+    /// The least significant bit of each byte is its leftmost pixel (the XBM layout, as exported
+    /// by GIMP and drawn by u8g2).
+    lsb_first,
+};
+
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief A 1-bit image, such as an icon, for @ref draw_bitmap.
+ *
+ * The image is @ref height rows of @ref bytes_per_row bytes (`ceil(width / 8)`),
+ * top row first, each row's pixels packed left to right in the given
+ * @ref order; set bits are the image's ink, clear bits its background, and
+ * the padding bits after the last pixel of a row are ignored. The bitmap
+ * refers to its data rather than owning it, so icon tables can be
+ * `constexpr`:
+ *
+ * @code
+ * constexpr uint8_t check_bits[] = {0x01, 0x03, 0x86, 0xCC, 0x78, 0x30};
+ * constexpr idfxx::gfx::mono_bitmap check{check_bits, 8, 6};
+ * @endcode
+ *
+ * Drawing never reads past @ref data: when it holds fewer than @ref height
+ * complete rows, only the complete rows it holds are drawn.
+ */
+struct mono_bitmap {
+    /// The pixel rows: @ref height rows of @ref bytes_per_row bytes. Must outlive every draw.
+    std::span<const uint8_t> data = {};
+    /// Width of the image, in pixels.
+    size_t width;
+    /// Height of the image, in pixels.
+    size_t height;
+    /// Order of the pixels within each byte.
+    bit_order order = bit_order::msb_first;
+
+    /** @brief Returns the number of bytes in one row: `ceil(width / 8)`. */
+    [[nodiscard]] constexpr size_t bytes_per_row() const noexcept {
+        return width / 8 + (width % 8 != 0 ? 1 : 0);
+    }
+};
+
+/** @cond INTERNAL */
+namespace detail {
+
+// Returns the visible part of a bitmap drawn with its top-left pixel at
+// (x, y), limited to the complete rows its data holds.
+[[nodiscard, gnu::noinline]] inline bitmap_spans
+clip_mono_bitmap(const clip_rect& clip, int x, int y, const mono_bitmap& bitmap) noexcept {
+    const size_t bpr = bitmap.bytes_per_row();
+    const size_t rows = bpr == 0 ? 0 : std::min(bitmap.height, bitmap.data.size() / bpr);
+    return clip_bitmap(clip, x, y, bitmap.width, rows);
+}
+
+// Writes the visible part of a packed 1-bit bitmap, rows of bpr bytes from
+// bits: set bits in ink, and clear bits in *paper unless paper is null. Bit
+// (col % 8) ^ flip of a byte, counting from its least significant, is pixel
+// col: flip is 7 for MSB-first rows and 0 for LSB-first ones. Bitmaps and
+// proportional text both draw through this one loop, so each surface type
+// instantiates it once.
+template<pixel_surface Surface>
+void blit_bits(
+    Surface& surface,
+    const bitmap_spans& spans,
+    const uint8_t* bits,
+    size_t bpr,
+    unsigned flip,
+    typename Surface::pixel_type ink,
+    const typename Surface::pixel_type* paper
+) noexcept {
+    const unit_span& cols = spans.cols;
+    const unit_span& rows = spans.rows;
+    for (size_t row = rows.first; row < rows.last; ++row) {
+        const uint8_t* row_bits = bits + row * bpr;
+        const size_t py = rows.base + row;
+        for (size_t col = cols.first; col < cols.last; ++col) {
+            if ((row_bits[col / 8] >> ((col % 8) ^ flip)) & 1u) {
+                surface.set_pixel(cols.base + col, py, ink);
+            } else if (paper != nullptr) {
+                surface.set_pixel(cols.base + col, py, *paper);
+            }
+        }
+    }
+}
+
+// Draws a bitmap as draw_bitmap does: set bits in ink, and clear bits in
+// *paper unless paper is null.
+template<pixel_surface Surface>
+void draw_bits(
+    Surface& surface,
+    int x,
+    int y,
+    const mono_bitmap& bitmap,
+    typename Surface::pixel_type ink,
+    const typename Surface::pixel_type* paper
+) noexcept {
+    blit_bits(
+        surface,
+        clip_mono_bitmap(clip_of(surface), x, y, bitmap),
+        bitmap.data.data(),
+        bitmap.bytes_per_row(),
+        bitmap.order == bit_order::msb_first ? 7 : 0,
+        ink,
+        paper
+    );
+}
+
+} // namespace detail
+/** @endcond */
+
+/**
+ * @brief Draws a 1-bit bitmap's set pixels with the given ink.
+ *
+ * Places the bitmap's top-left pixel at (@p x, @p y) and writes @p ink
+ * where its bits are set, leaving the pixels under its clear bits
+ * untouched, so the image composes over existing content: drawing two
+ * bitmaps at one origin in different inks layers them (on a monochrome
+ * surface, pass `ink = false` to punch the image out of a filled area).
+ * Any part falling outside the surface is clipped.
+ *
+ * @code
+ * canvas.draw_bitmap(4, 4, battery_outline, black);
+ * canvas.draw_bitmap(4, 4, battery_level, red); // second layer, same origin
+ * @endcode
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Column of the bitmap's left edge, in pixels; may be negative or off the surface.
+ * @param y       Row of the bitmap's top edge, in pixels; may be negative or off the surface.
+ * @param bitmap  The bitmap to draw; only the complete rows its data holds are drawn.
+ * @param ink     The pixel value to write for set bits.
+ */
+template<pixel_surface Surface>
+void draw_bitmap(
+    Surface& surface,
+    int x,
+    int y,
+    const mono_bitmap& bitmap,
+    typename Surface::pixel_type ink
+) noexcept {
+    detail::draw_bits(surface, x, y, bitmap, ink, nullptr);
+}
+
+/**
+ * @brief Draws a 1-bit bitmap opaquely, with set pixels in one value and clear pixels in another.
+ *
+ * Places the bitmap's top-left pixel at (@p x, @p y) and writes every
+ * pixel it covers: @p ink where its bits are set and @p paper where they
+ * are clear, replacing what was there. Any part falling outside the
+ * surface is clipped.
+ *
+ * @tparam Surface The surface type (satisfies @ref pixel_surface).
+ * @param surface The surface to draw on.
+ * @param x       Column of the bitmap's left edge, in pixels; may be negative or off the surface.
+ * @param y       Row of the bitmap's top edge, in pixels; may be negative or off the surface.
+ * @param bitmap  The bitmap to draw; only the complete rows its data holds are drawn.
+ * @param ink     The pixel value to write for set bits.
+ * @param paper   The pixel value to write for clear bits.
+ */
+template<pixel_surface Surface>
+void draw_bitmap(
+    Surface& surface,
+    int x,
+    int y,
+    const mono_bitmap& bitmap,
+    typename Surface::pixel_type ink,
+    typename Surface::pixel_type paper
+) noexcept {
+    detail::draw_bits(surface, x, y, bitmap, ink, &paper);
+}
+
+/** @cond INTERNAL */
+namespace detail {
+
 // Draws fixed-cell text as draw_text does, with the first cell's top-left
 // corner at (x, y). The position is wide so a text box can place lines past
 // the int range exactly.
@@ -801,19 +1736,11 @@ void draw_proportional(
         if (g == nullptr) {
             continue; // skipped, or a soft hyphen (invisible)
         }
-        const auto [cols, rows] = clip_glyph(clip, pen, baseline, *g);
+        const bitmap_spans spans =
+            clip_bitmap(clip, pen + g->x_offset, baseline + g->y_offset, g->width, g->height);
         pen += g->advance;
-        const size_t bpr = g->bytes_per_row();
-        const uint8_t* bitmap = font.glyph_bitmap(*g);
-        for (size_t row = rows.first; row < rows.last; ++row) {
-            const uint8_t* row_bits = bitmap + row * bpr;
-            const size_t py = rows.base + row;
-            for (size_t col = cols.first; col < cols.last; ++col) {
-                if (row_bits[col / 8] & (0x80u >> (col % 8))) {
-                    surface.set_pixel(cols.base + col, py, ink);
-                }
-            }
-        }
+        // Glyph rows have the MSB-first layout of a mono_bitmap.
+        blit_bits(surface, spans, font.glyph_bitmap(*g), g->bytes_per_row(), 7, ink, nullptr);
     }
 }
 
@@ -1490,6 +2417,216 @@ public:
     }
 
     /**
+     * @brief Fills an ellipse with the given ink.
+     *
+     * Fills the ellipse inscribed in the box whose top-left corner is at
+     * (@p x, @p y) and which spans @p width columns and @p height rows: a
+     * pixel of the box is filled when its center lies inside the ellipse
+     * or on it, so the ellipse is symmetric and boxes of even and odd sizes
+     * work alike. A zero @p width or @p height draws nothing. Any part
+     * falling outside the canvas is clipped.
+     *
+     * @param x      Left edge of the bounding box, in pixels; may be negative or off the canvas.
+     * @param y      Top edge of the bounding box, in pixels; may be negative or off the canvas.
+     * @param width  Width of the bounding box, in pixels.
+     * @param height Height of the bounding box, in pixels.
+     * @param ink    The pixel value to write.
+     */
+    void fill_ellipse(int x, int y, size_t width, size_t height, pixel_type ink) noexcept {
+        gfx::fill_ellipse(*this, x, y, width, height, ink);
+    }
+
+    /**
+     * @brief Outlines an ellipse with the given ink.
+     *
+     * Draws the one-pixel boundary of the ellipse @ref fill_ellipse fills
+     * with the same arguments: the pixels it fills that have a horizontal
+     * or vertical neighbor it does not fill. A zero @p width or @p height
+     * draws nothing. Any part falling outside the canvas is clipped.
+     *
+     * @param x      Left edge of the bounding box, in pixels; may be negative or off the canvas.
+     * @param y      Top edge of the bounding box, in pixels; may be negative or off the canvas.
+     * @param width  Width of the bounding box, in pixels.
+     * @param height Height of the bounding box, in pixels.
+     * @param ink    The pixel value to write.
+     */
+    void draw_ellipse(int x, int y, size_t width, size_t height, pixel_type ink) noexcept {
+        gfx::draw_ellipse(*this, x, y, width, height, ink);
+    }
+
+    /**
+     * @brief Fills a circle with the given ink.
+     *
+     * Fills the ellipse @ref fill_ellipse fills in the square box of
+     * `2 * radius + 1` pixels centered on the pixel (@p cx, @p cy). A
+     * radius of 0 fills the center pixel alone. A radius past `INT_MAX` is
+     * treated as `INT_MAX`. Any part falling outside the canvas is clipped.
+     *
+     * @param cx     Column of the center pixel; may be negative or off the canvas.
+     * @param cy     Row of the center pixel; may be negative or off the canvas.
+     * @param radius Radius, in pixels, from the center pixel to the edge pixels.
+     * @param ink    The pixel value to write.
+     */
+    void fill_circle(int cx, int cy, size_t radius, pixel_type ink) noexcept {
+        gfx::fill_circle(*this, cx, cy, radius, ink);
+    }
+
+    /**
+     * @brief Outlines a circle with the given ink.
+     *
+     * Draws the one-pixel boundary of the circle @ref fill_circle fills with
+     * the same arguments. A radius past `INT_MAX` is treated as `INT_MAX`.
+     * Any part falling outside the canvas is clipped.
+     *
+     * @param cx     Column of the center pixel; may be negative or off the canvas.
+     * @param cy     Row of the center pixel; may be negative or off the canvas.
+     * @param radius Radius, in pixels, from the center pixel to the edge pixels.
+     * @param ink    The pixel value to write.
+     */
+    void draw_circle(int cx, int cy, size_t radius, pixel_type ink) noexcept {
+        gfx::draw_circle(*this, cx, cy, radius, ink);
+    }
+
+    /**
+     * @brief Fills a rectangle with rounded corners with the given ink.
+     *
+     * The rectangle's top-left corner is at (@p x, @p y) and it spans
+     * @p width columns and @p height rows. Each corner is a quadrant of the
+     * ellipse @ref fill_ellipse fills in a `2 * radius` square box; a radius
+     * of 0 fills the plain rectangle. A zero @p width or @p height draws
+     * nothing. Any part falling outside the canvas is clipped.
+     *
+     * @param x      Left edge of the rectangle, in pixels; may be negative or off the canvas.
+     * @param y      Top edge of the rectangle, in pixels; may be negative or off the canvas.
+     * @param width  Width of the rectangle, in pixels.
+     * @param height Height of the rectangle, in pixels.
+     * @param radius Corner radius, in pixels; clamped to `min(width, height) / 2`.
+     * @param ink    The pixel value to write.
+     */
+    void fill_round_rect(
+        int x,
+        int y,
+        size_t width,
+        size_t height,
+        size_t radius,
+        pixel_type ink
+    ) noexcept {
+        gfx::fill_round_rect(*this, x, y, width, height, radius, ink);
+    }
+
+    /**
+     * @brief Outlines a rectangle with rounded corners with the given ink.
+     *
+     * Draws the one-pixel boundary of the rounded rectangle
+     * @ref fill_round_rect fills with the same arguments: the pixels it
+     * fills that have a horizontal or vertical neighbor it does not fill. A
+     * zero @p width or @p height draws nothing. Any part falling outside the
+     * canvas is clipped.
+     *
+     * @param x      Left edge of the rectangle, in pixels; may be negative or off the canvas.
+     * @param y      Top edge of the rectangle, in pixels; may be negative or off the canvas.
+     * @param width  Width of the rectangle, in pixels.
+     * @param height Height of the rectangle, in pixels.
+     * @param radius Corner radius, in pixels; clamped to `min(width, height) / 2`.
+     * @param ink    The pixel value to write.
+     */
+    void draw_round_rect(
+        int x,
+        int y,
+        size_t width,
+        size_t height,
+        size_t radius,
+        pixel_type ink
+    ) noexcept {
+        gfx::draw_round_rect(*this, x, y, width, height, radius, ink);
+    }
+
+    /**
+     * @brief Fills a triangle with the given ink.
+     *
+     * Each vertex names a pixel, as a @ref draw_line endpoint does. A pixel
+     * is filled when its center lies inside the triangle or on one of its
+     * edges, and so is every pixel @ref draw_triangle draws for the same
+     * vertices, whatever their order, so a filled triangle with a border
+     * lines up and triangles sharing an edge leave no gap between them. Any
+     * part falling outside the canvas is clipped.
+     *
+     * @param x0  Column of the first vertex, in pixels; may be negative or off the canvas.
+     * @param y0  Row of the first vertex, in pixels; may be negative or off the canvas.
+     * @param x1  Column of the second vertex, in pixels; may be negative or off the canvas.
+     * @param y1  Row of the second vertex, in pixels; may be negative or off the canvas.
+     * @param x2  Column of the third vertex, in pixels; may be negative or off the canvas.
+     * @param y2  Row of the third vertex, in pixels; may be negative or off the canvas.
+     * @param ink The pixel value to write.
+     */
+    void fill_triangle(int x0, int y0, int x1, int y1, int x2, int y2, pixel_type ink) noexcept {
+        gfx::fill_triangle(*this, x0, y0, x1, y1, x2, y2, ink);
+    }
+
+    /**
+     * @brief Outlines a triangle with the given ink.
+     *
+     * Draws each of the triangle's three edges as @ref draw_line does from
+     * the edge's upper endpoint (the left one for a horizontal edge) to the
+     * other, including both, so the pixels drawn don't depend on the order
+     * the vertices are given in. @ref fill_triangle fills these pixels too
+     * for the same vertices, so a filled triangle and its outline line up.
+     * Any part falling outside the canvas is clipped.
+     *
+     * @param x0  Column of the first vertex, in pixels; may be negative or off the canvas.
+     * @param y0  Row of the first vertex, in pixels; may be negative or off the canvas.
+     * @param x1  Column of the second vertex, in pixels; may be negative or off the canvas.
+     * @param y1  Row of the second vertex, in pixels; may be negative or off the canvas.
+     * @param x2  Column of the third vertex, in pixels; may be negative or off the canvas.
+     * @param y2  Row of the third vertex, in pixels; may be negative or off the canvas.
+     * @param ink The pixel value to write.
+     */
+    void draw_triangle(int x0, int y0, int x1, int y1, int x2, int y2, pixel_type ink) noexcept {
+        gfx::draw_triangle(*this, x0, y0, x1, y1, x2, y2, ink);
+    }
+
+    /**
+     * @brief Draws a 1-bit bitmap's set pixels with the given ink.
+     *
+     * Places the bitmap's top-left pixel at (@p x, @p y) and writes @p ink
+     * where its bits are set, leaving the pixels under its clear bits
+     * untouched, so bitmaps drawn at one origin in different inks layer.
+     * Any part falling outside the canvas is clipped.
+     *
+     * @param x      Column of the bitmap's left edge, in pixels; may be negative or off the canvas.
+     * @param y      Row of the bitmap's top edge, in pixels; may be negative or off the canvas.
+     * @param bitmap The bitmap to draw; only the complete rows its data holds are drawn.
+     * @param ink    The pixel value to write for set bits.
+     */
+    void draw_bitmap(int x, int y, const mono_bitmap& bitmap, pixel_type ink) noexcept {
+        gfx::draw_bitmap(*this, x, y, bitmap, ink);
+    }
+
+    /**
+     * @brief Draws a 1-bit bitmap opaquely, with set pixels in one value and clear pixels in
+     *        another.
+     *
+     * Places the bitmap's top-left pixel at (@p x, @p y) and writes every
+     * pixel it covers: @p ink where its bits are set and @p paper where they
+     * are clear. Any part falling outside the canvas is clipped.
+     *
+     * @param x      Column of the bitmap's left edge, in pixels; may be negative or off the canvas.
+     * @param y      Row of the bitmap's top edge, in pixels; may be negative or off the canvas.
+     * @param bitmap The bitmap to draw; only the complete rows its data holds are drawn.
+     * @param ink    The pixel value to write for set bits.
+     * @param paper  The pixel value to write for clear bits.
+     */
+    void draw_bitmap(
+        int x,
+        int y,
+        const mono_bitmap& bitmap,
+        pixel_type ink,
+        pixel_type paper
+    ) noexcept {
+        gfx::draw_bitmap(*this, x, y, bitmap, ink, paper);
+    }
+
+    /**
      * @brief Draws text with the given ink.
      *
      * Renders @p text left-to-right starting with its top-left corner at
@@ -2066,6 +3203,24 @@ namespace idfxx {
     }
 }
 
+/**
+ * @headerfile <idfxx/gfx>
+ * @brief Returns a string representation of a bitmap bit order.
+ *
+ * @param o The bit order to convert.
+ * @return The enumerator name (e.g. "msb_first"), or "unknown(N)" for unrecognized values.
+ */
+[[nodiscard]] inline std::string to_string(gfx::bit_order o) {
+    switch (o) {
+    case gfx::bit_order::msb_first:
+        return "msb_first";
+    case gfx::bit_order::lsb_first:
+        return "lsb_first";
+    default:
+        return "unknown(" + std::to_string(std::to_underlying(o)) + ')';
+    }
+}
+
 } // namespace idfxx
 
 /** @} */ // end of idfxx_gfx
@@ -2091,6 +3246,16 @@ struct formatter<idfxx::gfx::text_align> {
 
     template<typename FormatContext>
     auto format(idfxx::gfx::text_align v, FormatContext& ctx) const {
+        auto s = idfxx::to_string(v);
+        return std::copy(s.begin(), s.end(), ctx.out());
+    }
+};
+template<>
+struct formatter<idfxx::gfx::bit_order> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::gfx::bit_order v, FormatContext& ctx) const {
         auto s = idfxx::to_string(v);
         return std::copy(s.begin(), s.end(), ctx.out());
     }
