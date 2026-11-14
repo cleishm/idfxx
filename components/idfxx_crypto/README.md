@@ -505,6 +505,17 @@ Codes with a standard POSIX synonym also compare equal to it:
 | `storage_failure`, `hardware_failure` | `io_error`                  |
 | `invalid_handle`                      | `bad_file_descriptor`       |
 
+Crypto errors have their own category, so they never compare equal to `idfxx::errc` values. Code
+that checks errors from several idfxx components should compare against `std::errc`, which matches
+the synonyms from every component:
+
+```cpp
+auto op = idfxx::crypto::hash::operation::make(alg);
+if (!op && op.error() == std::errc::not_supported) {
+    // The algorithm isn't enabled. Comparing with idfxx::errc::not_supported would miss this.
+}
+```
+
 ## Important Notes
 
 - **Available algorithms are set at compile time** by the mbedTLS configuration (`Component config`
@@ -531,6 +542,9 @@ Codes with a standard POSIX synonym also compare equal to it:
   algorithm in hardware, so HMAC with SHA-3 is always computed in software. AES-CMAC uses the
   chip's AES engine with `CONFIG_MBEDTLS_HARDWARE_AES` (on by default). This is what ESP-IDF
   selects for each configuration; the speed of each path hasn't been measured.
+- **Input can be in PSRAM.** Messages to hash or authenticate can be in external RAM (PSRAM) as
+  well as internal RAM, at any alignment, including data written just before the call; there is no
+  need to copy them to internal RAM first.
 - **AES-CMAC with 192-bit keys.** Only the esp32 and esp32s2 AES engines take 192-bit keys. On the
   other supported targets with `CONFIG_MBEDTLS_HARDWARE_AES`, an AES-192 key imports, but on
   ESP-IDF 5.5 using it with `cmac` fails with `crypto::errc::not_supported` when a message starts
