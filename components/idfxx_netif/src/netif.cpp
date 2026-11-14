@@ -7,9 +7,16 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <esp_netif.h>
 #include <esp_netif_sntp.h>
+#include <limits>
+#include <memory>
+
+#ifdef CONFIG_LWIP_DHCPS
+#include <dhcpserver/dhcpserver.h>
+#endif
 
 namespace idfxx::netif {
 
@@ -39,7 +46,9 @@ interface interface::wrap(esp_netif_t* handle) {
 void interface::_release() noexcept {
     if (_destroy != nullptr && _handle != nullptr) {
         esp_netif_dhcpc_stop(_handle);
+#ifdef CONFIG_LWIP_DHCPS
         esp_netif_dhcps_stop(_handle);
+#endif
         _destroy(_handle);
     }
 }
@@ -53,6 +62,10 @@ interface& interface::operator=(interface&& other) noexcept {
         _release();
         _handle = std::exchange(other._handle, nullptr);
         _destroy = std::exchange(other._destroy, nullptr);
+#ifdef CONFIG_LWIP_DHCPS
+        // Freed only now that the handle that pointed at it is destroyed
+        _captive_portal_uri = std::move(other._captive_portal_uri);
+#endif
     }
     return *this;
 }
@@ -401,7 +414,7 @@ bool interface::is_dhcp_client_running() const {
     if (!get_flags().contains(flag::dhcp_client)) {
         return false;
     }
-    esp_netif_dhcp_status_t status;
+    esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
     esp_netif_dhcpc_get_status(_handle, &status);
     return status == ESP_NETIF_DHCP_STARTED;
 }
@@ -409,6 +422,43 @@ bool interface::is_dhcp_client_running() const {
 // =========================================================================
 // DHCP server
 // =========================================================================
+
+#ifdef CONFIG_LWIP_DHCPS
+
+namespace {
+
+// Space the DHCP server leaves for the captive-portal URI. It writes every offered option into a
+// 312-byte field without bounds checks, and the options other than the URI take up to 63 bytes
+// (magic cookie 4, message type 3, subnet mask 6, lease time 6, server ID 6, router 6, DNS 10,
+// broadcast 6, MTU 4, router discovery 3, vendor info 8, end 1), plus 2 for the URI's own header.
+constexpr size_t max_captive_portal_uri_size = 312 - 63 - 2;
+
+// The lease time in the driver's units of CONFIG_LWIP_DHCPS_LEASE_UNIT seconds, rounded up, or
+// nullopt if it is not positive or doesn't fit the driver's 32-bit seconds.
+std::optional<dhcps_time_t> lease_units(std::chrono::seconds lease_time) {
+    constexpr int64_t unit = CONFIG_LWIP_DHCPS_LEASE_UNIT;
+    constexpr int64_t max_units = std::numeric_limits<uint32_t>::max() / unit;
+    auto seconds = lease_time.count();
+    if (seconds <= 0) {
+        return std::nullopt;
+    }
+    auto units = seconds / unit + (seconds % unit != 0 ? 1 : 0);
+    if (units > max_units) {
+        return std::nullopt;
+    }
+    return static_cast<dhcps_time_t>(units);
+}
+
+result<void>
+set_dhcps_option(esp_netif_t* handle, esp_netif_dhcp_option_id_t id, void* value, uint32_t size) {
+    auto err = esp_netif_dhcps_option(handle, ESP_NETIF_OP_SET, id, value, size);
+    if (err != ESP_OK) {
+        return netif_error(err);
+    }
+    return {};
+}
+
+} // namespace
 
 result<void> interface::try_dhcp_server_start() {
     if (!get_flags().contains(flag::dhcp_server)) {
@@ -419,6 +469,88 @@ result<void> interface::try_dhcp_server_start() {
         return netif_error(err);
     }
     return {};
+}
+
+result<void> interface::try_dhcp_server_start(const dhcp_server_config& cfg) {
+    if (!get_flags().contains(flag::dhcp_server)) {
+        return error(idfxx::errc::invalid_state);
+    }
+
+    // Check the whole configuration before changing anything
+    std::optional<dhcps_time_t> lease_time;
+    if (cfg.lease_time) {
+        lease_time = lease_units(*cfg.lease_time);
+        if (!lease_time) {
+            return error(idfxx::errc::invalid_arg);
+        }
+    }
+    std::unique_ptr<char[]> uri;
+    if (cfg.captive_portal_uri) {
+        const auto& value = *cfg.captive_portal_uri;
+        if (value.empty() || value.size() > max_captive_portal_uri_size ||
+            value.find('\0') != std::string::npos) {
+            return error(idfxx::errc::invalid_arg);
+        }
+        // The driver keeps the pointer for the life of the handle, which a non-owning interface
+        // can't guarantee
+        if (_destroy == nullptr) {
+            return error(idfxx::errc::invalid_state);
+        }
+        uri = std::make_unique<char[]>(value.size() + 1);
+        std::memcpy(uri.get(), value.c_str(), value.size() + 1);
+    }
+
+    if (is_dhcp_server_running()) {
+        return error(errc::dhcp_already_started);
+    }
+
+    // The lease range goes first, as it is the only option the driver validates
+    if (cfg.leases) {
+        dhcps_lease_t range{};
+        range.enable = true;
+        range.start_ip.addr = cfg.leases->first.addr();
+        range.end_ip.addr = cfg.leases->last.addr();
+        auto r = set_dhcps_option(_handle, ESP_NETIF_REQUESTED_IP_ADDRESS, &range, sizeof(range));
+        if (!r) {
+            return r;
+        }
+    }
+    if (lease_time) {
+        auto r = set_dhcps_option(
+            _handle, ESP_NETIF_IP_ADDRESS_LEASE_TIME, &*lease_time, sizeof(*lease_time)
+        );
+        if (!r) {
+            return r;
+        }
+    }
+    if (cfg.offer_router) {
+        dhcps_offer_t offer = *cfg.offer_router ? 1 : 0;
+        auto r =
+            set_dhcps_option(_handle, ESP_NETIF_ROUTER_SOLICITATION_ADDRESS, &offer, sizeof(offer));
+        if (!r) {
+            return r;
+        }
+    }
+    if (cfg.offer_dns) {
+        dhcps_offer_t offer = *cfg.offer_dns ? 1 : 0;
+        auto r = set_dhcps_option(_handle, ESP_NETIF_DOMAIN_NAME_SERVER, &offer, sizeof(offer));
+        if (!r) {
+            return r;
+        }
+    }
+    if (uri) {
+        // The driver stores the pointer itself, so the new URI is installed before the old one is
+        // freed
+        auto r = set_dhcps_option(
+            _handle, ESP_NETIF_CAPTIVEPORTAL_URI, uri.get(), std::strlen(uri.get())
+        );
+        if (!r) {
+            return r;
+        }
+        _captive_portal_uri = std::move(uri);
+    }
+
+    return try_dhcp_server_start();
 }
 
 result<void> interface::try_dhcp_server_stop() {
@@ -436,10 +568,12 @@ bool interface::is_dhcp_server_running() const {
     if (!get_flags().contains(flag::dhcp_server)) {
         return false;
     }
-    esp_netif_dhcp_status_t status;
+    esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
     esp_netif_dhcps_get_status(_handle, &status);
     return status == ESP_NETIF_DHCP_STARTED;
 }
+
+#endif // CONFIG_LWIP_DHCPS
 
 // =============================================================================
 // Subsystem lifecycle

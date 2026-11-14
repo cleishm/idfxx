@@ -8,7 +8,8 @@ Type-safe network interface management for ESP32.
 
 - RAII network interface lifecycle management with move-only ownership
 - IPv4 and IPv6 address value types with string conversion and formatting
-- DHCP client and server control
+- DHCP client and server control, with DHCP server options (lease time and range, router and DNS
+  offers, captive-portal URI)
 - DNS server configuration
 - SNTP time synchronization client
 - IP event integration (got IP, lost IP, AP station IP assigned, IPv6)
@@ -31,7 +32,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_netif:
-    version: "^2.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_netif` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -62,7 +63,7 @@ loop.listener_add(idfxx::netif::sta_got_ip4,
 
 // Query interface properties
 auto hostname = sta_netif.get_hostname();
-auto ip = sta_netif.get_ip_info();
+auto ip = sta_netif.get_ipv4_info();
 ```
 
 ### Result-based API
@@ -78,11 +79,32 @@ if (auto r = idfxx::netif::try_init(); !r) {
     return;
 }
 
-// Query IP info
-if (auto r = sta_netif.try_get_ip_info(); r) {
-    auto ip_str = idfxx::to_string(r->ip);
+// Query the hostname
+if (auto r = sta_netif.try_get_hostname(); r) {
+    auto hostname = *r;
 }
 ```
+
+### DHCP Server Options
+
+A WiFi access point's DHCP server starts on its own, and options can only be changed while the
+server is stopped, so stop it before starting it with a configuration:
+
+```cpp
+#include <idfxx/netif>
+#include <idfxx/wifi>
+
+auto ap_netif = idfxx::wifi::make_ap_netif();
+
+ap_netif.dhcp_server_stop();
+ap_netif.dhcp_server_start({
+    .lease_time = std::chrono::hours(2),
+    .captive_portal_uri = "http://192.168.4.1/",
+});
+```
+
+Options left unset keep their current setting. A captive-portal URI can be replaced but not withdrawn: once offered, the interface
+keeps offering it until it is destroyed.
 
 ### SNTP Time Synchronization
 
@@ -124,9 +146,9 @@ The component provides two API styles:
 ### Network Interface (interface class)
 
 **Status**: `is_up()`, `key()`, `description()`, `get_route_priority()` / `set_route_priority()`,
-`get_flags()`, `get_event_id()`
+`get_flags()`, `got_ip4_event()`, `lost_ip4_event()`
 
-**IDF Interop**: `idf_handle()`, `idf_index()`, `idf_name()` (lwIP only)
+**IDF Interop**: `take()`, `wrap()`, `idf_handle()`
 
 **MAC**: `get_mac()` / `set_mac()`
 
@@ -142,7 +164,8 @@ The component provides two API styles:
 
 **DHCP Client**: `dhcp_client_start()`, `dhcp_client_stop()`, `is_dhcp_client_running()`
 
-**DHCP Server**: `dhcp_server_start()`, `dhcp_server_stop()`, `is_dhcp_server_running()`
+**DHCP Server** (`CONFIG_LWIP_DHCPS`): `dhcp_server_start()`, `dhcp_server_start(config)` (applies
+a `dhcp_server_config` first), `dhcp_server_stop()`, `is_dhcp_server_running()`
 
 **DNS**: `set_dns()` / `get_dns()`
 
@@ -171,7 +194,7 @@ The `idfxx::netif::errc` enum provides netif-specific error codes:
 - `init_failed` — Initialization failed
 - `dns_not_configured` — DNS not configured
 - `mld6_failed` — MLD6 operation failed
-- `ip6_addr_failed` — IPv6 address operation failed
+- `ipv6_addr_failed` — IPv6 address operation failed
 - `dhcps_start_failed` — DHCP server start failed
 - `tx_failed` — Transmit failed
 
@@ -204,6 +227,9 @@ Available events: `sta_got_ip4`, `sta_lost_ip4`, `ap_sta_ip4_assigned`, `got_ip6
 - **Prerequisites**: Create the system event loop before using netif functions. Call `init()` before
   creating any network interfaces.
 - **IP Address Byte Order**: `ipv4_addr` stores addresses in network byte order.
+- **DHCP Server Options**: `dhcp_server_start(config)` fails with `dhcp_already_started` while the
+  server runs, and the lease time is rounded up to whole `CONFIG_LWIP_DHCPS_LEASE_UNIT` seconds.
+  The DHCP server API is absent when `CONFIG_LWIP_DHCPS` is disabled.
 
 ## License
 
