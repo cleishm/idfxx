@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -111,6 +112,7 @@ struct mono_font {
  *
  * Sums the advance of every character in @p text; characters outside the
  * font's glyph range advance like any other (rendered blank).
+ * @ref text_ink_bounds gives the extent of the pixels the text inks instead.
  *
  * @param font  The font.
  * @param text  The text to measure.
@@ -326,7 +328,8 @@ text_glyph(const proportional_font& font, char32_t cp) noexcept {
  * has a glyph or a replacement for it (it only marks where @ref break_lines
  * may hyphenate a word). This is the distance the pen travels, the width to
  * use when centering, aligning or wrapping text; a glyph's ink may overhang
- * it slightly at either end.
+ * it slightly at either end. @ref text_ink_bounds gives the extent of the
+ * ink itself.
  *
  * @param font The font.
  * @param text The UTF-8 text to measure.
@@ -364,6 +367,221 @@ struct text_line {
     /** @brief Returns true if both lines have the same text, width and hyphenation. */
     [[nodiscard]] constexpr bool operator==(const text_line&) const noexcept = default;
 };
+
+/**
+ * @headerfile <idfxx/font>
+ * @brief The bounding box of the pixels a line of text inks, from @ref text_ink_bounds.
+ *
+ * The box is relative to the origin `idfxx::gfx::draw_text` takes: @ref left
+ * counts columns from the starting pen position (the `x` drawn at) and
+ * @ref top rows from the line's top edge (the `y` drawn at), so text drawn at
+ * (`x - left`, `y - top`) has its ink's top-left pixel at (`x`, `y`).
+ */
+struct ink_bounds {
+    /// Column of the leftmost inked pixel, relative to the starting pen position (negative = left
+    /// of it).
+    int left;
+    /// Row of the topmost inked pixel, relative to the line's top edge (negative = above it).
+    int top;
+    /// Columns from the leftmost inked pixel to the rightmost, inclusive.
+    size_t width;
+    /// Rows from the topmost inked pixel to the bottommost, inclusive.
+    size_t height;
+
+    /** @brief Returns true if both boxes have the same position and size. */
+    [[nodiscard]] constexpr bool operator==(const ink_bounds&) const noexcept = default;
+};
+
+/** @cond INTERNAL */
+namespace detail {
+
+// The bounding box [left, right) x [top, bottom) of the ink seen so far, in
+// 64 bits so long text never overflows; empty while right <= left.
+struct ink_box {
+    int64_t left = 0;
+    int64_t top = 0;
+    int64_t right = 0;
+    int64_t bottom = 0;
+
+    // Adds the width x height block at (x, y), width and height > 0.
+    constexpr void add(int64_t x, int64_t y, int64_t width, int64_t height) noexcept {
+        if (right <= left) {
+            *this = {x, y, x + width, y + height};
+            return;
+        }
+        left = std::min(left, x);
+        top = std::min(top, y);
+        right = std::max(right, x + width);
+        bottom = std::max(bottom, y + height);
+    }
+
+    // Returns the box with its edges clamped to the int range, or nullopt
+    // when that leaves it empty (all of its ink lies past the int range).
+    [[nodiscard]] constexpr std::optional<ink_bounds> bounds() const noexcept {
+        constexpr int64_t lo = std::numeric_limits<int>::min();
+        constexpr int64_t hi = std::numeric_limits<int>::max();
+        const int64_t l = std::clamp(left, lo, hi);
+        const int64_t t = std::clamp(top, lo, hi);
+        const int64_t r = std::clamp(right, lo, hi);
+        const int64_t b = std::clamp(bottom, lo, hi);
+        if (r <= l || b <= t) {
+            return std::nullopt;
+        }
+        return ink_bounds{
+            static_cast<int>(l),
+            static_cast<int>(t),
+            static_cast<size_t>(r - l),
+            static_cast<size_t>(b - t),
+        };
+    }
+};
+
+// Adds the ink of text drawn as one proportional line with the pen
+// starting at pen, as idfxx::gfx::draw_text draws it, to box.
+constexpr void
+add_ink(const proportional_font& font, std::string_view text, int64_t pen, ink_box& box) noexcept {
+    for (char32_t cp : utf8_view(text)) {
+        const glyph_metrics* g = text_glyph(font, cp);
+        if (g == nullptr) {
+            continue; // skipped, or a soft hyphen (invisible)
+        }
+        if (g->width != 0 && g->height != 0) {
+            box.add(pen + g->x_offset, int64_t{font.ascent} + g->y_offset, g->width, g->height);
+        }
+        pen += g->advance;
+    }
+}
+
+// Adds the ink of text drawn in a fixed-cell font, unscaled, to box.
+constexpr void add_ink(const mono_font& font, std::string_view text, ink_box& box) noexcept {
+    int64_t cell = 0;
+    for (char c : text) {
+        if (font.contains(c)) {
+            for (size_t row = 0; row < font.height; ++row) {
+                for (size_t col = 0; col < font.width; ++col) {
+                    if (font.ink_at(c, col, row)) {
+                        box.add(cell + static_cast<int64_t>(col), static_cast<int64_t>(row), 1, 1);
+                    }
+                }
+            }
+        }
+        cell += static_cast<int64_t>(font.advance(c));
+    }
+}
+
+} // namespace detail
+/** @endcond */
+
+/**
+ * @brief Returns the bounding box of the pixels a line of proportional text inks.
+ *
+ * Measures where `idfxx::gfx::draw_text` puts ink for @p text, glyph by
+ * glyph as it draws: code points the font lacks count as its replacement
+ * glyph (or are skipped if it has none), and U+00AD SOFT HYPHEN inks
+ * nothing. Each glyph counts with its whole bitmap box, which the font
+ * format trims to the glyph's ink (as the generators do). The box is
+ * relative to the draw origin (see @ref ink_bounds), so
+ * it places text by its ink rather than by its advance and line box — to
+ * center a label on its ink, for instance, or to set it flush against an
+ * edge despite side bearings and accents:
+ *
+ * @code
+ * const int box_x = 16, box_y = 40, box_w = 96, box_h = 32; // the box to center the label in
+ * if (auto ink = idfxx::font::text_ink_bounds(f, label)) {
+ *     const int ink_x = box_x + (box_w - static_cast<int>(ink->width)) / 2;
+ *     const int ink_y = box_y + (box_h - static_cast<int>(ink->height)) / 2;
+ *     canvas.draw_text(f, ink_x - ink->left, ink_y - ink->top, label, black);
+ * }
+ * @endcode
+ *
+ * This complements @ref text_width, the distance the pen travels (what to
+ * align and wrap by), and the font-wide @ref proportional_font::ink_ascent,
+ * @ref proportional_font::ink_descent and bearings, which bound every
+ * glyph's ink rather than this text's.
+ *
+ * @param font The font.
+ * @param text The UTF-8 text to measure.
+ * @return The bounding box of the ink, or `std::nullopt` if the text inks
+ *         nothing (it is empty, or holds only spaces, soft hyphens and
+ *         skipped code points).
+ */
+[[nodiscard]] constexpr std::optional<ink_bounds>
+text_ink_bounds(const proportional_font& font, std::string_view text) noexcept {
+    detail::ink_box box;
+    detail::add_ink(font, text, 0, box);
+    return box.bounds();
+}
+
+/**
+ * @brief Returns the bounding box of the pixels a broken line of proportional text inks.
+ *
+ * Measures the ink of @p line as `idfxx::gfx::draw_text_box` draws it,
+ * relative to the line's own origin (its left edge and top): its text, as
+ * by @ref text_ink_bounds(const proportional_font&, std::string_view), and,
+ * when the line is hyphenated, the `'-'` drawn after it, whose pen starts
+ * at `line.width - font.advance(U'-')`.
+ *
+ * @param font The font the line was broken in.
+ * @param line A line from @ref break_lines.
+ * @return The bounding box of the ink, or `std::nullopt` if the line inks nothing.
+ */
+[[nodiscard]] constexpr std::optional<ink_bounds>
+text_ink_bounds(const proportional_font& font, const text_line& line) noexcept {
+    detail::ink_box box;
+    detail::add_ink(font, line.text, 0, box);
+    if (line.hyphenated) {
+        detail::add_ink(
+            font,
+            "-",
+            static_cast<int64_t>(line.width) - static_cast<int64_t>(font.advance(U'-')),
+            box
+        );
+    }
+    return box.bounds();
+}
+
+/**
+ * @brief Returns the bounding box of the pixels a line of fixed-cell text inks.
+ *
+ * Measures where `idfxx::gfx::draw_text` puts ink for @p text, scanning
+ * each glyph's pixels; characters outside the font's range ink nothing but
+ * still advance. The box is relative to the draw origin (see
+ * @ref ink_bounds) and unscaled: for text drawn with a `scale`, multiply
+ * each of its fields by the scale. See
+ * @ref text_ink_bounds(const proportional_font&, std::string_view) for an
+ * example.
+ *
+ * @param font The font.
+ * @param text The text to measure.
+ * @return The bounding box of the ink, or `std::nullopt` if the text inks
+ *         nothing (it is empty, or holds only blank glyphs and characters
+ *         outside the font's range).
+ */
+[[nodiscard]] constexpr std::optional<ink_bounds>
+text_ink_bounds(const mono_font& font, std::string_view text) noexcept {
+    detail::ink_box box;
+    detail::add_ink(font, text, box);
+    return box.bounds();
+}
+
+/**
+ * @brief Returns the bounding box of the pixels a broken line of fixed-cell text inks.
+ *
+ * Measures the ink of @p line as `idfxx::gfx::draw_text_box` draws it,
+ * relative to the line's own origin: its text, as by
+ * @ref text_ink_bounds(const mono_font&, std::string_view). The line's
+ * `hyphenated` flag is ignored, as `draw_text_box` ignores it for
+ * fixed-cell fonts (@ref break_lines never sets it for them). The box is unscaled:
+ * for lines drawn with a `scale`, multiply each of its fields by the scale.
+ *
+ * @param font The font the line was broken in.
+ * @param line A line from @ref break_lines.
+ * @return The bounding box of the ink, or `std::nullopt` if the line inks nothing.
+ */
+[[nodiscard]] constexpr std::optional<ink_bounds>
+text_ink_bounds(const mono_font& font, const text_line& line) noexcept {
+    return text_ink_bounds(font, line.text);
+}
 
 /**
  * @headerfile <idfxx/font>

@@ -184,6 +184,54 @@ static_assert(text_width(prop_font_replaced_soft_hyphen, "A\xC2\xAD" "B") == 6);
 static_assert(text_width(prop_font, "\xC2\xAD") == 0);
 
 // -----------------------------------------------------------------------------
+// text_ink_bounds
+// -----------------------------------------------------------------------------
+
+static_assert(ink_bounds{1, -2, 3, 4} == ink_bounds{1, -2, 3, 4});
+static_assert(ink_bounds{1, -2, 3, 4} != ink_bounds{1, -2, 3, 5});
+
+// The box spans every glyph's bitmap, relative to the pen start and the line
+// top (the baseline is ascent = 3 rows down).
+static_assert(text_ink_bounds(prop_font, "A") == ink_bounds{0, 1, 3, 2});
+static_assert(text_ink_bounds(prop_font, "AB") == ink_bounds{0, 0, 5, 3});
+static_assert(text_ink_bounds(prop_font, " A") == ink_bounds{1, 1, 3, 2});
+static_assert(text_ink_bounds(prop_font, "A\xE2\x80\x99") == ink_bounds{0, 0, 7, 3}); // offset
+
+// Soft hyphens ink nothing and take no space; missing code points draw the
+// replacement glyph, or nothing without one.
+static_assert(text_ink_bounds(prop_font, "A\xC2\xAD" "B") == ink_bounds{0, 0, 5, 3});
+static_assert(text_ink_bounds(prop_font_with_replacement, "?") == ink_bounds{0, 0, 1, 3});
+static_assert(text_ink_bounds(prop_font_with_replacement, "A?") == ink_bounds{0, 0, 5, 3});
+static_assert(text_ink_bounds(prop_font, "A?") == ink_bounds{0, 1, 3, 2});
+
+// Text that inks nothing has no box.
+static_assert(!text_ink_bounds(prop_font, "").has_value());
+static_assert(!text_ink_bounds(prop_font, "  ").has_value());
+static_assert(!text_ink_bounds(prop_font, "\xC2\xAD").has_value());
+static_assert(!text_ink_bounds(prop_font, "?").has_value());
+
+// A hyphenated line adds its drawn '-', whose pen starts at the line's width
+// less the hyphen's advance.
+static_assert(text_ink_bounds(prop_font, text_line{"A", 4, false}) == ink_bounds{0, 1, 3, 2});
+static_assert(text_ink_bounds(prop_font, text_line{"A", 6, true}) == ink_bounds{0, 1, 6, 2});
+static_assert(text_ink_bounds(prop_font, text_line{"", 2, true}) == ink_bounds{0, 2, 2, 1});
+static_assert((*break_lines(prop_font, "AA\xC2\xAD" "AA", 10).begin()).hyphenated);
+static_assert(
+    text_ink_bounds(prop_font, *break_lines(prop_font, "AA\xC2\xAD" "AA", 10).begin()) ==
+    ink_bounds{0, 1, 10, 2}
+);
+
+// Fixed-cell text: glyph pixels are scanned, and characters without a glyph
+// or with a blank one ink nothing but still advance.
+static_assert(text_ink_bounds(test_font, "A") == ink_bounds{0, 0, 5, 8});
+static_assert(text_ink_bounds(test_font, "BA") == ink_bounds{5, 0, 5, 8});
+static_assert(text_ink_bounds(test_font, "\x01" "A" "\x01" "A") == ink_bounds{5, 0, 15, 8});
+static_assert(!text_ink_bounds(test_font, "").has_value());
+static_assert(!text_ink_bounds(test_font, "B\x01").has_value());
+// A fixed-cell line is measured by its text alone: no hyphen is drawn after it.
+static_assert(text_ink_bounds(test_font, text_line{"A", 5, true}) == ink_bounds{0, 0, 5, 8});
+
+// -----------------------------------------------------------------------------
 // break_lines
 // -----------------------------------------------------------------------------
 

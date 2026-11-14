@@ -10,10 +10,11 @@ component changes.
 
 Six new components add SD and MMC card access, FAT filesystems on cards and flash, message digests
 and MACs, a real-time clock interface with a PCF8563 driver, and the Inter typeface. idfxx_gfx draws
-proportional UTF-8 text with line wrapping. Byte buffers across the library move to
-`idfxx::byte_view` and `idfxx::byte_span`, and the I2C, SPI and panel I/O components take breaking
-changes; those shared across components are summarized under Upgrading. Only components that
-changed since v2026.11.08 are listed, each with its new version.
+proportional UTF-8 text with line wrapping, rounded rectangles, ellipses, circles, triangles and
+1-bit bitmaps. Byte buffers across the library move to `idfxx::byte_view` and `idfxx::byte_span`,
+and the I2C, SPI and panel I/O components take breaking changes; those shared across components
+are summarized under Upgrading. Only components that changed since v2026.11.08 are listed, each
+with its new version.
 
 ### Upgrading
 
@@ -83,7 +84,10 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   anchored to the bottom edge and rotated views land correctly. Drawing positions are signed `int`,
   so shapes and text can start off the top or left edge and draw their visible part, and canvas
   windows can start off their parent canvas. Adds proportional UTF-8 text and wrapped, aligned text
-  boxes (`draw_text_box`, `text_align`), with a `proportional_text` example
+  boxes (`draw_text_box`, `text_align`), with a `proportional_text` example. Adds filled and
+  outlined rounded rectangles, ellipses, circles and triangles (`fill_round_rect`, `fill_ellipse`,
+  `fill_circle`, `fill_triangle` and their `draw_*` outlines), and 1-bit bitmaps (`mono_bitmap`,
+  `bit_order`, `draw_bitmap`) drawn transparently or over a paper value
 - `idfxx_onewire` `2.0.0` — `check_crc16` takes two `byte_view`s, and a CRC that isn't two bytes
   returns `false`. Adds `address::bytes()`, an `address` constructor from ROM bytes, `read<N>()`,
   and fill, alignment and width in the address formatter. `crc8` no longer truncates data over 255
@@ -131,8 +135,9 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   `utf8_view`, `chrono::set_system_time` and `app::elf_sha256()`. Byte sources read through a
   `byte_span`. A `file_source` read error with no errno reports `EIO` instead of `errc::fail`
 - `idfxx_font` `1.1.0` — adds proportional fonts with UTF-8 text metrics and ink extents, line
-  breaking (`break_lines`), and `ttf_to_c.py` with the `idfxx_font_generate()` CMake function for
-  generating fonts from TrueType and OpenType faces. Requires idfxx_core `^1.3.0`
+  breaking (`break_lines`), the ink bounds of a line of text (`text_ink_bounds`, `ink_bounds`), and
+  `ttf_to_c.py` with the `idfxx_font_generate()` CMake function for generating fonts from TrueType
+  and OpenType faces. Requires idfxx_core `^1.3.0`
 - `idfxx_netif` `2.1.0` — adds `interface::take(handle, destroy_fn)` to release a handle with a
   given function. `sntp::sync_wait` rounds sub-millisecond timeouts up instead of down
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width

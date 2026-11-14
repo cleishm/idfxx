@@ -14,6 +14,9 @@ Bitmap font models (fixed-cell and proportional) and text metrics.
   `ink_descent`, `min_left_bearing`, `min_right_bearing`)
 - Text measurement (`text_width`, per-glyph `advance`), fully `constexpr`; proportional fonts take
   UTF-8 text (decoded with `idfxx::utf8_view`)
+- Ink bounds (`text_ink_bounds`): the box of pixels a line of text actually inks, relative to where
+  it is drawn, for placing text by its ink (centering a label optically, setting it flush against an
+  edge) rather than by its advance and line box; also `constexpr`
 - Line breaking (`break_lines`): a lazy, non-allocating, `constexpr` view splitting text into lines
   that fit a width — wrapping at spaces and after hyphens, honoring newlines, hyphenating at soft
   hyphens (U+00AD) in proportional fonts, and splitting words too long for a line
@@ -68,6 +71,22 @@ const size_t x = (display_width - w) / 2;               // centered
 const size_t next_line_y = y + idfxx::font::inter_48.line_height;
 ```
 
+`text_width` is the distance the pen travels. To place text by the pixels it inks instead, use
+`text_ink_bounds`: it returns the ink's box relative to the origin `draw_text` takes (the pen start
+and the line top), or `std::nullopt` when nothing inks. Drawing at `(x - left, y - top)` puts the
+ink's top-left pixel at `(x, y)`, so centering a label's ink in a box is:
+
+```cpp
+using namespace idfxx::font;
+
+const int box_x = 16, box_y = 40, box_w = 96, box_h = 32; // the box to center the label in
+if (const auto ink = text_ink_bounds(inter_24, "23°")) {
+    const int ink_x = box_x + (box_w - static_cast<int>(ink->width)) / 2;
+    const int ink_y = box_y + (box_h - static_cast<int>(ink->height)) / 2;
+    canvas.draw_text(inter_24, ink_x - ink->left, ink_y - ink->top, "23°", black);
+}
+```
+
 Break text into lines that fit a width with `break_lines`. Each line is a slice of the input, with
 its measured width; a line broken at a soft hyphen (`"\u00AD"`) needs a `'-'` drawn after it:
 
@@ -104,6 +123,9 @@ Text drawing lives in `idfxx_gfx`: `idfxx::gfx::draw_text` for a single line, an
 | `proportional_font::advance(cp)` | Pen advance for a code point (0 when skipped). |
 | `glyph_metrics` | Per-glyph `advance`, `x_offset`/`y_offset` from the pen and baseline, bitmap `width`/`height`. |
 | `text_width(font, text)` | Width of UTF-8 text in a proportional font (constexpr). |
+| `text_ink_bounds(font, text)` | The `ink_bounds` of the pixels text inks when drawn, in either kind of font, or `std::nullopt` when nothing inks (constexpr). |
+| `text_ink_bounds(font, line)` | The same for a `text_line`, including the `'-'` drawn after a hyphenated proportional line. |
+| `ink_bounds` | `left`, `top` (relative to the draw origin: pen start and line top), `width`, `height`; equality comparable. |
 | `break_lines(font, text, max_width)` | Lazy view of the `text_line`s of UTF-8 text broken to fit `max_width` in a proportional font. |
 | `break_lines(font, text, max_width, scale)` | The same for a `mono_font` drawn at `scale`. |
 | `text_line` | One line: `text` (a slice of the input), `width` in pixels, `hyphenated` (draw a `'-'` after `text`). |
@@ -190,6 +212,10 @@ generated definition gets external linkage (see `idfxx_font_spleen` for the patt
   row, MSB = leftmost pixel), trimmed to each glyph's ink and placed by `x_offset` / `y_offset`
   relative to the pen position and baseline.
 - There is no kerning: text is set by per-glyph advances only.
+- `text_ink_bounds` measures the text it is given, glyph by glyph as `idfxx::gfx::draw_text` draws
+  it; the font-wide ink extents above bound every glyph instead. A proportional glyph counts with
+  its whole bitmap box, which generated fonts trim to its ink. Fixed-cell results are unscaled: for
+  text drawn with a `scale`, multiply each field by it.
 - U+00AD SOFT HYPHEN is invisible and zero-width in proportional text (`text_width`, `draw_text`),
   even when the font has a glyph for it; it only marks where `break_lines` may hyphenate a word.
   Mono fonts treat text as bytes and do not interpret it.
