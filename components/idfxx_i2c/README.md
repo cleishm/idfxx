@@ -265,36 +265,6 @@ uint8_t value = device.read_register(0x00, 500ms);
 The timeout bounds both the wait for the bus lock and the transfer itself. A transfer that doesn't
 finish in time fails with `idfxx::errc::invalid_response`, so raise the timeout for long transfers.
 
-### Upgrading from 2.x
-
-- Register addresses are one byte by default. In 2.x the register methods always sent two register
-  address bytes; devices that relied on that must set
-  `register_address = idfxx::i2c::register_address_size::two_bytes`. The `(high, low)` register
-  overloads are replaced by a single `uint16_t` register.
-- `read_register()` sends the register address and reads back in one transaction with a repeated
-  START. In 2.x it wrote the address, sent a STOP, waited 20 ms, then read. Devices that need a STOP
-  or a conversion delay between the two should use `transmit()` then `receive()`.
-- `write_registers()` no longer waits 4 ms between registers. Devices with a write cycle, such as
-  EEPROMs, need the caller to wait or poll between writes.
-- Failed transfers are no longer reported as `idfxx::errc::invalid_arg`; see [Error
-  Handling](#error-handling).
-- Construction errors from the driver now pass through instead of being reported as
-  `idfxx::errc::invalid_arg`. For example, a port that's already in use fails with
-  `idfxx::errc::invalid_state`.
-- Asynchronous transfers were removed: `master_bus::config::trans_queue_depth`, `wait_all_done()`
-  and `register_event_callbacks()` no longer exist, and every transfer finishes before the call
-  returns. The ESP-IDF asynchronous mode can't report bus errors or reliably signal when the
-  caller's buffers are free.
-- Byte buffers are `idfxx::byte_view` (writes) and `idfxx::byte_span` (reads), so
-  `std::byte` and `uint8_t` buffers both work. Pointer-and-length overloads are gone: pass
-  `{ptr, len}`. Literal bytes pass directly, as in `dev.transmit({0x01, 0x02})`.
-- `receive(size)` and `read_register(reg, size)` no longer return a `std::vector`: read into your
-  own buffer with `receive(buf)` / `read_register(reg, buf)`, or use `receive<N>()` /
-  `read_register<N>(reg)` for a `std::array<uint8_t, N>`.
-- `operation::write_data` / `read_data` are `byte_view` / `byte_span`.
-- A null buffer with a nonzero size is a precondition violation rather than an
-  `idfxx::errc::invalid_arg` error.
-
 ## API Overview
 
 ### master_bus
