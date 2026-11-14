@@ -14,17 +14,22 @@ port := env("ESPPORT", "/dev/ttyUSB0")
 default:
     @just --list
 
-# Build with the default config (exceptions on)
-build:
-    {{env_setup}} idf.py build
+# The test suite is split into groups, one Unity app each, listed in tests/groups.cmake. Recipes
+# that build test apps take group names (default: every group) and, where noted, a target.
+groups := `sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake`
 
-# Flash and monitor (port defaults to $ESPPORT or /dev/ttyUSB0)
-flash port=port:
-    {{env_setup}} idf.py -p {{port}} flash monitor
+# Build test apps with the default config into build-<group>/ (`just build [group...] [target]`)
+build *args:
+    @just build-config build "config/sdkconfig.defaults" {{args}}
 
-# Monitor only
-monitor port=port:
-    {{env_setup}} idf.py -p {{port}} monitor
+# Build, flash and monitor a group's test app (port defaults to $ESPPORT or /dev/ttyUSB0)
+flash group port=port:
+    @just build {{group}}
+    {{env_setup}} idf.py -B build-{{group}} -p {{port}} flash monitor
+
+# Monitor a group's test app (port defaults to $ESPPORT or /dev/ttyUSB0)
+monitor group port=port:
+    {{env_setup}} idf.py -B build-{{group}} -p {{port}} monitor
 
 # Ensure build/ is configured, for cmake-driven targets
 [private]
@@ -43,48 +48,85 @@ format-check: configure
 docs: configure
     {{env_setup}} cmake --build build --target docs
 
-# Isolated no-exceptions build — the only config that exercises the try_*-only API surface
-build-noexc target="esp32s3":
+# No-exceptions builds into build-noexc-<group>/: the only config exercising the try_*-only API
+build-noexc *args:
+    @just build-config build-noexc \
+        "config/sdkconfig.defaults;config/sdkconfig.no-exceptions" {{args}}
+
+# No-IPv6 builds into build-noipv6-<group>/ (`just build-noipv6 [group...] [target]`)
+build-noipv6 *args:
+    @just build-config build-noipv6 "config/sdkconfig.defaults;config/sdkconfig.no-ipv6" {{args}}
+
+# Build test apps from sdkconfig defaults into <prefix>-<group>/. A build dir is configured for the
+# target named in args (esp32s3 when none is) the first time, and again when a different one is.
+[private]
+build-config prefix defaults *args:
     #!/usr/bin/env bash
     set -euo pipefail
     {{env_setup}}
     cd "{{justfile_directory()}}"
-    if [ ! -f build-noexc/sdkconfig ]; then
-        idf.py -B build-noexc -D SDKCONFIG_DEFAULTS="config/sdkconfig.defaults;config/sdkconfig.no-exceptions" \
-            -D SDKCONFIG="{{justfile_directory()}}/build-noexc/sdkconfig" set-target {{target}}
-    fi
-    idf.py -B build-noexc build
+    selected= target=
+    for a in {{args}}; do
+        case " {{groups}} " in *" $a "*) selected="$selected $a" ;; *) target=$a ;; esac
+    done
+    selected=${selected:-"{{groups}}"}
+    [ -n "$selected" ] || { echo "ERROR: no test groups found in tests/groups.cmake"; exit 1; }
+    for g in $selected; do
+        dir={{prefix}}-$g
+        configured=$(sed -n 's/^CONFIG_IDF_TARGET="\(.*\)"$/\1/p' "$dir/sdkconfig" 2>/dev/null || true)
+        if [ -z "$configured" ] || { [ -n "$target" ] && [ "$target" != "$configured" ]; }; then
+            idf.py -B "$dir" -D IDFXX_TEST_GROUP="$g" -D SDKCONFIG_DEFAULTS="{{defaults}}" \
+                -D SDKCONFIG="$PWD/$dir/sdkconfig" set-target "${target:-esp32s3}"
+        fi
+        idf.py -B "$dir" build
+    done
 
-# Isolated no-ipv6 build
-build-noipv6 target="esp32s3":
+# Build QEMU test images into build-qemu-<group>/ (`just qemu-build [group...]`)
+qemu-build *groups_:
     #!/usr/bin/env bash
     set -euo pipefail
     {{env_setup}}
     cd "{{justfile_directory()}}"
-    if [ ! -f build-noipv6/sdkconfig ]; then
-        idf.py -B build-noipv6 -D SDKCONFIG_DEFAULTS="config/sdkconfig.defaults;config/sdkconfig.no-ipv6" \
-            -D SDKCONFIG="{{justfile_directory()}}/build-noipv6/sdkconfig" set-target {{target}}
-    fi
-    idf.py -B build-noipv6 build
+    selected="{{groups_}}"
+    selected=${selected:-"{{groups}}"}
+    [ -n "$selected" ] || { echo "ERROR: no test groups found in tests/groups.cmake"; exit 1; }
+    for g in $selected; do
+        case " {{groups}} " in *" $g "*) ;; *) echo "ERROR: no test group named $g"; exit 1 ;; esac
+    done
+    for g in $selected; do
+        dir=build-qemu-$g
+        mkdir -p "$dir"
+        if [ ! -f "$dir/sdkconfig" ] || [ config/sdkconfig.qemu -nt "$dir/sdkconfig" ]; then
+            cp config/sdkconfig.qemu "$dir/sdkconfig"
+        fi
+        args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D IDF_TARGET=esp32s3)
+        idf.py "${args[@]}" -D IDFXX_TEST_GROUP="$g" build
+        idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB \
+            -o "$PWD/$dir/qemu_flash.bin"
+    done
 
-# Build the QEMU test image (isolated build dir + merged 4MB flash image)
-qemu-build:
+# Logs go to qemu_output_<group>.log; the timeout is per app, in seconds (default 300).
+# Build and run the Unity suite in QEMU per group (`just qemu-test [group...] [timeout]`)
+qemu-test *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{env_setup}}
     cd "{{justfile_directory()}}"
-    mkdir -p build-qemu
-    if [ ! -f build-qemu/sdkconfig ] || [ config/sdkconfig.qemu -nt build-qemu/sdkconfig ]; then
-        cp config/sdkconfig.qemu build-qemu/sdkconfig
+    selected= timeout=300
+    for a in {{args}}; do
+        case "$a" in *[!0-9]*) selected="$selected $a" ;; *) timeout=$a ;; esac
+    done
+    selected=${selected:-"{{groups}}"}
+    just qemu-build $selected
+    failed=
+    for g in $selected; do
+        echo "=== Test group: $g"
+        just qemu-run "build-qemu-$g" "$timeout" "qemu_output_$g.log" || failed="$failed $g"
+    done
+    if [ -n "$failed" ]; then
+        echo "Failed groups:$failed"
+        exit 1
     fi
-    idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" -D IDF_TARGET=esp32s3 build
-    idf.py -B build-qemu -D SDKCONFIG="{{justfile_directory()}}/build-qemu/sdkconfig" \
-        merge-bin --format raw --fill-flash-size 4MB \
-        -o "{{justfile_directory()}}/build-qemu/qemu_flash.bin"
-
-# Run the Unity test suite in QEMU (builds first; log in qemu_output.log)
-qemu-test timeout="300": qemu-build
-    @just qemu-run build-qemu {{timeout}}
+    echo "All groups passed:" $selected
 
 # Run only some components' tests in QEMU (`just test dht gpio`; isolated build-test/)
 test +components:
@@ -111,7 +153,7 @@ test +components:
 
 # Run a merged QEMU flash image from a build dir and check the Unity summary
 [private]
-qemu-run dir timeout:
+qemu-run dir timeout log="qemu_output.log":
     #!/usr/bin/env bash
     set -euo pipefail
     {{env_setup}}
@@ -126,9 +168,9 @@ qemu-run dir timeout:
         -drive file={{dir}}/qemu_flash.bin,if=mtd,format=raw > "$pipe" 2>&1 &
     qpid=$!
     ( sleep {{timeout}}; kill "$qpid" 2>/dev/null ) & wpid=$!
-    : > qemu_output.log
+    : > "{{log}}"
     while IFS= read -r line; do
-        printf '%s\n' "$line" >> qemu_output.log
+        printf '%s\n' "$line" >> "{{log}}"
         printf '%s\n' "$line"
         case "$line" in *"### TESTS COMPLETE ###"*) break ;; esac
     done < "$pipe"
@@ -137,9 +179,9 @@ qemu-run dir timeout:
     kill "$wpid" 2>/dev/null || true
     wait "$qpid" 2>/dev/null || true
     rm -f "$pipe"
-    summary=$(grep -Eo '[0-9]+ Tests [0-9]+ Failures [0-9]+ Ignored' qemu_output.log | tail -1 || true)
+    summary=$(grep -Eo '[0-9]+ Tests [0-9]+ Failures [0-9]+ Ignored' "{{log}}" | tail -1 || true)
     if [ -z "$summary" ]; then
-        echo "ERROR: no Unity test summary found (timed out or crashed) — see qemu_output.log"
+        echo "ERROR: no Unity test summary found (timed out or crashed) — see {{log}}"
         exit 1
     fi
     echo "Test summary: $summary"
@@ -159,4 +201,10 @@ gen-font-inter:
 
 # Remove all build directories
 clean:
-    rm -rf build build-noexc build-noipv6 build-qemu build-test qemu_output.log
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    for g in {{groups}}; do
+        rm -rf "build-$g" "build-noexc-$g" "build-noipv6-$g" "build-qemu-$g"
+    done
+    rm -rf build build-noexc build-noipv6 build-qemu build-test qemu_output*.log

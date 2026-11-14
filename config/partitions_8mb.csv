@@ -3,7 +3,7 @@
 # OTA slot in partitions.csv (e.g. esp32c6 with its Wi-Fi 6 stack).
 # Single OTA slot: the test suite needs an ota_0 app partition (the ota/partition
 # tests look it up), but nothing writes a second image, so ota_1 is omitted to
-# leave room for the test binary to grow.
+# leave room for the test apps to grow (see tests/groups.cmake).
 # storage: wear-levelled FAT partition for the idfxx_fatfs volume tests.
 # fatimg: raw FAT image (generated at build time) for the idfxx_fatfs image tests.
 # Both are kept small for ota_0: storage must hold the volume tests' 64 KiB file, and

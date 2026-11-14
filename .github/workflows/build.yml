@@ -21,13 +21,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
+# The test suite is split into groups, one Unity app each (tests/groups.cmake),
+# and each build job below builds every group's app in its own build directory,
+# one after another.
+#
 # The espressif/idf image compiles through ccache (IDF_CCACHE_ENABLE=1), and each
 # build job keeps its ccache directory between runs under its own key. Only runs
 # on main (pushes that build, manual and scheduled runs) save; pull requests
 # restore main's latest copy and never write, which keeps the number of caches
-# bounded. Before saving, entries this build
-# didn't touch are evicted (ccache refreshes an entry's mtime on every hit), so
-# each saved cache holds just one build's working set rather than growing.
+# bounded. Before saving, entries the job's builds didn't touch are evicted
+# (ccache refreshes an entry's mtime on every hit; the cutoff is taken before the
+# first group), so each saved cache holds just one run's working set, every
+# group's, rather than growing.
 #
 # ccache hashes a -specs= file the way it checks the compiler, and IDF 6 passes
 # one that every build generates afresh (build/specs/picolibc.specs). The
@@ -144,12 +149,27 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          groups=$(sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake)
+          [ -n "$groups" ] || { echo "::error::no groups found in tests/groups.cmake"; exit 1; }
           start=$(date +%s)
           ccache -z
-          idf.py -D SDKCONFIG_DEFAULTS="${{ matrix.config.defaults }}" set-target ${{ matrix.target }}
-          idf.py build
+          failed=
+          for group in $groups; do
+            echo "::group::Build test group $group"
+            if ! { idf.py -B build-$group -D IDFXX_TEST_GROUP=$group \
+                     -D SDKCONFIG_DEFAULTS="${{ matrix.config.defaults }}" \
+                     set-target ${{ matrix.target }} &&
+                   idf.py -B build-$group build; }; then
+              failed="$failed $group"
+            fi
+            echo "::endgroup::"
+          done
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
           ccache -sv
+          if [ -n "$failed" ]; then
+            echo "::error::build failed for test groups:$failed"
+            exit 1
+          fi
 
       - name: Save ccache
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -183,12 +203,25 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          groups=$(sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake)
+          [ -n "$groups" ] || { echo "::error::no groups found in tests/groups.cmake"; exit 1; }
           start=$(date +%s)
           ccache -z
-          idf.py set-target esp32s3
-          idf.py build
+          failed=
+          for group in $groups; do
+            echo "::group::Build test group $group"
+            if ! { idf.py -B build-$group -D IDFXX_TEST_GROUP=$group set-target esp32s3 &&
+                   idf.py -B build-$group build; }; then
+              failed="$failed $group"
+            fi
+            echo "::endgroup::"
+          done
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
           ccache -sv
+          if [ -n "$failed" ]; then
+            echo "::error::build failed for test groups:$failed"
+            exit 1
+          fi
 
       - name: Save ccache
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -221,14 +254,28 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          groups=$(sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake)
+          [ -n "$groups" ] || { echo "::error::no groups found in tests/groups.cmake"; exit 1; }
           start=$(date +%s)
           ccache -z
-          idf.py set-target ${{ matrix.target }}
-          cp config/sdkconfig.defaults build/sdkconfig
-          idf.py reconfigure
-          idf.py build
+          failed=
+          for group in $groups; do
+            echo "::group::Build test group $group"
+            if ! { idf.py -B build-$group -D IDFXX_TEST_GROUP=$group \
+                     set-target ${{ matrix.target }} &&
+                   cp config/sdkconfig.defaults build-$group/sdkconfig &&
+                   idf.py -B build-$group reconfigure &&
+                   idf.py -B build-$group build; }; then
+              failed="$failed $group"
+            fi
+            echo "::endgroup::"
+          done
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
           ccache -sv
+          if [ -n "$failed" ]; then
+            echo "::error::build failed for test groups:$failed"
+            exit 1
+          fi
 
       - name: Save ccache
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -275,7 +322,7 @@ jobs:
         uses: actions/checkout@v5
 
       # Examples only read a cache: dozens of them run at once and would race to
-      # save. They start from the esp32s3 test-app build, which shares most of
+      # save. They start from the esp32s3 test-app builds, which share most of
       # their IDF objects.
       - name: Restore ccache
         uses: actions/cache/restore@v4
@@ -322,14 +369,28 @@ jobs:
       - name: Build for QEMU
         run: |
           . $IDF_PATH/export.sh
+          groups=$(sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake)
+          [ -n "$groups" ] || { echo "::error::no groups found in tests/groups.cmake"; exit 1; }
+          echo "IDFXX_TEST_GROUPS=$groups" >> "$GITHUB_ENV"
           start=$(date +%s)
           ccache -z
-          idf.py set-target esp32s3
-          cp config/sdkconfig.qemu build/sdkconfig
-          idf.py reconfigure
-          idf.py build
+          failed=
+          for group in $groups; do
+            echo "::group::Build test group $group"
+            if ! { idf.py -B build-$group -D IDFXX_TEST_GROUP=$group set-target esp32s3 &&
+                   cp config/sdkconfig.qemu build-$group/sdkconfig &&
+                   idf.py -B build-$group reconfigure &&
+                   idf.py -B build-$group build; }; then
+              failed="$failed $group"
+            fi
+            echo "::endgroup::"
+          done
           ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
           ccache -sv
+          if [ -n "$failed" ]; then
+            echo "::error::build failed for test groups:$failed"
+            exit 1
+          fi
 
       - name: Save ccache
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -338,65 +399,86 @@ jobs:
           path: ~/.cache/ccache
           key: ccache-qemu-${{ github.run_id }}
 
-      - name: Create Flash Image for QEMU
+      - name: Create Flash Images for QEMU
         run: |
           . $IDF_PATH/export.sh
-          # Create 4MB flash image from the project's flash_args. A relative -o
+          # Create a 4MB flash image per group from its flash_args. A relative -o
           # is resolved against the build directory, so name the target in full.
-          idf.py merge-bin --format raw --fill-flash-size 4MB -o "$PWD/qemu_flash.bin"
+          [ -n "$IDFXX_TEST_GROUPS" ] || { echo "::error::no test groups were built"; exit 1; }
+          for group in $IDFXX_TEST_GROUPS; do
+            idf.py -B build-$group merge-bin --format raw --fill-flash-size 4MB \
+              -o "$PWD/qemu_flash_$group.bin"
+          done
 
       - name: Run Tests in QEMU
         shell: bash
         run: |
           . $IDF_PATH/export.sh
-          # Run QEMU in background, capture PID, and exit when tests complete or timeout
-          mkfifo qemu_pipe
-          timeout 300s qemu-system-xtensa \
-            -machine esp32s3 \
-            -nographic \
-            -drive file=qemu_flash.bin,if=mtd,format=raw > qemu_pipe 2>&1 &
-          QEMU_PID=$!
+          # Run each group's app in turn: QEMU runs in the background and is
+          # killed when the tests complete or the timeout expires
+          [ -n "$IDFXX_TEST_GROUPS" ] || { echo "::error::no test groups were built"; exit 1; }
+          for group in $IDFXX_TEST_GROUPS; do
+            echo "::group::Run test group $group"
+            log=qemu_output_$group.log
+            : > "$log"
+            mkfifo qemu_pipe
+            timeout 300s qemu-system-xtensa \
+              -machine esp32s3 \
+              -nographic \
+              -drive file=qemu_flash_$group.bin,if=mtd,format=raw > qemu_pipe 2>&1 &
+            QEMU_PID=$!
 
-          # Read from pipe, log output, and kill QEMU when sentinel is detected
-          while IFS= read -r line; do
-            echo "$line" | tee -a qemu_output.log
-            if [[ "$line" == *"### TESTS COMPLETE ###"* ]]; then
-              kill $QEMU_PID 2>/dev/null || true
-              break
-            fi
-          done < qemu_pipe
+            # Read from pipe, log output, and kill QEMU when sentinel is detected
+            while IFS= read -r line; do
+              echo "$line" | tee -a "$log"
+              if [[ "$line" == *"### TESTS COMPLETE ###"* ]]; then
+                kill $QEMU_PID 2>/dev/null || true
+                break
+              fi
+            done < qemu_pipe
 
-          wait $QEMU_PID 2>/dev/null || true
-          rm -f qemu_pipe
+            wait $QEMU_PID 2>/dev/null || true
+            rm -f qemu_pipe
+            echo "::endgroup::"
+          done
 
       - name: Parse Test Results
+        shell: bash
         run: |
-          if grep -q "Tests.*Failures.*Ignored" qemu_output.log; then
-            SUMMARY=$(grep -o "[0-9]* Tests [0-9]* Failures [0-9]* Ignored" qemu_output.log | tail -1)
-            echo "Test Summary: $SUMMARY"
-
-            FAILURES=$(echo "$SUMMARY" | grep -o "[0-9]* Failures" | cut -d' ' -f1)
-
-            if [ "$FAILURES" -eq "0" ]; then
-              echo "✅ All tests passed!"
-              exit 0
+          # Every group's app must report a Unity summary with no failures
+          [ -n "$IDFXX_TEST_GROUPS" ] || { echo "::error::no test groups were built"; exit 1; }
+          failed=
+          for group in $IDFXX_TEST_GROUPS; do
+            log=qemu_output_$group.log
+            SUMMARY=$(grep -o "[0-9]* Tests [0-9]* Failures [0-9]* Ignored" "$log" \
+              | tail -1 || true)
+            if [ -z "$SUMMARY" ]; then
+              echo "❌ $group: Unity test summary not found in output"
             else
-              echo "❌ $FAILURES test(s) failed"
-              cat qemu_output.log
-              exit 1
+              echo "$group: $SUMMARY"
+              FAILURES=$(echo "$SUMMARY" | grep -o "[0-9]* Failures" | cut -d' ' -f1)
+              [ "$FAILURES" -eq 0 ] && continue
+              echo "❌ $group: $FAILURES test(s) failed"
             fi
-          else
-            echo "❌ ERROR: Unity test summary not found in output"
-            cat qemu_output.log
+            failed="$failed $group"
+          done
+          for group in $failed; do
+            echo "::group::Output of test group $group"
+            cat "qemu_output_$group.log"
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::test groups failed:$failed"
             exit 1
           fi
+          echo "✅ All tests passed!"
 
       - name: Upload QEMU Output
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: qemu-test-output
-          path: qemu_output.log
+          path: qemu_output_*.log
 
   # Single check to require in branch protection. The example jobs come from a
   # matrix computed at run time, so their check names change whenever examples
