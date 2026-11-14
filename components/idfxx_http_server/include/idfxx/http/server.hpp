@@ -1359,6 +1359,14 @@ public:
 
     /**
      * @brief Stops the server and releases all resources.
+     *
+     * Waits for in-flight URI handlers, error handlers and session callbacks to return before
+     * releasing them, so they never run against a destroyed server.
+     *
+     * @warning Must not be called from within one of this server's handlers or callbacks: the
+     *   server cannot stop while that call is in progress, so it deadlocks.
+     * @note If the server cannot be stopped, it retries briefly and then aborts, since releasing
+     *   resources the server is still using would be unsafe.
      */
     virtual ~server();
 
@@ -1368,7 +1376,19 @@ public:
     /** @brief Move constructor. Transfers server ownership. */
     server(server&&) noexcept;
 
-    /** @brief Move assignment. Transfers server ownership. */
+    /**
+     * @brief Move assignment. Transfers server ownership.
+     *
+     * If this object holds a running server, that server is stopped first, exactly as by the
+     * destructor: in-flight handlers and session callbacks are waited for, and the program aborts
+     * if it cannot be stopped.
+     *
+     * @warning Must not be called on a server from within one of that server's own handlers or
+     *   callbacks: the server cannot stop while that call is in progress, so it deadlocks.
+     *
+     * @param other The server to take ownership from.
+     * @return A reference to this server.
+     */
     server& operator=(server&&) noexcept;
 
     // =========================================================================
@@ -1863,6 +1883,10 @@ private:
         bool has_session_open,
         bool has_session_close
     );
+
+    // Stops the server if running, retrying a failed stop and aborting if it never succeeds:
+    // the server task may still be using the handler records and context until it has stopped.
+    void _stop() noexcept;
 
     static esp_err_t _uri_handler_trampoline(httpd_req_t* req);
 

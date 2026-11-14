@@ -52,6 +52,8 @@ gives the per-component details. Releases are listed newest first.
   returns an `idfxx::byte_span`, so frame bytes are `std::byte`. Compare against `std::byte{...}`
   or use `std::to_integer<uint8_t>()`. `ws_recv()` takes a `byte_span` and `ws_send_binary()` a
   `byte_view`.
+- Destroying a server, or move-assigning over a running one, waits for in-flight handlers and
+  callbacks to return.
 - idfxx_https_server 4.0.0 servers take the same request API, so these steps apply to their
   handlers too.
 

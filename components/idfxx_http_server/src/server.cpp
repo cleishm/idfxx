@@ -4,10 +4,13 @@
 #include <idfxx/error>
 #include <idfxx/http/detail/server_config.ipp>
 #include <idfxx/http/server>
+#include <idfxx/sched>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <esp_http_server.h>
 #include <esp_idf_version.h>
@@ -81,6 +84,13 @@ static_assert(std::to_underlying(idfxx::http::request::ws_frame_type::pong) == H
 
 namespace {
 const char* TAG = "idfxx::httpd";
+
+// Stopping fails only when the stop request cannot be delivered to the server task (e.g. while
+// lwIP is out of buffers), which leaves the server running and the stop safe to retry. The server
+// task may still call into the handler records and the server context, so teardown cannot proceed
+// until the stop succeeds.
+constexpr int stop_attempts = 10;
+constexpr std::chrono::milliseconds stop_retry_delay{50};
 
 httpd_method_t to_httpd_method(idfxx::http::method m) {
     auto idx = static_cast<size_t>(std::to_underlying(m));
@@ -399,9 +409,7 @@ server::server(config cfg)
 #endif
 
 server::~server() {
-    if (_handle) {
-        _stop_fn(_handle);
-    }
+    _stop();
 }
 
 server::server(server&& other) noexcept
@@ -419,9 +427,7 @@ server::server(server&& other) noexcept
 
 server& server::operator=(server&& other) noexcept {
     if (this != &other) {
-        if (_handle) {
-            _stop_fn(_handle);
-        }
+        _stop();
         _handle = std::exchange(other._handle, nullptr);
         _stop_fn = std::exchange(other._stop_fn, nullptr);
         _ctx = std::move(other._ctx);
@@ -434,6 +440,36 @@ server& server::operator=(server&& other) noexcept {
         }
     }
     return *this;
+}
+
+void server::_stop() noexcept {
+    if (_handle == nullptr) {
+        return;
+    }
+    for (int attempt = 1;; ++attempt) {
+        esp_err_t err = _stop_fn(_handle);
+        if (err == ESP_OK) {
+            _handle = nullptr;
+            return;
+        }
+        if (attempt == stop_attempts) {
+            ESP_LOGE(
+                TAG,
+                "Failed to stop server after %d attempts (%s); aborting",
+                attempt,
+                esp_err_to_name(err)
+            );
+            abort();
+        }
+        ESP_LOGW(
+            TAG,
+            "Failed to stop server (attempt %d of %d): %s; retrying",
+            attempt,
+            stop_attempts,
+            esp_err_to_name(err)
+        );
+        idfxx::delay(stop_retry_delay);
+    }
 }
 
 // =============================================================================

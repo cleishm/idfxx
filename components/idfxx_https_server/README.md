@@ -174,6 +174,12 @@ request/response API.
   startup; they do not need to outlive the creation call
 - **Handler lifetime**: Handlers are stored internally and must not reference stack-local data that
   goes out of scope
+- **Stopping the server**: Destroying a server, or move-assigning over one that is running, stops
+  it and waits for in-flight handlers and session callbacks to return. Never do either from within
+  one of that server's own handlers or callbacks: the server cannot stop until they return, so it
+  deadlocks. If the server cannot be stopped (for example while the network stack is out of
+  buffers), it retries briefly and then aborts, since releasing what the server is still using
+  would be unsafe
 - **Request lifetime**: The `request` object is only valid during the handler invocation; do not
   store references to it
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the
