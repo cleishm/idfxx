@@ -75,9 +75,9 @@ its measured width; a line broken at a soft hyphen (`"\u00AD"`) needs a `'-'` dr
 using namespace idfxx::font;
 
 const std::string_view text = "Baked fresh daily with ingre\u00ADdients from local farms.";
-size_t y = 0;
+int y = 0;
 for (const text_line& line : break_lines(inter_16, text, 224)) {
-    const size_t x = 8 + (224 - line.width) / 2;          // centered in a 224 px box
+    const int x = 8 + (224 - line.width) / 2;             // centered in a 224 px box
     canvas.draw_text(inter_16, x, y, line.text, white);
     if (line.hyphenated) {
         canvas.draw_text(inter_16, x + text_width(inter_16, line.text), y, "-", white);

@@ -31,6 +31,8 @@ Drawing primitives for pixel surfaces: rectangles, lines, and bitmap-font text.
   content; on monochrome surfaces `ink = false` draws inverse text over filled regions
 - Header-only, zero per-pixel dispatch overhead — the ink value is typed to the surface's pixel type
   at compile time
+- Signed positions: shapes and text may start or extend off any edge of the surface (scrolling
+  text, a sprite sliding in from the left) and draw only their visible part — no pre-clipping
 - All drawing clips at surface edges and never fails
 
 ## Requirements
@@ -131,7 +133,7 @@ when it is. It returns the height drawn, so the next item can follow it:
 ```cpp
 using idfxx::gfx::text_align;
 
-size_t y = 4;
+int y = 4;
 y += canvas.draw_text_box(idfxx::font::inter_48, 8, y, 224, "Café", amber, text_align::center);
 y += canvas.draw_text_box(idfxx::font::inter_16, 8, y, 224,
                           "Baked fresh daily with ingre\u00ADdients from local farms.", white);
@@ -200,12 +202,15 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_5x8, 2, 1, "status", false);
 
 ## API Overview
 
+Drawing positions (`x`, `y`, `x0`, ...) are `int` and may be negative or beyond the surface; sizes
+(`w`, `h`, `len`, `width`) are `size_t`, as are a surface's own `set_pixel` coordinates.
+
 | Item | Description |
 | ---- | ----------- |
 | `pixel_surface` | Concept: `pixel_type`, `set_pixel(x, y, pixel)`, `width()`, `height()`. |
 | `canvas(surface)` | Drawing view: the operations below as members, plus `fill(ink)` / `clear()` (using the surface's own fill/clear when present). |
 | `canvas(surface, x, y, w, h)` | Translated canvas: the surface holds the region of a w x h drawing space whose top-left corner is (x, y) — see Band rendering above. |
-| `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping; `fill`/`clear` affect only the sub-region. |
+| `canvas.window(x, y, w, h)` | Sub-region canvas with local coordinates and clipping (it may start off the canvas); `fill`/`clear` affect only the sub-region. |
 | `rotated(surface, rotation)` | Quarter-turn view (`rotation::cw90` / `ccw90`): swapped dimensions, `set_pixel` remapped to the surface's native layout; `fill`/`clear` forward to the surface's. |
 | `to_string(rotation)` / `to_string(text_align)` | Enumerator name; also `std::formatter` specializations (with `CONFIG_IDFXX_STD_FORMAT`). |
 | `render_banded(band, dest, frame_h, draw)` | Render a frame taller than the band: invokes `draw(canvas)` once per band and writes each slice with `dest.try_write(band, 0, y)` (also `try_render_banded`). |
