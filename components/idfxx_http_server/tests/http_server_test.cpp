@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <esp_http_server.h>
 #include <esp_idf_version.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -769,6 +770,93 @@ TEST_CASE("http server closes session sockets when on_session_close is set", "[i
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     TEST_ASSERT_TRUE(closed->load() >= requests);
+}
+
+// =============================================================================
+// Teardown when stopping the server fails
+// =============================================================================
+
+namespace {
+
+// Calls made to flaky_stop, and how many of the next calls fail before it stops the server.
+int flaky_stop_calls = 0;
+int flaky_stop_failures = 0;
+
+esp_err_t flaky_stop(httpd_handle_t handle) {
+    ++flaky_stop_calls;
+    if (flaky_stop_failures > 0) {
+        --flaky_stop_failures;
+        return ESP_FAIL;
+    }
+    return httpd_stop(handle);
+}
+
+// A server whose stop fails flaky_stop_failures times, leaving it running, before it stops: as
+// httpd_stop does when it cannot deliver the stop request to the server task.
+class flaky_stop_server : public server {
+public:
+    static flaky_stop_server start(uint16_t port, uint16_t ctrl_port) {
+        httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+        cfg.server_port = port;
+        cfg.ctrl_port = ctrl_port;
+        httpd_handle_t handle = nullptr;
+        TEST_ASSERT_EQUAL(ESP_OK, httpd_start(&handle, &cfg));
+        return flaky_stop_server{handle};
+    }
+
+private:
+    explicit flaky_stop_server(httpd_handle_t handle)
+        : server(handle, std::make_unique<server_ctx>(), {}, {}, flaky_stop) {}
+};
+
+// Whether a new server can start on port and ctrl_port, i.e. no running server holds them.
+bool can_start_on(uint16_t port, uint16_t ctrl_port) {
+    return server::make({.server_port = port, .ctrl_port = ctrl_port}).has_value();
+}
+
+result<void> send_hello(request& req) { return req.try_send("hello"); }
+
+} // namespace
+
+TEST_CASE("http server destructor retries a failed stop until the server stops", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto ctrl_port = alloc_ctrl_port();
+    flaky_stop_calls = 0;
+    flaky_stop_failures = 2;
+    {
+        auto srv = flaky_stop_server::start(port, ctrl_port);
+        TEST_ASSERT_TRUE(srv.try_on_get("/hello", send_hello).has_value());
+        TEST_ASSERT_EQUAL(200, fetch(port, "/hello").status);
+        TEST_ASSERT_FALSE(can_start_on(port, ctrl_port));
+    }
+    TEST_ASSERT_EQUAL(3, flaky_stop_calls);
+    TEST_ASSERT_TRUE(can_start_on(port, ctrl_port));
+}
+
+TEST_CASE("http server move assignment retries a failed stop until the replaced server stops", "[idfxx][http]") {
+    ensure_event_loop();
+    auto port = alloc_test_port();
+    auto ctrl_port = alloc_ctrl_port();
+    auto other_port = alloc_test_port();
+    auto other_ctrl_port = alloc_ctrl_port();
+    flaky_stop_calls = 0;
+    flaky_stop_failures = 0;
+
+    auto srv = flaky_stop_server::start(port, ctrl_port);
+    TEST_ASSERT_TRUE(srv.try_on_get("/hello", send_hello).has_value());
+    auto other = flaky_stop_server::start(other_port, other_ctrl_port);
+    TEST_ASSERT_TRUE(other.try_on_get("/hello", send_hello).has_value());
+    TEST_ASSERT_EQUAL(200, fetch(port, "/hello").status);
+    TEST_ASSERT_FALSE(can_start_on(port, ctrl_port));
+
+    flaky_stop_failures = 2;
+    srv = std::move(other);
+    TEST_ASSERT_EQUAL(3, flaky_stop_calls);
+    TEST_ASSERT_TRUE(can_start_on(port, ctrl_port));
+
+    // The assigned server keeps running under its new owner.
+    TEST_ASSERT_EQUAL(200, fetch(other_port, "/hello").status);
 }
 
 // =============================================================================

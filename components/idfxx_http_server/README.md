@@ -269,6 +269,12 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   returning its error code, and any other exception is also logged as an error. An exception thrown
   by `on_session_open` rejects the session, and one thrown by `on_session_close` is logged and
   ignored. The server keeps running either way
+- **Stopping the server**: Destroying a server, or move-assigning over one that is running, stops
+  it and waits for in-flight handlers and session callbacks to return. Never do either from within
+  one of that server's own handlers or callbacks: the server cannot stop until they return, so it
+  deadlocks. If the server cannot be stopped (for example while the network stack is out of
+  buffers), it retries briefly and then aborts, since releasing what the server is still using
+  would be unsafe
 - **Request lifetime**: The `request` object is only valid during the handler invocation; do not
   store references to it
 - **Thread safety**: Handler registration is not thread-safe; register all handlers before the

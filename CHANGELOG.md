@@ -109,7 +109,9 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   setters throw, with `try_set_status`, `try_set_content_type` and `try_set_header` for result-based
   code; header text is validated, and exceeding `max_resp_headers` is an error. An empty
   `send_chunk` no longer ends the response. WebSocket frame data is `std::byte`. Adding a response
-  header no longer corrupts earlier ones
+  header no longer corrupts earlier ones. Destroying a server, or move-assigning over a running
+  one, waits for in-flight handlers and callbacks instead of freeing their state while they run,
+  and aborts if the server can't be stopped
 - `idfxx_https_server` `4.0.0` — requires idfxx_http_server `^3.0.0`, whose request changes apply
   to its handlers
 - `idfxx_nvs` `2.0.0` — blobs are written from a `byte_view` or any trivially copyable value, and
