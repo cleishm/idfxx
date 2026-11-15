@@ -30,5 +30,5 @@ dependencies:
     public: false
     override_path: ../idfxx_event_group
   cleishm/quanta:
-    version: "^0.1.0"
+    version: "^0.2.0"
     public: true
