@@ -30,7 +30,7 @@ Add to your project's `idf_component.yml`:
 
 ```yaml
 dependencies:
-  cleishm/idfxx_adc: "^2.0.0"
+  cleishm/idfxx_adc: "^2.1.0"
 ```
 
 ## Usage
@@ -43,6 +43,13 @@ dependencies:
 // One-shot: read a battery behind a 2:1 divider on demand.
 idfxx::adc::input battery({.pin = idfxx::gpio_3, .divider = {2, 1}});
 quanta::electro::millivolts v = battery.read_voltage();  // battery-side voltage
+```
+
+To get both the pin and source voltage from a single sample, read the pin voltage and convert it:
+
+```cpp
+quanta::electro::millivolts at_pin = battery.read_pin_voltage();
+quanta::electro::millivolts at_source = battery.divider().source_voltage(at_pin);
 ```
 
 ```cpp
@@ -101,11 +108,14 @@ if (!n) { /* n.error() */ }
 | ------ | ----------- |
 | `input(config)` / `make(config)` | Claim the pin's ADC unit and configure the channel. |
 | `read_voltage()` / `try_read_voltage()` | Calibrated voltage, scaled by the configured divider (`quanta::electro::millivolts`). |
+| `read_pin_voltage()` / `try_read_pin_voltage()` | Calibrated voltage at the pin, not scaled by the divider. |
 | `read_raw()` / `try_read_raw()` | Raw conversion value. |
 | `calibrated()` | Whether factory calibration is active. |
 
 `config`: `pin` (required, ADC-capable), `attenuation` (default `db_12`, full range), `divider`
-(external divider ratio, default 1:1 — `read_voltage` scales by it to report the source voltage).
+(external divider ratio, default 1:1 — `read_voltage` scales by it to report the source voltage;
+`read_pin_voltage` and `read_raw` are unaffected). `divider_ratio::source_voltage(pin)` converts a
+pin voltage to the source voltage.
 
 ### `idfxx::adc::sampler`
 

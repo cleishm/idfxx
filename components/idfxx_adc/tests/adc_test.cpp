@@ -35,6 +35,20 @@ static_assert(input::config{.pin = idfxx::gpio_5}.pin != idfxx::gpio_6);
 static_assert(input::config{.pin = idfxx::gpio_5} == input::config{.pin = idfxx::gpio_5});
 static_assert(input::config{.pin = idfxx::gpio_5} != input::config{.pin = idfxx::gpio_6});
 
+// divider_ratio::source_voltage: 1:1 is the identity, num / den scales, and the result truncates.
+using mv = quanta::electro::millivolts;
+static_assert(divider_ratio{}.source_voltage(mv{1234}) == mv{1234});
+static_assert(divider_ratio{2, 1}.source_voltage(mv{1500}) == mv{3000});
+static_assert(divider_ratio{3, 2}.source_voltage(mv{1001}) == mv{1501});
+static_assert(divider_ratio{1, 3}.source_voltage(mv{1000}) == mv{333});
+static_assert(divider_ratio{3, 2}.source_voltage(mv{-1001}) == mv{-1501});
+// Results past the int range are exact, and no intermediate overflows near the int64 limit.
+static_assert(divider_ratio{3, 1}.source_voltage(mv{2'000'000'000}) == mv{6'000'000'000});
+static_assert(
+    divider_ratio{1000, 1001}.source_voltage(mv{9'000'000'000'000'000'000}) ==
+    mv{8'991'008'991'008'991'008}
+);
+
 // =============================================================================
 // Runtime tests
 // =============================================================================
