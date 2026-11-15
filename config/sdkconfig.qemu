@@ -18,6 +18,12 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 
+# No USB Serial/JTAG secondary console: from ESP-IDF 6.1.1 its startup waits for BBPLL
+# calibration, which QEMU before esp-develop-9.2.2-20261109 never reports, so boot hangs.
+# Fixed in espressif/qemu 98feb8b8; drop this once ESP-IDF's tools.json pins a QEMU that has it
+# (the CI qemu-test job fails when it does).
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
 # Larger main task stack for TLS tests
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 

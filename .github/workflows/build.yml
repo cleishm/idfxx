@@ -359,6 +359,19 @@ jobs:
           fi
           qemu-system-xtensa --version
 
+      - name: Check QEMU workarounds are still needed
+        shell: python3 {0}
+        run: |
+          import json, os, sys
+          tools = json.load(open(os.path.join(os.environ["IDF_PATH"], "tools", "tools.json")))
+          ver = next(t for t in tools["tools"] if t["name"] == "qemu-xtensa")["versions"][0]["name"]
+          cfg = open("config/sdkconfig.qemu").read().splitlines()
+          if int(ver.rsplit("_", 1)[-1]) >= 20261109 and "CONFIG_ESP_CONSOLE_SECONDARY_NONE=y" in cfg:
+              print(f"::error::ESP-IDF now pins QEMU {ver}, which reports BBPLL calibration: "
+                    "drop CONFIG_ESP_CONSOLE_SECONDARY_NONE from config/sdkconfig.qemu")
+              sys.exit(1)
+          print(f"QEMU {ver}: workarounds still needed")
+
       - name: Restore ccache
         uses: actions/cache/restore@v4
         with:
