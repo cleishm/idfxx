@@ -100,7 +100,7 @@ jobs:
     needs: tested
     if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: espressif/idf:v6.1.1
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -122,7 +122,7 @@ jobs:
     needs: tested
     if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: espressif/idf:v6.1.1
     strategy:
       fail-fast: false
       matrix:
@@ -180,7 +180,7 @@ jobs:
 
   # Early-warning canary: builds against the moving release/v6.1 branch tip to
   # surface upstream ESP-IDF changes before they land in a tagged point release.
-  # Every other job pins to espressif/idf:v6.1; this one is allowed to fail so
+  # Every other job pins to espressif/idf:v6.1.1; this one is allowed to fail so
   # unreleased upstream regressions flag a warning without blocking PRs.
   build-canary:
     needs: tested
@@ -312,7 +312,7 @@ jobs:
   build-example:
     needs: [discover-examples, format-check, build, build-compat]
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: espressif/idf:v6.1.1
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover-examples.outputs.matrix) }}
@@ -344,7 +344,7 @@ jobs:
     needs: tested
     if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: espressif/idf:v6.1.1
     steps:
       - name: Checkout
         uses: actions/checkout@v5
