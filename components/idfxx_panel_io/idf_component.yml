@@ -22,5 +22,5 @@ dependencies:
     public: true
     override_path: ../idfxx_i2c
   cleishm/quanta:
-    version: "^0.1.0"
+    version: "^0.2.0"
     public: true

@@ -22,7 +22,7 @@ dependencies:
     public: true
     override_path: ../idfxx_netif
   cleishm/quanta:
-    version: "^0.1.0"
+    version: "^0.2.0"
     public: true
 # esp_wifi only exists on Wi-Fi-capable chips.
 targets:

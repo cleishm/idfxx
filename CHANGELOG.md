@@ -31,6 +31,9 @@ These changes apply across many of the components listed below:
 - **WiFi `connect_sta` is station-only.** `connect_sta()` makes the station the only role, stopping
   a running AP. For AP+STA, set the roles and configs, call `start()`, then the new
   `connect(timeout)`.
+- **quanta 0.2.** Components that use quanta require `cleishm/quanta` `^0.2.0`. Projects that
+  depend on quanta directly raise their constraint to match; quanta 0.2 adds the `quanta::data`
+  domain and keeps existing code compatible.
 
 See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
 
@@ -147,6 +150,7 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   scaled by the divider, and `divider_ratio::source_voltage()` to convert a pin voltage to the
   source voltage
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
+- `idfxx_dht` `2.1.0`, `idfxx_pwm` `3.1.0` — require quanta `^0.2.0`
 
 ### Fixes
 
