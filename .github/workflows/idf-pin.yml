@@ -24,9 +24,10 @@ name: ESP-IDF pin
 
 on:
   schedule:
-    # Mondays, 06:00 UTC. ESP-IDF point releases land roughly monthly, so a
-    # weekly check finds them promptly without churning.
-    - cron: '0 6 * * 1'
+    # Daily, 06:00 UTC. The check takes seconds and opens a PR only when there
+    # is a new point release, so running it often costs nothing and picks up a
+    # release within a day.
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -89,8 +90,12 @@ jobs:
           # Stay inside the pinned minor series. Moving to a new minor or major
           # is a migration, staged through build-canary and build-compat, and
           # not something to apply unattended.
-          latest=$(gh api "repos/espressif/esp-idf/releases?per_page=100" \
-              --jq '.[] | select(.prerelease == false) | .tag_name' |
+          #
+          # A point release counts once it is tagged: ESP-IDF publishes its docs
+          # and installers from the tag, and its GitHub release can follow days
+          # later or not at all. The pattern leaves out -dev, -beta and -rc tags.
+          latest=$(gh api --paginate "repos/espressif/esp-idf/git/matching-refs/tags/$SERIES" \
+              --jq '.[].ref | sub("^refs/tags/"; "")' |
               grep -E "^${SERIES//./\\.}(\.[0-9]+)?$" | sort -V | tail -1)
           if [ -z "$latest" ]; then
             echo "::error::no $SERIES point release found"
@@ -101,11 +106,11 @@ jobs:
             echo "bump=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # The container image is published separately from the GitHub release
-          # and can lag it by days. Pinning to a tag that does not exist yet
-          # fails every job that runs in the image.
+          # The container image is built after the tag is pushed, so it can lag
+          # it. Pinning to an image tag that does not exist yet fails every job
+          # that runs in the image.
           if ! curl -fsS -o /dev/null "https://hub.docker.com/v2/repositories/espressif/idf/tags/$latest"; then
-            echo "$latest is released but espressif/idf:$latest is not published yet"
+            echo "$latest is tagged but espressif/idf:$latest is not published yet"
             echo "bump=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
