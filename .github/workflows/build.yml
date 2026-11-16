@@ -322,24 +322,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # Examples only read a cache: dozens of them run at once and would race to
-      # save. They start from the esp32s3 test-app builds, which share most of
-      # their IDF objects.
+      # Each example keeps a cache of its own. Every example has its own
+      # sdkconfig, and nearly every file includes the sdkconfig.h generated from
+      # it, so one project's cache gets no hits in another's.
       - name: Restore ccache
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-esp32s3-with-exceptions-${{ github.run_id }}
-          restore-keys: ccache-esp32s3-with-exceptions-
+          key: ccache-example-${{ matrix.component }}-${{ matrix.example }}-${{ github.run_id }}
+          restore-keys: ccache-example-${{ matrix.component }}-${{ matrix.example }}-
 
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          start=$(date +%s)
           ccache -z
           cd ${{ matrix.path }}
           idf.py set-target esp32s3
           idf.py build
+          ccache --evict-older-than "$(( $(date +%s) - start + 60 ))s"
           ccache -sv
+
+      - name: Save ccache
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-example-${{ matrix.component }}-${{ matrix.example }}-${{ github.run_id }}
 
   qemu-test:
     needs: tested
@@ -547,7 +556,7 @@ jobs:
     if: >-
       always() && needs.tested.outputs.skip != 'true' &&
       github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [tested, build, build-canary, build-compat, qemu-test]
+    needs: [tested, build, build-canary, build-compat, build-example, qemu-test]
     runs-on: ubuntu-latest
     permissions:
       actions: write
