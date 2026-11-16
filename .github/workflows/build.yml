@@ -28,11 +28,12 @@ concurrency:
 # The espressif/idf image compiles through ccache (IDF_CCACHE_ENABLE=1), and each
 # build job keeps its ccache directory between runs under its own key. Only runs
 # on main (pushes that build, manual and scheduled runs) save; pull requests
-# restore main's latest copy and never write, which keeps the number of caches
-# bounded. Before saving, entries the job's builds didn't touch are evicted
-# (ccache refreshes an entry's mtime on every hit; the cutoff is taken before the
-# first group), so each saved cache holds just one run's working set, every
-# group's, rather than growing.
+# restore main's latest copy and never write. After a run saves, prune-ccache
+# deletes the copies it superseded, so main holds one copy of each cache.
+# Before saving, entries the job's builds didn't touch are evicted (ccache
+# refreshes an entry's mtime on every hit; the cutoff is taken before the first
+# group), so each saved cache holds just one run's working set, every group's,
+# rather than growing.
 #
 # ccache hashes a -specs= file the way it checks the compiler, and IDF 6 passes
 # one that every build generates afresh (build/specs/picolibc.specs). The
@@ -536,3 +537,44 @@ jobs:
           path: tested-tree
           retention-days: 30
           overwrite: true
+
+  # Each saving run adds a new copy of every ccache cache, keyed by run id, and
+  # restores only ever take the newest. Once this run's jobs have saved, delete
+  # the older copies of each cache it saved. A cache this run didn't save (its
+  # job failed or was skipped) keeps its copies, and copies saved by a newer run
+  # running alongside this one are left alone.
+  prune-ccache:
+    if: >-
+      always() && needs.tested.outputs.skip != 'true' &&
+      github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [tested, build, build-canary, build-compat, qemu-test]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete superseded ccache caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          stale=$(gh cache list --ref refs/heads/main --key ccache- --limit 1000 \
+            --json id,key --jq '
+              [.[] | . + (.key | capture("^(?<name>.+)-(?<run>[0-9]+)$") // {})
+                   | select(.run != null)] as $caches
+              | [$caches[] | select(.run == env.RUN_ID) | .name] as $saved
+              | $caches[]
+              | select(.name as $name | any($saved[]; . == $name))
+              | select((.run | tonumber) < (env.RUN_ID | tonumber))
+              | "\(.id) \(.key)"')
+          deleted=0
+          while read -r id key; do
+            [ -n "$id" ] || continue
+            if gh cache delete "$id"; then
+              echo "deleted $key"
+              deleted=$((deleted + 1))
+            else
+              echo "::warning::could not delete cache $key"
+            fi
+          done <<< "$stale"
+          echo "deleted $deleted superseded caches"
