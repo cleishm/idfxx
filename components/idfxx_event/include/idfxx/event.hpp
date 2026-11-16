@@ -285,9 +285,8 @@ class user_event_loop;
  * @brief Base class for event loops.
  *
  * Provides listener registration and event posting operations. This type
- * is non-copyable and move-only. Result-returning methods on a moved-from
- * object return errc::invalid_state. Simple accessors return default/null
- * values.
+ * is non-copyable and move-only. A moved-from object must not be used: any
+ * operation other than destruction or assignment is undefined behavior.
  *
  * @code
  * // Define typed events
