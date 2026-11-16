@@ -133,8 +133,14 @@ jobs:
             defaults: config/sdkconfig.defaults
           - name: no-exceptions
             defaults: "config/sdkconfig.defaults;config/sdkconfig.no-exceptions"
-          - name: no-ipv6
-            defaults: "config/sdkconfig.defaults;config/sdkconfig.no-ipv6"
+        # The IPv6 guards in idfxx_net and idfxx_netif don't depend on the
+        # target, so one Wi-Fi target covers them, along with the Wi-Fi code
+        # built on top.
+        include:
+          - target: esp32s3
+            config:
+              name: no-ipv6
+              defaults: "config/sdkconfig.defaults;config/sdkconfig.no-ipv6"
     name: build (${{ matrix.target }}, ${{ matrix.config.name }})
     steps:
       - name: Checkout
