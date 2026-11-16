@@ -151,6 +151,10 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   source voltage
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
 - `idfxx_dht` `2.1.0`, `idfxx_pwm` `3.1.0` — require quanta `^0.2.0`
+- `idfxx_epaper_image` `1.1.0` — requires epaper-image `^0.5.0`; panel output is unchanged.
+  Projects that use epaper-image directly raise their constraint to match: its resampler config
+  takes the source rectangle as an `epi_rect_t`, and `epi_layout_cover` / `epi_layout_fit` take a
+  region. Documentation fixes
 
 ### Fixes
 
@@ -158,7 +162,6 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   `std::span<std::byte>` or `idfxx::byte_span`; require idfxx_core `^1.3.0`
 - `idfxx_gpio` `1.1.1` — `deep_sleep_hold_enable()` and `deep_sleep_hold_disable()` are left out on
   esp32p4, where ESP-IDF has no all-pins deep-sleep hold
-- `idfxx_epaper_image` `1.0.1` — documentation fixes
 
 ### Other changes
 

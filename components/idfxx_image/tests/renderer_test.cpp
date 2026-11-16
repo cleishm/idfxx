@@ -207,35 +207,37 @@ epi_filter_t library_filter(filter f) {
     return EPI_FILTER_LANCZOS3;
 }
 
-// The library lays out a whole source on a whole canvas. Laying out the crop in
-// an area of the target's size, then translating both, is what makes that a
-// reference for a crop and a target; the library's resampler then runs on an
-// identical configuration, on a canvas of the whole screen.
+// The library lays out the crop as a region of the source on a whole canvas.
+// Laying it out on a canvas of the target's size, then translating the
+// placement, is what makes that a reference for a target; the library's
+// resampler then runs on an identical configuration, on a canvas of the whole
+// screen.
 epi_resampler_config_t library_config(const library_case& c) {
     const rect crop = c.crop.value_or(rect{0, 0, c.src_w, c.src_h});
+    const epi_rect_t region = {
+        static_cast<float>(crop.x),
+        static_cast<float>(crop.y),
+        static_cast<float>(crop.width),
+        static_cast<float>(crop.height),
+    };
     epi_resampler_config_t cfg{};
-    cfg.src_width = static_cast<uint32_t>(crop.width);
-    cfg.src_height = static_cast<uint32_t>(crop.height);
+    cfg.src_width = static_cast<uint32_t>(c.src_w);
+    cfg.src_height = static_cast<uint32_t>(c.src_h);
     cfg.dst_width = static_cast<uint16_t>(c.target.width);
     cfg.dst_height = static_cast<uint16_t>(c.target.height);
     switch (c.how) {
     case layout::cover:
-        epi_layout_cover(&cfg);
+        TEST_ASSERT_EQUAL(EPI_OK, epi_layout_cover(&cfg, &region));
         break;
     case layout::fit:
-        epi_layout_fit(&cfg);
+        TEST_ASSERT_EQUAL(EPI_OK, epi_layout_fit(&cfg, &region));
         break;
     case layout::stretch:
-        cfg.src_w = static_cast<float>(crop.width);
-        cfg.src_h = static_cast<float>(crop.height);
+        cfg.src = region;
         cfg.dst_w = cfg.dst_width;
         cfg.dst_h = cfg.dst_height;
         break;
     }
-    cfg.src_x += static_cast<float>(crop.x);
-    cfg.src_y += static_cast<float>(crop.y);
-    cfg.src_width = static_cast<uint32_t>(c.src_w);
-    cfg.src_height = static_cast<uint32_t>(c.src_h);
     cfg.dst_x += c.target.x;
     cfg.dst_y += c.target.y;
     cfg.dst_width = static_cast<uint16_t>(c.screen_w);
