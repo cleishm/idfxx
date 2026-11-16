@@ -291,14 +291,14 @@ std::vector<uint8_t> library_convert(
     rc.filter = EPI_FILTER_LANCZOS3;
     switch (place.how) {
     case library_place::cover:
-        epi_layout_cover(&rc);
+        TEST_ASSERT_EQUAL_INT(EPI_OK, epi_layout_cover(&rc, nullptr));
         break;
     case library_place::fit:
-        epi_layout_fit(&rc);
+        TEST_ASSERT_EQUAL_INT(EPI_OK, epi_layout_fit(&rc, nullptr));
         break;
     case library_place::stretch:
-        rc.src_w = static_cast<float>(picture.width());
-        rc.src_h = static_cast<float>(picture.height());
+        rc.src.w = static_cast<float>(picture.width());
+        rc.src.h = static_cast<float>(picture.height());
         rc.dst_x = place.dst_x;
         rc.dst_y = place.dst_y;
         rc.dst_w = place.dst_w;
