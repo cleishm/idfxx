@@ -1,4 +1,4 @@
-version: "1.0.2"
+version: "1.0.3"
 description: "Type-safe FreeRTOS event group for inter-task synchronization"
 url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_event_group"
 repository: "https://github.com/cleishm/idfxx.git"

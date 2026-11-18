@@ -115,8 +115,7 @@ public:
      * @brief Creates a timer with a std::move_only_function callback.
      *
      * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
-     overload for ISR
-     * dispatch.
+     * overload for ISR dispatch.
      *
      * @param cfg Timer configuration.
      * @param callback Function to call when timer fires.
@@ -404,8 +403,7 @@ public:
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
      * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
-     overload for ISR
-     * dispatch.
+     * overload for ISR dispatch.
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
@@ -472,16 +470,15 @@ public:
     }
 
     /**
-     * @brief Creates and starts a one-shot timer at an absolute time with a std::move_only_function
-     callback.
+     * @brief Creates and starts a one-shot timer at an absolute time with a
+     * std::move_only_function callback.
      *
      * Combines timer creation and one-shot start into a single operation. The timer
      * fires at the specified time point. If the time point is in the past, the timer
      * fires as soon as possible.
      *
      * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
-     overload for ISR
-     * dispatch.
+     * overload for ISR dispatch.
      *
      * @param cfg Timer configuration.
      * @param time Absolute time at which the callback should be invoked.
@@ -546,8 +543,7 @@ public:
      * succeeds but starting fails, the timer is automatically cleaned up via RAII.
      *
      * @warning This method cannot be used with dispatch_method::isr. Use the raw function pointer
-     overload for ISR
-     * dispatch.
+     * overload for ISR dispatch.
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.

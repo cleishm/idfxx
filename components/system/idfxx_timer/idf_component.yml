@@ -1,4 +1,4 @@
-version: "1.1.0"
+version: "1.1.1"
 description: "High-resolution timer management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_timer"
 repository: "https://github.com/cleishm/idfxx.git"

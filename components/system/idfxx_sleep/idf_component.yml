@@ -1,4 +1,4 @@
-version: "1.1.0"
+version: "1.1.1"
 description: "Light and deep sleep with type-safe wake-up source configuration for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_sleep"
 repository: "https://github.com/cleishm/idfxx.git"

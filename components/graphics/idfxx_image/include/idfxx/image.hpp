@@ -790,7 +790,7 @@ private:
  *
  * Orientations @ref orientation::transpose, @ref orientation::rotate_90,
  * @ref orientation::transverse, and @ref orientation::rotate_270 exchange width and height (see
- @ref swaps_axes).
+ * @ref swaps_axes).
  *
  * The result of applying each orientation to an image of the letter F, numbered
  * by EXIF value:
