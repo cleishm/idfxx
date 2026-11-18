@@ -1,4 +1,4 @@
-version: "1.0.2"
+version: "1.0.3"
 description: "Common HTTP types for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/protocols/idfxx_http"
 repository: "https://github.com/cleishm/idfxx.git"
