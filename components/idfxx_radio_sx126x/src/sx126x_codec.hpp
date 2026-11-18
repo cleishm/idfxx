@@ -90,7 +90,8 @@ namespace idfxx::radio::sx126x_internal {
 /// Packs LoRa packet framing into the six SetPacketParams bytes (tables
 /// 13-66..13-70): preamble MSB/LSB, header type, payload length, CRC on, IQ
 /// inverted.
-[[nodiscard]] constexpr std::array<uint8_t, 6> pack_packet_params(const lora_packet_params& p) noexcept {
+[[nodiscard]] constexpr std::array<uint8_t, 6>
+pack_packet_params(const lora_packet_params& p) noexcept {
     return {
         static_cast<uint8_t>(p.preamble_length >> 8),
         static_cast<uint8_t>(p.preamble_length),

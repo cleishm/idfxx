@@ -120,7 +120,8 @@ struct picture_layout {
 
 // Scales a source of src_w x src_h to the larger of the two ratios, so it fills
 // the area, and center-crops it.
-[[nodiscard]] picture_layout layout_cover(float src_w, float src_h, uint32_t area_w, uint32_t area_h);
+[[nodiscard]] picture_layout
+layout_cover(float src_w, float src_h, uint32_t area_w, uint32_t area_h);
 
 // Scales a source of src_w x src_h to the smaller of the two ratios, so it fits
 // inside the area, and centers it.

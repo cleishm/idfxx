@@ -9,7 +9,6 @@
 // type-specific extras.
 
 #include "sdkconfig.h"
-
 #include "sockopt.hpp"
 
 #include <idfxx/net/endpoint>

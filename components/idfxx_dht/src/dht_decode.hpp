@@ -32,7 +32,8 @@ inline constexpr uint32_t rmt_resolution_hz = 1'000'000;
 // answered the start pulse), errc::invalid_response when a preamble is found
 // but fewer than 40 well-formed bit symbols follow it, and errc::invalid_crc
 // when the checksum byte does not match.
-[[nodiscard]] result<std::array<uint8_t, 5>> decode_frame(std::span<const rmt_symbol_word_t> symbols);
+[[nodiscard]] result<std::array<uint8_t, 5>>
+decode_frame(std::span<const rmt_symbol_word_t> symbols);
 
 // Converts the 5 frame bytes to a reading using the model's encoding.
 [[nodiscard]] reading to_reading(const std::array<uint8_t, 5>& bytes, model m);

@@ -25,6 +25,7 @@ namespace idfxx::net::netconn::detail {
  * @brief Allocates a raw netconn of the given base type, IP protocol, and address family.
  *        Returns `errc::no_buffer_space` on lwIP allocation failure.
  */
-[[nodiscard]] result<::netconn*> make_netconn_with_proto(int base_type, uint8_t proto, address_family fam);
+[[nodiscard]] result<::netconn*>
+make_netconn_with_proto(int base_type, uint8_t proto, address_family fam);
 
 } // namespace idfxx::net::netconn::detail

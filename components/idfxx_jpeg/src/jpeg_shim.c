@@ -229,7 +229,8 @@ static size_t array_size(size_t row_size, JDIMENSION numrows, size_t pointer_siz
 // The size of one sample, as jmemmgr works it out.
 static size_t sample_size(j_common_ptr cinfo) {
     const int precision = ((j_decompress_ptr)cinfo)->data_precision;
-    return precision > 12 ? sizeof(J16SAMPLE) : (precision > 8 ? sizeof(J12SAMPLE) : sizeof(JSAMPLE));
+    return precision > 12 ? sizeof(J16SAMPLE)
+                          : (precision > 8 ? sizeof(J12SAMPLE) : sizeof(JSAMPLE));
 }
 
 // Fails the decode if allocating @p size more bytes would take the working
@@ -271,18 +272,28 @@ static void* counted_alloc_large(j_common_ptr cinfo, int pool_id, size_t size) {
     return object;
 }
 
-static JSAMPARRAY counted_alloc_sarray(j_common_ptr cinfo, int pool_id, JDIMENSION samplesperrow, JDIMENSION numrows) {
-    const size_t size = array_size(mul_size(samplesperrow, sample_size(cinfo)), numrows, sizeof(JSAMPROW));
+static JSAMPARRAY counted_alloc_sarray(
+    j_common_ptr cinfo,
+    int pool_id,
+    JDIMENSION samplesperrow,
+    JDIMENSION numrows
+) {
+    const size_t size =
+        array_size(mul_size(samplesperrow, sample_size(cinfo)), numrows, sizeof(JSAMPROW));
     check_limit(cinfo, size);
-    JSAMPARRAY array = (*ctx_of(cinfo)->libjpeg_mem.alloc_sarray)(cinfo, pool_id, samplesperrow, numrows);
+    JSAMPARRAY array =
+        (*ctx_of(cinfo)->libjpeg_mem.alloc_sarray)(cinfo, pool_id, samplesperrow, numrows);
     count_allocation(cinfo, size);
     return array;
 }
 
-static JBLOCKARRAY counted_alloc_barray(j_common_ptr cinfo, int pool_id, JDIMENSION blocksperrow, JDIMENSION numrows) {
-    const size_t size = array_size(mul_size(blocksperrow, sizeof(JBLOCK)), numrows, sizeof(JBLOCKROW));
+static JBLOCKARRAY
+counted_alloc_barray(j_common_ptr cinfo, int pool_id, JDIMENSION blocksperrow, JDIMENSION numrows) {
+    const size_t size =
+        array_size(mul_size(blocksperrow, sizeof(JBLOCK)), numrows, sizeof(JBLOCKROW));
     check_limit(cinfo, size);
-    JBLOCKARRAY array = (*ctx_of(cinfo)->libjpeg_mem.alloc_barray)(cinfo, pool_id, blocksperrow, numrows);
+    JBLOCKARRAY array =
+        (*ctx_of(cinfo)->libjpeg_mem.alloc_barray)(cinfo, pool_id, blocksperrow, numrows);
     count_allocation(cinfo, size);
     return array;
 }
@@ -296,9 +307,11 @@ static jvirt_sarray_ptr counted_request_virt_sarray(
     JDIMENSION maxaccess
 ) {
     idfxx_jpeg_ctx* ctx = ctx_of(cinfo);
-    jvirt_sarray_ptr array =
-        (*ctx->libjpeg_mem.request_virt_sarray)(cinfo, pool_id, pre_zero, samplesperrow, numrows, maxaccess);
-    const size_t size = array_size(mul_size(samplesperrow, sample_size(cinfo)), numrows, sizeof(JSAMPROW));
+    jvirt_sarray_ptr array = (*ctx->libjpeg_mem.request_virt_sarray)(
+        cinfo, pool_id, pre_zero, samplesperrow, numrows, maxaccess
+    );
+    const size_t size =
+        array_size(mul_size(samplesperrow, sample_size(cinfo)), numrows, sizeof(JSAMPROW));
     ctx->pending = add_size(ctx->pending, size);
     return array;
 }
@@ -312,9 +325,11 @@ static jvirt_barray_ptr counted_request_virt_barray(
     JDIMENSION maxaccess
 ) {
     idfxx_jpeg_ctx* ctx = ctx_of(cinfo);
-    jvirt_barray_ptr array =
-        (*ctx->libjpeg_mem.request_virt_barray)(cinfo, pool_id, pre_zero, blocksperrow, numrows, maxaccess);
-    const size_t size = array_size(mul_size(blocksperrow, sizeof(JBLOCK)), numrows, sizeof(JBLOCKROW));
+    jvirt_barray_ptr array = (*ctx->libjpeg_mem.request_virt_barray)(
+        cinfo, pool_id, pre_zero, blocksperrow, numrows, maxaccess
+    );
+    const size_t size =
+        array_size(mul_size(blocksperrow, sizeof(JBLOCK)), numrows, sizeof(JBLOCKROW));
     ctx->pending = add_size(ctx->pending, size);
     return array;
 }
@@ -433,7 +448,8 @@ static uint8_t read_orientation(segment_reader* r) {
     // header, which has already been read.
     const uint32_t ifd = tiff_u32(r, header + 4);
     uint8_t count[2];
-    if (ifd < TIFF_HEADER_SIZE || !segment_skip(r, ifd - TIFF_HEADER_SIZE) || !segment_read(r, count, sizeof(count))) {
+    if (ifd < TIFF_HEADER_SIZE || !segment_skip(r, ifd - TIFF_HEADER_SIZE) ||
+        !segment_read(r, count, sizeof(count))) {
         return malformed("IFD0 out of range");
     }
     const size_t entry_count = tiff_u16(r, count);
@@ -458,7 +474,11 @@ static uint8_t read_orientation(segment_reader* r) {
         // A single SHORT is stored in the first two bytes of the value field.
         const uint16_t value = tiff_u16(r, entry + 8);
         if (value < 1 || value > 8) {
-            ESP_LOGD(TAG, "EXIF Orientation %u is out of range; assuming upright orientation", (unsigned)value);
+            ESP_LOGD(
+                TAG,
+                "EXIF Orientation %u is out of range; assuming upright orientation",
+                (unsigned)value
+            );
             return 0;
         }
         return (uint8_t)value;
@@ -471,7 +491,8 @@ static uint8_t read_orientation(segment_reader* r) {
 static bool read_exif_prefix(segment_reader* r) {
     static const uint8_t exif_prefix[6] = {'E', 'x', 'i', 'f', 0, 0};
     uint8_t prefix[sizeof(exif_prefix)];
-    return segment_read(r, prefix, sizeof(prefix)) && memcmp(prefix, exif_prefix, sizeof(prefix)) == 0;
+    return segment_read(r, prefix, sizeof(prefix)) &&
+        memcmp(prefix, exif_prefix, sizeof(prefix)) == 0;
 }
 
 // Reads the orientation from the first APP1 segment that starts with
@@ -587,7 +608,8 @@ idfxx_jpeg_status idfxx_jpeg_read_header(idfxx_jpeg_ctx* ctx, idfxx_jpeg_header*
     return IDFXX_JPEG_OK;
 }
 
-idfxx_jpeg_status idfxx_jpeg_calc_output(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height) {
+idfxx_jpeg_status
+idfxx_jpeg_calc_output(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height) {
     if (setjmp(ctx->jump)) {
         return ctx->status;
     }
@@ -599,7 +621,8 @@ idfxx_jpeg_status idfxx_jpeg_calc_output(idfxx_jpeg_ctx* ctx, unsigned eighths, 
     return IDFXX_JPEG_OK;
 }
 
-idfxx_jpeg_status idfxx_jpeg_start(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height) {
+idfxx_jpeg_status
+idfxx_jpeg_start(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height) {
     if (setjmp(ctx->jump)) {
         return ctx->status;
     }

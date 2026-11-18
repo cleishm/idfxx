@@ -136,7 +136,13 @@ elseif(CLANG_FORMAT_EXECUTABLE)
     file(GLOB_RECURSE ALL_SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/components/*/include/*.h
         ${CMAKE_SOURCE_DIR}/components/*/include/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.c
         ${CMAKE_SOURCE_DIR}/components/*/src/*.cpp
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.c
         ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.cpp
     )
 
