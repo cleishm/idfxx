@@ -1,0 +1,37 @@
+dependencies:
+  cleishm/idfxx_epaper_image:
+    version: "^1.0.0"
+    override_path: ../../..
+  cleishm/idfxx_epaper_uc8179:
+    version: "^3.0.0"
+    override_path: ../../../../../displays/idfxx_epaper_uc8179
+  cleishm/idfxx_epaper:
+    version: "^2.0.0"
+    override_path: ../../../../../displays/idfxx_epaper
+  cleishm/idfxx_jpeg:
+    version: "^1.0.0"
+    override_path: ../../../../../graphics/idfxx_jpeg
+  cleishm/idfxx_image:
+    version: "^1.0.0"
+    override_path: ../../../../../graphics/idfxx_image
+  cleishm/idfxx_gfx:
+    version: "^3.0.0"
+    override_path: ../../../../../graphics/idfxx_gfx
+  cleishm/idfxx_font_spleen:
+    version: "^1.0.0"
+    override_path: ../../../../../graphics/idfxx_font_spleen
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    override_path: ../../../../../core/idfxx_core
+  cleishm/idfxx_panel_io:
+    version: "^3.0.0"
+    override_path: ../../../../../displays/idfxx_panel_io
+  cleishm/idfxx_spi:
+    version: "^3.0.0"
+    override_path: ../../../../../peripherals/idfxx_spi
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    override_path: ../../../../../peripherals/idfxx_gpio
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../../core/idfxx_log

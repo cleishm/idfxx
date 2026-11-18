@@ -1,0 +1,26 @@
+version: "3.0.0"
+description: "Panel I/O interface for SPI- and I2C-connected displays"
+url: "https://github.com/cleishm/idfxx/tree/main/components/displays/idfxx_panel_io"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../../core/idfxx_core
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../../peripherals/idfxx_gpio
+  cleishm/idfxx_spi:
+    version: "^3.0.0"
+    public: true
+    override_path: ../../peripherals/idfxx_spi
+  cleishm/idfxx_i2c:
+    version: "^3.0.0"
+    public: true
+    override_path: ../../peripherals/idfxx_i2c
+  cleishm/quanta:
+    version: "^0.2.0"
+    public: true

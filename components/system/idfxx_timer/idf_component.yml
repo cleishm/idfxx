@@ -1,0 +1,11 @@
+version: "1.1.0"
+description: "High-resolution timer management for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_timer"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../../core/idfxx_core

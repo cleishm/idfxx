@@ -1,0 +1,11 @@
+version: "1.0.2"
+description: "Type-safe event loop for asynchronous event handling"
+url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_event"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../../core/idfxx_core

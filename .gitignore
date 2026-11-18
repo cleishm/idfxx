@@ -13,7 +13,7 @@ sdkconfig.old
 qemu_output*.log
 
 # Component registry uploads (compote pack/upload tarballs)
-components/*/dist/
+components/*/*/dist/
 
 # Documentation
 docs/html/

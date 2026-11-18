@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(EXTRA_COMPONENT_DIRS "${CMAKE_SOURCE_DIR}/components" "${CMAKE_SOURCE_DIR}/tests")
+# Components live in area directories, components/<area>/<name>. ESP-IDF looks for components only
+# directly inside each EXTRA_COMPONENT_DIRS entry, so every area directory is listed: each directory
+# holding a component.
+file(GLOB _idfxx_component_files CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/components/*/*/CMakeLists.txt")
+set(_idfxx_area_dirs)
+foreach(_file ${_idfxx_component_files})
+    get_filename_component(_dir "${_file}" DIRECTORY)
+    get_filename_component(_dir "${_dir}" DIRECTORY)
+    list(APPEND _idfxx_area_dirs "${_dir}")
+endforeach()
+list(REMOVE_DUPLICATES _idfxx_area_dirs)
+set(EXTRA_COMPONENT_DIRS ${_idfxx_area_dirs} "${CMAKE_SOURCE_DIR}/tests")
 
 # idfxx_wifi is restricted to Wi-Fi-capable chips (see its idf_component.yml);
 # exclude it from the build on other targets or the component manager rejects
@@ -24,7 +36,9 @@ include("${CMAKE_SOURCE_DIR}/tests/groups.cmake")
 set(_idfxx_grouped)
 foreach(_group ${IDFXX_TEST_GROUPS})
     foreach(_component ${IDFXX_TEST_GROUP_${_group}})
-        if(NOT IS_DIRECTORY "${CMAKE_SOURCE_DIR}/components/${_component}")
+        file(GLOB _component_dir LIST_DIRECTORIES true
+            "${CMAKE_SOURCE_DIR}/components/*/${_component}")
+        if(NOT _component_dir)
             message(FATAL_ERROR
                 "tests/groups.cmake: group ${_group} names ${_component}, which is not a component")
         endif()
@@ -36,12 +50,15 @@ foreach(_group ${IDFXX_TEST_GROUPS})
 endforeach()
 # CONFIGURE_DEPENDS makes a build reconfigure when test files or test requirements are added or
 # removed, so that the check reruns and tests/CMakeLists.txt sees them.
-file(GLOB _idfxx_test_files CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/components/*/tests/*_test.cpp")
+file(GLOB _idfxx_test_files CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/components/*/*/tests/*_test.cpp")
 file(GLOB _idfxx_test_cmake_files CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/components/*/tests/requires.cmake"
-    "${CMAKE_SOURCE_DIR}/components/*/tests/link_options.cmake")
+    "${CMAKE_SOURCE_DIR}/components/*/*/tests/requires.cmake"
+    "${CMAKE_SOURCE_DIR}/components/*/*/tests/link_options.cmake")
 foreach(_file ${_idfxx_test_files})
-    string(REGEX REPLACE "^.*/components/([^/]+)/tests/[^/]+$" "\\1" _component "${_file}")
+    # <component dir>/tests/<file>: the component is the directory's name
+    get_filename_component(_component "${_file}" DIRECTORY)
+    get_filename_component(_component "${_component}" DIRECTORY)
+    get_filename_component(_component "${_component}" NAME)
     if(NOT _component IN_LIST _idfxx_grouped)
         message(FATAL_ERROR "tests/groups.cmake: ${_component} has tests but is in no group")
     endif()
@@ -134,16 +151,16 @@ if(CLANG_FORMAT_EXECUTABLE AND NOT _clang_format_major STREQUAL IDFXX_CLANG_FORM
     message(STATUS "clang-format version ${_clang_format_major}: format targets fail")
 elseif(CLANG_FORMAT_EXECUTABLE)
     file(GLOB_RECURSE ALL_SOURCE_FILES
-        ${CMAKE_SOURCE_DIR}/components/*/include/*.h
-        ${CMAKE_SOURCE_DIR}/components/*/include/*.hpp
-        ${CMAKE_SOURCE_DIR}/components/*/src/*.h
-        ${CMAKE_SOURCE_DIR}/components/*/src/*.hpp
-        ${CMAKE_SOURCE_DIR}/components/*/src/*.c
-        ${CMAKE_SOURCE_DIR}/components/*/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.h
-        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.hpp
-        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.c
-        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.cpp
+        ${CMAKE_SOURCE_DIR}/components/*/*/include/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/*/include/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/*/src/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/*/src/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/*/src/*.c
+        ${CMAKE_SOURCE_DIR}/components/*/*/src/*.cpp
+        ${CMAKE_SOURCE_DIR}/components/*/*/examples/*/main/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/*/examples/*/main/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/*/examples/*/main/*.c
+        ${CMAKE_SOURCE_DIR}/components/*/*/examples/*/main/*.cpp
     )
 
     add_custom_target(format-check
@@ -166,7 +183,33 @@ endif()
 # Documentation
 find_package(Doxygen)
 
-if(DOXYGEN_FOUND)
+# docs/Doxyfile lists each area directory in STRIP_FROM_INC_PATH and INCLUDE_PATH, so the docs show
+# include paths from the component directory. The docs target fails while an area is missing.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/docs/Doxyfile")
+file(READ "${CMAKE_SOURCE_DIR}/docs/Doxyfile" _doxyfile)
+set(_idfxx_unlisted_areas)
+foreach(_dir ${_idfxx_area_dirs})
+    get_filename_component(_area "${_dir}" NAME)
+    string(REGEX MATCHALL "\\.\\./components/${_area}[ \n]" _listed "${_doxyfile}")
+    list(LENGTH _listed _count)
+    if(NOT _count EQUAL 2)
+        list(APPEND _idfxx_unlisted_areas ${_area})
+    endif()
+endforeach()
+
+if(DOXYGEN_FOUND AND _idfxx_unlisted_areas)
+    string(REPLACE ";" ", " _areas "${_idfxx_unlisted_areas}")
+    string(CONCAT _docs_error
+        "docs/Doxyfile: add ../components/<area> for ${_areas} to STRIP_FROM_INC_PATH and"
+        " INCLUDE_PATH"
+    )
+    add_custom_target(docs
+        COMMAND ${CMAKE_COMMAND} -E echo "${_docs_error}"
+        COMMAND ${CMAKE_COMMAND} -E false
+        VERBATIM
+    )
+    message(STATUS "${_docs_error}: docs target fails")
+elseif(DOXYGEN_FOUND)
     add_custom_target(docs
         COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_SOURCE_DIR}/docs/Doxyfile
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs

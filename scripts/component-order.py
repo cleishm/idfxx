@@ -14,14 +14,22 @@ import re
 import sys
 
 
-def load_deps(components_dir: str) -> dict[str, list[str]]:
+def find_components(components_dir: str) -> dict[str, str]:
+    """Map component name -> directory, for components/<area>/<name>."""
+    dirs: dict[str, str] = {}
+    for d in sorted(glob.glob(os.path.join(components_dir, '*', '*', 'idf_component.yml'))):
+        d = os.path.dirname(d)
+        name = os.path.basename(d)
+        if name in dirs:
+            raise SystemExit(f'Component {name} is in both {dirs[name]} and {d}')
+        dirs[name] = d
+    return dirs
+
+
+def load_deps(dirs: dict[str, str]) -> dict[str, list[str]]:
     deps: dict[str, list[str]] = {}
-    for d in sorted(glob.glob(os.path.join(components_dir, '*/'))):
-        name = os.path.basename(d.rstrip('/'))
-        manifest = os.path.join(d, 'idf_component.yml')
-        if not os.path.isfile(manifest):
-            continue
-        with open(manifest) as f:
+    for name, d in dirs.items():
+        with open(os.path.join(d, 'idf_component.yml')) as f:
             text = f.read()
         found = sorted(set(re.findall(r'cleishm/(idfxx_[a-z_]+)', text)))
         deps[name] = [x for x in found if x != name]
@@ -43,13 +51,13 @@ def topo_sort(deps: dict[str, list[str]]) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--paths', action='store_true', help='print components/<name> paths instead of bare names')
-    parser.add_argument('--components-dir', default='components', help='directory containing component subdirectories')
+    parser.add_argument('--paths', action='store_true', help='print components/<area>/<name> paths instead of bare names')
+    parser.add_argument('--components-dir', default='components', help='directory containing the area directories of components')
     args = parser.parse_args()
 
-    deps = load_deps(args.components_dir)
-    for name in topo_sort(deps):
-        sys.stdout.write(f'{args.components_dir}/{name}\n' if args.paths else f'{name}\n')
+    dirs = find_components(args.components_dir)
+    for name in topo_sort(load_deps(dirs)):
+        sys.stdout.write(f'{dirs[name]}\n' if args.paths else f'{name}\n')
 
 
 if __name__ == '__main__':

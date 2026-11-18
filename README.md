@@ -16,25 +16,26 @@ API documentation: **https://cleishm.github.io/idfxx/**
 
 idfxx is a family of independently installable components covering:
 
-- **[Core infrastructure](components/README.md#core-infrastructure):** error handling, memory
-  allocators, chrono, logging, and chip information
-- **[System services](components/README.md#system-services):** tasks, timers, queues, event loops
-  and event groups, sleep, and an interactive console
-- **[Networking](components/README.md#networking):** TCP/UDP sockets and DNS, network interfaces,
-  and WiFi
-- **[Radio](components/README.md#radio):** LoRa transceivers
-- **[Peripherals](components/README.md#peripherals):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons,
-  rotary encoders, NVS, flash partitions, and OTA updates
-- **[Displays](components/README.md#displays):** LCD and e-paper panels, touch controllers, drawing
-  primitives, bitmap fonts, and JPEG images
-- **[Sensors](components/README.md#sensors):** temperature and humidity sensors
-- **[Real-time clocks](components/README.md#real-time-clocks):** external RTC chips, with alarms and
-  timers
-- **[Application protocols](components/README.md#application-protocols):** HTTP client, and HTTP and
-  HTTPS servers
+- **[Core infrastructure](components/core/README.md):** error handling, memory allocators, chrono,
+  logging, and chip information
+- **[System services](components/system/README.md):** tasks, timers, queues, event loops and event
+  groups, sleep, and an interactive console
+- **[Networking](components/network/README.md):** TCP/UDP sockets and DNS, network interfaces, and
+  WiFi
+- **[Radio](components/radio/README.md):** LoRa transceivers
+- **[Peripherals](components/peripherals/README.md):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons,
+  and rotary encoders
+- **[Storage](components/storage/README.md):** NVS, flash partitions, OTA updates, SD cards, and FAT
+  filesystems
+- **[Displays](components/displays/README.md):** LCD and e-paper panels, and touch controllers
+- **[Graphics](components/graphics/README.md):** drawing primitives, bitmap fonts, and JPEG images
+- **[Sensors](components/sensors/README.md):** temperature and humidity sensors
+- **[Real-time clocks](components/rtc/README.md):** external RTC chips, with alarms and timers
+- **[Application protocols](components/protocols/README.md):** HTTP client, and HTTP and HTTPS
+  servers
 
-The [component catalog](components/README.md) lists every component with a description and links to
-its source and API documentation.
+The [component catalog](components/README.md) lists every component by area, and each area's README
+gives a description of each component with links to its source and API documentation.
 
 ## Requirements
 

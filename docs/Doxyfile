@@ -19,7 +19,20 @@ ALWAYS_DETAILED_SEC    = NO
 INLINE_INHERITED_MEMB  = YES
 FULL_PATH_NAMES        = YES
 STRIP_FROM_PATH        = ../components
-STRIP_FROM_INC_PATH    = ../components
+# Components live in area directories (components/<area>/<name>). Include paths are shown from the
+# component directory, so every area directory is listed here and in INCLUDE_PATH; the top-level
+# CMakeLists.txt checks both lists when configuring the docs target.
+STRIP_FROM_INC_PATH    = ../components/core \
+                         ../components/system \
+                         ../components/network \
+                         ../components/radio \
+                         ../components/peripherals \
+                         ../components/storage \
+                         ../components/displays \
+                         ../components/graphics \
+                         ../components/sensors \
+                         ../components/rtc \
+                         ../components/protocols
 SHORT_NAMES            = NO
 JAVADOC_AUTOBRIEF      = YES
 MULTILINE_CPP_IS_BRIEF = NO
@@ -221,7 +234,17 @@ ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = NO
 SEARCH_INCLUDES        = YES
-INCLUDE_PATH           = ../components
+INCLUDE_PATH           = ../components/core \
+                         ../components/system \
+                         ../components/network \
+                         ../components/radio \
+                         ../components/peripherals \
+                         ../components/storage \
+                         ../components/displays \
+                         ../components/graphics \
+                         ../components/sensors \
+                         ../components/rtc \
+                         ../components/protocols
 INCLUDE_FILE_PATTERNS  =
 # Macros normally supplied by ESP-IDF headers (not on the include path) are
 # predefined here so every API available on some supported target or

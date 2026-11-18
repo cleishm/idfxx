@@ -29,11 +29,10 @@ VERSION_RE = re.compile(r'^version:\s*["\']?([^"\'\s]+)["\']?\s*$', re.MULTILINE
 def local_versions(components_dir: str) -> dict[str, str]:
     """Map component name -> version declared in its manifest."""
     versions: dict[str, str] = {}
-    for d in sorted(glob.glob(os.path.join(components_dir, '*/'))):
-        name = os.path.basename(d.rstrip('/'))
-        manifest = os.path.join(d, 'idf_component.yml')
-        if not os.path.isfile(manifest):
-            continue
+    for manifest in sorted(glob.glob(os.path.join(components_dir, '*', '*', 'idf_component.yml'))):
+        name = os.path.basename(os.path.dirname(manifest))
+        if name in versions:
+            raise SystemExit(f'{manifest}: component {name} is in more than one area')
         with open(manifest) as f:
             match = VERSION_RE.search(f.read())
         if not match:
@@ -64,7 +63,7 @@ def published_versions(namespace: str, name: str, timeout: int) -> list[str] | N
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--namespace', default='cleishm', help='registry namespace to check')
-    parser.add_argument('--components-dir', default='components', help='directory containing component subdirectories')
+    parser.add_argument('--components-dir', default='components', help='directory containing the area directories of components')
     parser.add_argument('--timeout', type=int, default=600, help='give up after this many seconds')
     parser.add_argument('--interval', type=int, default=20, help='seconds between polls')
     parser.add_argument('--request-timeout', type=int, default=30, help='per-request timeout in seconds')

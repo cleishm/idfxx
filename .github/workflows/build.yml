@@ -305,10 +305,11 @@ jobs:
         id: find
         run: |
           examples='[]'
-          for dir in components/*/examples/*/; do
+          # Examples are at components/<area>/<component>/examples/<example>/
+          for dir in components/*/*/examples/*/; do
             [ -f "${dir}CMakeLists.txt" ] || continue
-            component=$(echo "$dir" | cut -d'/' -f2)
-            example=$(echo "$dir" | cut -d'/' -f4)
+            example=$(basename "$dir")
+            component=$(basename "$(dirname "$(dirname "$dir")")")
             examples=$(echo "$examples" | jq -c --arg p "$dir" --arg c "$component" --arg e "$example" \
               '. + [{"path": $p, "component": $c, "example": $e}]')
           done
