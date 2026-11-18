@@ -1,5 +1,7 @@
 idf_component_register(
     SRCS "src/inter_16.cpp" "src/inter_24.cpp" "src/inter_32.cpp" "src/inter_48.cpp"
+         "src/inter_medium_16.cpp" "src/inter_medium_24.cpp" "src/inter_medium_32.cpp"
+         "src/inter_medium_48.cpp"
     INCLUDE_DIRS "include"
 )
 
