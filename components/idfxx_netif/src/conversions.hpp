@@ -34,7 +34,8 @@ inline esp_ip6_addr_t to_native(const net::ipv6_addr& addr) {
 
 inline net::ipv6_addr ip6_from_native(const esp_ip6_addr_t& native) {
     return net::ipv6_addr(
-        std::array<uint32_t, 4>{native.addr[0], native.addr[1], native.addr[2], native.addr[3]}, native.zone
+        std::array<uint32_t, 4>{native.addr[0], native.addr[1], native.addr[2], native.addr[3]},
+        native.zone
     );
 }
 

@@ -25,8 +25,8 @@ inline constexpr auto PIN_RST = idfxx::gpio_38;
 inline constexpr auto PIN_BUSY = idfxx::gpio_13;
 inline constexpr auto PIN_POWER = idfxx::gpio_12; // display power enable, active high
 
-// Everything the display needs to stay alive. The members are declared parents first, so they are destroyed
-// children first.
+// Everything the display needs to stay alive. The members are declared parents first, so they are
+// destroyed children first.
 struct board {
     board()
         : power(_power_on())

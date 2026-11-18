@@ -7,9 +7,9 @@
 // by the socket types and `listener` to avoid duplicating the same setsockopt +
 // errno-translate code.
 
-#include <idfxx/net/error>
-
 #include "sdkconfig.h"
+
+#include <idfxx/net/error>
 
 #include <chrono>
 #include <string_view>

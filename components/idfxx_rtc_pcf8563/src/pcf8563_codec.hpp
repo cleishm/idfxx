@@ -87,10 +87,12 @@ inline constexpr size_t alarm_size = 4;
 inline constexpr quanta::frequency::hertz max_scl_speed{400'000};
 
 // The range of times the chip holds (century bit always 0).
-inline constexpr std::chrono::sys_seconds min_time{std::chrono::sys_days{std::chrono::year{2000} / 1 / 1}};
+inline constexpr std::chrono::sys_seconds min_time{
+    std::chrono::sys_days{std::chrono::year{2000} / 1 / 1}
+};
 inline constexpr std::chrono::sys_seconds max_time{
-    std::chrono::sys_days{std::chrono::year{2099} / 12 / 31} + std::chrono::hours{23} + std::chrono::minutes{59} +
-    std::chrono::seconds{59}
+    std::chrono::sys_days{std::chrono::year{2099} / 12 / 31} + std::chrono::hours{23} +
+    std::chrono::minutes{59} + std::chrono::seconds{59}
 };
 
 // The time registers 02h–08h, in address order.
@@ -138,7 +140,8 @@ struct timer_setting {
 
 // Control_status_2 with the given interrupt bits (TI_TP, AIE, TIE): AF and TF
 // are written as 1 (unchanged) unless cleared, and the unused bits as 0.
-[[nodiscard]] constexpr uint8_t make_control2(uint8_t interrupt_bits, control2_clear clear) noexcept {
+[[nodiscard]] constexpr uint8_t
+make_control2(uint8_t interrupt_bits, control2_clear clear) noexcept {
     return static_cast<uint8_t>(
         (interrupt_bits & control2_interrupt_mask) | (clear.alarm_flag ? 0 : control2_af) |
         (clear.timer_flag ? 0 : control2_tf)
@@ -158,8 +161,11 @@ struct timer_setting {
 }
 
 // Timer_control for a source, with the timer enabled or disabled.
-[[nodiscard]] constexpr uint8_t make_timer_control(bool enable, pcf8563::timer_source source) noexcept {
-    return static_cast<uint8_t>((enable ? timer_te : 0) | (std::to_underlying(source) & timer_td_mask));
+[[nodiscard]] constexpr uint8_t
+make_timer_control(bool enable, pcf8563::timer_source source) noexcept {
+    return static_cast<uint8_t>(
+        (enable ? timer_te : 0) | (std::to_underlying(source) & timer_td_mask)
+    );
 }
 
 // Duration of one tick of a timer source.
@@ -178,7 +184,8 @@ struct timer_setting {
 
 // Time left in the countdown, from Timer_control and the countdown value:
 // zero if the timer is disabled.
-[[nodiscard]] constexpr pcf8563::timer_duration timer_remaining(uint8_t timer_control, uint8_t count) noexcept {
+[[nodiscard]] constexpr pcf8563::timer_duration
+timer_remaining(uint8_t timer_control, uint8_t count) noexcept {
     if ((timer_control & timer_te) == 0) {
         return pcf8563::timer_duration::zero();
     }
@@ -187,7 +194,8 @@ struct timer_setting {
 }
 
 // CLKOUT_control for a frequency, or for the output off.
-[[nodiscard]] constexpr uint8_t encode_clkout(std::optional<pcf8563::clkout_frequency> frequency) noexcept {
+[[nodiscard]] constexpr uint8_t
+encode_clkout(std::optional<pcf8563::clkout_frequency> frequency) noexcept {
     if (!frequency) {
         return 0;
     }
@@ -195,7 +203,8 @@ struct timer_setting {
 }
 
 // The frequency set in CLKOUT_control, or std::nullopt if the output is off.
-[[nodiscard]] constexpr std::optional<pcf8563::clkout_frequency> decode_clkout(uint8_t clkout_control) noexcept {
+[[nodiscard]] constexpr std::optional<pcf8563::clkout_frequency>
+decode_clkout(uint8_t clkout_control) noexcept {
     if ((clkout_control & clkout_fe) == 0) {
         return std::nullopt;
     }
@@ -209,7 +218,8 @@ struct timer_setting {
 // Decodes the time registers, ignoring the weekday and unused bits.
 // std::nullopt if the time is not valid: VL or the century bit is set, a BCD
 // nibble is above 9, or the date or time is impossible.
-[[nodiscard]] std::optional<std::chrono::sys_seconds> decode_time(std::span<const uint8_t, time_size> regs);
+[[nodiscard]] std::optional<std::chrono::sys_seconds>
+decode_time(std::span<const uint8_t, time_size> regs);
 
 // Decodes the control and time registers: std::nullopt if STOP is set, or
 // for any reason decode_time() gives.
@@ -221,7 +231,8 @@ struct timer_setting {
 
 // Decodes the alarm registers, with the interrupt enable taken from
 // Control_status_2. invalid_state if an enabled field holds an impossible value.
-[[nodiscard]] result<pcf8563::alarm_config> decode_alarm(const alarm_registers& regs, uint8_t control2);
+[[nodiscard]] result<pcf8563::alarm_config>
+decode_alarm(const alarm_registers& regs, uint8_t control2);
 
 // The fastest source that produces a period, given as an exact number of
 // 1/4096 s ticks, as a count of 1–255 source ticks. invalid_arg if there is none.

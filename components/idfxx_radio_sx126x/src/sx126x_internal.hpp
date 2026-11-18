@@ -104,8 +104,8 @@ inline constexpr uint16_t reg_tx_clamp_config = 0x08D8; // §15.2 antenna-mismat
 
 inline constexpr uint8_t iq_polarity_bit = 0x04;         // §15.4: bit 2 of reg_iq_polarity
 inline constexpr uint8_t tx_modulation_bw500_bit = 0x04; // §15.1: bit 2 of reg_tx_modulation
-inline constexpr uint8_t rx_gain_boosted = 0x96;         // table 9-3: Rx boosted gain (best sensitivity)
-inline constexpr uint8_t tx_clamp_bits = 0x1E;           // §15.2: bits 4..1 of reg_tx_clamp_config
+inline constexpr uint8_t rx_gain_boosted = 0x96; // table 9-3: Rx boosted gain (best sensitivity)
+inline constexpr uint8_t tx_clamp_bits = 0x1E;   // §15.2: bits 4..1 of reg_tx_clamp_config
 
 // =============================================================================
 // PA-config table (one row per chip variant)
@@ -146,17 +146,25 @@ struct tx_power_config {
 /// Settings"). The SX1262/SX1268 high-power PA uses its maximum-power row and
 /// trims via SetTxParams. The SX1261's SetTxParams accepts only -17..+14
 /// (§13.4.4); +15 dBm requires the high-duty-cycle PA row with a +14 power byte.
-[[nodiscard]] constexpr tx_power_config tx_power_config_for(sx126x::chip_variant v, int8_t dbm) noexcept {
+[[nodiscard]] constexpr tx_power_config
+tx_power_config_for(sx126x::chip_variant v, int8_t dbm) noexcept {
     if (v == sx126x::chip_variant::sx1261) {
         if (dbm >= 15) {
             return {
-                .pa = {.pa_duty_cycle = 0x06, .hp_max = 0x00, .device_sel = 0x01, .pa_lut = 0x01}, .power_byte = 14
+                .pa = {.pa_duty_cycle = 0x06, .hp_max = 0x00, .device_sel = 0x01, .pa_lut = 0x01},
+                .power_byte = 14
             };
         }
-        return {.pa = {.pa_duty_cycle = 0x04, .hp_max = 0x00, .device_sel = 0x01, .pa_lut = 0x01}, .power_byte = dbm};
+        return {
+            .pa = {.pa_duty_cycle = 0x04, .hp_max = 0x00, .device_sel = 0x01, .pa_lut = 0x01},
+            .power_byte = dbm
+        };
     }
     // SX1262 / SX1268 high-power PA, +22 dBm row.
-    return {.pa = {.pa_duty_cycle = 0x04, .hp_max = 0x07, .device_sel = 0x00, .pa_lut = 0x01}, .power_byte = dbm};
+    return {
+        .pa = {.pa_duty_cycle = 0x04, .hp_max = 0x07, .device_sel = 0x00, .pa_lut = 0x01},
+        .power_byte = dbm
+    };
 }
 
 /// True for the high-power PA variants (SX1262/SX1268) that the §15.2 Tx-clamp
@@ -196,7 +204,8 @@ enum class completion_bit : uint32_t {
 } // namespace idfxx::radio::sx126x_internal
 
 template<>
-inline constexpr bool idfxx::enable_flags_operators<idfxx::radio::sx126x_internal::completion_bit> = true;
+inline constexpr bool idfxx::enable_flags_operators<idfxx::radio::sx126x_internal::completion_bit> =
+    true;
 
 namespace idfxx::radio::sx126x_internal {
 
@@ -210,10 +219,10 @@ namespace idfxx::radio::sx126x_internal {
 struct op_latch {
     idfxx::event_group<completion_bit> eg;
     std::atomic<bool> done{false};
-    std::atomic<int32_t> error{0};  ///< errc value; 0 = success.
-    rx_info rx{};                   ///< Receive result (written before `done`, read after).
-    bool cad_detected = false;      ///< Channel-scan result (written before `done`, read after).
-    byte_span rx_target{};  ///< Caller's buffer (single-shot receive only); cleared on cancel.
+    std::atomic<int32_t> error{0}; ///< errc value; 0 = success.
+    rx_info rx{};                  ///< Receive result (written before `done`, read after).
+    bool cad_detected = false;     ///< Channel-scan result (written before `done`, read after).
+    byte_span rx_target{}; ///< Caller's buffer (single-shot receive only); cleared on cancel.
 
     /// Publishes the operation result and wakes every waiter. The result
     /// fields (`rx`, `cad_detected`) must be written before this is called;

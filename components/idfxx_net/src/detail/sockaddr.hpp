@@ -10,10 +10,9 @@
 #include <idfxx/net/endpoint>
 #include <idfxx/net/error>
 
-#include <lwip/sockets.h>
-
 #include <cstddef>
 #include <cstdint>
+#include <lwip/sockets.h>
 #include <optional>
 
 namespace idfxx::net::detail {

@@ -69,11 +69,13 @@ idfxx_jpeg_status idfxx_jpeg_create(
 idfxx_jpeg_status idfxx_jpeg_read_header(idfxx_jpeg_ctx* ctx, idfxx_jpeg_header* out);
 
 /// Reports the output size at a scale of @p eighths / 8.
-idfxx_jpeg_status idfxx_jpeg_calc_output(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height);
+idfxx_jpeg_status
+idfxx_jpeg_calc_output(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height);
 
 /// Starts decompression at a scale of @p eighths / 8, and reports the output
 /// size it produces. From here on, the memory limit is enforced.
-idfxx_jpeg_status idfxx_jpeg_start(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height);
+idfxx_jpeg_status
+idfxx_jpeg_start(idfxx_jpeg_ctx* ctx, unsigned eighths, uint32_t* width, uint32_t* height);
 
 /// Allocates a buffer for one output row (output_width RGB888 pixels) from
 /// the decoder's working memory, so it counts toward the memory limit. Call

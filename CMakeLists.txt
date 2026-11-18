@@ -90,14 +90,59 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(IDFXX_TESTS "${_idfxx_tests}")
 project(idfxx)
 
-# Formatting
-find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+# Formatting. Versions of clang-format lay code out differently, so the format targets run only
+# with the major version CI checks with: esp-clang from CI's ESP-IDF (.github/workflows/build.yml).
+# Bump it with CI's ESP-IDF.
+set(IDFXX_CLANG_FORMAT_MAJOR 21)
 
+function(_idfxx_clang_format_major out)
+    execute_process(
+        COMMAND ${CLANG_FORMAT_EXECUTABLE} --version
+        OUTPUT_VARIABLE _version
+        ERROR_QUIET
+    )
+    string(REGEX MATCH "version ([0-9]+)" _match "${_version}")
+    set(${out} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
+
+find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
 if(CLANG_FORMAT_EXECUTABLE)
+    _idfxx_clang_format_major(_clang_format_major)
+    if(NOT _clang_format_major STREQUAL IDFXX_CLANG_FORMAT_MAJOR)
+        # The cached path may be from another ESP-IDF; look again on the current PATH.
+        unset(CLANG_FORMAT_EXECUTABLE CACHE)
+        find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+        if(CLANG_FORMAT_EXECUTABLE)
+            _idfxx_clang_format_major(_clang_format_major)
+        endif()
+    endif()
+endif()
+
+if(CLANG_FORMAT_EXECUTABLE AND NOT _clang_format_major STREQUAL IDFXX_CLANG_FORMAT_MAJOR)
+    string(CONCAT _clang_format_error
+        "clang-format ${CLANG_FORMAT_EXECUTABLE} is version ${_clang_format_major}, but code is"
+        " formatted with version ${IDFXX_CLANG_FORMAT_MAJOR} (esp-clang from CI's ESP-IDF)."
+        " Activate that ESP-IDF and reconfigure this build directory."
+    )
+    foreach(_target format-check format)
+        add_custom_target(${_target}
+            COMMAND ${CMAKE_COMMAND} -E echo "${_clang_format_error}"
+            COMMAND ${CMAKE_COMMAND} -E false
+            VERBATIM
+        )
+    endforeach()
+    message(STATUS "clang-format version ${_clang_format_major}: format targets fail")
+elseif(CLANG_FORMAT_EXECUTABLE)
     file(GLOB_RECURSE ALL_SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/components/*/include/*.h
         ${CMAKE_SOURCE_DIR}/components/*/include/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/src/*.c
         ${CMAKE_SOURCE_DIR}/components/*/src/*.cpp
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.h
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.hpp
+        ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.c
         ${CMAKE_SOURCE_DIR}/components/*/examples/*/main/*.cpp
     )
 
