@@ -40,6 +40,7 @@ The build recipes take group names (default: every group) and build each into it
 ```bash
 just build [group...] [target]              # config/sdkconfig.defaults
 just flash <group> [port]                   # build-<group>/, then flash and monitor
+just flash-test <comp...> [target] [port]   # only those components' tests, build-test-hw/
 ```
 
 ### Config Matrix Builds
