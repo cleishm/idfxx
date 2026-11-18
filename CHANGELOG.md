@@ -52,8 +52,8 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   `sys_seconds`; `now()` returns `std::nullopt` until the chip holds a trustworthy time
 - `idfxx_rtc_pcf8563` `1.0.0` — NXP PCF8563 RTC driver with alarm, countdown timer, CLKOUT and
   oscillator-stop detection, and `sync_time` and `alarm_wake` examples
-- `idfxx_font_inter` `1.0.0` — the Inter typeface (SIL OFL 1.1) as 16, 24, 32 and 48 px proportional
-  fonts with Windows-1252 coverage; unused sizes drop at link time
+- `idfxx_font_inter` `1.0.0` — the Inter typeface (SIL OFL 1.1), Regular and Medium, as 16, 24, 32
+  and 48 px proportional fonts with Windows-1252 coverage; unused sizes drop at link time
 
 ### Breaking changes
 
@@ -140,7 +140,8 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
 - `idfxx_font` `1.1.0` — adds proportional fonts with UTF-8 text metrics and ink extents, line
   breaking (`break_lines`), the ink bounds of a line of text (`text_ink_bounds`, `ink_bounds`), and
   `ttf_to_c.py` with the `idfxx_font_generate()` CMake function for generating fonts from TrueType
-  and OpenType faces. Requires idfxx_core `^1.3.0`
+  and OpenType faces, with the face's own hinting or FreeType's auto-hinter. Requires idfxx_core
+  `^1.3.0`
 - `idfxx_netif` `2.1.0` — adds `interface::take(handle, destroy_fn)` to release a handle with a
   given function, and `dhcp_server_start(dhcp_server_config)` to set the DHCP server's lease time,
   lease range, router and DNS offers and captive-portal URI before starting it.
