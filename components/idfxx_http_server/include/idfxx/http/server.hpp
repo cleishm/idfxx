@@ -1389,7 +1389,7 @@ public:
      * @param other The server to take ownership from.
      * @return A reference to this server.
      */
-    server& operator=(server&&) noexcept;
+    server& operator=(server&& other) noexcept;
 
     // =========================================================================
     // Handler Registration

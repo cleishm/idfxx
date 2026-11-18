@@ -103,6 +103,7 @@ EXCLUDE_PATTERNS       = */tests/* \
                          */build/* \
                          */build-*/* \
                          */managed_components/* \
+                         */dist/* \
                          */idfxx/lcd/detail/*
 EXCLUDE_SYMBOLS        = idfxx::_*
 EXAMPLE_PATH           =
