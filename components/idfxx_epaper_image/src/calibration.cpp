@@ -3,9 +3,11 @@
 
 #include <idfxx/epaper/image_writer>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <epaper_image.h>
 #include <optional>
 #include <string>
@@ -103,6 +105,25 @@ result<calibration> calibration::make(const epi_panel_t& panel) {
         };
     }
     return calibration(&panel, mode, inks, panel.ink_count);
+}
+
+renderer::version renderer::version::current() noexcept {
+    const uint32_t v = epi_version();
+    return {
+        .major = static_cast<uint8_t>(v >> 16),
+        .minor = static_cast<uint8_t>(v >> 8),
+        .patch = static_cast<uint8_t>(v),
+    };
+}
+
+std::optional<std::array<std::byte, 16>> calibration::id() const noexcept {
+    std::array<std::byte, 16> out;
+    static_assert(sizeof(_panel->id) == out.size());
+    std::memcpy(out.data(), _panel->id, out.size());
+    if (std::ranges::all_of(out, [](std::byte b) { return b == std::byte{0}; })) {
+        return std::nullopt;
+    }
+    return out;
 }
 
 const char* calibration::name() const noexcept {
