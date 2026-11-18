@@ -270,7 +270,7 @@ public:
      * @param other The server to take ownership from.
      * @return A reference to this server.
      */
-    ssl_server& operator=(ssl_server&&) noexcept = default;
+    ssl_server& operator=(ssl_server&& other) noexcept = default;
 
 private:
     /** @cond INTERNAL */

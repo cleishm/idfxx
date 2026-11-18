@@ -1426,7 +1426,7 @@ enum class bit_order : uint8_t {
  * constexpr idfxx::gfx::mono_bitmap check{check_bits, 8, 6};
  * @endcode
  *
- * Drawing never reads past @ref data: when it holds fewer than @ref height
+ * Drawing never reads past @ref data. When it holds fewer than @ref height
  * complete rows, only the complete rows it holds are drawn.
  */
 struct mono_bitmap {
