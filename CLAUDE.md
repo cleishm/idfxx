@@ -20,6 +20,9 @@ The sdkconfig fragments and partition tables live in `config/`, and each build d
 generated `sdkconfig` (`build/sdkconfig` for the default build), so `idf.py fullclean` discards
 `menuconfig` changes; carry lasting ones into a `config/` fragment.
 
+`just format` and `just format-check` need the clang-format major version CI uses (esp-clang from
+CI's ESP-IDF, set in `CMakeLists.txt`); with any other they fail and say which they found.
+
 ### Test Groups
 
 The project is the Unity test app, split into groups (`system`, `network`, `display`), one app each,
