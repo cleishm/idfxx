@@ -19,6 +19,7 @@
 #       [NAMESPACE <ns>]              # default fonts
 #       [RENDER mono|threshold]       # default mono
 #       [THRESHOLD <1-255>]           # threshold mode only, default 128
+#       [HINTING native|auto]         # default native; auto = FreeType's auto-hinter
 #       [REPLACEMENT <char>|U+XXXX|none]
 #   )
 #
@@ -41,7 +42,8 @@ set(IDFXX_FONT_PYTHON "" CACHE FILEPATH
 
 function(idfxx_font_generate)
     set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/scripts/ttf_to_c.py")
-    set(one_value NAME FONT CHARSET CHARS RANGES FACE_INDEX NAMESPACE RENDER THRESHOLD REPLACEMENT)
+    set(one_value NAME FONT CHARSET CHARS RANGES FACE_INDEX NAMESPACE RENDER THRESHOLD HINTING
+        REPLACEMENT)
     cmake_parse_arguments(PARSE_ARGV 0 arg "" "${one_value}" "SIZES")
 
     if(arg_UNPARSED_ARGUMENTS)
@@ -102,7 +104,7 @@ function(idfxx_font_generate)
     set(out_dir "${CMAKE_CURRENT_BINARY_DIR}/idfxx_font")
 
     set(options --namespace "${arg_NAMESPACE}")
-    foreach(opt CHARSET CHARS RANGES FACE_INDEX RENDER THRESHOLD REPLACEMENT)
+    foreach(opt CHARSET CHARS RANGES FACE_INDEX RENDER THRESHOLD HINTING REPLACEMENT)
         if(DEFINED arg_${opt})
             string(TOLOWER "${opt}" flag)
             string(REPLACE "_" "-" flag "${flag}")
