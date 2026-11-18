@@ -5,7 +5,7 @@ whose migration needs more than the one-line summary in [CHANGELOG.md](CHANGELOG
 summarizes every change in each release, including the changes shared across components; this file
 gives the per-component details. Releases are listed newest first.
 
-## Unreleased
+## v2026.11.18
 
 ### idfxx_gfx 2.0.0 → 3.0.0
 

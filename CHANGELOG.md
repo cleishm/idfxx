@@ -6,19 +6,20 @@ The repository follows [calendar versioning](https://calver.org/); individual co
 [semantic versioning](https://semver.org/) independently. A component's version only bumps when that
 component changes.
 
-## Unreleased
+## v2026.11.18
 
 Six new components add SD and MMC card access, FAT filesystems on cards and flash, message digests
 and MACs, a real-time clock interface with a PCF8563 driver, and the Inter typeface. idfxx_gfx draws
 proportional UTF-8 text with line wrapping, rounded rectangles, ellipses, circles, triangles and
 1-bit bitmaps. Byte buffers across the library move to `idfxx::byte_view` and `idfxx::byte_span`,
-and the I2C, SPI and panel I/O components take breaking changes; those shared across components
-are summarized under Upgrading. Only components that changed since v2026.11.08 are listed, each
-with its new version.
+and 24 components take major versions, most for the byte-buffer change or the new I2C, SPI and
+panel I/O majors; changes shared across components are summarized under Upgrading. Components
+move into area directories. Only components that changed since v2026.11.08 are listed, each with
+its new version.
 
 ### Upgrading
 
-These changes apply across many of the components listed below:
+These changes need attention when upgrading:
 
 - **Byte buffers.** Bytes passed in are `idfxx::byte_view`, and buffers the API fills are
   `idfxx::byte_span`. Both accept `std::byte` and `uint8_t` containers and `{ptr, len}`, so most
@@ -26,8 +27,9 @@ These changes apply across many of the components listed below:
   `void`, `std::byte` and `uint8_t` pointers; view other objects with `std::as_bytes`. Opaque data
   handed back, such as blobs, payloads and digests, is `std::byte`; use `std::to_integer` where you
   need a number.
-- **Bus majors.** idfxx_i2c, idfxx_spi and idfxx_panel_io are now `3.0.0`, and the LCD, touch and
-  ePaper drivers built on them require the new versions. Raise their constraints together.
+- **Bus majors.** idfxx_i2c, idfxx_spi and idfxx_panel_io are now `3.0.0`, and the LCD, touch,
+  ePaper and SX126x drivers built on them require the new versions; idfxx_nvs and idfxx_ota
+  likewise require idfxx_partition `^2.0.0`. Raise their constraints together.
 - **WiFi `connect_sta` is station-only.** `connect_sta()` makes the station the only role, stopping
   a running AP. For AP+STA, set the roles and configs, call `start()`, then the new
   `connect(timeout)`.
@@ -35,7 +37,7 @@ These changes apply across many of the components listed below:
   depend on quanta directly raise their constraint to match; quanta 0.2 adds the `quanta::data`
   domain and keeps existing code compatible.
 
-See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
+See [UPGRADING.md](UPGRADING.md#v20261118) for the steps each component needs.
 
 ### New components
 
@@ -62,10 +64,13 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   gone. Asynchronous transfers are removed. Failed transfers report `errc::invalid_response` or the
   driver's error, and the bus-lock wait is bounded by the timeout. `receive(size)` and
   `read_register(reg, size)` no longer return vectors. Adds single-byte and byte-ordered register
-  values, `scl_speed()` and timed bus locking
+  values, braced-list `transmit` and `write_register`, `scl_speed()` and timed bus locking
 - `idfxx_spi` `3.0.0` — `transaction::length` and `rx_length` are optional and derived from the
   buffers when unset. `use_txdata` / `use_rxdata` and the vector-returning `receive(size)` are
-  removed. `max_transaction_length()` no longer reports 0 before a device is attached
+  removed. `max_transaction_length()` no longer reports 0 before a device is attached. On
+  half-duplex devices, `receive()` and `polling_receive()` read in a MISO phase only, so they no
+  longer fail with `errc::invalid_arg` on targets that can't combine MOSI and MISO phases. Adds
+  `transfer` with a braced-list write
 - `idfxx_panel_io` `3.0.0` — requires idfxx_spi and idfxx_i2c `^3.0.0`
 - `idfxx_lcd` `4.0.0` — `draw_bitmap` takes a `byte_view` and checks its size against the region
   and the panel's pixel format (`errc::invalid_size`); invalid regions fail with
@@ -93,8 +98,8 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   `bit_order`, `draw_bitmap`) drawn transparently or over a paper value
 - `idfxx_onewire` `2.0.0` — `check_crc16` takes two `byte_view`s, and a CRC that isn't two bytes
   returns `false`. Adds `address::bytes()`, an `address` constructor from ROM bytes, `read<N>()`,
-  and fill, alignment and width in the address formatter. `crc8` no longer truncates data over 255
-  bytes, and `crc16` no longer hangs on data over 65535 bytes
+  braced-list `write`, and fill, alignment and width in the address formatter. `crc8` no longer
+  truncates data over 255 bytes, and `crc16` no longer hangs on data over 65535 bytes
 - `idfxx_ds18x20` `4.0.0` — requires idfxx_onewire `^2.0.0`
 - `idfxx_radio` `3.0.0` — the `do_start_transmit`, `do_start_receive` and `do_read_received` hooks
   take `byte_view` / `byte_span`
@@ -102,11 +107,14 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   writes over 256 bytes fail with `errc::invalid_arg`. Adds single-byte register access and
   `read_command<N>()` / `read_register<N>()`
 - `idfxx_net` `3.0.0` — socket and channel buffers, `recv` results and `datagram::data` are
-  `byte_view` / `byte_span`, so `uint8_t` buffers work directly
+  `byte_view` / `byte_span`, so `uint8_t` buffers work directly. The undocumented
+  `errno_to_error_code`, `lwip_err_to_error_code` and `gai_to_error_code` helpers are no longer
+  declared in `<idfxx/net/error>`
 - `idfxx_wifi` `4.0.0` — `connect_sta()` is station-only; adds `connect(timeout)`. `set_vendor_ie`
   takes the whole element as a `byte_view` and validates it, and `vendor_ie_cb` receives the element
   as a `byte_view`. Full-length station SSIDs and 64-digit hex PSKs are accepted, and reading back
-  configs and scan records no longer runs past fixed-size fields. The netifs from `make_sta_netif()`
+  configs and scan records no longer runs past fixed-size fields; an AP SSID stored NUL-terminated
+  reads back instead of as empty. The netifs from `make_sta_netif()`
   and `make_ap_netif()` are released fully, fixing a leak and a crash when WiFi restarts with a role
   whose netif was destroyed
 - `idfxx_http_client` `3.0.0` — `write` returns nothing, and a partial write fails with
@@ -117,17 +125,19 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   cut short fails with `errc::invalid_request`; `request` is a byte source. The string response
   setters throw, with `try_set_status`, `try_set_content_type` and `try_set_header` for result-based
   code; header text is validated, and exceeding `max_resp_headers` is an error. An empty
-  `send_chunk` no longer ends the response. WebSocket frame data is `std::byte`. Adding a response
-  header no longer corrupts earlier ones. Destroying a server, or move-assigning over a running
-  one, waits for in-flight handlers and callbacks instead of freeing their state while they run,
-  and aborts if the server can't be stopped
-- `idfxx_https_server` `4.0.0` — requires idfxx_http_server `^3.0.0`, whose request changes apply
-  to its handlers
-- `idfxx_nvs` `2.0.0` — blobs are written from a `byte_view` or any trivially copyable value, and
-  `get_blob` returns `std::vector<std::byte>`; the pointer-and-length `set_blob` is removed. Adds
-  `get_blob(key, buf)`, `get_blob<T>` and `blob_size`. `secure_config` keys are `std::byte` arrays
-- `idfxx_ota` `2.0.0` — `update::write` and `write_with_offset` take a `byte_view`, replacing the
-  pointer-and-length overloads, and `app_elf_sha256()` returns `std::array<std::byte, 32>`
+  `send_chunk` no longer ends the response; adds `send_chunk(byte_view)`. WebSocket frame data is
+  `std::byte`. Adding a response header no longer corrupts earlier ones. Destroying a server, or
+  move-assigning over a running one, waits for in-flight handlers and callbacks instead of freeing
+  their state while they run, and aborts if the server can't be stopped
+- `idfxx_https_server` `4.0.0` — requires idfxx_http_server `^3.0.0`, whose request and teardown
+  changes apply to its servers and handlers
+- `idfxx_nvs` `2.0.0` — requires idfxx_partition `^2.0.0`. Blobs are written from a `byte_view` or
+  any trivially copyable value, and `get_blob` returns `std::vector<std::byte>`; the
+  pointer-and-length `set_blob` is removed. Adds `get_blob(key, buf)`, `get_blob<T>` and
+  `blob_size`. `secure_config` keys are `std::byte` arrays
+- `idfxx_ota` `2.0.0` — requires idfxx_partition `^2.0.0`. `update::write` and `write_with_offset`
+  take a `byte_view`, replacing the pointer-and-length overloads, and `app_elf_sha256()` returns
+  `std::array<std::byte, 32>`
 - `idfxx_partition` `2.0.0` — `read`, `write`, `read_raw` and `write_raw` take `byte_span` /
   `byte_view`, replacing the pointer-and-length overloads, and `sha256()` returns
   `std::array<std::byte, 32>`. Adds `mmap_handle::bytes()`
@@ -164,6 +174,12 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   `std::span<std::byte>` or `idfxx::byte_span`; require idfxx_core `^1.3.0`
 - `idfxx_gpio` `1.1.1` — `deep_sleep_hold_enable()` and `deep_sleep_hold_disable()` are left out on
   esp32p4, where ESP-IDF has no all-pins deep-sleep hold
+- `idfxx_button` `2.0.1`, `idfxx_console` `2.0.1`, `idfxx_event` `1.0.3`, `idfxx_event_group`
+  `1.0.3`, `idfxx_font_spleen` `1.0.2`, `idfxx_http` `1.0.3`, `idfxx_image` `1.0.1`,
+  `idfxx_lcd_touch` `3.0.1`, `idfxx_log` `1.0.3`, `idfxx_queue` `1.0.3`, `idfxx_rotary_encoder`
+  `2.0.1`, `idfxx_sleep` `1.1.1`, `idfxx_task` `2.0.1`, `idfxx_timer` `1.1.1` — documentation fixes
+  and corrected repository links. The idfxx_console package includes its license, and idfxx_event
+  documents use of a moved-from `event_loop` as undefined behavior
 
 ### Other changes
 
@@ -176,6 +192,9 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   runs.
 - Component uploads run in batches, so a large release no longer fails partway through when the
   upload token expires.
+- Components move into area directories (`components/<area>/<name>/`), one per section of the
+  component catalog; projects that use them through `override_path` or a git checkout update their
+  paths.
 - The sdkconfig fragments and partition tables move into `config/`, and `just test <component>...`
   builds and runs only the named components' tests.
 
