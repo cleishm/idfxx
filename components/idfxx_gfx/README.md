@@ -108,11 +108,11 @@ panel.write(band, 0, 40);           // next band down
 ### Proportional text
 
 For large or polished text, use a proportional font drawn at its native size. The `idfxx_font_inter`
-package bundles the Inter typeface as `idfxx::font::inter_16`, `inter_24`, `inter_32` and
-`inter_48`; to use other faces or sizes, generate fonts from an outline face with `idfxx_font`'s
-`idfxx_font_generate()` / `ttf_to_c.py`. Glyphs are drawn at their
-native size, so a 48 px heading has smooth outlines instead of magnified pixels. The `y` coordinate
-is the line's top; the baseline sits `font.ascent` below it:
+package bundles the Inter typeface in Regular (`idfxx::font::inter_16`, `inter_24`, `inter_32`
+and `inter_48`) and Medium (`inter_medium_16` to `inter_medium_48`); to use other faces or sizes,
+generate fonts from an outline face with `idfxx_font`'s `idfxx_font_generate()` / `ttf_to_c.py`.
+Glyphs are drawn at their native size, so a 48 px heading has smooth outlines instead of magnified
+pixels. The `y` coordinate is the line's top; the baseline sits `font.ascent` below it:
 
 ```cpp
 #include <idfxx/font/inter>

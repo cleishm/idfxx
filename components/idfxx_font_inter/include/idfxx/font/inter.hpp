@@ -10,20 +10,22 @@
  *
  * @defgroup idfxx_font_inter Inter Fonts
  * @ingroup idfxx_font
- * @brief Inter Regular at 16, 24, 32 and 48 pixels.
+ * @brief Inter Regular and Medium at 16, 24, 32 and 48 pixels.
  *
  * [Inter](https://rsms.me/inter/) is a sans-serif typeface designed for
  * screens, by The Inter Project Authors (SIL Open Font License 1.1). The
- * bundled fonts are Inter 4.1 Regular, rasterized to 1-bit glyphs at each
- * size, so they are drawn at their native size rather than scaled. Each
- * covers Windows-1252: printable ASCII, Latin-1 (accented letters, `©`,
+ * bundled fonts are Inter 4.1 Regular and Medium, rasterized to 1-bit glyphs
+ * at each size, so they are drawn at their native size rather than scaled.
+ * Each covers Windows-1252: printable ASCII, Latin-1 (accented letters, `©`,
  * `°`, ...) and the typographic punctuation Windows-1252 adds (curly quotes,
  * dashes, ellipsis, bullet, `€`, `™`, ...). Other code points are drawn as
  * `?`.
  *
  * Sizes are em sizes; capitals are roughly three quarters of the size tall.
- * Each font lives in its own translation unit, so a size an application
- * never references is dropped at link time.
+ * Medium is the heavier weight: at 16 pixels its stems are 2 pixels wide
+ * where Regular's are 1, so it holds up better for small text on
+ * low-resolution or ePaper displays. Each font lives in its own translation
+ * unit, so a size an application never references is dropped at link time.
  *
  * @code
  * const auto& f = idfxx::font::inter_24;
@@ -53,6 +55,18 @@ extern const proportional_font inter_32;
 
 /// Inter Regular, 48 px — large headings and readouts; 59-pixel line height.
 extern const proportional_font inter_48;
+
+/// Inter Medium, 16 px — body text; 20-pixel line height.
+extern const proportional_font inter_medium_16;
+
+/// Inter Medium, 24 px — subheadings; 30-pixel line height.
+extern const proportional_font inter_medium_24;
+
+/// Inter Medium, 32 px — headings; 39-pixel line height.
+extern const proportional_font inter_medium_32;
+
+/// Inter Medium, 48 px — large headings and readouts; 59-pixel line height.
+extern const proportional_font inter_medium_48;
 
 } // namespace idfxx::font
 

@@ -1,5 +1,5 @@
 version: "1.0.0"
-description: "The Inter typeface (Regular, 16-48 px) as idfxx proportional font data"
+description: "The Inter typeface (Regular and Medium, 16-48 px) as idfxx proportional font data"
 url: "https://github.com/cleishm/idfxx/tree/main/components/idfxx_font_inter"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "OFL-1.1"

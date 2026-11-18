@@ -158,7 +158,8 @@ Options: `CHARSET ascii|latin1|cp1252` (default `cp1252`: Latin-1 plus curly quo
 ellipsis, euro…), `CHARS` / `RANGES` for more code points (`RANGES "0x100-0x17F"` adds Latin
 Extended-A), `NAMESPACE` (default `fonts`; also the generated header's directory, so `a::b` gives
 `"a/b/inter.hpp"`), `REPLACEMENT <char>|U+XXXX|none` (default U+FFFD if the face has it, else `?`),
-`RENDER mono|threshold` with `THRESHOLD`, and `FACE_INDEX` for `.ttc` collections. Each font is its
+`RENDER mono|threshold` with `THRESHOLD`, `HINTING native|auto`, and `FACE_INDEX` for `.ttc`
+collections. Each font is its
 own translation unit, so unused sizes are dropped at link time.
 
 The generator needs [freetype-py](https://pypi.org/project/freetype-py/) in the Python that runs
@@ -178,8 +179,16 @@ Without `--header`, the generated file declares the font itself; declare
 out, for judging a face and size before flashing.
 
 `mono` rendering (the default) uses FreeType's hinting and dropout control for monochrome output,
-keeping stems even and thin strokes intact. `threshold` rasterizes with anti-aliasing and inks
-pixels at or above `THRESHOLD` coverage; lowering it emboldens a face, but thin strokes can break.
+keeping thin strokes intact. `threshold` rasterizes with anti-aliasing and inks pixels at or above
+`THRESHOLD` coverage; lowering it emboldens a face, but thin strokes can break.
+
+Hinting fits outlines to the pixel grid. `native` (the default) applies the font's own hinting
+instructions (only vertically, in `threshold` mode). Some faces' instructions fit only the vertical
+axis, or the face has none; native hinting then rounds each stem's width on its own, so stems that
+are equal in the design can come out a pixel apart (an `H` with one leg thinner than the other).
+`auto` (`--hinting auto`, or `HINTING auto`) uses FreeType's auto-hinter instead, in either
+rendering mode, which fits every stem of a glyph to the same width. Compare the two with
+`--preview` when choosing for a face.
 
 ### Fixed-cell fonts from BDF
 
