@@ -4,8 +4,8 @@ get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 # Components whose tests the app runs: a group's (tests/groups.cmake), the ones named in
 # IDFXX_TESTS, or every group's (see the top-level CMakeLists.txt). The app requires them, plus
 # whatever their tests use beyond the components' own dependencies, declared in
-# components/<name>/tests/requires.cmake. This has to happen before idf_component_register: in
-# IDF's requirements pass, the code after it never runs.
+# components/<area>/<name>/tests/requires.cmake. This has to happen before idf_component_register:
+# in IDF's requirements pass, the code after it never runs.
 idf_build_get_property(idfxx_tests IDFXX_TESTS)
 
 # idfxx_wifi is only available on Wi-Fi-capable targets (it is excluded from the build on other
@@ -23,8 +23,9 @@ endif()
 
 set(IDFXX_TEST_REQUIRES unity idfxx_core idfxx_log esp_netif ${idfxx_tests})
 foreach(_component ${idfxx_tests})
-    set(_requires_file "${CMAKE_CURRENT_LIST_DIR}/../components/${_component}/tests/requires.cmake")
-    if(EXISTS "${_requires_file}")
+    file(GLOB _requires_file
+        "${CMAKE_CURRENT_LIST_DIR}/../components/*/${_component}/tests/requires.cmake")
+    if(_requires_file)
         set(test_requires)
         include("${_requires_file}")
         list(APPEND IDFXX_TEST_REQUIRES ${test_requires})
@@ -49,7 +50,11 @@ idf_component_register(
 # requirements, as they exercise its internals.
 set(_selected_sources)
 foreach(_source ${IDFXX_TEST_SOURCES})
-    if(_source MATCHES "/components/([^/]+)/tests/[^/]+$" AND CMAKE_MATCH_1 IN_LIST idfxx_tests)
+    # <component dir>/tests/<file>: the component is the directory's name
+    get_filename_component(_component "${_source}" DIRECTORY)
+    get_filename_component(_component "${_component}" DIRECTORY)
+    get_filename_component(_component "${_component}" NAME)
+    if(_component IN_LIST idfxx_tests)
         list(APPEND _selected_sources ${_source})
     endif()
 endforeach()
@@ -64,8 +69,8 @@ endforeach()
 target_sources(${COMPONENT_LIB} PRIVATE ${IDFXX_TEST_SOURCES})
 
 # Link options that tests need, such as --wrap to inject failures, declared in
-# components/<name>/tests/link_options.cmake (set(test_link_options ...)). Applied only while that
-# directory's tests are in the app, as they define the symbols the options refer to.
+# components/<area>/<name>/tests/link_options.cmake (set(test_link_options ...)). Applied only while
+# that directory's tests are in the app, as they define the symbols the options refer to.
 set(_test_dirs)
 foreach(_source ${IDFXX_TEST_SOURCES})
     get_filename_component(_dir "${_source}" DIRECTORY)
@@ -86,5 +91,7 @@ target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++23)
 # (and included in the merged QEMU flash image). Only defined when the fatfs component is in the
 # build, which a group or filtered test app may leave out.
 if(COMMAND fatfs_create_rawflash_image)
-    fatfs_create_rawflash_image(fatimg "${CMAKE_CURRENT_SOURCE_DIR}/../components/idfxx_fatfs/tests/fatimg" FLASH_IN_PROJECT)
+    file(GLOB _fatimg LIST_DIRECTORIES true
+        "${CMAKE_CURRENT_SOURCE_DIR}/../components/*/idfxx_fatfs/tests/fatimg")
+    fatfs_create_rawflash_image(fatimg "${_fatimg}" FLASH_IN_PROJECT)
 endif()

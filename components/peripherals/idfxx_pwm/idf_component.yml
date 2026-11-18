@@ -1,0 +1,22 @@
+version: "3.1.0"
+description: "Type-safe LEDC PWM controller for ESP32"
+url: "https://github.com/cleishm/idfxx/tree/main/components/peripherals/idfxx_pwm"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../../core/idfxx_core
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../../peripherals/idfxx_gpio
+  cleishm/idfxx_hw_support:
+    version: "^1.0.0"
+    public: true
+    override_path: ../../core/idfxx_hw_support
+  cleishm/quanta:
+    version: "^0.2.0"
+    public: true

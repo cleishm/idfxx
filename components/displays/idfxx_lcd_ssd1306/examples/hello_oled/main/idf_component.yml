@@ -1,0 +1,13 @@
+dependencies:
+  cleishm/idfxx_lcd_ssd1306:
+    version: "^3.0.0"
+    override_path: ../../..
+  cleishm/idfxx_i2c:
+    version: "^3.0.0"
+    override_path: ../../../../../peripherals/idfxx_i2c
+  cleishm/idfxx_log:
+    version: "^1.0.0"
+    override_path: ../../../../../core/idfxx_log
+  cleishm/idfxx_panel_io:
+    version: "^3.0.0"
+    override_path: ../../../../../displays/idfxx_panel_io

@@ -1,0 +1,19 @@
+version: "3.0.0"
+description: "SSD1306 monochrome OLED panel driver (128x64 / 128x32)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/displays/idfxx_lcd_ssd1306"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.0.0"
+    public: true
+    override_path: ../../core/idfxx_core
+  cleishm/idfxx_lcd:
+    version: "^4.0.0"
+    public: true
+    override_path: ../../displays/idfxx_lcd
+  cleishm/idfxx_panel_io:
+    version: "^3.0.0"
+    public: true
+    override_path: ../../displays/idfxx_panel_io

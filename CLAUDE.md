@@ -74,7 +74,7 @@ just test dht gpio
 ```
 
 A component whose tests use idfxx components outside its own dependencies lists them in
-`components/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise
+`components/<area>/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise
 `just test <name>` fails to build, and so does its group's app if no other component in the group
 happens to pull them in. Each group app runs its tests
 without the other groups' tests before them, so a test must set up what it needs itself (NVS, the
@@ -85,6 +85,10 @@ CI runs a matrix of builds: with-exceptions, no-exceptions, no-ipv6, and qemu-te
 ## Architecture
 
 ### Component Structure
+
+Components live at `components/<area>/<name>/`, one area directory for each section of the
+`components/README.md` catalog. A new component goes in the area directory of its section and gets
+a row in that area's `README.md`. Tooling finds a component by name with `components/*/<name>`.
 
 Supported targets: esp32, esp32s2, esp32s3, esp32c3, esp32c6, esp32h2
 
@@ -238,8 +242,9 @@ result-based code), but it is not how idfxx APIs are meant to be called.
 9. Important Notes (gotchas and tips)
 10. License
 
-**Example README**: Every example under `components/*/examples/` needs a `README.md` (the ESP
-Component Registry displays it). Follow `components/idfxx_gpio/examples/blink/README.md`:
+**Example README**: Every example under `components/<area>/<name>/examples/` needs a `README.md`
+(the ESP Component Registry displays it). Follow
+`components/peripherals/idfxx_gpio/examples/blink/README.md`:
 1. Title and one-line summary
 2. What it demonstrates (APIs used, in order; which API style)
 3. Hardware required (parts, wiring/pins, where to change them)

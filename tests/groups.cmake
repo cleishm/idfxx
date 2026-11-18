@@ -1,6 +1,6 @@
 # Test groups: the central test suite is split into one Unity app per group, so that each app fits
-# the ota_0 partition. Every component with tests (components/<name>/tests/*_test.cpp) belongs to
-# exactly one group; configuring fails otherwise (see the top-level CMakeLists.txt).
+# the ota_0 partition. Every component with tests (components/<area>/<name>/tests/*_test.cpp)
+# belongs to exactly one group; configuring fails otherwise (see the top-level CMakeLists.txt).
 #
 # Select a group's app with -D IDFXX_TEST_GROUP=<group> (the Justfile recipes and CI build each
 # group in its own build directory). Without a selection the app holds every group's tests.

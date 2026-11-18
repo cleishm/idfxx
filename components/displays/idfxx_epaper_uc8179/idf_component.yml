@@ -1,0 +1,26 @@
+version: "3.0.0"
+description: "UC8179 ePaper panel driver (up to 800x600, e.g. 7.5\" 800x480)"
+url: "https://github.com/cleishm/idfxx/tree/main/components/displays/idfxx_epaper_uc8179"
+repository: "https://github.com/cleishm/idfxx.git"
+license: "Apache-2.0"
+dependencies:
+  idf: ">=5.5"
+  cleishm/idfxx_core:
+    version: "^1.2.0"
+    public: true
+    override_path: ../../core/idfxx_core
+  cleishm/idfxx_epaper:
+    version: "^2.0.0"
+    public: true
+    override_path: ../../displays/idfxx_epaper
+  cleishm/idfxx_gpio:
+    version: "^1.0.0"
+    public: true
+    override_path: ../../peripherals/idfxx_gpio
+  cleishm/idfxx_panel_io:
+    version: "^3.0.0"
+    public: true
+    override_path: ../../displays/idfxx_panel_io
+  cleishm/quanta:
+    version: "^0.2.0"
+    public: true

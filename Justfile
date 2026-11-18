@@ -137,7 +137,7 @@ test +components:
     tests=
     for c in {{components}}; do
         case "$c" in idfxx_*) ;; *) c="idfxx_$c" ;; esac
-        [ -d "components/$c" ] || { echo "ERROR: no component named $c"; exit 1; }
+        compgen -G "components/*/$c/" >/dev/null || { echo "ERROR: no component named $c"; exit 1; }
         tests="${tests:+$tests;}$c"
     done
     mkdir -p build-test
@@ -166,7 +166,8 @@ flash-test +args:
             *)
                 c=$a
                 case "$c" in idfxx_*) ;; *) c="idfxx_$c" ;; esac
-                [ -d "components/$c" ] || { echo "ERROR: no component named $c"; exit 1; }
+                compgen -G "components/*/$c/" >/dev/null \
+                    || { echo "ERROR: no component named $c"; exit 1; }
                 tests="${tests:+$tests;}$c"
                 ;;
         esac
@@ -225,11 +226,13 @@ qemu-run dir timeout log="qemu_output.log":
 gen-font-inter:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{justfile_directory()}}/components/idfxx_font_inter"
+    root="{{justfile_directory()}}"
+    ttf_to_c=$(echo "$root"/components/*/idfxx_font/scripts/ttf_to_c.py)
+    cd "$(echo "$root"/components/*/idfxx_font_inter)"
     for spec in Regular:inter Medium:inter_medium; do
         weight="${spec%%:*}" prefix="${spec#*:}"
         for size in 16 24 32 48; do
-            "${IDFXX_FONT_PYTHON:-python3}" ../idfxx_font/scripts/ttf_to_c.py \
+            "${IDFXX_FONT_PYTHON:-python3}" "$ttf_to_c" \
                 "fonts/Inter-$weight.ttf" "${prefix}_$size" --size "$size" --hinting auto \
                 --header idfxx/font/inter.hpp --namespace idfxx::font -o "src/${prefix}_$size.cpp"
         done
