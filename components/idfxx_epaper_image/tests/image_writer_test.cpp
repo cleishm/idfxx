@@ -34,6 +34,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#ifdef CONFIG_IDFXX_STD_FORMAT
+#include <format>
+#endif
 #include <optional>
 #include <span>
 #include <string_view>
@@ -453,9 +456,9 @@ struct gray_panel {
     epi_err_t status = EPI_ERR_INVALID_ARG;
 };
 
-gray_panel make_gray_panel(std::span<const epi_ink_t> levels, uint16_t w, uint16_t h) {
+gray_panel make_gray_panel(std::span<const epi_ink_t> levels, uint16_t w, uint16_t h, const char* name = "test") {
     const epi_grey_panel_config_t config{
-        .name = "test",
+        .name = name,
         .width = w,
         .height = h,
         .levels = levels.data(),
@@ -806,6 +809,9 @@ TEST_CASE("calibration::make takes a color panel built from measured inks", "[ep
     TEST_ASSERT_EQUAL_UINT32(4, measured->presets().size());
 
     const auto kind = panel_of<epaper::color6_framebuffer>();
+    // The same inputs under another name: the ID is the built-in one's.
+    TEST_ASSERT_TRUE(measured->id().has_value());
+    TEST_ASSERT_TRUE(measured->id() == kind.cal->id());
     const auto built_in_inks = kind.cal->inks();
     const auto measured_inks = measured->inks();
     TEST_ASSERT_EQUAL_UINT32(built_in_inks.size(), measured_inks.size());
@@ -835,6 +841,56 @@ TEST_CASE("calibration copies hold their own inks", "[epaper_image]") {
     TEST_ASSERT_EQUAL_UINT8(40, inks[0].measured.r);
     TEST_ASSERT_EQUAL_STRING("test", copy.name());
     TEST_ASSERT_EQUAL_UINT32(2, original->inks().size());
+}
+
+TEST_CASE("calibration::id is the library panel's", "[epaper_image]") {
+    for (const auto& kind : all_panels()) {
+        const auto id = kind.cal->id();
+        TEST_ASSERT_TRUE(id.has_value());
+        TEST_ASSERT_EQUAL_MEMORY(kind.library->id, id->data(), id->size());
+    }
+    TEST_ASSERT_TRUE(epaper::calibration::gdey075t7_mono().id() != epaper::calibration::gdey075t7_gray4().id());
+    TEST_ASSERT_TRUE(epaper::calibration::gdey075t7_mono().id() != epaper::calibration::el133uf1().id());
+
+    // A panel the library builds has one, which changes with the measured levels but not the name.
+    const auto four = make_gray_panel(four_levels, 16, 16);
+    TEST_ASSERT_EQUAL_INT(EPI_OK, four.status);
+    const auto four_id = epaper::calibration::make(*four.panel)->id();
+    TEST_ASSERT_TRUE(four_id.has_value());
+    TEST_ASSERT_TRUE(four_id == epaper::calibration::make(*make_gray_panel(four_levels, 16, 16).panel)->id());
+    TEST_ASSERT_TRUE(four_id != epaper::calibration::make(*make_gray_panel(four_levels, 16, 32).panel)->id());
+    std::array<epi_ink_t, 4> darker;
+    std::ranges::copy(four_levels, darker.begin());
+    darker[0].measured = {30, 30, 30};
+    TEST_ASSERT_TRUE(four_id != epaper::calibration::make(*make_gray_panel(darker, 16, 16).panel)->id());
+    const auto renamed = make_gray_panel(four_levels, 16, 16, "renamed");
+    TEST_ASSERT_EQUAL_STRING("renamed", renamed.panel->name);
+    TEST_ASSERT_TRUE(four_id == epaper::calibration::make(*renamed.panel)->id());
+
+    // A panel built by hand has none.
+    epi_panel_t by_hand = epi_panel_el133uf1;
+    std::ranges::fill(by_hand.id, 0);
+    const auto cal = epaper::calibration::make(by_hand);
+    TEST_ASSERT_TRUE(cal.has_value());
+    TEST_ASSERT_FALSE(cal->id().has_value());
+}
+
+TEST_CASE("renderer::version::current is the library's", "[epaper_image]") {
+    const auto v = epaper::renderer::version::current();
+    TEST_ASSERT_EQUAL_UINT8(EPI_VERSION_MAJOR, v.major);
+    TEST_ASSERT_EQUAL_UINT8(EPI_VERSION_MINOR, v.minor);
+    TEST_ASSERT_EQUAL_UINT8(EPI_VERSION_PATCH, v.patch);
+    TEST_ASSERT_EQUAL_UINT32(epi_version(), uint32_t{v.major} << 16 | uint32_t{v.minor} << 8 | v.patch);
+
+    constexpr epaper::renderer::version older{.major = 0, .minor = 5, .patch = 9};
+    constexpr epaper::renderer::version newer{.major = 1, .minor = 0, .patch = 0};
+    static_assert(older < newer);
+    static_assert(older == epaper::renderer::version{0, 5, 9});
+    static_assert((epaper::renderer::version{0, 5, 9} <=> epaper::renderer::version{0, 6, 0}) < 0);
+#ifdef CONFIG_IDFXX_STD_FORMAT
+    TEST_ASSERT_EQUAL_STRING("0.5.9", std::format("{}", older).c_str());
+    TEST_ASSERT_EQUAL_STRING("1.0.0", std::format("{}", newer).c_str());
+#endif
 }
 
 // =============================================================================

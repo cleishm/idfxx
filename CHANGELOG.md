@@ -152,10 +152,11 @@ See [UPGRADING.md](UPGRADING.md#unreleased) for the steps each component needs.
   source voltage
 - `idfxx_hw_support` `1.2.0` — the `mac_address` formatter accepts fill, alignment and width
 - `idfxx_dht` `2.1.0`, `idfxx_pwm` `3.1.0` — require quanta `^0.2.0`
-- `idfxx_epaper_image` `1.1.0` — requires epaper-image `^0.5.0`; panel output is unchanged.
-  Projects that use epaper-image directly raise their constraint to match: its resampler config
-  takes the source rectangle as an `epi_rect_t`, and `epi_layout_cover` / `epi_layout_fit` take a
-  region. Documentation fixes
+- `idfxx_epaper_image` `1.1.0` — adds `calibration::id()` and `renderer::version::current()`, which
+  together tell whether the conversion a stored frame was made with is unchanged. Requires
+  epaper-image `^0.6.0`; panel output is unchanged. Projects that use epaper-image directly raise
+  their constraint to match: since 0.5.0 its resampler config takes the source rectangle as an
+  `epi_rect_t`, and `epi_layout_cover` / `epi_layout_fit` take a region. Documentation fixes
 
 ### Fixes
 

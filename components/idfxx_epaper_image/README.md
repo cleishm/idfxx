@@ -23,6 +23,8 @@ oriented on the screen.
   `idfxx::gfx::rotated` or `idfxx::gfx::canvas` view of one
 - `write_options::memory_limit` bounds the working memory, so a placement that needs too much fails
   with `image::errc::too_large` instead of exhausting the heap
+- A calibration's `id()` and `renderer::version::current()` tell whether the conversion a stored
+  frame was made with is unchanged
 - Every call comes as a throwing form and a `try_` form returning `idfxx::result<void>`
 
 ## Requirements
@@ -140,6 +142,7 @@ idfxx::result<void> show(idfxx::epaper::panel& display, idfxx::byte_source auto&
 | `calibration::presets()` | The panel's named `rendering_intent`s. The first is its default. |
 | `calibration::preset(name)` / `try_preset(name)` | The `rendering_intent` of one of the panel's presets, such as `"Bright"`, ignoring ASCII case. |
 | `calibration::inks()` | The panel's inks: the framebuffer's pixel `value`, and its `nominal` and `measured` colors. |
+| `calibration::id()`, `renderer::version::current()` | Together, whether the conversion to inks is unchanged: a stored frame of the same picture, placement and options is current while both are. `id()` is `std::nullopt` for a panel built by hand. |
 | `rendering_intent` | `tone`, `detail`, `adapt`, `vibrance`, `veil`, `lift` (all required). |
 
 The decoder is anything that models `idfxx::image::decoder`. The placement (`target`, `layout`,

@@ -130,6 +130,50 @@ struct ink {
 };
 
 /**
+ * @brief The conversion of pictures to a panel's inks, independent of any one panel.
+ */
+namespace renderer {
+
+/**
+ * @headerfile <idfxx/epaper/image_writer>
+ * @brief A version of the conversion of pictures to a panel's inks.
+ *
+ * With a calibration's @ref calibration::id, it tells whether a frame converted
+ * earlier, and stored, is what converting the same picture would give now. See
+ * @ref version::current.
+ */
+struct version {
+    uint8_t major; ///< Changes that break the API.
+    uint8_t minor; ///< Additions that keep the API.
+    uint8_t patch; ///< Fixes.
+
+    /**
+     * @brief Returns the version of the conversion in this firmware.
+     *
+     * It is the version of the `cleishm/epaper-image` library linked. A frame
+     * converted for a calibration is converted the same way while this version
+     * and the calibration's @ref calibration::id are both unchanged, so storing
+     * the pair with a frame tells whether the frame is still current. The
+     * picture, its placement and the @ref write_options must also be the same.
+     *
+     * @return The version.
+     *
+     * @code
+     * const auto& cal = idfxx::epaper::calibration::el133uf1();
+     * if (stored.version != idfxx::epaper::renderer::version::current() || stored.id != cal.id()) {
+     *     // Convert the picture again.
+     * }
+     * @endcode
+     */
+    [[nodiscard]] static version current() noexcept;
+
+    /** @brief Compares versions: major, then minor, then patch. */
+    friend constexpr auto operator<=>(const version&, const version&) = default;
+};
+
+} // namespace renderer
+
+/**
  * @headerfile <idfxx/epaper/image_writer>
  * @brief What a panel's inks look like, and how to render pictures for it.
  *
@@ -286,6 +330,27 @@ public:
     [[nodiscard]] std::span<const ink> inks() const noexcept {
         return std::span<const ink>(_inks).first(_ink_count);
     }
+
+    /**
+     * @brief Returns what identifies this calibration in the conversion of pictures.
+     *
+     * Under one @ref renderer::version::current, two calibrations with the same ID
+     * convert a picture to the same frame. It covers what changes the frame:
+     * whether the panel is gray or color, its size, each ink's code and measured
+     * color, and the panel's detail blur and neutral-cast correction. The name,
+     * the nominal colors and the presets are not part of
+     * it, so a measured panel built with the built-in one's inputs under
+     * another name has the built-in one's ID. The bytes are opaque: compare
+     * them, but don't rely on how they are computed.
+     *
+     * Paired with @ref renderer::version::current, it tells whether a stored
+     * frame is still current.
+     *
+     * @return The ID, or `std::nullopt` for a panel built by hand rather than
+     *         with `epi_grey_panel_init()` or `epi_colour_panel_init()`, which
+     *         has none.
+     */
+    [[nodiscard]] std::optional<std::array<std::byte, 16>> id() const noexcept;
 
 private:
     /** @cond INTERNAL */
@@ -1043,3 +1108,20 @@ template<typename Surface, image::decoder Decoder>
 } // namespace idfxx::epaper
 
 /** @} */ // end of idfxx_epaper_image
+
+#ifdef CONFIG_IDFXX_STD_FORMAT
+/** @cond INTERNAL */
+#include <format>
+namespace std {
+template<>
+struct formatter<idfxx::epaper::renderer::version> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(idfxx::epaper::renderer::version v, FormatContext& ctx) const {
+        return std::format_to(ctx.out(), "{}.{}.{}", v.major, v.minor, v.patch);
+    }
+};
+} // namespace std
+/** @endcond */
+#endif // CONFIG_IDFXX_STD_FORMAT
