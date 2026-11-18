@@ -35,6 +35,7 @@ set(IDFXX_TEST_GROUP_system
     idfxx_dht
     idfxx_onewire
     idfxx_ds18x20
+    idfxx_max31865
     idfxx_i2c
     idfxx_spi
     idfxx_rtc
