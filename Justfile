@@ -151,6 +151,39 @@ test +components:
     idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB -o "$PWD/build-test/qemu_flash.bin"
     just qemu-run build-test 120
 
+# Uses config/sdkconfig.defaults in an isolated build-test-hw/; `just monitor test-hw` reattaches.
+# Flash and monitor only some components' tests (`just flash-test dht gpio [target] [port]`)
+flash-test +args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{env_setup}}
+    cd "{{justfile_directory()}}"
+    tests= target= port_="{{port}}"
+    for a in {{args}}; do
+        case "$a" in
+            /*|COM*) port_=$a ;;
+            esp32*) target=$a ;;
+            *)
+                c=$a
+                case "$c" in idfxx_*) ;; *) c="idfxx_$c" ;; esac
+                [ -d "components/$c" ] || { echo "ERROR: no component named $c"; exit 1; }
+                tests="${tests:+$tests;}$c"
+                ;;
+        esac
+    done
+    [ -n "$tests" ] || { echo "ERROR: name at least one component"; exit 1; }
+    dir=build-test-hw
+    args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D SDKCONFIG_DEFAULTS=config/sdkconfig.defaults
+        -D IDFXX_TESTS="$tests")
+    # Configure for the named target (esp32s3 when none is) the first time and when it changes, and
+    # regenerate the config, keeping its target, when config/sdkconfig.defaults changes.
+    configured=$(sed -n 's/^CONFIG_IDF_TARGET="\(.*\)"$/\1/p' "$dir/sdkconfig" 2>/dev/null || true)
+    if [ -z "$configured" ] || { [ -n "$target" ] && [ "$target" != "$configured" ]; } \
+        || [ config/sdkconfig.defaults -nt "$dir/sdkconfig" ]; then
+        idf.py "${args[@]}" set-target "${target:-${configured:-esp32s3}}"
+    fi
+    idf.py "${args[@]}" -p "$port_" flash monitor
+
 # Run a merged QEMU flash image from a build dir and check the Unity summary
 [private]
 qemu-run dir timeout log="qemu_output.log":
@@ -210,4 +243,4 @@ clean:
     for g in {{groups}}; do
         rm -rf "build-$g" "build-noexc-$g" "build-noipv6-$g" "build-qemu-$g"
     done
-    rm -rf build build-noexc build-noipv6 build-qemu build-test qemu_output*.log
+    rm -rf build build-noexc build-noipv6 build-qemu build-test build-test-hw qemu_output*.log

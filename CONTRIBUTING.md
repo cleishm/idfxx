@@ -98,6 +98,16 @@ Each builds the group's app in `build-<group>/` if needed, flashes it and opens 
 app prints its Unity summary at the end, and the hardware apps reprint it every five seconds, since
 the light-sleep tests (in `system`) can drop a USB-Serial-JTAG console.
 
+To run only some components' tests on a board, including their `[hw]` tests:
+
+```bash
+just flash-test dht gpio [target] [port]
+```
+
+This builds the named components' tests with the default config in `build-test-hw/` (for an
+ESP32-S3 unless given another target), flashes them and opens the monitor; `just monitor test-hw`
+reattaches.
+
 ## Continuous Integration
 
 GitHub Actions (`.github/workflows/build.yml`) runs on every push and pull request:
