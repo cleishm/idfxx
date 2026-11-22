@@ -17,6 +17,8 @@
 // =============================================================================
 
 // dhcp_option_id
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 static_assert(
     std::to_underlying(idfxx::netif::dhcp_option_id::subnet_mask) == ESP_NETIF_SUBNET_MASK
 );
@@ -52,6 +54,7 @@ static_assert(
     std::to_underlying(idfxx::netif::dhcp_option_id::captiveportal_uri) ==
     ESP_NETIF_CAPTIVEPORTAL_URI
 );
+#pragma GCC diagnostic pop
 
 // dns_type
 static_assert(std::to_underlying(idfxx::netif::dns_type::main) == ESP_NETIF_DNS_MAIN);

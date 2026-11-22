@@ -1,4 +1,4 @@
-version: "2.1.0"
+version: "2.2.0"
 description: "Type-safe network interface management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/network/idfxx_netif"
 repository: "https://github.com/cleishm/idfxx.git"
