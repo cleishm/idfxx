@@ -6,6 +6,11 @@ The repository follows [calendar versioning](https://calver.org/); individual co
 [semantic versioning](https://semver.org/) independently. A component's version only bumps when that
 component changes.
 
+## Unreleased
+
+- `idfxx_netif` `2.2.0` — deprecates `dhcp_option_id`, which nothing in idfxx uses; set DHCP
+  server options with `dhcp_server_config`
+
 ## v2026.11.18
 
 Six new components add SD and MMC card access, FAT filesystems on cards and flash, message digests

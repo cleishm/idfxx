@@ -56,8 +56,11 @@ class interface;
 /**
  * @headerfile <idfxx/netif>
  * @brief DHCP option identifiers.
+ *
+ * @deprecated Nothing in idfxx uses these identifiers. Set the DHCP server's options with
+ * dhcp_server_config and interface::dhcp_server_start(const dhcp_server_config&).
  */
-enum class dhcp_option_id : int {
+enum class [[deprecated("use dhcp_server_config")]] dhcp_option_id : int {
     // clang-format off
     subnet_mask                   = 1,   /*!< Network mask. */
     domain_name_server            = 6,   /*!< Domain name server. */
