@@ -50,10 +50,13 @@ namespace idfxx::epaper {
  * @ref color_mode::color6 (the native format, six colors at 4 bits per
  * pixel) and @ref color_mode::mono (1-bpp framebuffers rendered as black
  * and white, so existing text and banded-rendering code works unchanged).
- * The glass supports full refreshes only: `fast` and `partial` refresh
- * requests always report `errc::not_supported` (even before a baseline
- * exists), as does @ref color_mode::gray4. A full refresh takes on the
- * order of 25-30 seconds.
+ * The glass supports full and fast refreshes. A full refresh takes on the
+ * order of 25-30 seconds. A fast refresh runs the same waveform on a faster
+ * frame clock, taking from about two-thirds of the full refresh's time down
+ * to under half and trading image quality for speed; see @ref fast_quality
+ * and @ref config::fast_refresh_quality. Both flash through the color
+ * passes. `partial` refresh requests always report `errc::not_supported`
+ * (even before a baseline exists), as does @ref color_mode::gray4.
  *
  * The panel is driven by two cascaded controller ICs, each owning one
  * 600-column half of every row: the master (columns 0-599) and the slave
@@ -118,6 +121,32 @@ public:
 
     /**
      * @headerfile <idfxx/epaper/el133uf1>
+     * @brief Image quality a @ref refresh_mode::fast refresh runs at.
+     *
+     * Each level selects a faster frame clock: lower quality shortens the
+     * refresh further. On a black-and-white image, the white turns
+     * increasingly cream, and a faint ghost of the previous image may
+     * remain. Black stays solid at every step. Colors other than black and
+     * white may shift. Times below are at room temperature (the full
+     * refresh takes about 26 s there) and grow when cold. A following full
+     * refresh clears what a fast one leaves.
+     */
+    enum class fast_quality : uint8_t {
+        /// High image quality, about 18 s: the cleanest fast refresh. The
+        /// default.
+        high,
+        /// Medium image quality, about 16 s: slightly cream white, and a
+        /// faint ghost may remain.
+        medium,
+        /// Low image quality, about 13 s: cream white.
+        low,
+        /// Draft image quality, about 11 s: the fastest, with heavily cream
+        /// white.
+        draft,
+    };
+
+    /**
+     * @headerfile <idfxx/epaper/el133uf1>
      * @brief Configuration structure for EL133UF1 panels.
      */
     struct config {
@@ -157,6 +186,10 @@ public:
         /// Maximum time to wait for the BUSY line to release. A full
         /// six-color refresh takes 25-30 seconds, longer when cold.
         std::chrono::milliseconds busy_timeout{60'000};
+        /// Image quality @ref refresh_mode::fast refreshes run at, unless a
+        /// refresh is given its own (see @ref try_refresh(fast_quality));
+        /// full refreshes always run at the panel's reference frame clock.
+        fast_quality fast_refresh_quality = fast_quality::high;
     };
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -251,6 +284,91 @@ public:
     el133uf1(el133uf1&& other) noexcept;
     el133uf1& operator=(el133uf1&& other) noexcept;
 
+    // =========================================================================
+    // Refresh
+    // =========================================================================
+
+    using panel::try_refresh;
+    using panel::try_start_refresh;
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    using panel::refresh;
+    using panel::start_refresh;
+
+    /**
+     * @brief Runs a fast refresh at the given image quality.
+     *
+     * Behaves as `refresh(refresh_mode::fast)`, but at @p quality instead
+     * of @ref config::fast_refresh_quality, for this refresh only. Blocks
+     * until the update completes.
+     *
+     * @code
+     * display.write(fb);
+     * display.refresh(idfxx::epaper::el133uf1::fast_quality::medium);
+     * @endcode
+     *
+     * @param quality Image quality to run the fast refresh at.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure, including `errc::timeout` if
+     *         the BUSY line does not release in time and
+     *         `errc::invalid_state` if the panel is asleep.
+     */
+    void refresh(fast_quality quality) { unwrap(try_refresh(quality)); }
+
+    /**
+     * @brief Starts a fast refresh at the given image quality and returns a
+     *        future.
+     *
+     * Behaves as `start_refresh(refresh_mode::fast)`, but at @p quality
+     * instead of @ref config::fast_refresh_quality, for this refresh only.
+     *
+     * @param quality Image quality to run the fast refresh at.
+     * @return A future that completes when the update finishes. Waiting on
+     *         it fails with `errc::timeout` if the BUSY line does not
+     *         release within `busy_timeout` (or the timeout given to the
+     *         future's `wait_for`).
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on failure to start the update, including
+     *         `errc::invalid_state` if the panel is asleep.
+     */
+    [[nodiscard]] idfxx::future<void> start_refresh(fast_quality quality) {
+        return unwrap(try_start_refresh(quality));
+    }
+#endif
+
+    /**
+     * @brief Runs a fast refresh at the given image quality.
+     *
+     * Behaves as `try_refresh(refresh_mode::fast)`, but at @p quality
+     * instead of @ref config::fast_refresh_quality, for this refresh only.
+     * Blocks until the update completes.
+     *
+     * @param quality Image quality to run the fast refresh at.
+     * @return Success, or an error.
+     * @retval timeout The BUSY line did not release in time. The update
+     *         keeps running; the next panel operation waits for it to
+     *         complete before proceeding.
+     * @retval invalid_state The panel is asleep.
+     */
+    [[nodiscard]] result<void> try_refresh(fast_quality quality);
+
+    /**
+     * @brief Starts a fast refresh at the given image quality and returns a
+     *        future.
+     *
+     * Behaves as `try_start_refresh(refresh_mode::fast)`, but at
+     * @p quality instead of @ref config::fast_refresh_quality, for this
+     * refresh only.
+     *
+     * @param quality Image quality to run the fast refresh at.
+     * @return A future that completes when the update finishes, or an error
+     *         if the update could not be started. Waiting on the future
+     *         fails with `errc::timeout` if the BUSY line does not release
+     *         in time.
+     * @retval invalid_state The panel is asleep.
+     */
+    [[nodiscard]] result<idfxx::future<void>> try_start_refresh(fast_quality quality);
+
 private:
     // Which controller(s) a command is addressed to: `both` selects the two
     // controllers together for a single transfer.
@@ -271,7 +389,8 @@ private:
         , _master_cs(cfg.master_cs_gpio)
         , _slave_cs(cfg.slave_cs_gpio)
         , _dc(cfg.dc_gpio)
-        , _check_presence(cfg.check_presence) {}
+        , _check_presence(cfg.check_presence)
+        , _fast_quality(cfg.fast_refresh_quality) {}
 
     // epaper::panel customization hooks.
     [[nodiscard]] result<void> do_write(
@@ -325,6 +444,9 @@ private:
     gpio _dc;
     // Whether to read the controllers' ID registers after each reset.
     bool _check_presence;
+    // Image quality fast refreshes run at: config::fast_refresh_quality,
+    // swapped for the duration of a refresh(fast_quality) call.
+    fast_quality _fast_quality;
 
     // Internal DMA-capable staging buffer for outgoing bytes (at most 4 KB,
     // capped at the bus's maximum transaction length). Shadow-plane chunks

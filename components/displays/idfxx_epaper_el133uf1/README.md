@@ -8,8 +8,10 @@ such as Seeed Studio's T133A01 (in the reTerminal E1004).
 ## Features
 
 - Implements the `idfxx::epaper::panel` interface — application code written against the abstract
-  panel works unchanged, provided it uses full refreshes (`fast` and `partial` always return
+  panel works unchanged, provided it uses full or fast refreshes (`partial` always returns
   `errc::not_supported`).
+- Fast refreshes run the full waveform on a faster frame clock, at one of four image-quality levels
+  set in `config` or per refresh: about 18 s down to 11 s against the full refresh's 25-30 s.
 - Six-color operation (`color_mode::color6`, the panel's native 4-bpp format: black, white, yellow,
   red, blue, green) via `color6_framebuffer`.
 - Monochrome operation (`color_mode::mono`) renders 1-bpp `mono_framebuffer`s as black and white, so
@@ -45,7 +47,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   cleishm/idfxx_epaper_el133uf1:
-    version: "^1.0.0"
+    version: "^2.1.0"
 ```
 
 Or add `idfxx_epaper_el133uf1` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -79,6 +81,16 @@ fb.set_pixel(10, 20, idfxx::epaper::color6::red);
 display.write(fb);          // copy into the driver's shadow frame
 display.refresh();          // upload + six-color update: 25-30 s (start_refresh() returns a future)
 display.sleep();            // deep sleep between updates
+```
+
+A fast refresh suits black-and-white content that changes often, with a full refresh now and then
+to restore a clean image:
+
+```cpp
+using idfxx::epaper::el133uf1;
+
+display.refresh(idfxx::epaper::refresh_mode::fast); // at config's fast_refresh_quality (high)
+display.refresh(el133uf1::fast_quality::medium);    // fast, at medium for this refresh only
 ```
 
 The same flow with the result-based API:
@@ -153,7 +165,13 @@ Driver-specific surface:
   strongly recommended), `busy_gpio` (required, active low), `check_presence` (default `false`;
   confirms both controllers answer during construction and `wake`, and needs the bus's MISO line
   wired to the panel), `pclk` (SPI clock, default and maximum 10 MHz), `busy_timeout` (default 60
-  s).
+  s), `fast_refresh_quality` (the image quality `refresh_mode::fast` refreshes run at, default
+  `fast_quality::high`).
+- `refresh(fast_quality)` / `start_refresh(fast_quality)` (and `try_*` forms) — a fast refresh at
+  the given quality, for that refresh only; the panel's `refresh(refresh_mode)` overloads remain.
+- `fast_quality` — `high` (about 18 s, the cleanest), `medium` (about 16 s), `low` (about 13 s),
+  `draft` (about 11 s, the fastest). Each level down trades more image quality for speed: white
+  turns increasingly cream, and a faint ghost of the previous image may remain.
 
 ## Error Handling
 
@@ -167,8 +185,8 @@ Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
 - `errc::not_found` — with `check_presence` set, a controller did not answer during construction or
   `wake` (the log names which one).
-- `errc::not_supported` — any `fast` or `partial` refresh (including the first one, before a
-  baseline exists), or `color_mode::gray4`.
+- `errc::not_supported` — any `partial` refresh (including the first one, before a baseline
+  exists), or `color_mode::gray4`.
 
 Running out of memory for the shadow frame (or the driver's 4 KB internal DMA buffer) is not
 reported as an error: allocation failure throws `std::bad_alloc` (or aborts without exceptions), per
@@ -178,11 +196,15 @@ Using a moved-from driver object is undefined behavior.
 
 ## Important Notes
 
-- **Full refresh only, and it is slow.** The Spectra 6 waveform takes 25-30 seconds (longer when
-  cold) and flashes through several color passes; there is no fast or partial mode. `refresh` blocks
-  on BUSY for that long (tick-sleep polling, not a busy-spin); `start_refresh` returns a future, and
-  the next panel operation absorbs whatever remains. The default `busy_timeout` is 60 s for this
-  reason.
+- **Refreshes are slow.** The Spectra 6 waveform takes 25-30 seconds (longer when cold) and
+  flashes through several color passes; there is no partial mode. A fast refresh runs the same
+  waveform on a faster frame clock, so it still flashes and still redraws every pixel, in about
+  11-18 s depending on `fast_refresh_quality`. `refresh` blocks on BUSY for that long (tick-sleep
+  polling, not a busy-spin); `start_refresh` returns a future, and the next panel operation absorbs
+  whatever remains. The default `busy_timeout` is 60 s for this reason.
+- **Fast refreshes cost image quality.** White turns cream at the faster clocks and colors other
+  than black and white may shift, so keep fast refreshes for black-and-white content. A full refresh
+  afterward clears what a fast one leaves.
 - **PSRAM is required.** Without `CONFIG_SPIRAM`, including the driver's header fails with an
   `#error` (the component itself still builds, empty, so depending on it from a PSRAM-less
   configuration is harmless). The driver keeps a 960 KB shadow of the frame in PSRAM, and a
