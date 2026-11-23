@@ -35,6 +35,7 @@ constexpr uint8_t cmd_deep_sleep = 0x07;    // Deep sleep (parameter 0xA5)
 constexpr uint8_t cmd_data_start = 0x10;    // Write image data (4 bpp)
 constexpr uint8_t cmd_refresh = 0x12;       // Display refresh
 constexpr uint8_t cmd_pll = 0x30;           // PLL control (frame rate)
+constexpr uint8_t pll_full = 0x08;          // cmd_pll: the reference frame clock
 constexpr uint8_t cmd_vcom_interval = 0x50; // VCOM and data interval (border)
 constexpr uint8_t cmd_tcon = 0x60;          // TCON (gate/source non-overlap)
 constexpr uint8_t cmd_resolution = 0x61;    // Resolution setting
@@ -49,6 +50,39 @@ constexpr uint8_t cmd_cascade = 0xE0;       // Cascade setting
 constexpr uint8_t cmd_power_saving = 0xE3;  // Power saving
 constexpr uint8_t cmd_reg_0xf0 = 0xF0;      // Vendor: unknown
 constexpr uint8_t cmd_read_id = 0xF2;       // Vendor: read controller ID (3 bytes)
+
+// cmd_pll parameter (frame clock) for a fast refresh at the given quality.
+constexpr uint8_t pll_value(el133uf1::fast_quality quality) noexcept {
+    switch (quality) {
+    case el133uf1::fast_quality::high:
+        return 0x04;
+    case el133uf1::fast_quality::medium:
+        return 0x05;
+    case el133uf1::fast_quality::low:
+        return 0x06;
+    case el133uf1::fast_quality::draft:
+        return 0x07;
+    }
+    return 0x04;
+}
+
+// Holds a variable at a value for the guard's lifetime, restoring the previous
+// value on scope exit (including by exception).
+template<typename T>
+class scoped_value {
+public:
+    scoped_value(T& var, T value)
+        : _var(var)
+        , _saved(std::exchange(var, value)) {}
+    ~scoped_value() { _var = _saved; }
+
+    scoped_value(const scoped_value&) = delete;
+    scoped_value& operator=(const scoped_value&) = delete;
+
+private:
+    T& _var;
+    T _saved;
+};
 
 // First ID byte an answering controller returns. An unselected or
 // unresponsive controller leaves MISO idle, which never reads as this value.
@@ -213,6 +247,7 @@ el133uf1::el133uf1(el133uf1&& other) noexcept
     , _slave_cs(other._slave_cs)
     , _dc(other._dc)
     , _check_presence(other._check_presence)
+    , _fast_quality(other._fast_quality)
     , _chunk(std::move(other._chunk))
     , _pending(std::exchange(other._pending, pending::none))
     , _shadow(std::move(other._shadow)) {}
@@ -229,6 +264,7 @@ el133uf1& el133uf1::operator=(el133uf1&& other) noexcept {
         _slave_cs = other._slave_cs;
         _dc = other._dc;
         _check_presence = other._check_presence;
+        _fast_quality = other._fast_quality;
         _chunk = std::move(other._chunk);
         _pending = std::exchange(other._pending, pending::none);
         _shadow = std::move(other._shadow);
@@ -349,13 +385,28 @@ result<void> el133uf1::do_clear() {
     return {};
 }
 
+result<void> el133uf1::try_refresh(fast_quality quality) {
+    // do_refresh reads _fast_quality while the refresh starts.
+    const scoped_value guard(_fast_quality, quality);
+    return panel::try_refresh(refresh_mode::fast);
+}
+
+result<idfxx::future<void>> el133uf1::try_start_refresh(fast_quality quality) {
+    const scoped_value guard(_fast_quality, quality);
+    return panel::try_start_refresh(refresh_mode::fast);
+}
+
 result<void> el133uf1::do_refresh(refresh_mode mode) {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
-    // do_supports(refresh_mode) admits only full refreshes.
-    (void)mode;
     if (auto r = _upload(); !r) {
+        return r;
+    }
+    // A fast refresh runs the same waveform on a faster frame clock. Set on
+    // every refresh, since the controllers keep it until the next init.
+    const uint8_t clock = mode == refresh_mode::fast ? pll_value(_fast_quality) : pll_full;
+    if (auto r = _cmd(target::both, cmd_pll, {clock}); !r) {
         return r;
     }
     if (auto r = _cmd(target::both, cmd_power_on); !r) {
@@ -386,9 +437,9 @@ bool el133uf1::do_supports(enum color_mode mode) const noexcept {
 }
 
 bool el133uf1::do_supports(refresh_mode mode) const noexcept {
-    // The glass has a single full-update waveform: no fast or differential
-    // modes.
-    return mode == refresh_mode::full;
+    // The glass has a single waveform, run at the full or the fast frame
+    // clock; no differential (partial) mode.
+    return mode == refresh_mode::full || mode == refresh_mode::fast;
 }
 
 result<void> el133uf1::do_set_color_mode(enum color_mode mode) {
@@ -561,7 +612,7 @@ result<void> el133uf1::_init() {
         {target::master, cmd_reg_0x74, {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15, 0x15, 0x55}},
         {target::both, cmd_reg_0xf0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}},
         {target::both, cmd_panel_setting, {0xDF, 0x69}},
-        {target::both, cmd_pll, {0x08}},
+        {target::both, cmd_pll, {pll_full}},
         {target::master, cmd_reg_0xa5, {0x44, 0x54, 0x00}},
         {target::both, cmd_vcom_interval, {0x37}},
         {target::both, cmd_tcon, {0x03, 0x03}},

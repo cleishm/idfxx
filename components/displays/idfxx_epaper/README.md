@@ -157,7 +157,7 @@ display.set_color_mode(idfxx::epaper::color_mode::color6);
 idfxx::epaper::color6_framebuffer fb(display.width(), display.height());
 fb.set_pixel(10, 20, idfxx::epaper::color6::red);
 display.write(fb);
-display.refresh(); // color6 supports full refresh only
+display.refresh(); // color6 has no partial refresh
 ```
 
 A full 1200x1600 frame is 960 KB, so this framebuffer is usually PSRAM resident: with
@@ -344,8 +344,8 @@ The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 - `errc::invalid_state` — writing or refreshing while asleep, writing a framebuffer that doesn't
   match the panel's color mode, restoring a baseline while asleep or outside `color_mode::mono`, or
   waking a driver with no reset line configured.
-- `errc::not_supported` — `fast`/`partial` refresh in gray4 or color6 mode, a color mode the
-  concrete driver doesn't support (`supports` returns false), or another capability it lacks.
+- `errc::not_supported` — `fast`/`partial` refresh in gray4 mode, `partial` in color6, a color mode
+  the concrete driver doesn't support (`supports` returns false), or another capability it lacks.
 - `errc::timeout` — the panel's BUSY line did not release in time.
 
 `write_inks` checks everything it can before reading any byte from the source:
