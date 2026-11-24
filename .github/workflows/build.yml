@@ -357,11 +357,29 @@ jobs:
           path: ~/.cache/ccache
           key: ccache-example-${{ matrix.component }}-${{ matrix.example }}-${{ github.run_id }}
 
+  # Runs every group's tests as config/sdkconfig.qemu builds them (with log v1, ESP-IDF's default).
+  # The second matrix entry runs idfxx_log's tests again under log v2, because its sinks handle the
+  # lines of the two log versions differently. That entry runs only idfxx_log's tests, because
+  # under log v2, QEMU's console can't print every format that the other components log with (see
+  # config/sdkconfig.log-v2).
   qemu-test:
     needs: tested
     if: needs.tested.outputs.skip != 'true'
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: qemu-test
+            id: qemu
+            tests: ''
+            extra_config: ''
+          - name: qemu-test (log v2)
+            id: qemu-logv2
+            tests: idfxx_log
+            extra_config: config/sdkconfig.log-v2
+    name: ${{ matrix.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -393,22 +411,29 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-qemu-${{ github.run_id }}
-          restore-keys: ccache-qemu-
+          key: ccache-${{ matrix.id }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.id }}-
 
       - name: Build for QEMU
+        env:
+          TESTS_SELECTED: ${{ matrix.tests }}
+          EXTRA_CONFIG: ${{ matrix.extra_config }}
         run: |
           . $IDF_PATH/export.sh
           groups=$(sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake)
           [ -n "$groups" ] || { echo "::error::no groups found in tests/groups.cmake"; exit 1; }
+          # When components are selected, a single app with their tests replaces the groups' apps.
+          [ -z "$TESTS_SELECTED" ] || groups=selected
           echo "IDFXX_TEST_GROUPS=$groups" >> "$GITHUB_ENV"
           start=$(date +%s)
           ccache -z
           failed=
           for group in $groups; do
             echo "::group::Build test group $group"
-            if ! { idf.py -B build-$group -D IDFXX_TEST_GROUP=$group set-target esp32s3 &&
-                   cp config/sdkconfig.qemu build-$group/sdkconfig &&
+            select="IDFXX_TEST_GROUP=$group"
+            [ -z "$TESTS_SELECTED" ] || select="IDFXX_TESTS=$TESTS_SELECTED"
+            if ! { idf.py -B build-$group -D "$select" set-target esp32s3 &&
+                   cat config/sdkconfig.qemu $EXTRA_CONFIG > build-$group/sdkconfig &&
                    idf.py -B build-$group reconfigure &&
                    idf.py -B build-$group build; }; then
               failed="$failed $group"
@@ -427,7 +452,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-qemu-${{ github.run_id }}
+          key: ccache-${{ matrix.id }}-${{ github.run_id }}
 
       - name: Create Flash Images for QEMU
         run: |
@@ -507,7 +532,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: qemu-test-output
+          name: ${{ matrix.id }}-test-output
           path: qemu_output_*.log
 
   # Single check to require in branch protection. The example jobs come from a

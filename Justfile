@@ -128,6 +128,25 @@ qemu-test *args:
     fi
     echo "All groups passed:" $selected
 
+# The log goes to qemu_output_logv2.log. CI's qemu-test (log v2) job runs the same steps.
+# Build and run idfxx_log's tests in QEMU under ESP-IDF's log v2 (`just qemu-test-logv2 [timeout]`)
+qemu-test-logv2 timeout="300":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{env_setup}}
+    cd "{{justfile_directory()}}"
+    dir=build-qemu-logv2
+    mkdir -p "$dir"
+    if [ ! -f "$dir/sdkconfig" ] || [ config/sdkconfig.qemu -nt "$dir/sdkconfig" ] ||
+       [ config/sdkconfig.log-v2 -nt "$dir/sdkconfig" ]; then
+        cat config/sdkconfig.qemu config/sdkconfig.log-v2 > "$dir/sdkconfig"
+    fi
+    args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D IDF_TARGET=esp32s3)
+    idf.py "${args[@]}" -D IDFXX_TESTS=idfxx_log build
+    idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB \
+        -o "$PWD/$dir/qemu_flash.bin"
+    just qemu-run "$dir" "{{timeout}}" qemu_output_logv2.log
+
 # Run only some components' tests in QEMU (`just test dht gpio`; isolated build-test/)
 test +components:
     #!/usr/bin/env bash
@@ -246,4 +265,5 @@ clean:
     for g in {{groups}}; do
         rm -rf "build-$g" "build-noexc-$g" "build-noipv6-$g" "build-qemu-$g"
     done
-    rm -rf build build-noexc build-noipv6 build-qemu build-test build-test-hw qemu_output*.log
+    rm -rf build build-noexc build-noipv6 build-qemu build-qemu-logv2 build-test \
+        build-test-hw qemu_output*.log

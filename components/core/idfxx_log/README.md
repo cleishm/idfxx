@@ -10,11 +10,15 @@ Type-safe logging with compile-time format validation for ESP32.
 - **Zero-cost macros** that eliminate filtered messages including argument evaluation
 - **Runtime level control** per-tag, matching ESP-IDF's level filtering
 - **Full ESP-IDF integration** preserving timestamps, colors, and level prefixes
+- **Sinks** that receive log lines in addition to the console, for example to store the log in
+  flash or send it over the network. Each sink chooses which lines it wants, from the lines logged
+  through idfxx::log or from every ESP-IDF log line
 
 ## Requirements
 
 - ESP-IDF 5.5 or later
 - C++23 compiler
+- idfxx_core
 
 ## Installation
 
@@ -25,7 +29,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_log:
-    version: "^1.0.0"
+    version: "^1.1.0"
 ```
 
 Or add `idfxx_log` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -97,6 +101,56 @@ void configure_logging() {
 }
 ```
 
+### Sinks
+
+A sink receives the lines that it wants. Its choice is independent of the console's log levels, so
+it can receive a line that `set_level()` hides from the console. Derive a class from
+`idfxx::log::sink` and add an instance of it:
+
+```cpp
+#include <idfxx/log>
+
+#include <atomic>
+
+class warning_counter final : public idfxx::log::sink {
+public:
+    unsigned count() const { return _count; }
+
+private:
+    bool do_wants(idfxx::log::level lvl, std::string_view) const noexcept override {
+        return lvl <= idfxx::log::level::warn;
+    }
+    void do_write(idfxx::log::level, std::string_view, std::string_view) noexcept override {
+        ++_count;
+    }
+    std::atomic<unsigned> _count{0};
+};
+
+static warning_counter warnings;
+
+void start_counting() {
+    // The sink receives the lines logged through idfxx::log
+    idfxx::log::add_sink(warnings);
+}
+
+void stop_counting() {
+    idfxx::log::remove_sink(warnings);
+}
+```
+
+With `CONFIG_IDFXX_LOG_ALL_LINES` enabled, a sink can receive every ESP-IDF log line instead. That
+includes lines logged with `ESP_LOGx` and `esp_log_write`, and by the libraries that log through
+them. This example uses the result-based API:
+
+```cpp
+void start_counting_all() {
+    auto added = idfxx::log::try_add_sink(idfxx::log::all_lines, warnings);
+    if (!added) {
+        idfxx::log::error("app", "No sink added: {}", added.error().message());
+    }
+}
+```
+
 ## API Overview
 
 ### Level Enum
@@ -122,6 +176,20 @@ void configure_logging() {
 | `log()`              | Log at a specified level     |
 | `set_level()`        | Set level for a tag          |
 | `set_default_level()`| Set default level            |
+| `add_sink()`         | Add a sink                   |
+| `try_add_sink()`     | Add a sink (result-based)    |
+| `remove_sink()`      | Remove a sink                |
+
+### Sinks
+
+| Item                                 | Description                                              |
+|--------------------------------------|----------------------------------------------------------|
+| `sink`                               | Base class: override `do_wants()` and `do_write()`       |
+| `sink::wants()`                      | Returns whether the sink wants a line                    |
+| `sink::write()`                      | Receives a line: its level, tag and message              |
+| `add_sink(s)`                        | Add `s` for the lines logged through idfxx::log          |
+| `add_sink(all_lines, s)`             | Add `s` for every ESP-IDF log line (`CONFIG_IDFXX_LOG_ALL_LINES`) |
+| `remove_sink(s)`                     | Remove `s`; returns once no call into it is in progress  |
 
 ### Logger Methods
 
@@ -146,6 +214,18 @@ void configure_logging() {
 | `IDFXX_LOGD` | Debug   |
 | `IDFXX_LOGV` | Verbose |
 
+## Error Handling
+
+`add_sink()` throws `std::system_error` with one of these error codes, and `try_add_sink()` returns
+one:
+
+| Error                 | Cause                                                                              |
+|-----------------------|------------------------------------------------------------------------------------|
+| `errc::invalid_arg`   | The sink is already added (for idfxx::log lines or for every line)                 |
+| `errc::invalid_state` | `CONFIG_IDFXX_LOG_MAX_SINKS` sinks are already added, counting sinks being removed |
+
+The logging functions do not report errors.
+
 ## Important Notes
 
 - **Requires `CONFIG_IDFXX_STD_FORMAT`**: This component depends on `<format>` and requires the
@@ -160,7 +240,41 @@ void configure_logging() {
 - **Tag lifetime**: The `logger` class stores a pointer to the tag string. Use string literals or
   static storage duration strings.
 - **Three filtering layers**: Macros provide compile-time filtering, template functions check
-  `LOG_LOCAL_LEVEL`, and runtime filtering checks `esp_log_level_get()` before formatting.
+  `LOG_LOCAL_LEVEL`, and runtime filtering checks `esp_log_level_get()` before formatting. A line
+  that the tag's runtime level skips is still formatted if a sink wants it.
+- **Sink lifetime**: A sink must remain valid until it is removed. `remove_sink()` returns once no
+  call into the sink is in progress, so the sink can be destroyed afterward. While a removal waits,
+  other sinks can be added and removed, but the sink being removed still counts toward
+  `CONFIG_IDFXX_LOG_MAX_SINKS` until the calls into it have finished. A sink must not add or remove
+  sinks from inside its own functions. If a task is deleted while it is inside a sink,
+  `remove_sink()` for that sink never returns, so do not delete a task that may be logging.
+- **When sinks are called**: Sinks are called from the task that logged the line, after the
+  console has printed the line. Several tasks can call a sink at the same time. Lines logged from
+  an interrupt, while the flash cache is disabled, or before the scheduler starts are not passed
+  to any sink. Lines that a task logs while it is inside a sink are not passed to any sink either,
+  so a sink can log safely.
+- **`CONFIG_IDFXX_LOG_ALL_LINES` wraps ESP-IDF's log**: With this option enabled, idfxx_log wraps
+  `esp_log` and `esp_log_va` at link time (`-Wl,--wrap`). Nothing else in the app may wrap them: a
+  second definition of `__wrap_esp_log` or `__wrap_esp_log_va` makes the link fail.
+- **Lines passed to a sink added with `all_lines`**:
+  - Lines logged through idfxx::log are passed complete. Buffer dumps are different: like
+    `ESP_LOG_BUFFER_*`, they are logged through ESP-IDF's log, so they are handled, and shortened,
+    like any other ESP-IDF log line.
+  - Each `esp_log` call (as made by `ESP_LOGx`) is one line. A line logged in several
+    `esp_log_write` calls is passed with the level and tag of its first call.
+  - An ESP-IDF log line longer than `CONFIG_IDFXX_LOG_SINK_MAX_LINE` bytes is shortened to that
+    limit. The limit includes the prefix that the line's caller formatted before the message and,
+    for a line logged in several calls, the line's tag.
+  - The prefix is located using the line's tag, so a line with an empty tag is passed with its
+    prefix still attached.
+  - The sink does not receive early, DRAM or binary-mode lines, or lines above the compile-time
+    maximum level. With `CONFIG_LOG_MASTER_LEVEL` under log v1, it also does not receive `ESP_LOGx`
+    lines above the master level, because the macros skip those lines before logging them.
+- **Stack use with `CONFIG_IDFXX_LOG_ALL_LINES`**: With the option enabled and no sink added with
+  `all_lines`, each log call uses about 64 bytes more stack. With such a sink added, each log call
+  uses up to about `CONFIG_IDFXX_LOG_SINK_MAX_LINE` plus 64 bytes more, plus the stack that the
+  sinks themselves use. The options' help text has the details. Tasks with small stacks that log
+  (such as ESP-IDF's `sys_evt`) may need larger stacks.
 - **Format string safety**: Unlike printf-style `ESP_LOGx` macros, format errors are caught at
   compile time.
 

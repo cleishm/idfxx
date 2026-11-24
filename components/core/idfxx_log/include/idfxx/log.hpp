@@ -28,8 +28,14 @@
  *
  * Optional convenience macros provide zero-cost elimination of filtered
  * messages, including their argument evaluation.
+ *
+ * Sinks (@ref idfxx::log::sink "sink") receive log lines in addition to the console. Each sink
+ * chooses which lines it wants. A sink can receive the lines logged through idfxx::log or, with
+ * `CONFIG_IDFXX_LOG_ALL_LINES` enabled, every ESP-IDF log line.
  * @{
  */
+
+#include <idfxx/error>
 
 #include <algorithm>
 #include <cstdint>
@@ -60,6 +66,17 @@ enum class level : uint8_t {
     verbose = ESP_LOG_VERBOSE, ///< Highly detailed trace information.
 };
 
+/// @cond INTERNAL
+namespace detail {
+
+// Returns true if any added sink wants the line. log() uses this to format a line that the tag's
+// runtime level would otherwise skip. Always false in an interrupt, while the flash cache is
+// disabled, before the scheduler starts, and while the calling task is inside a sink.
+[[nodiscard]] bool wanted_by_sink(level lvl, const char* tag) noexcept;
+
+} // namespace detail
+/// @endcond
+
 /**
  * @headerfile <idfxx/log>
  * @brief Log a pre-formatted message at the specified level.
@@ -77,8 +94,8 @@ void log(level lvl, const char* tag, std::string_view msg);
  * @headerfile <idfxx/log>
  * @brief Log a message at the specified level.
  *
- * The message is only formatted if the tag's runtime log level permits output
- * at the specified severity. Format strings are validated at compile time.
+ * The message is only formatted if the tag's runtime log level outputs the line, or if a sink (see
+ * @ref add_sink) wants it. Format strings are validated at compile time.
  *
  * @tparam Args Format argument types, deduced from the arguments.
  * @param lvl The log severity level.
@@ -91,7 +108,8 @@ void log(level lvl, const char* tag, std::format_string<Args...> fmt, Args&&... 
     if (static_cast<int>(lvl) > LOG_LOCAL_LEVEL) {
         return;
     }
-    if (esp_log_level_get(tag) < static_cast<esp_log_level_t>(lvl)) {
+    if (esp_log_level_get(tag) < static_cast<esp_log_level_t>(lvl) &&
+        !detail::wanted_by_sink(lvl, tag)) {
         return;
     }
     log(lvl, tag, std::format(fmt, std::forward<Args>(args)...));
@@ -603,6 +621,276 @@ public:
 private:
     const char* _tag;
 };
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief A destination for log lines, in addition to the console.
+ *
+ * A sink added with @ref add_sink receives each line that it wants. For example, a sink can store
+ * the log in flash or send it over the network. A sink's choice of lines is independent of the
+ * console's log levels: a sink can receive a line that `set_level()` hides from the console.
+ *
+ * Both functions are called from the task that logged the line, and several tasks can call them
+ * at the same time. They are never called from an interrupt, while the flash cache is disabled, or
+ * before the scheduler starts. Lines logged in those conditions are not passed to any sink. Lines
+ * that a task logs while it is inside a sink are not passed to any sink either, so a sink can log
+ * safely. A sink must not add or remove sinks from inside its own functions.
+ *
+ * A sink must remain valid for as long as it is added. Remove it with @ref remove_sink before
+ * destroying it. See @ref remove_sink also for the restriction on deleting a task that may be
+ * logging.
+ *
+ * @code
+ * class counter final : public idfxx::log::sink {
+ *     bool do_wants(idfxx::log::level lvl, std::string_view) const noexcept override {
+ *         return lvl <= idfxx::log::level::warn;
+ *     }
+ *     void do_write(idfxx::log::level, std::string_view, std::string_view) noexcept override {
+ *         ++_lines;
+ *     }
+ *     std::atomic<unsigned> _lines{0};
+ * };
+ *
+ * static counter warnings;
+ * idfxx::log::add_sink(warnings);
+ * @endcode
+ */
+class sink {
+public:
+    virtual ~sink() = default;
+
+    /**
+     * @brief Returns whether the sink wants a line.
+     *
+     * Always called before `write()`, which only receives lines that the sink wants. Where
+     * possible, it is also called before the line is formatted, so that a line is only formatted
+     * if the console or a sink will use it. It may be called more than once for the same line.
+     *
+     * @param lvl The line's severity level.
+     * @param tag The line's tag, or an empty string if the line has no tag.
+     * @return True if the sink wants the line.
+     */
+    [[nodiscard]] bool wants(level lvl, std::string_view tag) const noexcept {
+        return do_wants(lvl, tag);
+    }
+
+    /**
+     * @brief Receives a line that the sink wants.
+     *
+     * @param lvl The line's severity level.
+     * @param tag The line's tag, or an empty string if the line has no tag.
+     * @param message The line's message. It excludes the level, timestamp and tag that the console
+     *                prints before the message, and the newline that ends the line. The message
+     *                itself may contain newlines. Valid only during the call.
+     */
+    void write(level lvl, std::string_view tag, std::string_view message) noexcept {
+        do_write(lvl, tag, message);
+    }
+
+protected:
+    sink() = default;
+    sink(const sink&) = default;
+    sink& operator=(const sink&) = default;
+
+private:
+    virtual bool do_wants(level lvl, std::string_view tag) const noexcept = 0;
+    virtual void do_write(level lvl, std::string_view tag, std::string_view message) noexcept = 0;
+};
+
+#if defined(CONFIG_IDFXX_LOG_ALL_LINES) || defined(__DOXYGEN__)
+/// @cond INTERNAL
+// The type of `all_lines`. It selects the add_sink() overloads that add a sink for every log line.
+struct all_lines_t {
+    explicit all_lines_t() = default;
+};
+/// @endcond
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Tag for adding a sink that receives every log line, as in
+ *        `idfxx::log::add_sink(idfxx::log::all_lines, s)`.
+ *
+ * @note Only available when `CONFIG_IDFXX_LOG_ALL_LINES` is enabled in menuconfig.
+ */
+inline constexpr all_lines_t all_lines{};
+#endif
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+/**
+ * @headerfile <idfxx/log>
+ * @brief Adds a sink for the lines logged through idfxx::log.
+ *
+ * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
+ * Each line is passed to the sink complete and as formatted, after the console has printed it. A
+ * line that the console's log level hides is still passed to the sink.
+ *
+ * The sink does not receive:
+ * - buffer dumps (@ref buffer_hex and the related functions),
+ * - lines that the formatting functions and macros skip because they are above the compile-time
+ *   maximum level (`LOG_LOCAL_LEVEL`),
+ * - lines that other code logs through ESP-IDF's log.
+ *
+ * To receive buffer dumps and other code's lines as well, add the sink with @ref all_lines.
+ *
+ * A sink must not add or remove sinks from inside its own functions.
+ *
+ * @param s The sink. It must remain valid until it is removed.
+ * @throws std::system_error with `errc::invalid_arg` if the sink is already added (for idfxx::log
+ *         lines or for every line), or `errc::invalid_state` if `CONFIG_IDFXX_LOG_MAX_SINKS` sinks
+ *         are already added. A sink that is being removed counts toward that limit until the calls
+ *         into it have finished.
+ * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled in menuconfig.
+ */
+void add_sink(sink& s);
+#endif
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Adds a sink for the lines logged through idfxx::log.
+ *
+ * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
+ * Each line is passed to the sink complete and as formatted, after the console has printed it. A
+ * line that the console's log level hides is still passed to the sink.
+ *
+ * The sink does not receive:
+ * - buffer dumps (@ref buffer_hex and the related functions),
+ * - lines that the formatting functions and macros skip because they are above the compile-time
+ *   maximum level (`LOG_LOCAL_LEVEL`),
+ * - lines that other code logs through ESP-IDF's log.
+ *
+ * To receive buffer dumps and other code's lines as well, add the sink with @ref all_lines.
+ *
+ * A sink must not add or remove sinks from inside its own functions.
+ *
+ * @param s The sink. It must remain valid until it is removed.
+ * @return Success, or an error.
+ * @retval errc::invalid_arg The sink is already added (for idfxx::log lines or for every line).
+ * @retval errc::invalid_state `CONFIG_IDFXX_LOG_MAX_SINKS` sinks are already added. A sink that is
+ *         being removed counts toward that limit until the calls into it have finished.
+ */
+[[nodiscard]] result<void> try_add_sink(sink& s);
+
+#if defined(CONFIG_IDFXX_LOG_ALL_LINES) || defined(__DOXYGEN__)
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+/**
+ * @headerfile <idfxx/log>
+ * @brief Adds a sink for every log line.
+ *
+ * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
+ * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
+ * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
+ * that the console's log level hides is still passed to the sink.
+ *
+ * The sink does not receive these ESP-IDF log lines:
+ * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),
+ * - lines logged in ESP-IDF's binary log mode,
+ * - lines above the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or `LOG_LOCAL_LEVEL`
+ *   in a source file),
+ * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines above the master level. The
+ *   macros skip these lines before logging them.
+ *
+ * Lines logged through idfxx::log (with @ref log, a @ref logger and the `IDFXX_LOGx` macros) are
+ * passed to the sink complete and as formatted, whatever their length. This is the same as for a
+ * sink added without @ref all_lines. Buffer dumps (@ref buffer_hex and the related functions) are
+ * different: they are logged through ESP-IDF's log one line at a time, so they are handled, and
+ * shortened, like any other ESP-IDF log line.
+ *
+ * Each call to `esp_log` is one line, whether or not its format string ends in a newline.
+ * `ESP_LOGx` and `ESP_LOG_BUFFER_*` call `esp_log`. Some libraries log one line in several calls
+ * to `esp_log_write`: a prefix, then the message, then a newline. Such a line is passed to the
+ * sink once, complete, when its newline arrives, with the level and tag of its first call. A line
+ * logged through idfxx::log in the meantime does not end or extend the unfinished line.
+ *
+ * A line longer than `CONFIG_IDFXX_LOG_SINK_MAX_LINE` bytes is shortened to that limit, at a UTF-8
+ * character boundary. The limit includes the prefix that the line's caller formatted before the
+ * message, even though the sink does not receive the prefix. The prefix is log v1's level,
+ * timestamp and tag, or whatever a caller of `esp_log_write` formats itself. For a line logged in
+ * several calls, the limit also includes the line's tag. The prefix is located using the line's
+ * tag, so a line with an empty tag is passed to the sink with its prefix still attached.
+ *
+ * A sink must not add or remove sinks from inside its own functions.
+ *
+ * @param s The sink. It must remain valid until it is removed.
+ * @throws std::system_error with `errc::invalid_arg` if the sink is already added (for idfxx::log
+ *         lines or for every line), or `errc::invalid_state` if `CONFIG_IDFXX_LOG_MAX_SINKS` sinks
+ *         are already added. A sink that is being removed counts toward that limit until the calls
+ *         into it have finished.
+ * @note Only available when `CONFIG_IDFXX_LOG_ALL_LINES` and `CONFIG_COMPILER_CXX_EXCEPTIONS` are
+ *       enabled in menuconfig. To receive every line, idfxx_log wraps `esp_log` and `esp_log_va`
+ *       at link time (`-Wl,--wrap`). Nothing else in the app may wrap them: a second definition of
+ *       `__wrap_esp_log` or `__wrap_esp_log_va` makes the link fail.
+ */
+void add_sink(all_lines_t, sink& s);
+#endif
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Adds a sink for every log line.
+ *
+ * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
+ * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
+ * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
+ * that the console's log level hides is still passed to the sink.
+ *
+ * The sink does not receive these ESP-IDF log lines:
+ * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),
+ * - lines logged in ESP-IDF's binary log mode,
+ * - lines above the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or `LOG_LOCAL_LEVEL`
+ *   in a source file),
+ * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines above the master level. The
+ *   macros skip these lines before logging them.
+ *
+ * Lines logged through idfxx::log (with @ref log, a @ref logger and the `IDFXX_LOGx` macros) are
+ * passed to the sink complete and as formatted, whatever their length. This is the same as for a
+ * sink added without @ref all_lines. Buffer dumps (@ref buffer_hex and the related functions) are
+ * different: they are logged through ESP-IDF's log one line at a time, so they are handled, and
+ * shortened, like any other ESP-IDF log line.
+ *
+ * Each call to `esp_log` is one line, whether or not its format string ends in a newline.
+ * `ESP_LOGx` and `ESP_LOG_BUFFER_*` call `esp_log`. Some libraries log one line in several calls
+ * to `esp_log_write`: a prefix, then the message, then a newline. Such a line is passed to the
+ * sink once, complete, when its newline arrives, with the level and tag of its first call. A line
+ * logged through idfxx::log in the meantime does not end or extend the unfinished line.
+ *
+ * A line longer than `CONFIG_IDFXX_LOG_SINK_MAX_LINE` bytes is shortened to that limit, at a UTF-8
+ * character boundary. The limit includes the prefix that the line's caller formatted before the
+ * message, even though the sink does not receive the prefix. The prefix is log v1's level,
+ * timestamp and tag, or whatever a caller of `esp_log_write` formats itself. For a line logged in
+ * several calls, the limit also includes the line's tag. The prefix is located using the line's
+ * tag, so a line with an empty tag is passed to the sink with its prefix still attached.
+ *
+ * A sink must not add or remove sinks from inside its own functions.
+ *
+ * @param s The sink. It must remain valid until it is removed.
+ * @return Success, or an error.
+ * @retval errc::invalid_arg The sink is already added (for idfxx::log lines or for every line).
+ * @retval errc::invalid_state `CONFIG_IDFXX_LOG_MAX_SINKS` sinks are already added. A sink that is
+ *         being removed counts toward that limit until the calls into it have finished.
+ * @note Only available when `CONFIG_IDFXX_LOG_ALL_LINES` is enabled in menuconfig. To receive
+ *       every line, idfxx_log wraps `esp_log` and `esp_log_va` at link time (`-Wl,--wrap`). Nothing
+ *       else in the app may wrap them: a second definition of `__wrap_esp_log` or
+ *       `__wrap_esp_log_va` makes the link fail.
+ */
+[[nodiscard]] result<void> try_add_sink(all_lines_t, sink& s);
+#endif
+
+/**
+ * @headerfile <idfxx/log>
+ * @brief Removes a sink.
+ *
+ * Returns once no call into the sink is in progress, so the sink can be destroyed afterward. If
+ * two tasks remove the same sink at the same time, both calls return only then. While a removal
+ * waits, other sinks can be added and removed, but the sink being removed still counts toward
+ * `CONFIG_IDFXX_LOG_MAX_SINKS` until the calls into it have finished. Does nothing if the sink is
+ * not added.
+ *
+ * A sink must not add or remove sinks from inside its own functions: removing a sink from inside
+ * that sink would wait for itself. If a task is deleted while it is inside the sink, this function
+ * never returns, so do not delete a task that may be logging.
+ *
+ * @param s The sink to remove.
+ */
+void remove_sink(sink& s) noexcept;
 
 } // namespace idfxx::log
 
