@@ -149,9 +149,11 @@ void configure_logging() {
 ## Important Notes
 
 - **Requires `CONFIG_IDFXX_STD_FORMAT`**: This component depends on `<format>` and requires the
-  `CONFIG_IDFXX_STD_FORMAT` Kconfig option to be enabled (the default). A build error is generated
-  if the option is disabled. If you need logging without `std::format` overhead, use ESP-IDF's
-  `ESP_LOGx` macros directly.
+  `CONFIG_IDFXX_STD_FORMAT` Kconfig option to be enabled (the default). With the option disabled,
+  the component compiles nothing, so an app can still depend on it (directly or through another
+  component) as long as no code includes `<idfxx/log>`; including it stops the build with an
+  error saying so. If you need logging without `std::format` overhead, use ESP-IDF's `ESP_LOGx`
+  macros directly.
 - **std::format allocates on the heap**: Do not use this component in ISR context, DRAM-only
   contexts, or early boot. Use ESP-IDF's `ESP_DRAM_LOGx` and `ESP_EARLY_LOGx` macros for those
   cases.
