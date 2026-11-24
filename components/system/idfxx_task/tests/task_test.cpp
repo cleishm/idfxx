@@ -49,17 +49,17 @@ static_assert(!std::is_copy_assignable_v<task::self>);
 // Runtime tests (Unity TEST_CASE)
 // =============================================================================
 
-TEST_CASE("task constructor with functional callback succeeds", "[idfxx][task]") {
+TEST_CASE("task::make with functional callback succeeds", "[idfxx][task]") {
     std::atomic<bool> running{false};
-    auto t = std::make_unique<task>(task::config{.name = "test_task"}, [&running](task::self& self) {
+    auto t = task::make(task::config{.name = "test_task"}, [&running](task::self& self) {
         running.store(true);
         // Keep running so we can check state
         while (running.load()) {
             idfxx::delay(10ms);
         }
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
-    TEST_ASSERT_NOT_NULL(t.get());
     TEST_ASSERT_NOT_NULL(t->idf_handle());
     TEST_ASSERT_EQUAL_STRING("test_task", t->name().c_str());
 
@@ -83,24 +83,29 @@ TEST_CASE("task::config default values", "[idfxx][task]") {
 }
 
 TEST_CASE("task name is stored correctly", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "my_custom_task"}, [](task::self& self) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "my_custom_task"}, [](task::self& self) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_EQUAL_STRING("my_custom_task", t->name().c_str());
 }
 
 TEST_CASE("task priority can be retrieved", "[idfxx][task]") {
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "priority_test", .priority = 7}, [](task::self& self) { idfxx::delay(100ms); }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_EQUAL(7, t->priority().value());
 }
 
 TEST_CASE("task stack_high_water_mark returns sensible value", "[idfxx][task]") {
     constexpr size_t stack_size = 4096;
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "hwm_test", .stack_size = stack_size}, [](task::self& self) { idfxx::delay(10s); }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(50ms);
     size_t hwm = t->stack_high_water_mark();
@@ -109,9 +114,10 @@ TEST_CASE("task stack_high_water_mark returns sensible value", "[idfxx][task]") 
 }
 
 TEST_CASE("task priority can be changed", "[idfxx][task]") {
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "set_priority_test", .priority = 5}, [](task::self& self) { idfxx::delay(100ms); }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_EQUAL(5, t->priority().value());
 
@@ -120,16 +126,129 @@ TEST_CASE("task priority can be changed", "[idfxx][task]") {
     TEST_ASSERT_EQUAL(10, t->priority().value());
 }
 
+TEST_CASE("task try_set_priority rejects out-of-range priority", "[idfxx][task]") {
+    task::config cfg{.name = "set_prio_bad", .priority = 5};
+    auto t = task::make(cfg, [](task::self&) { idfxx::delay(100ms); });
+    TEST_ASSERT_TRUE(t.has_value());
+
+    auto r = t->try_set_priority(configMAX_PRIORITIES);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), r.error().value());
+    TEST_ASSERT_EQUAL_INT32(5, t->priority().value());
+
+    TEST_ASSERT_TRUE(t->try_set_priority(configMAX_PRIORITIES - 1).has_value());
+    TEST_ASSERT_EQUAL_INT32(configMAX_PRIORITIES - 1, t->priority().value());
+}
+
+TEST_CASE("task try_set_priority checks the priority before the task state", "[idfxx][task]") {
+    auto t = task::make(task::config{.name = "set_prio_done"}, [](task::self&) {});
+    TEST_ASSERT_TRUE(t.has_value());
+    TEST_ASSERT_TRUE(t->try_detach().has_value());
+
+    auto r = t->try_set_priority(configMAX_PRIORITIES);
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), r.error().value());
+}
+
+// =============================================================================
+// Config validation tests
+// =============================================================================
+
+TEST_CASE("task::make rejects priority of configMAX_PRIORITIES", "[idfxx][task][config]") {
+    std::atomic<bool> ran{false};
+    auto t = task::make(
+        task::config{.name = "bad_prio", .priority = configMAX_PRIORITIES},
+        [&ran](task::self&) { ran.store(true); }
+    );
+    TEST_ASSERT_FALSE(t.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), t.error().value());
+
+    idfxx::delay(20ms);
+    TEST_ASSERT_FALSE(ran.load());
+}
+
+TEST_CASE("task::make accepts priority of configMAX_PRIORITIES - 1", "[idfxx][task][config]") {
+    std::atomic<unsigned int> prio{0};
+    auto t = task::make(
+        task::config{.name = "max_prio", .priority = configMAX_PRIORITIES - 1},
+        [&prio](task::self& self) { prio.store(self.priority().value()); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
+
+    TEST_ASSERT_TRUE(t->try_join(1s).has_value());
+    TEST_ASSERT_EQUAL_INT32(configMAX_PRIORITIES - 1, prio.load());
+}
+
+TEST_CASE("task::make rejects stack below configMINIMAL_STACK_SIZE", "[idfxx][task][config]") {
+    task::config cfg{.name = "small_stack", .stack_size = configMINIMAL_STACK_SIZE - 1};
+    auto t = task::make(cfg, [](task::self&) {});
+    TEST_ASSERT_FALSE(t.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), t.error().value());
+}
+
+TEST_CASE("task::make accepts stack of configMINIMAL_STACK_SIZE", "[idfxx][task][config]") {
+    // The body stays empty so the minimal stack cannot overflow.
+    task::config cfg{.name = "min_stack", .stack_size = configMINIMAL_STACK_SIZE};
+    auto t = task::make(cfg, [](task::self&) {});
+    TEST_ASSERT_TRUE(t.has_value());
+    TEST_ASSERT_TRUE(t->try_join(1s).has_value());
+}
+
+TEST_CASE("task::make rejects a core FreeRTOS does not run on", "[idfxx][task][config]") {
+    // One past the last core FreeRTOS schedules on (core_1 when CONFIG_FREERTOS_UNICORE is set)
+    auto missing = static_cast<core_id>(configNUMBER_OF_CORES);
+    auto t = task::make({.name = "bad_core", .core_affinity = missing}, [](task::self&) {});
+    TEST_ASSERT_FALSE(t.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), t.error().value());
+}
+
+TEST_CASE("task::make accepts the last core FreeRTOS runs on", "[idfxx][task][config]") {
+    auto last = static_cast<core_id>(configNUMBER_OF_CORES - 1);
+    auto t = task::make({.name = "last_core", .core_affinity = last}, [](task::self&) {});
+    TEST_ASSERT_TRUE(t.has_value());
+    TEST_ASSERT_TRUE(t->try_join(1s).has_value());
+}
+
+TEST_CASE("task::make success runs the function and joins", "[idfxx][task][config]") {
+    std::atomic<bool> ran{false};
+    auto t = task::make({.name = "make_join"}, [&ran](task::self&) { ran.store(true); });
+    TEST_ASSERT_TRUE(t.has_value());
+    TEST_ASSERT_TRUE(t->joinable());
+
+    TEST_ASSERT_TRUE(t->try_join(1s).has_value());
+    TEST_ASSERT_TRUE(ran.load());
+    TEST_ASSERT_FALSE(t->joinable());
+}
+
+TEST_CASE("task::try_spawn rejects an invalid config", "[idfxx][task][config]") {
+    static std::atomic<bool> ran{false};
+    ran.store(false);
+
+    task::config bad{.name = "spawn_bad", .priority = configMAX_PRIORITIES};
+    auto r = task::try_spawn(bad, [](task::self&) { ran.store(true); });
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), r.error().value());
+
+    task::config small{.name = "spawn_small", .stack_size = configMINIMAL_STACK_SIZE - 1};
+    auto r2 = task::try_spawn(small, [](task::self&) { ran.store(true); });
+    TEST_ASSERT_FALSE(r2.has_value());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), r2.error().value());
+
+    idfxx::delay(20ms);
+    TEST_ASSERT_FALSE(ran.load());
+}
+
 TEST_CASE("task suspend and resume", "[idfxx][task][hw]") {
     std::atomic<int> counter{0};
     std::atomic<bool> running{true};
 
-    auto t = std::make_unique<task>(task::config{.name = "suspend_test"}, [&counter, &running](task::self& self) {
+    auto t = task::make({.name = "suspend_test"}, [&counter, &running](task::self& self) {
         while (running.load()) {
             counter.fetch_add(1);
             idfxx::delay(10ms);
         }
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Let task run
     idfxx::delay(50ms);
@@ -160,10 +279,11 @@ TEST_CASE("task suspend and resume", "[idfxx][task][hw]") {
 }
 
 TEST_CASE("task is_completed returns true after function returns", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "complete_test"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "complete_test"}, [](task::self& self) {
         // Do some brief work and return
         idfxx::delay(10ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Initially should not be completed
     TEST_ASSERT_FALSE(t->is_completed());
@@ -176,20 +296,24 @@ TEST_CASE("task is_completed returns true after function returns", "[idfxx][task
 }
 
 TEST_CASE("task joinable returns correct state", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "joinable_test"}, [](task::self& self) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "joinable_test"}, [](task::self& self) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Should be joinable
     TEST_ASSERT_TRUE(t->joinable());
 }
 
-TEST_CASE("task::spawn creates fire-and-forget task", "[idfxx][task]") {
+TEST_CASE("task::try_spawn creates fire-and-forget task", "[idfxx][task]") {
     static std::atomic<bool> executed{false};
     executed.store(false);
 
-    task::spawn({.name = "spawn_test"}, [](task::self&) {
+    auto r = task::try_spawn({.name = "spawn_test"}, [](task::self&) {
         executed.store(true);
         // Task cleans up automatically after returning
     });
+    TEST_ASSERT_TRUE(r.has_value());
 
     // Wait for task to execute and complete
     idfxx::delay(100ms);
@@ -200,10 +324,11 @@ TEST_CASE("task detach releases ownership", "[idfxx][task]") {
     static std::atomic<bool> completed{false};
     completed.store(false);
 
-    auto t = std::make_unique<task>(task::config{.name = "detach_test"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "detach_test"}, [](task::self& self) {
         idfxx::delay(50ms);
         completed.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_TRUE(t->joinable());
 
@@ -221,7 +346,10 @@ TEST_CASE("task detach releases ownership", "[idfxx][task]") {
 }
 
 TEST_CASE("task is_completed returns false after detach", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "complete_detach"}, [](task::self& self) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "complete_detach"}, [](task::self& self) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Detach the task
     auto detach_result = t->try_detach();
@@ -232,9 +360,10 @@ TEST_CASE("task is_completed returns false after detach", "[idfxx][task]") {
 }
 
 TEST_CASE("task detach after completion succeeds and clears state", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "detach_after"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "detach_after"}, [](task::self&) {
         // Return immediately
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -250,7 +379,10 @@ TEST_CASE("task detach after completion succeeds and clears state", "[idfxx][tas
 }
 
 TEST_CASE("task detach on already detached task fails", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "double_detach"}, [](task::self& self) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "double_detach"}, [](task::self& self) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // First detach should succeed
     auto detach_result = t->try_detach();
@@ -263,7 +395,10 @@ TEST_CASE("task detach on already detached task fails", "[idfxx][task]") {
 }
 
 TEST_CASE("task operations fail after detach", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "ops_after_detach"}, [](task::self& self) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "ops_after_detach"}, [](task::self& self) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Detach
     auto detach_result = t->try_detach();
@@ -276,9 +411,10 @@ TEST_CASE("task operations fail after detach", "[idfxx][task]") {
 }
 
 TEST_CASE("task operations fail after completion", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "ops_after_complete"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "ops_after_complete"}, [](task::self& self) {
         // Return immediately
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -305,9 +441,10 @@ TEST_CASE("task operations fail after completion", "[idfxx][task]") {
 }
 
 TEST_CASE("task detach succeeds after completion", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "detach_complete"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "detach_complete"}, [](task::self& self) {
         // Return immediately
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -324,9 +461,10 @@ TEST_CASE("task detach succeeds after completion", "[idfxx][task]") {
 // =============================================================================
 
 TEST_CASE("try_join on completed task succeeds immediately", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_completed"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_completed"}, [](task::self&) {
         idfxx::delay(10ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -341,10 +479,11 @@ TEST_CASE("try_join on completed task succeeds immediately", "[idfxx][task][join
 TEST_CASE("try_join blocks until completion", "[idfxx][task][join]") {
     std::atomic<bool> completed{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "join_block"}, [&completed](task::self&) {
+    auto t = task::make(task::config{.name = "join_block"}, [&completed](task::self&) {
         idfxx::delay(100ms);
         completed.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_FALSE(completed.load());
 
@@ -356,9 +495,10 @@ TEST_CASE("try_join blocks until completion", "[idfxx][task][join]") {
 }
 
 TEST_CASE("try_join with timeout succeeds", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_timeout_ok"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_timeout_ok"}, [](task::self&) {
         idfxx::delay(50ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Join with generous timeout should succeed
     auto join_result = t->try_join(500ms);
@@ -367,9 +507,10 @@ TEST_CASE("try_join with timeout succeeds", "[idfxx][task][join]") {
 }
 
 TEST_CASE("try_join with timeout expires", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_timeout_fail"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_timeout_fail"}, [](task::self&) {
         idfxx::delay(5000ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Join with short timeout should fail
     auto join_result = t->try_join(50ms);
@@ -385,9 +526,10 @@ TEST_CASE("try_join with timeout expires", "[idfxx][task][join]") {
 }
 
 TEST_CASE("try_join on detached task fails", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_detached"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_detached"}, [](task::self&) {
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Detach first
     auto detach_result = t->try_detach();
@@ -400,9 +542,10 @@ TEST_CASE("try_join on detached task fails", "[idfxx][task][join]") {
 }
 
 TEST_CASE("double try_join fails", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "double_join"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "double_join"}, [](task::self&) {
         idfxx::delay(10ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // First join should succeed
     auto join_result = t->try_join();
@@ -419,10 +562,11 @@ TEST_CASE("destructor auto-joins task", "[idfxx][task][join]") {
     std::atomic<bool> completed{false};
 
     {
-        auto t = std::make_unique<task>(task::config{.name = "dtor_join"}, [&completed](task::self&) {
+        auto t = task::make(task::config{.name = "dtor_join"}, [&completed](task::self&) {
             idfxx::delay(100ms);
             completed.store(true);
         });
+        TEST_ASSERT_TRUE(t.has_value());
 
         // Destructor should block until task completes
     }
@@ -432,9 +576,10 @@ TEST_CASE("destructor auto-joins task", "[idfxx][task][join]") {
 }
 
 TEST_CASE("try_join timeout then detach", "[idfxx][task][join]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_then_detach"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_then_detach"}, [](task::self&) {
         idfxx::delay(5000ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Join with short timeout should fail
     auto join_result = t->try_join(10ms);
@@ -454,10 +599,11 @@ TEST_CASE("try_join timeout then detach", "[idfxx][task][join]") {
 TEST_CASE("stop_requested initially false", "[idfxx][task][stop]") {
     std::atomic<bool> self_stop{true};
 
-    auto t = std::make_unique<task>(task::config{.name = "stop_init"}, [&self_stop](task::self& self) {
+    auto t = task::make(task::config{.name = "stop_init"}, [&self_stop](task::self& self) {
         self_stop.store(self.stop_requested());
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(50ms);
     TEST_ASSERT_FALSE(t->stop_requested());
@@ -465,7 +611,8 @@ TEST_CASE("stop_requested initially false", "[idfxx][task][stop]") {
 }
 
 TEST_CASE("request_stop sets flag and returns true", "[idfxx][task][stop]") {
-    auto t = std::make_unique<task>(task::config{.name = "stop_set"}, [](task::self&) { idfxx::delay(500ms); });
+    auto t = task::make(task::config{.name = "stop_set"}, [](task::self&) { idfxx::delay(500ms); });
+    TEST_ASSERT_TRUE(t.has_value());
 
     TEST_ASSERT_FALSE(t->stop_requested());
 
@@ -475,7 +622,10 @@ TEST_CASE("request_stop sets flag and returns true", "[idfxx][task][stop]") {
 }
 
 TEST_CASE("request_stop is idempotent", "[idfxx][task][stop]") {
-    auto t = std::make_unique<task>(task::config{.name = "stop_idem"}, [](task::self&) { idfxx::delay(500ms); });
+    auto t = task::make(
+        task::config{.name = "stop_idem"}, [](task::self&) { idfxx::delay(500ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     bool first = t->request_stop();
     TEST_ASSERT_TRUE(first);
@@ -487,7 +637,10 @@ TEST_CASE("request_stop is idempotent", "[idfxx][task][stop]") {
 }
 
 TEST_CASE("request_stop on detached task returns false", "[idfxx][task][stop]") {
-    auto t = std::make_unique<task>(task::config{.name = "stop_detach"}, [](task::self&) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "stop_detach"}, [](task::self&) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     auto detach_result = t->try_detach();
     TEST_ASSERT_TRUE(detach_result.has_value());
@@ -500,13 +653,14 @@ TEST_CASE("self::stop_requested reflects external request", "[idfxx][task][stop]
     std::atomic<bool> self_stop_before{true};
     std::atomic<bool> self_stop_after{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "stop_self"}, [&](task::self& self) {
+    auto t = task::make(task::config{.name = "stop_self"}, [&](task::self& self) {
         self_stop_before.store(self.stop_requested());
         // Wait for external request_stop (generous delay for QEMU timing imprecision)
         idfxx::delay(200ms);
         self_stop_after.store(self.stop_requested());
         idfxx::delay(200ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(50ms);
     TEST_ASSERT_FALSE(self_stop_before.load());
@@ -520,12 +674,13 @@ TEST_CASE("self::stop_requested reflects external request", "[idfxx][task][stop]
 TEST_CASE("task loop exits on stop_requested", "[idfxx][task][stop]") {
     std::atomic<int> iterations{0};
 
-    auto t = std::make_unique<task>(task::config{.name = "stop_loop"}, [&iterations](task::self& self) {
+    auto t = task::make(task::config{.name = "stop_loop"}, [&iterations](task::self& self) {
         while (!self.stop_requested()) {
             iterations.fetch_add(1);
             idfxx::delay(10ms);
         }
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Let it run a bit
     idfxx::delay(50ms);
@@ -541,12 +696,13 @@ TEST_CASE("destructor requests stop before joining", "[idfxx][task][stop]") {
     std::atomic<bool> exited{false};
 
     {
-        auto t = std::make_unique<task>(task::config{.name = "stop_dtor"}, [&exited](task::self& self) {
+        auto t = task::make(task::config{.name = "stop_dtor"}, [&exited](task::self& self) {
             while (!self.stop_requested()) {
                 idfxx::delay(10ms);
             }
             exited.store(true);
         });
+        TEST_ASSERT_TRUE(t.has_value());
 
         // Let the task start running
         idfxx::delay(50ms);
@@ -590,7 +746,10 @@ TEST_CASE("delay_until provides periodic timing", "[idfxx][task]") {
 TEST_CASE("task destructor cleans up properly", "[idfxx][task]") {
     // This test mainly verifies no crashes/leaks occur
     {
-        auto t = std::make_unique<task>(task::config{.name = "destructor_test"}, [](task::self& self) { idfxx::delay(100ms); });
+        auto t = task::make(
+            task::config{.name = "destructor_test"}, [](task::self& self) { idfxx::delay(100ms); }
+        );
+        TEST_ASSERT_TRUE(t.has_value());
 
         // Task goes out of scope and should be deleted
     }
@@ -604,13 +763,14 @@ TEST_CASE("task destructor cleans up properly", "[idfxx][task]") {
 TEST_CASE("task with core affinity", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "core_affinity_test", .core_affinity = core_id::core_0},
         [&executed](task::self& self) {
             executed.store(true);
             idfxx::delay(50ms);
         }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for execution
     idfxx::delay(100ms);
@@ -620,13 +780,14 @@ TEST_CASE("task with core affinity", "[idfxx][task]") {
 TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
     std::atomic<bool> executed{false};
 
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "internal_stack", .stack_mem = memory::capabilities::dram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);
         }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(executed.load());
@@ -648,13 +809,14 @@ TEST_CASE("task with spiram stack memory", "[idfxx][task]") {
 
     std::atomic<bool> executed{false};
 
-    auto t = std::make_unique<task>(
+    auto t = task::make(
         task::config{.name = "spiram_stack", .stack_size = 8192, .stack_mem = memory::capabilities::spiram},
         [&executed](task::self&) {
             executed.store(true);
             idfxx::delay(50ms);
         }
     );
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(executed.load());
@@ -669,12 +831,13 @@ TEST_CASE("task::self suspend and resume from another task", "[idfxx][task][self
     std::atomic<bool> suspended{false};
     std::atomic<bool> resumed{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_suspend"}, [&suspended, &resumed](task::self& self) {
+    auto t = task::make({.name = "self_suspend"}, [&suspended, &resumed](task::self& self) {
         suspended.store(true);
         self.suspend();
         // After resume, we get here
         resumed.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to suspend itself
     idfxx::delay(50ms);
@@ -693,27 +856,50 @@ TEST_CASE("task::self suspend and resume from another task", "[idfxx][task][self
 TEST_CASE("task::self priority round-trip", "[idfxx][task][self]") {
     std::atomic<unsigned int> initial_prio{0};
     std::atomic<unsigned int> changed_prio{0};
+    std::atomic<bool> set_ok{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_prio", .priority = 7}, [&](task::self& self) {
+    auto t = task::make(task::config{.name = "self_prio", .priority = 7}, [&](task::self& self) {
         initial_prio.store(self.priority().value());
-        self.set_priority(12);
+        set_ok.store(self.try_set_priority(12).has_value());
         changed_prio.store(self.priority().value());
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete its priority operations
     idfxx::delay(50ms);
     TEST_ASSERT_EQUAL(7, initial_prio.load());
+    TEST_ASSERT_TRUE(set_ok.load());
     TEST_ASSERT_EQUAL(12, changed_prio.load());
+}
+
+TEST_CASE("task::self try_set_priority rejects out-of-range priority", "[idfxx][task][self]") {
+    std::atomic<bool> done{false};
+    std::atomic<int> err{0};
+    std::atomic<unsigned int> prio_after{0};
+
+    auto t = task::make({.name = "self_prio_bad", .priority = 7}, [&](task::self& self) {
+        auto r = self.try_set_priority(configMAX_PRIORITIES);
+        err.store(r.has_value() ? 0 : r.error().value());
+        prio_after.store(self.priority().value());
+        done.store(true);
+    });
+    TEST_ASSERT_TRUE(t.has_value());
+
+    TEST_ASSERT_TRUE(t->try_join(1s).has_value());
+    TEST_ASSERT_TRUE(done.load());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), err.load());
+    TEST_ASSERT_EQUAL_INT32(7, prio_after.load());
 }
 
 TEST_CASE("task::self stack_high_water_mark returns sensible value", "[idfxx][task][self]") {
     std::atomic<size_t> hwm{0};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_hwm"}, [&hwm](task::self& self) {
+    auto t = task::make(task::config{.name = "self_hwm"}, [&hwm](task::self& self) {
         hwm.store(self.stack_high_water_mark());
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(50ms);
     TEST_ASSERT_GREATER_THAN(0, hwm.load());
@@ -722,10 +908,11 @@ TEST_CASE("task::self stack_high_water_mark returns sensible value", "[idfxx][ta
 TEST_CASE("task::self name matches configured name", "[idfxx][task][self]") {
     static std::string observed_name;
 
-    auto t = std::make_unique<task>(task::config{.name = "self_name_test"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "self_name_test"}, [](task::self& self) {
         observed_name = self.name();
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to read its name
     idfxx::delay(50ms);
@@ -735,10 +922,11 @@ TEST_CASE("task::self name matches configured name", "[idfxx][task][self]") {
 TEST_CASE("task::self delay works", "[idfxx][task][self]") {
     std::atomic<bool> completed{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_delay"}, [&completed](task::self& self) {
+    auto t = task::make(task::config{.name = "self_delay"}, [&completed](task::self& self) {
         idfxx::delay(50ms);
         completed.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -748,10 +936,11 @@ TEST_CASE("task::self delay works", "[idfxx][task][self]") {
 TEST_CASE("task::self idf_handle is non-null", "[idfxx][task][self]") {
     static TaskHandle_t observed_handle = nullptr;
 
-    auto t = std::make_unique<task>(task::config{.name = "self_handle"}, [](task::self& self) {
+    auto t = task::make(task::config{.name = "self_handle"}, [](task::self& self) {
         observed_handle = self.idf_handle();
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to read its handle
     idfxx::delay(50ms);
@@ -764,12 +953,13 @@ TEST_CASE("task::self idf_handle is non-null", "[idfxx][task][self]") {
 TEST_CASE("yield does not crash", "[idfxx][task][self]") {
     std::atomic<bool> completed{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_yield"}, [&completed](task::self&) {
+    auto t = task::make(task::config{.name = "self_yield"}, [&completed](task::self&) {
         yield();
         yield();
         yield();
         completed.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(50ms);
@@ -779,7 +969,7 @@ TEST_CASE("yield does not crash", "[idfxx][task][self]") {
 TEST_CASE("task::self delay_until provides periodic timing", "[idfxx][task][self]") {
     std::atomic<int> iterations{0};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_delay_until"}, [&iterations](task::self&) {
+    auto t = task::make(task::config{.name = "self_delay_until"}, [&iterations](task::self&) {
         auto next = idfxx::chrono::tick_clock::now() + 20ms;
         for (int i = 0; i < 5; ++i) {
             idfxx::delay_until(next);
@@ -787,6 +977,7 @@ TEST_CASE("task::self delay_until provides periodic timing", "[idfxx][task][self
             iterations.fetch_add(1);
         }
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete all iterations
     idfxx::delay(200ms);
@@ -797,11 +988,12 @@ TEST_CASE("task::self is_detached returns false for owned task", "[idfxx][task][
     std::atomic<bool> detached{false};
     std::atomic<bool> checked{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_not_detached"}, [&detached, &checked](task::self& self) {
+    auto t = task::make({.name = "self_not_detached"}, [&detached, &checked](task::self& self) {
         detached.store(self.is_detached());
         checked.store(true);
         idfxx::delay(100ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to check
     idfxx::delay(50ms);
@@ -813,12 +1005,16 @@ TEST_CASE("task::self is_detached returns true after detach", "[idfxx][task][sel
     std::atomic<bool> detached_before{true};
     std::atomic<bool> detached_after{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "self_detached"}, [&detached_before, &detached_after](task::self& self) {
-        detached_before.store(self.is_detached());
-        // Wait for detach to happen (generous delay for QEMU timing imprecision)
-        idfxx::delay(300ms);
-        detached_after.store(self.is_detached());
-    });
+    auto t = task::make(
+        task::config{.name = "self_detached"},
+        [&detached_before, &detached_after](task::self& self) {
+            detached_before.store(self.is_detached());
+            // Wait for detach to happen (generous delay for QEMU timing imprecision)
+            idfxx::delay(300ms);
+            detached_after.store(self.is_detached());
+        }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to check initial state
     idfxx::delay(50ms);
@@ -839,10 +1035,11 @@ TEST_CASE("task::self is_detached returns true for spawned task", "[idfxx][task]
     detached.store(false);
     checked.store(false);
 
-    task::spawn({.name = "self_spawn_detach"}, [](task::self& self) {
+    auto r = task::try_spawn({.name = "self_spawn_detach"}, [](task::self& self) {
         detached.store(self.is_detached());
         checked.store(true);
     });
+    TEST_ASSERT_TRUE(r.has_value());
 
     // Wait for task to execute
     idfxx::delay(100ms);
@@ -858,11 +1055,12 @@ TEST_CASE("wait/notify wakes a waiting task", "[idfxx][task][notify]") {
     std::atomic<bool> waiting{false};
     std::atomic<bool> woke{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "wait_notify"}, [&waiting, &woke](task::self& self) {
+    auto t = task::make(task::config{.name = "wait_notify"}, [&waiting, &woke](task::self& self) {
         waiting.store(true);
         self.wait();
         woke.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to enter wait()
     idfxx::delay(50ms);
@@ -882,10 +1080,11 @@ TEST_CASE("take returns accumulated notification count", "[idfxx][task][notify]"
     std::atomic<bool> ready{false};
     std::atomic<uint32_t> count{0};
 
-    auto t = std::make_unique<task>(task::config{.name = "take_count"}, [&ready, &count](task::self& self) {
+    auto t = task::make(task::config{.name = "take_count"}, [&ready, &count](task::self& self) {
         ready.store(true);
         count.store(self.take());
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to signal ready
     idfxx::delay(50ms);
@@ -904,10 +1103,11 @@ TEST_CASE("take returns accumulated notification count", "[idfxx][task][notify]"
 TEST_CASE("wait_for returns false on timeout", "[idfxx][task][notify]") {
     std::atomic<bool> timed_out{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "wait_for_to"}, [&timed_out](task::self& self) {
+    auto t = task::make(task::config{.name = "wait_for_to"}, [&timed_out](task::self& self) {
         bool got = self.wait_for(50ms);
         timed_out.store(!got);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Don't send any notification — let it time out
     idfxx::delay(200ms);
@@ -918,11 +1118,12 @@ TEST_CASE("wait_for returns true on notification", "[idfxx][task][notify]") {
     std::atomic<bool> ready{false};
     std::atomic<bool> got_notification{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "wait_for_ok"}, [&ready, &got_notification](task::self& self) {
+    auto t = task::make({.name = "wait_for_ok"}, [&ready, &got_notification](task::self& self) {
         ready.store(true);
         bool got = self.wait_for(500ms);
         got_notification.store(got);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to start waiting
     idfxx::delay(50ms);
@@ -939,9 +1140,10 @@ TEST_CASE("wait_for returns true on notification", "[idfxx][task][notify]") {
 TEST_CASE("take_for returns 0 on timeout", "[idfxx][task][notify]") {
     std::atomic<uint32_t> count{99};
 
-    auto t = std::make_unique<task>(task::config{.name = "take_for_to"}, [&count](task::self& self) {
+    auto t = task::make(task::config{.name = "take_for_to"}, [&count](task::self& self) {
         count.store(self.take_for(50ms));
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Don't send any notification — let it time out
     idfxx::delay(200ms);
@@ -952,10 +1154,11 @@ TEST_CASE("take_for returns count on notification", "[idfxx][task][notify]") {
     std::atomic<bool> ready{false};
     std::atomic<uint32_t> count{0};
 
-    auto t = std::make_unique<task>(task::config{.name = "take_for_ok"}, [&ready, &count](task::self& self) {
+    auto t = task::make(task::config{.name = "take_for_ok"}, [&ready, &count](task::self& self) {
         ready.store(true);
         count.store(self.take_for(500ms));
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to start waiting
     idfxx::delay(50ms);
@@ -974,12 +1177,13 @@ TEST_CASE("destructor wakes a task blocked in wait", "[idfxx][task][notify]") {
     std::atomic<bool> exited{false};
 
     {
-        auto t = std::make_unique<task>(task::config{.name = "dtor_wait"}, [&exited](task::self& self) {
+        auto t = task::make(task::config{.name = "dtor_wait"}, [&exited](task::self& self) {
             while (!self.stop_requested()) {
                 self.wait();
             }
             exited.store(true);
         });
+        TEST_ASSERT_TRUE(t.has_value());
 
         // Let the task start and enter wait()
         idfxx::delay(50ms);
@@ -992,7 +1196,10 @@ TEST_CASE("destructor wakes a task blocked in wait", "[idfxx][task][notify]") {
 }
 
 TEST_CASE("notify fails on detached task", "[idfxx][task][notify]") {
-    auto t = std::make_unique<task>(task::config{.name = "notify_detach"}, [](task::self&) { idfxx::delay(100ms); });
+    auto t = task::make(
+        task::config{.name = "notify_detach"}, [](task::self&) { idfxx::delay(100ms); }
+    );
+    TEST_ASSERT_TRUE(t.has_value());
 
     auto detach_result = t->try_detach();
     TEST_ASSERT_TRUE(detach_result.has_value());
@@ -1003,9 +1210,10 @@ TEST_CASE("notify fails on detached task", "[idfxx][task][notify]") {
 }
 
 TEST_CASE("notify fails on completed task", "[idfxx][task][notify]") {
-    auto t = std::make_unique<task>(task::config{.name = "notify_complete"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "notify_complete"}, [](task::self&) {
         // Return immediately
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to complete
     idfxx::delay(100ms);
@@ -1019,7 +1227,7 @@ TEST_CASE("notify fails on completed task", "[idfxx][task][notify]") {
 TEST_CASE("wait returns immediately when stop requested", "[idfxx][task][notify]") {
     std::atomic<bool> wait_returned{false};
 
-    auto t = std::make_unique<task>(task::config{.name = "wait_stop"}, [&wait_returned](task::self& self) {
+    auto t = task::make(task::config{.name = "wait_stop"}, [&wait_returned](task::self& self) {
         // Wait for stop to be requested before calling wait
         while (!self.stop_requested()) {
             idfxx::delay(10ms);
@@ -1028,6 +1236,7 @@ TEST_CASE("wait returns immediately when stop requested", "[idfxx][task][notify]
         self.wait();
         wait_returned.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(50ms);
     t->request_stop();
@@ -1043,10 +1252,11 @@ TEST_CASE("wait returns immediately when stop requested", "[idfxx][task][notify]
 
 TEST_CASE("try_kill terminates a running task", "[idfxx][task]") {
     std::atomic<bool> running{false};
-    auto t = std::make_unique<task>(task::config{.name = "kill_test"}, [&running](task::self&) {
+    auto t = task::make(task::config{.name = "kill_test"}, [&running](task::self&) {
         running.store(true);
         idfxx::delay(5000ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to start
     idfxx::delay(50ms);
@@ -1060,9 +1270,10 @@ TEST_CASE("try_kill terminates a running task", "[idfxx][task]") {
 }
 
 TEST_CASE("try_kill on detached task returns invalid_state", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "kill_detached"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "kill_detached"}, [](task::self&) {
         idfxx::delay(5000ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(20ms);
     TEST_ASSERT_TRUE(t->try_detach().has_value());
@@ -1073,9 +1284,10 @@ TEST_CASE("try_kill on detached task returns invalid_state", "[idfxx][task]") {
 }
 
 TEST_CASE("try_kill on already-completed task succeeds", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "kill_done"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "kill_done"}, [](task::self&) {
         // Returns immediately
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Wait for task to finish
     idfxx::delay(50ms);
@@ -1089,9 +1301,10 @@ TEST_CASE("try_kill on already-completed task succeeds", "[idfxx][task]") {
 // =============================================================================
 
 TEST_CASE("try_join_until with future deadline succeeds", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_until"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_until"}, [](task::self&) {
         idfxx::delay(10ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     auto deadline = idfxx::chrono::tick_clock::now() + 1s;
     auto result = t->try_join_until(deadline);
@@ -1099,9 +1312,10 @@ TEST_CASE("try_join_until with future deadline succeeds", "[idfxx][task]") {
 }
 
 TEST_CASE("try_join_until with past deadline returns timeout", "[idfxx][task]") {
-    auto t = std::make_unique<task>(task::config{.name = "join_past"}, [](task::self&) {
+    auto t = task::make(task::config{.name = "join_past"}, [](task::self&) {
         idfxx::delay(5000ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(20ms);
 
@@ -1186,6 +1400,92 @@ TEST_CASE("task suspend and resume via exception API", "[idfxx][task][hw]") {
     t->join(1s);
 }
 
+TEST_CASE("task constructor throws invalid_arg on an invalid config", "[idfxx][task][config]") {
+    std::atomic<bool> ran{false};
+    bool threw = false;
+    try {
+        task t({.name = "exc_bad_prio", .priority = configMAX_PRIORITIES}, [&ran](task::self&) {
+            ran.store(true);
+        });
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    threw = false;
+    try {
+        task::config cfg{.name = "exc_small", .stack_size = configMINIMAL_STACK_SIZE - 1};
+        task t(cfg, [&ran](task::self&) { ran.store(true); });
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    idfxx::delay(20ms);
+    TEST_ASSERT_FALSE(ran.load());
+}
+
+TEST_CASE("task::spawn throws invalid_arg on an invalid config", "[idfxx][task][config]") {
+    static std::atomic<bool> ran{false};
+    ran.store(false);
+
+    bool threw = false;
+    try {
+        task::config cfg{.name = "exc_spawn_bad", .priority = configMAX_PRIORITIES};
+        task::spawn(cfg, [](task::self&) { ran.store(true); });
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+
+    idfxx::delay(20ms);
+    TEST_ASSERT_FALSE(ran.load());
+}
+
+TEST_CASE("task::spawn runs a valid config", "[idfxx][task]") {
+    static std::atomic<bool> ran{false};
+    ran.store(false);
+
+    task::spawn({.name = "exc_spawn_ok"}, [](task::self&) { ran.store(true); });
+
+    idfxx::delay(100ms);
+    TEST_ASSERT_TRUE(ran.load());
+}
+
+TEST_CASE("set_priority throws invalid_arg on an out-of-range priority", "[idfxx][task]") {
+    std::atomic<bool> self_threw{false};
+    std::atomic<int> self_err{0};
+    task t({.name = "exc_set_prio", .priority = 5}, [&](task::self& self) {
+        try {
+            self.set_priority(configMAX_PRIORITIES);
+        } catch (const std::system_error& e) {
+            self_threw.store(true);
+            self_err.store(e.code().value());
+        }
+        while (!self.stop_requested()) {
+            idfxx::delay(10ms);
+        }
+    });
+
+    bool threw = false;
+    try {
+        t.set_priority(configMAX_PRIORITIES);
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+    TEST_ASSERT_EQUAL_INT32(5, t.priority().value());
+
+    t.request_stop();
+    t.join(1s);
+    TEST_ASSERT_TRUE(self_threw.load());
+    TEST_ASSERT_EQUAL_INT32(std::to_underlying(errc::invalid_arg), self_err.load());
+}
+
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS
 
 // =============================================================================
@@ -1194,12 +1494,13 @@ TEST_CASE("task suspend and resume via exception API", "[idfxx][task][hw]") {
 
 TEST_CASE("moved-from task returns invalid_state", "[idfxx][task]") {
     std::atomic<bool> done{false};
-    auto t = std::make_unique<task>(task::config{.name = "move_src"}, [&done](task::self& self) {
+    auto t = task::make(task::config{.name = "move_src"}, [&done](task::self& self) {
         while (!self.stop_requested()) {
             idfxx::delay(10ms);
         }
         done.store(true);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     idfxx::delay(20ms); // let task start
 

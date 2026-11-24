@@ -255,12 +255,26 @@ public:
          */
         [[nodiscard]] task_priority priority() const noexcept;
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
         /**
          * @brief Changes the current task priority.
          *
-         * @param new_priority The new priority level.
+         * @param new_priority The new priority level. Must be less than `configMAX_PRIORITIES`.
+         * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+         * @throws std::system_error with idfxx::errc::invalid_arg if @p new_priority is not
+         *         less than `configMAX_PRIORITIES`.
          */
-        void set_priority(task_priority new_priority) noexcept;
+        void set_priority(task_priority new_priority) { unwrap(try_set_priority(new_priority)); }
+#endif
+
+        /**
+         * @brief Changes the current task priority.
+         *
+         * @param new_priority The new priority level. Must be less than `configMAX_PRIORITIES`.
+         * @return Success, or an error.
+         * @retval invalid_arg @p new_priority is not less than `configMAX_PRIORITIES`.
+         */
+        [[nodiscard]] result<void> try_set_priority(task_priority new_priority);
 
         /**
          * @brief Returns the minimum free stack space (in bytes) since the task started.
@@ -297,20 +311,25 @@ public:
     /**
      * @headerfile <idfxx/task>
      * @brief Task configuration parameters.
+     *
+     * Creating a task with a @ref stack_size, @ref priority or @ref core_affinity outside its
+     * valid range fails with idfxx::errc::invalid_arg.
      */
     struct config {
         /// Task name (max 16 chars)
         std::string_view name = "task";
-        /// Stack size in bytes
+        /// Stack size in bytes; at least `configMINIMAL_STACK_SIZE`, which grows with
+        /// CONFIG_FREERTOS_IDLE_TASK_STACKSIZE
         size_t stack_size = 4096;
-        /// Task priority (0 = lowest)
+        /// Task priority, from 0 (lowest) to `configMAX_PRIORITIES - 1`
         task_priority priority = 5;
-        /// Core pin (nullopt = any core)
+        /// Core pin (nullopt = any core); `core_1` is invalid when CONFIG_FREERTOS_UNICORE is set
         std::optional<core_id> core_affinity = std::nullopt;
         /// Stack memory capabilities
         flags<memory::capabilities> stack_mem = memory::capabilities::dram;
     };
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
      * @brief Creates a task with a std::move_only_function callback.
      *
@@ -321,9 +340,49 @@ public:
      *                  reference for task self-interaction. When exceptions are enabled,
      *                  an exception it throws is logged and the task finishes as if
      *                  the function had returned.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error with idfxx::errc::invalid_arg if a @p cfg value is out of range
+     *         (see @ref config).
      * @throws std::bad_alloc if memory allocation fails.
      */
     [[nodiscard]] explicit task(const config& cfg, std::move_only_function<void(self&)> task_func);
+#endif
+
+    /**
+     * @brief Creates a task with a std::move_only_function callback.
+     *
+     * The task starts executing immediately after creation.
+     *
+     * @param cfg Task configuration.
+     * @param task_func Function to execute in the task context. Receives a @ref self
+     *                  reference for task self-interaction. When exceptions are enabled,
+     *                  an exception it throws is logged and the task finishes as if
+     *                  the function had returned.
+     * @return The new task, or an error.
+     * @retval invalid_arg A @p cfg value is out of range (see @ref config).
+     * @note Allocation failure throws std::bad_alloc, or aborts when exceptions are disabled.
+     */
+    [[nodiscard]] static result<task>
+    make(const config& cfg, std::move_only_function<void(self&)> task_func);
+
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
+    /**
+     * @brief Creates a fire-and-forget task with a std::move_only_function callback.
+     *
+     * The task starts executing immediately and cleans up its resources when complete.
+     *
+     * @param cfg Task configuration.
+     * @param task_func Function to execute in the task context. Receives a @ref self
+     *                  reference for task self-interaction. When exceptions are enabled,
+     *                  an exception it throws is logged and the task finishes as if
+     *                  the function had returned.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
+     * @throws std::system_error with idfxx::errc::invalid_arg if a @p cfg value is out of range
+     *         (see @ref config).
+     * @throws std::bad_alloc if memory allocation fails.
+     */
+    static void spawn(const config& cfg, std::move_only_function<void(self&)> task_func);
+#endif
 
     /**
      * @brief Creates a fire-and-forget task with a std::move_only_function callback.
@@ -335,9 +394,12 @@ public:
      *                  reference for task self-interaction. When exceptions are enabled,
      *                  an exception it throws is logged and the task finishes as if
      *                  the function had returned.
-     * @throws std::bad_alloc if memory allocation fails.
+     * @return Success, or an error.
+     * @retval invalid_arg A @p cfg value is out of range (see @ref config).
+     * @note Allocation failure throws std::bad_alloc, or aborts when exceptions are disabled.
      */
-    static void spawn(const config& cfg, std::move_only_function<void(self&)> task_func);
+    [[nodiscard]] static result<void>
+    try_spawn(const config& cfg, std::move_only_function<void(self&)> task_func);
 
     /**
      * @brief Destroys the task, requesting stop and blocking until the task function completes.
@@ -542,9 +604,11 @@ public:
     /**
      * @brief Changes the task priority.
      *
-     * @param new_priority The new priority level.
+     * @param new_priority The new priority level. Must be less than `configMAX_PRIORITIES`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
-     * @throws std::system_error if the task has been detached or completed.
+     * @throws std::system_error with idfxx::errc::invalid_arg if @p new_priority is not less
+     *         than `configMAX_PRIORITIES`, or with idfxx::errc::invalid_state if the task has
+     *         been detached or completed.
      */
     void set_priority(task_priority new_priority) { unwrap(try_set_priority(new_priority)); }
 #endif
@@ -552,8 +616,9 @@ public:
     /**
      * @brief Changes the task priority.
      *
-     * @param new_priority The new priority level.
+     * @param new_priority The new priority level. Must be less than `configMAX_PRIORITIES`.
      * @return Success, or an error.
+     * @retval invalid_arg @p new_priority is not less than `configMAX_PRIORITIES`.
      * @retval invalid_state The task has been detached or completed.
      */
     [[nodiscard]] result<void> try_set_priority(task_priority new_priority);

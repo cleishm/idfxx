@@ -13,6 +13,8 @@ Task lifecycle management for ESP32.
 - **Task notifications** for lightweight wake-up (binary and counting semaphore patterns)
 - **Core affinity** for pinning tasks to specific cores
 - **PSRAM stack allocation** for placing task stacks in external memory
+- **Validated configuration**: an out-of-range priority, stack size or core is rejected with
+  `invalid_arg`
 
 ## Requirements
 
@@ -28,7 +30,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_task:
-    version: "^2.0.0"
+    version: "^3.0.0"
 ```
 
 Or add `idfxx_task` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -60,7 +62,8 @@ idfxx::task my_task(
 
 ### Result-based API
 
-Task construction always uses the constructor (allocation failure aborts). Use `try_*` methods for
+`task::make()` and `task::try_spawn()` report an invalid configuration as an error instead of
+throwing; allocation failure still aborts when exceptions are disabled. Use `try_*` methods for
 operations that can fail at runtime:
 
 ```cpp
@@ -70,8 +73,7 @@ operations that can fail at runtime:
 
 using namespace std::chrono_literals;
 
-// Create task (constructor aborts on allocation failure)
-idfxx::task my_task(
+auto my_task = idfxx::task::make(
     {.name = "worker", .stack_size = 4096, .priority = 5},
     [](idfxx::task::self&) {
         while (true) {
@@ -80,15 +82,19 @@ idfxx::task my_task(
         }
     }
 );
+if (!my_task) {
+    idfxx::log::error("main", "Failed to create task: {}", my_task.error().message());
+    return;
+}
 
 // Suspend and resume
-if (auto r = my_task.try_suspend(); !r) {
+if (auto r = my_task->try_suspend(); !r) {
     idfxx::log::error("main", "Failed to suspend");
 }
 
 idfxx::delay(5s);
 
-if (auto r = my_task.try_resume(); !r) {
+if (auto r = my_task->try_resume(); !r) {
     idfxx::log::error("main", "Failed to resume");
 }
 ```
@@ -114,6 +120,14 @@ idfxx::task::spawn(
 idfxx::task my_task({.name = "detachable"}, work_function);
 my_task.detach();  // Task now self-manages
 // my_task is now non-joinable
+```
+
+Result-based API:
+
+```cpp
+if (auto r = idfxx::task::try_spawn({.name = "one_shot"}, work_function); !r) {
+    // handle invalid configuration
+}
 ```
 
 ### Joining Tasks
@@ -145,16 +159,19 @@ try {
 Result-based API:
 
 ```cpp
-idfxx::task worker(
+auto worker = idfxx::task::make(
     {.name = "worker"},
     [](idfxx::task::self&) { process_data(); }
 );
+if (!worker) {
+    // handle invalid configuration
+}
 
 // Wait up to 500ms
-if (auto r = worker.try_join(500ms); !r) {
+if (auto r = worker->try_join(500ms); !r) {
     if (r.error() == idfxx::errc::timeout) {
         // Task didn't finish in time — still joinable
-        worker.try_detach();  // or try again later
+        worker->try_detach();  // or try again later
     }
 }
 ```
@@ -190,7 +207,7 @@ worker.join(1s);
 Result-based API:
 
 ```cpp
-idfxx::task worker(
+auto worker = idfxx::task::make(
     {.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
@@ -199,9 +216,12 @@ idfxx::task worker(
         }
     }
 );
+if (!worker) {
+    // handle invalid configuration
+}
 
-worker.request_stop();
-if (auto r = worker.try_join(1s); !r) {
+worker->request_stop();
+if (auto r = worker->try_join(1s); !r) {
     // handle timeout
 }
 ```
@@ -325,7 +345,7 @@ uint32_t count = self.take_until(deadline);
 Result-based API:
 
 ```cpp
-idfxx::task worker(
+auto worker = idfxx::task::make(
     {.name = "worker"},
     [](idfxx::task::self& self) {
         while (!self.stop_requested()) {
@@ -335,8 +355,11 @@ idfxx::task worker(
         }
     }
 );
+if (!worker) {
+    // handle invalid configuration
+}
 
-if (auto r = worker.try_notify(); !r) {
+if (auto r = worker->try_notify(); !r) {
     // handle error (task detached or completed)
 }
 ```
@@ -383,13 +406,15 @@ std::string_view name = idfxx::task::current_name();
 
 ## API Overview
 
-### Constructors
+### Construction
 
-- `task(config, callback)` - Create task with std::move_only_function callback
+- `task(config, callback)` / `task::make(config, callback)` - Create task with
+  std::move_only_function callback
 
 ### Spawn
 
-- `task::spawn(config, callback)` - Create fire-and-forget task
+- `task::spawn(config, callback)` / `task::try_spawn(config, callback)` - Create fire-and-forget
+  task
 
 ### Task Control
 
@@ -406,6 +431,12 @@ std::string_view name = idfxx::task::current_name();
 - `join_until(time_point)` / `try_join_until(time_point)` - Block until deadline
 - `resume_from_isr()` - Resume from ISR context (returns yield hint)
 
+### Task Self-Control (within task function)
+
+- `self.priority()` - Get the current task's priority
+- `self.set_priority(p)` / `self.try_set_priority(p)` - Change the current task's priority
+- `self.suspend()` - Suspend the current task until resumed
+
 ### Task Self-Notification (within task function)
 
 - `self.wait()` - Block until notified (binary semaphore pattern)
@@ -417,7 +448,10 @@ std::string_view name = idfxx::task::current_name();
 
 ### Configuration Types
 
-- `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem)
+- `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem).
+  `priority` must be less than `configMAX_PRIORITIES`, `stack_size` at least
+  `configMINIMAL_STACK_SIZE` bytes (which grows with `CONFIG_FREERTOS_IDLE_TASK_STACKSIZE`), and
+  `core_affinity` a core FreeRTOS runs on
 - `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in
   `<idfxx/memory>`
 
@@ -439,11 +473,17 @@ std::string_view name = idfxx::task::current_name();
 
 Task operations use error codes from `idfxx::errc`:
 
+- `invalid_arg` - Task creation (`make()`, `try_spawn()`, the constructor, `spawn()`) was given a
+  priority of `configMAX_PRIORITIES` or more, a stack smaller than `configMINIMAL_STACK_SIZE`, or a
+  core FreeRTOS does not run on (`core_1` when `CONFIG_FREERTOS_UNICORE` is set); or
+  `set_priority()` / `try_set_priority()` was given a priority of `configMAX_PRIORITIES` or more
 - `invalid_state` - Task has been detached, already joined, or operation invalid for current state
 - `timeout` - Join did not complete within the specified duration
 
-All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
-`std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
+All `try_*` methods and `make()` return `idfxx::result<T>`. Exception-based methods (without `try_`
+prefix), the constructor and `spawn()` throw `std::system_error` and are available only when
+`CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled. Allocation failure throws `std::bad_alloc` (or aborts
+when exceptions are disabled) from every creation method.
 
 ## Important Notes
 

@@ -374,6 +374,19 @@ TEST_CASE("sx126x::try_probe with no chip attached reports not_found", "[idfxx][
     TEST_ASSERT_TRUE(probed.error() == idfxx::errc::not_found);
 }
 
+TEST_CASE("sx126x::make rejects an out-of-range worker priority", "[idfxx][radio][sx126x][hw]") {
+    isr_service_guard isr;
+    auto bus = make_unpopulated_bus();
+    // A warm start issues no SPI traffic, so construction reaches the worker
+    // task without a chip.
+    auto cfg = no_chip_config();
+    cfg.warm_start = true;
+    cfg.worker_priority = configMAX_PRIORITIES;
+    auto radio = sx126x::make(bus, cfg);
+    TEST_ASSERT_FALSE(radio.has_value());
+    TEST_ASSERT_TRUE(radio.error() == idfxx::errc::invalid_arg);
+}
+
 TEST_CASE("sx126x escape hatch rejects frames longer than one transfer", "[idfxx][radio][sx126x][hw]") {
     isr_service_guard isr;
     auto bus = make_unpopulated_bus();
