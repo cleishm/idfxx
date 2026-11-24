@@ -1,0 +1,11 @@
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+CONFIG_COMPILER_CXX_RTTI=y
+
+# The partition table with the `log` partition
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# With this option disabled, the log captures only the lines that are logged through idfxx::log,
+# and nothing wraps ESP-IDF's log
+# CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES is not set

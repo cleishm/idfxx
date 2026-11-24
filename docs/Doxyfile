@@ -253,8 +253,9 @@ INCLUDE_FILE_PATTERNS  =
 #
 # Deliberately left undefined: SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP (tested as
 # negated; defining it hides gpio::deep_sleep_hold_*), CONFIG_IDF_TARGET_ESP32
-# (selects between alternative enumerators) and CONFIG_IDFXX_STD_FORMAT (only
-# gates internal formatter specializations).
+# (selects between alternative enumerators) and CONFIG_IDFXX_STD_FORMAT (gates
+# internal formatter specializations; public API that it gates also tests
+# __DOXYGEN__).
 
 # Language and Doxygen
 PREDEFINED             = __cplusplus=202302L

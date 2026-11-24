@@ -72,15 +72,27 @@ just qemu-test [group...] [timeout]
 # Build and run only some components' tests (isolated build-test/; seconds per rebuild)
 just test dht gpio
 
-# Build and run idfxx_log's tests under ESP-IDF's log v2 (isolated build-qemu-logv2/)
+# Build and run idfxx_log's and idfxx_persistent_log's tests under ESP-IDF's log v2
+# (isolated build-qemu-logv2/)
 just qemu-test-logv2 [timeout]
+
+# Build and run idfxx_log's and idfxx_persistent_log's tests without the log wrapper
+# (isolated build-qemu-no-all-lines/)
+just qemu-test-no-all-lines [timeout]
 ```
 
 Every config builds ESP-IDF's default log v1, except `qemu-test-logv2`, which adds
 `config/sdkconfig.log-v2` to `config/sdkconfig.qemu`. CI runs it as a second qemu-test job.
 `idfxx_log`'s sinks handle lines from the two log versions differently, so run it after changing
-the sinks. Its app contains only `idfxx_log`'s tests, because under log v2 QEMU's console faults on
-`%.*s`, which other components use in their log calls.
+the sinks. Its app contains only `idfxx_log`'s and `idfxx_persistent_log`'s tests, because under
+log v2 QEMU's console faults on `%.*s`, which other components use in their log calls.
+
+`qemu-test-no-all-lines` adds `config/sdkconfig.no-all-lines` to `config/sdkconfig.qemu`, which
+turns off `CONFIG_IDFXX_LOG_ALL_LINES` and `CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES`, so
+that nothing wraps ESP-IDF's log. CI runs it as a third qemu-test job. The other QEMU runs build
+with both options on, so run it after changing `idfxx_log`'s sinks or
+`idfxx_persistent_log`'s capture. Its app contains the same two components' tests as
+`qemu-test-logv2`, and its log goes to `qemu_output_no_all_lines.log`.
 
 A component whose tests use idfxx components outside its own dependencies lists them in
 `components/<area>/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise

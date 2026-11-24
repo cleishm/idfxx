@@ -358,10 +358,13 @@ jobs:
           key: ccache-example-${{ matrix.component }}-${{ matrix.example }}-${{ github.run_id }}
 
   # Runs every group's tests as config/sdkconfig.qemu builds them (with log v1, ESP-IDF's default).
-  # The second matrix entry runs idfxx_log's tests again under log v2, because its sinks handle the
-  # lines of the two log versions differently. That entry runs only idfxx_log's tests, because
-  # under log v2, QEMU's console can't print every format that the other components log with (see
-  # config/sdkconfig.log-v2).
+  # The second matrix entry runs idfxx_log's and idfxx_persistent_log's tests again under log v2,
+  # because idfxx_log's sinks handle the lines of the two log versions differently. That entry runs
+  # only those two components' tests, because under log v2, QEMU's console can't print every format
+  # that the other components log with (see config/sdkconfig.log-v2). The third entry runs the same
+  # two components' tests with CONFIG_IDFXX_LOG_ALL_LINES and
+  # CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES off, so that nothing wraps ESP-IDF's log (see
+  # config/sdkconfig.no-all-lines).
   qemu-test:
     needs: tested
     if: needs.tested.outputs.skip != 'true'
@@ -377,8 +380,12 @@ jobs:
             extra_config: ''
           - name: qemu-test (log v2)
             id: qemu-logv2
-            tests: idfxx_log
+            tests: idfxx_log;idfxx_persistent_log
             extra_config: config/sdkconfig.log-v2
+          - name: qemu-test (no all_lines)
+            id: qemu-no-all-lines
+            tests: idfxx_log;idfxx_persistent_log
+            extra_config: config/sdkconfig.no-all-lines
     name: ${{ matrix.name }}
     steps:
       - name: Checkout

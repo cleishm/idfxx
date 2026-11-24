@@ -131,7 +131,7 @@ qemu-test *args:
     echo "All groups passed:" $selected
 
 # The log goes to qemu_output_logv2.log. CI's qemu-test (log v2) job runs the same steps.
-# Build and run idfxx_log's tests in QEMU under ESP-IDF's log v2 (`just qemu-test-logv2 [timeout]`)
+# Build and run the log components' tests in QEMU under log v2 (`just qemu-test-logv2 [timeout]`)
 qemu-test-logv2 timeout="300":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -144,10 +144,30 @@ qemu-test-logv2 timeout="300":
         cat config/sdkconfig.qemu config/sdkconfig.log-v2 > "$dir/sdkconfig"
     fi
     args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D IDF_TARGET=esp32s3)
-    idf.py "${args[@]}" -D IDFXX_TESTS=idfxx_log build
+    idf.py "${args[@]}" -D IDFXX_TESTS="idfxx_log;idfxx_persistent_log" build
     idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB \
         -o "$PWD/$dir/qemu_flash.bin"
     just qemu-run "$dir" "{{timeout}}" qemu_output_logv2.log
+
+# The log goes to qemu_output_no_all_lines.log. CI's qemu-test (no all_lines) job runs the same
+# steps.
+# Run the log components' QEMU tests without the wrapper (`just qemu-test-no-all-lines [timeout]`)
+qemu-test-no-all-lines timeout="300":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{env_setup}}
+    cd "{{justfile_directory()}}"
+    dir=build-qemu-no-all-lines
+    mkdir -p "$dir"
+    if [ ! -f "$dir/sdkconfig" ] || [ config/sdkconfig.qemu -nt "$dir/sdkconfig" ] ||
+       [ config/sdkconfig.no-all-lines -nt "$dir/sdkconfig" ]; then
+        cat config/sdkconfig.qemu config/sdkconfig.no-all-lines > "$dir/sdkconfig"
+    fi
+    args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D IDF_TARGET=esp32s3)
+    idf.py "${args[@]}" -D IDFXX_TESTS="idfxx_log;idfxx_persistent_log" build
+    idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB \
+        -o "$PWD/$dir/qemu_flash.bin"
+    just qemu-run "$dir" "{{timeout}}" qemu_output_no_all_lines.log
 
 # Run only some components' tests in QEMU (`just test dht gpio`; isolated build-test/)
 test +components:
@@ -171,7 +191,7 @@ test +components:
     args=(-B build-test -D SDKCONFIG="$PWD/build-test/sdkconfig" -D SDKCONFIG_DEFAULTS=config/sdkconfig.qemu)
     idf.py "${args[@]}" -D IDF_TARGET=esp32s3 -D IDFXX_TESTS="$tests" build
     idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB -o "$PWD/build-test/qemu_flash.bin"
-    just qemu-run build-test 120
+    just qemu-run build-test 300
 
 # Uses config/sdkconfig.defaults in an isolated build-test-hw/. `just monitor test-hw` reattaches.
 # Flash and monitor only some components' tests (`just flash-test dht gpio [target] [port]`)
@@ -269,5 +289,5 @@ clean:
     for g in {{groups}}; do
         rm -rf "build-$g" "build-noexc-$g" "build-noipv6-$g" "build-qemu-$g"
     done
-    rm -rf build build-noexc build-noipv6 build-qemu build-qemu-logv2 build-test \
-        build-test-hw qemu_output*.log
+    rm -rf build build-noexc build-noipv6 build-qemu build-qemu-logv2 build-qemu-no-all-lines \
+        build-test build-test-hw qemu_output*.log

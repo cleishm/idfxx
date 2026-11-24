@@ -7,7 +7,7 @@ README](../README.md) for installation and for the conventions that every compon
 
 - **[Core Infrastructure](core/README.md):** idfxx_core, idfxx_hw_support, idfxx_log
 - **[System Services](system/README.md):** idfxx_console, idfxx_crypto, idfxx_event,
-  idfxx_event_group, idfxx_queue, idfxx_sleep, idfxx_task, idfxx_timer
+  idfxx_event_group, idfxx_persistent_log, idfxx_queue, idfxx_sleep, idfxx_task, idfxx_timer
 - **[Networking](network/README.md):** idfxx_net, idfxx_netif, idfxx_wifi
 - **[Radio](radio/README.md):** idfxx_radio, idfxx_radio_sx126x
 - **[Peripherals](peripherals/README.md):** idfxx_gpio, idfxx_i2c, idfxx_spi, idfxx_onewire,
