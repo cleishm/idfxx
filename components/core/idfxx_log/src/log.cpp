@@ -3,6 +3,9 @@
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
+#include "line_text.hpp"
+#include "sinks.hpp"
+
 #include <idfxx/log>
 
 #include <esp_log.h>
@@ -12,9 +15,18 @@
 namespace idfxx::log {
 
 void log(level lvl, const char* tag, std::string_view msg) {
+    // The sink entry is held while ESP-IDF's log prints the line, so that the wrapper doesn't also
+    // capture the line for the sinks added with all_lines. Instead, this function passes the
+    // complete line to every sink after it is printed. When no sink is added, the only check is the
+    // count of added sinks.
+    const detail::sink_entry entry =
+        detail::any_sink_added() ? detail::enter_sinks() : detail::sink_entry::none();
     ESP_LOG_LEVEL(
         static_cast<esp_log_level_t>(lvl), tag, "%.*s", static_cast<int>(msg.size()), msg.data()
     );
+    if (entry) {
+        detail::deliver(detail::offered_to::every_sink, lvl, detail::tag_view(tag), msg);
+    }
 }
 
 void set_level(const char* tag, level lvl) {

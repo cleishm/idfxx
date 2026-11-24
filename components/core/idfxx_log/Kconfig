@@ -1,0 +1,84 @@
+menu "IDFXX log"
+    depends on IDFXX_STD_FORMAT
+
+    config IDFXX_LOG_MAX_SINKS
+        int "Maximum number of sinks"
+        default 4
+        range 1 16
+        help
+            The maximum number of sinks (idfxx::log::sink) that can be added with
+            idfxx::log::add_sink at the same time. The count includes sinks added for every line,
+            and sinks that are being removed until the calls into them have finished. Adding a
+            sink beyond this limit fails with errc::invalid_state.
+
+    config IDFXX_LOG_ALL_LINES
+        bool "Let sinks receive every log line"
+        default n
+        help
+            Lets a sink receive every ESP-IDF log line: lines logged with ESP_LOGx,
+            ESP_LOG_BUFFER_* and esp_log_write, and by the libraries that log through them. Add
+            such a sink with idfxx::log::add_sink(idfxx::log::all_lines, sink).
+
+            To receive every line, idfxx_log wraps esp_log and esp_log_va at link time
+            (-Wl,--wrap). The app and its other components must not wrap them as well: a second
+            definition of __wrap_esp_log or __wrap_esp_log_va makes the link fail.
+
+            Sinks do not receive early, DRAM or binary-mode lines, or lines above the compile-time
+            maximum level. With LOG_MASTER_LEVEL under log v1, they also do not receive ESP_LOGx
+            lines above the master level, because the macros skip those lines before logging them.
+
+            While no such sink is added, each log call makes one extra check and uses about 64
+            bytes more stack, for the wrapper's own frame. For the stack that a log call uses
+            while such a sink is added, see IDFXX_LOG_SINK_MAX_LINE.
+
+            With this option disabled, sinks receive only the lines logged through idfxx::log,
+            nothing is wrapped, and idfxx::log::all_lines is not defined.
+
+    config IDFXX_LOG_SINK_MAX_LINE
+        int "Maximum length of an ESP-IDF log line passed to a sink (bytes)"
+        depends on IDFXX_LOG_ALL_LINES
+        default 256
+        range 64 1024
+        help
+            The maximum length of a line logged through ESP-IDF's log that is passed to a sink
+            added with idfxx::log::all_lines. Lines logged through idfxx::log are not limited. A
+            longer line is shortened to this limit, at a UTF-8 character boundary.
+
+            The limit includes the prefix that the line's caller formatted before the message,
+            even though the sink does not receive the prefix. The prefix is log v1's level,
+            timestamp and tag, or whatever a caller of esp_log_write formats itself. For a line
+            logged in several calls, the limit also includes the line's tag, which is the tag of
+            its first call.
+
+            Each join slot (IDFXX_LOG_JOIN_SLOTS) holds a line of this size. For a line logged in
+            several calls, each call copies the line so far, up to this many bytes, with
+            interrupts disabled. A large limit therefore adds interrupt latency.
+
+            While such a sink is added, a log call uses up to about this limit plus 64 bytes more
+            stack than with IDFXX_LOG_ALL_LINES disabled, plus the stack that the sinks themselves
+            use. This was measured on esp32s3 in QEMU with ESP-IDF's console output. The line is
+            formatted for the sinks after the console has printed it, not while it prints. If
+            printing uses less stack (no console, or a lighter vprintf), a log call therefore
+            still uses about as much stack as it does with ESP-IDF's console.
+
+            ESP-IDF's own tasks that have small stacks may need larger ones if they log while such
+            a sink is added. One example is the system event task (sys_evt), which has 2304 bytes
+            by default (CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE).
+
+    config IDFXX_LOG_JOIN_SLOTS
+        int "Maximum number of tasks with an unfinished line"
+        depends on IDFXX_LOG_ALL_LINES
+        default 4
+        range 1 32
+        help
+            Some libraries log one line in several calls. For example, the Wi-Fi libraries log a
+            prefix, then the message, then a newline. Each task with an unfinished line holds a
+            slot until the line's newline arrives. The line is then passed to the sinks with the
+            level and tag of its first call.
+
+            When every slot is in use and another task starts a line, that task takes the slot of
+            the task that used its slot least recently, and the unfinished line in that slot is
+            discarded. The unfinished line of a deleted task is also discarded. Each slot holds a
+            line of up to IDFXX_LOG_SINK_MAX_LINE bytes. See that option for the effect on
+            interrupt latency.
+endmenu

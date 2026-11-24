@@ -71,7 +71,16 @@ just qemu-test [group...] [timeout]
 
 # Build and run only some components' tests (isolated build-test/; seconds per rebuild)
 just test dht gpio
+
+# Build and run idfxx_log's tests under ESP-IDF's log v2 (isolated build-qemu-logv2/)
+just qemu-test-logv2 [timeout]
 ```
+
+Every config builds ESP-IDF's default log v1, except `qemu-test-logv2`, which adds
+`config/sdkconfig.log-v2` to `config/sdkconfig.qemu`. CI runs it as a second qemu-test job.
+`idfxx_log`'s sinks handle lines from the two log versions differently, so run it after changing
+the sinks. Its app contains only `idfxx_log`'s tests, because under log v2 QEMU's console faults on
+`%.*s`, which other components use in their log calls.
 
 A component whose tests use idfxx components outside its own dependencies lists them in
 `components/<area>/<name>/tests/requires.cmake` (`set(test_requires idfxx_task)`); otherwise
