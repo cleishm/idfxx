@@ -10,6 +10,7 @@
 #include <idfxx/sched>
 #include <memory>
 #include <system_error>
+#include <utility>
 
 using namespace idfxx;
 using namespace std::chrono_literals;
@@ -38,7 +39,7 @@ TEST_CASE("try_join from inside the task itself returns would_deadlock", "[idfxx
     std::atomic<bool> code_matches_std{false};
     std::atomic<bool> category_matches{false};
 
-    t = std::make_shared<task>(
+    auto made = task::make(
         task::config{.name = "self_join"},
         [&](task::self&) {
             // Wait briefly so the shared_ptr is fully assigned in the parent.
@@ -52,6 +53,8 @@ TEST_CASE("try_join from inside the task itself returns would_deadlock", "[idfxx
             done.store(true);
         }
     );
+    TEST_ASSERT_TRUE(made.has_value());
+    t = std::make_shared<task>(std::move(*made));
 
     // Wait for task to finish observing the deadlock
     for (int i = 0; i < 100 && !done.load(); ++i) {

@@ -822,7 +822,12 @@ result<sx126x> sx126x::make(spi::master_bus& bus, config cfg) {
         .core_affinity = s->cfg.worker_core,
     };
     state* state_ptr = s.get();
-    s->worker.emplace(tcfg, [state_ptr](task::self& self) { sx126x_worker_fn(self, state_ptr); });
+    auto worker =
+        task::make(tcfg, [state_ptr](task::self& self) { sx126x_worker_fn(self, state_ptr); });
+    if (!worker) {
+        return error(worker.error());
+    }
+    s->worker.emplace(std::move(*worker));
 
     // Install DIO1 ISR last (worker must exist when an event might arrive).
     auto isr = setup_dio1_isr(*s);

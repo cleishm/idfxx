@@ -251,11 +251,14 @@ public:
         bool warm_start = false;
         /// Event loop to post radio events on; nullptr disables posting.
         event_loop* loop = nullptr;
-        /// Worker task priority.
+        /// Worker task priority. Must be less than `configMAX_PRIORITIES`, or @ref make fails
+        /// with idfxx::errc::invalid_arg.
         task_priority worker_priority{18};
-        /// Worker task stack size in bytes.
+        /// Worker task stack size in bytes. Must be at least `configMINIMAL_STACK_SIZE`, or
+        /// @ref make fails with idfxx::errc::invalid_arg.
         size_t worker_stack_size = 4096;
-        /// Worker task core affinity.
+        /// Worker task core affinity. Must name a core FreeRTOS runs on (not `core_1` when
+        /// CONFIG_FREERTOS_UNICORE is set), or @ref make fails with idfxx::errc::invalid_arg.
         std::optional<core_id> worker_core = std::nullopt;
     };
 
@@ -287,6 +290,9 @@ public:
      * @param bus    Parent SPI master bus.
      * @param cfg    Driver configuration.
      * @return The new driver, or an error.
+     * @retval invalid_arg A required pin (`cs`, `busy`, `dio1`) is not set, or a configuration
+     *         value is out of range, including `worker_priority`, `worker_stack_size` and
+     *         `worker_core`.
      */
     [[nodiscard]] static result<sx126x> make(spi::master_bus& bus, config cfg);
 

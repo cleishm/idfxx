@@ -16,6 +16,28 @@ const char* TAG = "idfxx::task";
 
 namespace idfxx {
 
+namespace {
+
+bool valid_priority(task_priority priority) noexcept {
+    return priority.value() < static_cast<unsigned int>(configMAX_PRIORITIES);
+}
+
+// FreeRTOS asserts on an out-of-range priority or core instead of reporting an error, and lays
+// out an undersized stack without checking it. On ESP-IDF, stack_size and
+// configMINIMAL_STACK_SIZE are both in bytes.
+bool valid_config(const task::config& cfg) noexcept {
+    if (!valid_priority(cfg.priority)) {
+        return false;
+    }
+    if (cfg.stack_size < static_cast<size_t>(configMINIMAL_STACK_SIZE)) {
+        return false;
+    }
+    auto cores = static_cast<unsigned int>(configNUMBER_OF_CORES);
+    return !cfg.core_affinity || std::to_underlying(*cfg.core_affinity) < cores;
+}
+
+} // namespace
+
 const task::error_category& task_category() noexcept {
     static const task::error_category instance{};
     return instance;
@@ -127,8 +149,16 @@ TaskHandle_t task::_create(context* ctx, const config& cfg, const char* name) {
     return handle;
 }
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
-    : _name(cfg.name) {
+    : task(unwrap(make(cfg, std::move(task_func)))) {}
+#endif
+
+result<task> task::make(const config& cfg, std::move_only_function<void(self&)> task_func) {
+    if (!valid_config(cfg)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    std::string name(cfg.name);
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->join_sem = xSemaphoreCreateBinary();
@@ -136,16 +166,26 @@ task::task(const config& cfg, std::move_only_function<void(self&)> task_func)
         delete ctx;
         raise_no_mem();
     }
-    _handle = _create(ctx, cfg, _name.c_str());
-    _context = ctx;
+    TaskHandle_t handle = _create(ctx, cfg, name.c_str());
+    return task{handle, std::move(name), ctx};
 }
 
+#ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 void task::spawn(const config& cfg, std::move_only_function<void(self&)> task_func) {
+    unwrap(try_spawn(cfg, std::move(task_func)));
+}
+#endif
+
+result<void> task::try_spawn(const config& cfg, std::move_only_function<void(self&)> task_func) {
+    if (!valid_config(cfg)) {
+        return error(idfxx::errc::invalid_arg);
+    }
+    std::string name(cfg.name);
     auto* ctx = new context{};
     ctx->func = std::move(task_func);
     ctx->state.store(context::state_t::detached, std::memory_order_relaxed);
-    std::string name(cfg.name);
     _create(ctx, cfg, name.c_str());
+    return {};
 }
 
 task::task(TaskHandle_t handle, std::string name, context* ctx)
@@ -245,6 +285,9 @@ result<void> task::try_resume() {
 }
 
 result<void> task::try_set_priority(task_priority new_priority) {
+    if (!valid_priority(new_priority)) {
+        return error(idfxx::errc::invalid_arg);
+    }
     if (!_is_running()) {
         return error(idfxx::errc::invalid_state);
     }
@@ -373,8 +416,12 @@ size_t task::self::stack_high_water_mark() const noexcept {
     return static_cast<size_t>(uxTaskGetStackHighWaterMark(nullptr)) * sizeof(StackType_t);
 }
 
-void task::self::set_priority(task_priority new_priority) noexcept {
+result<void> task::self::try_set_priority(task_priority new_priority) {
+    if (!valid_priority(new_priority)) {
+        return error(idfxx::errc::invalid_arg);
+    }
     vTaskPrioritySet(nullptr, static_cast<UBaseType_t>(new_priority.value()));
+    return {};
 }
 
 std::string_view task::self::name() const {

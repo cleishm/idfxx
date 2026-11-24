@@ -180,12 +180,13 @@ TEST_CASE("event_group blocking wait any - other task sets bits", "[idfxx][event
     std::atomic<bool> received{false};
 
     // Waiter task: blocks waiting for event_a
-    auto t = std::make_unique<task>(task::config{.name = "eg_wait"}, [&eg, &received](task::self&) {
+    auto t = task::make(task::config{.name = "eg_wait"}, [&eg, &received](task::self&) {
         auto r = eg.try_wait(test_event::event_a, wait_mode::any, 500ms);
         if (r.has_value()) {
             received.store(true);
         }
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     // Let waiter block
     idfxx::delay(50ms);
@@ -205,24 +206,27 @@ TEST_CASE("event_group blocking wait all - two tasks set different bits", "[idfx
     std::atomic<bool> received{false};
 
     // Waiter task: blocks waiting for both event_a and event_b
-    auto waiter = std::make_unique<task>(task::config{.name = "eg_all"}, [&eg, &received](task::self&) {
+    auto waiter = task::make(task::config{.name = "eg_all"}, [&eg, &received](task::self&) {
         auto r = eg.try_wait(test_event::event_a | test_event::event_b, wait_mode::all, 500ms);
         if (r.has_value()) {
             received.store(true);
         }
     });
+    TEST_ASSERT_TRUE(waiter.has_value());
 
     // Task 1 sets event_a
-    auto setter1 = std::make_unique<task>(task::config{.name = "eg_set1"}, [&eg](task::self&) {
+    auto setter1 = task::make(task::config{.name = "eg_set1"}, [&eg](task::self&) {
         idfxx::delay(50ms);
         eg.set(test_event::event_a);
     });
+    TEST_ASSERT_TRUE(setter1.has_value());
 
     // Task 2 sets event_b
-    auto setter2 = std::make_unique<task>(task::config{.name = "eg_set2"}, [&eg](task::self&) {
+    auto setter2 = task::make(task::config{.name = "eg_set2"}, [&eg](task::self&) {
         idfxx::delay(100ms);
         eg.set(test_event::event_b);
     });
+    TEST_ASSERT_TRUE(setter2.has_value());
 
     // Wait for all tasks to complete
     auto join1 = waiter->try_join(1000ms);
@@ -261,20 +265,22 @@ TEST_CASE("event_group sync - two tasks rendezvous", "[idfxx][event_group]") {
     auto wait_bits = test_event::event_a | test_event::event_b;
 
     // Task 1: sets event_a, waits for both
-    auto t1 = std::make_unique<task>(task::config{.name = "eg_sync1"}, [&eg, &task1_synced, wait_bits](task::self&) {
+    auto t1 = task::make({.name = "eg_sync1"}, [&eg, &task1_synced, wait_bits](task::self&) {
         auto r = eg.try_sync(test_event::event_a, wait_bits, 500ms);
         if (r.has_value()) {
             task1_synced.store(true);
         }
     });
+    TEST_ASSERT_TRUE(t1.has_value());
 
     // Task 2: sets event_b, waits for both
-    auto t2 = std::make_unique<task>(task::config{.name = "eg_sync2"}, [&eg, &task2_synced, wait_bits](task::self&) {
+    auto t2 = task::make({.name = "eg_sync2"}, [&eg, &task2_synced, wait_bits](task::self&) {
         auto r = eg.try_sync(test_event::event_b, wait_bits, 500ms);
         if (r.has_value()) {
             task2_synced.store(true);
         }
     });
+    TEST_ASSERT_TRUE(t2.has_value());
 
     // Wait for both tasks
     auto join1 = t1->try_join(1000ms);
@@ -313,10 +319,11 @@ TEST_CASE("event_group try_sync_until succeeds", "[idfxx][event_group]") {
     auto wait_bits = test_event::event_a | test_event::event_b;
 
     // Task sets event_b
-    auto t = std::make_unique<task>(task::config{.name = "sync_until"}, [&eg](task::self&) {
+    auto t = task::make(task::config{.name = "sync_until"}, [&eg](task::self&) {
         idfxx::delay(50ms);
         (void)eg.try_sync(test_event::event_b, test_event::event_a | test_event::event_b, 500ms);
     });
+    TEST_ASSERT_TRUE(t.has_value());
 
     auto deadline = chrono::tick_clock::now() + 1s;
     auto result = eg.try_sync_until(test_event::event_a, wait_bits, deadline);

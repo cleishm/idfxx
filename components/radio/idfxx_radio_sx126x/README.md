@@ -222,8 +222,8 @@ match your board, or drop `config::tcxo` entirely if your module uses a plain cr
 | `dio1_mask`            | `std::nullopt`                   | IRQ flags latched and routed to DIO1; unset = driver default (tx/rx done, preamble, CRC, CAD). |
 | `warm_start`           | `false`                          | Attach to an already configured chip: no reset pulse, no configuration commands.       |
 | `loop`                 | `nullptr`                        | Event loop to post radio events on; `nullptr` disables event posting.                  |
-| `worker_priority`      | `18`                             | High enough to keep up with PHY events.                                                |
-| `worker_stack_size`    | `4096`                           |                                                                                        |
+| `worker_priority`      | `18`                             | High enough to keep up with PHY events; must be below `configMAX_PRIORITIES`.          |
+| `worker_stack_size`    | `4096`                           | At least `configMINIMAL_STACK_SIZE`.                                                   |
 | `worker_core`          | `std::nullopt`                   | Either core.                                                                           |
 
 ## Error Handling
