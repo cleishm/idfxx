@@ -4,6 +4,7 @@
 #include <idfxx/pwm>
 
 #include <array>
+#include <cmath>
 #include <driver/ledc.h>
 #include <esp_idf_version.h>
 #include <esp_log.h>
@@ -250,7 +251,11 @@ result<output> try_start(idfxx::gpio gpio, const timer::config& cfg) {
 
 result<output> try_start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg) {
     if (!gpio.is_connected()) {
-        ESP_LOGD(TAG, "Field 'gpio' has an invalid value");
+        ESP_LOGD(TAG, "Argument 'gpio' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (std::isnan(out_cfg.duty)) {
+        ESP_LOGD(TAG, "Field 'duty' is NaN");
         return error(errc::invalid_arg);
     }
 
@@ -322,6 +327,10 @@ _configure_channel(enum channel ch, idfxx::gpio gpio, const timer& tmr, const ou
     }
     if (!gpio.is_connected()) {
         ESP_LOGD(TAG, "Argument 'gpio' has an invalid value");
+        return error(errc::invalid_arg);
+    }
+    if (std::isnan(cfg.duty)) {
+        ESP_LOGD(TAG, "Field 'duty' is NaN");
         return error(errc::invalid_arg);
     }
 
@@ -535,6 +544,10 @@ uint32_t output::duty_ticks() const {
 }
 
 result<void> output::try_set_duty(float duty) {
+    if (std::isnan(duty)) {
+        ESP_LOGD(TAG, "Argument 'duty' is NaN");
+        return error(errc::invalid_arg);
+    }
     return try_set_duty_ticks(
         static_cast<uint32_t>(std::clamp(duty, 0.0f, 1.0f) * static_cast<float>(ticks_max()))
     );
