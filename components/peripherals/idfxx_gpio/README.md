@@ -182,6 +182,7 @@ GPIO operations use error codes from `idfxx::errc`:
 - `invalid_arg` - Invalid GPIO number or configuration, or an ISR handle that belongs to a
   different GPIO
 - `invalid_state` - Operation not valid in current state
+- `not_found` - The ISR handler to remove was already removed
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
 `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.

@@ -644,6 +644,7 @@ public:
      * @brief Removes a specific ISR handler.
      * @retval invalid_state If called on gpio::nc().
      * @retval invalid_arg If the handle belongs to a different gpio.
+     * @retval not_found If the handler was already removed.
      */
     result<void> try_isr_handler_remove(isr_handle handle);
     /**
