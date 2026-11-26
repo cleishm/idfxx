@@ -953,6 +953,51 @@ TEST_CASE("nvs key too long error", "[idfxx][nvs]") {
     TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::key_too_long), result.error().value());
 }
 
+TEST_CASE("nvs reads and erase reject a key longer than 15 characters", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_keylen2");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    // The long key starts with the stored 15-character key. It must not reach that entry.
+    constexpr std::string_view stored_key = "abcdefghijklmno";
+    constexpr std::string_view long_key = "abcdefghijklmnoX";
+    constexpr auto too_long = std::to_underlying(nvs::errc::key_too_long);
+    TEST_ASSERT_TRUE(nvs.try_set_value<uint32_t>(stored_key, 1).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto value = nvs.try_get_value<uint32_t>(long_key);
+    TEST_ASSERT_FALSE(value.has_value());
+    TEST_ASSERT_EQUAL(too_long, value.error().value());
+
+    auto found = nvs.try_find_value<uint32_t>(long_key);
+    TEST_ASSERT_FALSE(found.has_value());
+    TEST_ASSERT_EQUAL(too_long, found.error().value());
+
+    auto str = nvs.try_get_string(long_key);
+    TEST_ASSERT_FALSE(str.has_value());
+    TEST_ASSERT_EQUAL(too_long, str.error().value());
+
+    auto size = nvs.try_blob_size(long_key);
+    TEST_ASSERT_FALSE(size.has_value());
+    TEST_ASSERT_EQUAL(too_long, size.error().value());
+
+    std::array<std::byte, 4> buf{};
+    auto blob = nvs.try_get_blob(long_key, buf);
+    TEST_ASSERT_FALSE(blob.has_value());
+    TEST_ASSERT_EQUAL(too_long, blob.error().value());
+
+    auto erase = nvs.try_erase(long_key);
+    TEST_ASSERT_FALSE(erase.has_value());
+    TEST_ASSERT_EQUAL(too_long, erase.error().value());
+
+    // The stored entry is still there
+    auto kept = nvs.try_get_value<uint32_t>(stored_key);
+    TEST_ASSERT_TRUE(kept.has_value());
+    TEST_ASSERT_EQUAL_UINT32(1, *kept);
+}
+
 TEST_CASE("nvs empty string value", "[idfxx][nvs]") {
     ensure_nvs_init();
 

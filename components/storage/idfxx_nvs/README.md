@@ -356,7 +356,8 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
   - Use exception-based API for cleaner code when exceptions are available
 - Changes are **not persisted** until `commit()` / `try_commit()` is called
 - Namespace names are limited to 15 characters
-- Key names are limited to 15 characters
+- Key names are limited to 15 characters. Every operation fails with `nvs::errc::key_too_long`
+  for a longer key
 - Each namespace is independent
 - Call `nvs::flash::init()` or `nvs::flash::try_init()` once before using NVS
 - Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
