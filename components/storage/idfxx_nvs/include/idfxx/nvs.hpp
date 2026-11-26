@@ -29,6 +29,7 @@
 #include <bit>
 #include <cstddef>
 #include <esp_idf_version.h>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string>
@@ -280,6 +281,26 @@ public:
     }
 
     /**
+     * @brief Looks up a string.
+     *
+     * Returns an empty optional if no string is stored under @p key. Any other error throws.
+     *
+     * @code
+     * std::string name = nvs.find_string("name").value_or("unnamed");
+     * @endcode
+     *
+     * @param key Key name.
+     * @return The string value, or an empty optional if no string is stored under @p key.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on any error other than nvs::errc::not_found.
+     */
+    [[nodiscard]] std::optional<std::string> find_string(std::string_view key) {
+        return unwrap(try_find_string(key));
+    }
+
+    /**
      * @brief Stores binary data.
      *
      * Accepts any contiguous range of `std::byte` or `uint8_t`, or `{ptr, len}`. Other data is
@@ -337,6 +358,22 @@ public:
     }
 
     /**
+     * @brief Looks up binary data.
+     *
+     * Returns an empty optional if no blob is stored under @p key. Any other error throws.
+     *
+     * @param key Key name.
+     * @return The data, or an empty optional if no blob is stored under @p key.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on any error other than nvs::errc::not_found.
+     */
+    [[nodiscard]] std::optional<std::vector<std::byte>> find_blob(std::string_view key) {
+        return unwrap(try_find_blob(key));
+    }
+
+    /**
      * @brief Reads binary data into a caller-provided buffer.
      *
      * The blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf
@@ -360,6 +397,28 @@ public:
     }
 
     /**
+     * @brief Looks up binary data and reads it into a caller-provided buffer.
+     *
+     * Returns an empty optional if no blob is stored under @p key. Any other error throws. The
+     * blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf is
+     * smaller than the stored blob, the read fails with idfxx::errc::invalid_size and the contents
+     * of @p buf are unspecified.
+     *
+     * @param key Key name.
+     * @param buf Buffer to receive the blob.
+     * @return The length of the blob in bytes, or an empty optional if no blob is stored under
+     *         @p key.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on any error other than nvs::errc::not_found, including
+     *         idfxx::errc::invalid_size if @p buf is smaller than the stored blob.
+     */
+    [[nodiscard]] std::optional<size_t> find_blob(std::string_view key, byte_span buf) {
+        return unwrap(try_find_blob(key, buf));
+    }
+
+    /**
      * @brief Retrieves an object stored as a blob.
      *
      * Reads back an object stored with set_blob(key, value).
@@ -379,6 +438,32 @@ public:
         requires nvs_blob_value<T>
     [[nodiscard]] T get_blob(std::string_view key) {
         return unwrap(try_get_blob<T>(key));
+    }
+
+    /**
+     * @brief Looks up an object stored as a blob.
+     *
+     * Reads back an object stored with set_blob(key, value). Returns an empty optional if no blob
+     * is stored under @p key. Any other error throws.
+     *
+     * @code
+     * constexpr calibration defaults{.offset = 0, .gain = 1024};
+     * auto cal = nvs.find_blob<calibration>("cal").value_or(defaults);
+     * @endcode
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key Key name.
+     * @return The object, or an empty optional if no blob is stored under @p key.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on any error other than nvs::errc::not_found, including
+     *         idfxx::errc::invalid_size if the stored blob's length is not `sizeof(T)`.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    [[nodiscard]] std::optional<T> find_blob(std::string_view key) {
+        return unwrap(try_find_blob<T>(key));
     }
 
     /**
@@ -422,6 +507,33 @@ public:
     [[nodiscard]] T get_value(std::string_view key) {
         return unwrap(try_get_value<T>(key));
     }
+
+    /**
+     * @brief Looks up a numeric value.
+     *
+     * Returns an empty optional if no value of type @p T is stored under @p key. Any other error
+     * throws.
+     *
+     * @code
+     * auto boots = nvs.find_value<uint32_t>("boots").value_or(0) + 1;
+     * nvs.set_value<uint32_t>("boots", boots);
+     * @endcode
+     *
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
+     * @param key Key name.
+     * @return The value, or an empty optional if no value of type @p T is stored under @p key.
+     * @note float and double are only available with ESP-IDF 6.1 or later.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found. This includes an integer of another width or signedness.
+     * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
+     * @throws std::system_error on any error other than nvs::errc::not_found.
+     */
+    template<typename T>
+        requires nvs_value<T>
+    [[nodiscard]] std::optional<T> find_value(std::string_view key) {
+        return unwrap(try_find_value<T>(key));
+    }
 #endif
 
     /**
@@ -457,6 +569,21 @@ public:
      * @return The string value, or an error.
      */
     [[nodiscard]] result<std::string> try_get_string(std::string_view key);
+
+    /**
+     * @brief Looks up a string.
+     *
+     * Returns an empty optional if no string is stored under @p key. Any other error is returned.
+     *
+     * @param key Key name.
+     * @return The string value, an empty optional if no string is stored under @p key, or an
+     *         error.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     */
+    [[nodiscard]] result<std::optional<std::string>> try_find_string(std::string_view key) {
+        return _found(try_get_string(key));
+    }
 
     /**
      * @brief Stores binary data.
@@ -498,6 +625,21 @@ public:
     [[nodiscard]] result<std::vector<std::byte>> try_get_blob(std::string_view key);
 
     /**
+     * @brief Looks up binary data.
+     *
+     * Returns an empty optional if no blob is stored under @p key. Any other error is returned.
+     *
+     * @param key Key name.
+     * @return The data, an empty optional if no blob is stored under @p key, or an error.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     */
+    [[nodiscard]] result<std::optional<std::vector<std::byte>>>
+    try_find_blob(std::string_view key) {
+        return _found(try_get_blob(key));
+    }
+
+    /**
      * @brief Reads binary data into a caller-provided buffer.
      *
      * The blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf
@@ -511,6 +653,26 @@ public:
      * @retval nvs::errc::not_found if no blob is stored under @p key.
      */
     [[nodiscard]] result<size_t> try_get_blob(std::string_view key, byte_span buf);
+
+    /**
+     * @brief Looks up binary data and reads it into a caller-provided buffer.
+     *
+     * Returns an empty optional if no blob is stored under @p key. Any other error is returned.
+     * The blob is written to the front of @p buf, leaving any bytes after it unchanged. If @p buf
+     * is smaller than the stored blob, the read fails with idfxx::errc::invalid_size and the
+     * contents of @p buf are unspecified.
+     *
+     * @param key Key name.
+     * @param buf Buffer to receive the blob.
+     * @return The length of the blob in bytes, an empty optional if no blob is stored under
+     *         @p key, or an error.
+     * @retval idfxx::errc::invalid_size if @p buf is smaller than the stored blob.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     */
+    [[nodiscard]] result<std::optional<size_t>> try_find_blob(std::string_view key, byte_span buf) {
+        return _found(try_get_blob(key, buf));
+    }
 
     /**
      * @brief Retrieves an object stored as a blob.
@@ -533,6 +695,25 @@ public:
             }
             return std::bit_cast<T>(buf);
         });
+    }
+
+    /**
+     * @brief Looks up an object stored as a blob.
+     *
+     * Reads back an object stored with try_set_blob(key, value). Returns an empty optional if no
+     * blob is stored under @p key. Any other error is returned.
+     *
+     * @tparam T A trivially copyable type that is not a pointer, an array or a range.
+     * @param key Key name.
+     * @return The object, an empty optional if no blob is stored under @p key, or an error.
+     * @retval idfxx::errc::invalid_size if the stored blob's length is not `sizeof(T)`.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found.
+     */
+    template<typename T>
+        requires nvs_blob_value<T>
+    [[nodiscard]] result<std::optional<T>> try_find_blob(std::string_view key) {
+        return _found(try_get_blob<T>(key));
     }
 
     /**
@@ -569,8 +750,42 @@ public:
         requires nvs_value<T>
     [[nodiscard]] result<T> try_get_value(std::string_view key);
 
+    /**
+     * @brief Looks up a numeric value.
+     *
+     * Returns an empty optional if no value of type @p T is stored under @p key. Any other error
+     * is returned.
+     *
+     * @tparam T Integer type (8 to 64 bits, signed or unsigned), or float/double
+     *           (ESP-IDF 6.1 or later).
+     * @param key Key name.
+     * @return The value, an empty optional if no value of type @p T is stored under @p key, or an
+     *         error.
+     * @note float and double are only available with ESP-IDF 6.1 or later.
+     * @note NVS stores each entry with its type. A key that holds a value of another type counts
+     * as not found. This includes an integer of another width or signedness.
+     */
+    template<typename T>
+        requires nvs_value<T>
+    [[nodiscard]] result<std::optional<T>> try_find_value(std::string_view key) {
+        return _found(try_get_value<T>(key));
+    }
+
 private:
     nvs(nvs_handle_t handle, bool read_only);
+
+    [[nodiscard]] static bool _is_not_found(const std::error_code& ec) noexcept;
+
+    template<typename T>
+    [[nodiscard]] static result<std::optional<T>> _found(result<T>&& r) {
+        if (r) {
+            return std::optional<T>{std::move(*r)};
+        }
+        if (_is_not_found(r.error())) {
+            return std::optional<T>{};
+        }
+        return error(r.error());
+    }
 
     nvs_handle_t _handle = 0;
     bool _read_only = false;

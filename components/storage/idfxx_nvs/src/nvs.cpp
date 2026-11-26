@@ -218,6 +218,10 @@ nvs::nvs(nvs_handle_t handle, bool read_only)
     : _handle(handle)
     , _read_only(read_only) {}
 
+bool nvs::_is_not_found(const std::error_code& ec) noexcept {
+    return ec == nvs::errc::not_found;
+}
+
 nvs::nvs(nvs&& other) noexcept
     : _handle(std::exchange(other._handle, 0))
     , _read_only(other._read_only) {}
