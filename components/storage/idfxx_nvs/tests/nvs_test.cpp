@@ -466,6 +466,193 @@ TEST_CASE("nvs typed blob size mismatch returns invalid_size", "[idfxx][nvs]") {
     TEST_ASSERT_TRUE(long_result.error() == idfxx::errc::invalid_size);
 }
 
+TEST_CASE("nvs try_find_value returns empty only for missing key", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fv");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    // Missing key returns an empty optional
+    auto missing = nvs.try_find_value<uint32_t>("boots");
+    TEST_ASSERT_TRUE(missing.has_value());
+    TEST_ASSERT_FALSE(missing->has_value());
+    TEST_ASSERT_EQUAL_UINT32(7, missing->value_or(7));
+
+    // Present key returns the stored value
+    TEST_ASSERT_TRUE(nvs.try_set_value<uint32_t>("boots", 42).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+    auto present = nvs.try_find_value<uint32_t>("boots");
+    TEST_ASSERT_TRUE(present.has_value());
+    TEST_ASSERT_TRUE(present->has_value());
+    TEST_ASSERT_EQUAL_UINT32(42, present->value_or(7));
+}
+
+TEST_CASE("nvs try_find_value treats another stored type as not found", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fv_type");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    TEST_ASSERT_TRUE(nvs.try_set_string("text", "hello").has_value());
+    TEST_ASSERT_TRUE(nvs.try_set_value<uint32_t>("wide", 300).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    // A string is not an integer: ESP-IDF reports not found, so the result is empty
+    auto from_string = nvs.try_find_value<uint32_t>("text");
+    TEST_ASSERT_TRUE(from_string.has_value());
+    TEST_ASSERT_FALSE(from_string->has_value());
+    TEST_ASSERT_EQUAL_UINT32(9, from_string->value_or(9));
+
+    // A uint32_t read as uint8_t is another type: the result is empty
+    auto from_wide = nvs.try_find_value<uint8_t>("wide");
+    TEST_ASSERT_TRUE(from_wide.has_value());
+    TEST_ASSERT_FALSE(from_wide->has_value());
+    TEST_ASSERT_EQUAL_UINT8(5, from_wide->value_or(5));
+}
+
+TEST_CASE("nvs try_find_string returns empty only for missing key", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fs");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto missing = nvs.try_find_string("name");
+    TEST_ASSERT_TRUE(missing.has_value());
+    TEST_ASSERT_FALSE(missing->has_value());
+    TEST_ASSERT_EQUAL_STRING("unnamed", missing->value_or("unnamed").c_str());
+
+    TEST_ASSERT_TRUE(nvs.try_set_string("name", "widget").has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+    auto present = nvs.try_find_string("name");
+    TEST_ASSERT_TRUE(present.has_value());
+    TEST_ASSERT_TRUE(present->has_value());
+    TEST_ASSERT_EQUAL_STRING("widget", present->value_or("unnamed").c_str());
+}
+
+TEST_CASE("nvs try_find_blob returns empty only for missing key", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fb");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    // Missing key returns an empty optional
+    auto missing = nvs.try_find_blob("raw");
+    TEST_ASSERT_TRUE(missing.has_value());
+    TEST_ASSERT_FALSE(missing->has_value());
+    TEST_ASSERT_EQUAL_size_t(0, missing->value_or(std::vector<std::byte>{}).size());
+
+    // Present key returns the stored bytes
+    std::array<uint8_t, 4> data{1, 2, 3, 4};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("raw", data).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+    auto present = nvs.try_find_blob("raw");
+    TEST_ASSERT_TRUE(present.has_value());
+    TEST_ASSERT_TRUE(present->has_value());
+    auto bytes = present->value_or(std::vector<std::byte>{});
+    TEST_ASSERT_EQUAL_size_t(data.size(), bytes.size());
+    for (size_t i = 0; i < data.size(); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(data[i], static_cast<uint8_t>(bytes[i]));
+    }
+}
+
+TEST_CASE("nvs try_find_blob into a buffer returns the length or empty", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fb_buf");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    std::array<uint8_t, 8> buf{};
+
+    // Missing key returns an empty optional
+    auto missing = nvs.try_find_blob("raw", buf);
+    TEST_ASSERT_TRUE(missing.has_value());
+    TEST_ASSERT_FALSE(missing->has_value());
+    TEST_ASSERT_EQUAL_size_t(0, missing->value_or(0));
+
+    // Present key returns the length and fills the buffer
+    std::array<uint8_t, 4> data{1, 2, 3, 4};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("raw", data).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+    auto present = nvs.try_find_blob("raw", buf);
+    TEST_ASSERT_TRUE(present.has_value());
+    TEST_ASSERT_TRUE(present->has_value());
+    TEST_ASSERT_EQUAL_size_t(4, present->value_or(0));
+    for (size_t i = 0; i < data.size(); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(data[i], buf[i]);
+    }
+
+    // A buffer that is too small is an error, not an empty optional
+    std::array<uint8_t, 2> small{};
+    auto too_small = nvs.try_find_blob("raw", small);
+    TEST_ASSERT_FALSE(too_small.has_value());
+    TEST_ASSERT_TRUE(too_small.error() == idfxx::errc::invalid_size);
+}
+
+TEST_CASE("nvs try_find_blob<T> returns empty only for missing key", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_fbt");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    TEST_ASSERT_TRUE(nvs.try_erase_all().has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    blob_cfg fallback{};
+    fallback.id = 0x11112222;
+    fallback.offset = -7;
+
+    // Missing key returns an empty optional
+    auto missing = nvs.try_find_blob<blob_cfg>("cfg");
+    TEST_ASSERT_TRUE(missing.has_value());
+    TEST_ASSERT_FALSE(missing->has_value());
+    auto fell_back = missing->value_or(fallback);
+    TEST_ASSERT_EQUAL_HEX32(0x11112222, fell_back.id);
+    TEST_ASSERT_EQUAL_INT16(-7, fell_back.offset);
+
+    // Present key returns the stored value
+    blob_cfg stored{};
+    stored.id = 0xCAFEF00D;
+    stored.offset = 99;
+    TEST_ASSERT_TRUE(nvs.try_set_blob("cfg", stored).has_value());
+
+    // Stored blob of a different size is an error, not an empty optional
+    std::array<uint8_t, sizeof(blob_cfg) + 1> longer{};
+    TEST_ASSERT_TRUE(nvs.try_set_blob("long", longer).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto present = nvs.try_find_blob<blob_cfg>("cfg");
+    TEST_ASSERT_TRUE(present.has_value());
+    TEST_ASSERT_TRUE(present->has_value());
+    auto found = present->value_or(fallback);
+    TEST_ASSERT_EQUAL_HEX32(0xCAFEF00D, found.id);
+    TEST_ASSERT_EQUAL_INT16(99, found.offset);
+
+    auto wrong_size = nvs.try_find_blob<blob_cfg>("long");
+    TEST_ASSERT_FALSE(wrong_size.has_value());
+    TEST_ASSERT_TRUE(wrong_size.error() == idfxx::errc::invalid_size);
+}
+
 TEST_CASE("nvs set_blob routes byte buffers and objects", "[idfxx][nvs]") {
     ensure_nvs_init();
 
@@ -766,6 +953,51 @@ TEST_CASE("nvs key too long error", "[idfxx][nvs]") {
     TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::key_too_long), result.error().value());
 }
 
+TEST_CASE("nvs reads and erase reject a key longer than 15 characters", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    auto nvs_handle = nvs::make("test_keylen2");
+    TEST_ASSERT_TRUE(nvs_handle.has_value());
+    auto& nvs = *nvs_handle;
+
+    // The long key starts with the stored 15-character key. It must not reach that entry.
+    constexpr std::string_view stored_key = "abcdefghijklmno";
+    constexpr std::string_view long_key = "abcdefghijklmnoX";
+    constexpr auto too_long = std::to_underlying(nvs::errc::key_too_long);
+    TEST_ASSERT_TRUE(nvs.try_set_value<uint32_t>(stored_key, 1).has_value());
+    TEST_ASSERT_TRUE(nvs.try_commit().has_value());
+
+    auto value = nvs.try_get_value<uint32_t>(long_key);
+    TEST_ASSERT_FALSE(value.has_value());
+    TEST_ASSERT_EQUAL(too_long, value.error().value());
+
+    auto found = nvs.try_find_value<uint32_t>(long_key);
+    TEST_ASSERT_FALSE(found.has_value());
+    TEST_ASSERT_EQUAL(too_long, found.error().value());
+
+    auto str = nvs.try_get_string(long_key);
+    TEST_ASSERT_FALSE(str.has_value());
+    TEST_ASSERT_EQUAL(too_long, str.error().value());
+
+    auto size = nvs.try_blob_size(long_key);
+    TEST_ASSERT_FALSE(size.has_value());
+    TEST_ASSERT_EQUAL(too_long, size.error().value());
+
+    std::array<std::byte, 4> buf{};
+    auto blob = nvs.try_get_blob(long_key, buf);
+    TEST_ASSERT_FALSE(blob.has_value());
+    TEST_ASSERT_EQUAL(too_long, blob.error().value());
+
+    auto erase = nvs.try_erase(long_key);
+    TEST_ASSERT_FALSE(erase.has_value());
+    TEST_ASSERT_EQUAL(too_long, erase.error().value());
+
+    // The stored entry is still there
+    auto kept = nvs.try_get_value<uint32_t>(stored_key);
+    TEST_ASSERT_TRUE(kept.has_value());
+    TEST_ASSERT_EQUAL_UINT32(1, *kept);
+}
+
 TEST_CASE("nvs empty string value", "[idfxx][nvs]") {
     ensure_nvs_init();
 
@@ -1015,6 +1247,46 @@ TEST_CASE("nvs read-only write throws", "[idfxx][nvs]") {
     TEST_ASSERT_TRUE(threw);
 }
 
+TEST_CASE("nvs find_value, find_string and find_blob via exception API", "[idfxx][nvs]") {
+    ensure_nvs_init();
+
+    nvs ns("test_exc_find");
+    ns.erase_all();
+    ns.commit();
+
+    // Missing keys return an empty optional
+    TEST_ASSERT_FALSE(ns.find_value<uint32_t>("boots").has_value());
+    TEST_ASSERT_FALSE(ns.find_string("name").has_value());
+    TEST_ASSERT_FALSE(ns.find_blob<blob_cfg>("cfg").has_value());
+    TEST_ASSERT_FALSE(ns.find_blob("raw").has_value());
+    TEST_ASSERT_EQUAL_UINT32(7, ns.find_value<uint32_t>("boots").value_or(7));
+    TEST_ASSERT_EQUAL_STRING("unnamed", ns.find_string("name").value_or("unnamed").c_str());
+
+    // Present keys return the stored value
+    blob_cfg stored{};
+    stored.id = 0xCAFEF00D;
+    ns.set_value<uint32_t>("boots", 42);
+    ns.set_string("name", "widget");
+    ns.set_blob("cfg", stored);
+    ns.commit();
+    TEST_ASSERT_EQUAL_UINT32(42, ns.find_value<uint32_t>("boots").value_or(7));
+    TEST_ASSERT_EQUAL_STRING("widget", ns.find_string("name").value_or("unnamed").c_str());
+    auto found_cfg = ns.find_blob<blob_cfg>("cfg");
+    TEST_ASSERT_TRUE(found_cfg.has_value());
+    TEST_ASSERT_EQUAL_HEX32(0xCAFEF00D, found_cfg->id);
+
+    // Errors other than not found throw
+    auto moved = std::move(ns);
+    bool threw = false;
+    try {
+        (void)ns.find_value<uint32_t>("boots");
+    } catch (const std::system_error& e) {
+        threw = true;
+        TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), e.code().value());
+    }
+    TEST_ASSERT_TRUE(threw);
+}
+
 #endif // CONFIG_COMPILER_CXX_EXCEPTIONS
 
 // =============================================================================
@@ -1041,6 +1313,18 @@ TEST_CASE("moved-from nvs returns invalid_handle", "[idfxx][nvs]") {
     auto commit_result = nvs_handle->try_commit();
     TEST_ASSERT_FALSE(commit_result.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(nvs::errc::invalid_handle), commit_result.error().value());
+
+    auto find_value_result = nvs_handle->try_find_value<uint32_t>("key");
+    TEST_ASSERT_FALSE(find_value_result.has_value());
+    TEST_ASSERT_EQUAL(
+        std::to_underlying(nvs::errc::invalid_handle), find_value_result.error().value()
+    );
+
+    auto find_string_result = nvs_handle->try_find_string("key");
+    TEST_ASSERT_FALSE(find_string_result.has_value());
+    TEST_ASSERT_EQUAL(
+        std::to_underlying(nvs::errc::invalid_handle), find_string_result.error().value()
+    );
 
     // Moved-to object should work normally
     TEST_ASSERT_TRUE(moved.try_set_string("key", "value").has_value());

@@ -148,6 +148,17 @@ static result<void> guard_write(nvs_handle_t handle, bool read_only) {
     return {};
 }
 
+// ESP-IDF compares only the first NVS_KEY_NAME_MAX_SIZE - 1 (15) characters of a key when it looks
+// up an entry. It checks the length only when it writes an entry. A read or an erase with a longer
+// key would use the entry whose key is the first 15 characters, so every operation rejects a
+// longer key.
+static result<void> guard_key(std::string_view key) {
+    if (key.size() > NVS_KEY_NAME_MAX_SIZE - 1) {
+        return error(nvs::errc::key_too_long);
+    }
+    return {};
+}
+
 static result<nvs_handle_t> open_nvs(std::string_view namespace_name, bool read_only) {
     // Validate namespace name: must not be empty and max 15 characters
     if (namespace_name.empty() || namespace_name.length() > 15) {
@@ -218,6 +229,10 @@ nvs::nvs(nvs_handle_t handle, bool read_only)
     : _handle(handle)
     , _read_only(read_only) {}
 
+bool nvs::_is_not_found(const std::error_code& ec) noexcept {
+    return ec == nvs::errc::not_found;
+}
+
 nvs::nvs(nvs&& other) noexcept
     : _handle(std::exchange(other._handle, 0))
     , _read_only(other._read_only) {}
@@ -255,6 +270,9 @@ result<void> nvs::try_erase(std::string_view key) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
     }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
+    }
     std::string key_str{key};
     esp_err_t err = nvs_erase_key(_handle, key_str.c_str());
     if (err != ESP_OK) {
@@ -282,6 +300,9 @@ result<void> nvs::try_set_string(std::string_view key, std::string_view value) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
     }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
+    }
     std::string key_str{key};
     std::string value_str{value};
     esp_err_t err = nvs_set_str(_handle, key_str.c_str(), value_str.c_str());
@@ -295,6 +316,9 @@ result<void> nvs::try_set_string(std::string_view key, std::string_view value) {
 result<std::string> nvs::try_get_string(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
+    }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
     }
     std::string key_str{key};
 
@@ -325,6 +349,9 @@ result<void> nvs::try_set_blob(std::string_view key, byte_view data) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
     }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
+    }
     std::string key_str{key};
     esp_err_t err = nvs_set_blob(_handle, key_str.c_str(), data.data(), data.size());
     if (err != ESP_OK) {
@@ -337,6 +364,9 @@ result<void> nvs::try_set_blob(std::string_view key, byte_view data) {
 result<size_t> nvs::try_blob_size(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
+    }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
     }
     std::string key_str{key};
     size_t length = 0;
@@ -368,6 +398,9 @@ result<size_t> nvs::try_get_blob(std::string_view key, byte_span buf) {
     }
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
+    }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
     }
     std::string key_str{key};
     size_t length = buf.size();
@@ -418,6 +451,9 @@ result<void> nvs::try_set_value(std::string_view key, T value) {
     if (auto r = guard_write(_handle, _read_only); !r) {
         return r;
     }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
+    }
     std::string key_str{key};
     esp_err_t err = nvs_ops<T>::set(_handle, key_str.c_str(), value);
     if (err != ESP_OK) {
@@ -432,6 +468,9 @@ template<typename T>
 result<T> nvs::try_get_value(std::string_view key) {
     if (_handle == 0) {
         return error(nvs::errc::invalid_handle);
+    }
+    if (auto r = guard_key(key); !r) {
+        return error(r.error());
     }
     std::string key_str{key};
     T value;

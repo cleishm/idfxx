@@ -65,6 +65,9 @@ try {
     std::string name = nvs.get_string("name");
     std::vector<std::byte> data = nvs.get_blob("data");
 
+    // Look up a key that may not exist (other errors still throw)
+    uint32_t boots = nvs.find_value<uint32_t>("boots").value_or(0);
+
     // Erase operations
     nvs.erase("old_key");
     nvs.commit();
@@ -125,6 +128,14 @@ if (!read_result) {
     return;
 }
 idfxx::log::info("NVS", "Counter value: {}", *read_result);
+
+// Look up a key that may not exist (other errors are returned)
+auto boots_result = nvs.try_find_value<uint32_t>("boots"); // result<std::optional<uint32_t>>
+if (!boots_result) {
+    idfxx::log::error("NVS", "Failed to read boots: {}", boots_result.error().message());
+    return;
+}
+uint32_t boots = boots_result->value_or(0);
 ```
 
 ### Storing Different Data Types
@@ -277,6 +288,11 @@ The component provides two API styles:
 - `get_blob(key, idfxx::byte_span buf)` → `size_t` blob length (throws on error)
 - `get_blob<T>(key)` → `T` (throws on error)
 - `blob_size(key)` → `size_t` (throws on error)
+- `find_value<T>(key)` → `std::optional<T>`, empty if the key is not found (throws on other errors)
+- `find_string(key)` → `std::optional<std::string>` (same rule)
+- `find_blob(key)` → `std::optional<std::vector<std::byte>>` (same rule)
+- `find_blob(key, idfxx::byte_span buf)` → `std::optional<size_t>` blob length (same rule)
+- `find_blob<T>(key)` → `std::optional<T>` (same rule)
 
 **Result-based:**
 - `try_get_value<T>(key)` → `result<T>`
@@ -285,6 +301,11 @@ The component provides two API styles:
 - `try_get_blob(key, idfxx::byte_span buf)` → `result<size_t>`
 - `try_get_blob<T>(key)` → `result<T>`
 - `try_blob_size(key)` → `result<size_t>`
+- `try_find_value<T>(key)` → `result<std::optional<T>>`, an empty optional if the key is not found
+- `try_find_string(key)` → `result<std::optional<std::string>>`
+- `try_find_blob(key)` → `result<std::optional<std::vector<std::byte>>>`
+- `try_find_blob(key, idfxx::byte_span buf)` → `result<std::optional<size_t>>`
+- `try_find_blob<T>(key)` → `result<std::optional<T>>`
 
 ### Erasing Data
 
@@ -301,7 +322,8 @@ The component provides two API styles:
 The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 
 - `not_found` - Key doesn't exist
-- `type_mismatch` - Wrong type for key
+- `type_mismatch` - The operation doesn't match the type of the stored value. A read with another
+  type fails with `not_found` instead
 - `read_only` - Namespace opened read-only
 - `not_enough_space` - Flash full
 - `invalid_name` - Invalid namespace name
@@ -334,7 +356,8 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
   - Use exception-based API for cleaner code when exceptions are available
 - Changes are **not persisted** until `commit()` / `try_commit()` is called
 - Namespace names are limited to 15 characters
-- Key names are limited to 15 characters
+- Key names are limited to 15 characters. Every operation fails with `nvs::errc::key_too_long`
+  for a longer key
 - Each namespace is independent
 - Call `nvs::flash::init()` or `nvs::flash::try_init()` once before using NVS
 - Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
@@ -349,6 +372,9 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
   changes, earlier blobs become unreadable or are misread. Arrays, spans, vectors and other ranges
   are stored as their elements' bytes instead. Pass ranges of other element types (e.g.
   `uint32_t`) as `std::as_bytes(std::span{values})`
+- NVS stores each entry with its type. A read with one type does not find a key that holds a value
+  of another type, and fails with `nvs::errc::not_found`. This includes an integer of another
+  width or signedness. The `find_*` methods return an empty optional in this case
 - `secure_config` keys (`eky`, `tky`) are `std::array<std::byte, 32>`
 
 ## License
