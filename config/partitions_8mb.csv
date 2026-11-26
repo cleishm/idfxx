@@ -8,10 +8,12 @@
 # fatimg: raw FAT image (generated at build time) for the idfxx_fatfs image tests.
 # Both are kept small to leave room for ota_0. storage must hold the volume tests'
 # 64 KiB file. fatimg must hold the generated image plus one spare cluster.
+# log: raw partition for the idfxx_persistent_log service tests.
 # Note: if you have increased the bootloader size, make sure to update the offsets to avoid overlap
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,
 phy_init, data, phy,     0x10000, 0x1000,
-ota_0,    app,  ota_0,   0x20000, 0x7B0000,
+ota_0,    app,  ota_0,   0x20000, 0x7A0000,
+log,      data, undefined, 0x7C0000, 0x10000,
 storage,  data, fat,     0x7D0000, 0x20000,
 fatimg,   data, fat,     0x7F0000, 0x10000,

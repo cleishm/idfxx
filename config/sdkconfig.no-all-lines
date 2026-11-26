@@ -1,0 +1,11 @@
+# Turns off CONFIG_IDFXX_LOG_ALL_LINES and CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES. It is
+# added to config/sdkconfig.qemu for another QEMU run of idfxx_log's and idfxx_persistent_log's
+# tests (`just qemu-test-no-all-lines`, and CI's qemu-test (no all_lines) job). The other QEMU runs
+# build with both options on. Without them, nothing wraps ESP-IDF's log, idfxx_log's sinks receive
+# only the lines logged through idfxx::log, and idfxx_persistent_log's capture stores only those
+# lines.
+#
+# CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES selects CONFIG_IDFXX_LOG_ALL_LINES, so both must be
+# turned off.
+# CONFIG_IDFXX_LOG_ALL_LINES is not set
+# CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES is not set

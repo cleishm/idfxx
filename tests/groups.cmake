@@ -31,6 +31,7 @@ set(IDFXX_TEST_GROUP_system
     idfxx_console
     idfxx_nvs
     idfxx_partition
+    idfxx_persistent_log
     idfxx_ota
     idfxx_dht
     idfxx_onewire

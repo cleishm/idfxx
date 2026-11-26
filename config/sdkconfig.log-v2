@@ -1,7 +1,7 @@
 # Selects ESP-IDF's log v2. It is added to config/sdkconfig.qemu for a second QEMU run of
-# idfxx_log's tests (`just qemu-test-logv2`, and CI's qemu-test (log v2) job). Log v1 is ESP-IDF's
-# default. Every other config builds with log v1. idfxx_log's sinks handle lines from the two
-# versions differently.
+# idfxx_log's and idfxx_persistent_log's tests (`just qemu-test-logv2`, and CI's qemu-test (log v2)
+# job). Log v1 is ESP-IDF's default. Every other config builds with log v1. idfxx_log's sinks handle
+# lines from the two versions differently.
 #
 # Don't use it for the whole suite in QEMU. QEMU reports the flash cache as disabled, so log v2
 # prints through the ROM's printf. That printf does not support "%.*s", and logging a line that uses

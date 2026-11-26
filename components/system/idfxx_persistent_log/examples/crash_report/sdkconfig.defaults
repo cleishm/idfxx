@@ -1,0 +1,15 @@
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+CONFIG_COMPILER_CXX_RTTI=y
+
+# The main task records faults. In a debug build, that uses about 4.7 KiB of its stack, which is
+# more than the default of 3584 bytes
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+
+# The partition table with the `log` partition
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# A core dump in flash (in the `coredump` partition) gives the `panic` fault its task, program
+# counter, backtrace and panic reason
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y

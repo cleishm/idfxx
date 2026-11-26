@@ -1,0 +1,81 @@
+menu "IDFXX persistent log"
+    config IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES
+        bool "Capture every ESP-IDF log line"
+        depends on IDFXX_STD_FORMAT
+        default y
+        select IDFXX_LOG_ALL_LINES
+        help
+            Lets the log capture ESP-IDF's log lines as well as the lines logged through
+            idfxx::log. ESP-IDF's log lines are the lines logged with ESP_LOGx and esp_log_write,
+            and by the libraries and other idfxx components that log through ESP-IDF's log.
+            config::capture selects which lines are stored.
+
+            With this option enabled, capture is an idfxx::log sink added with
+            idfxx::log::all_lines, so this option also enables idfxx_log's IDFXX_LOG_ALL_LINES.
+            That option wraps esp_log and esp_log_va at link time, so nothing else in the app may
+            wrap them. Its help text describes which lines sinks never receive, and how the option
+            affects stack use.
+
+            With this option disabled, capture stores only the lines logged through idfxx::log,
+            and nothing is wrapped.
+
+            Capture's levels use idfxx_log's idfxx::log::level type, so capture needs std::format
+            support (IDFXX_STD_FORMAT). Without std::format support, capture is off. The log then
+            stores only the lines that the app passes to persistent_log::append(), and
+            config::capture is not defined.
+
+    config IDFXX_PERSISTENT_LOG_RTC_RING_SIZE
+        int "RTC ring size (bytes)"
+        default 2048
+        range 512 65536
+        help
+            The size of the ring buffer in RTC memory (the RTC ring) that holds the log's lines
+            until they are written to flash. The RTC ring survives deep sleep and any reset other
+            than a power cut. After a firmware update that changes this size, start discards the
+            lines that the ring holds. When more lines are waiting than the ring can hold, the
+            oldest lines are dropped. The next flush then writes a line that says how many bytes
+            were dropped. A flush copies the ring's pending bytes through a buffer of the same size
+            in internal RAM. Each reader of the log's entries allocates a buffer on the heap whose
+            size is this size plus the size of the longest entry.
+
+            The ring must hold at least 73 + MAX_LINE + MAX_LINE / 2 bytes, where MAX_LINE is
+            IDFXX_PERSISTENT_LOG_MAX_LINE, or the build fails. That is the size of the longest
+            entry: the stamp, the text, a tab for each line after the first, and the newline.
+
+            The ring must also fit in the target's RTC memory, together with everything else
+            stored there, or linking fails. RTC memory is 8 KiB on esp32, esp32s2, esp32s3 and
+            esp32c3, 16 KiB on esp32c6 and 4 KiB on esp32h2, minus what the bootloader and the ULP
+            coprocessor reserve.
+
+    config IDFXX_PERSISTENT_LOG_MAX_LINE
+        int "Maximum length of a log entry (bytes)"
+        default 256
+        range 64 1024
+        help
+            The maximum length of an entry, not counting its stamp or the tabs that start its
+            later lines. For a captured line, the entry is the line's level and tag ("L tag: ")
+            followed by its message. For persistent_log::append(), the entry is the text of one
+            call. A longer entry is shortened to this limit, at a UTF-8 character boundary.
+
+            A line captured from ESP-IDF's log (with IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES) may
+            already have been shortened by idfxx_log (see IDFXX_LOG_SINK_MAX_LINE). Lines logged
+            through idfxx::log are passed complete. The RTC ring must be large enough for the
+            longest entry (see IDFXX_PERSISTENT_LOG_RTC_RING_SIZE).
+
+            While capture is on, each task that logs uses stack for capture:
+            - With IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES enabled, the task uses the stack that
+              IDFXX_LOG_SINK_MAX_LINE's help gives for a sink added with all_lines, plus up to
+              about 768 bytes more for capture itself.
+            - With IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES disabled, the task uses up to about
+              768 bytes more than it uses to log the line through idfxx::log without capture.
+            Both figures were measured on esp32s3 in QEMU.
+
+    config IDFXX_PERSISTENT_LOG_SUPPRESSED_FAULTS
+        int "Maximum number of suppressed fault kinds"
+        default 8
+        range 1 32
+        help
+            The maximum number of fault kinds with suppressed repeats that RTC memory holds at the
+            same time. RTC memory holds these kinds so that a repeat of a suppressed fault is not
+            recorded again.
+endmenu

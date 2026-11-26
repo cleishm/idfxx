@@ -8,3 +8,9 @@ CONFIG_LWIP_IPV6=n
 # also compiles idfxx_log without the add_sink(all_lines, ...) overloads and without the wrappers
 # for esp_log and esp_log_va.
 # CONFIG_IDFXX_LOG_ALL_LINES is not set
+
+# Also turns off idfxx_persistent_log's CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES. That option
+# selects CONFIG_IDFXX_LOG_ALL_LINES, so it would turn that option back on. This config then
+# compiles idfxx_persistent_log's capture without the log wrapper, so that capture stores only the
+# lines logged through idfxx::log.
+# CONFIG_IDFXX_PERSISTENT_LOG_CAPTURE_ALL_LINES is not set
