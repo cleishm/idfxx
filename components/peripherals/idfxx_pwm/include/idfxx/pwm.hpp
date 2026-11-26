@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -488,7 +489,8 @@ inline constexpr timer hs_timer_3 = timer_constant<3, speed_mode::high_speed>::v
  * @brief Output configuration parameters.
  */
 struct output_config {
-    /// Initial duty cycle ratio (0.0 to 1.0).
+    /// Initial duty cycle ratio, in range [0.0, 1.0]. A value outside this range is clamped to it.
+    /// NaN is rejected with `invalid_arg`.
     float duty = 0.0f;
     /// High point in the PWM cycle.
     int hpoint = 0;
@@ -610,7 +612,7 @@ void stop(
  * @return The active output, or an error.
  *
  * @retval invalid_state Timer not configured.
- * @retval invalid_arg GPIO not connected or invalid channel.
+ * @retval invalid_arg GPIO not connected, invalid channel, or `cfg.duty` is NaN.
  */
 [[nodiscard]] result<output>
 try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_config& cfg);
@@ -651,7 +653,7 @@ try_start(idfxx::gpio gpio, const timer& tmr, enum channel ch, const output_conf
  * @return The active output, or an error.
  *
  * @retval not_found No free timer or channel available.
- * @retval invalid_arg GPIO not connected or invalid configuration.
+ * @retval invalid_arg GPIO not connected, invalid configuration, or `out_cfg.duty` is NaN.
  */
 [[nodiscard]] result<output>
 try_start(idfxx::gpio gpio, const timer::config& cfg, const output_config& out_cfg);
@@ -781,6 +783,7 @@ public:
      * Thread-safe. The new duty takes effect on the next PWM cycle.
      *
      * @param duty Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
+     *             NaN is rejected.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
@@ -793,7 +796,11 @@ public:
      * Thread-safe. The new duty takes effect on the next PWM cycle.
      *
      * @param duty Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
+     *             NaN is rejected.
      * @return Success, or an error.
+     *
+     * @retval invalid_state The output was stopped or released.
+     * @retval invalid_arg @p duty is NaN.
      */
     [[nodiscard]] result<void> try_set_duty(float duty);
 
@@ -897,7 +904,8 @@ public:
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
-     * @param target Duty ratio in range [0.0, 1.0].
+     * @param target Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
+     *               NaN is rejected.
      * @param duration Fade duration.
      * @param mode Whether to block until the fade completes.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -920,13 +928,14 @@ public:
      *
      * @tparam Rep Duration representation type.
      * @tparam Period Duration period type.
-     * @param target Duty ratio in range [0.0, 1.0].
+     * @param target Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
+     *               NaN is rejected.
      * @param duration Fade duration.
      * @param mode Whether to block until the fade completes.
      * @return Success, or an error.
      *
      * @retval fail Fade service not installed.
-     * @retval invalid_arg Invalid parameters.
+     * @retval invalid_arg Invalid parameters, or @p target is NaN.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_fade_to(
@@ -934,6 +943,9 @@ public:
         const std::chrono::duration<Rep, Period>& duration,
         enum fade_mode mode = fade_mode::no_wait
     ) {
+        if (std::isnan(target)) {
+            return error(errc::invalid_arg);
+        }
         return _try_fade_to_duty(
             static_cast<uint32_t>(std::clamp(target, 0.0f, 1.0f) * static_cast<float>(ticks_max())),
             std::chrono::ceil<std::chrono::milliseconds>(duration),

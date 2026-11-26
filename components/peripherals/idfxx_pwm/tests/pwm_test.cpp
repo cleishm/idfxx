@@ -8,11 +8,14 @@
 #include "unity.h"
 
 #include <chrono>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
 using namespace idfxx::pwm;
 using namespace quanta::frequency_literals;
+
+static constexpr float nan_duty = std::numeric_limits<float>::quiet_NaN();
 
 // =============================================================================
 // Compile-time tests (static_assert)
@@ -176,6 +179,16 @@ TEST_CASE("try_start with NC gpio returns error", "[idfxx][pwm][output]") {
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
 }
 
+TEST_CASE("try_start with NaN duty returns error", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0, {.duty = nan_duty});
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
+    TEST_ASSERT_FALSE(is_active(channel::ch_0));
+}
+
 TEST_CASE("try_start with valid config succeeds", "[idfxx][pwm][output]") {
     auto tmr = timer_0;
     TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
@@ -196,6 +209,33 @@ TEST_CASE("output try_set_duty with ratio succeeds", "[idfxx][pwm][output][hw]")
     auto set_result = out.try_set_duty(0.5f);
     TEST_ASSERT_TRUE(set_result.has_value());
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.5f, out.duty());
+}
+
+TEST_CASE("output try_set_duty with NaN returns error", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0, {.duty = 0.5f});
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto& out = *result;
+    auto ticks = out.duty_ticks();
+    auto set_result = out.try_set_duty(nan_duty);
+    TEST_ASSERT_FALSE(set_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), set_result.error().value());
+    TEST_ASSERT_EQUAL(ticks, out.duty_ticks());
+}
+
+TEST_CASE("output try_fade_to with NaN returns error", "[idfxx][pwm][output]") {
+    auto tmr = timer_0;
+    TEST_ASSERT_TRUE(tmr.try_configure({.frequency = 5000_Hz, .resolution_bits = 13}).has_value());
+
+    auto result = try_start(idfxx::gpio_18, tmr, channel::ch_0);
+    TEST_ASSERT_TRUE(result.has_value());
+
+    auto fade_result = result->try_fade_to(nan_duty, std::chrono::milliseconds{10});
+    TEST_ASSERT_FALSE(fade_result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), fade_result.error().value());
 }
 
 TEST_CASE("output try_set_duty_ticks succeeds and reads back", "[idfxx][pwm][output][hw]") {
@@ -350,6 +390,14 @@ TEST_CASE("auto try_start with valid config succeeds", "[idfxx][pwm][auto][hw]")
     auto set_result = out.try_set_duty(0.5f);
     TEST_ASSERT_TRUE(set_result.has_value());
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.5f, out.duty());
+}
+
+TEST_CASE("auto try_start with NaN duty returns error", "[idfxx][pwm][auto]") {
+    auto result = try_start(
+        idfxx::gpio_18, {.frequency = 5000_Hz, .resolution_bits = 13}, {.duty = nan_duty}
+    );
+    TEST_ASSERT_FALSE(result.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), result.error().value());
 }
 
 TEST_CASE("auto try_start with NC gpio returns error", "[idfxx][pwm][auto]") {
