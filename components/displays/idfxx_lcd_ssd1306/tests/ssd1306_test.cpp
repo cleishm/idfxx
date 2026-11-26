@@ -16,7 +16,7 @@
 using namespace idfxx::lcd;
 using namespace quanta::frequency_literals;
 
-// SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work; the
+// SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work. The
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
 #ifdef CONFIG_IDF_TARGET_ESP32C2
 inline constexpr auto TEST_SDA = idfxx::gpio_4;
@@ -27,7 +27,7 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // ssd1306::config is default-constructible
@@ -113,8 +113,8 @@ TEST_CASE("ssd1306::make rejects invalid height", "[idfxx][lcd][ssd1306]") {
 
 // Drives a real SPI bus, so it runs on hardware only.
 TEST_CASE("ssd1306 draw_bitmap requires page-aligned regions", "[idfxx][lcd][ssd1306][hw]") {
-    // Commands get no reply over SPI, so the panel is created without one attached. The pins
-    // match the panel_io SPI tests; there is no D/C line.
+    // Commands get no reply over SPI, so the panel can be created with no device attached. The
+    // pins match the panel_io SPI tests. There is no D/C line.
     idfxx::spi::bus_config bus_cfg{};
     bus_cfg.mosi = idfxx::gpio_11;
     bus_cfg.sclk = idfxx::gpio_12;
@@ -141,11 +141,12 @@ TEST_CASE("ssd1306 draw_bitmap requires page-aligned regions", "[idfxx][lcd][ssd
     auto fb = mono_framebuffer::make(16, 8);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    // Unswapped, the pages run along y: 16 columns of rows [4, 12), or of rows [0, 4).
+    // Unswapped, the pages run along y. Regions of 16 columns over rows [4, 12) or rows [0, 4)
+    // are rejected.
     assert_invalid_arg(display->try_draw_bitmap(0, 4, 16, 12, data));
     assert_invalid_arg(display->try_draw_bitmap(0, 0, 16, 4, idfxx::byte_view{data}.first(8)));
 
-    // A page-aligned region passes, whatever its columns, as does a framebuffer.
+    // A page-aligned region passes, whatever its columns. A framebuffer write also passes.
     TEST_ASSERT_TRUE(display->try_draw_bitmap(0, 8, 16, 16, data).has_value());
     TEST_ASSERT_TRUE(display->try_draw_bitmap(3, 0, 5, 32, idfxx::byte_view{data}.first(8)).has_value());
     TEST_ASSERT_TRUE(display->try_write(*fb).has_value());
@@ -160,12 +161,13 @@ TEST_CASE("ssd1306 draw_bitmap requires page-aligned regions", "[idfxx][lcd][ssd
     TEST_ASSERT_TRUE(display->try_draw_bitmap(0, 4, 8, 12, idfxx::byte_view{data}.first(8)).has_value());
     TEST_ASSERT_TRUE(display->try_draw_bitmap(8, 3, 16, 5, idfxx::byte_view{data}.first(2)).has_value());
 
-    // A framebuffer's pages group rows, which the swapped panel can't take.
+    // A framebuffer's pages group rows, so a framebuffer write to the swapped panel fails.
     auto written = display->try_write(*fb);
     TEST_ASSERT_FALSE(written.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), written.error().value());
 
-    // Unswapped again, the framebuffer and the row-aligned regions pass once more.
+    // Unswapped again, a framebuffer write passes. The region that passed while swapped is
+    // rejected, because its rows [4, 12) are not page-aligned.
     TEST_ASSERT_TRUE(display->try_swap_xy(false).has_value());
     TEST_ASSERT_FALSE(display->axes_swapped());
     TEST_ASSERT_TRUE(display->try_write(*fb).has_value());

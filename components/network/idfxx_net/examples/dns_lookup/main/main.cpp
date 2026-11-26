@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Demonstrates the DNS resolver: `resolve_one` for the first match,
-// `resolve_each` to iterate candidates without allocating, `resolve` for
-// the full result set, family filtering, and the `numeric_host` option (parses
-// a literal address with no DNS lookup).
+// Demonstrates the DNS resolver:
+//   - `resolve_one` for the first match
+//   - `resolve_each` to iterate candidates without allocating
+//   - `resolve` for the full result set
+//   - family filtering
+//   - the `numeric_host` option, which parses a literal address with no DNS lookup
 
 #include <idfxx/event>
 #include <idfxx/event_group>
@@ -72,8 +74,8 @@ extern "C" void app_main() {
         logger.info("First match for example.com:80 is {}", first);
 
         // --- Iterate candidates without allocating ---
-        // The visitor may return bool to stop early (e.g. once connected);
-        // returning void (as here) visits every result.
+        // The visitor may return bool to stop early (e.g. once connected). If it
+        // returns void (as here), every result is visited.
         logger.info("--- resolve_each ---");
         idfxx::net::resolve_each("example.com", 443, [](const idfxx::net::endpoint& ep) {
             logger.info("  candidate {}", ep);
@@ -106,9 +108,9 @@ void resolve_host(
     }
 }
 
-// Brings up the WiFi STA, blocks until DHCP assigns an IPv4 address, and
-// registers an auto-reconnect listener for the rest of the program's lifetime.
-// Returns the assigned address. Call once.
+// Starts the Wi-Fi station (STA) and blocks until DHCP assigns an IPv4 address.
+// Also registers a listener that reconnects automatically for the rest of the
+// program's lifetime. Returns the assigned address. Call once.
 idfxx::net::ipv4_addr connect_to_wifi() {
     idfxx::event_loop::create_system();
     idfxx::netif::init();
@@ -127,8 +129,8 @@ idfxx::net::ipv4_addr connect_to_wifi() {
     loop.listener_add(
         idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            // Listener runs in the event-loop trampoline (C frame); exceptions
-            // must not escape, so suppress at this boundary.
+            // The listener runs in the event-loop trampoline (a C frame).
+            // Exceptions must not escape it, so catch them at this boundary.
             try {
                 idfxx::wifi::connect();
             } catch (const std::system_error& e) {

@@ -31,27 +31,27 @@ namespace idfxx::epaper {
  * @brief In-memory framebuffer for six-color (E Ink Spectra 6) ePaper displays.
  *
  * Each pixel is a @ref color6 value (4 bits). Pixels are stored row-major,
- * two per byte, in the native format of Spectra 6 controllers: the **high
- * nibble holds the left (even-x) pixel** and the low nibble the right
- * (odd-x) one, rows are laid out top-to-bottom, and each row is padded to a
+ * two per byte, in the native format of Spectra 6 controllers. The **high
+ * nibble holds the left (even-x) pixel**, and the low nibble holds the right
+ * (odd-x) one. Rows are laid out top-to-bottom, and each row is padded to a
  * whole number of bytes (@ref stride_bytes). The byte for pixel (x, y) is at
  * index `y * stride_bytes() + x / 2`. The nibble values are the panel-native
  * codes, so the bytes stream to the controller unchanged.
  *
  * A new framebuffer starts all-white (`color6::white`). Note that a
  * value-initialized `color6{}` is black, so a *windowed*
- * `idfxx::gfx::canvas::clear` inks its region rather than blanking it;
- * whole-surface clears use this class's own @ref clear and blank to paper.
+ * `idfxx::gfx::canvas::clear` inks its region rather than blanking it.
+ * Whole-surface clears use this class's own @ref clear and blank to paper.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then upload it
- * to a panel's RAM with @ref panel::write (full frame) or
+ * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
+ * Then upload it to a panel's RAM with @ref panel::write (full frame) or
  * @ref panel::write_rows (a horizontal band), and make it visible with
  * @ref panel::refresh. This is a plain value type: copyable, movable, and
- * independent of any panel. Its storage is a plain `std::vector`: a full
- * 1200x1600 frame is 960 KB, which lands in PSRAM automatically when
- * `CONFIG_SPIRAM_USE_MALLOC` is enabled (large allocations go external by
- * default); without PSRAM, draw through a band-sized framebuffer with
- * `idfxx::gfx::render_banded` instead.
+ * independent of any panel. Its storage is a plain `std::vector`. A full
+ * 1200x1600 frame is 960 KB, which is placed in PSRAM automatically when
+ * `CONFIG_SPIRAM_USE_MALLOC` is enabled (large allocations go to external
+ * memory by default). Without PSRAM, draw through a band-sized framebuffer
+ * with `idfxx::gfx::render_banded` instead.
  *
  * @code
  * display.set_color_mode(idfxx::epaper::color_mode::color6);
@@ -68,7 +68,7 @@ public:
 
     /**
      * @brief Destination-column alignment required by @ref panel::write.
-     * Two pixels share a byte, so a framebuffer must land on an even column.
+     * Two pixels share a byte, so a framebuffer must start on an even column.
      */
     static constexpr size_t x_alignment = 2;
 
@@ -76,8 +76,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
@@ -89,8 +89,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @return The new color6_framebuffer, or an error.
      * @retval idfxx::errc::invalid_arg if @p width or @p height is zero.
@@ -194,13 +194,13 @@ public:
      * @brief Returns the raw row-major pixel data for modification.
      *
      * The same `stride_bytes() * height()` bytes as the read-only overload,
-     * in the same layout, for filling the whole framebuffer in one copy —
-     * for example, loading a previously saved frame.
+     * in the same layout, for filling the whole framebuffer in one copy, for
+     * example to load a previously saved frame.
      *
      * Bytes written this way are not checked: every nibble should hold a
      * @ref color6 code. The pixel accessors keep the padding nibble of an
-     * odd-width framebuffer white; raw writes should too, since padding is
-     * uploaded to the panel along with its row.
+     * odd-width framebuffer white. Raw writes should keep it white too,
+     * because padding is uploaded to the panel along with its row.
      *
      * @return A mutable view of the pixel data.
      */

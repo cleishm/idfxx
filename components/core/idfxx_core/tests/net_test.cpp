@@ -275,7 +275,7 @@ TEST_CASE("ip6 to_string zone appended", "[idfxx][net]") {
 }
 
 TEST_CASE("ip6 to_string zeros at both ends prefer first", "[idfxx][net]") {
-    // 0:0:1:2:3:4:0:0 — both runs are length 2, first wins
+    // 0:0:1:2:3:4:0:0 — both runs are length 2, so the first is compressed
     auto addr = ip6_from_groups(0, 0, 1, 2, 3, 4, 0, 0);
     auto s = idfxx::to_string(addr);
     TEST_ASSERT_EQUAL_STRING("::1:2:3:4:0:0", s.c_str());
@@ -540,7 +540,7 @@ TEST_CASE("ipv4_addr format honors fill/align/width spec", "[idfxx][net]") {
     auto addr = idfxx::net::ipv4_addr(1, 2, 3, 4);
     TEST_ASSERT_EQUAL_STRING("1.2.3.4", std::format("{}", addr).c_str());
     // A non-trivial spec used to throw std::format_error because parse() did
-    // not consume it; it must now right-align within the requested width.
+    // not consume it. It must now right-align within the requested width.
     TEST_ASSERT_EQUAL_STRING("       1.2.3.4", std::format("{:>14}", addr).c_str());
 }
 

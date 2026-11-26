@@ -75,7 +75,7 @@ void process(std::string_view name, int value) {
 
 ### Convenience Macros
 
-For guaranteed zero-cost elimination when compile-time filtered:
+With the macros, the compiler always eliminates a call that is filtered out at compile time:
 
 ```cpp
 #include <idfxx/log>
@@ -104,8 +104,8 @@ void configure_logging() {
 ### Sinks
 
 A sink receives the lines that it wants. Its choice is independent of the console's log levels, so
-it can receive a line that `set_level()` hides from the console. Derive a class from
-`idfxx::log::sink` and add an instance of it:
+it can receive a line that is more verbose than the level set with `set_level()`. Derive a class
+from `idfxx::log::sink` and add an instance of it:
 
 ```cpp
 #include <idfxx/log>
@@ -230,18 +230,19 @@ The logging functions do not report errors.
 
 - **Requires `CONFIG_IDFXX_STD_FORMAT`**: This component depends on `<format>` and requires the
   `CONFIG_IDFXX_STD_FORMAT` Kconfig option to be enabled (the default). With the option disabled,
-  the component compiles nothing, so an app can still depend on it (directly or through another
-  component) as long as no code includes `<idfxx/log>`; including it stops the build with an
-  error saying so. If you need logging without `std::format` overhead, use ESP-IDF's `ESP_LOGx`
-  macros directly.
+  the component compiles nothing. An app can then still depend on it, directly or through another
+  component, as long as no code includes `<idfxx/log>`. Including `<idfxx/log>` stops the build
+  with an error that says the option must be enabled. If you need logging without `std::format`
+  overhead, use ESP-IDF's `ESP_LOGx` macros directly.
 - **std::format allocates on the heap**: Do not use this component in ISR context, DRAM-only
   contexts, or early boot. Use ESP-IDF's `ESP_DRAM_LOGx` and `ESP_EARLY_LOGx` macros for those
   cases.
 - **Tag lifetime**: The `logger` class stores a pointer to the tag string. Use string literals or
   static storage duration strings.
-- **Three filtering layers**: Macros provide compile-time filtering, template functions check
-  `LOG_LOCAL_LEVEL`, and runtime filtering checks `esp_log_level_get()` before formatting. A line
-  that the tag's runtime level skips is still formatted if a sink wants it.
+- **Three filtering layers**: Macros provide compile-time filtering. Template functions check
+  `LOG_LOCAL_LEVEL`. Before formatting, they also check the tag's runtime level with
+  `esp_log_level_get()`. A line that is more verbose than the tag's runtime level is still
+  formatted if a sink wants it.
 - **Sink lifetime**: A sink must remain valid until it is removed. `remove_sink()` returns once no
   call into the sink is in progress, so the sink can be destroyed afterward. While a removal waits,
   other sinks can be added and removed, but the sink being removed still counts toward
@@ -267,9 +268,10 @@ The logging functions do not report errors.
     for a line logged in several calls, the line's tag.
   - The prefix is located using the line's tag, so a line with an empty tag is passed with its
     prefix still attached.
-  - The sink does not receive early, DRAM or binary-mode lines, or lines above the compile-time
-    maximum level. With `CONFIG_LOG_MASTER_LEVEL` under log v1, it also does not receive `ESP_LOGx`
-    lines above the master level, because the macros skip those lines before logging them.
+  - The sink does not receive early, DRAM or binary-mode lines, or lines more verbose than the
+    compile-time maximum level. With `CONFIG_LOG_MASTER_LEVEL` under log v1, it also does not
+    receive `ESP_LOGx` lines more verbose than the master level, because the macros skip those
+    lines before logging them.
 - **Stack use with `CONFIG_IDFXX_LOG_ALL_LINES`**: With the option enabled and no sink added with
   `all_lines`, each log call uses about 64 bytes more stack. With such a sink added, each log call
   uses up to about `CONFIG_IDFXX_LOG_SINK_MAX_LINE` plus 64 bytes more, plus the stack that the

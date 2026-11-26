@@ -16,7 +16,7 @@ using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // panel::config is default-constructible

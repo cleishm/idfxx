@@ -47,7 +47,7 @@ public:
     /**
      * @brief Callback type invoked when color data transfer has finished.
      *
-     * For SPI panel I/O the callback runs in ISR context; for I2C it runs in the
+     * For SPI panel I/O the callback runs in ISR context. For I2C it runs in the
      * task that issued the transfer, before the transfer call returns. In either
      * case it must not throw: throwing is not permitted in ISR context, and an
      * exception cannot propagate out of the driver to the caller.
@@ -68,14 +68,14 @@ public:
     struct spi_config {
         /// GPIO used for CS line
         required<gpio> cs_gpio;
-        /// GPIO used to select the D/C line, set to gpio::nc() if not used
+        /// GPIO used to select the D/C line. Set to gpio::nc() if not used.
         gpio dc_gpio = gpio::nc();
         /// Traditional SPI mode (0~3)
         int spi_mode = 0;
         /// Frequency of pixel clock
         required<quanta::frequency::hertz> pclk_freq;
-        /// Size of the internal transaction queue. Must be at least 1; 0 is rejected with
-        /// `errc::invalid_arg`.
+        /// Size of the internal transaction queue. Must be at least 1. A value of 0 is rejected
+        /// with `errc::invalid_arg`.
         size_t trans_queue_depth = 10;
         /// Callback invoked when color data transfer has finished
         color_transfer_done_callback on_color_transfer_done = nullptr;
@@ -83,9 +83,9 @@ public:
         required<int> lcd_cmd_bits;
         /// Bit-width of LCD parameter
         required<int> lcd_param_bits;
-        /// Amount of SPI bit-cycles the cs should be activated before the transmission (0-16)
+        /// Number of SPI bit-cycles for which CS is active before the transmission (0-16)
         uint8_t cs_enable_pretrans = 0;
-        /// Amount of SPI bit-cycles the cs should stay active after the transmission (0-16)
+        /// Number of SPI bit-cycles for which CS stays active after the transmission (0-16)
         uint8_t cs_enable_posttrans = 0;
         struct {
             /// If enabled, DC level = 1 indicates command transfer
@@ -94,11 +94,11 @@ public:
             unsigned int dc_low_on_data : 1 = 0;
             /// If enabled, DC level = 0 indicates parameter transfer
             unsigned int dc_low_on_param : 1 = 0;
-            /// transmit with octal mode (8 data lines), this mode is used to simulate Intel 8080
-            /// timing
+            /// Transmit in octal mode (8 data lines). This mode is used to simulate Intel 8080
+            /// timing.
             unsigned int octal_mode : 1 = 0;
-            /// transmit with quad mode (4 data lines), this mode is useful when transmitting LCD
-            /// parameters (Only use one line for command)
+            /// Transmit in quad mode (4 data lines). This mode is useful when transmitting LCD
+            /// parameters (commands use only one line).
             unsigned int quad_mode : 1 = 0;
             /// Read and write through a single data line (MOSI)
             unsigned int sio_mode : 1 = 0;
@@ -114,9 +114,9 @@ public:
      * @brief I2C-based panel I/O configuration.
      *
      * Every field other than device_address, scl_speed, lcd_cmd_bits, and lcd_param_bits has
-     * a sensible default. The control-phase framing is a property of the panel controller;
-     * panel driver components typically provide a pre-filled configuration (e.g.
-     * `ssd1306::i2c_io_config()`) or document the values they require.
+     * a sensible default. The control-phase framing is a property of the panel controller.
+     * Panel driver components typically provide a pre-filled configuration (e.g.
+     * `ssd1306::i2c_io_config()`) or document the values that they require.
      */
     struct i2c_config {
         /// 7-bit I2C device address (e.g. 0x3C for a typical SSD1306)
@@ -125,8 +125,8 @@ public:
         required<quanta::frequency::hertz> scl_speed;
         /// Callback invoked when color data transfer has finished
         color_transfer_done_callback on_color_transfer_done = nullptr;
-        /// Number of bytes the panel encodes control information (e.g. D/C selection) into during
-        /// the control phase
+        /// Number of bytes into which the panel encodes control information (e.g. D/C selection)
+        /// during the control phase
         size_t control_phase_bytes = 0;
         /// Offset of the D/C selection bit in the control phase
         unsigned int dc_bit_offset = 0;
@@ -136,7 +136,7 @@ public:
         required<int> lcd_param_bits;
         struct {
             /// If enabled, DC bit = 0 indicates data transfer and DC bit = 1 indicates command
-            /// transfer; vice versa otherwise
+            /// transfer. If not enabled, the reverse applies.
             unsigned int dc_low_on_data : 1 = 0;
             /// If enabled, the control phase isn't used
             unsigned int disable_control_phase : 1 = 0;

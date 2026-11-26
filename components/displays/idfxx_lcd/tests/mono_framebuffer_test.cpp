@@ -18,7 +18,7 @@ using idfxx_lcd_test::recording_panel;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // mono_framebuffer is a regular value type: copyable and movable
@@ -63,7 +63,7 @@ TEST_CASE("mono_framebuffer set_pixel uses page-packed layout", "[idfxx][lcd]") 
     auto fb = mono_framebuffer::make(width, 64);
     TEST_ASSERT_TRUE(fb.has_value());
 
-    // Pixel (3, 10) lives in page 1 (rows 8-15), bit 2 of byte width + 3.
+    // Pixel (3, 10) is in page 1 (rows 8-15), bit 2 of byte width + 3.
     fb->set_pixel(3, 10, true);
     TEST_ASSERT_EQUAL(0x04, fb->data()[width + 3]);
 
@@ -179,7 +179,7 @@ TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]
 
     recording_panel display(1);
 
-    // Rows [26, 30) round out to pages 3 (rows 24-31): one full-width draw.
+    // Rows [26, 30) are expanded to page 3 (rows 24-31): one full-width draw.
     TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
     TEST_ASSERT_EQUAL(0, display.draws[0].x_start);
@@ -189,7 +189,7 @@ TEST_CASE("panel write_rows sends one page-aligned mono transfer", "[idfxx][lcd]
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 3 * 128, display.draws[0].data);
     TEST_ASSERT_EQUAL(128, display.draws[0].size);
 
-    // With a destination offset, framebuffer row r lands at display row y + r.
+    // With a destination offset, framebuffer row r is drawn at display row y + r.
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30, 2, 8).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
@@ -234,7 +234,7 @@ TEST_CASE("panel write_region sends one mono transfer per page", "[idfxx][lcd]")
         TEST_ASSERT_EQUAL(2, display.draws[i].size);
     }
 
-    // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
+    // With a destination offset, framebuffer pixel (c, r) is drawn at (x + c, y + r).
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 26, 10, 16).has_value());
     TEST_ASSERT_EQUAL(3, display.draws.size());
@@ -276,7 +276,7 @@ TEST_CASE("panel rejects mono writes while a 1-bpp panel's axes are swapped", "[
     recording_panel display(1);
     TEST_ASSERT_TRUE(display.try_swap_xy(true).has_value());
 
-    // The framebuffer's pages group rows, which the swapped panel can't take.
+    // The framebuffer's pages group rows, which the swapped panel cannot accept.
     assert_error(display.try_write(*fb), idfxx::errc::invalid_state);
     assert_error(display.try_write_rows(*fb, 8, 16), idfxx::errc::invalid_state);
     assert_error(display.try_write_region(*fb, 3, 10, 5, 26), idfxx::errc::invalid_state);

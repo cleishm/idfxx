@@ -11,30 +11,31 @@
  * @defgroup idfxx_gfx Graphics Component
  * @brief Shapes, lines, bitmaps and text drawing on any pixel surface.
  *
- * Provides integer drawing primitives over the @ref idfxx::gfx::pixel_surface
- * concept: any type with `set_pixel(x, y, pixel)` and reported dimensions can
- * be drawn on, with the ink value matching the surface's pixel type — `bool`
- * for monochrome framebuffers, `idfxx::lcd::rgb565` for color ones. The
- * primitives are rectangles (plain and rounded), ellipses and circles,
- * triangles, lines, 1-bit bitmaps, and text in fixed-cell and proportional
- * fonts. Drawing renders "ink only": it writes the requested pixels and
- * leaves everything else untouched, so it composes over existing content
- * (only an opaque @ref idfxx::gfx::draw_bitmap also writes the pixels under
- * its clear bits).
+ * Provides integer drawing primitives for any type that satisfies the
+ * @ref idfxx::gfx::pixel_surface concept. Any type with `set_pixel(x, y, pixel)`
+ * and reported dimensions can be drawn on. The ink value has the surface's
+ * pixel type: `bool` for monochrome framebuffers and `idfxx::lcd::rgb565` for
+ * color ones. The primitives are rectangles (plain and rounded), ellipses and
+ * circles, triangles, lines, 1-bit bitmaps, and text in fixed-cell and
+ * proportional fonts. Drawing writes only ink: it writes the requested pixels
+ * and leaves all other pixels unchanged, so new drawing goes on top of the
+ * existing content. Only an opaque @ref idfxx::gfx::draw_bitmap also writes
+ * the pixels under its clear bits.
  *
- * Positions are signed (`int`) and sizes unsigned (`size_t`): a shape or a
- * line of text may start or extend off any edge of the surface — scrolling
- * text, a sprite sliding in from the left — and only its visible part is
- * drawn, with no clipping needed by the caller. Drawing never reaches column
- * or row `INT_MAX` or beyond: canvases and windows clamp their coordinate
- * spaces to at most `INT_MAX` columns and rows, and drawing on a surface
- * wider or taller than that clips there.
+ * Positions are signed (`int`) and sizes are unsigned (`size_t`). A shape or
+ * a line of text can start or extend past any edge of the surface, for
+ * example scrolling text or a sprite that slides in from the left. Only its
+ * visible part is drawn, and the caller does not need to clip it. Drawing
+ * never writes column or row `INT_MAX` or beyond. Canvases and windows clamp
+ * their coordinate spaces to at most `INT_MAX` columns and rows. Drawing on a
+ * surface that is wider or taller than that is clipped at that limit.
  *
  * The primitives are available two ways: as members of @ref
- * idfxx::gfx::canvas, a lightweight view bundling a surface with the drawing
- * operations, and as free functions taking the surface as their first
- * argument. @ref idfxx::gfx::rotated adapts a surface mounted a quarter turn
- * from the drawing layout (a portrait panel used landscape).
+ * idfxx::gfx::canvas, a lightweight view that combines a surface with the
+ * drawing primitives, and as free functions that take the surface as their
+ * first argument. @ref idfxx::gfx::rotated adapts a surface that is mounted a
+ * quarter turn from the drawing layout, for example a portrait panel that is
+ * used in landscape orientation.
  *
  * @code
  * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
@@ -79,7 +80,7 @@ namespace idfxx::gfx {
  * A pixel surface names its pixel value type (`pixel_type`), reports its
  * dimensions, and accepts pixel writes at (x, y) coordinates with (0, 0) the
  * top-left corner. Writes outside `[0, width()) x [0, height())` must be
- * ignored; drawing functions rely on this for clipping.
+ * ignored. Drawing functions rely on this for clipping.
  *
  * `idfxx::lcd::mono_framebuffer` (`pixel_type` = `bool`) and
  * `idfxx::lcd::rgb565_framebuffer` (`pixel_type` = `idfxx::lcd::rgb565`)
@@ -103,16 +104,16 @@ namespace detail {
 // positions, size_t extents clamped to a clip, and clip coordinates, so
 // positions near the int limits never overflow.
 //
-// The 64-bit arithmetic lives in the non-template helpers below, kept out of
-// line, so the drawing templates instantiated per surface type run on
-// size_t values that are already clipped.
+// The 64-bit arithmetic is in the non-template helpers below. These helpers
+// are kept out of line, so that the drawing templates (instantiated for each
+// surface type) operate on size_t values that are already clipped.
 using wide = std::int64_t;
 
-// The bound every drawable rectangle stays within: clip_of clamps a plain
-// surface's rectangle to [0, coordinate_limit), canvases and windows clamp
-// their coordinate spaces to it, and rotated views clamp their turned
-// rectangle. So a position saturated to INT_MAX is off every surface, and
-// no clip coordinate is more than 2^32 - 1 from an int position.
+// The bound that every drawable rectangle stays within. clip_of clamps a
+// plain surface's rectangle to [0, coordinate_limit). Canvases and windows
+// clamp their coordinate spaces to it. Rotated views clamp their turned
+// rectangle to it. So a position saturated to INT_MAX is off every surface,
+// and no clip coordinate is more than 2^32 - 1 from an int position.
 inline constexpr size_t coordinate_limit = static_cast<size_t>(std::numeric_limits<int>::max());
 
 // Returns an extent clamped to coordinate_limit.
@@ -134,7 +135,7 @@ inline constexpr size_t coordinate_limit = static_cast<size_t>(std::numeric_limi
     return saturate(wide{x} + delta);
 }
 
-// A half-open interval [begin, end); empty when begin >= end.
+// A half-open interval [begin, end). It is empty when begin >= end.
 struct interval {
     size_t begin;
     size_t end;
@@ -157,10 +158,10 @@ clip_span(wide pos, uint64_t length, size_t lo, size_t hi) noexcept {
 }
 
 // The visible part of a run of `count` units of `scale` pixels each (glyph
-// columns or rows) starting at a signed position: the visible pixels are
-// offsets [lo, hi) from the position, which lie at base + lo onward in
-// size_t arithmetic (base being the position's bits, so the sum wraps back
-// into range), and units [first, last) have at least one visible pixel.
+// columns or rows) that starts at a signed position. The visible pixels are
+// offsets [lo, hi) from the position. In size_t arithmetic they are at
+// base + lo onward, where base holds the position's bits, so that the sum
+// wraps back into range. Units [first, last) have at least one visible pixel.
 struct unit_span {
     size_t base;
     size_t lo;
@@ -172,8 +173,8 @@ struct unit_span {
 // Returns the part of a run of count units of scale pixels at pos inside [lo, hi).
 //
 // The offsets are at most hi - pos and at most count * scale. Every caller
-// passes either pos >= INT_MIN or a glyph-sized run, and hi stays within
-// coordinate_limit, so they are below 2^32 and fit a 32-bit size_t.
+// passes either pos >= INT_MIN or a glyph-sized run. hi stays within
+// coordinate_limit. So the offsets are below 2^32 and fit a 32-bit size_t.
 [[nodiscard, gnu::noinline]] inline unit_span
 clip_units(wide pos, size_t count, unsigned scale, size_t lo, size_t hi) noexcept {
     const interval v = clip_span(pos, static_cast<uint64_t>(count) * scale, lo, hi);
@@ -192,7 +193,7 @@ clip_units(wide pos, size_t count, unsigned scale, size_t lo, size_t hi) noexcep
 }
 
 // Returns a canvas's bounds [lo, hi) in the coordinates of a window of
-// `size` whose origin sits at pos on that canvas, clamped to [0, size) and
+// `size` whose origin is at pos on that canvas, clamped to [0, size) and
 // to coordinate_limit.
 [[nodiscard, gnu::noinline]] inline interval
 window_bounds(int pos, size_t size, size_t lo, size_t hi) noexcept {
@@ -206,8 +207,8 @@ window_bounds(int pos, size_t size, size_t lo, size_t hi) noexcept {
 }
 
 // The half-open rectangle [left, right) x [top, bottom) of a surface's
-// coordinates that can actually change pixels; empty when right <= left or
-// bottom <= top. Drawing functions skip work outside it.
+// coordinates in which a write can change a pixel. It is empty when
+// right <= left or bottom <= top. Drawing functions skip work outside it.
 struct clip_rect {
     size_t left;
     size_t top;
@@ -236,9 +237,10 @@ struct bitmap_spans {
 };
 
 // Returns the visible part of a width x height bitmap with its top-left
-// pixel at (x, y); both spans are empty when none is visible. The position
-// is wide so text can place glyphs past the int range exactly; callers pass
-// either an int position or a glyph-sized bitmap (see clip_units).
+// pixel at (x, y). Both spans are empty when no pixel is visible. The
+// position is wide so that text can place glyphs past the int range exactly.
+// Callers pass either an int position or a glyph-sized bitmap (see
+// clip_units).
 [[nodiscard, gnu::noinline]] inline bitmap_spans
 clip_bitmap(const clip_rect& clip, wide x, wide y, size_t width, size_t height) noexcept {
     const unit_span cols = clip_units(x, width, 1, clip.left, clip.right);
@@ -297,11 +299,12 @@ clip_bitmap(const clip_rect& clip, wide x, wide y, size_t width, size_t height) 
     };
 }
 
-// Returns the drawable rectangle of a surface: the one a surface reports
-// through a gfx_clip_rect(surface) found by argument-dependent lookup (a
-// canvas reports the part of its coordinate space its surface backs), or
-// otherwise the whole surface; either way within coordinate_limit (the
-// reported rectangles keep to it themselves).
+// Returns the drawable rectangle of a surface. If argument-dependent lookup
+// finds a gfx_clip_rect(surface), the result is the rectangle that it
+// returns, which is already within coordinate_limit. Otherwise the result is
+// the whole surface, clamped to coordinate_limit. A canvas is an example of
+// the first case: its gfx_clip_rect returns the part of its coordinate space
+// that is backed by its surface.
 template<pixel_surface Surface>
 [[nodiscard]] constexpr clip_rect clip_of(const Surface& surface) noexcept {
     if constexpr (requires {
@@ -431,7 +434,7 @@ constexpr void outline_rect(int x, int y, size_t width, size_t height, Fill&& fi
  * @brief Outlines a rectangle with the given ink.
  *
  * The rectangle's top-left corner is at (@p x, @p y) and it spans @p width
- * columns and @p height rows; only its one-pixel border is drawn. Any part
+ * columns and @p height rows. Only its one-pixel border is drawn. Any part
  * falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
@@ -468,12 +471,12 @@ struct line_step {
     wide err;
 };
 
-// Returns the first step of a line walk that can draw inside a clip, for a
-// line of major_len steps along its major axis and minor_len (<= major_len)
-// along its minor one that reaches the clip's near edges after major_skip
-// major and minor_skip minor steps. The walk's step k lies at minor step
-// floor((2 k minor_len + major_len) / (2 major_len)); with both lengths
-// below 2^32 every product here stays below 2^64. A major step past
+// Returns the first step of a line walk that can draw inside a clip. The
+// line has major_len steps along its major axis and minor_len (<= major_len)
+// steps along its minor axis. It reaches the clip's near edges after
+// major_skip major steps and minor_skip minor steps. The walk's step k is at
+// minor step floor((2 k minor_len + major_len) / (2 major_len)). With both
+// lengths below 2^32, every product here stays below 2^64. A major step past
 // major_len means the line ends before reaching the clip.
 [[nodiscard]] constexpr line_step skip_line(
     uint64_t major_len,
@@ -530,9 +533,9 @@ struct line_walk {
 
 // Starts the walk of the line between (x0, y0) and (x1, y1) inclusive,
 // clipped to clip. The walk always runs from the first endpoint with
-// unclipped stepping, so the pixels drawn never depend on the clip; it
+// unclipped stepping, so the pixels drawn never depend on the clip. The walk
 // starts at its first step that reaches the clip's near edges, so an
-// endpoint far off the surface costs nothing extra.
+// endpoint far off the surface does not add extra steps.
 [[nodiscard, gnu::noinline]] inline line_walk
 start_line(const clip_rect& clip, int x0, int y0, int x1, int y1) noexcept {
     line_walk w{};
@@ -592,7 +595,7 @@ walk_line(line_walk& w, line_pixel* out, size_t max) noexcept {
             out[n++] = {static_cast<size_t>(w.px), static_cast<size_t>(w.py)};
         } else if ((w.sx > 0 ? w.px >= w.right : w.px < w.left) ||
                    (w.sy > 0 ? w.py >= w.bottom : w.py < w.top)) {
-            w.done = true; // walked past the clip's far edge; nothing further can draw
+            w.done = true; // past the clip's far edge, so no later pixel is inside it
             break;
         }
         if (w.px == w.ex && w.py == w.ey) {
@@ -619,8 +622,8 @@ walk_line(line_walk& w, line_pixel* out, size_t max) noexcept {
  * @brief Draws a straight line between two points with the given ink.
  *
  * Both endpoints are inclusive. Any part falling outside the surface is
- * clipped; the pixels drawn inside it are the same wherever the endpoints
- * lie.
+ * clipped. The pixels drawn inside the surface are the same wherever the
+ * endpoints are.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -660,14 +663,14 @@ struct row_spans {
     interval second;
 };
 
-// Produces a shape's rows one at a time from the state it points to:
-// stores the next row in out and returns true, or returns false once the
-// shape has no rows left inside the clip.
+// Produces a shape's rows one at a time from the state that `state` points
+// to. It stores the next row in out and returns true. It returns false once
+// the shape has no rows left inside the clip.
 using span_source = bool (*)(void* state, row_spans& out) noexcept;
 
-// Writes ink to every pixel of every row a span source produces. All the
-// filled and outlined shapes draw through this one loop, so each surface
-// type instantiates it once whatever shapes it draws.
+// Writes ink to every pixel of every row that a span source produces. All
+// the filled and outlined shapes draw through this one loop, so it is
+// instantiated once for each surface type, whatever shapes are drawn.
 template<pixel_surface Surface>
 void fill_spans(
     Surface& surface,
@@ -708,24 +711,26 @@ struct u128 {
     return a.hi < b.hi || (a.hi == b.hi && a.lo <= b.lo);
 }
 
-// The largest box side the ellipse test handles exactly; longer sides are
-// clamped to it (only reachable where size_t is wider than 32 bits).
+// The largest box side that the ellipse test handles exactly. Longer sides
+// are clamped to it. Such sides occur only where size_t is wider than 32
+// bits.
 inline constexpr uint64_t max_ellipse_side = 0xFFFFFFFFu;
 
-// Returns the inset marking a row of a w-wide box with no pixel inside.
+// Returns the inset that marks a row of a w-wide box with no pixel inside.
 [[nodiscard]] constexpr uint64_t empty_inset(uint64_t w) noexcept {
     return (w + 1) / 2;
 }
 
 // Returns the columns on each side of row j of a w x h box (0 < w, h <=
-// max_ellipse_side, j < h) outside the ellipse inscribed in it: the row's
-// pixels inside are [inset, w - inset), none when 2 * inset >= w.
+// max_ellipse_side, j < h) that are outside the ellipse inscribed in it. The
+// row's pixels inside are [inset, w - inset). The row has no pixels inside
+// when 2 * inset >= w.
 //
-// Pixel (i, j) is inside when its center lies inside or on the ellipse.
+// Pixel (i, j) is inside when its center is inside or on the ellipse.
 // With u = 2i + 1 - w and v = 2j + 1 - h (twice the center's offsets from
 // the box's center), that is u^2 h^2 + v^2 w^2 <= w^2 h^2, or
-// (u h)^2 <= w^2 (h^2 - v^2) with h^2 - v^2 = (2j + 1) (2h - 2j - 1): both
-// sides are below 2^128 and every factor below 2^64.
+// (u h)^2 <= w^2 (h^2 - v^2) with h^2 - v^2 = (2j + 1) (2h - 2j - 1). Both
+// sides are below 2^128 and every factor is below 2^64.
 [[nodiscard, gnu::noinline]] inline uint64_t
 ellipse_inset(uint64_t w, uint64_t h, uint64_t j) noexcept {
     const u128 room = multiply(w * w, (2 * j + 1) * (2 * h - 2 * j - 1));
@@ -748,9 +753,9 @@ ellipse_inset(uint64_t w, uint64_t h, uint64_t j) noexcept {
     return (w - 1 - u) / 2;
 }
 
-// A box with rounded corners at (x, y): rows of w x h whose corners are the
-// quadrants of the ellipse inscribed in a cw x ch box (cw <= w, ch <= h).
-// An ellipse is the box with cw = w and ch = h, a rectangle the box with
+// A w x h box with rounded corners at (x, y). Its corners are the quadrants
+// of the ellipse inscribed in a cw x ch box (cw <= w, ch <= h). An ellipse
+// is the box with cw = w and ch = h. A rectangle is the box with
 // cw = ch = 0. Sides are at most max_ellipse_side.
 struct round_box {
     wide x;
@@ -761,11 +766,11 @@ struct round_box {
     uint64_t ch;
 };
 
-// Returns the columns on each side of row j (< b.h) of a round box outside
-// it: the row's pixels inside are [inset, b.w - inset), none when
-// 2 * inset >= b.w. The top ch / 2 rows are those of the corner ellipse's
-// top half, the bottom ch / 2 rows those of its bottom half, and the rows
-// between span the whole box.
+// Returns the columns on each side of row j (< b.h) of a round box that are
+// outside it. The row's pixels inside are [inset, b.w - inset). The row has
+// no pixels inside when 2 * inset >= b.w. The top ch / 2 rows are the rows
+// of the corner ellipse's top half. The bottom ch / 2 rows are the rows of
+// its bottom half. The rows between them span the whole box.
 [[nodiscard, gnu::noinline]] inline uint64_t round_inset(const round_box& b, uint64_t j) noexcept {
     const uint64_t half = b.ch / 2;
     if (j >= half && j < b.h - half) {
@@ -799,10 +804,10 @@ round_rect_box(int x, int y, size_t width, size_t height, size_t radius) noexcep
     return {x, y, w, h, 2 * r, 2 * r};
 }
 
-// The state of filling or outlining a round box inside a clip, a row at a
-// time: surface rows [row, end) remain. For outlines, once primed, above
-// and inset hold the insets of the box rows at row - 1 and row (an inset of
-// empty_inset marking a row outside the box).
+// The state of filling or outlining a round box inside a clip, one row at a
+// time. Surface rows [row, end) remain. For outlines, once primed is set,
+// above and inset hold the insets of the box rows at row - 1 and row. An
+// inset of empty_inset marks a row outside the box.
 struct round_walk {
     round_box box;
     size_t left;
@@ -814,8 +819,8 @@ struct round_walk {
     bool primed;
 };
 
-// Starts a walk over the rows of b inside clip; it has no rows when b's
-// bounding box misses the clip.
+// Starts a walk over the rows of b inside clip. The walk has no rows when
+// b's bounding box does not overlap the clip.
 [[nodiscard, gnu::noinline]] inline round_walk
 start_round(const clip_rect& clip, const round_box& b) noexcept {
     round_walk w{b, clip.left, clip.right, 0, 0, 0, 0, false};
@@ -874,9 +879,10 @@ clip_inset(const round_box& b, uint64_t inset, size_t left, size_t right) noexce
     return true;
 }
 
-// The span_source of an outlined round box (state: a round_walk): each
-// row's pixels inside the box with a horizontal or vertical neighbor
-// outside it. The neighbors come from the box's geometry, not the clip.
+// The span_source of an outlined round box (state: a round_walk). It
+// produces each row's pixels that are inside the box and have a horizontal
+// or vertical neighbor outside it. The neighbors come from the box's
+// geometry, not the clip.
 [[nodiscard, gnu::noinline]] inline bool next_round_outline(void* state, row_spans& out) noexcept {
     round_walk& w = *static_cast<round_walk*>(state);
     if (w.row >= w.end) {
@@ -885,7 +891,7 @@ clip_inset(const round_box& b, uint64_t inset, size_t left, size_t right) noexce
     const round_box& b = w.box;
     const uint64_t j = static_cast<uint64_t>(static_cast<wide>(w.row) - b.y);
     if (!w.primed) {
-        // The walk's first row: look up it and the row above it.
+        // On the walk's first row, look up this row and the row above it.
         w.above = j != 0 ? round_inset(b, j - 1) : empty_inset(b.w);
         w.inset = round_inset(b, j);
         w.primed = true;
@@ -915,13 +921,14 @@ clip_inset(const round_box& b, uint64_t inset, size_t left, size_t right) noexce
  * @brief Fills an ellipse with the given ink.
  *
  * Fills the ellipse inscribed in the box whose top-left corner is at
- * (@p x, @p y) and which spans @p width columns and @p height rows: a pixel
- * of the box is filled when its center lies inside the ellipse or on it.
- * The test is exact, so the ellipse is symmetric about both of the box's
- * center lines, and boxes of even and odd sizes work alike (an even-sized
- * box has no center pixel). Very thin boxes may leave their end rows or
- * columns empty, where no pixel center lies inside. A zero @p width or
- * @p height draws nothing. Any part falling outside the surface is clipped.
+ * (@p x, @p y) and which spans @p width columns and @p height rows. A pixel
+ * of the box is filled when its center is inside the ellipse or on it. The
+ * test is exact, so the ellipse is symmetric about both of the box's center
+ * lines. Boxes of even and odd sizes work the same way. An even-sized box
+ * has no center pixel. In a very thin box, the end rows or columns can be
+ * empty, because no pixel center in them is inside the ellipse. A zero
+ * @p width or @p height draws nothing. Any part falling outside the surface
+ * is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -947,11 +954,11 @@ void fill_ellipse(
 /**
  * @brief Outlines an ellipse with the given ink.
  *
- * Draws the one-pixel boundary of the ellipse @ref fill_ellipse fills with
- * the same arguments: the pixels it fills that have a horizontal or
- * vertical neighbor it does not fill. The outline has no gaps, and filling
- * the same ellipse covers it exactly. A zero @p width or @p height draws
- * nothing. Any part falling outside the surface is clipped.
+ * Draws the one-pixel boundary of the ellipse that @ref fill_ellipse fills
+ * with the same arguments. The boundary is the filled pixels that have a
+ * horizontal or vertical neighbor that is not filled. The outline has no
+ * gaps. Filling the same ellipse covers it exactly. A zero @p width or
+ * @p height draws nothing. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -977,13 +984,13 @@ void draw_ellipse(
 /**
  * @brief Fills a circle with the given ink.
  *
- * Fills the circle of @p radius pixels around the pixel (@p cx, @p cy): by
- * definition, the ellipse @ref fill_ellipse fills in the square box of
- * `2 * radius + 1` pixels centered on that pixel, so its pixels are those
- * whose centers lie within `radius + 0.5` of the center pixel's. A radius
- * of 0 fills the center pixel alone, and a radius of 1 the 3 x 3 square
- * around it. A radius past `INT_MAX` is treated as `INT_MAX`. Any part
- * falling outside the surface is clipped.
+ * Fills the circle of @p radius pixels around the pixel (@p cx, @p cy). This
+ * circle is defined as the ellipse that @ref fill_ellipse fills in the
+ * square box of `2 * radius + 1` pixels centered on that pixel. So its
+ * pixels are those whose centers are within `radius + 0.5` of the center
+ * pixel's center. A radius of 0 fills only the center pixel. A radius of 1
+ * fills the 3 x 3 square around it. A radius past `INT_MAX` is treated as
+ * `INT_MAX`. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1007,11 +1014,11 @@ void fill_circle(
 /**
  * @brief Outlines a circle with the given ink.
  *
- * Draws the one-pixel boundary of the circle @ref fill_circle fills with
- * the same arguments (the outline @ref draw_ellipse draws in the square box
- * of `2 * radius + 1` pixels centered on (@p cx, @p cy)). A radius of 0
- * draws the center pixel alone. A radius past `INT_MAX` is treated as
- * `INT_MAX`. Any part falling outside the surface is clipped.
+ * Draws the one-pixel boundary of the circle that @ref fill_circle fills
+ * with the same arguments. This is the outline that @ref draw_ellipse draws
+ * in the square box of `2 * radius + 1` pixels centered on (@p cx, @p cy).
+ * A radius of 0 draws only the center pixel. A radius past `INT_MAX` is
+ * treated as `INT_MAX`. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1036,14 +1043,14 @@ void draw_circle(
  * @brief Fills a rectangle with rounded corners with the given ink.
  *
  * The rectangle's top-left corner is at (@p x, @p y) and it spans @p width
- * columns and @p height rows. Each corner is a quadrant of the ellipse
- * @ref fill_ellipse fills in a `2 * radius` square box, so
+ * columns and @p height rows. Each corner is a quadrant of the ellipse that
+ * @ref fill_ellipse fills in a `2 * radius` square box. So
  * `fill_round_rect(s, x, y, 2 * r, 2 * r, r, ink)` fills the same pixels as
- * `fill_ellipse(s, x, y, 2 * r, 2 * r, ink)`, and a radius of 0 fills the
- * plain rectangle. The radius is clamped to half the shorter side. Small
- * radii round little: a radius of 1 trims no pixel from the corners, and
- * radii of 2 and 3 trim one pixel from each. A zero @p width or @p height
- * draws nothing. Any part falling outside the surface is clipped.
+ * `fill_ellipse(s, x, y, 2 * r, 2 * r, ink)`. A radius of 0 fills the plain
+ * rectangle. The radius is clamped to half the shorter side. Small radii
+ * have little effect. A radius of 1 removes no pixel from the corners. Radii
+ * of 2 and 3 remove one pixel from each corner. A zero @p width or
+ * @p height draws nothing. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1072,12 +1079,12 @@ void fill_round_rect(
 /**
  * @brief Outlines a rectangle with rounded corners with the given ink.
  *
- * Draws the one-pixel boundary of the rounded rectangle
- * @ref fill_round_rect fills with the same arguments: the pixels it fills
- * that have a horizontal or vertical neighbor it does not fill. The outline
- * has no gaps, and with a radius of 0 it is the outline @ref draw_rect
- * draws. A zero @p width or @p height draws nothing. Any part falling
- * outside the surface is clipped.
+ * Draws the one-pixel boundary of the rounded rectangle that
+ * @ref fill_round_rect fills with the same arguments. The boundary is the
+ * filled pixels that have a horizontal or vertical neighbor that is not
+ * filled. The outline has no gaps. With a radius of 0, it is the outline
+ * that @ref draw_rect draws. A zero @p width or @p height draws nothing. Any
+ * part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1106,12 +1113,12 @@ void draw_round_rect(
 /** @cond INTERNAL */
 namespace detail {
 
-// The state of filling a triangle inside a clip, a row at a time: surface
+// The state of filling a triangle inside a clip, one row at a time. Surface
 // rows [row, end) remain. The vertices are sorted by row and, within a row,
-// by column (top, middle, bottom), so each edge runs from its upper endpoint
-// (the left one for a horizontal edge), as draw_triangle draws it. long_left
-// tells whether the top-to-bottom edge bounds the rows on the left (the
-// middle vertex lies right of it).
+// by column (top, middle, bottom). So each edge runs from its upper endpoint
+// (the left one for a horizontal edge), in the direction that draw_triangle
+// draws it. long_left is true when the top-to-bottom edge bounds the rows on
+// the left, that is, when the middle vertex is right of that edge.
 struct triangle_walk {
     wide tx;
     wide ty;
@@ -1128,26 +1135,27 @@ struct triangle_walk {
     bool long_left;
 };
 
-// True when (x1, y1) comes before (x0, y0) by row, then column: a triangle
-// edge between them starts at (x1, y1), its upper endpoint (the left one for
-// a horizontal edge), where the outline and the fill both draw it from.
+// True when (x1, y1) comes before (x0, y0) by row, then column. In that case
+// a triangle edge between them starts at (x1, y1), its upper endpoint (the
+// left one for a horizontal edge). The outline and the fill both draw the
+// edge from that endpoint.
 [[nodiscard]] constexpr bool edge_reversed(int x0, int y0, int x1, int y1) noexcept {
     return y1 < y0 || (y1 == y0 && x1 < x0);
 }
 
-// An inclusive run [first, last] of a row's columns; empty when first > last.
+// An inclusive run [first, last] of a row's columns. It is empty when first > last.
 struct column_run {
     wide first;
     wide last;
 };
 
-// Returns the columns of row y holding pixels of the line draw_line draws
-// from (x0, y0) to (x1, y1), empty when the line misses the row. Its walk
-// steps once along the major (longer) axis per pixel, and its step k lies
-// at the minor step skip_line places it at, so a row at minor step t of an
-// x-major line holds the steps from the first at minor step t up to the one
-// before the first at t + 1, and a row of a y-major line holds the one
-// pixel at major step t.
+// Returns the columns of row y that hold pixels of the line that draw_line
+// draws from (x0, y0) to (x1, y1). The result is empty when the line does
+// not cross the row. The line's walk steps once along the major (longer)
+// axis for each pixel. Its step k is at the minor step that skip_line
+// computes for it. So a row at minor step t of an x-major line holds the
+// steps from the first step at minor step t up to the step before the first
+// step at t + 1. A row of a y-major line holds the one pixel at major step t.
 [[nodiscard]] constexpr column_run line_row(wide x0, wide y0, wide x1, wide y1, wide y) noexcept {
     if (y < std::min(y0, y1) || y > std::max(y0, y1)) {
         return {1, 0};
@@ -1180,7 +1188,7 @@ struct edge_crossing {
 
 // Returns where the edge from (ax, ay) down to (bx, by), ay < by, crosses
 // row y, ay <= y <= by. The offsets are below 2^32, so their product fits
-// 64 bits; the sign is handled apart from the magnitude.
+// 64 bits. The sign is handled separately from the magnitude.
 [[nodiscard]] constexpr edge_crossing
 cross_edge(wide ax, wide ay, wide bx, wide by, wide y) noexcept {
     const uint64_t n = static_cast<uint64_t>(y - ay);
@@ -1216,8 +1224,8 @@ cross_edge(wide ax, wide ay, wide bx, wide by, wide y) noexcept {
 }
 
 // Starts a walk over the rows of the triangle with the given vertices
-// inside clip; it has no rows when the triangle's bounding box misses the
-// clip.
+// inside clip. The walk has no rows when the triangle's bounding box does
+// not overlap the clip.
 [[nodiscard, gnu::noinline]] inline triangle_walk
 start_triangle(const clip_rect& clip, int x0, int y0, int x1, int y1, int x2, int y2) noexcept {
     triangle_walk w{};
@@ -1261,13 +1269,14 @@ start_triangle(const clip_rect& clip, int x0, int y0, int x1, int y1, int x2, in
     return w;
 }
 
-// The span_source of a filled triangle (state: a triangle_walk): each row's
-// pixels whose centers lie inside the triangle or on its edges, together
-// with the pixels of its edges as draw_triangle draws them (top to middle,
-// middle to bottom and top to bottom, each from its upper endpoint). Each part
-// reaches the other's columns or the columns next to them (a line's pixels
-// in a row include the floor or the ceiling of the edge's exact column
-// there), so together they are one run from the leftmost to the rightmost.
+// The span_source of a filled triangle (state: a triangle_walk). It
+// produces each row's pixels whose centers are inside the triangle or on its
+// edges. It also produces the pixels of the triangle's edges as
+// draw_triangle draws them: top to middle, middle to bottom and top to
+// bottom, each from its upper endpoint. In each row, the columns of the two
+// parts overlap or are next to each other, because a line's pixels in a row
+// include the floor or the ceiling of the edge's exact column in that row.
+// So together they form one run from the leftmost column to the rightmost.
 [[nodiscard, gnu::noinline]] inline bool next_triangle(void* state, row_spans& out) noexcept {
     triangle_walk& w = *static_cast<triangle_walk*>(state);
     if (w.row >= w.end) {
@@ -1315,17 +1324,18 @@ start_triangle(const clip_rect& clip, int x0, int y0, int x1, int y1, int x2, in
 /**
  * @brief Fills a triangle with the given ink.
  *
- * Each vertex names a pixel, as a @ref draw_line endpoint does, and the
- * triangle's edges run between those pixels' centers. A pixel is filled
- * when its center lies inside the triangle or on one of its edges, and so
- * is every pixel @ref draw_triangle draws for the same vertices. The fill
- * thus covers the outline, and every fill pixel with a horizontal or
- * vertical neighbor outside the fill is an outline pixel, so a filled
- * triangle with a border drawn by @ref draw_triangle lines up. Neither the
- * fill nor the outline depends on the order the vertices are given in.
- * Triangles sharing an edge leave no gap between them, and a degenerate
- * triangle (all vertices on one line) fills the pixels @ref draw_triangle
- * draws for it. Any part falling outside the surface is clipped.
+ * Each vertex names a pixel, as a @ref draw_line endpoint does. The
+ * triangle's edges run between the centers of those pixels. A pixel is
+ * filled when its center is inside the triangle or on one of its edges.
+ * Every pixel that @ref draw_triangle draws for the same vertices is also
+ * filled. So the fill covers the outline. Every fill pixel that has a
+ * horizontal or vertical neighbor outside the fill is an outline pixel. So
+ * a filled triangle lines up with a border that @ref draw_triangle draws.
+ * Neither the fill nor the outline depends on the order in which the
+ * vertices are given. Triangles that share an edge have no gap between
+ * them. A degenerate triangle (all vertices on one line) fills the pixels
+ * that @ref draw_triangle draws for it. Any part falling outside the surface
+ * is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1356,12 +1366,12 @@ void fill_triangle(
 /**
  * @brief Outlines a triangle with the given ink.
  *
- * Draws each of the triangle's three edges as @ref draw_line does from the
- * edge's upper endpoint (the left one for a horizontal edge) to the other,
- * including both, so the pixels drawn don't depend on the order the
- * vertices are given in. @ref fill_triangle fills these pixels too for the
- * same vertices, so a filled triangle and its outline line up. Any part
- * falling outside the surface is clipped.
+ * Draws each of the triangle's three edges as @ref draw_line does. Both
+ * endpoints are drawn. Each edge is drawn from its upper endpoint (the left
+ * one for a horizontal edge) to the other endpoint, so the pixels drawn do
+ * not depend on the order in which the vertices are given. @ref fill_triangle
+ * also fills these pixels for the same vertices, so a filled triangle and its
+ * outline line up. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1384,7 +1394,8 @@ void draw_triangle(
     int y2,
     typename Surface::pixel_type ink
 ) noexcept {
-    // Each edge from its upper endpoint, or the left one of a horizontal edge.
+    // Draws each edge from its upper endpoint, or from the left endpoint of a
+    // horizontal edge.
     const auto edge = [&surface, ink](int ax, int ay, int bx, int by) {
         if (detail::edge_reversed(ax, ay, bx, by)) {
             std::swap(ax, bx);
@@ -1415,10 +1426,10 @@ enum class bit_order : uint8_t {
  * @brief A 1-bit image, such as an icon, for @ref draw_bitmap.
  *
  * The image is @ref height rows of @ref bytes_per_row bytes (`ceil(width / 8)`),
- * top row first, each row's pixels packed left to right in the given
- * @ref order; set bits are the image's ink, clear bits its background, and
- * the padding bits after the last pixel of a row are ignored. The bitmap
- * refers to its data rather than owning it, so icon tables can be
+ * top row first. Each row's pixels are packed left to right in the given
+ * @ref order. Set bits are the image's ink, and clear bits are its
+ * background. The padding bits after the last pixel of a row are ignored.
+ * The bitmap refers to its data and does not own it, so icon tables can be
  * `constexpr`:
  *
  * @code
@@ -1427,7 +1438,7 @@ enum class bit_order : uint8_t {
  * @endcode
  *
  * Drawing never reads past @ref data. When it holds fewer than @ref height
- * complete rows, only the complete rows it holds are drawn.
+ * complete rows, only the complete rows that it holds are drawn.
  */
 struct mono_bitmap {
     /// The pixel rows: @ref height rows of @ref bytes_per_row bytes. Must outlive every draw.
@@ -1449,7 +1460,7 @@ struct mono_bitmap {
 namespace detail {
 
 // Returns the visible part of a bitmap drawn with its top-left pixel at
-// (x, y), limited to the complete rows its data holds.
+// (x, y), limited to the complete rows that its data holds.
 [[nodiscard, gnu::noinline]] inline bitmap_spans
 clip_mono_bitmap(const clip_rect& clip, int x, int y, const mono_bitmap& bitmap) noexcept {
     const size_t bpr = bitmap.bytes_per_row();
@@ -1457,12 +1468,12 @@ clip_mono_bitmap(const clip_rect& clip, int x, int y, const mono_bitmap& bitmap)
     return clip_bitmap(clip, x, y, bitmap.width, rows);
 }
 
-// Writes the visible part of a packed 1-bit bitmap, rows of bpr bytes from
-// bits: set bits in ink, and clear bits in *paper unless paper is null. Bit
-// (col % 8) ^ flip of a byte, counting from its least significant, is pixel
-// col: flip is 7 for MSB-first rows and 0 for LSB-first ones. Bitmaps and
-// proportional text both draw through this one loop, so each surface type
-// instantiates it once.
+// Writes the visible part of a packed 1-bit bitmap whose rows of bpr bytes
+// start at bits. Set bits are written in ink. Clear bits are written in
+// *paper unless paper is null. Bit (col % 8) ^ flip of a byte, counting from
+// its least significant bit, is pixel col. flip is 7 for MSB-first rows and
+// 0 for LSB-first rows. Bitmaps and proportional text both draw through this
+// one loop, so it is instantiated once for each surface type.
 template<pixel_surface Surface>
 void blit_bits(
     Surface& surface,
@@ -1488,8 +1499,8 @@ void blit_bits(
     }
 }
 
-// Draws a bitmap as draw_bitmap does: set bits in ink, and clear bits in
-// *paper unless paper is null.
+// Draws a bitmap as draw_bitmap does. Set bits are written in ink, and clear
+// bits are written in *paper unless paper is null.
 template<pixel_surface Surface>
 void draw_bits(
     Surface& surface,
@@ -1517,11 +1528,11 @@ void draw_bits(
  * @brief Draws a 1-bit bitmap's set pixels with the given ink.
  *
  * Places the bitmap's top-left pixel at (@p x, @p y) and writes @p ink
- * where its bits are set, leaving the pixels under its clear bits
- * untouched, so the image composes over existing content: drawing two
- * bitmaps at one origin in different inks layers them (on a monochrome
- * surface, pass `ink = false` to punch the image out of a filled area).
- * Any part falling outside the surface is clipped.
+ * where its bits are set. The pixels under its clear bits are not changed,
+ * so the image is drawn on top of the existing content. Two bitmaps drawn
+ * at one origin in different inks appear as two layers. On a monochrome
+ * surface, pass `ink = false` to erase the image's set pixels from a filled
+ * area. Any part falling outside the surface is clipped.
  *
  * @code
  * canvas.draw_bitmap(4, 4, battery_outline, black);
@@ -1532,7 +1543,7 @@ void draw_bits(
  * @param surface The surface to draw on.
  * @param x       Column of the bitmap's left edge, in pixels; may be negative or off the surface.
  * @param y       Row of the bitmap's top edge, in pixels; may be negative or off the surface.
- * @param bitmap  The bitmap to draw; only the complete rows its data holds are drawn.
+ * @param bitmap  The bitmap to draw; only the complete rows that its data holds are drawn.
  * @param ink     The pixel value to write for set bits.
  */
 template<pixel_surface Surface>
@@ -1550,15 +1561,15 @@ void draw_bitmap(
  * @brief Draws a 1-bit bitmap opaquely, with set pixels in one value and clear pixels in another.
  *
  * Places the bitmap's top-left pixel at (@p x, @p y) and writes every
- * pixel it covers: @p ink where its bits are set and @p paper where they
- * are clear, replacing what was there. Any part falling outside the
- * surface is clipped.
+ * pixel that it covers: @p ink where its bits are set and @p paper where
+ * they are clear. These writes replace the existing pixels. Any part
+ * falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
  * @param x       Column of the bitmap's left edge, in pixels; may be negative or off the surface.
  * @param y       Row of the bitmap's top edge, in pixels; may be negative or off the surface.
- * @param bitmap  The bitmap to draw; only the complete rows its data holds are drawn.
+ * @param bitmap  The bitmap to draw; only the complete rows that its data holds are drawn.
  * @param ink     The pixel value to write for set bits.
  * @param paper   The pixel value to write for clear bits.
  */
@@ -1605,7 +1616,7 @@ void draw_mono(
 
     for (char c : text) {
         if (cell_x >= clip_right) {
-            break; // rendering is left-to-right; nothing further can draw
+            break; // text is drawn left to right, so no later glyph is inside the clip
         }
         if (font.contains(c)) {
             // Font columns with at least one visible output column.
@@ -1642,13 +1653,13 @@ void draw_mono(
 /**
  * @brief Draws text with the given ink.
  *
- * Renders @p text left-to-right starting with its top-left corner at
- * (@p x, @p y). Only glyph "ink" pixels are written — background pixels
- * within the cell are left untouched, so text composes over existing
- * content (on a monochrome surface, pass `ink = false` to erase ink pixels
- * instead, e.g. for inverse text on a filled banner). Characters outside
- * the font's range advance the cursor without drawing. Pixels falling
- * outside the surface are clipped, so text may start left of or above it.
+ * Draws @p text left to right, with its top-left corner at (@p x, @p y).
+ * Only the glyphs' ink pixels are written. Background pixels within the
+ * cell are not changed, so text is drawn on top of the existing content. On
+ * a monochrome surface, pass `ink = false` to erase ink pixels instead, for
+ * example for inverse text on a filled banner. Characters outside the
+ * font's range advance the cursor without drawing. Pixels falling outside
+ * the surface are clipped, so text can start to the left of or above it.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -1658,8 +1669,8 @@ void draw_mono(
  * @param y       Top edge of the glyph cells, in pixels; may be negative or off the surface.
  * @param text    The text to draw.
  * @param ink     The pixel value to write for glyph ink.
- * @param scale   Integer magnification factor (>= 1; 0 is treated as 1);
- *                each font pixel becomes a scale x scale block.
+ * @param scale   Integer magnification factor (>= 1; 0 is treated as 1).
+ *                Each font pixel becomes a scale x scale block.
  */
 template<pixel_surface Surface>
 void draw_text(
@@ -1677,8 +1688,8 @@ void draw_text(
 /**
  * @brief Draws text on a monochrome surface, setting glyph ink pixels.
  *
- * Equivalent to @ref draw_text with `ink = true`; see there for the full
- * rendering contract.
+ * Equivalent to @ref draw_text with `ink = true`. See that function for the
+ * full rendering contract.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface with a
  *                 `bool` pixel type).
@@ -1704,9 +1715,9 @@ void draw_text(
 namespace detail {
 
 // Draws one line of proportional text as draw_text does, with the line's
-// top-left corner at (x, y). The position is wide so a text box can place
-// lines and hyphens past the int range exactly: ink overhanging their
-// position may still reach the surface.
+// top-left corner at (x, y). The position is wide so that a text box can
+// place lines and hyphens past the int range exactly, because ink that
+// extends past their position can still be inside the surface.
 template<pixel_surface Surface>
 void draw_proportional(
     Surface& surface,
@@ -1723,7 +1734,7 @@ void draw_proportional(
     const wide baseline = y + font.ascent;
     if (baseline - font.ink_ascent >= static_cast<wide>(clip.bottom) ||
         baseline + font.ink_descent <= static_cast<wide>(clip.top)) {
-        return; // no glyph's ink reaches the clip rows
+        return; // no glyph's ink is in the clip rows
     }
     const wide clip_right = static_cast<wide>(clip.right);
     wide pen = x;
@@ -1750,16 +1761,16 @@ void draw_proportional(
 /**
  * @brief Draws text in a proportional font with the given ink.
  *
- * Decodes @p text as UTF-8 and renders it as one line, left-to-right, with
- * the line's top-left corner at (@p x, @p y): the baseline is
- * `font.ascent` rows below @p y, and each glyph moves the pen right by its
- * own advance, so @ref font::text_width gives the width to center or align
- * by. Only glyph "ink" pixels are written — the background is left
- * untouched, so text composes over existing content (on a monochrome
- * surface, pass `ink = false` to erase ink pixels instead). Code points
- * the font lacks are drawn as its replacement glyph, or skipped if it has
- * none; U+00AD SOFT HYPHEN is never drawn and takes no space; control
- * characters (including newlines) are not interpreted — see
+ * Decodes @p text as UTF-8 and draws it as one line, left to right, with
+ * the line's top-left corner at (@p x, @p y). The baseline is `font.ascent`
+ * rows below @p y. Each glyph moves the pen right by its own advance, so
+ * @ref font::text_width gives the width to use when centering or aligning
+ * the text. Only the glyphs' ink pixels are written. The background is not
+ * changed, so text is drawn on top of the existing content. On a monochrome
+ * surface, pass `ink = false` to erase ink pixels instead. Code points that
+ * the font does not have are drawn as its replacement glyph, or skipped if
+ * it has none. U+00AD SOFT HYPHEN is never drawn and takes no space.
+ * Control characters (including newlines) are not interpreted. See
  * @ref draw_text_box for wrapped, multi-line text. Pixels falling outside
  * the surface are clipped, including ink that overhangs the line's left or
  * top edge.
@@ -1794,8 +1805,8 @@ void draw_text(
 /**
  * @brief Draws text in a proportional font on a monochrome surface, setting glyph ink pixels.
  *
- * Equivalent to @ref draw_text with `ink = true`; see there for the full
- * rendering contract.
+ * Equivalent to @ref draw_text with `ink = true`. See that function for the
+ * full rendering contract.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface with a
  *                 `bool` pixel type).
@@ -1833,9 +1844,9 @@ enum class text_align : uint8_t {
  * @brief Returns the left edge of a line of @p line_width aligned within a box.
  */
 namespace detail {
-// Offsets of text box lines from the box's corner are capped here: a line
-// this far past an int position lies, with any ink its glyphs overhang,
-// beyond every drawable rectangle.
+// Offsets of text box lines from the box's corner are capped at this value.
+// A line this far past an int position is beyond every drawable rectangle,
+// and so is any ink that its glyphs overhang.
 inline constexpr uint64_t far_offset = uint64_t{1} << 40;
 
 [[nodiscard, gnu::noinline]] inline wide
@@ -1878,19 +1889,19 @@ hyphen_x(wide left, size_t line_width, const font::proportional_font& font) noex
  * @brief Draws text in a proportional font wrapped to a box, with the given ink.
  *
  * Breaks @p text into lines no wider than @p width with
- * @ref font::break_lines — wrapping at spaces and after hyphens,
- * hyphenating at soft hyphens (U+00AD), honoring `'\n'`, and splitting
- * words too long for a line — then draws each line as @ref draw_text does,
+ * @ref font::break_lines. It wraps at spaces and after hyphens, hyphenates
+ * at soft hyphens (U+00AD), breaks lines at `'\n'`, and splits words that
+ * are too long for a line. Then it draws each line as @ref draw_text does,
  * one `font.line_height` below the previous one, starting with the first
  * line's top edge at @p y. Each line is aligned within the columns
- * [@p x, @p x + @p width) by @p align; a line wider than the box (a single
+ * [@p x, @p x + @p width) by @p align. A line wider than the box (a single
  * character that does not fit) starts at @p x. A line broken at a soft
  * hyphen ends with a drawn `'-'`.
  *
- * The box limits line width only: all lines are drawn, however many there
- * are, and the return value gives the height they take, for placing what
- * follows. Rendering is ink-only and clips at the surface edges, as for
- * @ref draw_text.
+ * The box limits only the line width. All lines are drawn, however many
+ * there are. The return value gives the height of the lines, so that the
+ * caller can place the content that follows. As for @ref draw_text, only
+ * ink pixels are written, and pixels outside the surface are clipped.
  *
  * @code
  * int y = 8;
@@ -1941,8 +1952,8 @@ size_t draw_text_box(
  * @brief Draws text in a proportional font wrapped to a box on a monochrome surface, setting
  *        glyph ink pixels.
  *
- * Equivalent to @ref draw_text_box with `ink = true`; see there for the
- * full layout and rendering contract.
+ * Equivalent to @ref draw_text_box with `ink = true`. See that function for
+ * the full layout and rendering contract.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface with a
  *                 `bool` pixel type).
@@ -1974,18 +1985,18 @@ size_t draw_text_box(
  * @brief Draws text in a fixed-cell font wrapped to a box, with the given ink.
  *
  * Breaks @p text into lines no wider than @p width with
- * @ref font::break_lines — wrapping at spaces and after hyphens, honoring
- * `'\n'`, and splitting words too long for a line — then draws each line
- * as @ref draw_text does, `font.height * scale` rows below the previous
- * one, starting with the first line's top edge at @p y. Each line is
- * aligned within the columns [@p x, @p x + @p width) by @p align; a line
+ * @ref font::break_lines. It wraps at spaces and after hyphens, breaks lines
+ * at `'\n'`, and splits words that are too long for a line. Then it draws
+ * each line as @ref draw_text does, `font.height * scale` rows below the
+ * previous one, starting with the first line's top edge at @p y. Each line
+ * is aligned within the columns [@p x, @p x + @p width) by @p align. A line
  * wider than the box (a single character that does not fit) starts at
  * @p x.
  *
- * The box limits line width only: all lines are drawn, however many there
- * are, and the return value gives the height they take, for placing what
- * follows. Rendering is ink-only and clips at the surface edges, as for
- * @ref draw_text.
+ * The box limits only the line width. All lines are drawn, however many
+ * there are. The return value gives the height of the lines, so that the
+ * caller can place the content that follows. As for @ref draw_text, only
+ * ink pixels are written, and pixels outside the surface are clipped.
  *
  * @code
  * idfxx::gfx::draw_text_box(fb, idfxx::font::spleen_5x8, 0, 16, fb.width(),
@@ -2002,8 +2013,8 @@ size_t draw_text_box(
  * @param text    The text to draw.
  * @param ink     The pixel value to write for glyph ink.
  * @param align   Horizontal alignment of each line within the box.
- * @param scale   Integer magnification factor (>= 1; 0 is treated as 1);
- *                each font pixel becomes a scale x scale block.
+ * @param scale   Integer magnification factor (>= 1; 0 is treated as 1).
+ *                Each font pixel becomes a scale x scale block.
  * @return The height of the drawn text in pixels: the number of lines times
  *         `font.height * scale` (0 for empty text).
  */
@@ -2043,8 +2054,8 @@ size_t draw_text_box(
  * @brief Draws text in a fixed-cell font wrapped to a box on a monochrome surface, setting glyph
  *        ink pixels.
  *
- * Equivalent to @ref draw_text_box with `ink = true`; see there for the
- * full layout and rendering contract.
+ * Equivalent to @ref draw_text_box with `ink = true`. See that function for
+ * the full layout and rendering contract.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface with a
  *                 `bool` pixel type).
@@ -2074,11 +2085,12 @@ size_t draw_text_box(
 
 /**
  * @headerfile <idfxx/gfx>
- * @brief A drawing view bundling a pixel surface with the drawing primitives.
+ * @brief A drawing view that combines a pixel surface with the drawing primitives.
  *
- * A canvas holds a reference to a surface and exposes the drawing primitives
- * as members, so a sequence of drawing calls reads as operations on one
- * object rather than free functions each taking the surface:
+ * A canvas holds a reference to a surface and provides the drawing
+ * primitives as members. So a sequence of drawing calls is a set of
+ * operations on one object, not a set of free functions that each take the
+ * surface:
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(240, 40);
@@ -2094,20 +2106,20 @@ size_t draw_text_box(
  * Each drawing member is equivalent to the free function of the same name
  * applied to the underlying surface, with the same ink-only rendering and
  * clipping contract. @ref fill and @ref clear use the surface's own
- * `fill`/`clear` when it provides them (framebuffers fill their backing
- * store directly), falling back to per-pixel writes otherwise. A canvas
- * only draws: to get the image on screen, write the surface it draws on to
- * the display (e.g. `panel.write(band, 0, 40)`).
+ * `fill`/`clear` when it provides them (framebuffers do, and fill their
+ * backing store directly). Otherwise @ref fill and @ref clear use per-pixel
+ * writes. A canvas only draws. To show the image on screen, write the
+ * surface that the canvas draws on to the display, for example
+ * `panel.write(band, 0, 40)`.
  *
- * A canvas may also place its surface within a larger drawing-coordinate
- * space. Constructing with an origin and the space's size —
- * `canvas(band, 0, y, DISPLAY_W, DISPLAY_H)` — declares that the surface's
- * top-left corner sits at (0, y) in a DISPLAY_W x DISPLAY_H space, so a
- * frame taller than the surface can be authored once in full-screen
- * coordinates and rendered band by band, with everything outside the band
- * clipped (on all four sides — glyphs and lines straddling a band edge
- * render exactly their visible part) and @ref width / @ref height reporting
- * the full screen in every band:
+ * A canvas can also place its surface within a larger drawing-coordinate
+ * space. A canvas constructed with an origin and the space's size, as in
+ * `canvas(band, 0, y, DISPLAY_W, DISPLAY_H)`, places the surface's top-left
+ * corner at (0, y) in a DISPLAY_W x DISPLAY_H space. So a frame taller than
+ * the surface can be drawn once in full-screen coordinates and rendered
+ * band by band. Everything outside the band is clipped on all four sides.
+ * For glyphs and lines that cross a band edge, exactly their visible part
+ * is drawn. @ref width / @ref height report the full screen in every band:
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(DISPLAY_W, BAND_H);
@@ -2119,15 +2131,15 @@ size_t draw_text_box(
  * }
  * @endcode
  *
- * @ref render_banded packages this loop — prefer it over writing the loop
- * by hand.
+ * @ref render_banded implements this loop. Use it instead of writing the
+ * loop by hand.
  *
- * The inverse mapping is @ref window, which returns a canvas for a
- * sub-region of this one with its own local coordinates and clipping —
- * e.g. handing a widget a canvas where (0, 0) is the widget's corner.
+ * The inverse mapping is @ref window. It returns a canvas for a sub-region
+ * of this one, with its own local coordinates and clipping. For example, a
+ * widget can receive a canvas where (0, 0) is the widget's corner.
  *
- * A canvas is a cheap, copyable view: it does not own the surface, and the
- * caller must ensure the surface outlives it. A canvas itself satisfies
+ * A canvas is a cheap, copyable view. It does not own the surface, and the
+ * caller must ensure that the surface outlives it. A canvas itself satisfies
  * @ref pixel_surface, so it can be passed anywhere a surface is expected.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
@@ -2141,8 +2153,8 @@ public:
     /**
      * @brief Creates a canvas drawing on the given surface.
      *
-     * The canvas's coordinates coincide with the surface's: (0, 0) is the
-     * surface's top-left corner, and @ref width / @ref height match the
+     * The canvas's coordinates are the same as the surface's. (0, 0) is the
+     * surface's top-left corner. @ref width / @ref height match the
      * surface's dimensions (captured at construction), each clamped to
      * `INT_MAX`.
      *
@@ -2158,15 +2170,15 @@ public:
         , _height(detail::limit_extent(surface.height())) {}
 
     /**
-     * @brief Creates a canvas for a @p width x @p height drawing space whose surface sits at
+     * @brief Creates a canvas for a @p width x @p height drawing space whose surface is at
      *        (@p x, @p y) in it.
      *
      * Declares that the surface holds the region of the drawing space whose
-     * top-left corner is (@p x, @p y) — the band-rendering mapping, with the
-     * space's size given so that @ref width and @ref height report the whole
-     * space (the full frame) wherever the surface sits. Drawing uses the
-     * space's coordinates; pixels landing outside the surface, or outside
-     * the space, are clipped on all four sides. A @p width or @p height
+     * top-left corner is (@p x, @p y). This is the mapping for band
+     * rendering. The space's size is given so that @ref width and
+     * @ref height report the whole space (the full frame) wherever the
+     * surface is placed. Drawing uses the space's coordinates. Pixels outside
+     * the surface, or outside the space, are clipped on all four sides. A @p width or @p height
      * past `INT_MAX` is clamped to `INT_MAX`, so the space never includes
      * column or row `INT_MAX`.
      *
@@ -2199,38 +2211,39 @@ public:
     /**
      * @brief Returns the width of the canvas's coordinate space, in pixels.
      *
-     * Coordinates at or beyond this bound clip. For a canvas covering its
-     * whole surface this is the surface width; for a translated canvas it
-     * is the drawing-space width it was constructed with; for a
-     * @ref window it is the window width. It is at most `INT_MAX`.
+     * Coordinates at or beyond this bound are clipped. For a canvas that
+     * covers its whole surface, this is the surface width. For a translated
+     * canvas, it is the drawing-space width that it was constructed with.
+     * For a @ref window, it is the window width. It is at most `INT_MAX`.
      */
     [[nodiscard]] size_t width() const noexcept { return _width; }
 
     /**
      * @brief Returns the height of the canvas's coordinate space, in pixels.
      *
-     * Coordinates at or beyond this bound clip. For a canvas covering its
-     * whole surface this is the surface height; for a translated canvas it
-     * is the drawing-space height it was constructed with; for a
-     * @ref window it is the window height. It is at most `INT_MAX`.
+     * Coordinates at or beyond this bound are clipped. For a canvas that
+     * covers its whole surface, this is the surface height. For a translated
+     * canvas, it is the drawing-space height that it was constructed with.
+     * For a @ref window, it is the window height. It is at most `INT_MAX`.
      */
     [[nodiscard]] size_t height() const noexcept { return _height; }
 
     /**
      * @brief Returns a canvas for a sub-region of this one.
      *
-     * The returned canvas has its own local coordinates — (0, 0) is the
-     * sub-region's top-left corner, which sits at (@p x, @p y) on this
-     * canvas — and clips to the sub-region's bounds, so drawing cannot
-     * escape it (including @ref fill and @ref clear, which affect only the
-     * sub-region). The sub-region may extend past any edge of this canvas
-     * (@p x and @p y may be negative, e.g. for a widget sliding in from the
-     * left); the part outside this canvas clips. Its far edges are clamped
-     * to this canvas's bounds, so @ref width and @ref height report at most
-     * the room left on this canvas, and to `INT_MAX` in the sub-region's own
-     * coordinates, so the part of this canvas at local column or row
-     * `INT_MAX` or beyond clips too; an empty result is allowed and draws
-     * nothing.
+     * The returned canvas has its own local coordinates. (0, 0) is the
+     * sub-region's top-left corner, which is at (@p x, @p y) on this canvas.
+     * The returned canvas clips to the sub-region's bounds, so drawing stays
+     * inside the sub-region. This includes @ref fill and @ref clear, which
+     * affect only the sub-region. The sub-region can extend past any edge of
+     * this canvas. @p x and @p y can be negative, for example for a widget
+     * that slides in from the left. The part outside this canvas is clipped.
+     * The sub-region's far edges are clamped to this canvas's bounds, so
+     * @ref width and @ref height report at most the space left on this
+     * canvas. The far edges are also clamped to `INT_MAX` in the
+     * sub-region's own coordinates, so the part of this canvas at local
+     * column or row `INT_MAX` or beyond is also clipped. An empty result is
+     * allowed and draws nothing.
      *
      * @code
      * auto gauge = canvas.window(50, 60, 100, 30);
@@ -2264,8 +2277,8 @@ public:
     /**
      * @brief Sets a single pixel to the given ink.
      *
-     * Coordinates outside the canvas bounds, or landing outside the
-     * underlying surface, are ignored.
+     * Coordinates outside the canvas bounds, or outside the underlying
+     * surface, are ignored.
      *
      * @param x   Column, in `[0, width())`.
      * @param y   Row, in `[0, height())`.
@@ -2283,10 +2296,11 @@ public:
     /**
      * @brief Sets every drawable pixel to the given ink.
      *
-     * Fills the canvas's drawable region — the part of its coordinate space
-     * backed by the surface. Uses the surface's own `fill` when it provides
-     * one and the region covers the whole surface (the identity and
-     * whole-band cases); otherwise fills the region rectangle.
+     * Fills the canvas's drawable region, which is the part of its
+     * coordinate space that is backed by the surface. When the surface
+     * provides its own `fill` and the region covers the whole surface (the
+     * identity and whole-band cases), this uses the surface's `fill`.
+     * Otherwise it fills the region rectangle.
      *
      * @param ink The pixel value to fill with.
      */
@@ -2305,12 +2319,12 @@ public:
     /**
      * @brief Sets every drawable pixel to the default value (equivalent to `fill(pixel_type{})`).
      *
-     * Clears the canvas's drawable region — the part of its coordinate
-     * space backed by the surface. Uses the surface's own `clear` when it
-     * provides one and the region covers the whole surface (the identity
-     * and whole-band cases); otherwise fills the region with a
-     * value-initialized pixel (false on monochrome surfaces, black on
-     * RGB565 ones).
+     * Clears the canvas's drawable region, which is the part of its
+     * coordinate space that is backed by the surface. When the surface
+     * provides its own `clear` and the region covers the whole surface (the
+     * identity and whole-band cases), this uses the surface's `clear`.
+     * Otherwise it fills the region with a value-initialized pixel (false on
+     * monochrome surfaces, black on RGB565 ones).
      */
     void clear() noexcept {
         if constexpr (requires(Surface& s) {
@@ -2339,8 +2353,9 @@ public:
      */
     void fill_rect(int x, int y, size_t width, size_t height, pixel_type ink) noexcept {
         // Clip to the drawable region in canvas coordinates, then fill the
-        // translated rectangle on the surface directly; the drawable region
-        // lies inside the surface's own, so every write lands on it.
+        // translated rectangle on the surface directly. The drawable region
+        // is inside the surface's own drawable rectangle, so every write is on
+        // the surface.
         const detail::clip_rect r = gfx_clip_rect(*this).intersect(x, y, width, height);
         const size_t left = r.left - static_cast<size_t>(_dx);
         const size_t top = r.top - static_cast<size_t>(_dy);
@@ -2385,7 +2400,7 @@ public:
      * @brief Outlines a rectangle with the given ink.
      *
      * The rectangle's top-left corner is at (@p x, @p y) and it spans
-     * @p width columns and @p height rows; only its one-pixel border is
+     * @p width columns and @p height rows. Only its one-pixel border is
      * drawn. Any part falling outside the canvas is clipped.
      *
      * @param x      Left edge of the rectangle, in pixels; may be negative or off the canvas.
@@ -2420,11 +2435,11 @@ public:
      * @brief Fills an ellipse with the given ink.
      *
      * Fills the ellipse inscribed in the box whose top-left corner is at
-     * (@p x, @p y) and which spans @p width columns and @p height rows: a
-     * pixel of the box is filled when its center lies inside the ellipse
-     * or on it, so the ellipse is symmetric and boxes of even and odd sizes
-     * work alike. A zero @p width or @p height draws nothing. Any part
-     * falling outside the canvas is clipped.
+     * (@p x, @p y) and which spans @p width columns and @p height rows. A
+     * pixel of the box is filled when its center is inside the ellipse or
+     * on it. So the ellipse is symmetric, and boxes of even and odd sizes
+     * work the same way. A zero @p width or @p height draws nothing. Any
+     * part falling outside the canvas is clipped.
      *
      * @param x      Left edge of the bounding box, in pixels; may be negative or off the canvas.
      * @param y      Top edge of the bounding box, in pixels; may be negative or off the canvas.
@@ -2439,10 +2454,11 @@ public:
     /**
      * @brief Outlines an ellipse with the given ink.
      *
-     * Draws the one-pixel boundary of the ellipse @ref fill_ellipse fills
-     * with the same arguments: the pixels it fills that have a horizontal
-     * or vertical neighbor it does not fill. A zero @p width or @p height
-     * draws nothing. Any part falling outside the canvas is clipped.
+     * Draws the one-pixel boundary of the ellipse that @ref fill_ellipse
+     * fills with the same arguments. The boundary is the filled pixels that
+     * have a horizontal or vertical neighbor that is not filled. A zero
+     * @p width or @p height draws nothing. Any part falling outside the
+     * canvas is clipped.
      *
      * @param x      Left edge of the bounding box, in pixels; may be negative or off the canvas.
      * @param y      Top edge of the bounding box, in pixels; may be negative or off the canvas.
@@ -2457,9 +2473,9 @@ public:
     /**
      * @brief Fills a circle with the given ink.
      *
-     * Fills the ellipse @ref fill_ellipse fills in the square box of
+     * Fills the ellipse that @ref fill_ellipse fills in the square box of
      * `2 * radius + 1` pixels centered on the pixel (@p cx, @p cy). A
-     * radius of 0 fills the center pixel alone. A radius past `INT_MAX` is
+     * radius of 0 fills only the center pixel. A radius past `INT_MAX` is
      * treated as `INT_MAX`. Any part falling outside the canvas is clipped.
      *
      * @param cx     Column of the center pixel; may be negative or off the canvas.
@@ -2474,8 +2490,8 @@ public:
     /**
      * @brief Outlines a circle with the given ink.
      *
-     * Draws the one-pixel boundary of the circle @ref fill_circle fills with
-     * the same arguments. A radius past `INT_MAX` is treated as `INT_MAX`.
+     * Draws the one-pixel boundary of the circle that @ref fill_circle fills
+     * with the same arguments. A radius past `INT_MAX` is treated as `INT_MAX`.
      * Any part falling outside the canvas is clipped.
      *
      * @param cx     Column of the center pixel; may be negative or off the canvas.
@@ -2492,9 +2508,9 @@ public:
      *
      * The rectangle's top-left corner is at (@p x, @p y) and it spans
      * @p width columns and @p height rows. Each corner is a quadrant of the
-     * ellipse @ref fill_ellipse fills in a `2 * radius` square box; a radius
-     * of 0 fills the plain rectangle. A zero @p width or @p height draws
-     * nothing. Any part falling outside the canvas is clipped.
+     * ellipse that @ref fill_ellipse fills in a `2 * radius` square box. A
+     * radius of 0 fills the plain rectangle. A zero @p width or @p height
+     * draws nothing. Any part falling outside the canvas is clipped.
      *
      * @param x      Left edge of the rectangle, in pixels; may be negative or off the canvas.
      * @param y      Top edge of the rectangle, in pixels; may be negative or off the canvas.
@@ -2517,11 +2533,11 @@ public:
     /**
      * @brief Outlines a rectangle with rounded corners with the given ink.
      *
-     * Draws the one-pixel boundary of the rounded rectangle
-     * @ref fill_round_rect fills with the same arguments: the pixels it
-     * fills that have a horizontal or vertical neighbor it does not fill. A
-     * zero @p width or @p height draws nothing. Any part falling outside the
-     * canvas is clipped.
+     * Draws the one-pixel boundary of the rounded rectangle that
+     * @ref fill_round_rect fills with the same arguments. The boundary is
+     * the filled pixels that have a horizontal or vertical neighbor that is
+     * not filled. A zero @p width or @p height draws nothing. Any part
+     * falling outside the canvas is clipped.
      *
      * @param x      Left edge of the rectangle, in pixels; may be negative or off the canvas.
      * @param y      Top edge of the rectangle, in pixels; may be negative or off the canvas.
@@ -2545,10 +2561,10 @@ public:
      * @brief Fills a triangle with the given ink.
      *
      * Each vertex names a pixel, as a @ref draw_line endpoint does. A pixel
-     * is filled when its center lies inside the triangle or on one of its
-     * edges, and so is every pixel @ref draw_triangle draws for the same
-     * vertices, whatever their order, so a filled triangle with a border
-     * lines up and triangles sharing an edge leave no gap between them. Any
+     * is filled when its center is inside the triangle or on one of its
+     * edges. Every pixel that @ref draw_triangle draws for the same vertices,
+     * in any order, is also filled. So a filled triangle lines up with its
+     * border, and triangles that share an edge have no gap between them. Any
      * part falling outside the canvas is clipped.
      *
      * @param x0  Column of the first vertex, in pixels; may be negative or off the canvas.
@@ -2566,12 +2582,13 @@ public:
     /**
      * @brief Outlines a triangle with the given ink.
      *
-     * Draws each of the triangle's three edges as @ref draw_line does from
-     * the edge's upper endpoint (the left one for a horizontal edge) to the
-     * other, including both, so the pixels drawn don't depend on the order
-     * the vertices are given in. @ref fill_triangle fills these pixels too
-     * for the same vertices, so a filled triangle and its outline line up.
-     * Any part falling outside the canvas is clipped.
+     * Draws each of the triangle's three edges as @ref draw_line does. Both
+     * endpoints are drawn. Each edge is drawn from its upper endpoint (the
+     * left one for a horizontal edge) to the other endpoint, so the pixels
+     * drawn do not depend on the order in which the vertices are given.
+     * @ref fill_triangle also fills these pixels for the same vertices, so a
+     * filled triangle and its outline line up. Any part falling outside the
+     * canvas is clipped.
      *
      * @param x0  Column of the first vertex, in pixels; may be negative or off the canvas.
      * @param y0  Row of the first vertex, in pixels; may be negative or off the canvas.
@@ -2589,13 +2606,14 @@ public:
      * @brief Draws a 1-bit bitmap's set pixels with the given ink.
      *
      * Places the bitmap's top-left pixel at (@p x, @p y) and writes @p ink
-     * where its bits are set, leaving the pixels under its clear bits
-     * untouched, so bitmaps drawn at one origin in different inks layer.
+     * where its bits are set. The pixels under its clear bits are not
+     * changed, so bitmaps drawn at one origin in different inks appear as
+     * layers.
      * Any part falling outside the canvas is clipped.
      *
      * @param x      Column of the bitmap's left edge, in pixels; may be negative or off the canvas.
      * @param y      Row of the bitmap's top edge, in pixels; may be negative or off the canvas.
-     * @param bitmap The bitmap to draw; only the complete rows its data holds are drawn.
+     * @param bitmap The bitmap to draw; only the complete rows that its data holds are drawn.
      * @param ink    The pixel value to write for set bits.
      */
     void draw_bitmap(int x, int y, const mono_bitmap& bitmap, pixel_type ink) noexcept {
@@ -2607,12 +2625,12 @@ public:
      *        another.
      *
      * Places the bitmap's top-left pixel at (@p x, @p y) and writes every
-     * pixel it covers: @p ink where its bits are set and @p paper where they
-     * are clear. Any part falling outside the canvas is clipped.
+     * pixel that it covers: @p ink where its bits are set and @p paper where
+     * they are clear. Any part falling outside the canvas is clipped.
      *
      * @param x      Column of the bitmap's left edge, in pixels; may be negative or off the canvas.
      * @param y      Row of the bitmap's top edge, in pixels; may be negative or off the canvas.
-     * @param bitmap The bitmap to draw; only the complete rows its data holds are drawn.
+     * @param bitmap The bitmap to draw; only the complete rows that its data holds are drawn.
      * @param ink    The pixel value to write for set bits.
      * @param paper  The pixel value to write for clear bits.
      */
@@ -2629,21 +2647,21 @@ public:
     /**
      * @brief Draws text with the given ink.
      *
-     * Renders @p text left-to-right starting with its top-left corner at
-     * (@p x, @p y). Only glyph "ink" pixels are written — background pixels
-     * within the cell are left untouched, so text composes over existing
-     * content (on a monochrome surface, pass `ink = false` to erase ink
-     * pixels instead, e.g. for inverse text on a filled banner). Characters
-     * outside the font's range advance the cursor without drawing. Pixels
-     * falling outside the canvas are clipped.
+     * Draws @p text left to right, with its top-left corner at
+     * (@p x, @p y). Only the glyphs' ink pixels are written. Background
+     * pixels within the cell are not changed, so text is drawn on top of the
+     * existing content. On a monochrome surface, pass `ink = false` to erase
+     * ink pixels instead, for example for inverse text on a filled banner.
+     * Characters outside the font's range advance the cursor without
+     * drawing. Pixels falling outside the canvas are clipped.
      *
      * @param font  Font to render with.
      * @param x     Left edge of the first glyph cell, in pixels; may be negative or off the canvas.
      * @param y     Top edge of the glyph cells, in pixels; may be negative or off the canvas.
      * @param text  The text to draw.
      * @param ink   The pixel value to write for glyph ink.
-     * @param scale Integer magnification factor (>= 1; 0 is treated as 1);
-     *              each font pixel becomes a scale x scale block.
+     * @param scale Integer magnification factor (>= 1; 0 is treated as 1).
+     *              Each font pixel becomes a scale x scale block.
      */
     void draw_text(
         const font::mono_font& font,
@@ -2659,8 +2677,8 @@ public:
     /**
      * @brief Draws text on a monochrome surface, setting glyph ink pixels.
      *
-     * Equivalent to @ref draw_text with `ink = true`; see there for the full
-     * rendering contract.
+     * Equivalent to @ref draw_text with `ink = true`. See that function for
+     * the full rendering contract.
      *
      * @param font Font to render with.
      * @param x    Left edge of the first glyph cell, in pixels; may be negative or off the canvas.
@@ -2676,17 +2694,18 @@ public:
     /**
      * @brief Draws text in a proportional font with the given ink.
      *
-     * Decodes @p text as UTF-8 and renders it as one line, left-to-right,
-     * with the line's top-left corner at (@p x, @p y): the baseline is
-     * `font.ascent` rows below @p y, and each glyph moves the pen right by
-     * its own advance, so @ref font::text_width gives the width to center
-     * or align by. Only glyph "ink" pixels are written — the background is
-     * left untouched (on a monochrome surface, pass `ink = false` to erase
-     * ink pixels instead). Code points the font lacks are drawn as its
-     * replacement glyph, or skipped if it has none; U+00AD SOFT HYPHEN is
-     * never drawn and takes no space; control characters (including
-     * newlines) are not interpreted — see @ref draw_text_box for wrapped,
-     * multi-line text. Pixels falling outside the canvas are clipped.
+     * Decodes @p text as UTF-8 and draws it as one line, left to right, with
+     * the line's top-left corner at (@p x, @p y). The baseline is
+     * `font.ascent` rows below @p y. Each glyph moves the pen right by its
+     * own advance, so @ref font::text_width gives the width to use when
+     * centering or aligning the text. Only the glyphs' ink pixels are
+     * written. The background is not changed. On a monochrome surface, pass
+     * `ink = false` to erase ink pixels instead. Code points that the font
+     * does not have are drawn as its replacement glyph, or skipped if it has
+     * none. U+00AD SOFT HYPHEN is never drawn and takes no space. Control
+     * characters (including newlines) are not interpreted. See
+     * @ref draw_text_box for wrapped, multi-line text. Pixels falling outside
+     * the canvas are clipped.
      *
      * @param font Font to render with.
      * @param x    Left edge of the line (the starting pen position), in pixels; may be negative or
@@ -2708,8 +2727,8 @@ public:
     /**
      * @brief Draws text in a proportional font on a monochrome surface, setting glyph ink pixels.
      *
-     * Equivalent to @ref draw_text with `ink = true`; see there for the full
-     * rendering contract.
+     * Equivalent to @ref draw_text with `ink = true`. See that function for
+     * the full rendering contract.
      *
      * @param font Font to render with.
      * @param x    Left edge of the line (the starting pen position), in pixels; may be negative or
@@ -2728,15 +2747,16 @@ public:
      * @brief Draws text in a proportional font wrapped to a box, with the given ink.
      *
      * Breaks @p text into lines no wider than @p width with
-     * @ref font::break_lines — wrapping at spaces and after hyphens,
-     * hyphenating at soft hyphens (U+00AD), honoring `'\n'`, and splitting
-     * words too long for a line — then draws each line as @ref draw_text
-     * does, one `font.line_height` below the previous one, starting with the
-     * first line's top edge at @p y. Each line is aligned within the columns
-     * [@p x, @p x + @p width) by @p align; a line wider than the box (a
-     * single character that does not fit) starts at @p x. A line broken at a
-     * soft hyphen ends with a drawn `'-'`. All lines are drawn, however many
-     * there are; pixels falling outside the canvas are clipped.
+     * @ref font::break_lines. It wraps at spaces and after hyphens,
+     * hyphenates at soft hyphens (U+00AD), breaks lines at `'\n'`, and
+     * splits words that are too long for a line. Then it draws each line as
+     * @ref draw_text does, one `font.line_height` below the previous one,
+     * starting with the first line's top edge at @p y. Each line is aligned
+     * within the columns [@p x, @p x + @p width) by @p align. A line wider
+     * than the box (a single character that does not fit) starts at @p x. A
+     * line broken at a soft hyphen ends with a drawn `'-'`. All lines are
+     * drawn, however many there are. Pixels falling outside the canvas are
+     * clipped.
      *
      * @code
      * int y = 8;
@@ -2771,8 +2791,8 @@ public:
      * @brief Draws text in a proportional font wrapped to a box on a monochrome surface, setting
      *        glyph ink pixels.
      *
-     * Equivalent to @ref draw_text_box with `ink = true`; see there for the
-     * full layout and rendering contract.
+     * Equivalent to @ref draw_text_box with `ink = true`. See that function
+     * for the full layout and rendering contract.
      *
      * @param font  Font to render with.
      * @param x     Left edge of the box, in pixels; may be negative or off the canvas.
@@ -2800,14 +2820,14 @@ public:
      * @brief Draws text in a fixed-cell font wrapped to a box, with the given ink.
      *
      * Breaks @p text into lines no wider than @p width with
-     * @ref font::break_lines — wrapping at spaces and after hyphens,
-     * honoring `'\n'`, and splitting words too long for a line — then draws
-     * each line as @ref draw_text does, `font.height * scale` rows below the
-     * previous one, starting with the first line's top edge at @p y. Each
-     * line is aligned within the columns [@p x, @p x + @p width) by
-     * @p align; a line wider than the box (a single character that does not
-     * fit) starts at @p x. All lines are drawn, however many there are;
-     * pixels falling outside the canvas are clipped.
+     * @ref font::break_lines. It wraps at spaces and after hyphens, breaks
+     * lines at `'\n'`, and splits words that are too long for a line. Then
+     * it draws each line as @ref draw_text does, `font.height * scale` rows
+     * below the previous one, starting with the first line's top edge at
+     * @p y. Each line is aligned within the columns [@p x, @p x + @p width)
+     * by @p align. A line wider than the box (a single character that does
+     * not fit) starts at @p x. All lines are drawn, however many there are.
+     * Pixels falling outside the canvas are clipped.
      *
      * @param font  Font to render with.
      * @param x     Left edge of the box, in pixels; may be negative or off the canvas.
@@ -2816,8 +2836,8 @@ public:
      * @param text  The text to draw.
      * @param ink   The pixel value to write for glyph ink.
      * @param align Horizontal alignment of each line within the box.
-     * @param scale Integer magnification factor (>= 1; 0 is treated as 1);
-     *              each font pixel becomes a scale x scale block.
+     * @param scale Integer magnification factor (>= 1; 0 is treated as 1).
+     *              Each font pixel becomes a scale x scale block.
      * @return The height of the drawn text in pixels: the number of lines
      *         times `font.height * scale` (0 for empty text).
      */
@@ -2838,8 +2858,8 @@ public:
      * @brief Draws text in a fixed-cell font wrapped to a box on a monochrome surface, setting
      *        glyph ink pixels.
      *
-     * Equivalent to @ref draw_text_box with `ink = true`; see there for the
-     * full layout and rendering contract.
+     * Equivalent to @ref draw_text_box with `ink = true`. See that function
+     * for the full layout and rendering contract.
      *
      * @param font  Font to render with.
      * @param x     Left edge of the box, in pixels; may be negative or off the canvas.
@@ -2879,7 +2899,8 @@ public:
 
 private:
     // True when the drawable region spans the entire surface (the identity
-    // and whole-band cases), enabling the surface's native fill/clear.
+    // and whole-band cases). In these cases fill and clear can use the
+    // surface's native fill/clear.
     [[nodiscard]] bool _covers_surface() const noexcept {
         return detail::covers(
             _dx, _dy, _surface->width(), _surface->height(), _left, _top, _width, _height
@@ -2899,9 +2920,10 @@ private:
  * @headerfile <idfxx/gfx>
  * @brief Mounting direction for @ref rotated.
  *
- * Quarter turns only: the two directions a portrait panel can be mounted
- * to serve a landscape layout (and vice versa). Each value names the turn
- * applied to the surface at mounting, so the adapter's remapping undoes it.
+ * Only quarter turns are supported. These are the two directions in which a
+ * portrait panel can be mounted for a landscape layout (and the reverse).
+ * Each value names the turn that was applied to the surface when it was
+ * mounted. The adapter's remapping reverses that turn.
  */
 enum class rotation : uint8_t {
     /// The surface is mounted turned a quarter turn clockwise (its native
@@ -2917,12 +2939,12 @@ enum class rotation : uint8_t {
  * @brief A pixel-surface view presenting another surface turned a quarter turn.
  *
  * Adapts a surface whose native orientation differs from the drawing layout
- * by a quarter turn — the common ePaper case of a portrait-native panel
- * mounted landscape. The view swaps the reported dimensions and remaps
- * @ref set_pixel so drawing happens in viewer coordinates while the
- * underlying surface keeps its native layout; the framebuffer behind the
- * view is written to the display in its native layout
- * (`display.write(fb)`).
+ * by a quarter turn. This is common for ePaper: a panel that is natively
+ * portrait is mounted in landscape orientation. The view swaps the reported
+ * dimensions and remaps @ref set_pixel, so that drawing uses viewer
+ * coordinates and the underlying surface keeps its native layout. The
+ * framebuffer behind the view is written to the display in its native
+ * layout (`display.write(fb)`).
  *
  * @code
  * idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait
@@ -2933,11 +2955,11 @@ enum class rotation : uint8_t {
  * display.write(fb);
  * @endcode
  *
- * Like a canvas, a rotated view is a cheap, copyable view: it does not own
- * the surface, and the caller must ensure the surface outlives it. It
- * satisfies @ref pixel_surface itself, with the same clipping contract —
+ * Like a canvas, a rotated view is a cheap, copyable view. It does not own
+ * the surface, and the caller must ensure that the surface outlives it. It
+ * satisfies @ref pixel_surface itself, with the same clipping contract:
  * writes outside its (swapped) bounds are ignored. @ref fill and @ref clear
- * forward to the surface's own when it provides them.
+ * call the surface's own `fill` and `clear` when it provides them.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  */
@@ -2960,10 +2982,10 @@ public:
     /** @brief Returns the underlying surface. */
     [[nodiscard]] Surface& surface() const noexcept { return *_surface; }
 
-    /** @brief Returns the view's width — the surface's height. */
+    /** @brief Returns the view's width, which is the surface's height. */
     [[nodiscard]] size_t width() const noexcept { return _surface->height(); }
 
-    /** @brief Returns the view's height — the surface's width. */
+    /** @brief Returns the view's height, which is the surface's width. */
     [[nodiscard]] size_t height() const noexcept { return _surface->width(); }
 
     /**
@@ -3064,22 +3086,26 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
 /**
  * @brief Renders a frame taller than its framebuffer, band by band.
  *
- * Renders a @p frame_height-row frame through @p band, a framebuffer
- * covering `band.width()` x `band.height()` pixels, in
- * `frame_height / band.height()` passes. Each pass clears the band, invokes
- * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
- * so its width and height are the frame's in every pass), and writes the
- * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
- * outside the pass's band is clipped before drawing rather than discarded
- * pixel by pixel; content straddling band edges renders exactly its visible
- * part, so the assembled frame is identical to one drawn through a
- * full-frame buffer.
+ * Renders a @p frame_height-row frame through @p band in
+ * `frame_height / band.height()` passes. @p band is a framebuffer that
+ * covers `band.width()` x `band.height()` pixels. Each pass does these
+ * steps:
+ * - It clears the band.
+ * - It calls @p draw with a canvas whose coordinates span the full frame.
+ *   The canvas places the band at its slice with
+ *   `canvas(band, 0, y, band.width(), frame_height)`, so the canvas's width
+ *   and height are the frame's in every pass.
+ * - It writes the band to @p dest at (0, y) with `dest.try_write(band, 0, y)`.
  *
- * The callback is invoked once per band and must draw the complete frame
- * each time, as a pure function of the scene state — compute any state
- * changes (advancing samples, reading sensors) before rendering, not inside
- * the callback.
+ * Content outside the pass's band is clipped before drawing, not discarded
+ * pixel by pixel. For content that crosses band edges, exactly its visible
+ * part is drawn. So the assembled frame is identical to a frame drawn
+ * through a full-frame buffer.
+ *
+ * The callback is called once for each band and must draw the complete
+ * frame each time, as a pure function of the scene state. Compute any state
+ * changes (such as advancing samples or reading sensors) before rendering,
+ * not inside the callback.
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(240, 40);
@@ -3094,7 +3120,7 @@ try_render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw)
  *                 `try_write(const Surface&, size_t x, size_t y)`.
  * @tparam DrawFn  The draw callback type, invocable with `canvas<Surface>&`.
  * @param band         The framebuffer to render through; its width is the frame width.
- * @param dest         The destination the band is written to after each pass.
+ * @param dest         The destination that the band is written to after each pass.
  * @param frame_height Height of the frame, in pixels; must be a non-zero
  *                     multiple of `band.height()`.
  * @param draw         Callback drawing the complete frame on the given canvas.
@@ -3112,29 +3138,33 @@ void render_banded(Surface& band, Dest& dest, size_t frame_height, DrawFn&& draw
 /**
  * @brief Renders a frame taller than its framebuffer, band by band.
  *
- * Renders a @p frame_height-row frame through @p band, a framebuffer
- * covering `band.width()` x `band.height()` pixels, in
- * `frame_height / band.height()` passes. Each pass clears the band, invokes
- * @p draw with a canvas whose coordinates span the full frame (the band
- * placed at its slice via `canvas(band, 0, y, band.width(), frame_height)`,
- * so its width and height are the frame's in every pass), and writes the
- * band to @p dest at (0, y) with `dest.try_write(band, 0, y)`. Content
- * outside the pass's band is clipped before drawing rather than discarded
- * pixel by pixel; content straddling band edges renders exactly its visible
- * part, so the assembled frame is identical to one drawn through a
- * full-frame buffer.
+ * Renders a @p frame_height-row frame through @p band in
+ * `frame_height / band.height()` passes. @p band is a framebuffer that
+ * covers `band.width()` x `band.height()` pixels. Each pass does these
+ * steps:
+ * - It clears the band.
+ * - It calls @p draw with a canvas whose coordinates span the full frame.
+ *   The canvas places the band at its slice with
+ *   `canvas(band, 0, y, band.width(), frame_height)`, so the canvas's width
+ *   and height are the frame's in every pass.
+ * - It writes the band to @p dest at (0, y) with `dest.try_write(band, 0, y)`.
  *
- * The callback is invoked once per band and must draw the complete frame
- * each time, as a pure function of the scene state — compute any state
- * changes (advancing samples, reading sensors) before rendering, not inside
- * the callback.
+ * Content outside the pass's band is clipped before drawing, not discarded
+ * pixel by pixel. For content that crosses band edges, exactly its visible
+ * part is drawn. So the assembled frame is identical to a frame drawn
+ * through a full-frame buffer.
+ *
+ * The callback is called once for each band and must draw the complete
+ * frame each time, as a pure function of the scene state. Compute any state
+ * changes (such as advancing samples or reading sensors) before rendering,
+ * not inside the callback.
  *
  * @tparam Surface The band's surface type (satisfies @ref pixel_surface).
  * @tparam Dest    The destination type (e.g. a panel), providing
  *                 `try_write(const Surface&, size_t x, size_t y)`.
  * @tparam DrawFn  The draw callback type, invocable with `canvas<Surface>&`.
  * @param band         The framebuffer to render through; its width is the frame width.
- * @param dest         The destination the band is written to after each pass.
+ * @param dest         The destination that the band is written to after each pass.
  * @param frame_height Height of the frame, in pixels; must be a non-zero
  *                     multiple of `band.height()`.
  * @param draw         Callback drawing the complete frame on the given canvas.

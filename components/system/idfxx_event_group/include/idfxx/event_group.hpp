@@ -76,7 +76,7 @@ enum class wait_mode {
  * // Wait for a single bit (mode defaults to wait_mode::all)
  * auto bits = eg.wait(my_event::data_ready);
  *
- * // Wait for multiple bits — pass mode explicitly
+ * // Wait for multiple bits. Pass mode explicitly.
  * auto any_bits = eg.wait(my_event::data_ready | my_event::error, idfxx::wait_mode::any);
  * @endcode
  */
@@ -196,7 +196,7 @@ public:
      *
      * @param bits The bits to wait for.
      * @param mode Whether to wait for any or all of the specified bits. Defaults
-     *             to `wait_mode::all`; the parameter has no effect when `bits`
+     *             to `wait_mode::all`. The parameter has no effect when `bits`
      *             names a single bit.
      * @param clear_on_exit If true, the waited-for bits are cleared before returning.
      * @return The event group bits at the time the wait condition was satisfied.
@@ -318,7 +318,7 @@ public:
      *
      * @param bits The bits to wait for.
      * @param mode Whether to wait for any or all of the specified bits. Defaults
-     *             to `wait_mode::all`; the parameter has no effect when `bits`
+     *             to `wait_mode::all`. The parameter has no effect when `bits`
      *             names a single bit.
      * @param clear_on_exit If true, the waited-for bits are cleared before returning.
      * @return The event group bits at the time the wait condition was satisfied, or an error.
@@ -436,7 +436,7 @@ public:
      * @brief Atomically sets bits and waits for other bits, blocking indefinitely.
      *
      * Sets the specified bits and then waits for all of the wait bits to be set.
-     * This is used for task rendezvous — multiple tasks each set their own bit
+     * This is used for task rendezvous. Multiple tasks each set their own bit
      * and wait for all bits to be set.
      *
      * The bits set by this call and the bits waited for are automatically cleared
@@ -503,7 +503,7 @@ public:
      * @brief Atomically sets bits and waits for other bits, blocking indefinitely.
      *
      * Sets the specified bits and then waits for all of the wait bits to be set.
-     * This is used for task rendezvous — multiple tasks each set their own bit
+     * This is used for task rendezvous. Multiple tasks each set their own bit
      * and wait for all bits to be set.
      *
      * The bits set by this call and the bits waited for are automatically cleared

@@ -6,8 +6,8 @@ Shows the logging features of `idfxx::log`, from simple messages to hex dumps.
 
 - Logging at each level with an `idfxx::log::logger`
 - Formatting arguments with `std::format`-style placeholders
-- Logging with a tag through the free functions (`idfxx::log::error()`, `idfxx::log::info()` and so
-  on)
+- Logging with a tag through the free functions, such as `idfxx::log::error()` and
+  `idfxx::log::info()`
 - Changing the level for one tag with `idfxx::log::set_level()`
 - Changing the default level for all tags with `idfxx::log::set_default_level()`
 - Converting and formatting `idfxx::log::level` values with `idfxx::to_string()`

@@ -211,8 +211,8 @@ result<void> decoder::_begin() {
     if (auto r = _state->check(idfxx_jpeg_start(_state->ctx, _state->eighths, &w, &h)); !r) {
         return r;
     }
-    // Rows are written for the output size the caller sized its destination
-    // by, so libjpeg must produce exactly that.
+    // Rows are written for the output size that the caller used to size its
+    // destination, so libjpeg must produce exactly that size.
     if (w != _output_width || h != _output_height) {
         ESP_LOGE(
             TAG,

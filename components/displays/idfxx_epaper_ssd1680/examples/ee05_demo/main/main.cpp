@@ -2,10 +2,10 @@
 
 // Demo for the Seeed Studio XIAO ePaper Display Board EE05 (ESP32-S3 Plus)
 // with the 2.13" 122x250 SSD1680 panel. Walks through the driver's refresh
-// modes: a full-refresh title screen, a 4-level grayscale screen (run early,
-// while the glass is fresh — see the idfxx_epaper_uc8179 README on gray4
-// ghosting), a fast refresh, and a partial-refresh counter loop, then shows
-// a closing screen and puts the panel to deep sleep.
+// modes: a full-refresh title screen, a 4-level grayscale screen, a fast
+// refresh, and a partial-refresh counter loop. It then shows a closing screen
+// and puts the panel to deep sleep. The grayscale screen runs early, while
+// the glass is fresh (see the idfxx_epaper_uc8179 README on gray4 ghosting).
 
 #include <idfxx/epaper/gray4_framebuffer>
 #include <idfxx/epaper/mono_framebuffer>
@@ -94,11 +94,12 @@ extern "C" void app_main() {
 
         // --- Stage 2: 4-level grayscale ---
         // The gray midtones are open-loop drives that amplify residual
-        // polarization from long-displayed content, so run the grayscale
-        // stage early, while the glass is fresh (see the idfxx_epaper_uc8179
-        // README on gray4 ghosting). Grayscale waveforms also erase less
-        // aggressively than a mono full refresh, so clear to white first to
-        // keep the previous screen from ghosting through the gray bands.
+        // polarization from content that was displayed for a long time. Run
+        // the grayscale stage early, while the glass is fresh (see the
+        // idfxx_epaper_uc8179 README on gray4 ghosting). Grayscale waveforms
+        // also erase less aggressively than a mono full refresh. Clear to
+        // white first, so that the previous screen does not show as ghosting
+        // through the gray bands.
         display.clear();
         display.refresh();
         display.set_color_mode(color_mode::gray4);
@@ -133,13 +134,13 @@ extern "C" void app_main() {
 
         // --- Stage 5: partial-refresh counter loop ---
         // Fast-refresh output is weakly driven and would settle to gray
-        // under partial refreshes, so start the sequence from a full
-        // refresh, which drives pixels to their stable extremes.
+        // under partial refreshes. Start the sequence from a full refresh,
+        // which drives pixels to their stable extremes.
         display.refresh();
         // Each frame is drawn while the previous one is still updating on
-        // the glass: start_refresh returns at once with a future, and the
-        // next write waits out the outstanding update before uploading to the
-        // controller. Only the last future needs an explicit wait.
+        // the glass. start_refresh returns at once with a future. The next
+        // write waits for the running update to finish before it uploads to
+        // the controller. Only the last future needs an explicit wait.
         constexpr size_t counter_y = 110;
         constexpr size_t counter_h = 32;
         idfxx::future<void> update;
@@ -149,7 +150,7 @@ extern "C" void app_main() {
                 idfxx::font::spleen_8x16, 8, counter_y, std::format("{:02}", i), true, 2
             );
             display.write_rows(fb, counter_y, counter_y + counter_h);
-            // Partial updates accumulate ghosting; clean up with a full
+            // Partial updates accumulate ghosting. Clean up with a full
             // refresh every 10 iterations.
             update =
                 display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);

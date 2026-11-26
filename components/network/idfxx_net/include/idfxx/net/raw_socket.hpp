@@ -37,16 +37,16 @@ namespace idfxx::net {
  * for which the socket is opened. Use `send_to` / `recv_from` for
  * connectionless addressing, or `connect()` to set a default peer.
  *
- * On IPv4 a received packet includes the 20-byte IP header that the stack
- * prepends; the header is **not** part of an outgoing send and is added by the
- * stack. As with `datagram_socket`, a send larger than the link can carry
- * returns `errc::message_too_long`, and a receive into too small a buffer
+ * On IPv4, a received packet includes the 20-byte IP header that the stack
+ * prepends. The header is **not** part of an outgoing send. The stack adds it.
+ * As with `datagram_socket`, a send larger than the link can carry returns
+ * `errc::message_too_long`. A receive into a buffer that is too small also
  * returns `errc::message_too_long` rather than truncating.
  *
  * Ownership is exclusive: the socket is non-copyable and move-only. A
  * moved-from socket may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `-1`); calling any other method
- * on it is undefined behavior. The destructor closes the socket if open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns `-1`).
+ * Calling any other method on it is undefined behavior. The destructor closes the socket if open.
  */
 class [[nodiscard]] raw_socket : public detail::connectionless_socket_base {
 public:
@@ -157,8 +157,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         raw packet is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always `buf.size()`,
+     *         because a raw packet is sent in full or not at all.
      */
     size_t send(byte_view buf) { return idfxx::unwrap(try_send(buf)); }
 #endif
@@ -167,8 +167,8 @@ public:
      * @brief Sends a raw packet on a connected socket.
      *
      * @param buf Data to send.
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         raw packet is sent in full or not at all — or an error.
+     * @return The number of bytes sent, or an error. On success, this is always
+     *         `buf.size()`, because a raw packet is sent in full or not at all.
      */
     [[nodiscard]] result<size_t> try_send(byte_view buf);
 

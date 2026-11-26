@@ -12,20 +12,20 @@
  * @ingroup idfxx_core
  * @brief Views of contiguous bytes that accept both `std::byte` and `uint8_t` buffers.
  *
- * `idfxx::byte_view` and `idfxx::byte_span` refer to a contiguous run of bytes owned by
- * someone else, like a `std::span` of `std::byte`. They are the parameter types of APIs that move
- * bytes without interpreting them — payloads, file and flash contents, bus transfers — so callers
- * can pass whatever holds their bytes:
+ * `idfxx::byte_view` and `idfxx::byte_span` refer to a contiguous run of bytes that they do not
+ * own, like a `std::span` of `std::byte`. They are the parameter types of APIs that move bytes
+ * without interpreting them. The bytes can be payloads, file and flash contents, or bus transfers.
+ * A caller can pass the bytes in any of these forms:
  *
  * - any contiguous range of `std::byte` or `uint8_t`: `std::array`, `std::vector`, `std::span`, a
  *   built-in array, or another byte view
  * - the bytes of any object, through `std::as_bytes` / `std::as_writable_bytes`
  * - a pointer and a length, as `{ptr, len}`
  *
- * Ranges of `char` are not accepted: text is passed through an API's `std::string_view` overload
- * where it has one, and otherwise as `std::as_bytes(std::span{str})`. This keeps a string literal
- * from silently including its terminating NUL, and lets an API offer a `std::string_view` overload
- * beside a byte-view one without ambiguity.
+ * Ranges of `char` are not accepted. Because of this, a string literal does not silently include
+ * its terminating NUL. Also, an API can offer a `std::string_view` overload beside a byte-view
+ * overload without ambiguity. Pass text through an API's `std::string_view` overload if it has one.
+ * Otherwise, pass it as `std::as_bytes(std::span{str})`.
  *
  * @code
  * void send(idfxx::byte_view data);
@@ -40,10 +40,10 @@
  * send({header.data() + 2, 2});
  * @endcode
  *
- * Like a `std::span`, a view does not extend the lifetime of the buffer it refers to: the buffer
- * must outlive every use of the view. Views are not constructible from a braced list of values,
- * whose storage would end with the full expression; APIs where callers commonly pass literal bytes
- * offer a separate `std::initializer_list<uint8_t>` overload instead.
+ * Like a `std::span`, a view does not extend the lifetime of the buffer that it refers to. The
+ * buffer must outlive every use of the view. Views are not constructible from a braced list of
+ * values, because the storage of the list ends with the full expression. APIs where callers
+ * commonly pass literal bytes offer a separate `std::initializer_list<uint8_t>` overload instead.
  * @{
  */
 

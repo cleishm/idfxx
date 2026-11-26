@@ -15,17 +15,18 @@ menu "IDFXX log"
         bool "Let sinks receive every log line"
         default n
         help
-            Lets a sink receive every ESP-IDF log line: lines logged with ESP_LOGx,
-            ESP_LOG_BUFFER_* and esp_log_write, and by the libraries that log through them. Add
-            such a sink with idfxx::log::add_sink(idfxx::log::all_lines, sink).
+            With this option enabled, a sink can receive every ESP-IDF log line: lines logged with
+            ESP_LOGx, ESP_LOG_BUFFER_* and esp_log_write, and by the libraries that log through
+            them. Add such a sink with idfxx::log::add_sink(idfxx::log::all_lines, sink).
 
             To receive every line, idfxx_log wraps esp_log and esp_log_va at link time
             (-Wl,--wrap). The app and its other components must not wrap them as well: a second
             definition of __wrap_esp_log or __wrap_esp_log_va makes the link fail.
 
-            Sinks do not receive early, DRAM or binary-mode lines, or lines above the compile-time
-            maximum level. With LOG_MASTER_LEVEL under log v1, they also do not receive ESP_LOGx
-            lines above the master level, because the macros skip those lines before logging them.
+            Sinks do not receive early, DRAM or binary-mode lines, or lines more verbose than the
+            compile-time maximum level. With LOG_MASTER_LEVEL under log v1, they also do not
+            receive ESP_LOGx lines more verbose than the master level, because the macros skip
+            those lines before logging them.
 
             While no such sink is added, each log call makes one extra check and uses about 64
             bytes more stack, for the wrapper's own frame. For the stack that a log call uses

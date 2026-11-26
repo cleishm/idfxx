@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Shows a photo the right way up on a panel that is mounted rotated, working on images already in
-// memory. To decode an image straight to a display, use idfxx::image::render(), which
-// applies these orientations for you.
+// Shows a photo upright on a panel that is mounted rotated, working on images already in memory. To
+// decode an image straight to a display, use idfxx::image::render(), which applies these
+// orientations for you.
 
 #include <idfxx/image>
 #include <idfxx/log>
@@ -53,8 +53,8 @@ extern "C" void app_main() {
     const image::buffer<> photo = make_photo();
     print_image("Photo as stored", photo);
 
-    // The photo needs one transform to undo how it was stored and the panel needs another to undo
-    // how it is mounted. Combining them moves the pixels only once.
+    // The photo needs one transform to undo how it was stored. The panel needs another to undo how
+    // it is mounted. Combining them moves the pixels only once.
     const orientation exif = orientation::flip_horizontal; // from the photo's metadata
     const orientation panel = orientation::rotate_90;      // how the panel is mounted
     const orientation o = image::compose(exif, panel);
@@ -80,8 +80,9 @@ extern "C" void app_main() {
         "Touch at screen ({}, {}) is on photo pixel ({}, {})", touch.x, touch.y, hit.x, hit.y
     );
 
-    // Going the other way, find where a photo pixel landed, to mark its top-left corner. The
-    // displayed image is the source here, and the inverse orientation leads back to the photo.
+    // Going the other way, find where a photo pixel appears on the screen, to mark its top-left
+    // corner. The displayed image is the source here, and the inverse orientation maps it back to
+    // the photo.
     const image::point corner =
         image::source_point(image::inverse(o), {0, 0}, shown.width, shown.height);
     screen[left + corner.x, top + corner.y] = MARKER;

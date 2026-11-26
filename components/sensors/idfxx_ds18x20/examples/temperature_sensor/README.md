@@ -42,6 +42,6 @@ idf.py set-target esp32
 idf.py -p PORT flash monitor
 ```
 
-Replace `esp32` with your target and `PORT` with your board's serial port. The example runs once: it
-lists the sensors it finds, reads them, tries 10-bit resolution on each DS18B20 and sets it back to
-12-bit. Press `Ctrl-]` to exit the monitor.
+Replace `esp32` with your target and `PORT` with your board's serial port. The example runs once. It
+lists the sensors that it finds and reads them. Then it tries 10-bit resolution on each DS18B20 and
+sets it back to 12-bit. Press `Ctrl-]` to exit the monitor.

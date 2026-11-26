@@ -48,7 +48,7 @@ extern "C" void app_main() {
             }
         );
 
-        // --- Connect to WiFi ---
+        // --- Connect to Wi-Fi ---
         idfxx::wifi::init();
         idfxx::wifi::set_roles(idfxx::wifi::role::sta);
         idfxx::wifi::set_sta_config({

@@ -76,9 +76,10 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
         .flags{},
     };
     // Assign the bitfield flags individually rather than via a designated
-    // initializer: value-initializing the struct above zeroes every flag bit,
-    // so this stays forward-compatible as ESP-IDF adds new flags (which would
-    // otherwise trip -Werror=missing-field-initializers).
+    // initializer. Value-initializing the struct above zeroes every flag bit.
+    // Assigning each flag after this zeroing keeps the code compatible when
+    // ESP-IDF adds new flags, which would otherwise cause a
+    // -Werror=missing-field-initializers error.
     lcd_config.flags.dc_high_on_cmd = cfg.flags.dc_high_on_cmd;
     lcd_config.flags.dc_low_on_data = cfg.flags.dc_low_on_data;
     lcd_config.flags.dc_low_on_param = cfg.flags.dc_low_on_param;
@@ -127,10 +128,10 @@ result<panel_io> panel_io::make(idfxx::i2c::master_bus& i2c_bus, panel_io::i2c_c
         cbs = std::make_unique<callback_state>(std::move(cfg.on_color_transfer_done));
     }
 
-    // Assign members individually rather than via a designated initializer:
-    // the field order (and the type of dc_bit_offset) differs between ESP-IDF
-    // 5.5 and 6.0, and value-initializing the struct first zeroes every field
-    // including any flags ESP-IDF adds later.
+    // Assign members individually rather than via a designated initializer.
+    // The field order (and the type of dc_bit_offset) differs between ESP-IDF
+    // 5.5 and 6.0. Value-initializing the struct first zeroes every field,
+    // including any flags that ESP-IDF adds later.
     esp_lcd_panel_io_i2c_config_t lcd_config{};
     lcd_config.dev_addr = cfg.device_address;
     lcd_config.scl_speed_hz = static_cast<uint32_t>(cfg.scl_speed->count());

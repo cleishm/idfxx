@@ -154,7 +154,7 @@ concept receivable_event_data = std::is_trivially_copyable_v<T> || requires(cons
  * @brief Concept for types that can be both received and posted as event data.
  *
  * A type satisfies event_data if it can be received and is trivially copyable,
- * allowing ESP-IDF to memcpy it into the event queue. Trivially copyable types
+ * so that ESP-IDF can memcpy it into the event queue. Trivially copyable types
  * satisfy both this and receivable_event_data without needing `from_opaque`.
  *
  * Types that are only received (e.g., system event data from ESP-IDF that wraps
@@ -270,7 +270,7 @@ using event_handler = typename event_handler_traits<DataType>::type;
  * Used with the wildcard listener overload that receives all events from a base.
  * The callback receives the event base, ID, and raw event data pointer.
  *
- * Exceptions thrown by the callback are handled as for event_handler.
+ * Exceptions thrown by the callback are handled in the same way as for event_handler.
  *
  * @tparam IdEnum The event ID enum type.
  */
@@ -761,7 +761,7 @@ private:
  * @brief Handle to a registered event listener.
  *
  * Returned by listener registration methods. This handle does not provide
- * RAII semantics - use unique_listener_handle for automatic cleanup.
+ * RAII semantics. Use unique_listener_handle for automatic cleanup.
  *
  * @note This handle can be copied freely. The listener remains registered
  *       until explicitly removed via try_listener_remove().

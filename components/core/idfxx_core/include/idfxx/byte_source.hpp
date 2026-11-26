@@ -12,10 +12,10 @@
  * @ingroup idfxx_core
  * @brief A common interface for reading a stream of bytes, with in-memory and file sources.
  *
- * The `idfxx::byte_source` concept lets code that consumes a byte stream — a
- * parser, a decoder, a copy loop — accept any producer of bytes: an in-memory
- * buffer, a file, a flash partition, a network connection, or an HTTP response
- * body.
+ * With the `idfxx::byte_source` concept, code that reads a byte stream (such as
+ * a parser, a decoder or a copy loop) can accept any producer of bytes: an
+ * in-memory buffer, a file, a flash partition, a network connection, or an HTTP
+ * response body.
  *
  * @code
  * const std::array<uint8_t, 4> data{1, 2, 3, 4};
@@ -49,7 +49,7 @@ namespace idfxx {
  *
  * A type models `byte_source` if it provides a `try_read(buf)` that accepts an
  * `idfxx::byte_span` and returns `idfxx::result<size_t>`. The parameter
- * may be a `byte_span`, or any type one converts to:
+ * may be a `byte_span`, or any type that a `byte_span` converts to:
  * `std::span<std::byte>` or `std::span<uint8_t>`. Each call reads the next
  * bytes of the stream into the front of @p buf:
  *
@@ -60,14 +60,14 @@ namespace idfxx {
  *   and callers should stop reading. The result of further reads is
  *   unspecified: a source may keep returning 0, or may return an error.
  * - A return smaller than `buf.size()` (a short read) is allowed at any point
- *   and does not imply the end of the stream; keep reading until 0 is returned.
+ *   and does not imply the end of the stream. Keep reading until 0 is returned.
  * - For an empty @p buf, the return is 0 and says nothing about whether the
  *   end of the stream has been reached.
- * - A failure is returned as an error; the source's error codes are passed
+ * - A failure is returned as an error. The source's error codes are passed
  *   through unchanged.
  *
  * Sources typically also provide a throwing `read(buf)` with the same
- * semantics, but generic code that accepts any `byte_source` can rely only on
+ * semantics. But generic code that accepts any `byte_source` can rely only on
  * `try_read`, called with a `byte_span`.
  *
  * @tparam T The type to check.
@@ -103,7 +103,7 @@ concept byte_source = requires(T& s, byte_span buf) {
  * end. The source does not copy or own the buffer: the buffer must remain
  * valid, and unchanged, for as long as the source is read from.
  *
- * Sources are copyable; a copy reads independently from the same position in
+ * Sources are copyable. A copy reads independently from the same position in
  * the same buffer.
  *
  * @code
@@ -140,7 +140,7 @@ public:
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf once the end
+     * @return The number of bytes read. 0 for a non-empty @p buf once the end
      *         of the data has been reached.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -157,7 +157,7 @@ public:
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf once the end
+     * @return The number of bytes read. 0 for a non-empty @p buf once the end
      *         of the data has been reached. Never returns an error.
      */
     [[nodiscard]] result<size_t> try_read(byte_span buf) noexcept {
@@ -175,12 +175,12 @@ private:
  * @headerfile <idfxx/byte_source>
  * @brief A byte source that reads from a C stdio stream.
  *
- * Reads from an open `FILE*` — a file on a mounted filesystem, or any other
- * stdio stream — starting at the stream's current position. The source does
- * not own the stream: the caller opens it before creating the source, and
- * closes it after the source is no longer used.
+ * Reads from an open `FILE*`, starting at the stream's current position. The
+ * stream can be a file on a mounted filesystem or any other stdio stream. The
+ * source does not own the stream: the caller opens it before creating the
+ * source, and closes it after the source is no longer used.
  *
- * Sources are copyable; copies share the stream and its position.
+ * Sources are copyable. Copies share the stream and its position.
  *
  * @code
  * FILE* f = std::fopen("/spiffs/config.json", "rb");
@@ -211,13 +211,13 @@ public:
     /**
      * @brief Reads the next bytes into a buffer.
      *
-     * A read error is reported once no bytes could be read: bytes read
-     * before the error are returned as a short read, and since the stream's
-     * error indicator stays set, the error is reported by a following read.
+     * A read error is reported only when no bytes could be read. Bytes read
+     * before the error are returned as a short read. The stream's error
+     * indicator stays set, so a following read reports the error.
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf at the end
+     * @return The number of bytes read. 0 for a non-empty @p buf at the end
      *         of the file.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -230,15 +230,15 @@ public:
     /**
      * @brief Reads the next bytes into a buffer.
      *
-     * A read error is reported once no bytes could be read: bytes read
-     * before the error are returned as a short read, and since the stream's
-     * error indicator stays set, the error is reported by a following read.
+     * A read error is reported only when no bytes could be read. Bytes read
+     * before the error are returned as a short read. The stream's error
+     * indicator stays set, so a following read reports the error.
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf at the end
+     * @return The number of bytes read. 0 for a non-empty @p buf at the end
      *         of the file. On a read error with no bytes read, an error code
-     *         in `std::generic_category()` holding the `errno` value the
+     *         in `std::generic_category()` holding the `errno` value that the
      *         stream reported, or `EIO` if it reported none.
      */
     [[nodiscard]] result<size_t> try_read(byte_span buf);

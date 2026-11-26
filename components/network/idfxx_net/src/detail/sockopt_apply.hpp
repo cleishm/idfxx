@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Internal-only header. Shared "apply config" helper that walks the option
+// Internal-only header. Shared "apply config" helper that applies the option
 // fields common to every socket type (`stream_socket`, `datagram_socket`,
 // `raw_socket`, `listener`) so each per-type `apply_config` only handles the
 // type-specific extras.

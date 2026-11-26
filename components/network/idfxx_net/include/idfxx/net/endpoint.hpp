@@ -76,17 +76,17 @@ enum class direction : int {
 
 /**
  * @headerfile <idfxx/net/endpoint>
- * @brief Differentiated Services Code Point — the top 6 bits of the IPv4/IPv6
- *        traffic-class byte, per RFC 2474 / RFC 4594.
+ * @brief Differentiated Services Code Point. This is the top 6 bits of the
+ *        IPv4/IPv6 traffic-class byte, per RFC 2474 / RFC 4594.
  *
  * Named values cover the standard per-hop behaviors (default, class selectors,
  * assured-forwarding classes, expedited forwarding, voice-admit). Custom 6-bit
- * values can be passed as `static_cast<dscp>(n)`; only the low 6 bits are used.
+ * values can be passed as `static_cast<dscp>(n)`. Only the low 6 bits are used.
  */
 enum class dscp : uint8_t {
     default_ = 0, ///< CS0 — best-effort (default).
 
-    // Class selectors (RFC 2474 §4.2.2 — backward-compat with legacy IP precedence).
+    // Class selectors (RFC 2474 §4.2.2), backward-compatible with legacy IP precedence.
     cs1 = 8,
     cs2 = 16,
     cs3 = 24,
@@ -118,7 +118,7 @@ enum class dscp : uint8_t {
  * @brief Address/port pair identifying a transport endpoint.
  *
  * An `endpoint` carries either an IPv4 or IPv6 address together with a port
- * number. It always holds an address — there is no empty state, so it is not
+ * number. It always holds an address. There is no empty state, so it is not
  * default-constructible.
  *
  * @code
@@ -155,8 +155,8 @@ public:
      * - `1.2.3.4:80` for IPv4
      * - `[fe80::1]:80` (with bracketed v6 address) for IPv6
      *
-     * The host part is parsed by `ipv4_addr::parse` or `ipv6_addr::parse`;
-     * names are not resolved.
+     * The host part is parsed by `ipv4_addr::parse` or `ipv6_addr::parse`.
+     * Names are not resolved.
      *
      * @param s The string to parse.
      * @return The parsed endpoint, or `std::nullopt` on failure.
@@ -218,20 +218,20 @@ private:
  * @brief A datagram received together with the sender's endpoint.
  *
  * Returned by `try_recv_from` on connectionless sockets and netconn
- * connections. `data` is a view of the start of the buffer the caller
+ * connections. `data` is a view of the start of the buffer that the caller
  * passed in, sized to the bytes actually copied. If the datagram was larger
  * than the buffer, `truncated` is set and the excess bytes are discarded
  * (datagrams cannot be read in pieces).
  *
- * @warning `data` aliases the caller's receive buffer — it does not own its
- *          storage and is valid only as long as that buffer remains alive and
- *          unmodified.
+ * @warning `data` aliases the caller's receive buffer. It does not own its
+ *          storage, and it is valid only as long as that buffer remains alive
+ *          and unmodified.
  */
 struct datagram {
     byte_span data; ///< Filled portion of the caller's receive buffer (aliases it).
     endpoint from;  ///< Source endpoint of the datagram.
-    /// True if the datagram was larger than the buffer; `data` holds the leading
-    /// portion and the remainder was discarded.
+    /// True if the datagram was larger than the buffer. In that case, `data` holds the
+    /// leading portion and the remainder was discarded.
     bool truncated = false;
 };
 

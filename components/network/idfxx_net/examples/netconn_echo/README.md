@@ -3,7 +3,7 @@
 A TCP echo server built on the `idfxx::net::netconn` API, which sends received data back one segment
 at a time without copying it.
 
-Most applications should use the socket API instead; the `tcp_echo_server` example is the equivalent
+Most applications should use the socket API instead. The `tcp_echo_server` example is the equivalent
 server built on `idfxx::net::listener` and `stream_socket`.
 
 ## What it demonstrates
@@ -14,7 +14,7 @@ server built on `idfxx::net::listener` and `stream_socket`.
 - Accepting a connection as a `netconn::stream_channel`
 - Receiving data with `recv()`, which returns a `netconn::buffer` that isn't open once the client
   closes the connection
-- Walking the buffer's segments with `segments()`, and sending each one back with `send()`
+- Iterating over the buffer's segments with `segments()`, and sending each one back with `send()`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).

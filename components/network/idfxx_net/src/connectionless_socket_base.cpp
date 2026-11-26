@@ -24,10 +24,11 @@ result<byte_span> connectionless_socket_base::try_recv(byte_span buf) {
     msghdr msg{};
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    // recvmsg raises MSG_TRUNC when the datagram overruns the buffer; a plain
-    // recv silently caps at the buffer size and cannot surface it. The datagram
-    // is consumed either way (datagrams cannot be read in pieces), so an
-    // overrun is reported as an error rather than a silent truncation.
+    // recvmsg sets MSG_TRUNC when the datagram is larger than the buffer. A plain
+    // recv silently stops at the buffer size and cannot report the truncation.
+    // The datagram is consumed in both cases (datagrams cannot be read in
+    // pieces), so an oversized datagram is reported as an error rather than
+    // silently truncated.
     ssize_t len = lwip_recvmsg(_fd, &msg, 0);
     if (len < 0) {
         return error(io_error_code(_fd, errno));
@@ -80,11 +81,11 @@ result<datagram> connectionless_socket_base::try_recv_from(byte_span buf) {
     msg.msg_namelen = sizeof(ss);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
-    // recvmsg reports the datagram's true length (not just the bytes copied)
-    // and raises MSG_TRUNC in msg_flags when it overflows the buffer. A plain
-    // recvfrom caps its return at the buffer size and cannot surface either,
-    // so recvmsg is the only way to detect an oversized datagram — and it does
-    // so in a single call.
+    // recvmsg reports the datagram's true length (not just the bytes copied).
+    // It also sets MSG_TRUNC in msg_flags when the datagram is larger than the
+    // buffer. A plain recvfrom limits its return value to the buffer size and
+    // cannot report either fact. So recvmsg is the only way to detect an
+    // oversized datagram, and it does so in a single call.
     ssize_t len = lwip_recvmsg(_fd, &msg, 0);
     if (len < 0) {
         return error(io_error_code(_fd, errno));

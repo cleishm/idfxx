@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Animates level meters on an ILI9341 color LCD: six channels drawn as
-// labeled horizontal bars that fill proportionally to a simulated level
-// and change color at thresholds (green / amber / red). The whole 240x320
-// frame is authored in screen coordinates in draw_frame(); each tick
-// updates the levels and re-renders via render_banded, so the framebuffer
+// Animates level meters on an ILI9341 color LCD. Six channels are drawn as
+// labeled horizontal bars. Each bar fills in proportion to a simulated
+// level and changes color at thresholds (green / amber / red). draw_frame()
+// draws the whole 240x320 frame in screen coordinates. Each tick updates the
+// levels and renders the frame again with render_banded, so the framebuffer
 // stays band-sized (240x40 pixels = 19 KB) even while the whole screen
 // animates.
 //
-// The layout is deliberately independent of the band height: the meters
-// sit at a 44-pixel pitch, so every bar straddles a 40-pixel band
-// boundary and is assembled from two render passes.
+// The layout is deliberately independent of the band height. The meters
+// are at a 44-pixel pitch, so every bar crosses a 40-pixel band boundary
+// and is assembled from two render passes.
 
 #include <idfxx/font/spleen>
 #include <idfxx/gfx>
@@ -32,7 +32,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_CS = idfxx::gpio_10;
@@ -44,7 +44,7 @@ static constexpr size_t DISPLAY_W = 240;
 static constexpr size_t DISPLAY_H = 320;
 static constexpr size_t BAND_H = 40;
 
-// Layout — nothing here is a multiple of BAND_H: the 44-pixel header and
+// Layout. Nothing here is a multiple of BAND_H. The 44-pixel header and
 // meter pitch put every bar across a band boundary.
 static constexpr size_t HEADER_H = 44;
 static constexpr size_t METER_TOP = 50;
@@ -82,9 +82,9 @@ static idfxx::lcd::rgb565 level_color(int level) {
 using idfxx::lcd::rgb565;
 using band_canvas = idfxx::gfx::canvas<idfxx::lcd::rgb565_framebuffer>;
 
-// Draws the whole frame in 240x320 screen coordinates; render_banded
-// invokes this once per band, so it must be a pure function of the levels
-// (which is why each tick samples them before rendering).
+// Draws the whole frame in 240x320 screen coordinates. render_banded calls
+// this once for each band, so it must be a pure function of the levels.
+// This is why each tick samples the levels before rendering.
 static void draw_frame(band_canvas& canvas, const std::array<int, CHANNELS.size()>& levels) {
     constexpr rgb565 white(255, 255, 255);
     constexpr rgb565 gray(128, 128, 128);
@@ -95,7 +95,7 @@ static void draw_frame(band_canvas& canvas, const std::array<int, CHANNELS.size(
     canvas.draw_text(idfxx::font::spleen_8x16, 8, 10, "level meters", white, 2);
 
     // One labeled meter per channel. The 44-pixel pitch means every bar
-    // straddles a band boundary.
+    // crosses a band boundary.
     for (size_t i = 0; i < CHANNELS.size(); ++i) {
         const size_t top = METER_TOP + i * METER_PITCH;
         const int level = levels[i];
@@ -160,7 +160,7 @@ extern "C" void app_main() {
         idfxx::lcd::rgb565_framebuffer band(DISPLAY_W, BAND_H);
 
         while (true) {
-            // Advance the simulation, then render the frame it describes.
+            // Advance the simulation, then render the frame that it describes.
             std::array<int, CHANNELS.size()> levels;
             for (size_t i = 0; i < CHANNELS.size(); ++i) {
                 levels[i] = next_level(i);

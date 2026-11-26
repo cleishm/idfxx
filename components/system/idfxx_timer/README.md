@@ -102,7 +102,7 @@ auto timer = idfxx::timer::start_periodic(
 idfxx::delay(1s);
 
 // Stop the timer
-timer->stop();
+timer.stop();
 // count should be ~10
 ```
 
@@ -135,14 +135,14 @@ auto timer = idfxx::timer::start_periodic(
 
 ### Stopping and Waiting for the Callback (ESP-IDF 6.1+)
 
-`stop()` disarms the timer but does not wait for a callback that is already running. To be sure the
-callback has finished, for example before releasing state it uses, use `stop_and_wait()`:
+`stop()` disarms the timer but does not wait for a callback that is already running. To be sure that
+the callback has finished, for example before releasing state that it uses, use `stop_and_wait()`:
 
 ```cpp
 // Disarm the timer and wait for a running callback to return
 timer.stop_and_wait();
 
-// Or give up waiting after 100ms (throws with idfxx::errc::timeout)
+// Or stop waiting after 100ms (throws with idfxx::errc::timeout)
 timer.stop_and_wait(100ms);
 ```
 
@@ -172,7 +172,7 @@ For callbacks that need to run directly in ISR context, use the raw function poi
 #include <idfxx/timer>
 
 void IRAM_ATTR my_isr_callback(void* arg) {
-    // This runs in ISR context - keep it short!
+    // This runs in ISR context. Keep it short!
     auto* flag = static_cast<bool*>(arg);
     *flag = true;
 }
@@ -268,14 +268,14 @@ Each has overloads for std::move_only_function and raw function pointer callback
 - `restart(time_point)` / `try_restart(time_point)` - Restart to fire next at an absolute time,
   keeping a periodic timer's period (ESP-IDF 6.1+)
 - `restart(time_point, duration)` / `try_restart(time_point, duration)` - Restart to fire next at an
-  absolute time with a new period; one-shot timers ignore the period (ESP-IDF 6.1+)
+  absolute time with a new period. One-shot timers ignore the period (ESP-IDF 6.1+)
 - `stop()` / `try_stop()` - Stop running timer
 - `stop_and_wait()` / `try_stop_and_wait()` - Stop and wait for a running callback to finish
   (ESP-IDF 6.1+)
 - `stop_and_wait(duration)` / `try_stop_and_wait(duration)` - Stop and wait, up to a timeout, for a
   running callback to finish (ESP-IDF 6.1+)
-- `start_once_isr(us)` / `start_periodic_isr(us)` / `restart_isr(us)` / `stop_isr()` - ISR-safe
-  methods
+- `try_start_once_isr(us)` / `try_start_periodic_isr(us)` / `try_restart_isr(us)` /
+  `try_stop_isr()` - ISR-safe methods. They return an `esp_err_t`
 
 ### Status
 
@@ -309,7 +309,7 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **ISR dispatch**: Use the raw function pointer overload with `dispatch_method::isr` for ISR-safe
   callbacks. The std::move_only_function overload allocates memory that may not be in IRAM.
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a
-  `std::move_only_function` callback is logged and otherwise ignored; the timer keeps running and
+  `std::move_only_function` callback is logged and otherwise ignored. The timer keeps running and
   later expiries still invoke the callback. Raw function pointer callbacks are called directly and
   must not throw
 - **Non-copyable/move-only**: Timer is non-copyable and move-only.

@@ -13,7 +13,7 @@
 
 namespace idfxx_epaper_test {
 
-// Stub panel recording driver-hook invocations, for verifying the base
+// Stub panel that records driver-hook invocations, for verifying the base
 // class's validation and state machine without hardware.
 class recording_epaper_panel : public idfxx::epaper::panel {
 public:
@@ -141,8 +141,8 @@ private:
         return {};
     }
 
-    // With no BUSY line configured the base default returns success
-    // immediately; record the call and defer to it.
+    // With no BUSY line configured, the base default returns success
+    // immediately. Record the call and defer to it.
     [[nodiscard]] idfxx::result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) override {
         ++waits;
         hooks_before_last_wait = hooks();

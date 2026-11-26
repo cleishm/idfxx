@@ -14,9 +14,10 @@ SD and MMC/eMMC memory cards over SPI or SDMMC, with raw sector access.
 - Card-detect and write-protect pins
 - Raw sector reads and writes, serialized per card, with buffers anywhere in memory (also for a
   filesystem mounted through `idf_handle()`)
-- Erase, discard and whole-card erase; sanitize on MMC/eMMC
+- Erase, discard and whole-card erase
+- Sanitize on MMC/eMMC
 - Configuration checked up front: invalid pins, data-pin groups, bus widths and clock limits are
-  rejected before the bus or host is touched
+  rejected before the bus or host is used
 - The card's state stays at a fixed address when the object is moved, so a filesystem mounted on it
   (for example with idfxx_fatfs) stays valid
 
@@ -78,7 +79,8 @@ try {
 }
 ```
 
-On an SDMMC host slot (esp32s3 shown; on esp32 the pins are fixed and there are no pin fields):
+On an SDMMC host slot, shown here for esp32s3. On esp32 the pins are fixed and there are no pin
+fields:
 
 ```cpp
 idfxx::sdcard::card card({
@@ -148,8 +150,8 @@ if (auto r = card.try_read_sectors(0, sector); !r) {
 - `is_write_protected()` - Write-protect pin (false when none is configured)
 - `probe()` / `try_probe()` - Check that the card responds
 
-**Raw sector I/O** (buffer sizes in bytes, whole sectors only; the sector count follows from the
-size):
+**Raw sector I/O** (buffer sizes are in bytes, in whole sectors only). The sector count is the
+buffer size divided by the sector size:
 - `read_sectors(first, byte_span)` / `try_read_sectors(first, byte_span)` - Fills
   the whole buffer
 - `write_sectors(first, byte_view)` / `try_write_sectors(first, byte_view)`
@@ -164,7 +166,7 @@ size):
 - `idf_handle()` - The `sdmmc_card_t*`, at a fixed address for the card's lifetime
 
 **Lifetime:**
-- Non-copyable and move-only; the destructor removes the SPI device or releases the SDMMC slot
+- Non-copyable and move-only. The destructor removes the SPI device or releases the SDMMC slot
 
 ## Error Handling
 
@@ -176,80 +178,84 @@ The component uses `idfxx::errc` codes:
 | `errc::invalid_size` | A byte count that is not whole sectors, or a sector range past the end of the card |
 | `errc::invalid_state` | The SDMMC slot is already in use by another card (or, with ESP-IDF 6.0 and later, by other code), the SPI bus has no free device slot for the card, or a write or erase on a write-protected card |
 | `errc::not_found` | The card-detect pin reports an empty slot |
-| `errc::timeout` | The card did not respond (how a missing card shows up when there is no card-detect pin) |
+| `errc::timeout` | The card did not respond (a missing card is reported this way when there is no card-detect pin) |
 | `errc::invalid_response`, `errc::invalid_crc` | Communication errors |
 | `errc::not_supported` | SDIO-only card, an erase mode the card doesn't support, `bus_speed::sdr104` with an SDR104 card on an ESP32-P4 before revision 3.0, or `bus_speed::ddr50` with a DDR50 card on eight data lines |
 
 ## Important Notes
 
 - **SPI bus needs DMA.** Create the `spi::master_bus` with `dma_chan::ch_auto` (or a specific
-  channel); `make()` rejects a bus without DMA with `errc::invalid_arg`, before contacting the card.
-  The card adds its own device to the bus and drives its chip select itself, acquiring the bus for
+  channel). `make()` rejects a bus without DMA with `errc::invalid_arg`, before contacting the card.
+  The card adds its own device to the bus and drives its own chip select. It acquires the bus for
   each command, so the bus can be shared with other devices. The bus must outlive the card. The
   card's `cs`, `card_detect` and `write_protect` pins must not be any of the bus's SCLK, MOSI or
   MISO pins (this is not checked).
 - **SPI clock.** `spi_config::max_frequency` (20 MHz by default, at least 400 kHz) is an upper
-  bound: the card runs at the highest clock the bus supports at or below it, and never above 50 MHz
-  (the SD high-speed limit). On most targets the bus supports 40, 26.7, 20, 16 MHz and so on, so 26
-  MHz gives 20 MHz, and 50 MHz gives 40 MHz. On esp32, a bus on GPIO matrix pins runs at 26.7 MHz or
-  less; use the SPI host's IO MUX pins for 40 MHz. With ESP-IDF 5.5.0 on esp32p4, the bus's slowest
-  clock is about 470 kHz, used for any lower limit. Above 20 MHz the card is switched to high speed;
-  a card without high speed runs at 20 MHz, or the next supported clock below it. Check
-  `frequency()` for the clock in use.
-- **Shared MISO.** Before each command, the card waits for MISO to read high (the card not busy),
-  for the driver's default timeout. If another device on the bus can hold MISO low, such as an
-  unpowered device on the same lines, that wait times out before every command and slows all card
-  access. With ESP-IDF 5.5.3 or later, set `spi_config::miso_wait_timeout` (at most 127 ms) to a
-  shorter wait, such as 1 ms. Zero sends commands without waiting, but also skips the idle clocks
-  sent to the card while waiting: on a bus shared with another active device, the first command
-  after that device's transfers can then fail with `errc::timeout`.
-- **Raw I/O and filesystems don't mix.** While a filesystem is mounted on the card, only the
+  limit. The card runs at the highest clock that the bus supports at or below it, and never above
+  50 MHz (the SD high-speed limit). On most targets the bus supports clocks such as 40, 26.7, 20 and
+  16 MHz. For example, a limit of 26 MHz gives 20 MHz, and a limit of 50 MHz gives 40 MHz. On esp32,
+  a bus on GPIO matrix pins runs at 26.7 MHz or less. Use the SPI host's IO MUX pins for 40 MHz.
+  With ESP-IDF 5.5.0 on esp32p4, the bus's slowest clock is about 470 kHz. The bus uses this clock
+  for any lower limit. Above 20 MHz, the card is switched to high speed. A card that doesn't support
+  high speed runs at 20 MHz, or at the next supported clock below it. Check `frequency()` for the
+  clock in use.
+- **Shared MISO.** Before each command, the card waits for MISO to read high (which means that the
+  card is not busy), for up to the driver's default timeout. If another device on the bus can hold
+  MISO low, such as an unpowered device on the same lines, that wait times out before every command
+  and slows all card access. With ESP-IDF 5.5.3 or later, set `spi_config::miso_wait_timeout` (at
+  most 127 ms) to a shorter wait, such as 1 ms. With zero, commands are sent without waiting, but
+  the idle clocks that are normally sent to the card during the wait are not sent either. On a bus
+  shared with another active device, the first command after that device's transfers can then fail
+  with `errc::timeout`.
+- **No raw I/O while a filesystem is mounted.** While a filesystem is mounted on the card, only the
   identity and geometry accessors (`type()`, `id()`, `size()`, `sector_size()`, `sector_count()`,
   `frequency()`, `width()`), `is_present()`, `is_write_protected()` and `idf_handle()` may be used.
   `probe()`, the raw sector reads and writes and the erase operations send commands that bypass the
   filesystem's locking and caches.
-- **Card removal.** A removed card must be initialized again once it is back: unmount any filesystem
-  on it, destroy the `card` object, create a new one once a card is present (`make()` fails with
-  `errc::not_found` while the card-detect pin reports an empty slot), then mount the filesystem
-  again.
-- **The card must outlive anything mounted on it.** Moving the card object is fine (its state stays
-  put), but destroying it while a volume is mounted leaves the volume with a dangling card.
+- **Card removal.** A removed card must be initialized again after it is reinserted. Unmount any
+  filesystem on it and destroy the `card` object. Create a new one when a card is present (`make()`
+  fails with `errc::not_found` while the card-detect pin reports an empty slot). Then mount the
+  filesystem again.
+- **The card must outlive anything mounted on it.** The card object can be moved, because its state
+  stays at a fixed address. If the card is destroyed while a volume is mounted, the volume keeps a
+  dangling reference to the card.
 - **Card detect is active low only.** The card is present when the pin is low. Over SPI the internal
-  pull-up is enabled; on an SDMMC slot the pin needs an external pull-up.
+  pull-up is enabled. On an SDMMC slot the pin needs an external pull-up.
 - **SDMMC availability and pins.** SDMMC is available on esp32, esp32s3 and esp32p4 only
   (`SOC_SDMMC_HOST_SUPPORTED`). On esp32s3 every pin is routed through the GPIO matrix. On esp32p4,
   slot 1 uses the GPIO matrix but slot 0 only works on its dedicated pins (CLK 43, CMD 44, D0-D3
-  39-42, D4-D7 45-48). On esp32 both slots use fixed pins, so `sdmmc_config` has no pin fields; slot
-  0's pins (GPIO 6-11) are the SPI flash pins on most modules, which leaves slot 1 (CLK 14, CMD 15,
-  D0 2, D1 4, D2 12, D3 13). On esp32, `card_detect` and `write_protect` must not be any of the
-  slot's pins that the bus width uses (a 1-bit bus leaves D1-D3 free). The CMD and data lines need
-  external pull-ups.
-- **Sharing the SDMMC host.** The host is initialized on first use and shared between slots, also
-  with other code: a card and, say, `esp_vfs_fat_sdmmc_mount` can use different slots at the same
-  time, with any ESP-IDF version. A slot that other code has already set up must not be used for a
-  card. ESP-IDF 6.0 and later reject it with `errc::invalid_state`; ESP-IDF 5.5 doesn't detect it,
-  and the card takes the slot over from the other code.
-- **SDMMC bus width** follows the data pins supplied: D0 alone, D0-D3 or D0-D7. A `width` wider than
-  the pins allow is rejected; a narrower one leaves the extra pins unused.
-- **SDMMC speed is a mode, not just a clock.** `speed` picks the timing the card is switched to, and
-  with it the clock; `max_frequency` can only lower the clock of `default_speed` or `high_speed` (in
-  high speed, 20 MHz or less keeps an SD card in default speed). A card that doesn't support the
-  requested mode runs in a slower one, without an error (see `bus_speed`); check `frequency()`. The
-  UHS-I modes need `io_power_ldo` (channel 4 on Espressif's ESP32-P4 boards).
+  39-42, D4-D7 45-48). On esp32 both slots use fixed pins, so `sdmmc_config` has no pin fields. On
+  most modules, slot 0's pins (GPIO 6-11) are the SPI flash pins, so only slot 1 is available (CLK
+  14, CMD 15, D0 2, D1 4, D2 12, D3 13). On esp32, `card_detect` and `write_protect` must not be any
+  of the slot's pins that the bus width uses (a 1-bit bus leaves D1-D3 free). The CMD and data lines
+  need external pull-ups.
+- **Sharing the SDMMC host.** The host is initialized on first use. It is shared between slots, and
+  also with other code. For example, a card and `esp_vfs_fat_sdmmc_mount` can use different slots
+  at the same time, with any ESP-IDF version. A slot that other code has already set up must not be
+  used for a card. ESP-IDF 6.0 and later reject it with `errc::invalid_state`. ESP-IDF 5.5 doesn't
+  detect it, and the card takes the slot over from the other code.
+- **SDMMC bus width** is set by the data pins that are supplied: D0 alone, D0-D3 or D0-D7. A `width`
+  wider than the pins allow is rejected. A narrower width leaves the extra pins unused.
+- **SDMMC speed is a mode, not just a clock.** `speed` selects the timing that the card is switched
+  to, and the mode sets the clock. `max_frequency` can only lower the clock of
+  `default_speed` or `high_speed`. In high speed, a limit of 20 MHz or less keeps an SD card in
+  default speed. A card that doesn't support the requested mode runs in a slower mode, and no error
+  is returned (see `bus_speed`). Check `frequency()` for the clock in use. The UHS-I modes need
+  `io_power_ldo` (channel 4 on Espressif's ESP32-P4 boards).
 - **SPI erase quirks.** SD cards on an SPI bus don't support discard. Some SPI-mode cards don't
   respond correctly after an erase until they are initialized again, by destroying the card object
   and creating a new one.
 - **Shared buses.** If the card shares its bus with other devices, those devices must not hold their
   chip selects low while the card is idle.
-- **Power and sleep.** The component doesn't switch the card's power; on boards with a power-enable
-  pin, drive it with an `idfxx::gpio` and let the supply settle before creating the card. Light
-  sleep can cause card reads to time out. Before deep sleep, unmount any filesystem, destroy the
-  card and cut its power.
+- **Power and sleep.** The component doesn't switch the card's power. On boards with a power-enable
+  pin, drive it with an `idfxx::gpio` and wait for the supply to settle before creating the card.
+  Light sleep can cause card reads to time out. Before deep sleep, unmount any filesystem, destroy
+  the card and cut its power.
 - **SDIO-only cards** are rejected with `errc::not_supported`. With `CONFIG_SD_ENABLE_SDIO_SUPPORT`
   disabled (ESP-IDF 6.0 and later), ESP-IDF skips SDIO detection and such a card fails
   initialization with another error.
-- **SDXC** is reported for SD cards of 32 GiB (2^35 bytes) or more: these identify themselves as
-  SDHC, and are told apart by size.
+- **SDXC** is reported for SD cards of 32 GiB (2^35 bytes) or more. These cards identify themselves
+  as SDHC, so the size is used to tell them apart.
 
 ## License
 

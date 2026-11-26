@@ -24,7 +24,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 ## Hardware required
 
-- Any ESP32-series development board; no PSRAM is needed
+- Any ESP32-series development board. No PSRAM is needed
 
 The serial terminal must support 24-bit color and UTF-8. Most do, and `idf.py monitor` passes both
 through. The preview of the embedded photo is 96 columns wide, so the terminal should be at least

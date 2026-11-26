@@ -21,7 +21,7 @@ using namespace idfxx::epaper;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The driver implements the abstract panel interface and is a concrete type.
@@ -46,7 +46,7 @@ static_assert(!std::is_default_constructible_v<el133uf1::config>);
 static_assert(std::is_same_v<std::underlying_type_t<el133uf1::fast_quality>, uint8_t>);
 static_assert(el133uf1::fast_quality::high < el133uf1::fast_quality::draft);
 
-// Per-refresh quality overloads, alongside (not hiding) the panel's own.
+// Per-refresh quality overloads. They exist next to the panel's own overloads and do not hide them.
 static_assert(requires(el133uf1& d) {
     { d.try_refresh(el133uf1::fast_quality::medium) } -> std::same_as<idfxx::result<void>>;
     { d.try_refresh(refresh_mode::fast) } -> std::same_as<idfxx::result<void>>;
@@ -93,7 +93,7 @@ TEST_CASE("el133uf1 config defaults", "[idfxx][epaper][el133uf1]") {
 }
 
 // Drives a real SPI bus and allocates the PSRAM shadow frame, so it runs on hardware only. No panel
-// is attached: BUSY is pulled up so it reads idle, and the commands go nowhere.
+// is attached. BUSY is pulled up so it reads idle, and no device receives the commands.
 TEST_CASE("el133uf1 accepts full and fast refreshes, not partial", "[idfxx][epaper][el133uf1][hw]") {
     idfxx::spi::bus_config bus_cfg{};
     bus_cfg.mosi = idfxx::gpio_11;

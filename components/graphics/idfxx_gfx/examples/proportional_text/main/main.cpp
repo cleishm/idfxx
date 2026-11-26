@@ -6,8 +6,8 @@
 // footer. Proportional fonts take UTF-8 text, so accents and curly quotes
 // are written as-is in the string literals.
 //
-// The whole 240x320 frame is authored once in screen coordinates in
-// draw_frame(); render_banded runs it once per 240x40 band and writes each
+// draw_frame() draws the whole 240x320 frame once in screen coordinates.
+// render_banded runs draw_frame() once for each 240x40 band and writes each
 // slice, so the framebuffer stays small (19 KB) instead of a full 150 KB
 // frame.
 
@@ -30,7 +30,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_CS = idfxx::gpio_10;
@@ -42,7 +42,7 @@ static constexpr size_t DISPLAY_W = 240;
 static constexpr size_t DISPLAY_H = 320;
 static constexpr size_t BAND_H = 40;
 
-// Left and right margin; text is laid out in the box between them.
+// Left and right margin. Text is laid out in the box between them.
 static constexpr size_t MARGIN = 8;
 static constexpr size_t TEXT_W = DISPLAY_W - 2 * MARGIN;
 
@@ -59,8 +59,8 @@ static constexpr std::array<dish, 2> DISHES{{
     {"Café au lait", "Espresso with steamed milk"},
 }};
 
-// Draws the whole frame in 240x320 screen coordinates; render_banded
-// invokes this once per band and clips everything outside the band.
+// Draws the whole frame in 240x320 screen coordinates. render_banded calls
+// this once for each band and clips everything outside the band.
 static void draw_frame(band_canvas& canvas) {
     constexpr rgb565 amber(255, 191, 0);
     constexpr rgb565 white(255, 255, 255);
@@ -73,7 +73,8 @@ static void draw_frame(band_canvas& canvas) {
 
     // Text is placed by the top-left corner of its line, so each line
     // starts one line_height below the previous one. draw_text_box returns
-    // the height it drew, which moves y past it.
+    // the height that it drew. Adding that height to y moves y past the
+    // drawn text.
     int y = 4;
 
     // Heading and subtitle, centered in the text box.

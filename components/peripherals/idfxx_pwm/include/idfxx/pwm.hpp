@@ -13,8 +13,8 @@
  *
  * Provides PWM output management with lightweight timer identifiers and
  * RAII-managed output bindings. Timers are fixed hardware resources configured
- * via methods; outputs bind a timer, channel, and GPIO pin into an active
- * PWM signal with automatic cleanup on destruction.
+ * via methods. An output binds a timer, channel, and GPIO pin into an active
+ * PWM signal, with automatic cleanup on destruction.
  *
  * Depends on @ref idfxx_core for error handling, @ref idfxx_gpio for pin
  * identifiers, and @ref idfxx_hw_support for interrupt allocation types.
@@ -84,8 +84,8 @@ enum class channel : int {
  * @headerfile <idfxx/pwm>
  * @brief PWM timer clock source.
  *
- * Selects the clock source for the timer. The default `auto_select` lets
- * the driver choose the best source for the requested frequency.
+ * Selects the clock source for the timer. With the default, `auto_select`,
+ * the driver chooses the best source for the requested frequency.
  */
 enum class clk_source : int {
     auto_select = 0, ///< Automatic clock source selection
@@ -108,7 +108,7 @@ enum class clk_source : int {
  * @brief Fade operation blocking mode.
  */
 enum class fade_mode : int {
-    no_wait = 0, ///< Return immediately, fade runs in background
+    no_wait = 0, ///< Return immediately while the fade runs in the background
     wait_done,   ///< Block until the fade completes
 };
 
@@ -265,8 +265,8 @@ public:
     /**
      * @brief Returns true if the timer has been configured.
      *
-     * This reflects global state — any copy of the same timer identifier
-     * will see the same configured status.
+     * This reflects global state. Every copy of the same timer identifier
+     * sees the same configured status.
      *
      * @return True if configure() has been called for this timer.
      */
@@ -704,7 +704,8 @@ result<void> try_stop(
  * @brief An active PWM output binding a timer, channel, and GPIO pin.
  *
  * Represents a configured PWM output that is actively driving a GPIO pin
- * with a PWM signal. This type is non-copyable and move-only. The destructor
+ * with a PWM signal. This type is non-copyable and move-only. A moved-from object must not be
+ * used: any operation other than destruction or assignment is undefined behavior. The destructor
  * automatically stops the PWM output.
  *
  * Create via start() or try_start(), which accept either a timer::config
@@ -779,7 +780,7 @@ public:
      *
      * Thread-safe. The new duty takes effect on the next PWM cycle.
      *
-     * @param duty Duty ratio in range [0.0, 1.0].
+     * @param duty Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
@@ -791,11 +792,8 @@ public:
      *
      * Thread-safe. The new duty takes effect on the next PWM cycle.
      *
-     * @param duty Duty ratio in range [0.0, 1.0].
+     * @param duty Duty ratio in range [0.0, 1.0]. A value outside this range is clamped to it.
      * @return Success, or an error.
-     *
-     * @retval invalid_state Output has been moved from.
-     * @retval invalid_arg Invalid duty ratio.
      */
     [[nodiscard]] result<void> try_set_duty(float duty);
 
@@ -883,7 +881,7 @@ public:
      * @param width Pulse width duration.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output has been moved from.
+     * @retval invalid_state Timer not configured.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -927,7 +925,7 @@ public:
      * @param mode Whether to block until the fade completes.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval fail Fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
     template<typename Rep, typename Period>
@@ -979,7 +977,7 @@ public:
      * @param mode Whether to block until the fade completes.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval fail Fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
     template<typename Rep, typename Period>
@@ -1033,7 +1031,8 @@ public:
      * @param mode Whether to block until the fade completes.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval invalid_state Timer not configured.
+     * @retval fail Fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
     template<typename Rep1, typename Period1, typename Rep2, typename Period2>
@@ -1083,7 +1082,7 @@ public:
      * @param mode Whether to block until the fade completes.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval fail Fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
     [[nodiscard]] result<void> try_fade_with_step(
@@ -1129,7 +1128,7 @@ public:
      * @param mode Whether to block until the entire sequence completes.
      * @return Success, or an error.
      *
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval fail Fade service not installed.
      * @retval invalid_arg Invalid parameters.
      */
     [[nodiscard]] result<void> try_multi_fade(
@@ -1260,7 +1259,7 @@ public:
      *
      * @param callback Fade-end callback.
      * @return Success, or an error.
-     * @retval invalid_state Output moved from or fade service not installed.
+     * @retval fail Fade service not installed.
      */
     [[nodiscard]] result<void>
     try_register_fade_end_callback(std::move_only_function<bool() const> callback);

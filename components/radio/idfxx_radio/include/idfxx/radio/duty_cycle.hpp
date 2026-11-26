@@ -11,7 +11,7 @@
  *
  * A pure, side-effect-free helper that computes listen/sleep windows for
  * duty-cycled receive from the modulation parameters and the preamble length
- * senders use. It needs no chip and performs no I/O, so it is `constexpr` and
+ * that senders use. It needs no chip and performs no I/O, so it is `constexpr` and
  * the windows can be computed at compile time for a fixed link configuration.
  */
 
@@ -25,9 +25,9 @@
 
 namespace idfxx::radio {
 
-/// Default shortest sleep window worth duty-cycling for. Below this the radio
+/// Default shortest sleep window worth duty-cycling for. Below this, the radio
 /// spends the window transitioning in and out of sleep instead of saving
-/// power; chips that restart an oscillator on each wake add that start-up
+/// power. Chips that restart an oscillator on each wake add that start-up
 /// time (e.g. the TCXO delay on SX126x).
 inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
 
@@ -42,16 +42,16 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  *     rx    = max( (Tsym·(sender_preamble + 1) − (sleep − 1 ms)) / 2,
  *                  Tsym·(min_symbols + 1) )
  *
- * where `Tsym = 2^SF / BW` is the symbol duration. This is the algorithm
+ * where `Tsym = 2^SF / BW` is the symbol duration. This is the algorithm that
  * RadioLib's `startReceiveDutyCycleAuto` uses. The sleep window is rounded
  * down and the listen window up, so rounding only ever increases the time
  * spent listening.
  *
  * Returns `std::nullopt` when duty-cycling cannot work for the given
- * parameters — when the preamble is too short to sleep inside
- * (`2·min_symbols ≥ sender_preamble`) or the resulting sleep window is
- * shorter than @p min_sleep. The caller should then use continuous receive;
- * passing the result straight to `lora_transceiver::start_listening` does exactly that.
+ * parameters. This happens when the preamble is too short to sleep inside
+ * (`2·min_symbols ≥ sender_preamble`), or when the resulting sleep window is
+ * shorter than @p min_sleep. The caller should then use continuous receive.
+ * `lora_transceiver::start_listening` does this when it is passed the result directly.
  *
  * @tparam Rep            Representation type of @p min_sleep.
  * @tparam Period         Period (tick unit) of @p min_sleep.
@@ -59,17 +59,17 @@ inline constexpr std::chrono::microseconds default_min_rx_sleep{1016};
  *                        bandwidth are used).
  * @param sender_preamble Preamble length, in symbols, that senders on this
  *                        link use (`lora_packet_params::preamble_length`).
- * @param min_symbols     Minimum preamble symbols the radio must observe to
- *                        detect a packet; must be at least 1. Increase for
- *                        margin at the cost of longer listen windows.
+ * @param min_symbols     Minimum preamble symbols that the radio must observe
+ *                        to detect a packet. Must be at least 1. Increase it
+ *                        for more margin. Listen windows are then longer.
  * @param min_sleep       Shortest sleep window worth duty-cycling for, in any
  *                        duration unit (rounded up to whole microseconds).
- *                        Below this the radio spends the window transitioning
- *                        in and out of sleep instead of saving power; add the
+ *                        Below this, the radio spends the window transitioning
+ *                        in and out of sleep instead of saving power. Add the
  *                        oscillator start-up time (e.g. the TCXO delay on
  *                        SX126x) when the chip uses one.
  * @return The listen/sleep windows, or `std::nullopt` if duty-cycling cannot
- *         reliably catch packets and continuous receive should be used.
+ *         reliably detect packets and continuous receive should be used.
  *
  * @code
  * using namespace std::chrono_literals;

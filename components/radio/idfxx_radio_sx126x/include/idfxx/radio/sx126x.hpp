@@ -42,11 +42,11 @@ namespace idfxx::radio {
  * @headerfile <idfxx/radio/sx126x>
  * @brief SX126x IRQ-register bitfield.
  *
- * The chip's IRQ register is 16 bits wide; each bit reflects an
+ * The chip's IRQ register is 16 bits wide. Each bit reflects an
  * underlying chip event (Semtech DS_SX1261-2_V2.2 §13.3, table 13-29
  * "IRQ Registers"). The driver normally translates these into
- * chip-agnostic events from `<idfxx/radio/events>` — only reach for
- * this surface when you need direct register-level access. Accessible
+ * chip-agnostic events from `<idfxx/radio/events>`. Use these flags only
+ * when you need direct register-level access. Accessible
  * as `sx126x::irq_flag` after the class definition.
  */
 enum class sx126x_irq_flag : uint16_t {
@@ -75,19 +75,19 @@ namespace idfxx::radio {
  *
  * Covers the SX1261 (sub-GHz, max +15 dBm), SX1262 (sub-GHz, max +22 dBm),
  * and SX1268 (sub-GHz, max +22 dBm, PA tuned for 410–810 MHz). The variant
- * is selected at construction via `config::variant`; the driver then picks
+ * is selected at construction via `config::variant`. The driver then picks
  * the correct PA-config table and validates output-power range.
  *
- * A cold start (the default) resets and configures the chip, then confirms
- * a chip is actually answering on the bus — construction fails with
- * `errc::not_found` otherwise. `config::warm_start` skips that check along
- * with the rest of bring-up; use the inherited @ref lora_transceiver::probe
- * to run it explicitly. The probe round-trips the LoRa sync-word register
- * and restores it, so it is safe at any point the data path is idle; a
- * sleeping chip is woken by it and left in standby. On a warm-started driver
- * whose chip may still be listening autonomously, call
- * @ref lora_transceiver::standby first — the probe's SPI traffic would end
- * the listen.
+ * A cold start (the default) resets and configures the chip. It then
+ * confirms that a chip is actually answering on the bus. If no chip answers,
+ * construction fails with `errc::not_found`. `config::warm_start` skips that
+ * check and the rest of bring-up. Use the inherited
+ * @ref lora_transceiver::probe to run the check explicitly. The probe writes
+ * the LoRa sync-word register, reads it back and restores it, so it is safe
+ * at any point when the data path is idle. The probe wakes a sleeping chip
+ * and leaves it in standby. On a warm-started driver whose chip may still be
+ * listening autonomously, call @ref lora_transceiver::standby first, because
+ * the probe's SPI traffic would end the listen.
  *
  * Move-only and non-copyable, like the rest of idfxx. The destructor
  * tears down the worker task, removes the DIO1 ISR, and puts the chip in
@@ -102,8 +102,8 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief SX126x family chip variant.
      *
-     * Determines the PA configuration the driver applies and the output-power
-     * range it accepts from `set_output_power`.
+     * Determines the PA configuration that the driver applies and the
+     * output-power range that it accepts from `set_output_power`.
      */
     enum class chip_variant : uint8_t {
         sx1261, ///< Sub-GHz, low-power PA, max +15 dBm.
@@ -124,8 +124,8 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief Clock source kept running in standby mode.
      *
-     * The chip-agnostic @ref lora_transceiver::standby uses the low-power RC oscillator;
-     * the SX126x-specific @ref standby(standby_clock) overload selects the
+     * The chip-agnostic @ref lora_transceiver::standby uses the low-power RC oscillator.
+     * The SX126x-specific @ref standby(standby_clock) overload selects the
      * crystal oscillator for a faster transition into transmit or receive.
      */
     enum class standby_clock : uint8_t {
@@ -137,14 +137,14 @@ public:
      * @headerfile <idfxx/radio/sx126x>
      * @brief Sleep-mode configuration retention.
      *
-     * The chip-agnostic @ref lora_transceiver::sleep performs a warm sleep; the
+     * The chip-agnostic @ref lora_transceiver::sleep performs a warm sleep. The
      * SX126x-specific @ref sleep(sleep_mode) overload can request a cold
-     * sleep, which loses all configuration and requires the driver's defaults
-     * and the caller's settings to be reapplied on wake.
+     * sleep. A cold sleep loses all configuration. The driver's defaults and
+     * the caller's settings must then be reapplied on wake.
      */
     enum class sleep_mode : uint8_t {
         warm, ///< Retain register configuration for fast wake-up.
-        cold, ///< Lowest-power sleep; all configuration is lost.
+        cold, ///< Lowest-power sleep. All configuration is lost.
     };
 
     /**
@@ -152,8 +152,8 @@ public:
      * @brief TCXO configuration applied through DIO3.
      *
      * Set `config::tcxo` only if your board's reference is a TCXO driven
-     * from the SX126x DIO3 pin. Otherwise leave it unset — the chip will
-     * use the crystal oscillator.
+     * from the SX126x DIO3 pin. Otherwise leave it unset, and the chip
+     * uses the crystal oscillator.
      */
     struct tcxo_config {
         quanta::electro::millivolts voltage{1700}; ///< TCXO supply voltage (1600–3300 mV).
@@ -167,7 +167,7 @@ public:
 
     /**
      * @headerfile <idfxx/radio/sx126x>
-     * @brief Number of symbols a CAD (channel activity detection) operates on.
+     * @brief Number of symbols that a CAD (channel activity detection) operates on.
      *
      * The chip supports only these five values (DS_SX1261-2 §13.4.7,
      * table 13-72). The enumerator value is the `cadSymbolNum` register byte.
@@ -190,7 +190,7 @@ public:
      * tune.
      */
     struct cad_params {
-        cad_symbols symbols = cad_symbols::sym_2; ///< Number of symbols CAD listens on.
+        cad_symbols symbols = cad_symbols::sym_2; ///< Number of symbols that CAD listens on.
         uint8_t det_peak = 22;                    ///< Detector peak threshold.
         uint8_t det_min = 10;                     ///< Detector minimum threshold.
 
@@ -205,8 +205,8 @@ public:
      * @brief Configuration for an SX126x driver instance.
      *
      * Every field other than the cs, busy, and dio1 GPIO pins has a sensible
-     * default. nreset is strongly recommended (without it the chip is not
-     * reset at construction and is assumed to be in its power-on state).
+     * default. nreset is strongly recommended. Without it, the chip is not
+     * reset at construction and is assumed to be in its power-on state.
      */
     struct config {
         /// Chip family member.
@@ -217,17 +217,17 @@ public:
         idfxx::required<idfxx::gpio> busy;
         /// DIO1 IRQ input from chip.
         idfxx::required<idfxx::gpio> dio1;
-        /// Active-low reset to chip; nc() skips the hardware reset.
+        /// Active-low reset to chip. nc() skips the hardware reset.
         idfxx::gpio nreset = gpio::nc();
-        /// SPI clock; datasheet max is 16 MHz.
+        /// SPI clock. The datasheet maximum is 16 MHz.
         quanta::frequency::hertz clock_speed{10'000'000};
         /// Use DIO2 as the antenna T/R switch.
         bool dio2_as_rf_switch = true;
-        /// Optional external RF-switch RX-enable pin; nc() if unused.
+        /// Optional external RF-switch RX-enable pin, or nc() if unused.
         idfxx::gpio rxen = gpio::nc();
-        /// Optional external RF-switch TX-enable pin; nc() if unused.
+        /// Optional external RF-switch TX-enable pin, or nc() if unused.
         idfxx::gpio txen = gpio::nc();
-        /// Optional TCXO; leave unset for crystal.
+        /// Optional TCXO. Leave unset for a crystal.
         std::optional<tcxo_config> tcxo = std::nullopt;
         /// Voltage regulator selection.
         enum regulator regulator = regulator::ldo;
@@ -238,18 +238,19 @@ public:
         /// IRQ flags latched by the chip and routed to DIO1. Leave unset for
         /// the driver default (tx_done, rx_done, preamble_detected, crc_err,
         /// cad_done, cad_detected). Wake-on-radio designs that sleep the host
-        /// while the chip listens typically drop preamble_detected so DIO1
-        /// only rises once a packet has fully arrived.
+        /// while the chip listens typically leave out preamble_detected, so
+        /// that DIO1 only rises once a packet has fully arrived.
         std::optional<flags<sx126x_irq_flag>> dio1_mask = std::nullopt;
         /// Attach to an already configured chip instead of resetting and
         /// reconfiguring it. No reset pulse and no configuration command is
-        /// issued at construction — the chip is assumed to carry the
-        /// configuration a previous (cold-started) driver instance applied,
-        /// e.g. across a host deep sleep the chip spent duty-cycle
-        /// listening. Use @ref try_adopt_pending after construction to
-        /// recover a packet the chip received while no driver was running.
+        /// issued at construction. The chip is assumed to keep the
+        /// configuration that a previous (cold-started) driver instance
+        /// applied. For example, the chip may have been duty-cycle listening
+        /// while the host was in deep sleep. Use @ref try_adopt_pending after
+        /// construction to recover a packet that the chip received while no
+        /// driver was running.
         bool warm_start = false;
-        /// Event loop to post radio events on; nullptr disables posting.
+        /// Event loop to post radio events on. nullptr disables posting.
         event_loop* loop = nullptr;
         /// Worker task priority. Must be less than `configMAX_PRIORITIES`, or @ref make fails
         /// with idfxx::errc::invalid_arg.
@@ -335,8 +336,8 @@ public:
     /**
      * @brief Puts the radio in standby mode with the selected clock source.
      *
-     * The inherited @ref lora_transceiver::standby uses the low-power RC oscillator;
-     * select @ref standby_clock::xosc to keep the crystal oscillator running
+     * The inherited @ref lora_transceiver::standby uses the low-power RC oscillator.
+     * Select @ref standby_clock::xosc to keep the crystal oscillator running
      * for faster transitions into transmit or receive.
      *
      * @param clock Clock source to keep running in standby.
@@ -374,7 +375,7 @@ public:
     result<void> try_sleep(sleep_mode mode);
 
     // =========================================================================
-    // SX126x-specific surface
+    // SX126x-specific API
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -409,14 +410,15 @@ public:
     void set_cad_params(cad_params params) { unwrap(try_set_cad_params(params)); }
 
     /**
-     * @brief Drains an IRQ the chip latched while no driver was running.
+     * @brief Drains an IRQ that the chip latched while no driver was running.
      *
      * Intended for use immediately after a warm start (see
-     * `config::warm_start`): a packet the chip received while the host slept
-     * leaves `rx_done` latched and DIO1 high, but the driver's interrupt
-     * handler never saw the edge. This reads and clears the pending IRQ
-     * status and, for a latched `rx_done`, reads the packet out of the chip
-     * into the receive FIFO, where @ref lora_transceiver::read_received picks it up.
+     * `config::warm_start`). A packet that the chip received while the host
+     * slept leaves `rx_done` latched and DIO1 high, but the driver's interrupt
+     * handler never saw the edge. This call reads and clears the pending IRQ
+     * status. For a latched `rx_done`, it also reads the packet out of the
+     * chip into the receive FIFO, where @ref lora_transceiver::read_received
+     * returns it.
      *
      * @return The received packet's info if one was adopted, or `std::nullopt`
      *         if no packet was pending.
@@ -454,15 +456,15 @@ public:
 #endif
 
     /**
-     * @brief Drains an IRQ the chip latched while no driver was running.
+     * @brief Drains an IRQ that the chip latched while no driver was running.
      *
-     * Result variant of @ref adopt_pending; see there for the warm-start
-     * recovery flow this supports.
+     * Result variant of @ref adopt_pending. See @ref adopt_pending for the
+     * warm-start recovery flow that this call supports.
      *
      * @return The received packet's info if one was adopted, `std::nullopt`
      *         if no packet was pending, or an error.
      * @retval idfxx::errc::invalid_crc A packet was pending but failed the
-     *         chip's CRC check; the IRQ has been cleared.
+     *         chip's CRC check. The IRQ has been cleared.
      */
     [[nodiscard]] result<std::optional<rx_info>> try_adopt_pending();
 
@@ -499,7 +501,7 @@ public:
     [[nodiscard]] result<void> try_clear_irq_status(flags<irq_flag> mask);
 
     // =========================================================================
-    // Low-level opcode escape hatch
+    // Low-level opcode access
     // =========================================================================
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -539,7 +541,7 @@ public:
      * Always fills the whole of @p response.
      *
      * @param opcode   Command opcode.
-     * @param response Buffer to receive the response bytes into (at most 259); its size is the
+     * @param response Buffer to receive the response bytes into (at most 259). Its size is the
      *                 number of bytes read.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg` if @p response is too
@@ -552,7 +554,7 @@ public:
     /**
      * @brief Sends a command opcode and reads a fixed number of response bytes.
      *
-     * @tparam N Number of response bytes to read; must be between 1 and 259.
+     * @tparam N Number of response bytes to read. Must be between 1 and 259.
      * @param opcode Command opcode.
      * @return The response bytes.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -616,7 +618,7 @@ public:
      * Always fills the whole of @p data.
      *
      * @param addr 16-bit address of the first register.
-     * @param data Buffer to receive the register values into (at most 256 bytes); its size is
+     * @param data Buffer to receive the register values into (at most 256 bytes). Its size is
      *             the number of registers read.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is too long
@@ -627,7 +629,7 @@ public:
     /**
      * @brief Reads a fixed number of consecutive chip registers.
      *
-     * @tparam N Number of registers to read; must be between 1 and 256.
+     * @tparam N Number of registers to read. Must be between 1 and 256.
      * @param addr 16-bit address of the first register.
      * @return The register values.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -656,7 +658,7 @@ public:
     /**
      * @brief Writes the chip's data buffer at the specified offset.
      *
-     * An access running past the end of the 256-byte buffer is not rejected; only the size of
+     * An access that runs past the end of the 256-byte buffer is not rejected. Only the size of
      * @p data is limited.
      *
      * @param offset Byte offset within the 256-byte chip buffer.
@@ -670,11 +672,11 @@ public:
     /**
      * @brief Reads the chip's data buffer at the specified offset.
      *
-     * Always fills the whole of @p data. An access running past the end of the 256-byte buffer
-     * is not rejected; only the size of @p data is limited.
+     * Always fills the whole of @p data. An access that runs past the end of the 256-byte
+     * buffer is not rejected. Only the size of @p data is limited.
      *
      * @param offset Byte offset within the 256-byte chip buffer.
-     * @param data   Buffer to receive into (at most 256 bytes); its size is the number of bytes
+     * @param data   Buffer to receive into (at most 256 bytes). Its size is the number of bytes
      *               read.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_arg` if @p data is larger
@@ -712,7 +714,7 @@ public:
      * Always fills the whole of @p response.
      *
      * @param opcode   Command opcode.
-     * @param response Buffer to receive the response bytes into (at most 259); its size is the
+     * @param response Buffer to receive the response bytes into (at most 259). Its size is the
      *                 number of bytes read.
      * @return Success, or an error.
      * @retval invalid_arg @p response is too long for one frame.
@@ -722,7 +724,7 @@ public:
     /**
      * @brief Sends a command opcode and reads a fixed number of response bytes.
      *
-     * @tparam N Number of response bytes to read; must be between 1 and 259.
+     * @tparam N Number of response bytes to read. Must be between 1 and 259.
      * @param opcode Command opcode.
      * @return The response bytes, or an error.
      */
@@ -773,7 +775,7 @@ public:
      * Always fills the whole of @p data.
      *
      * @param addr 16-bit address of the first register.
-     * @param data Buffer to receive the register values into (at most 256 bytes); its size is
+     * @param data Buffer to receive the register values into (at most 256 bytes). Its size is
      *             the number of registers read.
      * @return Success, or an error.
      * @retval invalid_arg @p data is too long for one frame.
@@ -783,7 +785,7 @@ public:
     /**
      * @brief Reads a fixed number of consecutive chip registers.
      *
-     * @tparam N Number of registers to read; must be between 1 and 256.
+     * @tparam N Number of registers to read. Must be between 1 and 256.
      * @param addr 16-bit address of the first register.
      * @return The register values, or an error.
      */
@@ -808,7 +810,7 @@ public:
     /**
      * @brief Writes the chip's data buffer at the specified offset.
      *
-     * An access running past the end of the 256-byte buffer is not rejected; only the size of
+     * An access that runs past the end of the 256-byte buffer is not rejected. Only the size of
      * @p data is limited.
      *
      * @param offset Byte offset within the 256-byte chip buffer.
@@ -821,11 +823,11 @@ public:
     /**
      * @brief Reads the chip's data buffer at the specified offset.
      *
-     * Always fills the whole of @p data. An access running past the end of the 256-byte buffer
-     * is not rejected; only the size of @p data is limited.
+     * Always fills the whole of @p data. An access that runs past the end of the 256-byte
+     * buffer is not rejected. Only the size of @p data is limited.
      *
      * @param offset Byte offset within the 256-byte chip buffer.
-     * @param data   Buffer to receive into (at most 256 bytes); its size is the number of bytes
+     * @param data   Buffer to receive into (at most 256 bytes). Its size is the number of bytes
      *               read.
      * @return Success, or an error.
      * @retval invalid_arg @p data is larger than 256 bytes.

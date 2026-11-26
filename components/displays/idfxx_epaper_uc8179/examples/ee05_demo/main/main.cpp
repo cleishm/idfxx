@@ -2,11 +2,14 @@
 
 // Demo for the Seeed Studio XIAO ePaper Display Board EE05 (ESP32-S3 Plus)
 // with the 7.5" 800x480 UC8179 panel. Walks through the driver's refresh
-// modes: a full-refresh title screen rendered band-by-band (an 800x80 band
-// instead of the full 48 KB frame), a 4-level grayscale screen (run early,
-// while the glass is fresh — see the README on gray4 ghosting), a fast
-// refresh, and a partial-refresh counter loop, then shows a closing screen
-// and puts the panel to deep sleep.
+// modes:
+// - a full-refresh title screen rendered band by band (an 800x80 band
+//   instead of the full 48 KB frame)
+// - a 4-level grayscale screen, run early while the glass is fresh (see the
+//   README on gray4 ghosting)
+// - a fast refresh
+// - a partial-refresh counter loop
+// Then it shows a closing screen and puts the panel into deep sleep.
 
 #include <idfxx/epaper/gray4_framebuffer>
 #include <idfxx/epaper/mono_framebuffer>
@@ -43,8 +46,8 @@ using idfxx::epaper::refresh_mode;
 namespace {
 
 // Stages 1 and 3: a title screen drawn through a band-sized framebuffer with
-// idfxx::gfx::render_banded — the draw function is invoked once per band
-// and describes the complete 800x480 frame each time.
+// idfxx::gfx::render_banded. The draw function is called once per band, and
+// it describes the complete 800x480 frame each time.
 void draw_title_screen(
     idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas,
     bool fast_note
@@ -100,8 +103,8 @@ extern "C" void app_main() {
 
         // --- Stage 2: 4-level grayscale ---
         // The grayscale midtones are open-loop drives that amplify residual
-        // polarization in the ink: content that sits on the glass for a long
-        // time ghosts faintly through the gray levels. Run the grayscale
+        // polarization in the ink. Content that stays on the glass for a long
+        // time shows as a faint ghost through the gray levels. Run the grayscale
         // stage early, while nothing has been displayed for more than a few
         // seconds, and start it from a cleared screen. (When long-held
         // content is unavoidable, see the README for the inverse-compensation
@@ -142,15 +145,16 @@ extern "C" void app_main() {
 
         // --- Stage 5: partial-refresh counter loop ---
         // Fast-refresh output is weakly driven and would settle to gray
-        // under partial refreshes, so start the sequence from a full
+        // under partial refreshes, so start the sequence with a full
         // refresh, which drives pixels to their stable extremes.
         display.refresh();
         // A small framebuffer written at a pixel offset updates just the
-        // counter area; the differential refresh flips only changed pixels.
-        // Each frame is drawn while the previous one is still updating on
-        // the glass: start_refresh returns at once with a future, and the
-        // next write waits out the outstanding update before uploading to the
-        // controller. Only the last future needs an explicit wait.
+        // counter area. The differential refresh flips only the changed
+        // pixels. Each frame is drawn while the previous one is still
+        // updating on the glass. start_refresh returns at once with a future,
+        // and the next write waits for the outstanding update to finish
+        // before it uploads to the controller. Only the last future needs an
+        // explicit wait.
         idfxx::epaper::mono_framebuffer counter_fb(160, 64);
         idfxx::gfx::canvas counter_canvas(counter_fb);
         idfxx::future<void> update;
@@ -160,7 +164,7 @@ extern "C" void app_main() {
                 idfxx::font::spleen_8x16, 0, 0, std::format("{:02}", i), true, 4
             );
             display.write(counter_fb, 16, 360);
-            // Partial updates accumulate ghosting; clean up with a full
+            // Partial updates accumulate ghosting. Clean it up with a full
             // refresh every 10 iterations.
             update =
                 display.start_refresh(i % 10 == 9 ? refresh_mode::full : refresh_mode::partial);

@@ -1,13 +1,13 @@
 # Name,   Type, SubType, Offset,  Size, Flags
 # 8MB flash layout. Used on targets whose default image is too large for the
 # OTA slot in partitions.csv (e.g. esp32c6 with its Wi-Fi 6 stack).
-# Single OTA slot: the test suite needs an ota_0 app partition (the ota/partition
-# tests look it up), but nothing writes a second image, so ota_1 is omitted to
-# leave room for the test apps to grow (see tests/groups.cmake).
-# storage: wear-levelled FAT partition for the idfxx_fatfs volume tests.
+# Single OTA slot. The test suite needs an ota_0 app partition, because the
+# ota/partition tests look it up. Nothing writes a second image, so ota_1 is
+# omitted to leave room for the test apps to grow (see tests/groups.cmake).
+# storage: wear-leveled FAT partition for the idfxx_fatfs volume tests.
 # fatimg: raw FAT image (generated at build time) for the idfxx_fatfs image tests.
-# Both are kept small for ota_0: storage must hold the volume tests' 64 KiB file, and
-# fatimg the generated image with a cluster to spare.
+# Both are kept small to leave room for ota_0. storage must hold the volume tests'
+# 64 KiB file. fatimg must hold the generated image plus one spare cluster.
 # Note: if you have increased the bootloader size, make sure to update the offsets to avoid overlap
 nvs,      data, nvs,     0x9000,  0x5000,
 otadata,  data, ota,     0xe000,  0x2000,

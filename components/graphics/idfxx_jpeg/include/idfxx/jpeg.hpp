@@ -13,11 +13,12 @@
  *
  * A @ref idfxx::jpeg::decoder reads a JPEG stream from any
  * `idfxx::byte_source` (memory, a file, a flash partition, a socket or an
- * HTTP response body), reports the image's size and EXIF orientation from its
- * headers, and decodes it to @ref idfxx::image::rgb888 pixels, optionally
- * scaled down by a factor of M/8. Pixels go either into an image view of the
- * output size or, row by row, to an @ref idfxx::image::sink, so an image can
- * be decoded without holding all of its pixels in memory.
+ * HTTP response body). It reports the image's size and EXIF orientation from
+ * its headers. It decodes the image to @ref idfxx::image::rgb888 pixels,
+ * optionally scaled down by a factor of M/8. Pixels go either into an image
+ * view of the output size or, row by row, to an @ref idfxx::image::sink. With
+ * a sink, an image can be decoded without holding all of its pixels in
+ * memory.
  *
  * Depends on @ref idfxx_image for images and sinks and on @ref idfxx_core for
  * byte sources and error handling.
@@ -75,7 +76,7 @@ enum class errc : esp_err_t {
     // clang-format off
     invalid_data  = 1, /*!< The data is not a JPEG, or is corrupt. */
     truncated     = 2, /*!< The data ended before the end of the image. */
-    not_supported = 3, /*!< The image uses a feature the decoder does not support. */
+    not_supported = 3, /*!< The image uses a feature that the decoder does not support. */
     // clang-format on
 };
 
@@ -178,8 +179,8 @@ struct read_failure {
  * @headerfile <idfxx/jpeg>
  * @brief Decodes one JPEG image from a byte source.
  *
- * Construction reads the JPEG headers, which provide the image's @ref info;
- * no pixels are decoded yet. The output is full size until
+ * Construction reads the JPEG headers, which provide the image's @ref info.
+ * No pixels are decoded yet. The output is full size until
  * @ref scale_to_cover selects a smaller scale. A single decode then delivers
  * the pixels, as @ref idfxx::image::rgb888, either into a view of the output
  * size or row by row to an @ref idfxx::image::sink.
@@ -190,10 +191,10 @@ struct read_failure {
  * YCCK images, 12-bit and lossless JPEGs are rejected with
  * @ref errc::not_supported when the headers are read.
  *
- * Decoding is strict: corruption the decoder detects fails the decode with
- * @ref errc::invalid_data instead of being worked around. Stray bytes before a
- * marker, a JFIF version other than 1.x and an unrecognized Adobe color
- * transform are exceptions: they are logged and decoding continues. JPEG has no
+ * Decoding is strict: corruption that the decoder detects fails the decode
+ * with @ref errc::invalid_data instead of being worked around. Stray bytes
+ * before a marker, a JFIF version other than 1.x and an unrecognized Adobe
+ * color transform are exceptions. They are logged, and decoding continues. JPEG has no
  * checksum, so most damage to the compressed image data cannot be detected and
  * decodes to wrong pixels without an error. A stream that ends before the end of the image
  * (including a missing end-of-image marker) fails with @ref errc::truncated.
@@ -208,12 +209,12 @@ struct read_failure {
  * behavior.
  *
  * Running out of memory follows the idfxx policy: `std::bad_alloc` is thrown
- * when exceptions are enabled, otherwise the program aborts. How much working
- * memory a decode needs depends on the image's headers: it grows with the
- * image width, and a progressive JPEG needs a buffer for the coefficients of
- * the whole image. Set @ref config::memory_limit to the memory that can be
- * spared, and an image that would need more fails with @ref idfxx::image::errc::too_large
- * instead.
+ * when exceptions are enabled. Otherwise, the program aborts. The working
+ * memory that a decode needs depends on the image's headers. It grows with
+ * the image width, and a progressive JPEG needs a buffer for the coefficients
+ * of the whole image. Set @ref config::memory_limit to the memory that can be
+ * spared. An image that would need more then fails with
+ * @ref idfxx::image::errc::too_large instead.
  *
  * Decoding uses about 2 KB of the calling task's stack (measured on an
  * ESP32-S3), whatever the image size or output scale, plus whatever the byte
@@ -241,18 +242,21 @@ public:
         /**
          * @brief Maximum working memory for decoding, in bytes.
          *
-         * Bounds the decoder's working memory for any JPEG: its state, input
-         * buffer and tables, its row buffers, which grow with the image
-         * width, and, for a progressive (or other multi-scan) JPEG, the
-         * buffer holding every coefficient of the image, about 128 bytes per
-         * 8x8 block per color component at any output scale. The bound is
-         * approximate: allocator overhead is not counted. Even a small image
-         * needs about 20 KB, most of it the decoder's state and fixed tables,
-         * so a lower limit fails every decode.
+         * Bounds the decoder's working memory for any JPEG. The working
+         * memory includes:
+         * - The decoder's state, input buffer and tables.
+         * - Its row buffers, which grow with the image width.
+         * - For a progressive (or other multi-scan) JPEG, the buffer that
+         *   holds every coefficient of the image. This buffer needs about 128
+         *   bytes per 8x8 block per color component, at any output scale.
          *
-         * Memory used to read the headers counts, but the limit is checked
-         * only from the start of decoding, so construction never fails
-         * because of it. From then on, an allocation that would exceed the
+         * The bound is approximate: allocator overhead is not counted. Even a
+         * small image needs about 20 KB, mostly for the decoder's state and
+         * fixed tables. A lower limit fails every decode.
+         *
+         * Memory used to read the headers counts toward the limit. The limit
+         * is checked only from the start of decoding, so construction never
+         * fails because of it. From then on, an allocation that would exceed the
          * limit is not made, and the decode fails with @ref idfxx::image::errc::too_large
          * instead. `std::nullopt` sets no limit.
          */
@@ -342,7 +346,7 @@ public:
      * Chooses the smallest scale M/8, for M from 1 to 8, at which the output
      * is at least @p width wide and at least @p height high, and updates
      * @ref output_width and @ref output_height to match. If even full size
-     * does not cover the target, the output is full size: the decoder never
+     * does not cover the target, the output is full size. The decoder never
      * upscales. Decoding at a reduced scale is much faster and needs less
      * memory than decoding at full size.
      *
@@ -359,7 +363,7 @@ public:
      * dec.scale_to_cover(w, h);
      * @endcode
      *
-     * May be called more than once; the last call decides.
+     * May be called more than once. The last call sets the scale.
      *
      * @param width The minimum output width in pixels.
      * @param height The minimum output height in pixels.
@@ -395,8 +399,9 @@ public:
      *            @ref output_height pixels. A buffer of that size converts
      *            to a view implicitly.
      *
-     * @note During a long operation, lower-priority tasks get to run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_state if the image
      *         has already been decoded, idfxx::errc::invalid_size if @p dst
@@ -421,8 +426,9 @@ public:
      *            @ref output_height pixels. A buffer of that size converts
      *            to a view implicitly.
      *
-     * @note During a long operation, lower-priority tasks get to run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @return Success, or an error. On error, the contents of @p dst are
      *         unspecified.
      * @retval idfxx::errc::invalid_state The image has already been decoded.
@@ -444,14 +450,15 @@ public:
      * during the call. Only one row of pixels is held at a time. The image
      * can be decoded only once.
      *
-     * @tparam S The sink type; see @ref idfxx::image::sink.
+     * @tparam S The sink type. See @ref idfxx::image::sink.
      * @param sink The destination for the rows. Returning an error from it
      *             stops the decode, which then fails with that error. An
      *             exception thrown by it ends the decode and propagates from
      *             this call.
      *
-     * @note During a long operation, lower-priority tasks get to run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with the error returned by @p sink,
      *         idfxx::errc::invalid_state if the image has already been
@@ -476,14 +483,15 @@ public:
      * during the call. Only one row of pixels is held at a time. The image
      * can be decoded only once.
      *
-     * @tparam S The sink type; see @ref idfxx::image::sink.
+     * @tparam S The sink type. See @ref idfxx::image::sink.
      * @param sink The destination for the rows. Returning an error from it
      *             stops the decode, which then fails with that error. An
      *             exception thrown by it ends the decode and propagates from
      *             this call.
      *
-     * @note During a long operation, lower-priority tasks get to run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_state The image has already been decoded.
      * @retval jpeg::errc::invalid_data The data is corrupt.
@@ -560,7 +568,7 @@ private:
     [[nodiscard]] static result<decoder> _make(void* source, read_fn read, config cfg);
     [[nodiscard]] result<void> _begin();
     // Allocates one output row from the decoder's working memory. Call after
-    // _begin(); the row is freed by _finish() or _abort().
+    // _begin(). The row is freed by _finish() or _abort().
     [[nodiscard]] result<image::rgb888*> _allocate_row();
     [[nodiscard]] result<void> _read_row(image::rgb888* row);
     [[nodiscard]] result<void> _finish();

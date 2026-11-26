@@ -24,7 +24,7 @@ struct button_context {
     // Config
     button::config cfg;
 
-    // Resources — destruction order matters (reverse of declaration)
+    // Resources. Destruction order matters (reverse of declaration).
     gpio::unique_isr_handle isr_handle;
     std::optional<timer> tmr;
 

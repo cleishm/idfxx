@@ -6,9 +6,9 @@ Wakes the ESP32 from deep sleep with a PCF8563 real-time clock alarm, through th
 
 - Setting up an I2C bus with `idfxx::i2c::master_bus`
 - Creating an `idfxx::rtc::pcf8563` on the bus with the default address (0x51)
-- Reading the time with `now()`, and seeding a clock that has lost track with `set_time()`
-- Telling an alarm wake from other resets with `idfxx::sleep::wakeup_cause()` and `events()`, and
-  releasing INT with `clear_events()`
+- Reading the time with `now()`, and seeding a clock whose time is not valid with `set_time()`
+- Distinguishing an alarm wake from other resets with `idfxx::sleep::wakeup_cause()` and
+  `events()`, and releasing INT with `clear_events()`
 - Setting the next alarm with `set_alarm()`, with its interrupt enabled to drive INT
 - Sleeping until INT goes low with `idfxx::sleep::deep_sleep()` and `idfxx::sleep::ext0_wake`
 - Reporting failures by catching `std::system_error`
@@ -30,14 +30,14 @@ Wire the module to the board as follows, plus power and ground:
 | SCL        | GPIO 9     |
 | INT        | GPIO 4     |
 
-INT is open-drain and active-low, so it needs a pull-up to 3.3 V. Many modules have one; if yours
+INT is open-drain and active-low, so it needs a pull-up to 3.3 V. Many modules have one. If yours
 doesn't, fit a resistor of about 10 kΩ between INT and 3.3 V.
 
 To use different pins, change `PIN_SDA`, `PIN_SCL` and `PIN_INT` at the top of `main/main.cpp`.
 `PIN_INT` must be an RTC-capable GPIO, because EXT0 wake-up uses the RTC IO.
 
 > [!NOTE]
-> The example needs EXT0 wake-up, which only the ESP32, ESP32-S2 and ESP32-S3 have; it fails to
+> The example needs EXT0 wake-up, which only the ESP32, ESP32-S2 and ESP32-S3 have. It fails to
 > compile on other targets. The default pins suit the ESP32-S2 and ESP32-S3. On the original ESP32,
 > change `PIN_SDA` and `PIN_SCL` first, because GPIO 8 and 9 are connected to the module's SPI
 > flash.

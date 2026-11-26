@@ -95,10 +95,10 @@ display.write_region(fb, 10, 16, 11, 24); // partial update: one column of one p
 ### Color Framebuffer
 
 For RGB565 (16 bits per pixel) displays such as ILI9341 panels, `rgb565_framebuffer` provides a
-row-major drawing surface of `rgb565` colors, stored in panel byte order so writes pass the buffer
-straight through. A full frame at 16 bpp is large (a 240x320 panel needs 150 KB), so the framebuffer
-can also be sized as a horizontal band and written at a destination offset, rendering the frame in
-slices:
+row-major drawing surface of `rgb565` colors, stored in panel byte order, so writes can pass the
+buffer to the panel without conversion. A full frame at 16 bpp is large (a 240x320 panel needs 150
+KB), so the framebuffer can also be sized as a horizontal band and written at a destination offset.
+This renders the frame in slices:
 
 ```cpp
 #include <idfxx/lcd/rgb565_framebuffer>
@@ -119,7 +119,7 @@ for (size_t y = 0; y < display.height(); y += band.height()) {
 Concrete drivers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) inherit from `panel`:
 
 - `draw_bitmap(x_start, y_start, x_end, y_end, data)` / `try_draw_bitmap(...)` - Draw pixel data to
-  an end-exclusive region (buffer layout is panel-specific); `data` is an `idfxx::byte_view` of
+  an end-exclusive region (the buffer layout is panel-specific). `data` is an `idfxx::byte_view` of
   exactly `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
 - `native_bits_per_pixel()` - Size of a pixel in the panel's native format (e.g. 24 for an ILI9341
   configured for 18 bpp)
@@ -130,22 +130,22 @@ Concrete drivers (e.g. `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) inherit from `p
 - `display_on(on)` / `try_display_on(on)` - Turn the display on or off
 - `idf_handle()` - Get ESP-IDF panel handle
 
-Framebuffers are drawn through the panel; each method has an overload for `rgb565_framebuffer` and
+Framebuffers are drawn through the panel. Each method has an overload for `rgb565_framebuffer` and
 for `mono_framebuffer`, and places the framebuffer's origin at display pixel (x, y). For
-`mono_framebuffer`, rows round outward to 8-row pages and `y` must be a multiple of 8:
+`mono_framebuffer`, rows are expanded outward to 8-row pages, and `y` must be a multiple of 8:
 
 - `write(fb, x = 0, y = 0)` / `try_write(...)` - Draw the whole framebuffer, so a band-sized
   framebuffer can render a taller frame in slices
 - `write_rows(fb, row_start, row_end, x = 0, y = 0)` / `try_write_rows(...)` - Draw a horizontal
-  band; framebuffer row `r` lands at display row `y + r`
+  band. Framebuffer row `r` is drawn at display row `y + r`
 - `write_region(fb, x_start, y_start, x_end, y_end, x = 0, y = 0)` / `try_write_region(...)` - Draw
-  a rectangular region: full-width regions transfer in a single draw, narrower ones one draw per row
-  (RGB565) or per page (monochrome)
+  a rectangular region. A full-width region is sent in a single draw. A narrower region is sent with
+  one draw per row (RGB565) or per page (monochrome)
 
 ### `mono_framebuffer`
 
-In-memory framebuffer for monochrome (1-bpp) displays, stored page-packed (each byte is 8 vertically
-adjacent pixels; the byte for pixel (x, y) is `(y / 8) * width + x`, bit `y % 8`):
+In-memory framebuffer for monochrome (1-bpp) displays, stored page-packed. Each byte holds 8
+vertically adjacent pixels. The byte for pixel (x, y) is `(y / 8) * width + x`, bit `y % 8`:
 
 - `mono_framebuffer(width, height)` / `make(width, height)` - Create (height must be a multiple
   of 8)
@@ -155,8 +155,9 @@ adjacent pixels; the byte for pixel (x, y) is `(y / 8) * width + x`, bit `y % 8`
 
 ### `rgb565` / `rgb565_framebuffer`
 
-`rgb565` is a 16-bit color value stored in panel byte order (big-endian data, the panel default), so
-the bytes of an array of it (`std::as_bytes(std::span{pixels})`) pass directly to `draw_bitmap`:
+`rgb565` is a 16-bit color value stored in panel byte order (big-endian data, the panel default),
+so the bytes of an array of `rgb565` values (`std::as_bytes(std::span{pixels})`) can be passed
+directly to `draw_bitmap`:
 
 - `rgb565(r, g, b)` - Pack 8-bit components into the 5-6-5 layout (constexpr)
 - `rgb565::from_value(v)` / `value()` - Packed RGB565 round trip
@@ -174,17 +175,17 @@ framebuffer is simply `mono_framebuffer fb(display.width(), display.height())`.
 
 ## Important Notes
 
-- This component provides the panel base class and framebuffers; use a concrete driver (e.g.
+- This component provides the panel base class and framebuffers. Use a concrete driver (e.g.
   `idfxx_lcd_ili9341`, `idfxx_lcd_ssd1306`) or `idfxx_lcd_touch` for device control
-- The I/O layer (`idfxx::panel_io`) lives in the `idfxx_panel_io` component
+- The I/O layer (`idfxx::panel_io`) is in the `idfxx_panel_io` component
 - `draw_bitmap` fails with `errc::invalid_size` unless the data is exactly the size of the region,
-  so a view of a larger buffer is rejected rather than read with the wrong row stride; pass
+  so a view of a larger buffer is rejected instead of being read with the wrong row stride. Pass
   `idfxx::byte_view{buf}.first(n)` to draw from the start of a larger buffer. The `write` methods
-  fail the same way when the framebuffer's format doesn't match the panel's (e.g. an
+  fail in the same way when the framebuffer's format doesn't match the panel's (e.g. an
   `rgb565_framebuffer` on an SSD1306, or on an ILI9341 configured for 18 bpp)
-- Writing a `mono_framebuffer` to a 1-bpp panel needs the axes unswapped: while `swap_xy(true)` is
-  in effect the panel pages along columns rather than rows, so the write fails with
-  `errc::invalid_state`
+- Writing a `mono_framebuffer` to a 1-bpp panel requires the axes to be unswapped. While
+  `swap_xy(true)` is in effect, the panel groups columns into pages instead of rows, so the write
+  fails with `errc::invalid_state`
 
 ## License
 

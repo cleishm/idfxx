@@ -91,8 +91,8 @@ struct line_header {
 
 // A task's unfinished line. The line is joined across the calls that it is logged in until its
 // newline arrives, or it is dropped until then. All of a slot is protected by s_join_lock. The
-// owner copies the line out of the slot and back in, so that a slot that is evicted in the
-// meantime is never written by the task that it was taken from.
+// owner copies the line out of the slot and back in, so that a slot that is evicted between the
+// two copies is never written by the task that it was taken from.
 struct join_slot {
     // The owner's id, or 0 when the slot is free.
     uint32_t owner;

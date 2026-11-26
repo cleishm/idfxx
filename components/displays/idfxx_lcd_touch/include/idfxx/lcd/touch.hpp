@@ -36,10 +36,10 @@ namespace idfxx::lcd {
  * @headerfile <idfxx/lcd/touch>
  * @brief Abstract base class for touch controllers.
  *
- * The public interface is non-virtual; concrete drivers (e.g.
+ * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::lcd::stmpe610`) customize behavior by overriding the protected
- * `do_*` hooks, mirroring the standard library's non-virtual-interface
- * pattern (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  */
 class touch {
 public:
@@ -66,18 +66,18 @@ public:
      * Every field other than x_max and y_max has a sensible default.
      */
     struct config {
-        required<uint16_t> x_max; ///< X coordinates max (for mirroring)
-        required<uint16_t> y_max; ///< Y coordinates max (for mirroring)
+        required<uint16_t> x_max; ///< Maximum X coordinate (for mirroring)
+        required<uint16_t> y_max; ///< Maximum Y coordinate (for mirroring)
 
         gpio rst_gpio = gpio::nc(); ///< GPIO number of reset pin
         gpio int_gpio = gpio::nc(); ///< GPIO number of interrupt pin
 
-        gpio::level reset_level = gpio::level::low;     ///< Level of reset pin in reset
+        gpio::level reset_level = gpio::level::low;     ///< Level of the reset pin during reset
         gpio::level interrupt_level = gpio::level::low; ///< Active level of interrupt pin
 
-        bool swap_xy = false;  ///< Swap X and Y after read coordinates
-        bool mirror_x = false; ///< Mirror X after read coordinates
-        bool mirror_y = false; ///< Mirror Y after read coordinates
+        bool swap_xy = false;  ///< Swap X and Y after reading coordinates
+        bool mirror_x = false; ///< Mirror X after reading coordinates
+        bool mirror_y = false; ///< Mirror Y after reading coordinates
 
         /// Callback to apply user adjustments after reading coordinates from the touch controller,
         /// before swap/mirror

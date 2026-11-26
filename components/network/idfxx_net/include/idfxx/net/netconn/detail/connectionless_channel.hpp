@@ -5,8 +5,8 @@
 
 // Internal base class shared by `datagram_channel` and `raw_channel`, the
 // connectionless netconn-API channel types. Provides the connect / disconnect /
-// send / recv operations that have the same shape on both — per-message
-// addressing, default-peer support, and the buffer and byte-view send and recv overloads.
+// send / recv operations that are the same on both: per-message addressing,
+// default-peer support, and the buffer and byte-view send and recv overloads.
 // Mirrors the BSD-side `connectionless_socket_base`.
 
 #include "base_channel.hpp"
@@ -74,8 +74,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always the buffer's length on success,
-     *         since a connectionless packet is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always the buffer's
+     *         length, because a connectionless packet is sent in full or not at all.
      */
     size_t send(buffer& buf) { return idfxx::unwrap(try_send(buf)); }
 #endif
@@ -84,9 +84,9 @@ public:
      * @brief Sends a buffer on the connected netconn.
      *
      * @param buf Buffer holding the data to send.
-     * @return The number of bytes sent — always the buffer's length on success,
-     *         since a connectionless packet is sent in full or not at all — or
-     *         an error.
+     * @return The number of bytes sent, or an error. On success, this is always the
+     *         buffer's length, because a connectionless packet is sent in full or not
+     *         at all.
      */
     [[nodiscard]] result<size_t> try_send(buffer& buf);
 
@@ -99,8 +99,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always `data.size()` on success, since
-     *         a connectionless packet is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always `data.size()`,
+     *         because a connectionless packet is sent in full or not at all.
      */
     size_t send(byte_view data) { return idfxx::unwrap(try_send(data)); }
 #endif
@@ -109,9 +109,9 @@ public:
      * @brief Sends raw bytes on the connected netconn.
      *
      * @param data Bytes to send.
-     * @return The number of bytes sent — always `data.size()` on success, since
-     *         a connectionless packet is sent in full or not at all — or an
-     *         error.
+     * @return The number of bytes sent, or an error. On success, this is always
+     *         `data.size()`, because a connectionless packet is sent in full or not
+     *         at all.
      */
     [[nodiscard]] result<size_t> try_send(byte_view data);
 
@@ -125,8 +125,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always the buffer's length on success,
-     *         since a connectionless packet is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always the buffer's
+     *         length, because a connectionless packet is sent in full or not at all.
      */
     size_t send_to(buffer& buf, const endpoint& to) { return idfxx::unwrap(try_send_to(buf, to)); }
 #endif
@@ -136,9 +136,9 @@ public:
      *
      * @param buf Buffer holding the data to send.
      * @param to  Destination endpoint.
-     * @return The number of bytes sent — always the buffer's length on success,
-     *         since a connectionless packet is sent in full or not at all — or
-     *         an error.
+     * @return The number of bytes sent, or an error. On success, this is always the
+     *         buffer's length, because a connectionless packet is sent in full or not
+     *         at all.
      */
     [[nodiscard]] result<size_t> try_send_to(buffer& buf, const endpoint& to);
 
@@ -152,8 +152,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always `data.size()` on success, since
-     *         a connectionless packet is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always `data.size()`,
+     *         because a connectionless packet is sent in full or not at all.
      */
     size_t send_to(byte_view data, const endpoint& to) {
         return idfxx::unwrap(try_send_to(data, to));
@@ -165,9 +165,9 @@ public:
      *
      * @param data Bytes to send.
      * @param to   Destination endpoint.
-     * @return The number of bytes sent — always `data.size()` on success, since
-     *         a connectionless packet is sent in full or not at all — or an
-     *         error.
+     * @return The number of bytes sent, or an error. On success, this is always
+     *         `data.size()`, because a connectionless packet is sent in full or not
+     *         at all.
      */
     [[nodiscard]] result<size_t> try_send_to(byte_view data, const endpoint& to);
 
@@ -194,7 +194,7 @@ public:
     /**
      * @brief Receives a single packet into a caller-provided buffer.
      *
-     * An oversized packet is **not** truncated: if it does not fit in @p buf the
+     * An oversized packet is **not** truncated. If it does not fit in @p buf, the
      * whole packet is consumed and `errc::message_too_long` is raised. Size the
      * buffer for the largest expected packet or use `recv_from`.
      *
@@ -205,8 +205,8 @@ public:
      *         when the packet is larger than @p buf.
      *
      * @return View of the packet's bytes, at the start of @p buf. An empty view is a
-     *         received zero-length packet — connectionless channels have no
-     *         end-of-stream, so it never signals peer close.
+     *         received zero-length packet. Connectionless channels have no
+     *         end-of-stream, so an empty view never indicates that the peer closed.
      */
     [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
@@ -214,15 +214,16 @@ public:
     /**
      * @brief Receives a single packet into a caller-provided buffer.
      *
-     * An oversized packet is **not** truncated: if it does not fit in @p buf the
+     * An oversized packet is **not** truncated. If it does not fit in @p buf, the
      * whole packet is consumed and `errc::message_too_long` is returned. Size the
      * buffer for the largest expected packet or use `try_recv_from`.
      *
      * @param buf Destination buffer.
      * @return View of the packet's bytes, at the start of @p buf, or an error
      *         (`errc::message_too_long` when the packet is larger than @p buf).
-     *         An empty view is a received zero-length packet — connectionless
-     *         channels have no end-of-stream, so it never signals peer close.
+     *         An empty view is a received zero-length packet. Connectionless
+     *         channels have no end-of-stream, so an empty view never indicates that
+     *         the peer closed.
      */
     [[nodiscard]] result<byte_span> try_recv(byte_span buf);
 
@@ -264,8 +265,8 @@ public:
     /**
      * @brief Returns the default peer endpoint set via `connect`.
      *
-     * @return The peer's endpoint, or an error — `errc::not_connected` when no
-     *         default peer has been set.
+     * @return The peer's endpoint, or an error. Returns `errc::not_connected` when
+     *         no default peer has been set.
      */
     [[nodiscard]] result<endpoint> try_peer_endpoint() const { return _try_getaddr(false); }
 

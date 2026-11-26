@@ -150,8 +150,8 @@ static_assert(std::to_underlying(idfxx::app_ota(15)) == ESP_PARTITION_SUBTYPE_AP
 namespace {
 const char* TAG = "idfxx::partition";
 
-// v6.1 renamed the mmap memory enum, as it now also carries flags; the old name
-// remains as a deprecated alias.
+// ESP-IDF v6.1 renamed the mmap memory enum because it now also holds flags. The
+// old name remains as a deprecated alias.
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 using idf_mmap_memory_t = esp_partition_mmap_flag_t;
 #else

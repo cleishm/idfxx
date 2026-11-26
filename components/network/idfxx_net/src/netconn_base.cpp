@@ -30,10 +30,11 @@ namespace {
 
 // netconn_delete() skips the pcb teardown when NETCONN_FLAG_MBOXINVALID is set,
 // which lwIP sets itself after a peer FIN half-closes the RX side. Without an
-// explicit prepare step the pcb would still be live when netconn_free() runs,
-// tripping its "pcb must be deallocated" assert. Mirror lwIP's own socket
-// layer (lwip_close) by running the teardown first. Used wherever a netconn
-// is released, so the same fix applies to destruction and move-assign.
+// explicit prepare step, the pcb would still be live when netconn_free() runs,
+// and its "pcb must be deallocated" assert would fail. Do what lwIP's own socket
+// layer (lwip_close) does and run the teardown first. This function is used
+// wherever a netconn is released, so the same fix applies to destruction and
+// move-assign.
 void safe_delete(::netconn* conn) noexcept {
     if (conn == nullptr) {
         return;

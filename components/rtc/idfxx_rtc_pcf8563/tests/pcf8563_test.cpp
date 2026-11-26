@@ -3,7 +3,7 @@
 
 // Unit tests for idfxx_rtc_pcf8563
 // Uses ESP-IDF Unity test framework with compile-time static_asserts.
-// QEMU has no PCF8563, so most of these cover the register encoding only; the
+// QEMU has no PCF8563, so most of these cover the register encoding only. The
 // [hw] tests need a PCF8563 on TEST_SDA/TEST_SCL and are skipped if none responds.
 
 #include "../src/pcf8563_codec.hpp"
@@ -104,7 +104,7 @@ constexpr pcf8563_internal::clock_registers make_clock_block(uint8_t control1) {
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // pcf8563 is a final, move-only rtc::clock
@@ -306,7 +306,7 @@ TEST_CASE("pcf8563 decode reports VL as not valid", "[idfxx][rtc][pcf8563]") {
 }
 
 TEST_CASE("pcf8563 clock block decode", "[idfxx][rtc][pcf8563]") {
-    // Running clock: the time decodes; TESTC and Control_status_2 are ignored
+    // Running clock: the time decodes. TESTC and Control_status_2 are ignored
     for (uint8_t control1 : {uint8_t{0x00}, pcf8563_internal::control1_testc}) {
         auto t = pcf8563_internal::decode_clock(make_clock_block(control1));
         TEST_ASSERT_TRUE(t.has_value());
@@ -559,7 +559,7 @@ TEST_CASE("pcf8563 timer source selection", "[idfxx][rtc][pcf8563]") {
     assert_timer_setting(255min, timer_source::hz_1_60, 255);
     assert_timer_rejected(100ms);
 
-    // The fastest exact source wins
+    // The fastest exact source is selected
     assert_timer_setting(timer_duration{1}, timer_source::hz_4096, 1);
     assert_timer_setting(1s, timer_source::hz_64, 64);
     assert_timer_setting(4min, timer_source::hz_1, 240);

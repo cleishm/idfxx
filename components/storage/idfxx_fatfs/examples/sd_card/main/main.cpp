@@ -23,8 +23,8 @@ static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_MISO = idfxx::gpio_13;
 static constexpr auto PIN_CS = idfxx::gpio_10;
-// Card detect: a slot with a card-detect switch can wire it here (active low: low when a card is
-// in).
+// Card detect: if the slot has a card-detect switch, set its pin here. The switch is active low: it
+// is low when a card is inserted.
 static constexpr auto PIN_DETECT = idfxx::gpio::nc();
 
 // The file the example saves.
@@ -67,8 +67,8 @@ extern "C" void app_main() {
 
         logger.info("{} MiB free of {} MiB", vol.free_size() >> 20, vol.size() >> 20);
 
-        // With every file closed, unmount before the card goes away (the destructor would otherwise
-        // do it at the end of this scope, but could only log an error).
+        // With every file closed, unmount before the card is destroyed (the destructor would
+        // otherwise do it at the end of this scope, but could only log an error).
         vol.unmount();
     } catch (const std::system_error& e) {
         // idfxx::errc::not_found when a card-detect pin is wired and reports an empty slot.

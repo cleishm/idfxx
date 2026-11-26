@@ -1,9 +1,10 @@
 # Build configuration with IPv6 disabled
 # This verifies that all components compile and behave correctly without
-# lwIP IPv6 support — IPv6-specific APIs return errc::not_supported at runtime.
+# lwIP IPv6 support. IPv6-specific APIs return errc::not_supported at runtime.
 
 CONFIG_LWIP_IPV6=n
 
 # Turns off CONFIG_IDFXX_LOG_ALL_LINES, which config/sdkconfig.defaults turns on. This config then
-# also compiles idfxx_log without the add_sink(all_lines, ...) overloads and the log wrapper.
+# also compiles idfxx_log without the add_sink(all_lines, ...) overloads and without the wrappers
+# for esp_log and esp_log_va.
 # CONFIG_IDFXX_LOG_ALL_LINES is not set

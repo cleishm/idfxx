@@ -157,20 +157,20 @@ constexpr size_t max_sectors_per_cluster = 128;
 // esp_vfs_fat_spiflash_mount_rw_wl).
 constexpr size_t small_flash_volume_sectors = 128;
 
-// Serializes mounting and unmounting between all volumes and images: drive allocation, FatFs's
-// drive table and the FAT VFS registrations are global and unlocked, and so is the mount ID that
-// f_mount() increments (which a FatFs call that remounts a volume on its own also increments,
-// outside this lock). Also guards `claimed`, and the writes to `card_image_drives` and
+// Serializes mounting and unmounting between all volumes and images. Drive allocation, FatFs's
+// drive table and the FAT VFS registrations are global and unlocked. So is the mount ID that
+// f_mount() increments. (A FatFs call that remounts a volume on its own also increments it, outside
+// this lock.) Also guards `claimed`, and the writes to `card_image_drives` and
 // `flash_probe_handles`.
 //
 // Lock order: a volume's own mutex (volume::state::mutex) first, then mount_mutex. close() takes
-// mount_mutex itself, so it is never called with mount_mutex held: unmounting a volume (its
-// destructor, move assignment and try_unmount()) calls it with the volume's own mutex held, and
+// mount_mutex itself, so it is never called with mount_mutex held. Unmounting a volume (its
+// destructor, move assignment and try_unmount()) calls it with the volume's own mutex held.
 // format() takes mount_mutex only around its f_mount() calls. make() takes only mount_mutex (the
-// state it creates isn't shared yet), and releases it before a failed mount's state is destroyed,
-// which closes it. A volume's make() also releases it while it formats a medium with no filesystem,
-// as format() does, and takes it again before mounting the new one. Images have no mutex of their
-// own.
+// state that it creates isn't shared yet). It releases mount_mutex before a failed mount's state is
+// destroyed, which closes it. A volume's make() also releases mount_mutex while it formats a medium
+// with no filesystem, as format() does, and takes it again before mounting the new one. Images have
+// no mutex of their own.
 std::mutex mount_mutex;
 
 // What a mount uses: a flash region (its chip and start address) or an SD card. Mounting the same
@@ -203,9 +203,9 @@ bool is_fat_partition(const partition& part) {
     return part.type() == partition::type::data && part.subtype() == partition::subtype::data_fat;
 }
 
-// Whether `opts` can format a medium with `sector_size`-byte sectors: an explicit allocation unit
-// must be a power of two from one to 128 sectors, which f_mkfs would otherwise quietly replace with
-// one of its own choosing. Checked before anything is mounted or unmounted.
+// Whether `opts` can format a medium with `sector_size`-byte sectors. An explicit allocation unit
+// must be a power of two from one to 128 sectors. f_mkfs would otherwise quietly replace any other
+// value with one of its own choosing. Checked before anything is mounted or unmounted.
 bool valid_format_options(size_t sector_size, const format_options& opts) {
     if (!opts.allocation_unit_size) {
         return true;
@@ -218,8 +218,8 @@ bool valid_format_options(size_t sector_size, const format_options& opts) {
     return true;
 }
 
-// The au_size for f_mkfs, from options already checked with valid_format_options(): 0 lets it
-// choose from the volume size.
+// The au_size for f_mkfs, from options already checked with valid_format_options(). With 0, f_mkfs
+// chooses from the volume size.
 DWORD allocation_unit(const format_options& opts) {
     return static_cast<DWORD>(opts.allocation_unit_size.value_or(0));
 }
@@ -259,17 +259,17 @@ struct mount_base {
     BYTE pdrv = FF_DRV_NOT_USED;
     std::array<char, 3> drive{};
     std::string base_path;
-    // Set while the VFS registration is.
+    // Set while the VFS registration exists.
     FATFS* fs = nullptr;
     bool diskio_registered = false;
     bool fs_mounted = false;
-    // Set by each successful mount_fs(); read without waiting for a format().
+    // Set by each successful mount_fs(). Read without waiting for a format().
     std::atomic<uint64_t> size = 0;
     // Set first by every mount, and reset only by close(): the mount is open while it is set.
     std::optional<medium> claim;
 
-    // Fails once close() has run, so that an operation on an unmounted volume or image never
-    // reaches FatFs (whose drive may by then belong to another mount).
+    // Fails once close() has run, so that an operation on an unmounted volume or image is never
+    // passed to FatFs (whose drive may by then belong to another mount).
     [[nodiscard]] result<void> check_open() const {
         if (!claim) {
             ESP_LOGE(TAG, "%s is not mounted", base_path.c_str());
@@ -329,13 +329,13 @@ struct mount_base {
         FATFS* out = nullptr;
         esp_err_t err = esp_vfs_fat_register_cfg(&conf, &out);
         if (err == ESP_ERR_INVALID_STATE) {
-            // Another FAT filesystem is registered at this path; `out` is its FATFS, not ours.
+            // Another FAT filesystem is registered at this path. `out` is its FATFS, not ours.
             ESP_LOGE(TAG, "A FAT filesystem is already mounted at %s", base_path.c_str());
             return error(idfxx::errc::invalid_state);
         }
         if (err == ESP_ERR_NO_MEM) {
-            // Also returned when the VFS table (CONFIG_VFS_MAX_COUNT entries) is full, which is no
-            // reason to treat it as heap exhaustion and abort; a genuine allocation failure here is
+            // Also returned when the VFS table (CONFIG_VFS_MAX_COUNT entries) is full. That is no
+            // reason to treat it as heap exhaustion and abort. A genuine allocation failure here is
             // reported the same way.
             ESP_LOGE(
                 TAG,
@@ -361,7 +361,7 @@ struct mount_base {
         FRESULT fr = f_mount(fs, drive.data(), 1);
         if (fr == FR_INT_ERR) {
             // f_mount reports a failure to create the volume's mutex (an allocation) as FR_INT_ERR,
-            // before it registers the FATFS; mounting the volume itself never returns that.
+            // before it registers the FATFS. Mounting the volume itself never returns that.
             unmount_fs();
             raise_no_mem();
         }
@@ -510,8 +510,8 @@ constexpr ff_diskio_impl_t card_image_impl{
     .ioctl = card_image_ioctl,
 };
 
-// Probe drivers, which a volume's mount uses in place of ESP-IDF's driver to mount again a medium
-// on which FatFs found no filesystem (see volume::state::probe()). They read the medium as
+// Probe drivers, which a volume's mount uses in place of ESP-IDF's driver to mount a medium again
+// when FatFs found no filesystem on it (see volume::state::probe()). They read the medium as
 // ESP-IDF's driver does, recording whether a read failed, and refuse writes.
 
 // Whether a read that a probe made on each FatFs drive failed. Cleared with mount_mutex held,
@@ -521,14 +521,14 @@ constexpr ff_diskio_impl_t card_image_impl{
 std::array<std::atomic<bool>, FF_VOLUMES> probe_read_failed;
 
 // Records a failed read of `count` sectors from `sector`, on a medium of `sector_count` sectors,
-// unless the read reaches beyond its end. FatFs reads the first sector of each partition that a
-// partition table lists, and a stale or foreign table can list one that starts beyond the end of
-// the medium; reading it is no sign of a failing medium. Such reads are still passed to the medium,
-// as ESP-IDF's driver passes them, so that FatFs mounts through the probe with the result it had
-// through that driver: they fail on an SD card, but wrap around on flash (wl_read() doesn't check
-// bounds). Failing them on flash would change the result: FatFs in ESP-IDF 6.x reports FR_DISK_ERR,
-// not FR_NO_FILESYSTEM, when the last boot sector it tried couldn't be read, even if it then found
-// an empty entry.
+// unless the read extends beyond its end. FatFs reads the first sector of each partition that a
+// partition table lists. A stale or foreign table can list a partition that starts beyond the end
+// of the medium. A failed read of that partition does not mean that the medium is failing. Such
+// reads are still passed to the medium, as ESP-IDF's driver passes them, so that a mount through
+// the probe gets the same result as a mount through that driver. They fail on an SD card, but wrap
+// around on flash (wl_read() doesn't check bounds). Failing them on flash would change the result:
+// FatFs in ESP-IDF 6.x reports FR_DISK_ERR, not FR_NO_FILESYSTEM, when the last boot sector that it
+// tried couldn't be read, even if it then found an empty entry.
 void record_probe_failure(BYTE pdrv, LBA_t sector, UINT count, LBA_t sector_count) {
     if (sector < sector_count && count <= sector_count - sector) {
         probe_read_failed[pdrv] = true;
@@ -563,7 +563,7 @@ DSTATUS flash_probe_status(BYTE) {
 DRESULT flash_probe_read(BYTE pdrv, BYTE* buff, uint32_t sector, UINT count) {
     const wl_handle_t wl = flash_probe_handles[pdrv];
     const size_t sector_size = wl_sector_size(wl);
-    // Read even when it reaches beyond the end, as ESP-IDF's driver does (see
+    // Read even when it extends beyond the end, as ESP-IDF's driver does (see
     // record_probe_failure()).
     if (esp_err_t err = wl_read(wl, sector * sector_size, buff, count * sector_size);
         err != ESP_OK) {
@@ -669,7 +669,7 @@ struct volume::state : detail::mount_base {
 
     // Serializes format() with try_free_size(), unmounting, and the FatFs calls that replacing and
     // recovering a file make (but not the writing of its contents, which goes through the VFS).
-    // Taken before mount_mutex when both are held (see mount_mutex); FatFs's own lock on the volume
+    // Taken before mount_mutex when both are held (see mount_mutex). FatFs's own lock on the volume
     // is taken inside it.
     std::mutex mutex;
 
@@ -726,8 +726,8 @@ struct volume::state : detail::mount_base {
         return check(f_rename(p.complete.c_str(), p.target.c_str()), "f_rename");
     }
 
-    // Finishes or discards a replace that a reset interrupted, with `mutex` held: if the complete
-    // file exists, it replaces the target; then any temporary file is removed. Fails with
+    // Finishes or discards a replace that a reset interrupted, with `mutex` held. If the complete
+    // file exists, it replaces the target. Then any temporary file is removed. Fails with
     // fatfs::errc::no_path, without logging it, if the directory doesn't exist.
     result<void> recover(const replace_paths& p) {
         FRESULT fr = f_stat(p.complete.c_str(), nullptr);
@@ -812,8 +812,8 @@ struct volume::state : detail::mount_base {
         }
     };
 
-    // Writes the temporary file through stdio, at its VFS path, with `write`, which is given it as
-    // a FILE* (with `writer`), and closes it, with no lock held.
+    // Writes the temporary file through stdio, at its VFS path, with no lock held. `write` is given
+    // the file as a FILE* (together with `writer`). The file is then closed.
     result<void> write_temp(const replace_paths& p, void* writer, write_fn write) {
         // "/sdcard/dir/<HASH>.~RT"
         const std::string temp_file = std::string(base_path).append(p.temp, 2);
@@ -829,7 +829,7 @@ struct volume::state : detail::mount_base {
         if (auto r = write(writer, file.get()); !r) {
             return r;
         }
-        // A write that failed unreported.
+        // A write that failed without being reported.
         if (std::ferror(file.get())) {
             return stdio_error();
         }
@@ -931,21 +931,21 @@ struct volume::state : detail::mount_base {
     }
 
     // After a mount that found no filesystem, with mount_mutex held, mounts the filesystem again
-    // through a probe driver in place of ESP-IDF's: FatFs reads the medium as it did the first
+    // through a probe driver in place of ESP-IDF's. FatFs reads the medium as it did the first
     // time, and the probe records whether a read failed. Returns that mount's result, with
     // FR_DISK_ERR in place of FR_NO_FILESYSTEM if a read failed. The filesystem is left unmounted,
     // with ESP-IDF's driver registered again.
     //
-    // FatFs reports a boot sector that can't be read as FR_DISK_ERR only when it is the last one it
-    // reads: when reading a partition's boot sector fails, it moves on to the next entry in the
-    // partition table, and reports FR_NO_FILESYSTEM if that one holds no FAT filesystem (or, in
-    // ESP-IDF 5.5's FatFs, is empty). The probe keeps such a read error from being taken for a
-    // missing filesystem.
+    // FatFs reports a boot sector that can't be read as FR_DISK_ERR only when it is the last one
+    // that it reads. When reading a partition's boot sector fails, FatFs moves on to the next
+    // entry in the partition table. It reports FR_NO_FILESYSTEM if that entry holds no FAT
+    // filesystem (or, in ESP-IDF 5.5's FatFs, is empty). The probe makes sure that such a read
+    // error is not reported as a missing filesystem.
     //
-    // The drivers are swapped only while the filesystem is unmounted, when a FatFs call on the
-    // drive (from another task, through the mount path) fails with FR_NOT_ENABLED rather than
-    // reaching the driver being replaced. If mounting raises, the probe stays registered until
-    // close() unregisters it.
+    // The drivers are swapped only while the filesystem is unmounted. At that time, a FatFs call on
+    // the drive (from another task, through the mount path) fails with FR_NOT_ENABLED, and is not
+    // passed to the driver that is being replaced. If mounting raises, the probe stays registered
+    // until close() unregisters it.
     result<FRESULT> probe() {
         unmount_fs();
         probe_read_failed[pdrv] = false;
@@ -966,10 +966,10 @@ struct volume::state : detail::mount_base {
 
     // Mounts the filesystem, formatting it with `format` first if FatFs recognizes none and
     // `format_if_missing` is set. `format` has already been checked with valid_format_options().
-    // `lock` holds mount_mutex, and is released while formatting, as in format(): the claim, the
-    // disk driver on this mount's drive and the VFS registration keep the medium, the drive and the
-    // path reserved meanwhile. It is held again on return, but not when an exception propagates
-    // from formatting.
+    // `lock` holds mount_mutex. It is released while formatting, as in format(). While it is
+    // released, the claim, the disk driver on this mount's drive and the VFS registration keep the
+    // medium, the drive and the path reserved. It is held again on return, but not when an
+    // exception propagates from formatting.
     result<void> mount_or_format(
         bool format_if_missing,
         const format_options& format,
@@ -977,9 +977,9 @@ struct volume::state : detail::mount_base {
     ) {
         const FRESULT fr = mount_fs();
         // FR_NO_FILESYSTEM covers an erased medium, exFAT and a damaged boot sector. Damage to the
-        // FAT or the directories isn't seen until files are used. A read error never leads to a
-        // format: FatFs reports most as FR_DISK_ERR (or FR_NOT_READY), and probe() catches those it
-        // reports as FR_NO_FILESYSTEM.
+        // FAT or the directories isn't detected until files are used. A read error never leads to
+        // a format: FatFs reports most as FR_DISK_ERR (or FR_NOT_READY), and probe() detects those
+        // that it reports as FR_NO_FILESYSTEM.
         if (fr != FR_NO_FILESYSTEM || !format_if_missing) {
             return check(fr, "f_mount");
         }
@@ -1046,7 +1046,7 @@ struct volume::state : detail::mount_base {
             );
             if (err == ESP_ERR_NO_MEM) {
                 // Also returned when all of the wear-leveling layer's handles (MAX_WL_HANDLES, 8)
-                // are in use, which is no reason to treat it as heap exhaustion and abort; a
+                // are in use. That is no reason to treat it as heap exhaustion and abort. A
                 // genuine allocation failure here is reported the same way.
                 return error(idfxx::errc::invalid_state);
             }
@@ -1063,12 +1063,12 @@ struct volume::state : detail::mount_base {
     }
 
     // With `mutex` held (see lock_open()), and not mount_mutex. Takes mount_mutex only around
-    // f_mount(), which updates FatFs's global drive table and mount ID; f_fdisk() and f_mkfs() use
-    // only this volume's own drive, which no other mount can take, so formatting doesn't hold up
-    // other mounts. The claim, the disk driver and the VFS registration are left alone.
+    // f_mount(), which updates FatFs's global drive table and mount ID. f_fdisk() and f_mkfs() use
+    // only this volume's own drive, which no other mount can take, so formatting doesn't delay
+    // other mounts. The claim, the disk driver and the VFS registration are not changed.
     result<void> format(const format_options& opts) {
         // Before the filesystem is unmounted, so that invalid options, and a failure to allocate,
-        // leave the volume untouched.
+        // leave the volume unchanged.
         if (!valid_format_options(sector_size(), opts)) {
             return error(idfxx::errc::invalid_arg);
         }
@@ -1086,8 +1086,8 @@ struct volume::state : detail::mount_base {
             fr = mount_fs();
             if (fr != FR_OK) {
                 // FatFs keeps a FATFS whose mount failed registered, and would try mounting it
-                // again on the next access. Unregistered, every access fails with FR_NOT_ENABLED
-                // until the volume is unmounted (or formatted again).
+                // again on the next access. With the FATFS unregistered, every access fails with
+                // FR_NOT_ENABLED until the volume is unmounted (or formatted again).
                 unmount_fs();
             }
         }
@@ -1128,10 +1128,10 @@ struct volume::state : detail::mount_base {
         return first;
     }
 
-    // Undoes anything still set up: when a mount fails, or an out-of-memory exception leaves make()
-    // part-way through one, make() destroys the state after releasing mount_mutex, which close()
-    // takes. Every other state is destroyed after close() has run (in volume's destructor, move
-    // assignment or try_unmount()), and has nothing left to undo.
+    // Undoes anything still set up. When a mount fails, or an out-of-memory exception stops make()
+    // part-way through a mount, make() destroys the state after releasing mount_mutex, which
+    // close() takes. Every other state is destroyed after close() has run (in volume's destructor,
+    // move assignment or try_unmount()), and has nothing left to undo.
     ~state() { (void)close(); }
 };
 
@@ -1478,10 +1478,10 @@ struct image::state : detail::mount_base {
         return err;
     }
 
-    // Undoes anything still set up: when the mount fails, or an out-of-memory exception leaves
-    // make() part-way through it, make() destroys the state after releasing mount_mutex, which
-    // close() takes. Every other state is destroyed after close() has run (in image's destructor,
-    // move assignment or try_unmount()), and has nothing left to undo.
+    // Undoes anything still set up. When the mount fails, or an out-of-memory exception stops
+    // make() part-way through the mount, make() destroys the state after releasing mount_mutex,
+    // which close() takes. Every other state is destroyed after close() has run (in image's
+    // destructor, move assignment or try_unmount()), and has nothing left to undo.
     ~state() { (void)close(); }
 };
 

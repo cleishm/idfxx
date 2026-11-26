@@ -23,8 +23,8 @@ struct source_rect {
 };
 
 // Resampling a source rectangle to dst_w x dst_h, of which only a window is
-// computed. Each output pixel depends only on its own coefficients, so the
-// window changes nothing else.
+// computed. Each output pixel depends only on its own coefficients, so
+// computing only a window does not change any computed pixel.
 struct resampler_config {
     uint32_t src_width;
     uint32_t src_height;
@@ -43,7 +43,7 @@ struct resampler_axis {
     bool conv;        // convolution; otherwise a copy
     int32_t off;      // copy: source index of output index 0
     uint32_t in_size; // conv: source extent along the axis
-    uint32_t max_n;   // conv: largest window bounds() returns
+    uint32_t max_n;   // conv: largest window that bounds() returns
     double in0;
     double scale;
     double support;
@@ -65,7 +65,7 @@ struct resampler_plan {
     uint32_t v_taps;    // largest vertical window = ring rows (0: no row is ever stored)
     uint32_t ring_w;    // pixels per ring row
     uint32_t cbase;     // tall path: first source column held
-    uint32_t ybox_last; // source rows the output reads
+    uint32_t ybox_last; // source rows that the output reads
 };
 
 // Takes source rows, top to bottom, and gives computed rows, top to bottom.
@@ -74,7 +74,7 @@ public:
     // Derives every size for a config. Allocates nothing.
     [[nodiscard]] static resampler_plan plan(const resampler_config& cfg);
 
-    // The bytes a resampler made from this plan allocates.
+    // The bytes that a resampler made from this plan allocates.
     [[nodiscard]] static uint64_t memory_bytes(const resampler_plan& plan);
 
     explicit resampler(const resampler_plan& plan);
@@ -83,8 +83,8 @@ public:
     // false after every push.
     void push(const rgb888* src_row);
 
-    // Writes the next computed row (vis_w pixels), if the source rows it needs
-    // have been pushed. Returns false if not, or when all rows have been given.
+    // Writes the next computed row (vis_w pixels), if the source rows that it
+    // needs have been pushed. Returns false if not, or when all rows have been given.
     [[nodiscard]] bool pop(rgb888* dst_row);
 
 private:
@@ -109,7 +109,7 @@ private:
 };
 
 // Where a layout puts a source rectangle: resampled to dst_w x dst_h, at
-// (dst_x, dst_y) inside the area it was laid out in.
+// (dst_x, dst_y) inside the area that it was laid out in.
 struct picture_layout {
     source_rect source;
     uint32_t dst_x;

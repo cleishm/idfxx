@@ -44,7 +44,7 @@ namespace img = jpeg_test_images;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 static_assert(sizeof(epi_rgb_t) == sizeof(rgb888));
@@ -63,7 +63,7 @@ static_assert(!placement{}.fill_to_alignment);
 static_assert(render_config{.screen_width = 1, .screen_height = 1}.x_alignment == 1);
 static_assert(!std::is_default_constructible_v<render_config>);
 
-// jpeg::decoder is what render() is duck-typed on: pin the names it relies on.
+// jpeg::decoder is what render() is duck-typed on: check the names that render() relies on.
 static_assert(std::same_as<decltype(idfxx::jpeg::info::width), size_t>);
 static_assert(std::same_as<decltype(idfxx::jpeg::info::height), size_t>);
 static_assert(std::same_as<decltype(idfxx::jpeg::info::orientation), orientation>);
@@ -136,7 +136,7 @@ bool same_pixels(view<const rgb888> a, view<const rgb888> b) {
     return true;
 }
 
-// Collects a renderer's output, checking the promises the sink relies on.
+// Collects a renderer's output, checking the guarantees that the sink relies on.
 struct collector {
     explicit collector(rect expected)
         : output(expected)
@@ -209,7 +209,7 @@ epi_filter_t library_filter(filter f) {
 
 // The library lays out the crop as a region of the source on a whole canvas.
 // Laying it out on a canvas of the target's size, then translating the
-// placement, is what makes that a reference for a target; the library's
+// placement, makes that layout a reference for a target. The library's
 // resampler then runs on an identical configuration, on a canvas of the whole
 // screen.
 epi_resampler_config_t library_config(const library_case& c) {
@@ -387,7 +387,7 @@ void check_filter_against_library(filter kernel) {
     }
 }
 
-// A decoder with the least render() relies on.
+// A decoder with the least that render() relies on.
 class plain_decoder {
 public:
     struct info_type {
@@ -484,7 +484,7 @@ struct asked_size {
 };
 
 asked_size asked_for(size_t w, size_t h, orientation own, const placement& where, const render_config& config) {
-    // Only the asking matters: the decode is a single pixel.
+    // Only the scale_to_cover request matters: the decode is a single pixel.
     const buffer<> half(1, 1);
     scaling_fake_decoder dec(view<const rgb888>(nullptr, w, h), own, half);
     (void)try_render(
@@ -630,8 +630,9 @@ TEST_CASE("renderer streams identity and flip, and buffers the other orientation
 
 TEST_CASE("renderer's streaming and buffered paths agree across frames", "[idfxx][image]") {
     // Where resampling is symmetric, the same picture comes out whichever frame the
-    // image is stored in. A copy always is. Box and bilinear at an exact 2:1 are when
-    // the axes stay put: the passes round in turn, and swapping the axes swaps them.
+    // image is stored in. A copy is always symmetric. Box and bilinear at an exact 2:1
+    // are symmetric only when the axes are not swapped. Each pass rounds its result,
+    // and swapping the axes swaps the order of the passes.
     const buffer<> upright = noise(24, 16);
     struct geometry {
         filter kernel;
@@ -758,7 +759,7 @@ TEST_CASE("renderer fit fills the rest of the target with the background", "[idf
 TEST_CASE("renderer fit whose picture is off-screen outputs only background", "[idfxx][image]") {
     const buffer<> src = noise(20, 10);
     const rgb888 bg{9, 8, 7};
-    // The picture's 10 rows are centerd in the 40-high target: the screen shows
+    // The picture's 10 rows are centered in the 40-high target: the screen shows
     // only the 5 rows above them.
     for (orientation o : {orientation::identity, orientation::rotate_180}) {
         const buffer<> got = rendered(
@@ -786,7 +787,7 @@ TEST_CASE("renderer with a fully off-screen target outputs nothing", "[idfxx][im
              rect{-100, -100, 4, 4},
          }) {
         for (orientation o : {orientation::identity, orientation::rotate_90}) {
-            // No limit to be over, however small: nothing is delivered.
+            // No limit is too small, because nothing is delivered.
             const render_config limited{.screen_width = 10, .screen_height = 10, .memory_limit = 0};
             auto r = renderer::make(8, 6, o, {.target = target}, limited);
             TEST_ASSERT_TRUE(r.has_value());
@@ -891,7 +892,7 @@ TEST_CASE("renderer rejects out-of-sequence and wrong-width rows", "[idfxx][imag
     // An earlier row, the same one again, one too far ahead.
     TEST_ASSERT_TRUE(r->try_push({0, 1}, all.subview(0, 1, 12, 1), out).error() == idfxx::errc::invalid_state);
     TEST_ASSERT_TRUE(r->try_push({0, 4}, all.subview(0, 4, 12, 1), out).error() == idfxx::errc::invalid_state);
-    // An empty block is nothing, and a failed push consumed nothing.
+    // An empty block does nothing, and a failed push consumed nothing.
     TEST_ASSERT_TRUE(r->try_push({0, 3}, view<const rgb888>(src.data(), 12, 0), out).has_value());
     TEST_ASSERT_TRUE(r->try_push({0, 3}, all.subview(0, 3, 12, 5), out).has_value());
     // There is nothing after the last row.
@@ -979,7 +980,7 @@ TEST_CASE("renderer rejects invalid arguments", "[idfxx][image]") {
     TEST_ASSERT_TRUE(make({.crop = rect{9, 0, 5, 5}}).error() == idfxx::errc::invalid_arg);
     TEST_ASSERT_TRUE(make({.crop = rect{0, 5, 5, 5}}).error() == idfxx::errc::invalid_arg);
     TEST_ASSERT_TRUE(make({.crop = rect{8, 4, 5, 5}}).has_value());
-    // A bad crop is just as wrong on an off-screen target.
+    // A bad crop is an error on an off-screen target too.
     TEST_ASSERT_TRUE(make({.target = rect{50, 0, 5, 5}, .crop = rect{9, 0, 5, 5}}).error() == idfxx::errc::invalid_arg);
     // An empty screen or image.
     TEST_ASSERT_TRUE(
@@ -1040,7 +1041,8 @@ TEST_CASE("renderer memory_limit is the exact working memory", "[idfxx][image]")
         render_config config{.screen_width = 11, .screen_height = 13, .memory_limit = hi};
         auto r = renderer::make(23, 17, orientation::identity, where, config);
         TEST_ASSERT_TRUE(r.has_value());
-        // A frame on the buffered path; at least the rows and weights on either.
+        // The limit covers a frame on the buffered path, and at least the rows and weights on
+        // either path.
         TEST_ASSERT_GREATER_THAN(11 * 3, hi);
         if (o != orientation::identity) {
             TEST_ASSERT_GREATER_THAN(11 * 13 * 3, hi);
@@ -1138,7 +1140,7 @@ TEST_CASE("renderer::make with a decoder reports the output before anything is d
     };
     TEST_ASSERT_TRUE(away->try_push({0, 0}, view<const rgb888>(src), never).has_value());
 
-    // An image too large to render is no problem off-screen, as for try_render.
+    // An image too large to render is not an error off-screen, as for try_render.
     plain_decoder huge(view<const rgb888>(nullptr, 70000, 70000), orientation::identity);
     auto huge_away = renderer::make(huge, {.target = rect{20, 0, 5, 5}}, config);
     TEST_ASSERT_TRUE(huge_away.has_value());
@@ -1235,12 +1237,12 @@ TEST_CASE("try_render picks the decode scale from the crop, the target and the o
     TEST_ASSERT_EQUAL(100, a.width);
     TEST_ASSERT_EQUAL(100, a.height);
 
-    // Fit by the smaller.
+    // Fit scales by the smaller ratio.
     a = asked_for(800, 800, orientation::identity, {.target = target, .layout = layout::fit}, config);
     TEST_ASSERT_EQUAL(75, a.width);
     TEST_ASSERT_EQUAL(75, a.height);
 
-    // Stretch by each axis's own.
+    // Stretch scales each axis by its own ratio.
     a = asked_for(800, 800, orientation::identity, {.target = target, .layout = layout::stretch}, config);
     TEST_ASSERT_EQUAL(100, a.width);
     TEST_ASSERT_EQUAL(75, a.height);
@@ -1259,7 +1261,7 @@ TEST_CASE("try_render picks the decode scale from the crop, the target and the o
     TEST_ASSERT_EQUAL(100, a.width);
     TEST_ASSERT_EQUAL(75, a.height);
 
-    // Enlarging can't be asked of a decoder that never enlarges.
+    // The renderer never asks a decoder to enlarge, because a decoder never enlarges.
     a = asked_for(80, 60, orientation::identity, {.target = target}, config);
     TEST_ASSERT_EQUAL(80, a.width);
     TEST_ASSERT_EQUAL(60, a.height);
@@ -1327,7 +1329,7 @@ TEST_CASE("try_render drives a jpeg::decoder", "[idfxx][image]") {
 }
 
 // =============================================================================
-// Giving way to other tasks
+// Yielding to other tasks
 // =============================================================================
 
 TEST_CASE("renderer lets lower-priority tasks run while a frame fills", "[idfxx][image]") {

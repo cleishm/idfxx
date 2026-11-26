@@ -14,8 +14,8 @@
  *
  * [Spleen](https://github.com/fcambus/spleen) is a monospaced bitmap font
  * family by Frederic Cambus (BSD-2-Clause). The bundled sizes cover
- * printable ASCII (0x20-0x7E). Each font lives in its own translation unit,
- * so a font an application never references is dropped at link time.
+ * printable ASCII (0x20-0x7E). Each font is in its own translation unit, so
+ * a font that an application never references is dropped at link time.
  * @{
  */
 
@@ -27,10 +27,10 @@
  */
 namespace idfxx::font {
 
-/// Spleen 5x8 — compact status text.
+/// Spleen 5x8, for compact status text.
 extern const mono_font spleen_5x8;
 
-/// Spleen 8x16 — headline text; scale 2 gives 16x32 digits.
+/// Spleen 8x16, for headline text. At scale 2, it draws 16x32 digits.
 extern const mono_font spleen_8x16;
 
 } // namespace idfxx::font

@@ -1,6 +1,7 @@
 # Wi-Fi Station
 
-Joins a Wi-Fi network, logs the IP address it gets, and reconnects whenever the connection drops.
+Joins a Wi-Fi network, logs the IP address that it gets, and reconnects whenever the connection
+drops.
 
 ## What it demonstrates
 

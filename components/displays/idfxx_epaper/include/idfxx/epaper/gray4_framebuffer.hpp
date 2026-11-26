@@ -33,18 +33,18 @@ namespace idfxx::epaper {
  * @brief In-memory framebuffer for 4-level grayscale ePaper displays.
  *
  * Each pixel is a @ref gray4 level (2 bits). The levels are stored as two
- * separate 1-bit-per-pixel planes — plane 0 holds bit 0 of each pixel's
- * level, plane 1 holds bit 1 — because that is how ePaper controllers
- * consume grayscale data: one plane per controller RAM bank. Within each
- * plane the layout matches @ref mono_framebuffer — row-major, MSB-first,
- * with rows padded to whole bytes (@ref stride_bytes).
+ * separate 1-bit-per-pixel planes. Plane 0 holds bit 0 of each pixel's
+ * level, and plane 1 holds bit 1. This is how ePaper controllers consume
+ * grayscale data: one plane per controller RAM bank. Within each plane, the
+ * layout is the same as in @ref mono_framebuffer. It is row-major and
+ * MSB-first, with rows padded to whole bytes (@ref stride_bytes).
  *
  * A new framebuffer starts all-white (`gray4::white`, level 0), so generic
  * drawing code that clears with a value-initialized pixel (e.g.
  * `idfxx::gfx::canvas::clear`) clears to blank paper.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then upload it
- * to a panel's RAM with @ref panel::write (full frame) or
+ * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
+ * Then upload it to a panel's RAM with @ref panel::write (full frame) or
  * @ref panel::write_rows (a horizontal band), and make it visible with
  * @ref panel::refresh. This is a plain value type: copyable, movable, and
  * independent of any panel.
@@ -64,7 +64,7 @@ public:
 
     /**
      * @brief Destination-column alignment required by @ref panel::write.
-     * Eight pixels share a byte in each plane, so a framebuffer must land on
+     * Eight pixels share a byte in each plane, so a framebuffer must start on
      * a byte boundary.
      */
     static constexpr size_t x_alignment = 8;
@@ -73,8 +73,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
@@ -86,8 +86,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @return The new gray4_framebuffer, or an error.
      * @retval idfxx::errc::invalid_arg if @p width or @p height is zero.
@@ -143,7 +143,7 @@ public:
      *
      * @param x Column, in `[0, width())`.
      * @param y Row, in `[0, height())`.
-     * @return The pixel's gray level; `gray4::white` if the coordinates are
+     * @return The pixel's gray level, or `gray4::white` if the coordinates are
      *         out of range.
      */
     [[nodiscard]] gray4 get_pixel(size_t x, size_t y) const noexcept {
@@ -191,7 +191,7 @@ public:
      *
      * Each plane holds `stride_bytes() * height()` bytes in the row-major
      * MSB-first layout described in the class documentation. Plane 0 holds
-     * bit 0 of each pixel's gray level, plane 1 holds bit 1.
+     * bit 0 of each pixel's gray level, and plane 1 holds bit 1.
      *
      * Unlike @ref set_pixel / @ref get_pixel, the raw views do not tolerate
      * out-of-range arguments: passing one is undefined behavior.
@@ -207,13 +207,14 @@ public:
      * @brief Returns the raw pixel data of one plane for modification.
      *
      * The same `stride_bytes() * height()` bytes as the read-only overload,
-     * in the same layout, for filling a whole plane in one copy — for
-     * example, loading a previously saved frame.
+     * in the same layout, for filling a whole plane in one copy, for example
+     * to load a previously saved frame.
      *
      * Bytes written this way are not checked. The pixel accessors keep the
-     * padding bits past the right edge white (clear in both planes); raw
-     * writes should too, since padding is uploaded to the panel along with
-     * its row. Passing an out-of-range @p index is undefined behavior.
+     * padding bits past the right edge white (clear in both planes). Raw
+     * writes should keep them white too, because padding is uploaded to the
+     * panel along with its row. Passing an out-of-range @p index is undefined
+     * behavior.
      *
      * @param index The plane to view: 0 or 1.
      * @return A mutable view of the plane's pixel data.

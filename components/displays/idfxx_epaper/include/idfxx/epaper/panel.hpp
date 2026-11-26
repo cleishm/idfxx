@@ -11,23 +11,24 @@
  * @defgroup idfxx_epaper ePaper Component
  * @brief Abstract ePaper panel interface, framebuffers, and shared types.
  *
- * Provides a controller-agnostic abstract base class (`idfxx::epaper::panel`)
- * that concrete drivers — `idfxx::epaper::ssd1680`, `idfxx::epaper::uc8179`,
- * `idfxx::epaper::el133uf1`, and future siblings — implement, plus the
- * framebuffers (`idfxx::epaper::mono_framebuffer`,
+ * Provides a controller-agnostic abstract base class (`idfxx::epaper::panel`).
+ * Concrete drivers, such as `idfxx::epaper::ssd1680`, `idfxx::epaper::uc8179`
+ * and `idfxx::epaper::el133uf1`, implement it. The component also provides
+ * the framebuffers (`idfxx::epaper::mono_framebuffer`,
  * `idfxx::epaper::gray4_framebuffer`, `idfxx::epaper::color6_framebuffer`)
- * that hold pixel data in the row-major layouts ePaper controllers consume.
+ * that hold pixel data in the row-major layouts that ePaper controllers
+ * consume.
  *
  * The interface models the ePaper update cycle rather than an
- * immediate-mode display: pixel data is first uploaded to the controller's
- * RAM with @ref idfxx::epaper::panel::write (nothing changes on the glass),
- * then made visible with @ref idfxx::epaper::panel::refresh, which drives
- * the physical ink update and blocks until the controller's BUSY line
- * releases (or @ref idfxx::epaper::panel::start_refresh, which returns an
- * `idfxx::future` to await instead). Panels support full refreshes, faster
- * reduced-quality full refreshes, flicker-free partial refreshes, 4-level
- * grayscale, and six-color (E Ink Spectra 6) operation, subject to each
- * driver's capabilities.
+ * immediate-mode display. Pixel data is first uploaded to the controller's
+ * RAM with @ref idfxx::epaper::panel::write. Nothing changes on the glass
+ * yet. @ref idfxx::epaper::panel::refresh then makes the data visible: it
+ * drives the physical ink update and blocks until the controller's BUSY
+ * line releases. @ref idfxx::epaper::panel::start_refresh starts the same
+ * update and returns an `idfxx::future` to await instead. Panels support
+ * full refreshes, faster reduced-quality full refreshes, flicker-free partial
+ * refreshes, 4-level grayscale, and six-color (E Ink Spectra 6) operation,
+ * subject to each driver's capabilities.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for the
  * BUSY and reset lines.
@@ -69,24 +70,24 @@ enum class refresh_mode : uint8_t {
     /// panel flashes through inverse images before settling. Slowest, but
     /// clears ghosting completely.
     full,
-    /// Full-screen update with a shortened waveform: much faster than
-    /// @ref refresh_mode::full and still updates every pixel, at some cost
-    /// in contrast and ghosting. Not supported by every driver.
+    /// Full-screen update with a shortened waveform. It is much faster than
+    /// @ref refresh_mode::full and still updates every pixel, but with lower
+    /// contrast and more ghosting. Not supported by every driver.
     fast,
     /// Differential update: only pixels that changed since the previous
     /// refresh flip, without the full-refresh flash. Fastest and
-    /// flicker-free, but accumulates ghosting — issue a
+    /// flicker-free, but accumulates ghosting. Issue a
     /// @ref refresh_mode::full refresh periodically to clean the panel.
     partial,
 };
 
 /**
  * @headerfile <idfxx/epaper/panel>
- * @brief Pixel format the panel is operating in.
+ * @brief Pixel format that the panel is operating in.
  *
- * Selected with @ref panel::set_color_mode; determines which framebuffer
+ * Selected with @ref panel::set_color_mode. It determines which framebuffer
  * type @ref panel::write accepts. Every driver supports
- * @ref color_mode::mono; the others depend on the controller and glass
+ * @ref color_mode::mono. The others depend on the controller and glass
  * (see @ref panel::supports).
  */
 enum class color_mode : uint8_t {
@@ -100,13 +101,14 @@ enum class color_mode : uint8_t {
  * @brief How the panel's border is driven.
  *
  * Many glasses have a border electrode: the strip of ink around the active
- * area, outside any pixel. Selected with @ref panel::set_border and applied
- * at each full or fast refresh; a refresh that runs as
- * @ref refresh_mode::partial (one not promoted to full for lack of a
- * baseline) always leaves the border undriven, whatever the setting, so it
- * does not flicker. Drivers for glasses whose border is not selectable
- * report every value as unsupported (see @ref panel::supports) and report
- * @ref border::white from @ref panel::border.
+ * area, outside any pixel. The setting is selected with
+ * @ref panel::set_border and applied at each full or fast refresh. A refresh
+ * that runs as @ref refresh_mode::partial (one that is not promoted to full
+ * because there is no baseline) always leaves the border undriven, whatever
+ * the setting, so that the border does not flicker. Drivers for glasses whose
+ * border is not selectable report every value as unsupported (see
+ * @ref panel::supports). They report @ref border::white from
+ * @ref panel::border.
  */
 enum class border : uint8_t {
     /// Driven white alongside each full or fast refresh. The controller
@@ -124,10 +126,10 @@ enum class border : uint8_t {
  * @headerfile <idfxx/epaper/panel>
  * @brief Abstract base class for ePaper display panels.
  *
- * The public interface is non-virtual; concrete drivers (e.g.
+ * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::epaper::ssd1680`) customize behavior by overriding the protected
- * `do_*` hooks, mirroring the standard library's non-virtual-interface
- * pattern (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  *
  * The interface follows the ePaper update cycle:
  *
@@ -137,11 +139,11 @@ enum class border : uint8_t {
  *    retain a reference to the framebuffer: it may be redrawn immediately
  *    after the call returns.
  * 2. @ref refresh drives the physical ink update from the controller's RAM
- *    and blocks until the panel's BUSY line reports completion;
+ *    and blocks until the panel's BUSY line reports completion.
  *    @ref start_refresh instead returns an `idfxx::future` to await, poll,
  *    or drop while the glass updates.
- * 3. @ref sleep puts the controller into deep sleep between updates —
- *    essential for ePaper longevity and power; @ref wake restores it.
+ * 3. @ref sleep puts the controller into deep sleep between updates. This is
+ *    essential for ePaper longevity and power. @ref wake restores it.
  *    After a wake or a reboot, @ref restore_baseline tells the controller
  *    what is already on the glass, so partial refreshes can continue.
  *
@@ -174,8 +176,8 @@ public:
     /**
      * @brief Returns the panel's width in pixels as currently addressed.
      *
-     * E-paper panels have no axis swap, so this equals @ref width. It exists
-     * so code can address LCD and e-paper panels alike.
+     * ePaper panels have no axis swap, so this equals @ref width. It exists
+     * so code can address LCD and ePaper panels alike.
      *
      * @return The width in pixels.
      */
@@ -184,8 +186,8 @@ public:
     /**
      * @brief Returns the panel's height in pixels as currently addressed.
      *
-     * E-paper panels have no axis swap, so this equals @ref height. It exists
-     * so code can address LCD and e-paper panels alike.
+     * ePaper panels have no axis swap, so this equals @ref height. It exists
+     * so code can address LCD and ePaper panels alike.
      *
      * @return The height in pixels.
      */
@@ -239,7 +241,7 @@ public:
      * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be a multiple of 8 (controller RAM
+     * @param x  Destination column. Must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
      * @param y  Destination row.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -264,7 +266,7 @@ public:
      * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be a multiple of 8 (controller RAM
+     * @param x  Destination column. Must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
      * @param y  Destination row.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -289,7 +291,7 @@ public:
      * with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be even (controller RAM packs two
+     * @param x  Destination column. Must be even (controller RAM packs two
      *           pixels per byte along the row).
      * @param y  Destination row.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -306,9 +308,9 @@ public:
      * @brief Uploads a horizontal band of a monochrome framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
-     * panel row `y + r`, so a band written from a full-frame framebuffer
-     * lands exactly where the full upload would place it.
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
+     * panel row `y + r`, so a band written from a full-frame framebuffer goes
+     * exactly where the full upload would place it.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
      * width is not a multiple of 8, its row padding also overwrites the
@@ -316,9 +318,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  a multiple of 8.
      * @param y         Destination row of the framebuffer origin.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -341,7 +343,7 @@ public:
      * @brief Uploads a horizontal band of a grayscale framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
      * panel row `y + r`.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
@@ -350,9 +352,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  a multiple of 8.
      * @param y         Destination row of the framebuffer origin.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -375,7 +377,7 @@ public:
      * @brief Uploads a horizontal band of a six-color framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
      * panel row `y + r`.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
@@ -384,9 +386,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  even.
      * @param y         Destination row of the framebuffer origin.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -410,8 +412,8 @@ public:
      *
      * Fills the entire image RAM with white (blank paper) in the current
      * color mode. Like a write, the cleared frame is invisible until the
-     * next @ref refresh — which is promoted to @ref refresh_mode::full,
-     * since the cleared RAM no longer matches what a partial refresh would
+     * next @ref refresh. That refresh is promoted to @ref refresh_mode::full,
+     * because the cleared RAM no longer matches what a partial refresh would
      * diff against.
      *
      * Useful for blanking the display, or for erasing previous content
@@ -437,7 +439,7 @@ public:
      * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be a multiple of 8 (controller RAM
+     * @param x  Destination column. Must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
      * @param y  Destination row.
      * @return Success, or an error.
@@ -460,7 +462,7 @@ public:
      * panel columns up to the next byte boundary with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be a multiple of 8 (controller RAM
+     * @param x  Destination column. Must be a multiple of 8 (controller RAM
      *           is byte-packed along the row).
      * @param y  Destination row.
      * @return Success, or an error.
@@ -483,7 +485,7 @@ public:
      * with white.
      *
      * @param fb The framebuffer to upload.
-     * @param x  Destination column; must be even (controller RAM packs two
+     * @param x  Destination column. Must be even (controller RAM packs two
      *           pixels per byte along the row).
      * @param y  Destination row.
      * @return Success, or an error.
@@ -498,9 +500,9 @@ public:
      * @brief Uploads a horizontal band of a monochrome framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
-     * panel row `y + r`, so a band written from a full-frame framebuffer
-     * lands exactly where the full upload would place it.
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
+     * panel row `y + r`, so a band written from a full-frame framebuffer goes
+     * exactly where the full upload would place it.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
      * width is not a multiple of 8, its row padding also overwrites the
@@ -508,9 +510,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  a multiple of 8.
      * @param y         Destination row of the framebuffer origin.
      * @return Success, or an error.
@@ -531,7 +533,7 @@ public:
      * @brief Uploads a horizontal band of a grayscale framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
      * panel row `y + r`.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
@@ -540,9 +542,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  a multiple of 8.
      * @param y         Destination row of the framebuffer origin.
      * @return Success, or an error.
@@ -563,7 +565,7 @@ public:
      * @brief Uploads a horizontal band of a six-color framebuffer.
      *
      * Uploads rows `[row_start, row_end)` of @p fb, with the framebuffer's
-     * origin at pixel (@p x, @p y) — row `r` of the framebuffer lands at
+     * origin at pixel (@p x, @p y). Row `r` of the framebuffer is written to
      * panel row `y + r`.
      *
      * Controller RAM is written in whole bytes, so if the framebuffer's
@@ -572,9 +574,9 @@ public:
      *
      * @param fb        The framebuffer to upload from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
-     * @param x         Destination column of the framebuffer origin; must be
+     * @param x         Destination column of the framebuffer origin. Must be
      *                  even.
      * @param y         Destination row of the framebuffer origin.
      * @return Success, or an error.
@@ -596,9 +598,9 @@ public:
      *
      * Fills the entire image RAM with white (blank paper) in the current
      * color mode. Like a write, the cleared frame is invisible until the
-     * next @ref try_refresh — which is promoted to @ref refresh_mode::full,
-     * since the cleared RAM no longer matches what a partial refresh would
-     * diff against.
+     * next @ref try_refresh. That refresh is promoted to
+     * @ref refresh_mode::full, because the cleared RAM no longer matches what
+     * a partial refresh would diff against.
      *
      * Useful for blanking the display, or for erasing previous content
      * before switching to @ref color_mode::gray4, whose waveform erases
@@ -637,16 +639,16 @@ public:
      *
      * Use this to keep flicker-free partial refreshes across a @ref wake
      * or an ESP32 deep sleep (a reboot), both of which lose the
-     * partial-refresh baseline. Persisting the frame across the reboot
-     * (in flash, on an SD card, ...) is the application's job.
+     * partial-refresh baseline. The application must persist the frame across
+     * the reboot (for example, in flash or on an SD card).
      *
      * The caller is responsible for @p fb matching what is on the glass.
      * A mismatch does no damage, but pixels that differ are not driven
      * correctly until the next full refresh. Monochrome only.
      *
      * @code
-     * // Before deep sleep: persist the frame on the glass, then park the
-     * // controller.
+     * // Before deep sleep: persist the frame on the glass, then put the
+     * // controller to sleep.
      * save_frame(fb.data());                         // application storage
      * display.sleep();
      * idfxx::sleep::deep_sleep(idfxx::sleep::timer_wake{15min});
@@ -662,16 +664,16 @@ public:
      * display.refresh(idfxx::epaper::refresh_mode::partial); // stays partial
      * @endcode
      *
-     * @param fb The image on the glass; must match the panel's dimensions.
+     * @param fb The image on the glass. It must match the panel's dimensions.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::invalid_state`
      *         if the panel is asleep or not in @ref color_mode::mono,
      *         `errc::invalid_arg` if @p fb's dimensions differ from the
      *         panel's, and `errc::not_supported` if the driver cannot
-     *         restore a baseline; transfer errors are also reported. A
+     *         restore a baseline. Transfer errors are also reported. A
      *         call rejected before the upload (`invalid_state`,
      *         `invalid_arg`, or a BUSY `timeout`) leaves any existing
-     *         baseline in place; after any other failure the next partial
+     *         baseline in place. After any other failure, the next partial
      *         refresh is promoted to @ref refresh_mode::full.
      */
     void restore_baseline(const mono_framebuffer& fb) { unwrap(try_restore_baseline(fb)); }
@@ -688,18 +690,18 @@ public:
      *
      * Use this to keep flicker-free partial refreshes across a
      * @ref try_wake or an ESP32 deep sleep (a reboot), both of which lose
-     * the partial-refresh baseline. Persisting the frame across the reboot
-     * (in flash, on an SD card, ...) is the application's job (see
-     * @ref restore_baseline for an example).
+     * the partial-refresh baseline. The application must persist the frame
+     * across the reboot (for example, in flash or on an SD card). See
+     * @ref restore_baseline for an example.
      *
      * The caller is responsible for @p fb matching what is on the glass.
      * A mismatch does no damage, but pixels that differ are not driven
      * correctly until the next full refresh. Monochrome only.
      *
-     * @param fb The image on the glass; must match the panel's dimensions.
+     * @param fb The image on the glass. It must match the panel's dimensions.
      * @return Success, or an error. A call rejected before the upload
      *         (`invalid_state`, `invalid_arg`, or `timeout`) leaves any
-     *         existing baseline in place; after any other failure the next
+     *         existing baseline in place. After any other failure, the next
      *         partial refresh is promoted to @ref refresh_mode::full.
      * @retval invalid_state The panel is asleep, or is not operating in
      *         @ref color_mode::mono.
@@ -721,12 +723,12 @@ public:
      *
      * Drives the physical ink update, making previously written pixel data
      * visible, and blocks until the controller's BUSY line reports
-     * completion. Full refreshes take on the order of seconds; partial
-     * refreshes well under a second, depending on the panel. Use
+     * completion. Depending on the panel, a full refresh takes seconds and a
+     * partial refresh takes well under a second. Use
      * @ref start_refresh to do other work while the glass updates.
      *
      * A @ref refresh_mode::partial refresh needs a baseline image from a
-     * previous refresh to diff against; the first refresh after
+     * previous refresh to diff against. So the first refresh after
      * construction, @ref wake, or a color-mode change is silently promoted
      * to @ref refresh_mode::full. @ref restore_baseline re-establishes a
      * baseline without a refresh.
@@ -746,15 +748,15 @@ public:
      *
      * Starts the physical ink update and returns immediately with an
      * `idfxx::future` that completes when the controller's BUSY line
-     * releases — wait on it, poll it with `done()`, or drop it. The panel
-     * must not be commanded while the glass is updating, so the next panel
-     * operation (a write, clear, refresh, color-mode change, or sleep) first
-     * completes the outstanding update; a caller that only refreshes
-     * periodically therefore never sits through the update.
+     * releases. The caller can wait on it, poll it with `done()`, or drop it.
+     * The panel must not be commanded while the glass is updating. So the
+     * next panel operation (a write, clear, refresh, color-mode change, or
+     * sleep) first completes the outstanding update. A caller that only
+     * refreshes periodically therefore does not wait for the update.
      *
      * Dropping the future is safe: the update continues and is completed
-     * by the next operation. To ask "done yet?" later, keep the future. A
-     * future that outlives the panel simply observes the BUSY line.
+     * by the next operation. To check later whether the update is done, keep
+     * the future. A future that outlives the panel only reads the BUSY line.
      *
      * Baseline handling matches @ref refresh. A @ref refresh_mode::partial
      * request without a baseline is silently promoted to
@@ -764,7 +766,7 @@ public:
      * @code
      * display.write(fb);
      * auto done = display.start_refresh();
-     * do_other_work();              // the glass updates meanwhile
+     * do_other_work();              // the glass updates during this work
      * done.wait();                  // or: if (done.done()) ...
      * display.sleep();
      * @endcode
@@ -791,12 +793,12 @@ public:
      *
      * Drives the physical ink update, making previously written pixel data
      * visible, and blocks until the controller's BUSY line reports
-     * completion. Full refreshes take on the order of seconds; partial
-     * refreshes well under a second, depending on the panel. Use
+     * completion. Depending on the panel, a full refresh takes seconds and a
+     * partial refresh takes well under a second. Use
      * @ref try_start_refresh to do other work while the glass updates.
      *
      * A @ref refresh_mode::partial refresh needs a baseline image from a
-     * previous refresh to diff against; the first refresh after
+     * previous refresh to diff against. So the first refresh after
      * construction, @ref try_wake, or a color-mode change is silently
      * promoted to @ref refresh_mode::full. @ref try_restore_baseline
      * re-establishes a baseline without a refresh.
@@ -804,7 +806,7 @@ public:
      * @param mode The refresh style to use.
      * @return Success, or an error.
      * @retval timeout The BUSY line did not release in time. The update
-     *         keeps running; the next panel operation waits for it to
+     *         keeps running. The next panel operation waits for it to
      *         complete before proceeding.
      * @retval invalid_state The panel is asleep.
      * @retval not_supported The driver does not support @p mode in the
@@ -825,9 +827,9 @@ public:
      * Starts the physical ink update and returns immediately with an
      * `idfxx::future` that completes when the controller's BUSY line
      * releases (see @ref start_refresh). The next panel operation first
-     * completes the outstanding update; dropping the future is safe.
+     * completes the outstanding update. Dropping the future is safe.
      * Baseline handling, including the promotion of a partial request
-     * without one, matches @ref try_refresh.
+     * without a baseline, matches @ref try_refresh.
      *
      * @param mode The refresh style to use.
      * @return A future that completes when the update finishes, or an error
@@ -853,10 +855,10 @@ public:
     /**
      * @brief Reports whether the driver can operate in a pixel format.
      *
-     * Every driver supports @ref color_mode::mono; support for
+     * Every driver supports @ref color_mode::mono. Support for
      * @ref color_mode::gray4 and @ref color_mode::color6 depends on the
-     * controller and glass. @ref set_color_mode rejects any mode this
-     * reports as unsupported with `errc::not_supported`.
+     * controller and glass. @ref set_color_mode rejects any mode that this
+     * function reports as unsupported with `errc::not_supported`.
      *
      * @code
      * if (display.supports(idfxx::epaper::color_mode::color6)) {
@@ -931,9 +933,9 @@ public:
      * @brief Reports whether the driver can drive the panel's border as @p b.
      *
      * Drivers for glasses whose border is not selectable report false for
-     * every value, including the @ref border::white that @ref border
-     * reports on them. @ref set_border rejects any value this reports as
-     * unsupported with `errc::not_supported`.
+     * every value, including @ref border::white, which @ref border reports
+     * for those drivers. @ref set_border rejects any value that this
+     * function reports as unsupported with `errc::not_supported`.
      *
      * @code
      * if (display.supports(idfxx::epaper::border::hold)) {
@@ -950,13 +952,12 @@ public:
     /**
      * @brief Selects how the panel's border is driven.
      *
-     * Stores the setting, which the driver applies at each subsequent full
-     * or fast refresh; refreshes that run as @ref refresh_mode::partial
-     * (not promoted to full) always hold the border, whatever the setting.
-     * Nothing is sent to the controller, so
-     * the border can be selected while the panel is asleep, does not wait
-     * for an outstanding update, and does not invalidate the
-     * partial-refresh baseline.
+     * Stores the setting. The driver applies it at each subsequent full or
+     * fast refresh. Refreshes that run as @ref refresh_mode::partial (not
+     * promoted to full) always hold the border, whatever the setting.
+     * Nothing is sent to the controller. So this call works while the panel
+     * is asleep, does not wait for an outstanding update, and does not
+     * invalidate the partial-refresh baseline.
      *
      * @code
      * display.set_border(idfxx::epaper::border::black);
@@ -974,13 +975,12 @@ public:
     /**
      * @brief Selects how the panel's border is driven.
      *
-     * Stores the setting, which the driver applies at each subsequent full
-     * or fast refresh; refreshes that run as @ref refresh_mode::partial
-     * (not promoted to full) always hold the border, whatever the setting.
-     * Nothing is sent to the controller, so
-     * the border can be selected while the panel is asleep, does not wait
-     * for an outstanding update, and does not invalidate the
-     * partial-refresh baseline.
+     * Stores the setting. The driver applies it at each subsequent full or
+     * fast refresh. Refreshes that run as @ref refresh_mode::partial (not
+     * promoted to full) always hold the border, whatever the setting.
+     * Nothing is sent to the controller. So this call works while the panel
+     * is asleep, does not wait for an outstanding update, and does not
+     * invalidate the partial-refresh baseline.
      *
      * @param b The border drive to use.
      * @return Success, or an error.
@@ -1002,12 +1002,12 @@ public:
     /**
      * @brief Puts the panel controller into deep sleep.
      *
-     * ePaper retains its image without power, so sleeping between updates
-     * costs nothing visually and is strongly recommended — both for power
-     * and for panel longevity (controllers left active can degrade the
-     * glass). While asleep, writes and refreshes report
-     * `errc::invalid_state`; call @ref wake to resume. A no-op if the panel
-     * is already asleep.
+     * ePaper retains its image without power, so sleeping between updates does
+     * not change what is shown. Sleeping is strongly recommended, both to save
+     * power and for panel longevity. Controllers left active can degrade the
+     * glass. While the panel is asleep, writes and refreshes report
+     * `errc::invalid_state`. Call @ref wake to resume. A no-op if the panel is
+     * already asleep.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -1038,12 +1038,12 @@ public:
     /**
      * @brief Puts the panel controller into deep sleep.
      *
-     * ePaper retains its image without power, so sleeping between updates
-     * costs nothing visually and is strongly recommended — both for power
-     * and for panel longevity (controllers left active can degrade the
-     * glass). While asleep, writes and refreshes report
-     * `errc::invalid_state`; call @ref try_wake to resume. A no-op if the
-     * panel is already asleep.
+     * ePaper retains its image without power, so sleeping between updates does
+     * not change what is shown. Sleeping is strongly recommended, both to save
+     * power and for panel longevity. Controllers left active can degrade the
+     * glass. While the panel is asleep, writes and refreshes report
+     * `errc::invalid_state`. Call @ref try_wake to resume. A no-op if the panel
+     * is already asleep.
      *
      * @return Success, or an error.
      */
@@ -1103,8 +1103,8 @@ protected:
      * @brief Constructs the panel base with the given dimensions and no
      *        control lines.
      *
-     * The default @ref do_wait then returns success immediately; drivers
-     * managing BUSY themselves should override it.
+     * The default @ref do_wait then returns success immediately. Drivers that
+     * manage BUSY themselves should override it.
      *
      * @param width  Panel width in pixels.
      * @param height Panel height in pixels.
@@ -1125,7 +1125,7 @@ protected:
      * @param width        Panel width in pixels.
      * @param height       Panel height in pixels.
      * @param busy_gpio    The BUSY input pin, or `gpio::nc()`.
-     * @param busy_level   The level the controller drives while busy.
+     * @param busy_level   The level that the controller drives while busy.
      * @param busy_timeout Default maximum time to wait for BUSY to release.
      * @param reset_gpio   The reset output pin, or `gpio::nc()`.
      */
@@ -1160,14 +1160,14 @@ protected:
     // Customization hooks
     //
     // Concrete drivers override these (typically privately). Each hook
-    // implements the correspondingly named public method; validation common
-    // to all controllers (the framebuffer's x_alignment, bounds, sleep
-    // state, color-mode match, refresh-mode support, partial-refresh
-    // baseline promotion) has already been performed by the public
-    // wrappers, and every hook that
-    // commands the controller (do_write, do_clear, do_restore_baseline,
-    // do_refresh, do_set_color_mode, do_sleep) is preceded by a do_wait()
-    // that completes any update a previous do_refresh left running.
+    // implements the correspondingly named public method. The public
+    // wrappers have already performed the validation common to all
+    // controllers (the framebuffer's x_alignment, bounds, sleep state,
+    // color-mode match, refresh-mode support, partial-refresh baseline
+    // promotion). Every hook that commands the controller (do_write,
+    // do_clear, do_restore_baseline, do_refresh, do_set_color_mode,
+    // do_sleep) is preceded by a do_wait() that completes any update that a
+    // previous do_refresh left running.
     // =========================================================================
 
     /// Hook for @ref try_write / @ref try_write_rows (monochrome). Uploads
@@ -1183,10 +1183,10 @@ protected:
     /// The placement is aligned and in-bounds, the row range is valid, and
     /// the panel is awake and in @ref color_mode::gray4. Must not reference
     /// @p fb's storage after returning: callers may mutate the framebuffer
-    /// immediately. The default returns `errc::not_supported`; drivers
-    /// reporting @ref color_mode::gray4 from @ref do_supports override it
-    /// (otherwise the panel never enters that mode, so this hook is never
-    /// reached).
+    /// immediately. The default returns `errc::not_supported`. Drivers that
+    /// report @ref color_mode::gray4 from @ref do_supports override it.
+    /// Otherwise the panel never enters that mode, so this hook is never
+    /// reached.
     [[nodiscard]] virtual result<void>
     do_write(const gray4_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
         (void)fb;
@@ -1202,9 +1202,9 @@ protected:
     /// valid, and the panel is awake and in @ref color_mode::color6. Must
     /// not reference @p fb's storage after returning: callers may mutate
     /// the framebuffer immediately. The default returns
-    /// `errc::not_supported`; drivers reporting @ref color_mode::color6
-    /// from @ref do_supports override it (otherwise the panel never enters
-    /// that mode, so this hook is never reached).
+    /// `errc::not_supported`. Drivers that report @ref color_mode::color6
+    /// from @ref do_supports override it. Otherwise the panel never enters
+    /// that mode, so this hook is never reached.
     [[nodiscard]] virtual result<void>
     do_write(const color6_framebuffer& fb, size_t row_start, size_t row_end, size_t x, size_t y) {
         (void)fb;
@@ -1216,14 +1216,14 @@ protected:
     }
 
     /// Hook for @ref try_clear. Fills the entire image RAM with white in
-    /// the current color mode. The panel is awake; the base class
+    /// the current color mode. The panel is awake. The base class
     /// invalidates the partial-refresh baseline after a successful clear.
     [[nodiscard]] virtual result<void> do_clear() = 0;
 
     /// Hook for @ref try_restore_baseline. @p fb matches the panel's
     /// dimensions, and the panel is awake and in @ref color_mode::mono.
-    /// Must load @p fb into both the previous-image (old) and current (new)
-    /// image RAM, so that a later write of only a region followed by a
+    /// Must load @p fb into both the old-image plane and the new-image
+    /// plane, so that a later write of only a region followed by a
     /// partial refresh leaves the rest of the glass undisturbed. Must not
     /// reference @p fb's storage after returning. The base class records
     /// the baseline on success and invalidates it on failure. The default
@@ -1234,43 +1234,44 @@ protected:
     }
 
     /// Hook for @ref try_refresh / @ref try_start_refresh. The panel is
-    /// awake, @p mode is one @ref do_supports(refresh_mode) const accepts in the
-    /// current color mode, and a `partial` request has already been
-    /// promoted to `full` when no baseline exists.
+    /// awake, @p mode is one that @ref do_supports(refresh_mode) const
+    /// accepts in the current color mode, and a `partial` request has
+    /// already been promoted to `full` when no baseline exists.
     ///
     /// May return as soon as the update is started, while the glass is
-    /// still driving: the base class waits via @ref do_wait before the next
-    /// controller hook (and in @ref try_refresh), and the BUSY line must
-    /// already be asserted on return so a @ref try_start_refresh future
-    /// cannot observe a stale idle level. A driver with post-update work
-    /// (for example re-arming a previous-image plane) defers it to its
+    /// still updating. The base class waits via @ref do_wait before the
+    /// next controller hook (and in @ref try_refresh). The BUSY line must
+    /// already be asserted on return, so that a @ref try_start_refresh
+    /// future cannot read a stale idle level. A driver with post-update work
+    /// (for example re-arming an old-image plane) defers it to its
     /// @ref do_wait override.
     [[nodiscard]] virtual result<void> do_refresh(refresh_mode mode) = 0;
 
     /// Hook for @ref supports. Reports whether the driver can operate in
     /// @p mode, which is never @ref color_mode::mono (always supported).
-    /// @ref try_set_color_mode rejects a mode this reports as unsupported
-    /// before calling @ref do_set_color_mode, so every driver declares its
-    /// pixel formats explicitly and a newly added mode is unsupported until
-    /// a driver opts in.
+    /// @ref try_set_color_mode rejects a mode that this hook reports as
+    /// unsupported before calling @ref do_set_color_mode. So every driver
+    /// declares its pixel formats explicitly, and a newly added mode is
+    /// unsupported until a driver reports support for it.
     [[nodiscard]] virtual bool do_supports(enum color_mode mode) const noexcept = 0;
 
     /// Hook for refresh-mode validation. Reports whether the driver can
     /// perform a @p mode refresh in the current color mode.
-    /// @ref try_refresh and @ref try_start_refresh reject a mode this
-    /// reports as unsupported with `errc::not_supported`, before promoting
-    /// a `partial` request without a baseline to `full`, so @ref do_refresh
-    /// only sees supported modes. The default supports every mode.
+    /// @ref try_refresh and @ref try_start_refresh reject a mode that this
+    /// hook reports as unsupported with `errc::not_supported`. They do this
+    /// before they promote a `partial` request without a baseline to `full`.
+    /// So @ref do_refresh only receives supported modes. The default
+    /// supports every mode.
     [[nodiscard]] virtual bool do_supports(refresh_mode mode) const noexcept {
         (void)mode;
         return true;
     }
 
     /// Hook for border-drive validation. Reports whether the driver can
-    /// drive the panel's border electrode as @p b; @ref try_set_border
-    /// rejects a value this reports as unsupported. There is no matching
-    /// setter hook: the base class stores the setting, and drivers consult
-    /// @ref border() in @ref do_refresh. A driver that reports support must
+    /// drive the panel's border electrode as @p b. @ref try_set_border
+    /// rejects a value that this hook reports as unsupported. There is no
+    /// matching setter hook: the base class stores the setting, and drivers
+    /// consult @ref border() in @ref do_refresh. A driver that reports support must
     /// honor the documented contract there: drive the border as selected
     /// on full and fast refreshes, never drive it on a
     /// @ref refresh_mode::partial refresh, and never drive it while
@@ -1283,9 +1284,9 @@ protected:
     }
 
     /// Hook for @ref try_set_color_mode. Called only for an actual mode
-    /// change, to a mode @ref do_supports accepts (or back to
+    /// change, to a mode that @ref do_supports accepts (or back to
     /// @ref color_mode::mono), while the panel is awake. The default returns
-    /// `errc::not_supported`; drivers supporting a mode other than
+    /// `errc::not_supported`. Drivers that support a mode other than
     /// @ref color_mode::mono override it.
     [[nodiscard]] virtual result<void> do_set_color_mode(enum color_mode mode) {
         (void)mode;
@@ -1298,13 +1299,13 @@ protected:
     /// re-initialize it, and restore the current color mode.
     [[nodiscard]] virtual result<void> do_wake() = 0;
 
-    /// Hook for the settle the base performs before every controller hook,
+    /// Hook for the wait that the base performs before every controller hook,
     /// and for the completion of @ref try_refresh. A `std::nullopt` timeout
     /// selects the driver's configured default. The default implementation
-    /// polls the BUSY line configured at construction (see @ref wait_busy);
-    /// a driver that defers post-update work from @ref do_refresh overrides
-    /// this to wait for BUSY and then finish that work, leaving it
-    /// outstanding (to be retried) if the wait times out.
+    /// polls the BUSY line configured at construction (see @ref wait_busy).
+    /// A driver that defers post-update work from @ref do_refresh overrides
+    /// this to wait for BUSY and then finish that work. If the wait times
+    /// out, the override leaves that work outstanding, to be retried.
     [[nodiscard]] virtual result<void> do_wait(std::optional<std::chrono::milliseconds> timeout) {
         return wait_busy(timeout);
     }
@@ -1312,9 +1313,10 @@ protected:
     /**
      * @brief Configures the direction of the BUSY and reset pins.
      *
-     * Shared helper for driver factories, run before construction: sets
-     * @p busy_gpio as an input (it is driven by the panel, so no pull is
-     * needed) and, when connected, @p reset_gpio as an output idling high.
+     * Shared helper for driver factories, run before construction. It sets
+     * @p busy_gpio as an input (the panel drives it, so no pull is needed).
+     * When @p reset_gpio is connected, it sets that pin as an output that
+     * idles high.
      *
      * @param busy_gpio  The BUSY input pin (required).
      * @param reset_gpio The reset output pin, or `gpio::nc()`.
@@ -1327,8 +1329,8 @@ protected:
      * @brief Polls the BUSY line until it releases.
      *
      * Polls the BUSY pin configured at construction once per RTOS tick
-     * until it leaves the busy level, reporting `errc::timeout` if it does
-     * not release in time. Returns success immediately if no BUSY pin is
+     * until it leaves the busy level. Reports `errc::timeout` if it does not
+     * release in time. Returns success immediately if no BUSY pin is
      * configured.
      *
      * @param timeout Maximum time to wait, or `std::nullopt` for the
@@ -1369,9 +1371,9 @@ private:
     // previous update, starts this one, and records the baseline.
     [[nodiscard]] result<void> _start_refresh(refresh_mode mode);
 
-    // A future completing when the BUSY line releases. Captures the line by
-    // value (never `this`), so it stays valid if the panel is moved or
-    // destroyed; immediately done when no BUSY line is configured.
+    // A future that completes when the BUSY line releases. It captures the
+    // line by value (never `this`), so it stays valid if the panel is moved
+    // or destroyed. It is done immediately when no BUSY line is configured.
     [[nodiscard]] idfxx::future<void> _busy_future() const;
 
     size_t _width;
@@ -1383,9 +1385,9 @@ private:
     enum color_mode _color_mode = color_mode::mono;
     enum border _border = border::white;
     bool _asleep = false;
-    // Whether the controller holds a refreshed image a partial update can
-    // diff against; set by refreshes and restore_baseline, cleared by wake,
-    // clears, color-mode changes, and a failed restore_baseline.
+    // Whether the controller holds a refreshed image that a partial update
+    // can diff against. Set by refreshes and restore_baseline. Cleared by
+    // wake, clears, color-mode changes, and a failed restore_baseline.
     bool _has_baseline = false;
 };
 

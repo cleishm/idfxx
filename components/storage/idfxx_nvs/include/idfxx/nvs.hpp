@@ -96,29 +96,60 @@ public:
      */
     enum class errc : esp_err_t {
         // clang-format off
-        not_initialized      = 0x1101,  /*!< NVS storage was not initialized. Call nvs::flash::init() first. */
-        not_found            = 0x1102,  /*!< A requested entry couldn’t be found or namespace doesn’t exist yet and mode is NVS_READONLY */
-        type_mismatch        = 0x1103,  /*!< The type of set or get operation doesn't match the type of value stored in NVS */
-        read_only            = 0x1104,  /*!< Storage handle was opened as read only */
-        not_enough_space     = 0x1105,  /*!< There is not enough space in the underlying storage to save the value */
-        invalid_name         = 0x1106,  /*!< Namespace name doesn’t satisfy constraints */
-        invalid_handle       = 0x1107,  /*!< Handle has been closed or is NULL */
-        remove_failed        = 0x1108,  /*!< The value wasn’t updated because flash write operation has failed. The value was written however, and update will be finished after re-initialization of nvs, provided that flash operation doesn’t fail again. */
-        key_too_long         = 0x1109,  /*!< Key name is too long */
-        invalid_state        = 0x110b,  /*!< NVS is in an inconsistent state due to a previous error. Call nvs::flash::init() again and create a new nvs object. */
-        invalid_length       = 0x110c,  /*!< String or blob length is not sufficient to store data */
-        no_free_pages        = 0x110d,  /*!< NVS partition doesn't contain any empty pages. This may happen if NVS partition was truncated. Erase the whole partition and call nvs::flash::init() again. */
-        value_too_long       = 0x110e,  /*!< Value doesn't fit into the entry or string or blob length is longer than supported by the implementation */
-        part_not_found       = 0x110f,  /*!< Partition with specified name is not found in the partition table */
-        new_version_found    = 0x1110,  /*!< NVS partition contains data in new format and cannot be recognized by this version of code */
-        xts_encr_failed      = 0x1111,  /*!< XTS encryption failed while writing NVS entry */
-        xts_decr_failed      = 0x1112,  /*!< XTS decryption failed while reading NVS entry */
-        xts_cfg_failed       = 0x1113,  /*!< XTS configuration setting failed */
-        xts_cfg_not_found    = 0x1114,  /*!< XTS configuration not found */
-        encr_not_supported   = 0x1115,  /*!< NVS encryption is not supported in this version */
-        keys_not_initialized = 0x1116,  /*!< NVS key partition is uninitialized */
-        corrupt_key_part     = 0x1117,  /*!< NVS key partition is corrupt */
-        wrong_encryption     = 0x1119,  /*!< NVS partition is marked as encrypted with generic flash encryption. This is forbidden since the NVS encryption works differently. */
+        /// NVS storage was not initialized. Call nvs::flash::init() first.
+        not_initialized      = 0x1101,
+        /// A requested entry couldn’t be found, or the namespace doesn’t exist yet and was opened
+        /// read-only.
+        not_found            = 0x1102,
+        /// The type of set or get operation doesn't match the type of value stored in NVS
+        type_mismatch        = 0x1103,
+        /// Storage handle was opened as read only
+        read_only            = 0x1104,
+        /// There is not enough space in the underlying storage to save the value
+        not_enough_space     = 0x1105,
+        /// Namespace name doesn’t satisfy constraints
+        invalid_name         = 0x1106,
+        /// Handle has been closed or is NULL
+        invalid_handle       = 0x1107,
+        /// The value wasn’t updated because a flash write operation failed. However, the value was
+        /// written. The update finishes after NVS is initialized again, provided that the flash
+        /// operation doesn’t fail again.
+        remove_failed        = 0x1108,
+        /// Key name is too long
+        key_too_long         = 0x1109,
+        /// NVS is in an inconsistent state due to a previous error. Call nvs::flash::init() again
+        /// and create a new nvs object.
+        invalid_state        = 0x110b,
+        /// String or blob length is not sufficient to store data
+        invalid_length       = 0x110c,
+        /// NVS partition doesn't contain any empty pages. This may happen if NVS partition was
+        /// truncated. Erase the whole partition and call nvs::flash::init() again.
+        no_free_pages        = 0x110d,
+        /// The value doesn't fit into the entry, or the string or blob length is longer than the
+        /// implementation supports.
+        value_too_long       = 0x110e,
+        /// Partition with specified name is not found in the partition table
+        part_not_found       = 0x110f,
+        /// NVS partition contains data in new format and cannot be recognized by this version of
+        /// code
+        new_version_found    = 0x1110,
+        /// XTS encryption failed while writing NVS entry
+        xts_encr_failed      = 0x1111,
+        /// XTS decryption failed while reading NVS entry
+        xts_decr_failed      = 0x1112,
+        /// XTS configuration setting failed
+        xts_cfg_failed       = 0x1113,
+        /// XTS configuration not found
+        xts_cfg_not_found    = 0x1114,
+        /// NVS encryption is not supported in this version
+        encr_not_supported   = 0x1115,
+        /// NVS key partition is uninitialized
+        keys_not_initialized = 0x1116,
+        /// NVS key partition is corrupt
+        corrupt_key_part     = 0x1117,
+        /// NVS partition is marked as encrypted with generic flash encryption. This is forbidden
+        /// since the NVS encryption works differently.
+        wrong_encryption     = 0x1119,
         // clang-format on
     };
 
@@ -270,9 +301,9 @@ public:
      * @brief Stores an object as a blob.
      *
      * Stores the object representation of @p value: its exact bytes, including any padding.
-     * Reading it back with get_blob<T>() requires a type of the same size and layout, so changing
-     * the type (adding or reordering members, or a different compiler layout) makes previously
-     * stored blobs unreadable or misinterpreted.
+     * Reading it back with get_blob<T>() requires a type of the same size and layout. If the type
+     * changes, previously stored blobs become unreadable or are misinterpreted. The type changes
+     * when members are added or reordered, or when the compiler uses a different layout.
      *
      * @code
      * struct calibration {
@@ -365,8 +396,8 @@ public:
      *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
-     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it
-     * is rejected with idfxx::errc::invalid_arg.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored. A
+     * NaN value is rejected with idfxx::errc::invalid_arg.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -443,9 +474,9 @@ public:
      * @brief Stores an object as a blob.
      *
      * Stores the object representation of @p value: its exact bytes, including any padding.
-     * Reading it back with try_get_blob<T>() requires a type of the same size and layout, so
-     * changing the type (adding or reordering members, or a different compiler layout) makes
-     * previously stored blobs unreadable or misinterpreted.
+     * Reading it back with try_get_blob<T>() requires a type of the same size and layout. If the
+     * type changes, previously stored blobs become unreadable or are misinterpreted. The type
+     * changes when members are added or reordered, or when the compiler uses a different layout.
      *
      * @tparam T A trivially copyable type that is not a pointer, an array or a range.
      * @param key   Key name.
@@ -518,8 +549,8 @@ public:
      *           (ESP-IDF 6.1 or later).
      * @param key   Key name.
      * @param value Value to store.
-     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored: it
-     * is rejected with idfxx::errc::invalid_arg.
+     * @note float and double are only available with ESP-IDF 6.1 or later. NaN cannot be stored. A
+     * NaN value is rejected with idfxx::errc::invalid_arg.
      * @return Success, or an error.
      */
     template<typename T>
@@ -565,8 +596,8 @@ private:
  * @brief Creates an unexpected error from an ESP-IDF error code, mapping to NVS error codes where
  * possible.
  *
- * Converts the ESP-IDF error code to an NVS-specific error code if a mapping exists,
- * otherwise falls back to the default IDFXX error category.
+ * Converts the ESP-IDF error code to an NVS-specific error code if a mapping exists.
+ * Otherwise, the error code uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.
@@ -609,16 +640,17 @@ public:
      * is the one that is labeled "nvs" in the partition table.
      *
      * When "NVS_ENCRYPTION" is enabled in the menuconfig, this API enables
-     * the NVS encryption for the default NVS partition as follows
+     * the NVS encryption for the default NVS partition as follows:
      *      1. Read security configurations from the first NVS key
-     *         partition listed in the partition table. (NVS key partition is
-     *         any "data" type partition which has the subtype value set to "nvs_keys")
+     *         partition listed in the partition table. An NVS key partition is
+     *         any "data" type partition that has the subtype value set to "nvs_keys".
      *      2. If the NVS key partition obtained in the previous step is empty,
      *         generate and store new keys in that NVS key partition.
-     *      3. Internally call "nvs::flash::secure_init()" with
-     *         the security configurations obtained/generated in the previous steps.
+     *      3. Initialize the partition with the security configuration from the
+     *         previous steps, as init(const secure_config&) does.
      *
-     * Post initialization NVS read/write APIs remain the same irrespective of NVS encryption.
+     * After initialization, the NVS read and write APIs are the same whether or not NVS
+     * encryption is enabled.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -731,23 +763,23 @@ public:
      * is the one that is labeled "nvs" in the partition table.
      *
      * When "NVS_ENCRYPTION" is enabled in the menuconfig, this API enables
-     * the NVS encryption for the default NVS partition as follows
+     * the NVS encryption for the default NVS partition as follows:
      *      1. Read security configurations from the first NVS key
-     *         partition listed in the partition table. (NVS key partition is
-     *         any "data" type partition which has the subtype value set to "nvs_keys")
+     *         partition listed in the partition table. An NVS key partition is
+     *         any "data" type partition that has the subtype value set to "nvs_keys".
      *      2. If the NVS key partition obtained in the previous step is empty,
      *         generate and store new keys in that NVS key partition.
-     *      3. Internally call "nvs::flash::try_init()" with
-     *         the security configurations obtained/generated in the previous steps.
+     *      3. Initialize the partition with the security configuration from the
+     *         previous steps, as try_init(const secure_config&) does.
      *
-     * Post initialization NVS read/write APIs remain the same irrespective of NVS encryption.
+     * After initialization, the NVS read and write APIs are the same whether or not NVS
+     * encryption is enabled.
      *
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init();
@@ -763,9 +795,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(const secure_config& cfg);
@@ -781,9 +812,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t);
@@ -796,8 +826,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(std::string_view partition_label);
@@ -811,8 +840,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void>
@@ -828,8 +856,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t, std::string_view partition_label);
@@ -969,8 +996,8 @@ public:
     /**
      * @brief Erases the default NVS partition.
      * @return Success, or an error.
-     * @retval nvs::errc::not_found if there is no NVS partition labeled "nvs" in the partition
-     * table.
+     * @retval idfxx::errc::not_found if there is no NVS partition labeled "nvs" in the partition
+     *         table.
      */
     [[nodiscard]] static result<void> try_erase();
 
@@ -980,7 +1007,7 @@ public:
      * @param partition_label Label of the partition. Must be no longer than 16 characters.
      *
      * @return Success, or an error.
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      */
     [[nodiscard]] static result<void> try_erase(std::string_view partition_label);
 

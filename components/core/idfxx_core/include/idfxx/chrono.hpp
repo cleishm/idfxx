@@ -62,7 +62,7 @@ template<class Rep, class Period>
  * @brief Steady clock based on FreeRTOS tick count.
  *
  * Provides a std::chrono-compatible clock with tick-based precision.
- * The tick rate is determined by `configTICK_RATE_HZ`.
+ * The tick rate is set by `CONFIG_FREERTOS_HZ` (the FreeRTOS `configTICK_RATE_HZ`).
  */
 struct tick_clock {
     using rep = TickType_t;
@@ -97,11 +97,11 @@ struct tick_clock {
  * and every kind of reset other than power-on, so time points taken before a deep sleep
  * or a software reset remain comparable with those taken afterward. By contrast,
  * `std::chrono::steady_clock` restarts from zero at every boot (including wake-up from
- * deep sleep), and `std::chrono::system_clock` jumps whenever the wall-clock time is set.
+ * deep sleep). `std::chrono::system_clock` jumps whenever the wall-clock time is set.
  *
- * The clock never runs backward. Its accuracy follows the RTC slow clock source selected
- * in the project configuration: the default internal RC oscillator drifts with
- * temperature, while an external 32 kHz crystal keeps time well. Recalibrating the slow
+ * The clock never runs backward. Its accuracy depends on the RTC slow clock source that is
+ * selected in the project configuration. The default internal RC oscillator drifts with
+ * temperature. An external 32 kHz crystal keeps accurate time. Recalibrating the slow
  * clock changes only the rate at which the clock advances from that point on.
  *
  * @code
@@ -111,7 +111,7 @@ struct tick_clock {
  * // Time since power-on, including time spent in deep sleep
  * auto uptime = rtc_clock::now().time_since_epoch();
  *
- * // Rate-limit an action across deep-sleep cycles: the time point lives in RTC
+ * // Rate-limit an action across deep-sleep cycles: the time point is stored in RTC
  * // memory, so it survives the wake-up reset
  * RTC_DATA_ATTR static rtc_clock::time_point last_report;
  * if (rtc_clock::now() - last_report >= 1h) {
@@ -158,10 +158,10 @@ try_set_system_time_us(std::chrono::sys_time<std::chrono::microseconds> us);
  *
  * Sets the time reported by `std::chrono::system_clock`, `time()` and `gettimeofday()`.
  * The time is truncated to whole microseconds, rounding toward the past. The new time takes
- * effect immediately and does not survive a reset; to keep time across power loss,
+ * effect immediately and does not survive a reset. To keep time across power loss,
  * restore it at boot from a battery-backed source such as an external real-time clock.
  *
- * @tparam Duration The duration type of the time point; any `std::chrono` duration.
+ * @tparam Duration The duration type of the time point. Any `std::chrono` duration.
  * @param t The new wall-clock time (UTC), no earlier than 1970-01-01T00:00:00.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error with `idfxx::errc::invalid_arg` if @p t is before 1970, or
@@ -183,14 +183,14 @@ void set_system_time(std::chrono::sys_time<Duration> t);
  *
  * Sets the time reported by `std::chrono::system_clock`, `time()` and `gettimeofday()`.
  * The time is truncated to whole microseconds, rounding toward the past. The new time takes
- * effect immediately and does not survive a reset; to keep time across power loss,
+ * effect immediately and does not survive a reset. To keep time across power loss,
  * restore it at boot from a battery-backed source such as an external real-time clock.
  *
- * @tparam Duration The duration type of the time point; any `std::chrono` duration.
+ * @tparam Duration The duration type of the time point. Any `std::chrono` duration.
  * @param t The new wall-clock time (UTC), no earlier than 1970-01-01T00:00:00.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg @p t is before 1970.
- * @retval std::generic_category() The time cannot be set; the code holds the `errno`
+ * @retval std::generic_category() The time cannot be set. The code holds the `errno`
  *         value (`idfxx::errc::fail` if none was reported).
  */
 template<typename Duration>

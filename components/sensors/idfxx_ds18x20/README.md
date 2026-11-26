@@ -27,7 +27,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_ds18x20:
-    version: "^3.0.0"
+    version: "^4.0.0"
 ```
 
 Or add `idfxx_ds18x20` to the `REQUIRES` list in your component's `CMakeLists.txt`.
@@ -175,10 +175,8 @@ try {
 
 ## Error Handling
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires
-    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 
 ## Important Notes
 
@@ -186,7 +184,7 @@ try {
 - **Conversion time**: Temperature measurement takes up to 750ms at 12-bit resolution
 - **Single-device buses**: Use `address::any()` (the default) to skip ROM matching
 - **Multi-device buses**: Use `scan_devices()` to discover all connected sensors
-- **Resolution**: Only DS18B20 supports configurable resolution (9-12 bit); DS18S20 is fixed at
+- **Resolution**: Only DS18B20 supports configurable resolution (9-12 bit). DS18S20 is fixed at
   9-bit
 - **EEPROM persistence**: Use `copy_scratchpad()` to save resolution and alarm settings across power
   cycles

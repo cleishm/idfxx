@@ -47,7 +47,7 @@ namespace idfxx::epaper {
  * and communicates through an `idfxx::panel_io` configured with
  * @ref spi_io_config. It keeps a shadow copy of the last-written frame
  * (`(width + 7) / 8 * height` bytes of DRAM, ~4 KB for the 2.13" panel) to
- * maintain the controller's previous-image plane for flicker-free partial
+ * maintain the controller's old-image plane for flicker-free partial
  * refreshes.
  *
  * This type is non-copyable and move-only. A moved-from object must not be
@@ -110,7 +110,7 @@ public:
      * @param cs   GPIO wired to the panel's chip-select line.
      * @param dc   GPIO wired to the panel's data/command line.
      * @param pclk SPI clock frequency. The SSD1680 supports up to 20 MHz
-     *             for writes; 10 MHz is a conservative default.
+     *             for writes. 10 MHz is a conservative default.
      *
      * @return A panel_io::spi_config ready to construct a panel_io.
      *
@@ -252,18 +252,18 @@ private:
     bool _mirror_x = false;
     bool _mirror_y = false;
 
-    /// Work do_refresh leaves running so it can return while the glass
-    /// updates; _settle (reached through do_wait) completes it before the
-    /// next controller command.
+    /// Work that do_refresh leaves running, so that it can return while the
+    /// glass updates. _settle (called through do_wait) completes it before
+    /// the next controller command.
     enum class pending : uint8_t {
-        none,      ///< Controller idle; nothing deferred.
-        wait,      ///< An update is (or may be) driving; wait for BUSY.
+        none,      ///< Controller idle. Nothing deferred.
+        wait,      ///< An update is (or may be) running. Wait for BUSY.
         wait_sync, ///< As `wait`, then re-arm the old-image plane for partial diffs.
     };
     pending _pending = pending::none;
-    // Shadow of the last-written new-plane RAM bytes; re-sent to the
-    // controller's old-image plane after each refresh so partial updates
-    // diff against the frame actually on the glass.
+    // Shadow of the last-written new-plane RAM bytes. It is re-sent to the
+    // controller's old-image plane after each refresh, so that partial
+    // updates diff against the frame that is actually on the glass.
     std::vector<uint8_t, dram_allocator<uint8_t>> _shadow;
 };
 

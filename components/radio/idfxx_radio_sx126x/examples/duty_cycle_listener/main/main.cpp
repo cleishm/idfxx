@@ -2,13 +2,14 @@
 
 // Low-power duty-cycled LoRa listener with listen-before-talk beaconing.
 //
-// Demonstrates the event-driven, asynchronous radio surface:
+// Demonstrates the event-driven, asynchronous radio API:
 //   * an event_loop receives rx_done / cad_done,
 //   * start_listening(radio.rx_duty_cycle_for()) puts the radio in periodic
 //     low-power listen with windows computed from the modulation,
 //   * channel_busy (blocking CAD) gates each transmit (listen-before-talk),
-//   * start_transmit fires a beacon without blocking and returns a future,
-//     awaited under a watchdog sized from the packet's time-on-air.
+//   * start_transmit sends a beacon without blocking and returns a future.
+//     The example waits on the future with a watchdog timeout based on the
+//     packet's time-on-air.
 
 #include <idfxx/event>
 #include <idfxx/gpio>
@@ -30,7 +31,7 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"dutycycle"};
 
-// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3
+// Pin assignments. Change them to match your board (Heltec WiFi LoRa 32 V3
 // layout).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
@@ -40,17 +41,18 @@ static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
 
-// Carrier frequency — use one your region allows and your antenna is built for
-// (for example 868_MHz in Europe).
+// Carrier frequency. Use one that your region allows and that your antenna is
+// built for (for example 868_MHz in Europe).
 static constexpr auto FREQUENCY = 915_MHz;
 
-// The SX126x restarts its TCXO on every wake from sleep; sleep windows must
+// The SX126x restarts its TCXO on every wake from sleep. Sleep windows must
 // be long enough to be worth that transition.
 static constexpr auto TCXO_STARTUP = 5ms;
 
-// A long preamble (64 symbols ≈ 262 ms at SF9/BW125) is what lets the
-// receiver sleep between listen windows: the radio only has to catch the
-// tail of the preamble, so senders pay air-time to buy the listener power.
+// A long preamble (64 symbols ≈ 262 ms at SF9/BW125) allows the receiver to
+// sleep between listen windows. The radio only has to detect the end of the
+// preamble. Senders therefore use more air-time, and the listener uses less
+// power.
 static constexpr idfxx::radio::lora_modulation MODULATION{
     .sf = idfxx::radio::spreading_factor::sf9,
     .bw = idfxx::radio::bandwidth::bw_125,
@@ -87,8 +89,8 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // The Heltec V3 drives a TCXO from DIO3 — required for the
-                // chip to lock. Verify the voltage for your board.
+                // The Heltec V3 drives a TCXO from DIO3. The chip needs it
+                // to lock. Verify the voltage for your board.
                 .tcxo =
                     idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = TCXO_STARTUP},
                 .loop = &loop,
@@ -106,8 +108,9 @@ extern "C" void app_main() {
         std::array<uint8_t, 256> rx_buf{};
         auto rx_handle =
             loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info&) {
-                // Pair the read bytes with the rx_info read_received returns; the
-                // event's payload may describe an older packet than the cache.
+                // Pair the read bytes with the rx_info that read_received returns.
+                // After the receive FIFO overflows, the event's payload can describe
+                // an older packet than that one.
                 if (auto r = radio.try_read_received(rx_buf)) {
                     std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
                     logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);
@@ -118,11 +121,11 @@ extern "C" void app_main() {
                 logger.info("cad_done: channel {}", ci.detected ? "busy" : "clear");
             });
 
-        // Listen/sleep windows guaranteed to catch any packet using the
-        // configured preamble (~37 ms listen / ~197 ms sleep at SF9/BW125).
-        // The radio folds its TCXO start-up into the minimum worthwhile
-        // sleep; nullopt means duty-cycling is infeasible, and start_listening
-        // falls back to continuous.
+        // Listen/sleep windows that are guaranteed to detect any packet that
+        // uses the configured preamble (~37 ms listen / ~197 ms sleep at
+        // SF9/BW125). The radio adds its TCXO start-up time to the minimum
+        // worthwhile sleep. nullopt means that duty-cycling is infeasible, and
+        // start_listening then falls back to continuous receive.
         const auto duty_cycle = radio.rx_duty_cycle_for();
         if (duty_cycle) {
             logger.info(
@@ -141,19 +144,20 @@ extern "C" void app_main() {
         uint32_t counter = 0;
         std::array<char, 32> tx_buf{};
         while (true) {
-            // Low-power periodic listen for a while; packets surface via rx_done.
+            // Low-power periodic listen for a while. Packets are reported through
+            // rx_done.
             radio.start_listening(duty_cycle);
             idfxx::delay(LISTEN_INTERVAL);
 
-            // Stop listening and sound out the channel before talking (LBT).
+            // Stop listening and check the channel before transmitting (LBT).
             radio.standby();
             if (radio.channel_busy()) {
                 logger.info("channel busy — deferring beacon");
                 continue;
             }
 
-            // Channel clear: fire a beacon without blocking, then await its
-            // future under an air-time-sized watchdog.
+            // Channel clear: send a beacon without blocking, then wait on its
+            // future with a watchdog timeout based on the air-time.
             int n = std::snprintf(tx_buf.data(), tx_buf.size(), "beacon %04" PRIu32, counter++);
             if (n <= 0) {
                 continue;
@@ -165,8 +169,8 @@ extern "C" void app_main() {
 
             const auto watchdog = radio.time_on_air(text.size()) + TX_WATCHDOG_SLACK;
             if (!tx.try_wait_for(watchdog)) {
-                // The transmit never reported done — recover the driver from
-                // its "busy" state so the next cycle can proceed.
+                // The transmit never reported done. Recover the driver from its
+                // "busy" state so that the next cycle can proceed.
                 logger.warn("tx watchdog expired — recovering to standby");
                 radio.standby();
             }

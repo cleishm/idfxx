@@ -6,7 +6,7 @@ Shows how to pass data between tasks with `idfxx::queue`.
 
 - Creating an `idfxx::queue` and reading its `size()`, `available()` and `empty()` state
 - Sending and receiving items with `send()` and `receive()`
-- Putting an item at the head of the queue with `send_to_front()`
+- Putting an item at the front of the queue with `send_to_front()`
 - Reading the next item without removing it with `peek()`
 - Using a one-item queue as a mailbox with `overwrite()`
 - Passing a struct from a producer task to a consumer task, with the consumer waiting for a limited

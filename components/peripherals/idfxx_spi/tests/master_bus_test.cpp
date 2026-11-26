@@ -17,7 +17,7 @@ using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // master_bus is not default constructible (must use make() factory)

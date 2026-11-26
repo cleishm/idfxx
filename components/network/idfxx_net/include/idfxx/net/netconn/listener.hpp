@@ -31,20 +31,20 @@ namespace idfxx::net::netconn {
  * `stream_channel` instances on accept. `accept()` may be called repeatedly.
  *
  * The `make(endpoint)` / `make(port)` factories (and the matching constructors)
- * bind and listen in one step; the lower-level `make()` plus explicit `bind()`
+ * bind and listen in one step. The lower-level `make()` plus explicit `bind()`
  * / `listen()` remains available when finer control is needed.
  *
  * Ownership is exclusive: the listener is non-copyable and move-only. A
  * moved-from listener may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `nullptr`); calling any other
- * method on it is undefined behavior. The destructor releases the listener if
- * open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns
+ * `nullptr`). Calling any other method on it is undefined behavior. The
+ * destructor releases the listener if open.
  */
 class [[nodiscard]] listener : public detail::base_channel {
 public:
     /**
-     * @brief Result of `accept_with_peer` / `try_accept_with_peer` — a newly
-     *        accepted channel together with the peer's endpoint.
+     * @brief Result of `accept_with_peer` / `try_accept_with_peer`: a newly
+     *        accepted channel and the peer's endpoint.
      *
      * Supports structured bindings:
      * @code

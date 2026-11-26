@@ -33,7 +33,7 @@ namespace idfxx {
  * NULL as the handler function.
  *
  * Bit values match the ESP_INTR_FLAG_LEVEL* constants, occupying bits 1-7.
- * These do not overlap with `intr_flag` values (bits 8-11), so they can
+ * These do not overlap with `intr_flag` values (bits 8-12), so they can
  * be safely combined via `to_underlying(levels) | to_underlying(flags)`.
  */
 enum class intr_level : int {
@@ -83,13 +83,13 @@ enum class intr_flag : int {
     shared = 1u << 8,    ///< Interrupt can be shared between ISRs
     edge = 1u << 9,      ///< Edge-triggered interrupt
     iram = 1u << 10,     ///< ISR can be called if cache is disabled
-    disabled = 1u << 11, ///< Return from ISR with interrupts disabled
+    disabled = 1u << 11, ///< Interrupt is disabled when allocation returns
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
     /**
      * @brief Interrupt can be shared only with interrupts that explicitly bind to it.
      *
-     * Like `shared`, but the interrupt line is not open to arbitrary sharers: it can only be shared
-     * with allocations that bind to this specific interrupt (by handle or name) when allocating.
+     * Like `shared`, but other allocations can share the interrupt line only if they bind to this
+     * specific interrupt (by handle or name) when they are allocated.
      *
      * @note Available only with ESP-IDF 6.1 and later.
      */

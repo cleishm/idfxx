@@ -8,11 +8,11 @@ interfaces.
 ## Features
 
 - DHT11 and DHT22/AM2301/AM2302 support on a single GPIO data line
-- Reply frames captured with the RMT peripheral — no interrupt-latency-sensitive bit-banging, no
-  critical sections during the 5 ms frame
+- Reply frames are captured with the RMT peripheral. The driver does not bit-bang the line, so it
+  does not depend on interrupt latency and needs no critical section during the 5 ms frame
 - Checksum verification and strict frame validation
 - Temperature as `quanta::thermo::millicelsius`, humidity in percent
-- Enforces the sensor's minimum sampling period (1 s DHT11 / 2 s DHT22)
+- Enforces the sensor's minimum read interval (1 s DHT11 / 2 s DHT22)
 - Dual error handling: exception-based and `result`-based (`try_*`) APIs
 
 ## Requirements
@@ -66,11 +66,14 @@ if (!r) { /* r.error(): timeout / invalid_crc / invalid_state / ... */ }
 | --------------------- | -------------------------------------------------- |
 | `sensor(config)` / `make(config)` | Construct on a data-line GPIO.         |
 | `read()` / `try_read()` | Perform one measurement (~25 ms blocking).       |
-| `min_read_interval()` | Model's minimum gap between reads.                 |
+| `min_read_interval()` | Model's minimum interval between reads.            |
 | `pin()`, `model()`    | Configuration accessors.                           |
 
-`config`: `pin` (required), `model` (default `dht22`), `internal_pullup` (default `true`; disable
-when the board has an external pull-up).
+`config` fields:
+
+- `pin` (required)
+- `model` (default `dht22`)
+- `internal_pullup` (default `true`). Disable it when the board has an external pull-up.
 
 ## Error Handling
 
@@ -81,14 +84,15 @@ when the board has an external pull-up).
 
 ## Important Notes
 
-- The data line needs a pull-up. The internal pull-up (~45 kΩ) works for short wires; use an
+- The data line needs a pull-up. The internal pull-up (~45 kΩ) works for short wires. Use an
   external ~10 kΩ resistor for longer runs.
-- `read` blocks for the start pulse plus the reply — roughly 25 ms for the DHT11 (its ~20 ms start
-  pulse dominates) and under 10 ms for the DHT22; call it from a task that can tolerate that.
+- `read` blocks for the start pulse plus the reply. This is roughly 25 ms for the DHT11 (most of it
+  is the ~20 ms start pulse) and under 10 ms for the DHT22. Call it from a task that can wait that
+  long.
 - The driver claims one RMT receive channel (64 symbols of channel memory) for the lifetime of the
   `sensor` object.
-- Readings lag the environment: the sensor measures at most once per `min_read_interval()`, and the
-  first read after power-up may report the previous conversion.
+- A reading can be older than the read call. The sensor measures at most once per
+  `min_read_interval()`, and the first read after power-up may report the previous conversion.
 
 ## License
 

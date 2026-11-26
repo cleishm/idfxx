@@ -13,7 +13,7 @@ touch controller that shares the display's SPI bus.
 - Creating an `idfxx::lcd::ili9341` panel, and an `idfxx::lcd::stmpe610` touch controller whose
   coordinates match the 240x320 display
 - Drawing with the panel's `draw_bitmap()`, which returns once the display has finished reading the
-  pixel buffer, so the buffer can be a local
+  pixel buffer, so the buffer can be a local variable
 - Getting the touch controller's ESP-IDF handle with `idf_handle()` to poll for touches with
   `esp_lcd_touch_read_data()` and `esp_lcd_touch_get_data()`
 

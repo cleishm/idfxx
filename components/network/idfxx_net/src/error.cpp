@@ -144,11 +144,11 @@ std::error_condition net::error_category::default_error_condition(int code) cons
         return std::make_error_condition(std::errc::wrong_protocol_type);
     case net::errc::no_buffer_space:
         return std::make_error_condition(std::errc::no_buffer_space);
-    // Netconn codes that share a POSIX synonym with a socket-path code fold onto
-    // the same condition, so the documented portable comparison (e.g.
-    // `ec == std::errc::connection_reset`) holds the same whether the error
-    // arrived via the socket path (`ECONNRESET`) or the netconn path (lwIP
-    // `ERR_RST`), and the two codes compare equal to each other's condition.
+    // Netconn codes that share a POSIX synonym with a code from the socket API map
+    // to the same condition. As a result, the documented portable comparison (e.g.
+    // `ec == std::errc::connection_reset`) gives the same result whether the error
+    // came from the socket API (`ECONNRESET`) or the netconn API (lwIP
+    // `ERR_RST`). The two codes also compare equal to each other's condition.
     case net::errc::netconn_reset:
         return std::make_error_condition(std::errc::connection_reset);
     case net::errc::netconn_aborted:
@@ -160,8 +160,9 @@ std::error_condition net::error_category::default_error_condition(int code) cons
     // netconn_buffer_error (lwIP `ERR_BUF`), netconn_closed (`ERR_CLSD`), and the
     // name_* DNS codes have no precise std::errc synonym, so they canonicalize to
     // a condition in this category (the base-class default). `ERR_CLSD` in
-    // particular is the graceful-EOF signal the stream path converts to an
-    // empty-buffer recv, never an error the caller compares against a synonym.
+    // particular is the graceful-EOF signal that the stream path converts to an
+    // empty-buffer recv. It is never an error that the caller compares against a
+    // synonym.
     default:
         return {code, *this};
     }

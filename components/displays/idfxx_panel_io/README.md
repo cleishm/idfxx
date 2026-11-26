@@ -98,7 +98,7 @@ idfxx::panel_io panel_io(
     idfxx::panel_io::i2c_config {
         .device_address = 0x3C,     // typical SSD1306 address
         .scl_speed = 400_kHz,
-        .control_phase_bytes = 1,   // controller-specific; these values suit an SSD1306
+        .control_phase_bytes = 1,   // controller-specific. These values are for an SSD1306
         .dc_bit_offset = 6,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
@@ -222,7 +222,7 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 **Lifetime:**
 - Destructor automatically calls `esp_lcd_panel_io_del()`
 - Non-copyable and move-only
-- Takes the bus by reference; the caller must ensure the bus outlives the panel I/O
+- Takes the bus by reference. The caller must ensure the bus outlives the panel I/O
 
 ## Configuration
 
@@ -232,12 +232,13 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 - `dc_gpio` - Data/Command GPIO (`idfxx::gpio`)
 - `spi_mode` - SPI mode (0-3)
 - `pclk_freq` - Pixel clock frequency (`quanta::frequency::hertz`, required)
-- `trans_queue_depth` - Transaction queue size (default 10; must be at least 1)
+- `trans_queue_depth` - Transaction queue size (default 10, minimum 1)
 - `on_color_transfer_done` - Optional callback invoked when color data transfer completes
 - `lcd_cmd_bits` - Command bits (typically 8, required)
 - `lcd_param_bits` - Parameter bits (typically 8, required)
-- `cs_enable_pretrans` - SPI bit-cycles CS activates before transmission (0-16)
-- `cs_enable_posttrans` - SPI bit-cycles CS stays active after transmission (0-16)
+- `cs_enable_pretrans` - Number of SPI bit-cycles for which CS is active before transmission (0-16)
+- `cs_enable_posttrans` - Number of SPI bit-cycles for which CS stays active after transmission
+  (0-16)
 - `flags` - Extra flags to fine-tune the SPI device:
   - `dc_high_on_cmd` - DC level = 1 indicates command transfer
   - `dc_low_on_data` - DC level = 0 indicates color data transfer
@@ -258,12 +259,13 @@ idfxx::lcd::stmpe610 touch(touch_panel_io, std::move(touch_config));
 - `lcd_cmd_bits` - Command bits (typically 8, required)
 - `lcd_param_bits` - Parameter bits (typically 8, required)
 - `flags` - Extra flags to fine-tune the I2C device:
-  - `dc_low_on_data` - DC bit = 0 indicates data transfer (vice versa otherwise)
+  - `dc_low_on_data` - DC bit = 0 indicates data transfer and DC bit = 1 indicates command
+    transfer (the reverse when not set)
   - `disable_control_phase` - Don't use the control phase
 
-The control-phase framing is a property of the panel controller; panel driver components typically
-provide a pre-filled configuration (e.g. `ssd1306::i2c_io_config()`) or document the values they
-require.
+The control-phase framing is a property of the panel controller. Panel driver components typically
+provide a pre-filled configuration (e.g. `ssd1306::i2c_io_config()`) or document the values that
+they require.
 
 ### Typical Values
 
@@ -288,16 +290,16 @@ idfxx::panel_io::spi_config io_config{
 - The caller must ensure the bus outlives the panel I/O
 - Multiple panel I/O instances can share the same SPI bus (with different CS pins) or I2C bus (with
   different device addresses)
-- For SPI, the `dc_gpio` (Data/Command) is required for most display controllers; for I2C, the D/C
+- For SPI, the `dc_gpio` (Data/Command) is required for most display controllers. For I2C, the D/C
   selection is encoded in the control phase (`control_phase_bytes`/`dc_bit_offset`)
 - Clock frequency (`pclk_freq`/`scl_speed`) affects display performance
 - Transaction queue depth affects how many operations can be queued
 - **Exceptions in callbacks**: `on_color_transfer_done` must not throw. For SPI it runs in ISR
-  context, where throwing is not permitted; for I2C it runs inside the driver in the transferring
-  task, which an exception cannot propagate out of
+  context, where throwing is not permitted. For I2C it runs inside the driver, in the task that
+  issued the transfer, and an exception cannot propagate out of the driver
 - The `lcd_cmd_bits`/`lcd_param_bits` field names follow the underlying ESP-IDF configuration and
   apply equally to non-LCD panels
-- This component provides only the I/O layer; use a concrete driver (e.g. `idfxx_lcd_ili9341`,
+- This component provides only the I/O layer. Use a concrete driver (e.g. `idfxx_lcd_ili9341`,
   `idfxx_lcd_ssd1306`, `idfxx_epaper_ssd1680`) for panel control
 - Prior to its extraction into this component, this class was available as `idfxx::lcd::panel_io` in
   `idfxx_lcd` 2.x

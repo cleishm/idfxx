@@ -7,9 +7,9 @@ Seeed Studio reTerminal E1004 (Seeed's T133A01 module, built on the E Ink EL133U
 
 - Switching on the display's power supply with an `idfxx::gpio` output
 - Setting up an SPI bus with `idfxx::spi::master_bus`
-- Creating an `idfxx::epaper::el133uf1` driver on the bus, with the chip-select pins of the panel's
-  two controllers, their shared D/C pin, and the reset and BUSY pins, and with `check_presence` set
-  so that construction fails if either controller does not answer over MISO
+- Creating an `idfxx::epaper::el133uf1` driver on the bus. It uses the chip-select pins of the
+  panel's two controllers, their shared D/C pin, and the reset and BUSY pins. `check_presence` is
+  set, so construction fails if either controller does not answer over MISO.
 - Drawing six color bars in landscape into a full-frame `idfxx::epaper::color6_framebuffer` through
   an `idfxx::gfx::rotated` view and an `idfxx::gfx::canvas`, then showing it with `write()` and
   `refresh()`
@@ -28,11 +28,11 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
   Ink EL133UF1 glass)
 
 The example is for the ESP32-S3 only (`sdkconfig.defaults` sets the target to `esp32s3`). It also
-needs octal PSRAM, which `sdkconfig.defaults` enables along with 8 MB of flash: the driver keeps a
-960 KB copy of the frame in PSRAM, and the six-color framebuffer is another 960 KB.
+needs octal PSRAM, which `sdkconfig.defaults` enables along with 8 MB of flash. The driver keeps a
+960 KB shadow frame in PSRAM, and the six-color framebuffer is another 960 KB.
 
 The example uses the E1004's display wiring. The panel's two controllers share the SPI bus and D/C
-pin, and each has its own chip select: CS for the left half of the panel, CS1 for the right half.
+pin. Each has its own chip select: CS for the left half of the panel, and CS1 for the right half.
 
 | Display signal             | ESP32-S3 GPIO |
 | -------------------------- | ------------- |
@@ -47,7 +47,7 @@ pin, and each has its own chip select: CS for the left half of the panel, CS1 fo
 | Power enable (active high) | GPIO 12       |
 
 MISO is shared with the E1004's microSD card slot, so the example holds the card's chip select
-(GPIO 14) high to keep it off the line while the driver checks that the panel is present.
+(GPIO 14) high to keep the card deselected while the driver checks that the panel is present.
 
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
@@ -72,8 +72,9 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 The panel shows three screens, 10 seconds apart. Each refresh takes 25-30 seconds (longer when the
 panel is cold), and the panel flashes through several colors while it updates.
 
-1. Six vertical color bars (black, white, yellow, red, blue and green), each labeled with its color
-   name, above "idfxx epaper" and, in red, "EL133UF1 1200x1600 Spectra 6", drawn in landscape
+1. Six vertical color bars (black, white, yellow, red, blue and green) drawn in landscape, each
+   labeled with its color name. Below them are "idfxx epaper" and, in red, "EL133UF1 1200x1600
+   Spectra 6".
 2. A black-and-white page in portrait, with "idfxx epaper" on a black banner, a large "hello" in a
    box, "monochrome, banded", and twelve numbered lines
 3. A closing "demo complete" screen, which stays on the panel after it goes to sleep

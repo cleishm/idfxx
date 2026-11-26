@@ -1,18 +1,19 @@
 # Collect test sources registered by each component via the IDFXX_TEST_SOURCES property
 get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 
-# Components whose tests the app runs: a group's (tests/groups.cmake), the ones named in
-# IDFXX_TESTS, or every group's (see the top-level CMakeLists.txt). The app requires them, plus
-# whatever their tests use beyond the components' own dependencies, declared in
-# components/<area>/<name>/tests/requires.cmake. This has to happen before idf_component_register:
-# in IDF's requirements pass, the code after it never runs.
+# Components whose tests the app runs: the components of one group (tests/groups.cmake), the
+# components named in IDFXX_TESTS, or the components of every group (see the top-level
+# CMakeLists.txt). The app requires them. It also requires the components that their tests use
+# beyond the components' own dependencies. Each component declares these extra components in
+# components/<area>/<name>/tests/requires.cmake. This has to happen before idf_component_register,
+# because in IDF's requirements pass, the code after it never runs.
 idf_build_get_property(idfxx_tests IDFXX_TESTS)
 
-# idfxx_wifi is only available on Wi-Fi-capable targets (it is excluded from the build on other
-# targets; see the top-level CMakeLists.txt), so it and its tests are left out there. Requirements
-# can't depend on sdkconfig (IDF's requirements pass runs before it is generated), so tests that
-# depend on the config, such as idfxx_adc's (skipped under QEMU), are left out by the component
-# that registers them instead.
+# idfxx_wifi is only available on targets that have Wi-Fi. On other targets, it is excluded from the
+# build (see the top-level CMakeLists.txt), so it and its tests are left out of the app.
+# Requirements can't depend on sdkconfig, because IDF's requirements pass runs before sdkconfig is
+# generated. So tests that depend on the config are left out by the component that registers them
+# instead. An example is idfxx_adc's tests, which are skipped under QEMU.
 idf_build_get_property(idfxx_test_target IDF_TARGET)
 set(IDFXX_WIFI_TARGETS esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c5 esp32c6 esp32c61)
 set(_unavailable)
@@ -45,9 +46,9 @@ idf_component_register(
 
 # Add test sources via target_sources to avoid ESP-IDF 6.0 component validation warnings.
 # The validation only checks idf_component_register(SRCS ...), not target_sources.
-# Only the selected components' tests, in the order the components registered them; their
-# dependencies are in the build but their tests are not. Tests also see the component's private
-# requirements, as they exercise its internals.
+# Add only the selected components' tests, in the order that the components registered them. The
+# dependencies of these components are in the build, but their tests are not. Tests are also linked
+# against the component's private requirements, because they exercise its internals.
 set(_selected_sources)
 foreach(_source ${IDFXX_TEST_SOURCES})
     # <component dir>/tests/<file>: the component is the directory's name
@@ -68,9 +69,10 @@ foreach(_component ${idfxx_tests})
 endforeach()
 target_sources(${COMPONENT_LIB} PRIVATE ${IDFXX_TEST_SOURCES})
 
-# Link options that tests need, such as --wrap to inject failures, declared in
-# components/<area>/<name>/tests/link_options.cmake (set(test_link_options ...)). Applied only while
-# that directory's tests are in the app, as they define the symbols the options refer to.
+# Link options that tests need, such as --wrap to inject failures. A tests directory declares them
+# in components/<area>/<name>/tests/link_options.cmake (set(test_link_options ...)). The options
+# apply only while that directory's tests are in the app, because the tests define the symbols that
+# the options refer to.
 set(_test_dirs)
 foreach(_source ${IDFXX_TEST_SOURCES})
     get_filename_component(_dir "${_source}" DIRECTORY)
@@ -87,9 +89,10 @@ endforeach()
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++23)
 
-# Raw FAT image for the idfxx_fatfs image tests, written to the fatimg partition by `idf.py flash`
-# (and included in the merged QEMU flash image). Only defined when the fatfs component is in the
-# build, which a group or filtered test app may leave out.
+# Raw FAT image for the idfxx_fatfs image tests. `idf.py flash` writes it to the fatimg partition,
+# and the merged QEMU flash image includes it. fatfs_create_rawflash_image is only defined when the
+# fatfs component is in the build. A group app or a filtered test app may not include the fatfs
+# component.
 if(COMMAND fatfs_create_rawflash_image)
     file(GLOB _fatimg LIST_DIRECTORIES true
         "${CMAKE_CURRENT_SOURCE_DIR}/../components/*/idfxx_fatfs/tests/fatimg")

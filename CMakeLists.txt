@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Components live in area directories, components/<area>/<name>. ESP-IDF looks for components only
-# directly inside each EXTRA_COMPONENT_DIRS entry, so every area directory is listed: each directory
-# holding a component.
+# Components are in area directories, components/<area>/<name>. ESP-IDF looks for components only
+# directly inside each EXTRA_COMPONENT_DIRS entry, so every area directory is listed. An area
+# directory is a directory that holds a component.
 file(GLOB _idfxx_component_files CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/components/*/*/CMakeLists.txt")
 set(_idfxx_area_dirs)
@@ -14,10 +14,10 @@ endforeach()
 list(REMOVE_DUPLICATES _idfxx_area_dirs)
 set(EXTRA_COMPONENT_DIRS ${_idfxx_area_dirs} "${CMAKE_SOURCE_DIR}/tests")
 
-# idfxx_wifi is restricted to Wi-Fi-capable chips (see its idf_component.yml);
-# exclude it from the build on other targets or the component manager rejects
-# the whole project. IDF_TARGET arrives via the cache (set-target) or the
-# environment (idf.py) before project() runs.
+# idfxx_wifi is restricted to chips that have Wi-Fi (see its idf_component.yml).
+# Exclude it from the build on other targets, or the component manager rejects
+# the whole project. Before project() runs, IDF_TARGET is set in the cache
+# (set-target) or in the environment (idf.py).
 if(NOT DEFINED IDF_TARGET AND DEFINED ENV{IDF_TARGET})
     set(IDF_TARGET $ENV{IDF_TARGET})
 endif()
@@ -49,7 +49,7 @@ foreach(_group ${IDFXX_TEST_GROUPS})
     endforeach()
 endforeach()
 # CONFIGURE_DEPENDS makes a build reconfigure when test files or test requirements are added or
-# removed, so that the check reruns and tests/CMakeLists.txt sees them.
+# removed, so that the check runs again and tests/CMakeLists.txt reads the current files.
 file(GLOB _idfxx_test_files CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/components/*/*/tests/*_test.cpp")
 file(GLOB _idfxx_test_cmake_files CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/components/*/*/tests/requires.cmake"
@@ -64,13 +64,14 @@ foreach(_file ${_idfxx_test_files})
     endif()
 endforeach()
 
-# Which components' tests the app holds:
-#   -D IDFXX_TEST_GROUP=network               one group's (the Justfile and CI build each group)
-#   -D IDFXX_TESTS="idfxx_dht;idfxx_gpio"     just those components' (`just test` drives it)
-#   neither                                   every group's
-# A selection builds only the tests component and the components it requires,
-# instead of every component. tests/CMakeLists.txt reads the list as a build
-# property, since IDF's requirements pass doesn't see ordinary variables.
+# The tests that the app holds:
+#   -D IDFXX_TEST_GROUP=network               one group's tests (the Justfile and CI build each)
+#   -D IDFXX_TESTS="idfxx_dht;idfxx_gpio"     only those components' tests (`just test` uses this)
+#   neither                                   every group's tests
+# With a selection, the build includes only the tests component and the
+# components that it requires, instead of every component. tests/CMakeLists.txt
+# reads the list as a build property, because IDF's requirements pass cannot
+# read ordinary variables.
 if(IDFXX_TEST_GROUP)
     if(IDFXX_TESTS)
         message(FATAL_ERROR
@@ -90,12 +91,13 @@ if(IDFXX_TEST_GROUP OR IDFXX_TESTS)
     set(COMPONENTS tests)
 endif()
 
-# Config fragments and partition tables live in config/, so IDF's root-level
-# sdkconfig.defaults lookup needs pointing there; the target-specific
-# config/sdkconfig.defaults.<target> is still picked up beside it. An explicit
-# SDKCONFIG_DEFAULTS (-D or environment) replaces this, so pass the base
-# fragment too when layering one on top. The generated sdkconfig lives in the
-# build directory, keeping each build dir's config separate.
+# Config fragments and partition tables are in config/. IDF looks for
+# sdkconfig.defaults in the project root by default, so SDKCONFIG_DEFAULTS is set
+# to point at config/. IDF still finds the target-specific
+# config/sdkconfig.defaults.<target> beside it. An explicit SDKCONFIG_DEFAULTS
+# (-D or environment) replaces this setting, so pass the base fragment too when
+# you add another fragment on top of it. The generated sdkconfig is in the build
+# directory, so that each build dir has its own config.
 if(NOT DEFINED SDKCONFIG_DEFAULTS AND NOT DEFINED ENV{SDKCONFIG_DEFAULTS})
     set(SDKCONFIG_DEFAULTS "${CMAKE_SOURCE_DIR}/config/sdkconfig.defaults")
 endif()
@@ -107,9 +109,9 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(IDFXX_TESTS "${_idfxx_tests}")
 project(idfxx)
 
-# Formatting. Versions of clang-format lay code out differently, so the format targets run only
-# with the major version CI checks with: esp-clang from CI's ESP-IDF (.github/workflows/build.yml).
-# Bump it with CI's ESP-IDF.
+# Formatting. Different versions of clang-format lay out code differently. So the format targets
+# run only with the major version that CI checks with, which is esp-clang from CI's ESP-IDF
+# (.github/workflows/build.yml). Update this version when CI's ESP-IDF changes.
 set(IDFXX_CLANG_FORMAT_MAJOR 21)
 
 function(_idfxx_clang_format_major out)
@@ -126,7 +128,7 @@ find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
 if(CLANG_FORMAT_EXECUTABLE)
     _idfxx_clang_format_major(_clang_format_major)
     if(NOT _clang_format_major STREQUAL IDFXX_CLANG_FORMAT_MAJOR)
-        # The cached path may be from another ESP-IDF; look again on the current PATH.
+        # The cached path may be from another ESP-IDF. Look again on the current PATH.
         unset(CLANG_FORMAT_EXECUTABLE CACHE)
         find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format)
         if(CLANG_FORMAT_EXECUTABLE)
@@ -184,7 +186,8 @@ endif()
 find_package(Doxygen)
 
 # docs/Doxyfile lists each area directory in STRIP_FROM_INC_PATH and INCLUDE_PATH, so the docs show
-# include paths from the component directory. The docs target fails while an area is missing.
+# include paths from the component directory. The docs target fails while an area is missing from
+# those lists.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/docs/Doxyfile")
 file(READ "${CMAKE_SOURCE_DIR}/docs/Doxyfile" _doxyfile)
 set(_idfxx_unlisted_areas)

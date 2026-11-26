@@ -7,7 +7,7 @@ Reads temperature and humidity from a DHT22 sensor every few seconds.
 - Creating an `idfxx::dht::sensor` from a config with the data pin and the sensor model
 - Printing the sensor's model and pin
 - Waiting the sensor's minimum time between reads, from `min_read_interval()`
-- Reading temperature and relative humidity with `try_read()`, logging a warning and carrying on if
+- Reading temperature and relative humidity with `try_read()`, logging a warning and continuing if
   a read fails
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
@@ -20,9 +20,9 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 Connect the sensor's VCC to 3.3 V, GND to GND, and its data pin to GPIO 1 (GPIO 4 on the ESP32,
 where GPIO 1 is the console UART's TX pin). The example enables the internal pull-up on the data
-line, which is enough for short wires; for longer wires, add a ~10 kΩ pull-up resistor from the data
-line to 3.3 V. To use a different pin, change `sensor_pin` in `main/main.cpp`. For a DHT11, change
-`idfxx::dht::model::dht22` to `idfxx::dht::model::dht11`.
+line, which is enough for short wires. For longer wires, add a ~10 kΩ pull-up resistor from the
+data line to 3.3 V. To use a different pin, change `sensor_pin` in `main/main.cpp`. For a DHT11,
+change `idfxx::dht::model::dht22` to `idfxx::dht::model::dht11`.
 
 ## How to use
 

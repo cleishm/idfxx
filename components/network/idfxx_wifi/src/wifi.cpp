@@ -44,11 +44,11 @@ static result<void> check(esp_err_t err, const char* what) {
 // user callback matches the underlying semantics. An exception thrown by a
 // callback is logged and otherwise ignored.
 //
-// The trampolines run on the WiFi task while the callbacks may be replaced or
-// cleared from another task, so each trampoline takes one snapshot of the
-// stored callback (and context) and skips the call if it has been cleared. The
-// stored context is passed to the callback in place of ESP-IDF's, so a
-// callback is never paired with another callback's context.
+// The trampolines run on the Wi-Fi task. Another task may replace or clear the
+// callbacks at the same time. So each trampoline takes one snapshot of the
+// stored callback (and context), and skips the call if the callback has been
+// cleared. The stored context is passed to the callback in place of
+// ESP-IDF's, so a callback is never paired with another callback's context.
 template<typename Cb>
 class callback_slot {
 public:
@@ -98,7 +98,7 @@ static void vendor_ie_trampoline(
     }
     mac_address mac;
     std::memcpy(mac.data(), sa, 6);
-    // The element spans its ID and length bytes plus the length byte's count
+    // The element size is its ID and length bytes plus the value of the length byte
     idfxx::byte_view ie;
     if (vnd_ie != nullptr) {
         ie = idfxx::byte_view{static_cast<const void*>(vnd_ie), size_t{2} + vnd_ie->length};
@@ -741,8 +741,8 @@ result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout) {
 }
 
 result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout) {
-    // The driver restores its mode from NVS at init, so inheriting it could start an access point
-    // left over from an earlier session; set the station as the only role instead.
+    // The driver restores its mode from NVS at init. Keeping that mode could start an access point
+    // from an earlier session. So set the station as the only role instead.
     if (auto r = try_set_roles(role::sta); !r) {
         return error(r.error());
     }
@@ -1010,7 +1010,7 @@ result<std::string> try_get_country_code() {
 // =============================================================================
 
 result<void> try_set_max_tx_power(quanta::electro::centi_dbm power) {
-    // The hardware unit is 0.25 dBm (25 centi-dBm); round to the nearest step.
+    // The hardware unit is 0.25 dBm (25 centi-dBm). Round to the nearest step.
     const int64_t cdbm = power.count();
     const int64_t quarter_dbm = (cdbm >= 0 ? cdbm + 12 : cdbm - 12) / 25;
     if (quarter_dbm < std::numeric_limits<int8_t>::min() ||
@@ -1373,7 +1373,7 @@ result<void> try_ftm_resp_set_offset(quanta::spatial::centimeters offset) {
     );
 }
 
-// FTM timestamps are unsigned picosecond counts; int64 covers about 106 days of them.
+// FTM timestamps are unsigned picosecond counts. An int64 holds about 106 days of picoseconds.
 static idfxx::chrono::picoseconds to_picoseconds(uint64_t ps) {
     return idfxx::chrono::picoseconds{static_cast<int64_t>(ps)};
 }
@@ -1465,8 +1465,8 @@ netif::interface make_ap_netif() {
 }
 #endif
 
-// The default WiFi netifs register the WiFi driver and default event handlers against the handle;
-// only esp_netif_destroy_default_wifi releases them.
+// The default Wi-Fi netifs register the Wi-Fi driver and default event handlers for the handle.
+// Only esp_netif_destroy_default_wifi releases them.
 static void destroy_default_wifi_netif(esp_netif_t* handle) {
     esp_netif_destroy_default_wifi(handle);
 }

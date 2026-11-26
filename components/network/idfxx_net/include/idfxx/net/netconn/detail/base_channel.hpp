@@ -36,19 +36,20 @@ public:
     /**
      * @brief Returns the underlying `netconn*`, or `nullptr` if moved-from / closed.
      *
-     * For observation and interop only: do not close, free, or reconfigure the
-     * returned netconn — doing so desynchronizes this wrapper's invariants.
+     * For observation and interop only. Do not close, free, or reconfigure the
+     * returned netconn. Doing so makes the state of this object inconsistent with
+     * the netconn.
      */
     [[nodiscard]] ::netconn* idf_handle() const noexcept { return _conn; }
 
-    /** @brief Returns the address family this channel was created with. */
+    /** @brief Returns the address family that this channel was created with. */
     [[nodiscard]] address_family family() const noexcept { return _family; }
 
     /** @brief Returns true if the channel is open (false after move-from). */
     [[nodiscard]] bool is_open() const noexcept { return _conn != nullptr; }
 
     /**
-     * @brief Returns the local endpoint the channel is bound to.
+     * @brief Returns the local endpoint that the channel is bound to.
      *
      * @return The bound local endpoint, or `std::nullopt` if the channel is
      *         moved-from / closed or the address could not be retrieved.
@@ -81,8 +82,9 @@ public:
     }
 
     /**
-     * @brief Toggles non-blocking mode — when on, recv/send return immediately when no
-     *        data or buffer space is available rather than blocking the calling task.
+     * @brief Toggles non-blocking mode. When @p on is true, recv/send return immediately
+     *        when no data or buffer space is available, rather than blocking the calling
+     *        task.
      *
      * @param on Whether to enable non-blocking mode.
      */

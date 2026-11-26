@@ -44,7 +44,7 @@ constexpr note melody[] = {
 
 extern "C" void app_main() {
     // Use an explicit timer since we need the handle to change frequency for each note.
-    // Low duty resolution since tone is controlled by frequency, not duty.
+    // Use a low duty resolution, because the tone is controlled by frequency, not duty.
     auto tmr = idfxx::pwm::timer_0;
     tmr.configure({.frequency = NOTE_C4, .resolution_bits = 8});
 

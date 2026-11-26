@@ -97,7 +97,7 @@ result<void> panel::try_write_region(
         return error(errc::invalid_size);
     }
     if (_swapped) {
-        // The framebuffer's pages group rows; a swapped panel pages along columns.
+        // The framebuffer's pages group rows, but a swapped panel groups columns into pages.
         return error(errc::invalid_state);
     }
     const auto data = fb.data();
@@ -159,7 +159,7 @@ panel::do_draw_bitmap(int x_start, int y_start, int x_end, int y_end, byte_view 
     }
     // The panel I/O may still be reading color_data in the background. A
     // parameterless tx_param waits for every queued transfer and sends
-    // nothing; wait even after a failed draw, as earlier chunks may be queued.
+    // nothing. Wait even after a failed draw, because earlier chunks may be queued.
     auto waited = wrap(esp_lcd_panel_io_tx_param(_queued_io, -1, nullptr, 0));
     return drawn ? waited : drawn;
 }

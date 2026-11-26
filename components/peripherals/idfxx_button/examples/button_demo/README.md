@@ -8,7 +8,7 @@ Detects clicks and long presses on a push button with debouncing.
   and an event callback
 - Handling each `idfxx::button::event_type` (pressed, released, clicked, long press and extended
   press) in the callback
-- The default 50 ms debounce time and 1 second long-press threshold
+- The default 50 ms debounce dead time and 1 second long-press threshold
 - Counting events in the callback and logging them from the main task, using
   `idfxx::chrono::tick_clock` and `idfxx::delay()` to watch for 30 seconds
 
@@ -19,10 +19,10 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 - Any ESP32-series development board
 
-The example uses the board's BOOT button: GPIO 9 on the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0
-on the others, so no extra parts are needed. To use a different button, connect it between a pin and
-GND and change `button_pin` in `main/main.cpp`. The example enables the internal pull-up and treats
-a low level as pressed, so no external resistor is needed.
+The example uses the board's BOOT button, so no extra parts are needed. The BOOT button is GPIO 9 on
+the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0 on the others. To use a different button, connect it
+between a pin and GND and change `button_pin` in `main/main.cpp`. The pin reads low while the button
+is pressed. The example enables the internal pull-up, so no external resistor is needed.
 
 ## How to use
 

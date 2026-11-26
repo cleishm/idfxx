@@ -1,9 +1,9 @@
 # Components
 
-All idfxx components, grouped by area. Each area is a directory here, holding its components and a
-README that lists them. Each component is published separately on the [ESP Component
-Registry](https://components.espressif.com/) as `cleishm/<component>`; see the [main
-README](../README.md) for installation and conventions shared by every component.
+All idfxx components, grouped by area. Each area is a directory here that holds its components and
+a README that lists them. Each component is published separately on the [ESP Component
+Registry](https://components.espressif.com/) as `cleishm/<component>`. See the [main
+README](../README.md) for installation and for the conventions that every component shares.
 
 - **[Core Infrastructure](core/README.md):** idfxx_core, idfxx_hw_support, idfxx_log
 - **[System Services](system/README.md):** idfxx_console, idfxx_crypto, idfxx_event,

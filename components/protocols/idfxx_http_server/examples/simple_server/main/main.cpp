@@ -72,7 +72,7 @@ extern "C" void app_main() {
             }
         );
 
-        // --- Connect to WiFi ---
+        // --- Connect to Wi-Fi ---
         idfxx::wifi::init();
         idfxx::wifi::set_roles(idfxx::wifi::role::sta);
         idfxx::wifi::set_sta_config({
@@ -85,7 +85,7 @@ extern "C" void app_main() {
 
         logger.info("Connecting to {}...", WIFI_SSID);
 
-        // --- Start HTTP server (listens on all interfaces once up) ---
+        // --- Start HTTP server (listens on all interfaces once they are up) ---
         idfxx::http::server srv({.server_port = 80});
         register_routes(srv);
         logger.info("HTTP server started on port 80");

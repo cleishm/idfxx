@@ -131,8 +131,8 @@ static void show_error_handling() {
         logger.info("{}: {}", what, outcome ? "decoded" : outcome.error().message());
     };
 
-    // Bytes that aren't a JPEG, here the start of a PNG file, are rejected when the headers are
-    // read.
+    // Bytes that aren't a JPEG are rejected when the headers are read. Here, the bytes are the
+    // start of a PNG file.
     static constexpr std::array<uint8_t, 8> png_signature{
         0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'
     };
@@ -143,8 +143,8 @@ static void show_error_handling() {
     log_outcome("Truncated", try_decode_small(jpeg_bytes.first(jpeg_bytes.size() / 2)));
 
     // A progressive JPEG refines the whole picture scan by scan, so the decoder keeps every
-    // coefficient until the last scan: about 1.2 MB here, at any scale. A memory limit rejects it
-    // before that is allocated.
+    // coefficient until the last scan. Here, that is about 1.2 MB at any scale. With a memory
+    // limit, the decode fails before that memory is allocated.
     log_outcome(
         "Progressive with a 64 KiB limit",
         try_decode_small(progressive_photo(), {.memory_limit = 64 * 1024})

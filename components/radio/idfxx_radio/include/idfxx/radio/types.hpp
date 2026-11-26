@@ -31,7 +31,7 @@ namespace idfxx::radio {
  * @headerfile <idfxx/radio/types>
  * @brief Top-level radio operating mode.
  *
- * Drivers expose the high-level mode their chip is in. Chip-specific
+ * Drivers expose the high-level mode that their chip is in. Chip-specific
  * sub-modes (e.g. SX126x's `stdby_rc` vs `stdby_xosc`) are internal to each
  * driver.
  */
@@ -100,7 +100,8 @@ enum class coding_rate : uint8_t {
  * @headerfile <idfxx/radio/types>
  * @brief LoRa network selection.
  *
- * Selects the sync word senders and receivers must share to hear each other.
+ * Selects the sync word that senders and receivers must share to receive each
+ * other's packets.
  * Drivers map each value to their chip's native sync-word encoding.
  */
 enum class lora_network : uint8_t {
@@ -172,9 +173,9 @@ struct lora_packet_params {
  * @headerfile <idfxx/radio/types>
  * @brief Complete LoRa link configuration.
  *
- * Bundles the settings both ends of a link must agree on — frequency,
- * modulation, packet framing, and network — plus this end's transmit power,
- * so they can be applied with a single `lora_transceiver::configure` call.
+ * Bundles the settings that both ends of a link must agree on (frequency,
+ * modulation, packet framing, and network) and this end's transmit power.
+ * A single `lora_transceiver::configure` call applies them all.
  */
 struct lora_link {
     idfxx::required<quanta::frequency::hertz> frequency; ///< RF carrier frequency.

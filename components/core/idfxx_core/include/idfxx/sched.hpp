@@ -30,18 +30,18 @@ namespace idfxx {
  * @brief Delays the calling task for at least the specified duration.
  *
  * How the delay is carried out depends on its length relative to the scheduler
- * tick period (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz):
+ * tick period (`1 / CONFIG_FREERTOS_HZ`; 10 ms at the default 100 Hz):
  *
- * - Durations of one tick or more block the task, so other tasks run in the
- *   meantime. The task wakes on a tick boundary, so the delay is never shorter
+ * - Durations of one tick or more block the task, so other tasks can run during
+ *   the delay. The task wakes on a tick boundary, so the delay is never shorter
  *   than requested but may overshoot by up to one tick.
  * - Durations shorter than one tick cannot be scheduled, so they are busy-waited
- *   with microsecond precision. The CPU spins for the whole duration: no task of
- *   equal or lower priority runs, and the delay is accurate to within a few
- *   microseconds.
+ *   with microsecond precision. The CPU spins for the whole duration. No task of
+ *   equal or lower priority runs during the delay. The delay is accurate to
+ *   within a few microseconds.
  *
  * @warning Sub-tick delays are busy-waits. Do not use a short delay() as the
- *   back-off in a polling loop: it burns the CPU and starves lower-priority
+ *   back-off in a polling loop. It keeps the CPU busy and starves lower-priority
  *   tasks, including the idle task that feeds the task watchdog. Use
  *   `delay(next_tick)` instead, which always blocks until the next tick.
  *
@@ -112,10 +112,10 @@ inline constexpr next_tick_t next_tick{};
  * @brief Blocks the calling task until the next scheduler tick.
  *
  * The shortest delay that gives up the CPU. The task is suspended until the
- * next tick interrupt — anywhere from a moment to one full tick period
- * (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz) — and every other
- * ready task, whatever its priority, may run in the meantime. Use it as the
- * back-off in polling loops:
+ * next tick interrupt. This takes from almost no time up to one full tick
+ * period (`1 / CONFIG_FREERTOS_HZ`; 10 ms at the default 100 Hz). While the
+ * task is suspended, every other ready task can run, whatever its priority.
+ * Use it as the back-off in polling loops:
  *
  * @code
  * while (busy_pin.get_level() == idfxx::gpio::level::high) {
@@ -123,10 +123,10 @@ inline constexpr next_tick_t next_tick{};
  * }
  * @endcode
  *
- * Unlike yield(), which hands the CPU only to ready tasks of equal priority
- * and returns at once when there are none, `delay(next_tick)` always blocks,
- * so a loop built on it cannot starve lower-priority tasks or the idle task.
- * Unlike a short duration-based delay(), it never busy-waits.
+ * Unlike yield(), `delay(next_tick)` always blocks. yield() gives the CPU only
+ * to ready tasks of equal priority, and returns at once when there are none. A
+ * loop that uses `delay(next_tick)` cannot starve lower-priority tasks or the
+ * idle task. Unlike a short duration-based delay(), it never busy-waits.
  *
  * @param tag The `next_tick` tag.
  *
@@ -138,9 +138,9 @@ void delay(next_tick_t tag) noexcept;
  * @brief Yields execution to other ready tasks of equal priority.
  *
  * Requests an immediate context switch without blocking. If no task of equal
- * or higher priority is ready, the calling task simply continues; lower-priority
- * tasks never run as a result of a yield. For a scheduler-friendly back-off in
- * a polling loop, use `delay(next_tick)` instead.
+ * or higher priority is ready, the calling task simply continues. Lower-priority
+ * tasks never run as a result of a yield. For a back-off in a polling loop that
+ * does not starve lower-priority tasks, use `delay(next_tick)` instead.
  */
 inline void yield() noexcept {
     taskYIELD();

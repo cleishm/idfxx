@@ -13,7 +13,7 @@ extern "C" void app_main() {
         idfxx::netif::init();
         auto sta_netif = idfxx::wifi::make_sta_netif();
 
-        // --- Initialize and start WiFi in STA mode ---
+        // --- Initialize and start Wi-Fi in STA mode ---
         idfxx::wifi::init();
         idfxx::wifi::set_roles(idfxx::wifi::role::sta);
         idfxx::wifi::start();

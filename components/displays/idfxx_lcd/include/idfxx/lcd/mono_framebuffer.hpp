@@ -31,16 +31,17 @@ namespace idfxx::lcd {
  * @headerfile <idfxx/lcd/mono_framebuffer>
  * @brief In-memory framebuffer for monochrome (1 bit per pixel) displays.
  *
- * Pixels are stored page-packed, the native format of SSD1306-style
- * monochrome OLED controllers: each byte holds 8 vertically adjacent pixels
- * (bit 0 is the topmost), and pages (rows of 8 pixels) are laid out
- * top-to-bottom, each page spanning the full display width. The byte for
+ * Pixels are stored page-packed, which is the native format of SSD1306-style
+ * monochrome OLED controllers. Each byte holds 8 vertically adjacent pixels
+ * (bit 0 is the topmost). Pages (rows of 8 pixels) are laid out
+ * top-to-bottom, and each page spans the full display width. The byte for
  * pixel (x, y) is at index `(y / 8) * width() + x`, bit `y % 8`.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then draw it on
- * a panel with @ref panel::write (full frame), @ref panel::write_rows (a
- * horizontal band) or @ref panel::write_region (a rectangle). This is a
- * plain value type: copyable, movable, and independent of any panel.
+ * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
+ * Then draw it on a panel with @ref panel::write (full frame),
+ * @ref panel::write_rows (a horizontal band) or @ref panel::write_region (a
+ * rectangle). This is a plain value type: copyable, movable, and independent
+ * of any panel.
  *
  * @code
  * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());
@@ -57,8 +58,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels off.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero and a multiple of 8.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero and a multiple of 8.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
@@ -70,8 +71,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels off.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero and a multiple of 8.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero and a multiple of 8.
      *
      * @return The new mono_framebuffer, or an error.
      * @retval idfxx::errc::invalid_arg if @p width is zero, or @p height is zero or not a multiple

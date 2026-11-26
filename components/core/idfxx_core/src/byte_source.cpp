@@ -14,11 +14,11 @@ result<size_t> file_source::try_read(byte_span buf) {
         return 0;
     }
     // Clear errno so a stale value from an earlier call is not reported as
-    // the cause of a read error that set none.
+    // the cause of a read error that did not set errno.
     errno = 0;
     const size_t n = std::fread(buf.data(), 1, buf.size(), _file);
-    // Bytes read before an error are returned as a short read; the stream's
-    // error indicator stays set, so the error is reported by the next read.
+    // Bytes read before an error are returned as a short read. The stream's
+    // error indicator stays set, so the next read reports the error.
     if (n == 0 && std::ferror(_file)) {
         // The stream's error indicator is set, so an I/O error occurred even
         // if it reported no errno.

@@ -173,8 +173,8 @@ public:
      *
      * The words hold the 16 address bytes in network byte order as laid out in
      * memory, matching the lwIP/ESP-IDF representation. A logical literal such as
-     * `{0xfe800000, 0, 0, 1}` is therefore not `fe80::1`; prefer parse() to build
-     * an address from text.
+     * `{0xfe800000, 0, 0, 1}` is therefore not `fe80::1`. To build an address from
+     * text, prefer parse().
      *
      * @param words The four 32-bit words of the IPv6 address, in network byte order.
      * @param zone Optional zone ID (default 0).
@@ -263,7 +263,8 @@ struct ipv6_info {
 // `ipv4_addr` / `ipv6_addr` / `ipv4_info` / `ipv6_info` were originally named
 // `ip4_addr` / `ip6_addr` / `ip4_info` / `ip6_info` (the public spelling shipped
 // in the released 1.0.0 line). The deprecated aliases preserve the old names so
-// code written against 1.0.0 keeps compiling; remove them only on a major bump.
+// that code written against 1.0.0 still compiles. Remove them only on a major
+// version bump.
 using ip4_addr [[deprecated("use ipv4_addr")]] = ipv4_addr;
 using ip6_addr [[deprecated("use ipv6_addr")]] = ipv6_addr;
 using ip4_info [[deprecated("use ipv4_info")]] = ipv4_info;

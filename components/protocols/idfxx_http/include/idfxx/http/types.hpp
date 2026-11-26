@@ -34,7 +34,7 @@ enum class method : int {
     post        = 1,  ///< POST
     put         = 2,  ///< PUT
     patch       = 3,  ///< PATCH
-    delete_     = 4,  ///< DELETE (trailing underscore — C++ keyword)
+    delete_     = 4,  ///< DELETE (named `delete_` because `delete` is a C++ keyword)
     head        = 5,  ///< HEAD
     notify      = 6,  ///< NOTIFY
     subscribe   = 7,  ///< SUBSCRIBE

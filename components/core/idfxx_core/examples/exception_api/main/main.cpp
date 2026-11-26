@@ -5,7 +5,7 @@
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// A helper that returns a result — used to demonstrate converting results to exceptions
+// A helper that returns a result. It demonstrates converting results to exceptions
 idfxx::result<int> try_read_sensor(bool simulate_error) {
     if (simulate_error) {
         return idfxx::error(idfxx::errc::timeout);

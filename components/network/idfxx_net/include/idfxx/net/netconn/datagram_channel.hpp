@@ -31,7 +31,7 @@ namespace idfxx::net::netconn {
  * @brief UDP transport variant for datagram netconn channels.
  *
  * Most UDP traffic uses `standard` (with checksums). The `lite` and
- * `no_checksum` variants are specialized — only set them if you know your
+ * `no_checksum` variants are specialized. Only set them if you know that your
  * peer expects the corresponding wire format.
  */
 enum class udp_variant : int {
@@ -49,9 +49,9 @@ enum class udp_variant : int {
  *
  * Ownership is exclusive: the channel is non-copyable and move-only. A
  * moved-from channel may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `nullptr`); calling any other
- * method on it is undefined behavior. The destructor releases the channel if
- * open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns
+ * `nullptr`). Calling any other method on it is undefined behavior. The
+ * destructor releases the channel if open.
  */
 class [[nodiscard]] datagram_channel : public detail::connectionless_channel {
 public:

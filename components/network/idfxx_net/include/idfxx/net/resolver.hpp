@@ -12,12 +12,12 @@
  * @ingroup idfxx_net
  * @brief Resolve a host name and service to one or more endpoints.
  *
- * The common case — resolve a host and use the first usable address — is served
- * by `resolve_one` / `try_resolve_one`. To examine several candidate addresses
- * (for example, to try each in turn until one connects) use `resolve_each`
- * / `try_resolve_each`, which visit results without allocating. `resolve` /
- * `try_resolve` collect every result into a `std::vector` for callers that want
- * the full set in hand.
+ * For the common case, use `resolve_one` / `try_resolve_one`. They resolve a
+ * host and return the first usable address. To examine several candidate
+ * addresses (for example, to try each one until one connects), use
+ * `resolve_each` / `try_resolve_each`. These functions visit the results without
+ * allocating. `resolve` / `try_resolve` collect every result into a
+ * `std::vector`, for callers that want the full set.
  *
  * @note By default a single address is returned per query. Enable
  *       `CONFIG_LWIP_USE_ESP_GETADDRINFO` to receive multiple records
@@ -47,10 +47,13 @@ struct resolver_options {
     /** @brief Address family preference. `std::nullopt` accepts either family. */
     std::optional<address_family> family = std::nullopt;
 
-    /** @brief Require the host to be a numeric address — skip the DNS lookup. */
+    /** @brief Require the host to be a numeric address, so that no DNS lookup is done. */
     bool numeric_host = false;
 
-    /** @brief Require the service to be a numeric port — skip the service-name lookup. */
+    /**
+     * @brief Require the service to be a numeric port, so that no service-name lookup is
+     *        done.
+     */
     bool numeric_port = false;
 
     /** @brief Request results suitable for `bind()` rather than `connect()`. */
@@ -65,10 +68,11 @@ struct resolver_options {
 namespace detail {
 
 // Type-erased iteration over resolution results. `sink` is invoked for each
-// resolved endpoint; returning false stops iteration early. The sink stopping
-// early is not an error — the returned result reflects only the resolution
-// itself. Backing the templated `resolve_each` keeps the lwIP-facing code
-// out of the public header while preserving zero-allocation iteration.
+// resolved endpoint. If it returns false, iteration stops early. Stopping early
+// is not an error. The returned result reports only the outcome of the
+// resolution itself. The templated `resolve_each` calls this function, so the
+// lwIP-facing code stays out of the public header and the iteration still
+// allocates nothing.
 [[nodiscard]] result<void> resolve_for_each(
     std::string_view host,
     port_number port,
@@ -275,7 +279,7 @@ template<typename F>
  * @brief Resolves a host and numeric port and collects every endpoint.
  *
  * Prefer `resolve_one` for the common single-address case, or `resolve_each`
- * to iterate candidates without allocating; this overload exists for callers that
+ * to iterate candidates without allocating. This overload is for callers that
  * want the full result set in a container.
  *
  * @param host Host name or numeric address.
@@ -295,8 +299,8 @@ resolve(std::string_view host, port_number port, const resolver_options& opts = 
  * @brief Resolves a host and numeric port and collects every endpoint.
  *
  * Prefer `try_resolve_one` for the common single-address case, or
- * `try_resolve_each` to iterate candidates without allocating; this overload
- * exists for callers that want the full result set in a container.
+ * `try_resolve_each` to iterate candidates without allocating. This overload is
+ * for callers that want the full result set in a container.
  *
  * @param host Host name or numeric address.
  * @param port Port number in host byte order.
@@ -311,7 +315,7 @@ try_resolve(std::string_view host, port_number port, const resolver_options& opt
  * @brief Resolves a host and service name and collects every endpoint.
  *
  * Prefer `resolve_one` for the common single-address case, or `resolve_each`
- * to iterate candidates without allocating; this overload exists for callers that
+ * to iterate candidates without allocating. This overload is for callers that
  * want the full result set in a container.
  *
  * @param host    Host name or numeric address.
@@ -331,8 +335,8 @@ resolve(std::string_view host, std::string_view service, const resolver_options&
  * @brief Resolves a host and service name and collects every endpoint.
  *
  * Prefer `try_resolve_one` for the common single-address case, or
- * `try_resolve_each` to iterate candidates without allocating; this overload
- * exists for callers that want the full result set in a container.
+ * `try_resolve_each` to iterate candidates without allocating. This overload is
+ * for callers that want the full result set in a container.
  *
  * @param host    Host name or numeric address.
  * @param service Service name (e.g. `"http"`) or numeric port string.

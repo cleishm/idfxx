@@ -12,10 +12,10 @@ right-aligned UTF-8 text with accents and curly quotes in four sizes, plus a wra
   `idfxx::gfx::render_banded()`, so the framebuffer takes 19 KB instead of 150 KB
 - Drawing UTF-8 text with `draw_text()` and the proportional fonts `idfxx::font::inter_48`,
   `inter_32`, `inter_24` and `inter_16` from `idfxx_font_inter`, each at its native size
-- Laying out text in a box between the margins with `draw_text_box()`: the heading and subtitle
-  centered and the footer right-aligned with `idfxx::gfx::text_align`, and a paragraph wrapped to
-  the box width, breaking between words and hyphenating a long word at a soft hyphen (`\u00AD`)
-- Stacking lines with each font's `line_height` and the height `draw_text_box()` returns
+- Laying out text in a box between the margins with `draw_text_box()`. The heading and subtitle are
+  centered and the footer is right-aligned with `idfxx::gfx::text_align`. A paragraph is wrapped to
+  the box width. It breaks between words and hyphenates a long word at a soft hyphen (`\u00AD`).
+- Stacking lines with each font's `line_height` and the height that `draw_text_box()` returns
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).

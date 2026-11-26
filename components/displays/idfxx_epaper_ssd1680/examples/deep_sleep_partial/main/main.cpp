@@ -4,19 +4,20 @@
 // Display Board EE05 (ESP32-S3 Plus) with the 2.13" 122x250 SSD1680 panel.
 //
 // Each boot draws a wake counter, refreshes the panel, and deep-sleeps on a
-// timer. A deep sleep is a reboot: the driver starts with no partial-refresh
+// timer. A deep sleep is a reboot. The driver starts with no partial-refresh
 // baseline, so its first partial refresh would be promoted to a full one.
 // To keep updates partial, the frame on the glass is saved in RTC memory
-// before sleeping and handed back with restore_baseline after the wake.
+// before sleeping. After the wake, it is passed back to the driver with
+// restore_baseline.
 // Every FULL_REFRESH_INTERVAL wakes a full refresh clears accumulated
 // ghosting.
 //
 // RTC memory survives deep sleep, and the 122x250 mono frame is only ~4 KB,
-// so it fits there. Larger panels do not: a 7.5" 800x480 UC8179 frame is
-// 48 KB, more than the RTC memory holds. Persist such frames elsewhere —
-// flash (LittleFS/SPIFFS, or an NVS partition sized for it) or an SD card —
-// with a validity check such as a CRC, and mind flash wear when saving on
-// every wake.
+// so it fits there. Frames for larger panels do not fit. A 7.5" 800x480
+// UC8179 frame is 48 KB, more than the RTC memory holds. Save such frames to
+// flash (LittleFS/SPIFFS, or an NVS partition sized for it) or to an SD card,
+// with a validity check such as a CRC. Saving to flash on every wake wears
+// the flash, so take flash wear into account.
 //
 // The saved frame must match the glass. A mismatch does no damage, but the
 // differing pixels are not driven correctly until the next full refresh.
@@ -59,8 +60,8 @@ static constexpr size_t PANEL_HEIGHT = 250;
 // Time spent in deep sleep between updates.
 static constexpr auto SLEEP_INTERVAL = 30s;
 
-// Partial refreshes accumulate ghosting; every this many wakes, run a full
-// refresh instead.
+// Partial refreshes accumulate ghosting. Run a full refresh instead on every
+// wake whose count is a multiple of this value.
 static constexpr uint32_t FULL_REFRESH_INTERVAL = 10;
 
 // mono_framebuffer layout: rows padded to whole bytes, one bit per pixel.
@@ -68,13 +69,13 @@ static constexpr size_t FRAME_STRIDE = (PANEL_WIDTH + 7) / 8;
 
 // The frame on the glass, saved across deep sleep in RTC memory. RTC_DATA_ATTR
 // variables keep their values through deep sleep and are reinitialized on
-// every other boot (power-on, reset, panic). Only 4000 bytes for this panel;
-// see the top of the file for larger panels.
+// every other boot (power-on, reset, panic). The frame is only 4000 bytes for
+// this panel. See the top of the file for larger panels.
 RTC_DATA_ATTR static std::array<uint8_t, FRAME_STRIDE * PANEL_HEIGHT> saved_frame;
 
-// Whether saved_frame holds the image on the glass: set only once a run has
-// refreshed the panel and saved its frame, so it stays false after a fresh
-// boot or a run that failed before the save.
+// Whether saved_frame holds the image on the glass. It is set only after a
+// run has refreshed the panel and saved its frame. It stays false after a
+// fresh boot, or after a run that failed before the save.
 RTC_DATA_ATTR static bool saved_frame_valid = false;
 
 // Wakes since the last power-on or reset.
@@ -154,14 +155,14 @@ extern "C" void app_main() {
 
         idfxx::epaper::mono_framebuffer fb(display.width(), display.height());
         idfxx::gfx::canvas canvas(fb);
-        // saved_frame is sized for the EE05 panel: resize it along with any
-        // change to the panel dimensions.
+        // saved_frame is sized for the EE05 panel. Resize it if you change the
+        // panel dimensions.
         assert(fb.data().size() == saved_frame.size());
 
         if (resume) {
-            // The panel still shows the frame saved before the deep sleep:
-            // load it and tell the driver, so the next partial refresh stays
-            // partial.
+            // The panel still shows the frame that was saved before the deep
+            // sleep. Load it and pass it to the driver, so that the next
+            // partial refresh stays partial.
             std::ranges::copy(saved_frame, fb.data().begin());
             display.restore_baseline(fb);
             ++wake_count;

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Demo for the Seeed Studio reTerminal E1004 (ESP32-S3) with its 13.3"
-// 1200x1600 Spectra 6 T133A01 module (E Ink EL133UF1 glass). Shows a
-// six-color screen drawn through a full PSRAM framebuffer in landscape,
-// then a monochrome text page rendered band-by-band (a 1200x100 band
-// instead of a full frame), then a closing screen, and puts the panel to
-// deep sleep. Each full refresh takes 25-30 seconds.
+// 1200x1600 Spectra 6 T133A01 module (E Ink EL133UF1 glass). It shows a
+// six-color screen drawn through a full PSRAM framebuffer in landscape.
+// Then it shows a monochrome text page rendered band by band (a 1200x100
+// band instead of a full frame), and then a closing screen. Finally, it
+// puts the panel into deep sleep. Each full refresh takes 25-30 seconds.
 
 #include <idfxx/epaper/color6_framebuffer>
 #include <idfxx/epaper/el133uf1>
@@ -59,7 +59,7 @@ void draw_color_screen(Canvas& canvas) {
     const size_t bar_w = canvas.width() / bars.size();
     for (size_t i = 0; i < bars.size(); ++i) {
         const auto [color, name] = bars[i];
-        // The last bar absorbs the remainder of the integer division.
+        // The last bar also gets the remainder of the integer division.
         const size_t w = i + 1 == bars.size() ? canvas.width() - i * bar_w : bar_w;
         canvas.fill_rect(i * bar_w, 0, w, canvas.height(), color);
         // Caption in a contrasting color at the top of each bar.
@@ -81,8 +81,8 @@ void draw_color_screen(Canvas& canvas) {
 }
 
 // Stages 2 and 3: monochrome pages drawn through a band-sized framebuffer
-// with idfxx::gfx::render_banded — the draw function is invoked once per
-// band and describes the complete 1200x1600 (portrait) frame each time.
+// with idfxx::gfx::render_banded. The draw function is called once per
+// band, and it describes the complete 1200x1600 (portrait) frame each time.
 void draw_text_page(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas, bool closing) {
     canvas.fill_rect(0, 0, 1200, 96, true);
     canvas.draw_text(idfxx::font::spleen_8x16, 32, 24, "idfxx epaper", false, 3);
@@ -112,8 +112,8 @@ extern "C" void app_main() {
         idfxx::delay(100ms);
 
         // --- SPI bus ---
-        // The microSD card shares MISO with the panel: keep it deselected so
-        // it leaves the line to the panel's presence check.
+        // The microSD card shares MISO with the panel. Keep it deselected so
+        // that it does not drive the line during the panel's presence check.
         idfxx::gpio sd_cs = PIN_SD_CS;
         sd_cs.set_level(idfxx::gpio::level::high);
         sd_cs.set_direction(idfxx::gpio::mode::output);
@@ -141,7 +141,7 @@ extern "C" void app_main() {
         logger.info("display initialized ({}x{})", display.width(), display.height());
 
         // --- Stage 1: six-color screen through a full (PSRAM) framebuffer ---
-        // The panel is portrait-native; the rotated view presents it as a
+        // The panel is portrait-native. The rotated view presents it as a
         // 1600x1200 landscape surface.
         {
             idfxx::epaper::color6_framebuffer fb(display.width(), display.height());

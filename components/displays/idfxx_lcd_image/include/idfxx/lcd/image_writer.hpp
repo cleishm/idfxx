@@ -16,8 +16,8 @@
  * panel: turned, cropped, resampled to its target rectangle and clipped to
  * the screen, as described by an @ref idfxx::image::placement. A panel is
  * written a band of rows at a time, so no whole frame is held in memory. An
- * overlay callback can draw over each band before it is written, and the same
- * function renders into an RGB565 surface such as a framebuffer.
+ * overlay callback can draw over each band before the band is written. The
+ * same function also renders into an RGB565 surface, such as a framebuffer.
  *
  * Depends on @ref idfxx_image for placement and @ref idfxx_lcd for panels.
  *
@@ -111,7 +111,7 @@ template<image::decoder Decoder, typename Overlay>
     }
     const size_t band_rows = std::min(options.band_rows, display.display_height());
 
-    // The band is at most the display wide: take its bytes from the limit.
+    // The band is at most as wide as the display. Subtract its bytes from the limit.
     image::render_config render{
         .screen_width = display.display_width(),
         .screen_height = display.display_height(),
@@ -125,7 +125,7 @@ template<image::decoder Decoder, typename Overlay>
         render.memory_limit = *options.memory_limit - band_bytes;
     }
 
-    // The band's width is the picture's, known from its first row.
+    // The band's width is the picture's width, which is known from its first row.
     std::optional<rgb565_framebuffer> band;
     size_t filled = 0;
     image::point origin{0, 0};
@@ -240,7 +240,7 @@ template<typename Surface, image::decoder Decoder>
  *         `idfxx::jpeg::decoder`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the
+ * @param where   Where and how the picture is placed. By default, it fills the
  *                screen.
  * @param options Band size and memory limit.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -265,12 +265,12 @@ void write_image(
  *
  * Renders the decoder's image to fill the panel's current addressed area
  * (@ref panel::display_width by @ref panel::display_height), upright according to
- * its own orientation, and writes it to the panel a band of rows at a time, calling
- * @p draw with each band just before it is written. The panel must use the RGB565
- * format.
+ * its own orientation. Writes it to the panel a band of rows at a time, and calls
+ * @p draw with each band just before the band is written. The panel must use the
+ * RGB565 format.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates through a canvas sized to the screen. The canvas places
+ * the band at its position on the screen:
  *
  * @code
  * auto overlay = [&](idfxx::lcd::rgb565_framebuffer& band, size_t x, size_t y) {
@@ -280,7 +280,7 @@ void write_image(
  * idfxx::lcd::write_image(display, dec, overlay);
  * @endcode
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
@@ -304,14 +304,14 @@ void write_image(panel& display, Decoder& decoder, Overlay&& draw) {
  * @brief Shows an image on an LCD panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel's current
- * addressed area (@ref panel::display_width by @ref panel::display_height), and
- * writes it to the panel a band of rows at a time, calling @p draw with each band
- * just before it is written. Pixels outside the target are left as they are. A
+ * addressed area (@ref panel::display_width by @ref panel::display_height). Writes
+ * it to the panel a band of rows at a time, and calls @p draw with each band just
+ * before the band is written. Pixels outside the target are left as they are. A
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates through a canvas sized to the screen. The canvas places
+ * the band at its position on the screen:
  *
  * @code
  * idfxx::lcd::write_image(
@@ -325,7 +325,7 @@ void write_image(panel& display, Decoder& decoder, Overlay&& draw) {
  * );
  * @endcode
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
@@ -350,14 +350,14 @@ void write_image(panel& display, Decoder& decoder, const image::placement& where
  * @brief Shows an image on an LCD panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel's current
- * addressed area (@ref panel::display_width by @ref panel::display_height), and
- * writes it to the panel a band of rows at a time, calling @p draw with each band
- * just before it is written. Pixels outside the target are left as they are. A
+ * addressed area (@ref panel::display_width by @ref panel::display_height). Writes
+ * it to the panel a band of rows at a time, and calls @p draw with each band just
+ * before the band is written. Pixels outside the target are left as they are. A
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates through a canvas sized to the screen. The canvas places
+ * the band at its position on the screen:
  *
  * @code
  * idfxx::lcd::write_image(
@@ -372,7 +372,7 @@ void write_image(panel& display, Decoder& decoder, const image::placement& where
  * );
  * @endcode
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
@@ -406,7 +406,7 @@ void write_image(
  * Renders the decoder's image as @p where places it on the surface, setting
  * each pixel of the picture. Pixels outside the target are left as they are.
  * The surface is anything with an `rgb565` `pixel_type`, a `noexcept`
- * `set_pixel(x, y, color)`, and `width()` and `height()`: an
+ * `set_pixel(x, y, color)`, and `width()` and `height()`. Examples are an
  * `rgb565_framebuffer`, or an `idfxx::gfx::rotated` or `idfxx::gfx::canvas`
  * view of one, to show the picture turned or in a window.
  *
@@ -417,11 +417,11 @@ void write_image(
  * @endcode
  *
  * @tparam Surface An RGB565 surface.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @param surface The surface to render into.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the surface.
- * @param options `band_rows` must still be non-zero; otherwise only `memory_limit` applies.
+ * @param where   Where and how the picture is placed. By default, it fills the surface.
+ * @param options `band_rows` must still be non-zero. Apart from that, only `memory_limit` applies.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on error, including `errc::invalid_arg` for zero `band_rows`,
  *         `idfxx::image::errc::too_large` when `memory_limit` is too small for the
@@ -453,7 +453,7 @@ void write_image(
  *         `idfxx::jpeg::decoder`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the
+ * @param where   Where and how the picture is placed. By default, it fills the
  *                screen.
  * @param options Band size and memory limit.
  * @return Success, or an error.
@@ -478,11 +478,11 @@ template<image::decoder Decoder>
  *
  * Renders the decoder's image to fill the panel's current addressed area
  * (@ref panel::display_width by @ref panel::display_height), upright according to
- * its own orientation, and writes it to the panel a band of rows at a time, calling
- * @p draw with each band just before it is written. The panel must use the RGB565
- * format.
+ * its own orientation. Writes it to the panel a band of rows at a time, and calls
+ * @p draw with each band just before the band is written. The panel must use the
+ * RGB565 format.
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
@@ -505,13 +505,13 @@ template<image::decoder Decoder, typename Overlay>
  * @brief Shows an image on an LCD panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel's current
- * addressed area (@ref panel::display_width by @ref panel::display_height), and
- * writes it to the panel a band of rows at a time, calling @p draw with each band
- * just before it is written. Pixels outside the target are left as they are. A
+ * addressed area (@ref panel::display_width by @ref panel::display_height). Writes
+ * it to the panel a band of rows at a time, and calls @p draw with each band just
+ * before the band is written. Pixels outside the target are left as they are. A
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
@@ -536,20 +536,20 @@ try_write_image(panel& display, Decoder& decoder, const image::placement& where,
  * @brief Shows an image on an LCD panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel's current
- * addressed area (@ref panel::display_width by @ref panel::display_height), and
- * writes it to the panel a band of rows at a time, calling @p draw with each band
- * just before it is written. Pixels outside the target are left as they are. A
+ * addressed area (@ref panel::display_width by @ref panel::display_height). Writes
+ * it to the panel a band of rows at a time, and calls @p draw with each band just
+ * before the band is written. Pixels outside the target are left as they are. A
  * picture entirely off the screen succeeds without decoding. The panel must use the
  * RGB565 format.
  *
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(rgb565_framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to.
  * @param decoder The decoder of the image. It decodes once.
  * @param where   Where and how the picture is placed.
  * @param options Band size and memory limit.
  * @param draw    Called once for each band with the band and the screen position of
- *                its top-left pixel; it must draw the same thing each time.
+ *                its top-left pixel. It must draw the same thing each time.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg `band_rows` is zero.
  * @retval idfxx::image::errc::too_large `memory_limit` is too small for the band or the rendering.
@@ -572,15 +572,15 @@ template<image::decoder Decoder, typename Overlay>
  * @brief Shows an image in an RGB565 surface.
  *
  * Renders the decoder's image as @p where places it on the surface, setting
- * each pixel of the picture; see the throwing @ref write_image overload for a
+ * each pixel of the picture. See the throwing @ref write_image overload for a
  * surface.
  *
  * @tparam Surface An RGB565 surface.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @param surface The surface to render into.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the surface.
- * @param options `band_rows` must still be non-zero; otherwise only `memory_limit` applies.
+ * @param where   Where and how the picture is placed. By default, it fills the surface.
+ * @param options `band_rows` must still be non-zero. Apart from that, only `memory_limit` applies.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg `band_rows` is zero.
  * @retval idfxx::image::errc::too_large `memory_limit` is too small for the rendering.

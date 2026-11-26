@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Restores the system time from a PCF8563 real-time clock at boot, seeding the
-// clock with a fixed time if it has lost track.
+// Restores the system time from a PCF8563 real-time clock at boot. If the
+// clock's time is not valid, seeds the clock with a fixed time.
 
 #include <idfxx/chrono>
 #include <idfxx/i2c/master>
@@ -15,11 +15,11 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"rtc"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_SDA = idfxx::gpio_8;
 static constexpr auto PIN_SCL = idfxx::gpio_9;
 
-// The time to seed the clock with when it has lost track: 2026-01-01T00:00:00 UTC.
+// The time to seed the clock with when its time is not valid: 2026-01-01T00:00:00 UTC.
 static constexpr sys_seconds SEED_TIME{sys_days{2026y / January / 1}};
 
 extern "C" void app_main() {
@@ -39,7 +39,7 @@ extern "C" void app_main() {
             idfxx::chrono::set_system_time(*now);
             logger.info("System time set from the RTC: {:%F %T} UTC", *now);
         } else {
-            // The chip lost power or its oscillator stopped, so its time can't be trusted.
+            // The chip lost power or its oscillator stopped, so its time is not valid.
             logger.warn("RTC time was lost; seeding it with {:%F %T} UTC", SEED_TIME);
             rtc.set_time(SEED_TIME);
         }

@@ -36,7 +36,7 @@ command_storage storage;
 // Trampoline function that ESP-IDF calls for handler-based commands
 int command_trampoline(void* context, int argc, char** argv) {
     auto* ctx = static_cast<command_context*>(context);
-    // An exception (already logged) fails the command
+    // If the handler throws, the exception is logged and the command fails
     auto res = invoke_guarded(TAG, "Command handler", [&] { return ctx->callback(argc, argv); });
     return res.value_or(1);
 }
@@ -186,7 +186,7 @@ result<esp_console_repl_config_t> repl::_translate_config(const config& cfg) {
 }
 
 // =============================================================================
-// REPL UART backend
+// REPL UART transport
 // =============================================================================
 
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM
@@ -239,7 +239,7 @@ repl::repl(const config& cfg, const uart_config& uart)
 #endif // UART
 
 // =============================================================================
-// REPL USB CDC backend
+// REPL USB CDC transport
 // =============================================================================
 
 #if CONFIG_ESP_CONSOLE_USB_CDC
@@ -281,7 +281,7 @@ repl::repl(const config& cfg, usb_cdc_t transport)
 #endif // USB CDC
 
 // =============================================================================
-// REPL USB Serial JTAG backend
+// REPL USB Serial JTAG transport
 // =============================================================================
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
@@ -324,7 +324,7 @@ repl::repl(const config& cfg, usb_serial_jtag_t transport)
 #endif // USB Serial JTAG
 
 // =============================================================================
-// REPL stdio backend
+// REPL stdio transport
 // =============================================================================
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)

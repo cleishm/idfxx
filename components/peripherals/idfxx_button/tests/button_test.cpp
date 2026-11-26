@@ -13,7 +13,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // button::config is not default constructible (pin and callback must be set)

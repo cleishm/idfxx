@@ -8,12 +8,13 @@ component changes.
 
 ## Unreleased
 
-- `idfxx_epaper_el133uf1` `2.1.0` — supports `refresh_mode::fast`: the full waveform on a faster
-  frame clock, about 18 s down to 11 s against 25-30 s for a full refresh, at one of four
-  `fast_quality` levels set by the new `config::fast_refresh_quality` or per refresh with
-  `refresh(fast_quality)`
-- `idfxx_netif` `2.2.0` — deprecates `dhcp_option_id`, which nothing in idfxx uses; set DHCP
-  server options with `dhcp_server_config`
+- `idfxx_epaper_el133uf1` `2.1.0` — supports `refresh_mode::fast`. A fast refresh runs the full
+  waveform on a faster frame clock. It takes from about 18 s down to 11 s, compared with 25-30 s for
+  a full refresh. It runs at one of four `fast_quality` levels. The new
+  `config::fast_refresh_quality` sets the level, and `refresh(fast_quality)` sets it for one
+  refresh.
+- `idfxx_netif` `2.2.0` — deprecates `dhcp_option_id`, which nothing in idfxx uses. Set DHCP server
+  options with `dhcp_server_config`.
 
 ## v2026.11.18
 

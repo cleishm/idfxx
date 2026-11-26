@@ -42,9 +42,9 @@ enum class rgb_data_endian : int {
  * @headerfile <idfxx/lcd/color>
  * @brief A 16-bit RGB565 color, stored in panel byte order.
  *
- * The stored representation places the most significant byte first, the
- * order color panels expect by default (@ref rgb_data_endian::big), so the
- * bytes of an array of rgb565 values (`std::as_bytes(std::span{pixels})`)
+ * The stored representation places the most significant byte first. This is
+ * the order that color panels expect by default (@ref rgb_data_endian::big),
+ * so the bytes of an array of rgb565 values (`std::as_bytes(std::span{pixels})`)
  * can be passed to @ref panel::draw_bitmap without conversion.
  *
  * @code
@@ -61,7 +61,7 @@ public:
      * @brief Creates a color from 8-bit red, green, and blue components.
      *
      * Components are truncated to the 5-6-5 bit layout: red and blue keep
-     * their top 5 bits, green its top 6.
+     * their top 5 bits, and green keeps its top 6.
      *
      * @param r Red component, 0-255.
      * @param g Green component, 0-255.

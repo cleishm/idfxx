@@ -18,7 +18,7 @@ namespace idfxx::epaper {
 
 namespace {
 
-// The value of an ink in a framebuffer's pixels, if its code can reach one.
+// The value of an ink in a framebuffer's pixels, if its code maps to one.
 std::optional<uint8_t> ink_value(enum color_mode mode, size_t index, uint8_t code) {
     switch (mode) {
     case color_mode::color6:

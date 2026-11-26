@@ -19,7 +19,7 @@ using namespace idfxx::epaper;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The driver implements the abstract panel interface and is a concrete type.

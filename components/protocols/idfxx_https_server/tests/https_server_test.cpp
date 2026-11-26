@@ -22,7 +22,7 @@ using namespace idfxx::http;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // ssl_server inherits from server
@@ -42,13 +42,13 @@ static_assert(std::is_move_assignable_v<ssl_server>);
 // ssl_server::make returns result<ssl_server>
 static_assert(std::is_same_v<decltype(ssl_server::make(std::declval<ssl_server::config>())), result<ssl_server>>);
 
-// TLS handshake timeout is optional: std::nullopt lets the driver choose
+// TLS handshake timeout is optional: with std::nullopt, the driver chooses
 static_assert(std::is_same_v<decltype(ssl_server::config::handshake_timeout), std::optional<std::chrono::milliseconds>>);
 
 // =============================================================================
 // Embedded self-signed test certificates
 // Generated for CN=127.0.0.1 with SAN IP:127.0.0.1, valid for 10 years.
-// These are test-only certificates and carry no security value.
+// These are test-only certificates and have no security value.
 // =============================================================================
 
 // clang-format off
@@ -304,7 +304,7 @@ TEST_CASE("https server rejects a session when the open handler returns an error
         (void)c->try_close();
         TEST_ASSERT_FALSE(responded);
     }
-    // The handshake completed and the session reached the open handler
+    // The handshake completed and the open handler was called for the session
     TEST_ASSERT_EQUAL(1, opened->load());
     TEST_ASSERT_EQUAL(0, served->load());
 

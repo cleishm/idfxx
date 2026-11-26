@@ -1,7 +1,7 @@
 # Orientations
 
-Shows a small in-memory photo the right way up on a panel that is mounted rotated, and prints the
-results as ASCII art.
+Shows a small in-memory photo upright on a panel that is mounted rotated, and prints the results as
+ASCII art.
 
 To decode an image straight to a display, use `idfxx::image::render()` instead, which applies these
 orientations for you.
@@ -17,7 +17,8 @@ orientations for you.
 - Writing the result into a region of a larger image with `image::orient()`, sized with
   `image::oriented_size()`
 - Finding the photo pixel under a screen position with `image::source_point()`
-- Finding where a photo pixel landed on screen with `image::inverse()` and `image::source_point()`
+- Finding where a photo pixel appears on the screen with `image::inverse()` and
+  `image::source_point()`
 
 Image operations cannot fail, so the example has no error handling.
 
@@ -25,7 +26,7 @@ Image operations cannot fail, so the example has no error handling.
 
 - Any ESP32-series development board
 
-The output is printed to the serial monitor; nothing needs to be connected.
+The output is printed to the serial monitor. Nothing needs to be connected.
 
 ## How to use
 

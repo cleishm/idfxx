@@ -27,8 +27,9 @@
  * its standard `std::errc` synonym (`operation_would_block`, `timed_out`,
  * `connection_refused`, …), so callers can compare error codes against either
  * the domain-specific `errc` values or the portable POSIX names. The mapping is
- * symmetric, so it also canonicalizes near-duplicate codes — the socket-path
- * `connection_reset` and the netconn-path `netconn_reset` share one condition.
+ * symmetric, so it also canonicalizes near-duplicate codes. For example,
+ * `connection_reset` from the socket API and `netconn_reset` from the netconn
+ * API share one condition.
  * @{
  */
 
@@ -115,11 +116,11 @@ public:
      * @brief Maps an `errc` value to its canonical portable condition.
      *
      * Returns the equivalent `std::errc` condition for codes that have a POSIX
-     * synonym (e.g. `operation_would_block`, `connection_reset`); codes without
+     * synonym (e.g. `operation_would_block`, `connection_reset`). Codes without
      * one (DNS failures, `netconn_closed`, …) map to a condition in this
-     * category. Because the runtime drives `==`/`!=` comparisons between an
-     * `std::error_code` and an `std::error_condition` through this mapping,
-     * callers may compare against either form:
+     * category. The standard library uses this mapping for `==`/`!=` comparisons
+     * between an `std::error_code` and an `std::error_condition`, so callers may
+     * compare against either form:
      * @code
      * ec == idfxx::net::errc::operation_would_block
      * ec == std::errc::operation_would_block
@@ -178,12 +179,12 @@ struct is_error_code_enum<idfxx::net::errc> : std::true_type {};
  * @ingroup idfxx_net
  * @brief Lower-level networking API with zero-copy receive.
  *
- * The Netconn API exposes received buffers directly to the caller, enabling
- * zero-copy receive paths and tighter control over send/receive behavior at
- * the cost of a more involved programming model.
+ * The Netconn API exposes received buffers directly to the caller. This allows
+ * zero-copy receive and tighter control over send/receive behavior. Its
+ * programming model is more involved than that of the BSD socket API.
  *
  * @note Most callers should prefer the BSD socket API
- *       (@ref idfxx_net_stream_socket and friends); the Netconn types are
- *       provided for cases where zero-copy receive or fine-grained
+ *       (@ref idfxx_net_stream_socket and the other socket types). The Netconn
+ *       types are provided for cases where zero-copy receive or fine-grained
  *       send-flag control are needed.
  */

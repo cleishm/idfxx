@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// A sink that records the lines it receives, and cleanup for the tests that add sinks.
+// A sink that records the lines that it receives, and cleanup for the tests that add sinks.
 
 #pragma once
 

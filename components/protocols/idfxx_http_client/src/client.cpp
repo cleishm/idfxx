@@ -339,7 +339,7 @@ result<esp_http_client_handle_t> client::_init_client(
     if (!cfg.host.empty()) {
         esp_cfg.host = cfg.host.c_str();
     }
-    esp_cfg.port = cfg.port.value_or(0); // 0 selects the driver default
+    esp_cfg.port = cfg.port.value_or(0); // 0 means the driver default
     if (cfg.path) {
         esp_cfg.path = cfg.path->c_str();
     }
@@ -407,7 +407,7 @@ result<esp_http_client_handle_t> client::_init_client(
     }
 
     esp_cfg.event_handler = client::_http_event_handler;
-    // user_data set to nullptr here; will be updated after client construction
+    // user_data is set to nullptr here. It is updated after client construction.
     esp_cfg.user_data = nullptr;
 
     auto handle = esp_http_client_init(&esp_cfg);
@@ -582,10 +582,10 @@ void client::set_post_field(byte_view data) {
         _handle, _post_data.c_str(), static_cast<int>(_post_data.size())
     );
     // ESP-IDF 6.x reports ESP_ERR_NOT_FOUND when no Content-Type header is set yet, after storing
-    // the body but before applying its default content type; apply that default here instead.
+    // the body but before applying its default content type. Apply that default here instead.
     // Fixed upstream by espressif/esp-idf@22bb11ef22 ("fix(http_client): default Content-Type for
     // post field", master), which no release branch had as of 6.1. Remove this once every
-    // supported ESP-IDF release includes the fix; until then it is a no-op on fixed versions.
+    // supported ESP-IDF release includes the fix. Until then, it is a no-op on fixed versions.
     if (err == ESP_ERR_NOT_FOUND) {
         err = esp_http_client_set_header(
             _handle, "Content-Type", "application/x-www-form-urlencoded"
@@ -714,7 +714,7 @@ result<void> client::try_write(byte_view data) {
         return error(idfxx::errc::invalid_arg);
     }
     int len = static_cast<int>(data.size());
-    // A blocking write sends everything, or fails with a count that says nothing of what was sent
+    // A blocking write sends everything, or fails with a count that does not show how much was sent
     int written = esp_http_client_write(_handle, reinterpret_cast<const char*>(data.data()), len);
     if (written == len) {
         return {};

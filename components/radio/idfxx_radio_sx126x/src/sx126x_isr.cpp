@@ -23,13 +23,15 @@ namespace {
 
 constexpr const char* TAG = "idfxx::radio::sx126x::isr";
 
-// Parks the chip-mode bookkeeping (and RF switch) in standby and, when the
-// driver is still in `expected` activity — a cancellation may have detached
-// the latch already — returns it to idle and completes the in-flight latch,
-// with `fill` writing the operation's result fields first. Used by the
-// tx_done and cad_done paths; rx_done is handled by sx126x_drain_received,
-// which must park only when a single-shot receive was in flight (a continuous
-// receive stays in rx) and copies the payload out under the same lock.
+// Parks the chip-mode bookkeeping (and RF switch) in standby. If the driver is
+// still in `expected` activity, it then returns the driver to idle and
+// completes the in-flight latch. `fill` writes the operation's result fields
+// first. The driver may no longer be in `expected` activity, because a
+// cancellation may have detached the latch already. Used by the tx_done and
+// cad_done paths. rx_done is handled by sx126x_drain_received instead. That
+// function must park only when a single-shot receive was in flight (a
+// continuous receive stays in rx), and it copies the payload out under the
+// same lock.
 template<typename Fill>
 void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fill&& fill) {
     std::lock_guard g(s.mu);
@@ -47,17 +49,18 @@ void park_and_complete(sx126x::state& s, internal::driver_activity expected, Fil
 
 } // namespace
 
-// Drains one received packet out of the chip: reads GetRxBufferStatus and
-// GetPacketStatus, then — under `mu` — delivers the payload exactly once. A
-// pending single-shot receive owns the packet: it is read straight into the
-// caller's buffer and the latch completed under the same lock, so a
-// cancellation can never interleave between the copy and the completion.
-// Otherwise (listening, or a packet the chip caught on its own) the payload is
-// committed to the receive FIFO for read_received. A CRC-failed packet is
-// discarded without touching either: the single-shot latch completes with
-// invalid_crc, the worker posts crc_error rather than rx_done, and committing
-// it would leave every later pop one packet behind its event. External
-// linkage: also the recovery path of sx126x::try_adopt_pending().
+// Drains one received packet out of the chip. It reads GetRxBufferStatus and
+// GetPacketStatus, then delivers the payload exactly once under `mu`. A
+// pending single-shot receive owns the packet. The packet is read straight
+// into the caller's buffer and the latch is completed under the same lock, so
+// a cancellation can never interleave between the copy and the completion.
+// Otherwise (listening, or a packet that the chip received on its own), the
+// payload is committed to the receive FIFO for read_received. A CRC-failed
+// packet is discarded without touching either. The single-shot latch
+// completes with invalid_crc, and the worker posts crc_error rather than
+// rx_done. Committing the packet would leave every later pop one packet behind
+// its event. External linkage: this is also the recovery path of
+// sx126x::try_adopt_pending().
 result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed) {
     rx_info info{};
     uint8_t rx_offset = 0;
@@ -84,9 +87,9 @@ result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed) {
 
     std::lock_guard g(s.mu);
 
-    // A single-shot receive ends here whatever happens next: the chip has
-    // already fallen back to standby on its own, so park the bookkeeping and
-    // detach the latch (a cancellation may have done so already) — it is
+    // A single-shot receive ends here whatever happens next. The chip has
+    // already returned to standby on its own, so park the bookkeeping and
+    // detach the latch (a cancellation may have done so already). The latch is
     // completed below with the payload, or with an error.
     std::shared_ptr<internal::op_latch> single;
     if (s.driver_state == internal::driver_activity::rx_single) {
@@ -113,11 +116,11 @@ result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed) {
 
     // A single-shot receive owns this packet: read the payload (ReadBuffer,
     // §13.2.4) straight into the caller's buffer and complete the latch. It
-    // never enters the FIFO — the caller already has the bytes, and queuing a
-    // copy would either double-deliver to a mixed-mode rx_done handler or
-    // silently fill the ring for a futures-only one. A packet that does not
-    // fit is not truncated: nothing is written and the future fails with
-    // invalid_size (the rx_done event still carries the full rx_info).
+    // never enters the FIFO, because the caller already has the bytes. Queuing
+    // a copy would either deliver the packet twice to a mixed-mode rx_done
+    // handler or silently fill the ring for a futures-only one. A packet that
+    // does not fit is not truncated: nothing is written and the future fails
+    // with invalid_size (the rx_done event still carries the full rx_info).
     if (single) {
         if (info.length > single->rx_target.size()) {
             fail_single(errc::invalid_size);
@@ -137,11 +140,11 @@ result<rx_info> sx126x_drain_received(sx126x::state& s, bool crc_failed) {
 
     // Otherwise the packet belongs to the FIFO: read the full payload into the
     // tail slot. Only the worker writes the ring, and pops leave the tail index
-    // unchanged, so the slot is ours; it is committed only after a successful
-    // read.
+    // unchanged, so the worker owns the slot. The slot is committed only after
+    // a successful read.
     if (s.rx_ring_count == sx126x::state::rx_ring_slots) {
-        // Full: the consumer has fallen more than a ring's worth of packets
-        // behind. Drop the oldest — the newest packet is the one still worth
+        // Full: the consumer is more than a ring's worth of packets behind.
+        // Drop the oldest, because the newest packet is the one still worth
         // acting on.
         ESP_LOGW(TAG, "rx ring full — dropping the oldest unread packet");
         s.rx_ring_head = (s.rx_ring_head + 1) % sx126x::state::rx_ring_slots;
@@ -176,19 +179,18 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
     event_loop* const loop = s.cfg.loop; // may be null — posting is then skipped
 
     while (!self.stop_requested()) {
-        // Wait for an ISR notification, with a poll fallback: DIO1 is
+        // Wait for an ISR notification, with a poll fallback. DIO1 is
         // edge-triggered, so a missed edge (e.g. a transient SPI failure
         // aborting the drain loop below while the line is still high, or an
         // edge lost during a flash-cache-disabled window) would otherwise
-        // leave the chip's IRQ latched — and the line high — forever. The
-        // periodic status poll turns that permanent wedge into a bounded
-        // delay.
+        // leave the chip's IRQ latched and the line high forever. With the
+        // periodic status poll, a missed edge causes only a bounded delay.
         const bool notified = self.wait_for(std::chrono::seconds{1});
         if (self.stop_requested()) {
             break;
         }
         if (!notified) {
-            // Poll tick: skip while the chip sleeps — SPI activity (NSS
+            // Poll tick: skip while the chip sleeps. SPI activity (NSS
             // low) would wake it, and BUSY stays high anyway.
             std::unique_lock g(s.mu);
             if (s.mode == chip_mode::sleep) {
@@ -196,9 +198,9 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
             }
             // Same for the sleep phases of a duty-cycled receive (mode is
             // `rx` there): BUSY idles high and an SPI poll would wake the
-            // chip and abort the autonomous listen. BUSY high with nothing
-            // latched also means nothing to drain — an rx_done returns the
-            // chip to standby, where BUSY is low.
+            // chip and abort the autonomous listen. When BUSY is high, there
+            // is also nothing to drain, because an rx_done returns the chip to
+            // standby, where BUSY is low.
             if (s.cfg.busy->is_connected() && s.cfg.busy->get_level() == gpio::level::high) {
                 continue;
             }
@@ -232,8 +234,8 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
                 }
             }
 
-            // RX done: drain the payload (completing a pending single-RX on
-            // the way), then post the event.
+            // RX done: drain the payload, then post the event. Draining also
+            // completes a pending single-shot receive.
             if (irqs.contains(sx126x::irq_flag::rx_done)) {
                 bool crc_failed = irqs.contains(sx126x::irq_flag::crc_err);
                 auto drained = sx126x_drain_received(s, crc_failed);
@@ -248,7 +250,7 @@ void sx126x_worker_fn(task::self& self, sx126x::state* sp) {
                            sx126x::irq_flag::crc_err | sx126x::irq_flag::header_err
                        ) &&
                        loop) {
-                // CRC or header error without rx_done — surface as event. A
+                // CRC or header error without rx_done: post it as an event. A
                 // header error also fires when an explicit-header packet's
                 // received length exceeds the programmed payload_length.
                 (void)loop->try_post(crc_error);

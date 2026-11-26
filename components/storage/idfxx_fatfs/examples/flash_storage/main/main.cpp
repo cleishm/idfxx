@@ -20,8 +20,8 @@ extern "C" void app_main() {
         // formatted.
         idfxx::fatfs::volume vol("storage", "/data", {.format_if_missing = true});
 
-        // Finish or discard a save that a reset interrupted, then read the count left by the
-        // previous boot: none on the first boot, or after the partition is erased.
+        // Finish or discard a save that a reset interrupted, then read the count that the previous
+        // boot saved. There is no count on the first boot, or after the partition is erased.
         vol.recover_file("/data/boots.txt");
         unsigned boots = 0;
         if (std::ifstream in("/data/boots.txt"); in) {
@@ -36,7 +36,7 @@ extern "C" void app_main() {
         logger.info("Boot number {}", boots);
         logger.info("{} KiB free of {} KiB", vol.free_size() / 1024, vol.size() / 1024);
 
-        // Unmounting saves the wear-leveling state; the destructor would do it too, but could only
+        // Unmounting saves the wear-leveling state. The destructor would do it too, but could only
         // log an error.
         vol.unmount();
         logger.info("Press the reset button to count another boot");

@@ -110,8 +110,8 @@ result<std::vector<device>> try_scan_devices(idfxx::gpio pin, size_t max_devices
 }
 
 // Devices are grouped by GPIO pin so that a single batch measurement is issued per bus.
-// Pointer-nulling tracks processed devices in-place to avoid extra allocations, and `addrs` is
-// reused across iterations via `.clear()` to minimize heap activity.
+// Each processed device's pointer is set to null in place, which avoids extra allocations. `addrs`
+// is reused across iterations via `.clear()` to minimize heap activity.
 result<std::vector<quanta::thermo::millicelsius>>
 try_measure_and_read_multi(std::span<const device> devices) {
     if (devices.empty()) {

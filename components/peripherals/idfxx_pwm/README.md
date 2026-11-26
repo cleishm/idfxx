@@ -46,7 +46,7 @@ using namespace std::chrono_literals;
 auto tmr = idfxx::pwm::timer_0;
 tmr.configure({.frequency = 5_kHz, .resolution_bits = 13});
 
-// Start PWM output (RAII — stops on destruction)
+// Start PWM output (RAII: the output stops on destruction)
 auto led = idfxx::pwm::start(idfxx::gpio_18, tmr, idfxx::pwm::channel::ch_0);
 led.set_duty(0.5f);  // 50% duty
 
@@ -128,14 +128,15 @@ Timer and output operations return `idfxx::result<T>` or throw `std::system_erro
 
 - `invalid_arg` — Invalid frequency, duty resolution, GPIO, or duty value
 - `invalid_state` — Timer not configured
-- `fail` — Requested frequency cannot be achieved
+- `fail` — Requested frequency cannot be achieved, or a fade operation was called before the fade
+  service was installed
 
 ## Important Notes
 
 - **Configure before use**: Call `timer::configure()` before creating any `output` bound to that
   timer
-- **Timer persistence**: Timers are fixed hardware — configuration persists even after the timer
-  object goes out of scope
+- **Timer persistence**: Timers are fixed hardware. Their configuration persists even after the
+  timer object goes out of scope
 - **Output cleanup**: `output` destructor stops PWM and sets the GPIO low
 - **Fade service**: Call `output::install_fade_service()` once before using any fade operations
 - **Exceptions in callbacks**: Fade-end callbacks run in ISR context and must not throw, as throwing

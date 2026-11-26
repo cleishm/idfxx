@@ -85,8 +85,8 @@ if (!cause) {
 
 ### Deep Sleep
 
-Deep sleep powers down the chip; waking restarts the application from the beginning. Use
-`wakeup_cause()` to detect the wake after the restart:
+Deep sleep powers down the chip. When the chip wakes, the application restarts from the beginning.
+Use `wakeup_cause()` to detect the wake after the restart:
 
 ```cpp
 #include <idfxx/sleep>
@@ -178,17 +178,18 @@ API):
 
 - **At least one wake-up source must be armed** before entering light sleep, or the sleep request is
   rejected.
-- **Sources passed to a sleep call are disarmed when it returns**; sources armed with
+- **Sources passed to a sleep call are disarmed when it returns.** Sources armed with
   `enable_wakeup` stay armed until explicitly disarmed.
 - **Light-sleep GPIO wake-up is level-triggered.** If the pin is already at the wake level when
-  sleep is entered, the chip wakes immediately — and a held level re-wakes on every sleep attempt.
+  sleep is entered, the chip wakes immediately. While the pin stays at that level, the chip wakes
+  immediately on every sleep attempt.
 - **Digital interrupts are not delivered during light sleep.** GPIO edge interrupts that occur while
-  sleeping are lost; re-check interrupt-driven state after waking.
-- **Wake-up source availability is chip-specific.** EXT0 exists on ESP32/S2/S3; EXT1 on
-  ESP32/S2/S3/C6/H2/P4; ESP32-C3 has neither and uses `deep_sleep_gpio_wake` instead (which ESP-IDF
-  6.1 also brings to ESP32/S2/S3). The corresponding types are only declared on chips that support
-  them (`SOC_PM_SUPPORT_EXT0_WAKEUP`, `SOC_PM_SUPPORT_EXT1_WAKEUP`,
-  `SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
+  sleeping are lost. Re-check interrupt-driven state after waking.
+- **Wake-up source availability is chip-specific.** EXT0 exists on ESP32/S2/S3. EXT1 exists on
+  ESP32/S2/S3/C6/H2/P4. ESP32-C3 has neither and uses `deep_sleep_gpio_wake` instead. From ESP-IDF
+  6.1, `deep_sleep_gpio_wake` is also available on ESP32/S2/S3. The corresponding types are only
+  declared on chips that support them (`SOC_PM_SUPPORT_EXT0_WAKEUP`,
+  `SOC_PM_SUPPORT_EXT1_WAKEUP`, `SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP`).
 - **Edge-triggered deep-sleep GPIO wake-up needs ESP-IDF 6.1 and a capable chip.**
   `deep_sleep_gpio_mode::wake_posedge`, `wake_negedge` and `wake_anyedge` are only defined where
   `SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED` is set (e.g. ESP32-C5/C6/P4). Edges, like levels, must last
@@ -199,15 +200,15 @@ API):
   with `errc::not_allowed`.
 - **Deep sleep is not rejected for an already-active wake-up source.** The chip sleeps and wakes
   immediately, restarting with that source as the wake-up cause.
-- **EXT1's low trigger is named per target.** The original ESP32 defines `ext1_mode::all_low` (its
-  hardware wakes only when all selected pins are low); every other EXT1 chip defines
-  `ext1_mode::any_low`. Only the matching enumerator compiles for a given target, so portable code
-  selects it under `#if CONFIG_IDF_TARGET_ESP32` rather than silently getting all-low where any-low
-  was intended.
-- **Floating EXT1 pins need pull resistors.** This component does not configure RTC pulls; use
+- **EXT1's low trigger is named per target.** The original ESP32 defines `ext1_mode::all_low`,
+  because its hardware wakes only when all selected pins are low. Every other EXT1 chip defines
+  `ext1_mode::any_low`. Only the matching enumerator compiles for a given target. Portable code
+  selects it under `#if CONFIG_IDF_TARGET_ESP32`, so that it does not silently get all-low where
+  any-low was intended.
+- **Floating EXT1 pins need pull resistors.** This component does not configure RTC pulls. Use
   external resistors, or hold a configured pull across sleep (see `idfxx::gpio` hold and sleep-pull
   APIs).
-- **Deep sleep does not return.** All RAM state is lost except RTC memory (`RTC_DATA_ATTR`); the
+- **Deep sleep does not return.** All RAM state is lost except RTC memory (`RTC_DATA_ATTR`). The
   application restarts in `app_main`.
 
 ## License

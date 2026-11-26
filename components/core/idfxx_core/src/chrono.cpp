@@ -20,7 +20,7 @@ result<void> try_set_system_time_us(std::chrono::sys_time<std::chrono::microseco
         .tv_usec = static_cast<suseconds_t>((us - s).count()),
     };
     // Clear errno so a stale value from an earlier call is not reported as
-    // the cause of a failure that set none.
+    // the cause of a failure that did not set errno.
     errno = 0;
     if (settimeofday(&tv, nullptr) != 0) {
         const int err = errno;

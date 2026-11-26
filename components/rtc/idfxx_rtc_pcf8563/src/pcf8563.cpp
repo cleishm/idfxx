@@ -176,7 +176,8 @@ result<timer_setting> select_timer_source(pcf8563::timer_duration period) {
 
 namespace {
 
-// Attempts at two consecutive matching reads of the live countdown value.
+// The maximum number of reads of the live countdown value when looking for two consecutive reads
+// that agree.
 constexpr int timer_read_attempts = 4;
 
 // Whether an enumerator lies within its enumeration's values, which run from 0 to @p last.
@@ -192,7 +193,7 @@ struct pcf8563::state {
 
     // The one place that writes Control_status_2. Replaces the interrupt bits
     // selected by @p mask with @p bits, keeps the others as read, and clears
-    // only the flags named in @p clear: AF and TF are otherwise written as 1,
+    // only the flags named in @p clear. AF and TF are otherwise written as 1,
     // which leaves them unchanged. Writes nothing if the interrupt bits would
     // not change and no flag to clear is set.
     [[nodiscard]] result<void>
@@ -261,7 +262,7 @@ result<pcf8563> pcf8563::make(i2c::master_bus& bus, const config& cfg) {
         return error(errc::invalid_arg);
     }
 
-    // Probe the address; nothing is written to the chip.
+    // Probe the address. Nothing is written to the chip.
     if (auto r = dev->try_probe(); !r) {
         if (r.error() == errc::not_found) {
             ESP_LOGE(TAG, "no PCF8563 responding at address 0x%02X", cfg.address);
@@ -300,9 +301,10 @@ result<void> pcf8563::do_set_time(sys_seconds t) {
         return error(r.error());
     }
     // Then restart a stopped clock, so the time is valid afterward. Only
-    // Control_status_1 is touched, and only written if it changes: STOP is
-    // cleared, TESTC kept. A clock stopped beforehand starts counting from
-    // here, so stop() then set_time() sets the time on a precise second.
+    // Control_status_1 is touched, and it is only written if it changes. STOP
+    // is cleared and TESTC is kept. A clock that was stopped beforehand starts
+    // counting from here, so stop() then set_time() sets the time on a precise
+    // second.
     return _state->set_stop(false);
 }
 

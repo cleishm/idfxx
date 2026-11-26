@@ -4,8 +4,8 @@
 #pragma once
 
 // Pure, side-effect-free SX126x register encoders. This header intentionally
-// depends only on the chip-agnostic LoRa types — no SPI, task, or chip state —
-// so the encodings can be unit-tested in isolation (the test #includes this
+// depends only on the chip-agnostic LoRa types. It uses no SPI, task, or chip
+// state, so the encodings can be unit-tested in isolation (the test #includes this
 // header by relative path). All register encodings are taken from the Semtech
 // SX1261/2 datasheet (DS_SX1261-2_V2.2); section and table references below
 // are to that revision.
@@ -143,8 +143,8 @@ pack_packet_params(const lora_packet_params& p) noexcept {
 }
 
 /// Decodes the three GetPacketStatus response bytes (table 13-80: rssi_pkt,
-/// snr_pkt, signal_rssi_pkt; the chip-specific signal_rssi_pkt byte is not
-/// surfaced).
+/// snr_pkt, signal_rssi_pkt). The chip-specific signal_rssi_pkt byte is not
+/// returned.
 [[nodiscard]] constexpr packet_status decode_packet_status(std::span<const uint8_t, 3> r) noexcept {
     return {
         .rssi = decode_rssi_byte(r[0]),
@@ -186,7 +186,7 @@ pack_rx_duty_cycle(std::chrono::microseconds rx, std::chrono::microseconds sleep
 
 /// Packs the four SetDIO3AsTCXOCtrl bytes (§13.3.6, table 13-34): the voltage
 /// byte followed by the startup timeout as a 24-bit count of the same 15.625 µs
-/// steps SetRxDutyCycle uses (MSB..LSB).
+/// steps that SetRxDutyCycle uses (MSB..LSB).
 [[nodiscard]] constexpr std::array<uint8_t, 4>
 pack_tcxo_params(quanta::electro::millivolts voltage, std::chrono::microseconds startup) noexcept {
     const uint32_t timeout_steps = duty_cycle_steps(startup);
@@ -226,8 +226,8 @@ struct image_cal_band {
 };
 
 /// Returns the CalibrateImage band bytes for a carrier frequency. Table 9-2
-/// "Image Calibration Over the ISM Bands" tabulates exact bytes per ISM band;
-/// frequencies outside a named band snap to the nearest documented band
+/// "Image Calibration Over the ISM Bands" tabulates exact bytes per ISM band.
+/// Frequencies outside a named band use the nearest documented band
 /// (CalibrateImage only needs to bracket the carrier). Bytes are from table 9-2.
 [[nodiscard]] constexpr image_cal_band calibrate_image_bytes(uint64_t hz) noexcept {
     const uint64_t mhz = hz / 1'000'000;

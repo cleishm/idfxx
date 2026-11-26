@@ -19,7 +19,7 @@ static constexpr auto WIFI_SSID = "MyNetwork";
 static constexpr auto WIFI_PASSWORD = "MyPassword";
 
 // Server certificate and private key are embedded via EMBED_TXTFILES.
-// The self-signed certs in certs/ are for demonstration only — replace
+// The self-signed certs in certs/ are for demonstration only. Replace
 // them with your own before deploying.
 extern const char server_crt_start[] asm("_binary_server_crt_start");
 extern const char server_crt_end[] asm("_binary_server_crt_end");
@@ -64,7 +64,7 @@ extern "C" void app_main() {
             }
         );
 
-        // --- Connect to WiFi ---
+        // --- Connect to Wi-Fi ---
         idfxx::wifi::init();
         idfxx::wifi::set_roles(idfxx::wifi::role::sta);
         idfxx::wifi::set_sta_config({

@@ -23,7 +23,7 @@ namespace idfxx::epaper {
  * @brief A 4-level grayscale pixel value.
  *
  * The value type written by @ref gray4_framebuffer::set_pixel. Levels run
- * from white paper to full black ink; a value-initialized `gray4{}` is white,
+ * from white paper to full black ink. A value-initialized `gray4{}` is white,
  * so generic drawing code that clears with a value-initialized pixel (e.g.
  * `idfxx::gfx::canvas::clear`) clears ePaper surfaces to blank paper.
  */
@@ -41,11 +41,11 @@ enum class gray4 : uint8_t {
  * The value type written by @ref color6_framebuffer::set_pixel. The
  * enumerators are the panel-native 4-bit pixel codes, so a framebuffer's
  * bytes stream to the controller unchanged. Note that, unlike @ref gray4, a
- * value-initialized `color6{}` is **black** (code 0), not white: generic
+ * value-initialized `color6{}` is **black** (code 0), not white. Generic
  * drawing code that clears with a value-initialized pixel (e.g. a windowed
  * `idfxx::gfx::canvas::clear`) inks the region black. Use
- * @ref color6_framebuffer::clear (or `fill(color6::white)`) to blank a whole
- * frame to paper.
+ * @ref color6_framebuffer::clear (or `fill(color6::white)`) to clear a whole
+ * frame to blank paper.
  */
 enum class color6 : uint8_t {
     black = 0x0,  ///< Black ink.

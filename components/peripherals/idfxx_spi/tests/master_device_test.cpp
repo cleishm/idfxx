@@ -298,7 +298,7 @@ TEST_CASE("master_device rejects rx_length exceeding buffer", "[idfxx][spi][hw]"
     std::array<std::byte, 1> rx{};
     transaction trans{};
     trans.rx_buffer = rx;
-    trans.length = 16; // 2 bytes worth — exceeds 8-bit rx_buffer capacity
+    trans.length = 16; // 2 bytes, which exceeds the 8-bit rx_buffer capacity
 
     auto res = device->try_transmit(trans);
     TEST_ASSERT_FALSE(res.has_value());
@@ -313,7 +313,7 @@ TEST_CASE("master_device rejects transaction length exceeding buffer", "[idfxx][
     uint8_t data[2] = {0x00, 0x00};
     transaction trans{};
     trans.tx_buffer = data;
-    trans.length = 17; // 3 bytes worth — exceeds 16-bit buffer capacity
+    trans.length = 17; // 3 bytes, which exceeds the 16-bit buffer capacity
 
     auto res = device->try_transmit(trans);
     TEST_ASSERT_FALSE(res.has_value());
@@ -426,9 +426,9 @@ TEST_CASE("master_device half-duplex receive derives its phase lengths", "[idfxx
     auto device = master_device::make(bus, dev_cfg);
     TEST_ASSERT_TRUE(device.has_value());
 
-    // Receive-only with just an rx_buffer: the derived length is 0 (the driver rejects a MOSI
-    // phase alongside the MISO phase on chips that can't combine them) and the derived rx_length
-    // covers the whole buffer
+    // Receive-only with just an rx_buffer. The derived length is 0, because on chips that can't
+    // combine them, the driver rejects a MOSI phase alongside the MISO phase. The derived
+    // rx_length covers the whole buffer
     std::array<uint8_t, 3> rx{};
     transaction trans{};
     trans.rx_buffer = rx;
@@ -480,8 +480,8 @@ TEST_CASE("master_device queue_trans/wait per-transaction", "[idfxx][spi][hw]") 
     TEST_ASSERT_TRUE(f2.has_value());
     TEST_ASSERT_TRUE(f2->valid());
 
-    // Wait for the second transaction first — cooperative retrieval should
-    // drain t1's completion and mark it done along the way.
+    // Wait for the second transaction first. While waiting, the shared
+    // retrieval should drain t1's completion and mark t1 done.
     TEST_ASSERT_TRUE(f2->try_wait().has_value());
     TEST_ASSERT_TRUE(f2->done());
     TEST_ASSERT_TRUE(f1->try_wait().has_value()); // should return immediately
@@ -506,9 +506,9 @@ TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi]
     auto device = master_device::make(bus, dev_cfg);
     TEST_ASSERT_TRUE(device.has_value());
 
-    // Build a vector of transactions; moving the vector around must be a no-op
-    // on the elements' addresses from queue_trans's perspective, because the
-    // transaction contents are copied into slots at submission time.
+    // Build a vector of transactions. Moving the vector must not affect
+    // queue_trans, because the transaction contents are copied into slots when
+    // they are submitted.
     uint8_t data[3][2] = {{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06}};
 
     std::vector<transaction> batch;
@@ -519,7 +519,7 @@ TEST_CASE("master_device transaction vector storage and queueing", "[idfxx][spi]
         batch.push_back(t);
     }
 
-    // Move the vector (reallocation-safe — transactions are value types now).
+    // Move the vector (reallocation-safe, because transactions are value types now).
     auto batch_moved = std::move(batch);
 
     std::vector<idfxx::future<void>> futures;
@@ -550,7 +550,7 @@ TEST_CASE("master_device future copy shares completion", "[idfxx][spi][hw]") {
     auto f_res = device->try_queue_trans(t);
     TEST_ASSERT_TRUE(f_res.has_value());
     auto f1 = std::move(*f_res);
-    auto f2 = f1; // copy — shares the slot
+    auto f2 = f1; // copy, which shares the slot
     TEST_ASSERT_TRUE(f1.valid());
     TEST_ASSERT_TRUE(f2.valid());
 
@@ -579,9 +579,9 @@ TEST_CASE("master_device dropped future slot is eventually reclaimed", "[idfxx][
     t2.tx_buffer = d2;
     t2.length = sizeof(d2) * 8;
 
-    // Queue two transactions, immediately drop the first future. The second
-    // future remains so we can wait on it and, in the process, cooperatively
-    // drain and reclaim the dropped future's slot too.
+    // Queue two transactions and immediately drop the first future. Keep the
+    // second future and wait on it. The wait also drains and reclaims the slot
+    // of the dropped future.
     {
         auto dropped = device->try_queue_trans(t1);
         TEST_ASSERT_TRUE(dropped.has_value());
@@ -593,8 +593,8 @@ TEST_CASE("master_device dropped future slot is eventually reclaimed", "[idfxx][
     TEST_ASSERT_TRUE(f2->try_wait().has_value());
 
     // Both slots should now be available. Queue (queue_size + 2) more
-    // transactions back-to-back with wait() between them to confirm no
-    // deadlock and no slot exhaustion.
+    // transactions, one after another with wait() between them, to confirm
+    // that there is no deadlock and no slot exhaustion.
     for (int i = 0; i < 4; ++i) {
         uint8_t byte = static_cast<uint8_t>(0x30 + i);
         transaction t{};
@@ -622,7 +622,8 @@ TEST_CASE("master_device destructor releases device", "[idfxx][spi]") {
 
 TEST_CASE("master_device try_lock succeeds when uncontended", "[idfxx][spi]") {
     // Regression: try_lock previously passed a finite timeout to
-    // spi_device_acquire_bus, which ESP-IDF rejects — it always returned false.
+    // spi_device_acquire_bus, which ESP-IDF rejects. try_lock then always
+    // returned false.
     auto bus = make_test_bus();
     auto device = master_device::make(bus, default_device_config());
     TEST_ASSERT_TRUE(device.has_value());

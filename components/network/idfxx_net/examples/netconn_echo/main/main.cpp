@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Netconn echo server demonstrating zero-copy segment walking.
-// Most callers should prefer the BSD socket API -- see the `tcp_echo_server`
-// example for the equivalent built on `idfxx::net::listener` and `socket`.
+// Netconn echo server that iterates over the received segments without copying
+// them. Most callers should prefer the BSD socket API. See the `tcp_echo_server`
+// example for the equivalent built on `idfxx::net::listener` and `stream_socket`.
 
 #include <idfxx/event>
 #include <idfxx/event_group>
@@ -53,8 +53,9 @@ extern "C" void app_main() {
             nc::stream_channel client = srv.accept();
             logger.info("Accepted connection");
 
-            // recv() returns a non-owning buffer (`!is_open()`) on graceful peer close.
-            // Walk segments without copying via segments(), echoing each one back.
+            // When the peer closes the connection gracefully, recv() returns a non-owning
+            // buffer (`!is_open()`). Iterate over segments() to read the data without
+            // copying it, and echo each segment back.
             while (true) {
                 nc::buffer buf = client.recv();
                 if (!buf.is_open()) {
@@ -79,9 +80,9 @@ extern "C" void app_main() {
 
 namespace {
 
-// Brings up the WiFi STA, blocks until DHCP assigns an IPv4 address, and
-// registers an auto-reconnect listener for the rest of the program's lifetime.
-// Returns the assigned address. Call once.
+// Starts the Wi-Fi station (STA) and blocks until DHCP assigns an IPv4 address.
+// Also registers a listener that reconnects automatically for the rest of the
+// program's lifetime. Returns the assigned address. Call once.
 idfxx::net::ipv4_addr connect_to_wifi() {
     idfxx::event_loop::create_system();
     idfxx::netif::init();
@@ -100,8 +101,8 @@ idfxx::net::ipv4_addr connect_to_wifi() {
     loop.listener_add(
         idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            // Listener runs in the event-loop trampoline (C frame); exceptions
-            // must not escape, so suppress at this boundary.
+            // The listener runs in the event-loop trampoline (a C frame).
+            // Exceptions must not escape it, so catch them at this boundary.
             try {
                 idfxx::wifi::connect();
             } catch (const std::system_error& e) {

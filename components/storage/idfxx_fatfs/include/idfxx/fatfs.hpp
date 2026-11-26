@@ -66,12 +66,12 @@ namespace idfxx::fatfs {
  * The values are FatFs's `FRESULT` codes. The disk drivers report every
  * error from the card or the wear-leveling layer to FatFs as a plain I/O
  * failure, so medium errors while mounting a filesystem or using its files
- * surface as `disk_err`. Only mounting and unmounting the wear-leveling
+ * are reported as `disk_err`. Only mounting and unmounting the wear-leveling
  * layer, registering with the virtual filesystem and the checks made on a
  * card before mounting report idfxx::errc values.
  *
  * Codes with a portable equivalent also compare equal to a `std::errc`
- * value; see error_category::default_error_condition().
+ * value. See error_category::default_error_condition().
  */
 enum class errc : esp_err_t {
     // clang-format off
@@ -92,7 +92,7 @@ enum class errc : esp_err_t {
     timeout             = FR_TIMEOUT,             /*!< Timed out waiting for access to the volume. */
     locked              = FR_LOCKED,              /*!< The file is locked by the file-sharing control. */
     /// A working buffer could not be allocated. Never returned by this component, which treats it
-    /// as out of memory (see fatfs_error()); present so that every FRESULT has a value.
+    /// as out of memory (see fatfs_error()). It is present so that every FRESULT has a value.
     not_enough_core     = FR_NOT_ENOUGH_CORE,
     too_many_open_files = FR_TOO_MANY_OPEN_FILES, /*!< Too many files are open. */
     invalid_parameter   = FR_INVALID_PARAMETER,   /*!< A parameter is invalid. */
@@ -153,8 +153,8 @@ public:
      *
      * @note This table is for code that handles fatfs::errc values. File
      *       operations through the C and POSIX APIs report their own `errno`
-     *       values, which ESP-IDF chooses: a write-protected volume, for
-     *       example, gives `EACCES` there, not `EROFS`.
+     *       values, which ESP-IDF chooses. For example, a write-protected
+     *       volume gives `EACCES` there, not `EROFS`.
      *
      * @param code The `errc` value to map.
      * @return The `std::error_condition` for `code`.
@@ -216,24 +216,24 @@ public:
  * @headerfile <idfxx/fatfs>
  * @brief Settings used when creating a filesystem.
  *
- * Used by volume::format(), and, as a volume configuration's `format`, by the
- * format a mount does when it finds no filesystem and `format_if_missing`
- * is set.
+ * Used by volume::format(). Also used, as a volume configuration's `format`,
+ * for the format that a mount does when it finds no filesystem and
+ * `format_if_missing` is set.
  *
  * @code
  * vol.format({.allocation_unit_size = 16 * 1024});
  * @endcode
  */
 struct format_options {
-    /// Size of an allocation unit (cluster) in bytes, or std::nullopt to let FatFs choose one from
+    /// Size of an allocation unit (cluster) in bytes, or std::nullopt for FatFs to choose one from
     /// the volume's size (one sector on small flash volumes, 32 KiB on cards of 2 GB or more). An
     /// explicit value must be a power of two from one sector to 128 sectors (512 bytes to 64 KiB on
-    /// an SD card; `CONFIG_WL_SECTOR_SIZE` to 128 times that on a flash partition), and is
-    /// otherwise rejected with idfxx::errc::invalid_arg before the medium is touched. Larger units
-    /// make large files faster to read and write, at the cost of more space for small files.
+    /// an SD card; `CONFIG_WL_SECTOR_SIZE` to 128 times that on a flash partition). Any other value
+    /// is rejected with idfxx::errc::invalid_arg before the medium is accessed. Larger units make
+    /// large files faster to read and write, but small files then use more space.
     std::optional<size_t> allocation_unit_size = std::nullopt;
-    /// Creates a single FAT instead of the usual two, which leaves more space for data but no copy
-    /// to recover from if the FAT is damaged.
+    /// Creates a single FAT instead of the usual two. This leaves more space for data, but there is
+    /// no copy to recover from if the FAT is damaged.
     bool use_one_fat = false;
 };
 
@@ -255,7 +255,7 @@ struct format_options {
  * @endcode
  *
  * A mount path must start with '/', not end with '/', and be at most 13
- * characters long; a path that breaks these rules is rejected with
+ * characters long. A path that breaks these rules is rejected with
  * `idfxx::errc::invalid_arg` before anything else is checked. Each volume
  * and image uses one of FatFs's `CONFIG_FATFS_VOLUME_COUNT` drives (2 by
  * default) while it is mounted.
@@ -265,16 +265,16 @@ struct format_options {
  * first is unmounted.
  *
  * Mounting and unmounting are serialized between all volumes and images.
- * File operations may be used from multiple tasks; FatFs serializes them per
+ * File operations may be used from multiple tasks. FatFs serializes them per
  * volume. free_size() may be called while another task formats the volume,
- * and waits for the format to finish; size() doesn't wait, and reports the
+ * and waits for the format to finish. size() doesn't wait, and reports the
  * size from before the format until the new filesystem is mounted.
  *
- * On an SD card, the volume does not own the card: the card must outlive the
- * volume, and its probe(), raw sector and erase operations must not be used
- * while the volume is mounted (its accessors, is_present() and
- * is_write_protected() may be). The card object may be moved while the volume
- * is mounted. A card that is removed is recovered by unmounting the volume,
+ * On an SD card, the volume does not own the card. The card must outlive the
+ * volume. The card's probe(), raw sector and erase operations must not be
+ * used while the volume is mounted, but its accessors, is_present() and
+ * is_write_protected() may be used. The card object may be moved while the
+ * volume is mounted. A card that is removed is recovered by unmounting the volume,
  * destroying the card object, creating a new one once a card is present, and
  * mounting the volume again.
  *
@@ -302,28 +302,28 @@ public:
     struct card_config {
         /// Maximum number of files open at once on this volume. Must be at least 1. Memory for this
         /// many open files is allocated when the volume is mounted, including a sector buffer for
-        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0):
-        /// each open file's buffer is then allocated when it is opened, and freed when it is
-        /// closed.
+        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0).
+        /// With that option enabled, each open file's buffer is allocated when the file is opened,
+        /// and freed when it is closed.
         size_t max_files = 5;
         /// When set, a mount that finds no recognizable FAT filesystem on the card (including a
         /// damaged boot sector, and an exFAT filesystem on a partitioned card, which is not
-        /// supported) formats the card with `format` and mounts it, losing the card's contents;
-        /// otherwise such a mount fails with fatfs::errc::no_filesystem. The card is given a
-        /// partition table with a single partition covering it. Read errors never cause a format;
-        /// the mount fails with fatfs::errc::disk_err instead. Damage beyond the boot sector (in
-        /// the FAT or a directory) isn't detected when mounting.
+        /// supported) formats the card with `format` and mounts it. The card's contents are lost.
+        /// When it is not set, such a mount fails with fatfs::errc::no_filesystem. The card is
+        /// given a partition table with a single partition covering it. Read errors never cause a
+        /// format. The mount fails with fatfs::errc::disk_err instead. Damage beyond the boot
+        /// sector (in the FAT or a directory) isn't detected when mounting.
         bool format_if_missing = false;
-        /// Settings for the format done when a mount finds no filesystem; unused unless
+        /// Settings for the format that is done when a mount finds no filesystem. Unused unless
         /// `format_if_missing` is set. An invalid `allocation_unit_size` is rejected with
-        /// idfxx::errc::invalid_arg even when it is not set.
+        /// idfxx::errc::invalid_arg even when `format_if_missing` is not set.
         format_options format = {};
         /// Checks that the card responds before each access, so that a removed card is reported as
-        /// not ready rather than as an I/O error: calls that take a path (`fopen()`, `stat()`,
-        /// `remove()`, `opendir()`, ...) then fail with `ENODEV`, volume::try_free_size() with
-        /// fatfs::errc::not_ready, and operations on a file or directory that is already open with
-        /// `EBADF`. Without it they fail with `EIO` (fatfs::errc::disk_err). Adds a command to
-        /// every access.
+        /// not ready rather than as an I/O error. With the check, calls that take a path
+        /// (`fopen()`, `stat()`, `remove()`, `opendir()`, ...) fail with `ENODEV`.
+        /// volume::try_free_size() fails with fatfs::errc::not_ready. Operations on a file or
+        /// directory that is already open fail with `EBADF`. Without the check, they fail with
+        /// `EIO` (fatfs::errc::disk_err). The check adds a command to every access.
         bool disk_status_check = false;
     };
 
@@ -338,20 +338,20 @@ public:
     struct flash_config {
         /// Maximum number of files open at once on this volume. Must be at least 1. Memory for this
         /// many open files is allocated when the volume is mounted, including a sector buffer for
-        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0):
-        /// each open file's buffer is then allocated when it is opened, and freed when it is
-        /// closed.
+        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0).
+        /// With that option enabled, each open file's buffer is allocated when the file is opened,
+        /// and freed when it is closed.
         size_t max_files = 5;
         /// When set, a mount that finds no recognizable FAT filesystem on the partition (for
         /// example, when it is erased, or its boot sector is damaged) formats the partition with
-        /// `format` and mounts it, losing the partition's contents; otherwise such a mount fails
-        /// with fatfs::errc::no_filesystem. Read errors never cause a format; the mount fails with
-        /// fatfs::errc::disk_err instead. Damage beyond the boot sector (in the FAT or a directory)
-        /// isn't detected when mounting.
+        /// `format` and mounts it. The partition's contents are lost. When it is not set, such a
+        /// mount fails with fatfs::errc::no_filesystem. Read errors never cause a format. The mount
+        /// fails with fatfs::errc::disk_err instead. Damage beyond the boot sector (in the FAT or a
+        /// directory) isn't detected when mounting.
         bool format_if_missing = false;
-        /// Settings for the format done when a mount finds no filesystem; unused unless
+        /// Settings for the format that is done when a mount finds no filesystem. Unused unless
         /// `format_if_missing` is set. An invalid `allocation_unit_size` is rejected with
-        /// idfxx::errc::invalid_arg even when it is not set.
+        /// idfxx::errc::invalid_arg even when `format_if_missing` is not set.
         format_options format = {};
     };
 
@@ -363,7 +363,7 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card, with the default configuration.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the volume. The card object may be moved while the volume is
      * mounted.
      *
@@ -383,7 +383,7 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the volume. The card object may be moved while the volume is
      * mounted.
      *
@@ -409,14 +409,14 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card, with the default configuration.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the volume. The card object may be moved while the volume is
      * mounted.
      *
      * @param card       An initialized card.
      * @param mount_path Where to mount the filesystem, for example "/sdcard".
      *
-     * @return The mounted volume, or an error; see
+     * @return The mounted volume, or an error. See
      *         make(sdcard::card&, std::string_view, const card_config&).
      */
     [[nodiscard]] static result<volume> make(sdcard::card& card, std::string_view mount_path);
@@ -430,10 +430,10 @@ public:
      * formatted first, erasing everything on it.
      *
      * A write-protected card (see sdcard::card::is_write_protected()) can't
-     * be mounted as a writable volume, and is rejected; mount it read-only
+     * be mounted as a writable volume, and is rejected. Mount it read-only
      * with fatfs::image instead.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the volume. The card object may be moved while the volume is
      * mounted.
      *
@@ -552,7 +552,7 @@ public:
      * @param part       A data partition of subtype fat.
      * @param mount_path Where to mount the filesystem, for example "/data".
      *
-     * @return The mounted volume, or an error; see
+     * @return The mounted volume, or an error. See
      *         make(const partition&, std::string_view, const flash_config&).
      */
     [[nodiscard]] static result<volume> make(const partition& part, std::string_view mount_path);
@@ -563,7 +563,7 @@ public:
      * The partition is accessed through ESP-IDF's wear-leveling layer, which
      * spreads writes over the partition's flash sectors and keeps its own
      * state in some of them. A partition written by `fatfs_create_spiflash_image()`
-     * holds a wear-leveled filesystem; one written by
+     * holds a wear-leveled filesystem. A partition written by
      * `fatfs_create_rawflash_image()` does not, and is mounted with
      * fatfs::image instead.
      *
@@ -604,7 +604,7 @@ public:
      * @param partition_label The label of a data partition of subtype fat.
      * @param mount_path      Where to mount the filesystem, for example "/data".
      *
-     * @return The mounted volume, or an error; see
+     * @return The mounted volume, or an error. See
      *         make(std::string_view, std::string_view, const flash_config&).
      */
     [[nodiscard]] static result<volume>
@@ -648,14 +648,14 @@ public:
     /**
      * @brief Unmounts the volume, if it is still mounted.
      *
-     * Errors are logged; use unmount() or try_unmount() first to handle them.
+     * Errors are logged. Use unmount() or try_unmount() first to handle them.
      */
     ~volume();
 
     volume(const volume&) = delete;
     volume& operator=(const volume&) = delete;
 
-    /** @brief Move constructor. Transfers the mount; the mount path and open files stay valid. */
+    /** @brief Move constructor. Transfers the mount. The mount path and open files stay valid. */
     volume(volume&& other) noexcept;
 
     /**
@@ -669,7 +669,7 @@ public:
     // =========================================================================
 
     /**
-     * @brief Returns the path the volume is mounted at.
+     * @brief Returns the path that the volume is mounted at.
      *
      * @return The mount path, for example "/sdcard".
      */
@@ -689,7 +689,7 @@ public:
      * @brief Returns the volume's FatFs filesystem object.
      *
      * For direct calls to FatFs functions that take a `FATFS*`. Valid until
-     * the volume is unmounted; after a format() whose remount failed, it
+     * the volume is unmounted. After a format() whose remount failed, it
      * holds no mounted filesystem.
      *
      * @return The filesystem object.
@@ -702,10 +702,10 @@ public:
      * The size of the data area: the total size of all clusters, used and
      * free. Determined each time the filesystem is mounted: when the volume
      * is created, and when format() mounts it again. After a format() whose
-     * remount fails, it still reports the size from before the format. Called
-     * while format() runs in another task, it doesn't wait for the format to
-     * finish: it returns the size from before the format until the new
-     * filesystem is mounted.
+     * remount fails, it still reports the size from before the format. If it
+     * is called while format() runs in another task, it doesn't wait for the
+     * format to finish. It returns the size from before the format until the
+     * new filesystem is mounted.
      *
      * @return The capacity in bytes.
      */
@@ -716,9 +716,9 @@ public:
      * @brief Returns the free space on the volume.
      *
      * The first call after mounting may scan the whole FAT, which can take a
-     * while on a large card; FatFs then keeps the free count up to date.
-     * Called while format() runs in another task, it waits for the format to
-     * finish.
+     * while on a large card. After that, FatFs keeps the free count up to
+     * date. If it is called while format() runs in another task, it waits for
+     * the format to finish.
      *
      * @return The free space in bytes.
      *
@@ -736,14 +736,14 @@ public:
      * @brief Returns the free space on the volume.
      *
      * The first call after mounting may scan the whole FAT, which can take a
-     * while on a large card; FatFs then keeps the free count up to date.
-     * Called while format() runs in another task, it waits for the format to
-     * finish.
+     * while on a large card. After that, FatFs keeps the free count up to
+     * date. If it is called while format() runs in another task, it waits for
+     * the format to finish.
      *
      * @return The free space in bytes, or an error.
      * @retval fatfs::errc::disk_err A read on the medium failed.
-     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed);
-     *         reported this way only with `card_config::disk_status_check`.
+     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed).
+     *         Reported this way only with `card_config::disk_status_check`.
      * @retval fatfs::errc::not_enabled A format() whose remount failed left the volume without a
      *         mounted filesystem.
      */
@@ -760,14 +760,14 @@ public:
      * The volume stays mounted at the same path, empty. On an SD card, the
      * card is first given a partition table with a single partition covering
      * it. All files and directories on the volume must be closed first, and
-     * no other task may use the volume's files while it is formatted;
-     * free_size() waits for it to finish, while size() returns at once.
+     * no other task may use the volume's files while it is formatted.
+     * free_size() waits for the format to finish, but size() returns at once.
      *
      * If formatting fails, the volume is mounted again with whatever the
-     * medium then holds; if that fails too, file operations on the volume
-     * fail (and try_free_size() reports fatfs::errc::not_enabled) until it is
-     * unmounted or formatted successfully, and size() still reports the size
-     * from before the format.
+     * medium then holds. If that mount also fails, file operations on the
+     * volume fail (and try_free_size() reports fatfs::errc::not_enabled) until
+     * the volume is unmounted or formatted successfully. size() then still
+     * reports the size from before the format.
      *
      * @param opts Settings for the new filesystem.
      *
@@ -787,14 +787,14 @@ public:
      * The volume stays mounted at the same path, empty. On an SD card, the
      * card is first given a partition table with a single partition covering
      * it. All files and directories on the volume must be closed first, and
-     * no other task may use the volume's files while it is formatted;
-     * free_size() waits for it to finish, while size() returns at once.
+     * no other task may use the volume's files while it is formatted.
+     * free_size() waits for the format to finish, but size() returns at once.
      *
      * If formatting fails, the volume is mounted again with whatever the
-     * medium then holds; if that fails too, file operations on the volume
-     * fail (and try_free_size() reports fatfs::errc::not_enabled) until it is
-     * unmounted or formatted successfully, and size() still reports the size
-     * from before the format.
+     * medium then holds. If that mount also fails, file operations on the
+     * volume fail (and try_free_size() reports fatfs::errc::not_enabled) until
+     * the volume is unmounted or formatted successfully. size() then still
+     * reports the size from before the format.
      *
      * @param opts Settings for the new filesystem.
      *
@@ -814,7 +814,7 @@ public:
     /**
      * @brief Unmounts the volume.
      *
-     * The destructor unmounts the volume otherwise; unmounting explicitly
+     * The destructor unmounts the volume otherwise. Unmounting explicitly
      * reports errors that the destructor can only log, notably a failure to
      * save the wear-leveling state of a flash partition. The volume is
      * unmounted even when an error is reported. All files on the volume must
@@ -835,7 +835,7 @@ public:
     /**
      * @brief Unmounts the volume.
      *
-     * The destructor unmounts the volume otherwise; unmounting explicitly
+     * The destructor unmounts the volume otherwise. Unmounting explicitly
      * reports errors that the destructor can only log, notably a failure to
      * save the wear-leveling state of a flash partition. The volume is
      * unmounted even when an error is reported. All files on the volume must
@@ -878,8 +878,8 @@ public:
      *
      * `<HASH>` is the FNV-1a 32-bit hash of the last component of @p path,
      * with ASCII letters folded to uppercase first, as 8 uppercase hex
-     * digits: 8.3 names, valid with or without long file names. If writing
-     * the new contents fails, the temporary file is removed and the file at
+     * digits. The names are 8.3 names, which are valid with or without long
+     * file names. If writing the new contents fails, the temporary file is removed and the file at
      * @p path is left as it was. If a rename or removal fails, the files are
      * left as a reset at that point would leave them, for recover_file() to
      * finish or discard the replace.
@@ -889,10 +889,11 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @param path     The file's path, under mount_path(): for example "/sdcard/config.json".
      * @param contents The new contents.
@@ -955,8 +956,8 @@ public:
      * replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If reading
      * @p source or writing the new contents fails, the temporary file is
-     * removed and the file at @p path is left as it was; so it is when the
-     * source's `try_read()` throws (for example, std::bad_alloc), and the
+     * removed and the file at @p path is left as it was. The same happens when
+     * the source's `try_read()` throws (for example, std::bad_alloc), and the
      * exception then propagates. If a rename or removal fails, the files are
      * left as a reset at that point would leave them, for recover_file() to
      * finish or discard the replace.
@@ -966,10 +967,11 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @tparam Source The byte source type.
      * @param path   The file's path, under mount_path(): for example "/sdcard/config.json".
@@ -1004,11 +1006,11 @@ public:
      * file, for each file replaced this way.
      *
      * @p writer may call `setvbuf()` before writing, but must not close the
-     * file. It returns success, or an error to abandon the replace: the
-     * temporary file is then removed, the file at @p path is left as it was,
-     * and the error is returned. A write that fails without @p writer
-     * reporting it is caught by the stream's error indicator (`ferror()`),
-     * and also abandons the replace. If @p writer throws, the temporary file
+     * file. It returns success, or an error to abandon the replace. On an
+     * error, the temporary file is removed, the file at @p path is left as it
+     * was, and the error is returned. If a write fails and @p writer does not
+     * report it, the failure is detected through the stream's error indicator
+     * (`ferror()`), and the replace is also abandoned. If @p writer throws, the temporary file
      * is removed and the exception propagates. No lock is held while
      * @p writer runs, so it may call free_size(), for example.
      *
@@ -1025,14 +1027,15 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @tparam Writer A callable type, invocable with a `FILE*` and returning idfxx::result<void>.
      * @param path   The file's path, under mount_path(): for example "/sdcard/config.json".
-     * @param writer Writes the new contents to the `FILE*` it is given.
+     * @param writer Writes the new contents to the `FILE*` that it is given.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for
@@ -1076,8 +1079,8 @@ public:
      *
      * `<HASH>` is the FNV-1a 32-bit hash of the last component of @p path,
      * with ASCII letters folded to uppercase first, as 8 uppercase hex
-     * digits: 8.3 names, valid with or without long file names. If writing
-     * the new contents fails, the temporary file is removed and the file at
+     * digits. The names are 8.3 names, which are valid with or without long
+     * file names. If writing the new contents fails, the temporary file is removed and the file at
      * @p path is left as it was. If a rename or removal fails, the files are
      * left as a reset at that point would leave them, for recover_file() to
      * finish or discard the replace.
@@ -1087,10 +1090,11 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @param path     The file's path, under mount_path(): for example "/sdcard/config.json".
      * @param contents The new contents.
@@ -1107,8 +1111,8 @@ public:
      * @retval errno An error in `std::generic_category()` holding the `errno` from creating,
      *         writing or closing the temporary file: for example `ENOSPC` when the volume is full.
      * @retval fatfs::errc::disk_err A read or write on the medium failed.
-     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed);
-     *         reported this way only with `card_config::disk_status_check`.
+     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed).
+     *         Reported this way only with `card_config::disk_status_check`.
      * @retval fatfs::errc::not_enabled A format() whose remount failed left the volume without a
      *         mounted filesystem.
      */
@@ -1135,7 +1139,7 @@ public:
      * @param path The file's path, under mount_path(): for example "/sdcard/config.json".
      * @param text The new contents.
      *
-     * @return Success, or an error; see
+     * @return Success, or an error. See
      *         try_replace_file(std::string_view, byte_view).
      */
     [[nodiscard]] result<void> try_replace_file(std::string_view path, std::string_view text);
@@ -1156,8 +1160,8 @@ public:
      * try_replace_file(std::string_view, byte_view), through
      * `<HASH>.~RT` and `<HASH>.~RN` in the same directory. If reading
      * @p source or writing the new contents fails, the temporary file is
-     * removed and the file at @p path is left as it was; so it is when the
-     * source's `try_read()` throws (for example, std::bad_alloc), and the
+     * removed and the file at @p path is left as it was. The same happens when
+     * the source's `try_read()` throws (for example, std::bad_alloc), and the
      * exception then propagates. If a rename or removal fails, the files are
      * left as a reset at that point would leave them, for recover_file() to
      * finish or discard the replace.
@@ -1167,10 +1171,11 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @tparam Source The byte source type.
      * @param path   The file's path, under mount_path(): for example "/sdcard/config.json".
@@ -1199,11 +1204,11 @@ public:
      * file, for each file replaced this way.
      *
      * @p writer may call `setvbuf()` before writing, but must not close the
-     * file. It returns success, or an error to abandon the replace: the
-     * temporary file is then removed, the file at @p path is left as it was,
-     * and the error is returned. A write that fails without @p writer
-     * reporting it is caught by the stream's error indicator (`ferror()`),
-     * and also abandons the replace. If @p writer throws, the temporary file
+     * file. It returns success, or an error to abandon the replace. On an
+     * error, the temporary file is removed, the file at @p path is left as it
+     * was, and the error is returned. If a write fails and @p writer does not
+     * report it, the failure is detected through the stream's error indicator
+     * (`ferror()`), and the replace is also abandoned. If @p writer throws, the temporary file
      * is removed and the exception propagates. No lock is held while
      * @p writer runs, so it may call try_free_size(), for example.
      *
@@ -1220,18 +1225,19 @@ public:
      * replacing the same path from two tasks at once is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @tparam Writer A callable type, invocable with a `FILE*` and returning idfxx::result<void>.
      * @param path   The file's path, under mount_path(): for example "/sdcard/config.json".
-     * @param writer Writes the new contents to the `FILE*` it is given.
+     * @param writer Writes the new contents to the `FILE*` that it is given.
      *
-     * @return Success, or an error: the error @p writer returned, an error in
-     *         `std::generic_category()` holding the `errno` for a write it didn't report, or one of
-     *         those listed for try_replace_file(std::string_view, byte_view).
+     * @return Success, or an error: the error that @p writer returned, an error in
+     *         `std::generic_category()` holding the `errno` for a write that it didn't report, or
+     *         one of those listed for try_replace_file(std::string_view, byte_view).
      */
     template<typename Writer>
         requires std::is_invocable_r_v<result<void>, Writer&, FILE*>
@@ -1245,11 +1251,11 @@ public:
      * @brief Finishes or discards a replace of a file that a reset interrupted.
      *
      * Completes or undoes a replace_file() of @p path that a reset stopped
-     * part-way, so that the file holds either its old contents or the new:
-     * if the new contents were complete (`<HASH>.~RN` exists), removes the
-     * file at @p path, if there is one, and renames `<HASH>.~RN` to @p path;
-     * then removes `<HASH>.~RT`, if present, which may be incomplete. The
-     * names are those described for
+     * part-way, so that the file holds either its old contents or the new.
+     * If the new contents were complete (`<HASH>.~RN` exists), it removes the
+     * file at @p path, if there is one, and renames `<HASH>.~RN` to @p path.
+     * It then removes `<HASH>.~RT`, if present, because that file may be
+     * incomplete. The names are those described for
      * replace_file(std::string_view, byte_view). Does nothing
      * when there is nothing to recover, including when the directory doesn't
      * exist. Running it again after a reset part-way through it is safe.
@@ -1260,10 +1266,11 @@ public:
      * replaced, is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @param path The file's path, under mount_path(): for example "/sdcard/config.json".
      *
@@ -1284,10 +1291,10 @@ public:
      *
      * Completes or undoes a try_replace_file() of @p path that a reset
      * stopped part-way, so that the file holds either its old contents or the
-     * new: if the new contents were complete (`<HASH>.~RN` exists), removes
+     * new. If the new contents were complete (`<HASH>.~RN` exists), it removes
      * the file at @p path, if there is one, and renames `<HASH>.~RN` to
-     * @p path; then removes `<HASH>.~RT`, if present, which may be
-     * incomplete. The names are those described for
+     * @p path. It then removes `<HASH>.~RT`, if present, because that file may
+     * be incomplete. The names are those described for
      * try_replace_file(std::string_view, byte_view). Does
      * nothing when there is nothing to recover, including when the directory
      * doesn't exist. Running it again after a reset part-way through it is
@@ -1299,10 +1306,11 @@ public:
      * it is replaced, is not supported.
      *
      * @warning A reset in the middle of one of the renames can corrupt the file when FatFs places
-     *          the new directory entry in a different sector from the old one: it writes the new
-     *          entry and then removes the old one, so a reset between the two writes leaves both
-     *          names on the same data, and removing either one (as recovery does) frees data the
-     *          other still uses. FAT can't detect or repair this short of a filesystem check.
+     *          the new directory entry in a different sector from the old one. FatFs writes the
+     *          new entry and then removes the old one. A reset between the two writes leaves both
+     *          names on the same data. Removing either name (as recovery does) then frees data
+     *          that the other name still uses. FAT can't detect or repair this without a
+     *          filesystem check.
      *
      * @param path The file's path, under mount_path(): for example "/sdcard/config.json".
      *
@@ -1313,8 +1321,8 @@ public:
      * @retval fatfs::errc::denied The new contents are complete, but the file at @p path can't be
      *         removed (it is read-only, or a directory that isn't empty).
      * @retval fatfs::errc::disk_err A read or write on the medium failed.
-     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed);
-     *         reported this way only with `card_config::disk_status_check`.
+     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed).
+     *         Reported this way only with `card_config::disk_status_check`.
      * @retval fatfs::errc::not_enabled A format() whose remount failed left the volume without a
      *         mounted filesystem.
      */
@@ -1326,8 +1334,8 @@ private:
     explicit volume(std::unique_ptr<state> s) noexcept;
 
     // Type-erased byte sources and writers for the replace_file() templates, which pass them to the
-    // implementation: each is a callable of type F, passed as a void* with a function that calls
-    // it.
+    // implementation. Each is a callable of type F, passed as a void* together with a function that
+    // calls it.
     using read_fn = result<size_t> (*)(void* source, byte_span buf);
     using write_fn = result<void> (*)(void* writer, FILE* file);
 
@@ -1355,9 +1363,9 @@ private:
  * @brief A mounted, read-only FAT volume on a flash partition or an SD card.
  *
  * On a flash partition, the image is a prebuilt one, read directly from the
- * partition without wear leveling: typically generated at build time from a
- * directory of files with `fatfs_create_rawflash_image()` and flashed with
- * the app.
+ * partition without wear leveling. It is typically generated at build time
+ * from a directory of files with `fatfs_create_rawflash_image()`, and
+ * flashed with the app.
  *
  * @code
  * // CMakeLists.txt: fatfs_create_rawflash_image(assets ../assets FLASH_IN_PROJECT)
@@ -1367,8 +1375,8 @@ private:
  *
  * On an SD card, the image is the card's own FAT filesystem, and nothing is
  * written to the card. A write-protected card (see
- * sdcard::card::is_write_protected()), which volume refuses, mounts as an
- * image like any other.
+ * sdcard::card::is_write_protected()) is rejected by volume, but mounts as
+ * an image like any other card.
  *
  * @code
  * idfxx::fatfs::image photos(card, "/sdcard");
@@ -1377,7 +1385,7 @@ private:
  *
  * Opening a file for writing, and creating, removing or renaming files or
  * directories, fail with `EACCES` (FatFs reports the image as
- * write-protected): `fopen()` with a writing mode returns NULL, and the POSIX
+ * write-protected). `fopen()` with a writing mode returns NULL, and the POSIX
  * calls return -1.
  *
  * Mount paths follow the same rules as for volume, and an image uses one of
@@ -1386,11 +1394,11 @@ private:
  * mounted on it at a time: a second mount fails with
  * `idfxx::errc::invalid_state` until the first is unmounted.
  *
- * On an SD card, the image does not own the card: the card must outlive the
- * image, and its probe(), raw sector and erase operations must not be used
- * while the image is mounted (its accessors, is_present() and
- * is_write_protected() may be). The card object may be moved while the image
- * is mounted. A card that is removed is recovered by unmounting the image,
+ * On an SD card, the image does not own the card. The card must outlive the
+ * image. The card's probe(), raw sector and erase operations must not be
+ * used while the image is mounted, but its accessors, is_present() and
+ * is_write_protected() may be used. The card object may be moved while the
+ * image is mounted. A card that is removed is recovered by unmounting the image,
  * destroying the card object, creating a new one once a card is present, and
  * mounting the image again.
  *
@@ -1414,16 +1422,16 @@ public:
     struct card_config {
         /// Maximum number of files open at once on this image. Must be at least 1. Memory for this
         /// many open files is allocated when the image is mounted, including a sector buffer for
-        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0):
-        /// each open file's buffer is then allocated when it is opened, and freed when it is
-        /// closed.
+        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0).
+        /// With that option enabled, each open file's buffer is allocated when the file is opened,
+        /// and freed when it is closed.
         size_t max_files = 5;
         /// Checks that the card responds before each access, so that a removed card is reported as
-        /// not ready rather than as an I/O error: calls that take a path (`fopen()`, `stat()`,
-        /// `opendir()`, ...) then fail with `ENODEV`, image::try_free_size() with
-        /// fatfs::errc::not_ready, and operations on a file or directory that is already open with
-        /// `EBADF`. Without it they fail with `EIO` (fatfs::errc::disk_err). Adds a command to
-        /// every access.
+        /// not ready rather than as an I/O error. With the check, calls that take a path
+        /// (`fopen()`, `stat()`, `opendir()`, ...) fail with `ENODEV`. image::try_free_size()
+        /// fails with fatfs::errc::not_ready. Operations on a file or directory that is already
+        /// open fail with `EBADF`. Without the check, they fail with `EIO`
+        /// (fatfs::errc::disk_err). The check adds a command to every access.
         bool disk_status_check = false;
     };
 
@@ -1438,9 +1446,9 @@ public:
     struct flash_config {
         /// Maximum number of files open at once on this image. Must be at least 1. Memory for this
         /// many open files is allocated when the image is mounted, including a sector buffer for
-        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0):
-        /// each open file's buffer is then allocated when it is opened, and freed when it is
-        /// closed.
+        /// each, unless `CONFIG_FATFS_USE_DYN_BUFFERS` is enabled (the default from ESP-IDF 6.0).
+        /// With that option enabled, each open file's buffer is allocated when the file is opened,
+        /// and freed when it is closed.
         size_t max_files = 5;
     };
 
@@ -1452,7 +1460,7 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card read-only, with the default configuration.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the image. The card object may be moved while the image is
      * mounted.
      *
@@ -1472,7 +1480,7 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card read-only.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the image. The card object may be moved while the image is
      * mounted.
      *
@@ -1498,14 +1506,14 @@ public:
     /**
      * @brief Mounts the FAT filesystem on an SD card read-only, with the default configuration.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the image. The card object may be moved while the image is
      * mounted.
      *
      * @param card       An initialized card.
      * @param mount_path Where to mount the filesystem, for example "/sdcard".
      *
-     * @return The mounted image, or an error; see
+     * @return The mounted image, or an error. See
      *         make(sdcard::card&, std::string_view, const card_config&).
      */
     [[nodiscard]] static result<image> make(sdcard::card& card, std::string_view mount_path);
@@ -1517,7 +1525,7 @@ public:
      * does, but never writes to the card or formats it. A write-protected
      * card (see sdcard::card::is_write_protected()) mounts like any other.
      *
-     * Does not take ownership of @p card: the caller must ensure that the card
+     * Does not take ownership of @p card. The caller must ensure that the card
      * outlives the image. The card object may be moved while the image is
      * mounted.
      *
@@ -1627,7 +1635,7 @@ public:
      * @param part       A data partition of subtype fat, holding a FAT image.
      * @param mount_path Where to mount the image, for example "/assets".
      *
-     * @return The mounted image, or an error; see
+     * @return The mounted image, or an error. See
      *         make(const partition&, std::string_view, const flash_config&).
      */
     [[nodiscard]] static result<image> make(const partition& part, std::string_view mount_path);
@@ -1635,7 +1643,7 @@ public:
     /**
      * @brief Mounts a FAT image on a flash partition.
      *
-     * The image's sector size must be one FatFs is configured for: between
+     * The image's sector size must be one that FatFs is configured for: between
      * 512 bytes and `CONFIG_WL_SECTOR_SIZE` (4096 by default).
      * `fatfs_create_rawflash_image()` uses `CONFIG_FATFS_SECTOR_SIZE` (4096 by
      * default).
@@ -1654,13 +1662,13 @@ public:
      *         full (`CONFIG_VFS_MAX_COUNT`, 8 by default).
      * @retval fatfs::errc::no_filesystem The partition holds no FAT image.
      * @retval fatfs::errc::disk_err A read on the partition failed, or the partition does not start
-     *         with a sector size FatFs supports: an erased partition, or an image with an
+     *         with a sector size that FatFs supports: an erased partition, or an image with an
      *         unsupported sector size.
      *
      * @warning A partition holding a wear-leveled filesystem (one used by volume) is not reliably
-     *          detected. On a freshly formatted one, the mount fails with fatfs::errc::disk_err;
-     *          once wear leveling has moved its dummy sector, the mount can succeed and read
-     *          corrupt data.
+     *          detected. On a freshly formatted one, the mount fails with fatfs::errc::disk_err.
+     *          Once wear leveling has moved its dummy sector, the mount can succeed, and corrupt
+     *          data is then read.
      */
     [[nodiscard]] static result<image>
     make(const partition& part, std::string_view mount_path, const flash_config& cfg);
@@ -1672,7 +1680,7 @@ public:
      * @param partition_label The label of a data partition of subtype fat, holding a FAT image.
      * @param mount_path      Where to mount the image, for example "/assets".
      *
-     * @return The mounted image, or an error; see
+     * @return The mounted image, or an error. See
      *         make(std::string_view, std::string_view, const flash_config&).
      */
     [[nodiscard]] static result<image>
@@ -1702,7 +1710,7 @@ public:
      *         full (`CONFIG_VFS_MAX_COUNT`, 8 by default).
      * @retval fatfs::errc::no_filesystem The partition holds no FAT image.
      * @retval fatfs::errc::disk_err A read on the partition failed, or the partition does not start
-     *         with a sector size FatFs supports: an erased partition, or an image with an
+     *         with a sector size that FatFs supports: an erased partition, or an image with an
      *         unsupported sector size.
      */
     [[nodiscard]] static result<image>
@@ -1716,7 +1724,7 @@ public:
     image(const image&) = delete;
     image& operator=(const image&) = delete;
 
-    /** @brief Move constructor. Transfers the mount; the mount path and open files stay valid. */
+    /** @brief Move constructor. Transfers the mount. The mount path and open files stay valid. */
     image(image&& other) noexcept;
 
     /**
@@ -1730,7 +1738,7 @@ public:
     // =========================================================================
 
     /**
-     * @brief Returns the path the image is mounted at.
+     * @brief Returns the path that the image is mounted at.
      *
      * @return The mount path, for example "/assets".
      */
@@ -1789,8 +1797,8 @@ public:
      *
      * @return The unused space in bytes, or an error.
      * @retval fatfs::errc::disk_err A read on the medium failed.
-     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed);
-     *         reported this way only with `card_config::disk_status_check`.
+     * @retval fatfs::errc::not_ready The card did not respond (for example, it was removed).
+     *         Reported this way only with `card_config::disk_status_check`.
      */
     [[nodiscard]] result<uint64_t> try_free_size() const;
 

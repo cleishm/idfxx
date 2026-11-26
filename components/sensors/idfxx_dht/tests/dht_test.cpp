@@ -48,7 +48,7 @@ rmt_symbol_word_t sym(uint16_t low_us, uint16_t high_us, uint16_t level1 = 1) {
     return s;
 }
 
-// Builds a full capture as the driver sees it: the tail of the host's own
+// Builds a full capture as the driver receives it: the tail of the host's own
 // start pulse, the sensor's response preamble, 40 data bits (MSB first), and
 // the sensor's closing low.
 std::vector<rmt_symbol_word_t> frame_symbols(const std::array<uint8_t, 5>& bytes, bool include_start = true) {
@@ -70,10 +70,10 @@ constexpr std::array<uint8_t, 5> checksummed(uint8_t b0, uint8_t b1, uint8_t b2,
 }
 
 // The same frame with the opposite capture phase, as observed on the XIAO
-// ESP32-S3 (gate bring-up, 2026-07-05): RMT RX started while the host's
+// ESP32-S3 (gate bring-up, 2026-07-05). RMT RX started while the host's
 // start pulse still held the line low, so every symbol is a (high, low)
-// pair — e.g. the response preamble's 80 us high lands in the same symbol
-// as the first bit's 50 us low.
+// pair. For example, the response preamble's 80 us high is in the same
+// symbol as the first bit's 50 us low.
 std::vector<rmt_symbol_word_t> frame_symbols_high_first(const std::array<uint8_t, 5>& bytes) {
     auto hl = [](uint16_t high_us, uint16_t low_us, uint16_t level1 = 0) {
         rmt_symbol_word_t s{};
@@ -155,7 +155,7 @@ TEST_CASE("dht decode_frame reports timeout when no preamble (sensor silent)", "
 TEST_CASE("dht decode_frame rejects a malformed bit symbol", "[idfxx][dht]") {
     const auto bytes = checksummed(0x02, 0x8C, 0x00, 0xED);
     auto capture = frame_symbols(bytes);
-    capture[10] = sym(150, 150); // way out of bit range
+    capture[10] = sym(150, 150); // far outside the bit range
     auto decoded = decode::decode_frame(capture);
     TEST_ASSERT_FALSE(decoded.has_value());
     TEST_ASSERT_TRUE(decoded.error() == idfxx::errc::invalid_response);

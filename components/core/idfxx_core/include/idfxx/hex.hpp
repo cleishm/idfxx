@@ -64,7 +64,7 @@ struct hex_options {
  *
  * A lightweight, non-owning value that refers to a byte buffer and the @ref hex_options to render
  * it with. Pass it to `std::format` or `idfxx::to_string` to produce the text. Each byte becomes
- * two hex digits, most significant digit first, in buffer order; an empty buffer renders as empty
+ * two hex digits, most significant digit first, in buffer order. An empty buffer renders as empty
  * text.
  *
  * The bytes and the separator are referenced, not copied: both must outlive every use of the
@@ -73,7 +73,7 @@ struct hex_options {
  *
  * With `CONFIG_IDFXX_STD_FORMAT` enabled, `std::format` accepts the standard fill, alignment and
  * width options for strings (for example `{:>20}`), applied to the text as a whole. Precision and
- * the debug (`?`) presentation are rejected, since they would cut or quote the digits. Letter
+ * the debug (`?`) presentation are rejected, since they would shorten or quote the digits. Letter
  * case and separator are chosen through @ref hex_options, not the format spec.
  *
  * @code
@@ -158,9 +158,9 @@ constexpr OutputIt write_hex(hex h, OutputIt out) {
 #include <iterator>
 namespace std {
 
-// Accepts the standard fill, align and width spec for strings, applied to the whole text, and
-// rejects anything else (precision or '?' would cut or quote the digits). Without a spec, the
-// digits are written straight to the output.
+// Accepts the standard fill, align and width spec for strings, applied to the whole text.
+// Rejects anything else, because precision or '?' would shorten or quote the digits. Without a
+// spec, the digits are written straight to the output.
 template<>
 struct formatter<idfxx::hex> {
     std::formatter<std::string_view> _underlying;
@@ -215,7 +215,7 @@ private:
     static constexpr const char* _spec_error =
         "idfxx::hex accepts only fill, align and width in its format spec";
 
-    // Not constexpr: reaching it while checking a format string at compile time is a compile
+    // Not constexpr: calling it while checking a format string at compile time is a compile
     // error.
     [[noreturn]] static void _reject(const char* message) {
 #if __cpp_exceptions

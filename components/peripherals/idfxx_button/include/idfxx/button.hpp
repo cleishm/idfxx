@@ -104,7 +104,7 @@ public:
         bool enable_pull = true;
         /// Enable autorepeat (disables long press)
         bool autorepeat = false;
-        /// Debounce delay
+        /// Debounce dead time
         std::chrono::microseconds dead_time{std::chrono::milliseconds{50}};
         /// Long press threshold
         std::chrono::microseconds long_press_time{std::chrono::milliseconds{1000}};

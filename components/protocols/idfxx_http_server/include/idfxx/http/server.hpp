@@ -159,9 +159,9 @@ public:
     /**
      * @brief Creates an error status from a constant status code.
      *
-     * Evaluated at compile time; a status code the server cannot pass to an
-     * error handler fails to compile. Use from() for a status code known only
-     * at run time.
+     * Evaluated at compile time. A status code that the server cannot pass to
+     * an error handler fails to compile. Use from() for a status code known
+     * only at run time.
      *
      * @param code The status code.
      */
@@ -204,7 +204,7 @@ private:
     constexpr error_status(status_code code, checked) noexcept
         : _code(code) {}
 
-    // The single list of status codes the server can pass to an error handler
+    // The single list of status codes that the server can pass to an error handler
     [[nodiscard]] static constexpr bool _is_error_status(status_code code) noexcept {
         switch (code) {
         case status_code::bad_request:
@@ -226,7 +226,7 @@ private:
         }
     }
 
-    // Deliberately not constexpr: reaching it in the consteval constructor
+    // Deliberately not constexpr. A call to it in the consteval constructor
     // makes a status code that is not an error status a compile error.
     static void _not_an_error_status();
 
@@ -242,7 +242,8 @@ private:
  * (headers, query parameters, body) and sending responses.
  *
  * This class must not outlive the handler invocation. It is non-copyable
- * and non-movable to prevent accidental use-after-callback.
+ * and non-movable to prevent accidental use of the request after the handler
+ * returns.
  */
 class request {
 public:
@@ -319,8 +320,8 @@ public:
      *
      * Blocks until some body data has been received, then reads up to
      * `buf.size()` bytes into the front of @p buf. Fewer bytes may be read
-     * than requested even before the end of the body; keep reading until 0 is
-     * returned. The body ends after content_length() bytes; if the connection
+     * than requested even before the end of the body. Keep reading until 0 is
+     * returned. The body ends after content_length() bytes. If the connection
      * closes before then, the read fails instead. The request is an
      * idfxx::byte_source, so the body can be passed to code that consumes any
      * byte stream.
@@ -380,8 +381,8 @@ public:
      *
      * Blocks until some body data has been received, then reads up to
      * `buf.size()` bytes into the front of @p buf. Fewer bytes may be read
-     * than requested even before the end of the body; keep reading until 0 is
-     * returned. The body ends after content_length() bytes; if the connection
+     * than requested even before the end of the body. Keep reading until 0 is
+     * returned. The body ends after content_length() bytes. If the connection
      * closes before then, the read fails instead. The request is an
      * idfxx::byte_source, so the body can be passed to code that consumes any
      * byte stream.
@@ -432,7 +433,7 @@ public:
      * @brief Sets the HTTP response status line.
      *
      * The string must be in the format "NNN Reason Phrase" (e.g. "200 OK").
-     * It is copied internally and kept alive until the response is sent.
+     * It is copied internally and the copy is kept until the response is sent.
      *
      * @param status The status string (e.g. "200 OK").
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -445,7 +446,7 @@ public:
      * @brief Sets the HTTP response status line.
      *
      * The string must be in the format "NNN Reason Phrase" (e.g. "200 OK").
-     * It is copied internally and kept alive until the response is sent.
+     * It is copied internally and the copy is kept until the response is sent.
      *
      * @param status The status string (e.g. "200 OK").
      * @return Success, or an error.
@@ -468,7 +469,7 @@ public:
     /**
      * @brief Sets the Content-Type response header.
      *
-     * The string is copied internally and kept alive until the response is sent.
+     * The string is copied internally and the copy is kept until the response is sent.
      *
      * @param content_type The MIME type string (e.g. "application/json").
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -483,7 +484,7 @@ public:
     /**
      * @brief Sets the Content-Type response header.
      *
-     * The string is copied internally and kept alive until the response is sent.
+     * The string is copied internally and the copy is kept until the response is sent.
      *
      * @param content_type The MIME type string (e.g. "application/json").
      * @return Success, or an error.
@@ -496,8 +497,8 @@ public:
     /**
      * @brief Adds a response header.
      *
-     * Both field and value are copied internally and kept alive until the
-     * response is sent. A response holds at most the server's
+     * Both field and value are copied internally and the copies are kept until
+     * the response is sent. A response holds at most the server's
      * `max_resp_headers` headers added this way.
      *
      * @code
@@ -519,8 +520,8 @@ public:
     /**
      * @brief Adds a response header.
      *
-     * Both field and value are copied internally and kept alive until the
-     * response is sent. A response holds at most the server's
+     * Both field and value are copied internally and the copies are kept until
+     * the response is sent. A response holds at most the server's
      * `max_resp_headers` headers added this way.
      *
      * @param field Header name: one or more letters, digits or any of
@@ -688,9 +689,9 @@ public:
      * @brief Responds to this request with an error, using the server's error handler for it.
      *
      * Calls the handler registered with server::on_error() for @p status, if
-     * any, with this request; otherwise sends the default error response for
-     * @p status. The response is complete after the call, so send nothing
-     * further.
+     * any, with this request. If no handler is registered, sends the default
+     * error response for @p status. The response is complete after the call,
+     * so send nothing further.
      *
      * The connection is closed once the URI handler returns if the error
      * handler reports an error, if @p status is status_code::internal_server_error,
@@ -721,9 +722,9 @@ public:
      * @brief Responds to this request with an error, using the server's error handler for it.
      *
      * Calls the handler registered with server::try_on_error() for @p status, if
-     * any, with this request; otherwise sends the default error response for
-     * @p status. The response is complete after the call, so send nothing
-     * further.
+     * any, with this request. If no handler is registered, sends the default
+     * error response for @p status. The response is complete after the call,
+     * so send nothing further.
      *
      * The connection is closed once the URI handler returns if the error
      * handler reports an error, if @p status is status_code::internal_server_error,
@@ -784,12 +785,12 @@ public:
      * reading it or by discarding the rest with skip(). Otherwise the unread
      * payload would be taken as the start of the next frame. If a reader is
      * destroyed while payload remains unread, the connection is closed when the
-     * handler returns, even if the handler reports success, and a warning is
+     * handler returns, even if the handler reports success. A warning is also
      * logged.
      *
-     * If receiving fails, the position in the frame is lost: the reader
-     * receives nothing further, later read() and skip() calls fail with
-     * idfxx::errc::invalid_state, and the connection is closed when the handler
+     * If receiving fails, the position in the frame is lost. The reader
+     * receives nothing further. Later read() and skip() calls fail with
+     * idfxx::errc::invalid_state. The connection is closed when the handler
      * returns, even if the handler reports success.
      *
      * This type is non-copyable and move-only. A moved-from object must not be
@@ -959,14 +960,14 @@ public:
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
-     * The whole payload must fit in @p buf; from ESP-IDF 6.1, use ws_recv_begin()
+     * The whole payload must fit in @p buf. From ESP-IDF 6.1, use ws_recv_begin()
      * to receive frames that may be larger than the buffer.
      *
-     * If the payload does not fit, it is left unread. The connection cannot
-     * continue past an unread payload, so it is closed when the handler
-     * returns, even if the handler reports success. If receiving the frame
-     * fails, the position in the stream is unknown, and the connection is
-     * likewise closed when the handler returns.
+     * If the payload does not fit, it is left unread. The server cannot receive
+     * further frames on a connection with an unread payload, so the connection
+     * is closed when the handler returns, even if the handler reports success.
+     * If receiving the frame fails, the position in the stream is unknown, and
+     * the connection is likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame, with its payload referencing @p buf.
@@ -988,7 +989,7 @@ public:
      * together with ws_recv().
      *
      * The whole payload must be read, or discarded with
-     * ws_frame_reader::skip(), before the handler returns; otherwise the
+     * ws_frame_reader::skip(), before the handler returns. Otherwise the
      * connection is closed.
      * If receiving the header fails (other than for a repeated call), the
      * position in the stream is unknown, and the connection is likewise
@@ -1052,14 +1053,14 @@ public:
      * @brief Receives a WebSocket frame.
      *
      * Reads the next WebSocket frame from the connection into the provided buffer.
-     * The whole payload must fit in @p buf; from ESP-IDF 6.1, use try_ws_recv_begin()
+     * The whole payload must fit in @p buf. From ESP-IDF 6.1, use try_ws_recv_begin()
      * to receive frames that may be larger than the buffer.
      *
-     * If the payload does not fit, it is left unread. The connection cannot
-     * continue past an unread payload, so it is closed when the handler
-     * returns, even if the handler reports success. If receiving the frame
-     * fails, the position in the stream is unknown, and the connection is
-     * likewise closed when the handler returns.
+     * If the payload does not fit, it is left unread. The server cannot receive
+     * further frames on a connection with an unread payload, so the connection
+     * is closed when the handler returns, even if the handler reports success.
+     * If receiving the frame fails, the position in the stream is unknown, and
+     * the connection is likewise closed when the handler returns.
      *
      * @param buf Buffer to receive the frame payload.
      * @return The received frame, with its payload referencing @p buf, or an error.
@@ -1080,7 +1081,7 @@ public:
      * not together with try_ws_recv().
      *
      * The whole payload must be read, or discarded with
-     * ws_frame_reader::try_skip(), before the handler returns; otherwise the
+     * ws_frame_reader::try_skip(), before the handler returns. Otherwise the
      * connection is closed.
      * If receiving the header fails (other than for a repeated call), the
      * position in the stream is unknown, and the connection is likewise
@@ -1123,17 +1124,18 @@ public:
 #endif // CONFIG_HTTPD_WS_SUPPORT
 
     // =========================================================================
-    // Escape Hatch
+    // Native Handle Access
     // =========================================================================
 
     /**
      * @brief Returns the underlying ESP-IDF request handle.
      *
-     * @note The request counts the body bytes it reads, to detect a body cut short by the peer.
-     *       Bytes read through the handle (with `httpd_req_recv`) are not counted, so once a
-     *       handler has read body data that way, read() and read_body() fail with
-     *       server::errc::invalid_request at the end of the body, as though the peer had cut it
-     *       short. Read the body through the handle or through this request, not both.
+     * @note The request counts the body bytes that it reads, to detect a body that ends before
+     *       content_length() bytes arrive. Bytes read through the handle (with `httpd_req_recv`)
+     *       are not counted. So once a handler has read body data that way, read() and
+     *       read_body() fail with server::errc::invalid_request at the end of the body, as though
+     *       the body had ended early. Read the body through the handle or through this request,
+     *       not both.
      *
      * @return The httpd_req_t pointer.
      */
@@ -1147,7 +1149,7 @@ private:
     httpd_req_t* _req;
     std::string _status_str;
     std::string _content_type;
-    // A list, so that strings handed to httpd stay in place as headers are added.
+    // A list, so that strings passed to httpd stay in place as headers are added.
     std::list<std::pair<std::string, std::string>> _resp_headers;
     mutable bool _query_fetched = false;
     mutable std::optional<std::string> _query_cache;
@@ -1173,8 +1175,8 @@ static_assert(idfxx::byte_source<idfxx::http::request>);
  * which are invoked when matching requests arrive. Supports standard HTTP
  * methods and optional WebSocket endpoints.
  *
- * Not thread-safe for handler registration — register all handlers before
- * serving concurrent requests.
+ * Handler registration is not thread-safe. Register all handlers before the
+ * server handles concurrent requests.
  */
 class server {
 public:
@@ -1197,7 +1199,7 @@ public:
      *
      * Receives the request being responded to and its error status code.
      * Returning success keeps the connection open (except for
-     * status_code::internal_server_error); returning an error closes it.
+     * status_code::internal_server_error). Returning an error closes it.
      * Exceptions are handled as for handler_type.
      */
     using error_handler_type = std::move_only_function<result<void>(request&, status_code) const>;
@@ -1256,7 +1258,7 @@ public:
          * `esp_netif_get_netif_impl_name()`). Equivalent to the POSIX
          * `SO_BINDTODEVICE` option on the listening socket: only connections
          * arriving through that interface are accepted. The interface must exist
-         * when the server starts, otherwise starting fails. An empty name has the
+         * when the server starts. Otherwise, starting fails. An empty name has the
          * same effect as std::nullopt. Names of `IFNAMSIZ` (6) or more characters
          * are rejected with idfxx::errc::invalid_arg.
          *
@@ -1331,7 +1333,7 @@ public:
          * @brief Called when a session is closed.
          *
          * Also called for a session rejected by on_session_open.
-         * The server closes the session's socket after this callback returns; the callback must not
+         * The server closes the session's socket after this callback returns. The callback must not
          * close it. An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
@@ -1360,7 +1362,7 @@ public:
     /**
      * @brief Stops the server and releases all resources.
      *
-     * Waits for in-flight URI handlers, error handlers and session callbacks to return before
+     * Waits for running URI handlers, error handlers and session callbacks to return before
      * releasing them, so they never run against a destroyed server.
      *
      * @warning Must not be called from within one of this server's handlers or callbacks: the
@@ -1380,8 +1382,8 @@ public:
      * @brief Move assignment. Transfers server ownership.
      *
      * If this object holds a running server, that server is stopped first, exactly as by the
-     * destructor: in-flight handlers and session callbacks are waited for, and the program aborts
-     * if it cannot be stopped.
+     * destructor. Running handlers and session callbacks are waited for. The program aborts if
+     * the server cannot be stopped.
      *
      * @warning Must not be called on a server from within one of that server's own handlers or
      *   callbacks: the server cannot stop while that call is in progress, so it deadlocks.
@@ -1510,7 +1512,7 @@ public:
      * @brief Registers a server-wide handler for an HTTP error.
      *
      * The handler is called in place of sending the default error response,
-     * both for errors the server detects itself (such as status_code::not_found
+     * both for errors that the server detects itself (such as status_code::not_found
      * when no URI handler matches) and when a URI handler calls
      * request::handle_error(). It should send the complete error response.
      *
@@ -1518,7 +1520,7 @@ public:
      * status_code::internal_server_error, which always closes it. If the handler
      * returns an error, the connection is closed.
      *
-     * For errors the server detects while receiving a request (such as
+     * For errors that the server detects while receiving a request (such as
      * status_code::bad_request, status_code::request_timeout,
      * status_code::uri_too_long and status_code::request_header_fields_too_large),
      * the handler may be called for a partially received request, so
@@ -1636,7 +1638,7 @@ public:
      * @brief Registers a server-wide handler for an HTTP error.
      *
      * The handler is called in place of sending the default error response,
-     * both for errors the server detects itself (such as status_code::not_found
+     * both for errors that the server detects itself (such as status_code::not_found
      * when no URI handler matches) and when a URI handler calls
      * request::try_handle_error(). It should send the complete error response.
      *
@@ -1644,7 +1646,7 @@ public:
      * status_code::internal_server_error, which always closes it. If the handler
      * returns an error, the connection is closed.
      *
-     * For errors the server detects while receiving a request (such as
+     * For errors that the server detects while receiving a request (such as
      * status_code::bad_request, status_code::request_timeout,
      * status_code::uri_too_long and status_code::request_header_fields_too_large),
      * the handler may be called for a partially received request, so
@@ -1815,7 +1817,7 @@ public:
     [[nodiscard]] result<void> try_close_session(int sockfd);
 
     // =========================================================================
-    // Escape Hatch
+    // Native Handle Access
     // =========================================================================
 
     /**
@@ -1884,8 +1886,9 @@ private:
         bool has_session_close
     );
 
-    // Stops the server if running, retrying a failed stop and aborting if it never succeeds:
-    // the server task may still be using the handler records and context until it has stopped.
+    // Stops the server if it is running. Retries a failed stop, and aborts if the stop never
+    // succeeds, because the server task may still be using the handler records and context until
+    // it has stopped.
     void _stop() noexcept;
 
     static esp_err_t _uri_handler_trampoline(httpd_req_t* req);
@@ -1896,8 +1899,8 @@ private:
     static constexpr size_t _httpd_err_code_count = 13;
 
     // Calls the error handler registered for status with req, or sends the default error
-    // response, and marks req to close the connection where required. Fails if the
-    // default response could not be sent.
+    // response. Marks req to close the connection where required. Fails if the default
+    // response could not be sent.
     [[nodiscard]] static result<void> _handle_error(request& req, error_status status);
 
     httpd_handle_t _handle;
@@ -1933,7 +1936,7 @@ private:
  *        error codes where possible.
  *
  * Converts the ESP-IDF error code to an HTTP server-specific error code if a mapping
- * exists, otherwise falls back to the default IDFXX error category.
+ * exists. Otherwise, the error code uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

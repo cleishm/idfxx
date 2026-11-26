@@ -10,10 +10,10 @@
 #include <string>
 #include <utility>
 
-// Verify wakeup_source values match ESP-IDF constants. Only the prefix up to
-// uart is stable across IDF versions (v6.0 inserted UART1/UART2 after it,
-// shifting every later value); the remaining sources are translated by
-// to_esp_source/from_esp_cause below instead of relying on equal values.
+// Verify wakeup_source values match ESP-IDF constants. Only the values up to
+// uart are the same in every IDF version. v6.0 inserted UART1/UART2 after
+// uart, which shifted every later value. to_esp_source/from_esp_cause below
+// translate the remaining sources instead of relying on equal values.
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::ext0) == ESP_SLEEP_WAKEUP_EXT0);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::ext1) == ESP_SLEEP_WAKEUP_EXT1);
 static_assert(std::to_underlying(idfxx::sleep::wakeup_source::timer) == ESP_SLEEP_WAKEUP_TIMER);
@@ -26,7 +26,7 @@ static_assert(std::to_underlying(idfxx::sleep::wakeup_source::uart) == ESP_SLEEP
 
 // Verify ext1_mode values match ESP-IDF constants. The low trigger is named
 // all_low on the original ESP32 (it wakes only when all pins are low) and
-// any_low everywhere else; only the matching enumerator is defined per target.
+// any_low everywhere else. Only the matching enumerator is defined per target.
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
 #if CONFIG_IDF_TARGET_ESP32
 static_assert(std::to_underlying(idfxx::sleep::ext1_mode::all_low) == ESP_EXT1_WAKEUP_ALL_LOW);
@@ -65,7 +65,7 @@ namespace idfxx::sleep {
 namespace {
 
 /// Translates a wakeup_source to the ESP-IDF source value. Values up to uart
-/// are identical; later ones shift between IDF versions. The caller must
+/// are identical. Later ones shift between IDF versions. The caller must
 /// exclude wakeup_source::other.
 esp_sleep_source_t to_esp_source(wakeup_source source) noexcept {
     switch (source) {
@@ -83,8 +83,8 @@ esp_sleep_source_t to_esp_source(wakeup_source source) noexcept {
 }
 
 /// Translates an ESP-IDF wake-up cause to a wakeup_source. The inverse of
-/// to_esp_source; causes this component has no enumerator for report as
-/// wakeup_source::other.
+/// to_esp_source. A cause that has no enumerator in this component is
+/// reported as wakeup_source::other.
 wakeup_source from_esp_cause(esp_sleep_wakeup_cause_t cause) noexcept {
     switch (cause) {
     case ESP_SLEEP_WAKEUP_EXT0:
@@ -98,7 +98,7 @@ wakeup_source from_esp_cause(esp_sleep_wakeup_cause_t cause) noexcept {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     case ESP_SLEEP_WAKEUP_UART1:
         // v6.1 declares the UART2+ causes only on chips that can wake from
-        // them; these guards mirror the ones in esp_sleep.h.
+        // them. These guards match the ones in esp_sleep.h.
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 1, 0) ||                                              \
     ((SOC_UART_HP_NUM > 2) && !SOC_PM_RTC_NOT_SUPPORT_UART2_WAKEUP)
     case ESP_SLEEP_WAKEUP_UART2:
@@ -157,8 +157,8 @@ result<void> arm(const gpio_wake& source) {
 }
 
 void disarm(const gpio_wake& source) noexcept {
-    // Disarms only the pin; the GPIO wake-up source itself stays enabled (it
-    // is inert with no armed pins, and other pins may still be armed).
+    // Disarms only the pin. The GPIO wake-up source itself stays enabled. It
+    // has no effect when no pins are armed, and other pins may still be armed.
     auto pin = source.pin;
     (void)pin.try_wakeup_disable();
 }
@@ -218,7 +218,7 @@ result<wakeup_source> do_light_sleep() {
     if (auto e = wrap(esp_light_sleep_start()); !e) {
         return error(e.error());
     }
-    // A completed light sleep always has a cause; `other` covers the
+    // A completed light sleep always has a cause. `other` covers the
     // (unexpected) case where the chip cannot report one.
     return wakeup_cause().value_or(wakeup_source::other);
 }
@@ -301,7 +301,7 @@ std::string to_string(wakeup_source source) {
 
 std::optional<wakeup_source> wakeup_cause() noexcept {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-    // esp_sleep_get_wakeup_cause() is deprecated in v6; the replacement
+    // esp_sleep_get_wakeup_cause() is deprecated in v6. The replacement
     // returns a bitmap with bit n set for cause n.
     const uint32_t causes = esp_sleep_get_wakeup_causes();
     if (causes == 0 || (causes & (uint32_t{1} << ESP_SLEEP_WAKEUP_UNDEFINED)) != 0) {
@@ -328,7 +328,7 @@ uint64_t deep_sleep_gpio_wakeup_status() noexcept {
     uint64_t status = esp_sleep_get_gpio_wakeup_status();
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     // v6.1 reports RTC IO numbers, which differ from GPIO numbers on some
-    // chips (e.g. the original ESP32); translate each to its GPIO.
+    // chips (e.g. the original ESP32). Translate each to its GPIO.
     uint64_t gpio_mask = 0;
     while (status != 0) {
         const auto num =
@@ -340,9 +340,9 @@ uint64_t deep_sleep_gpio_wakeup_status() noexcept {
     }
     return gpio_mask;
 #else
-    // Before v6.1 the mask is also RTC IO numbered, but every chip offering
-    // this wake-up source numbers its RTC IOs identically to its GPIOs (or
-    // has no RTC IO and reports GPIO numbers directly).
+    // Before v6.1 the mask also uses RTC IO numbers. Every chip that offers
+    // this wake-up source numbers its RTC IOs the same as its GPIOs, or has no
+    // RTC IO and reports GPIO numbers directly.
     return status;
 #endif
 }

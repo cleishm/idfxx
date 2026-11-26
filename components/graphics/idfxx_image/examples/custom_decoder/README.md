@@ -25,7 +25,7 @@ either way.
 
 - Any ESP32-series development board
 
-The output is printed to the serial monitor; nothing needs to be connected.
+The output is printed to the serial monitor. Nothing needs to be connected.
 
 ## How to use
 

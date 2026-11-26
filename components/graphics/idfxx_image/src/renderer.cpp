@@ -29,11 +29,12 @@ using detail::source_rect;
 constexpr uint64_t max_source_pixels = 100000000;
 constexpr size_t max_source_side = 65535;
 
-// Often enough for the idle task to satisfy the task watchdog, rarely enough to cost little time.
+// Often enough that the idle task runs before the task watchdog times out, and rarely enough that
+// yielding takes little time.
 constexpr std::chrono::milliseconds yield_interval{500};
 
-// An image as the renderer sees it: the pixels pushed, and the size the crop's
-// coordinates refer to. The two differ when the image is decoded at a reduced scale.
+// The image that the renderer works on: the size of the pushed pixels, and the size that the
+// crop's coordinates refer to. The two differ when the image is decoded at a reduced scale.
 struct source_image {
     size_t width;
     size_t height;
@@ -62,7 +63,7 @@ box intersect(const box& a, const box& b) {
     return {std::max(a.x0, b.x0), std::max(a.y0, b.y0), std::min(a.x1, b.x1), std::min(a.y1, b.y1)};
 }
 
-// Everything derived from the arguments; nothing allocated yet.
+// Everything derived from the arguments. Nothing is allocated yet.
 struct render_geometry {
     orientation transform; // stored orientation to displayed orientation
     box output;            // on the screen; empty when the target is fully off-screen
@@ -149,7 +150,7 @@ aligned_output(const box& visible, const placement& where, const render_config& 
     return aligned;
 }
 
-// The source rectangle in the stored orientation, given it in the displayed one.
+// Converts a source rectangle in the displayed orientation to the stored orientation.
 source_rect to_stored(orientation transform, const source_rect& r, const source_image& src) {
     const bool swap = swaps_axes(transform);
     source_rect stored = swap ? source_rect{r.y, r.x, r.h, r.w} : r;
@@ -215,7 +216,8 @@ compute_geometry(const source_image& src, const placement& where, const render_c
     render_geometry g{};
     g.transform = compose(src.own_orientation, where.orientation);
 
-    // Validated even for an off-screen target, whose placement is just as wrong.
+    // The crop is validated even for an off-screen target: an invalid crop is an error wherever
+    // the target is.
     auto crop = displayed_crop(where.crop, src, g.transform);
     if (!crop) {
         return error(crop.error());
@@ -265,7 +267,7 @@ compute_geometry(const source_image& src, const placement& where, const render_c
 }
 
 // The smallest side of a decode that gives the resampling a whole pixel per output
-// pixel. The tolerance keeps a float extent's rounding from asking for a larger decode.
+// pixel. The tolerance prevents the rounding of a float extent from selecting a larger decode.
 size_t covering_side(uint32_t side, uint32_t dst, float extent) {
     const double needed = static_cast<double>(side) * dst / static_cast<double>(extent);
     return static_cast<size_t>(std::ceil(std::min(needed, static_cast<double>(side)) - 1.0 / 1024));
@@ -427,7 +429,7 @@ result<renderer> make_decoded_renderer(
     if (has_picture) {
         plan = resampler::plan(g.resample);
     }
-    // An off-screen target allocates nothing to speak of, so no limit rejects it.
+    // For an off-screen target, the renderer allocates almost nothing, so no limit rejects it.
     const uint64_t bytes = g.output.empty()
         ? 0
         : sizeof(renderer::state) + (plan ? resampler::memory_bytes(*plan) : 0) +

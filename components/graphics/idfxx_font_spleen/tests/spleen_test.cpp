@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_font_spleen
-// Pure font-data checks — runs everywhere, including QEMU.
+// Pure font-data checks. They run everywhere, including QEMU.
 
 #include "idfxx/font/spleen"
 #include "unity.h"

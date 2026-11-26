@@ -50,11 +50,11 @@ struct unconstrained_t {
 };
 inline constexpr unconstrained_t unconstrained{};
 
-// Marks the calling task as inside the sinks for the entry's scope. The lines that the task logs in
-// the meantime (a sink's own diagnostics, or the console's call for an idfxx::log line) are not
-// passed to any sink. So a sink's own lines are never passed back to it, and no line is passed to
-// a sink twice. Where no sink may be called, enter_sinks() returns an entry that tests false and
-// marks nothing.
+// Marks the calling task as inside the sinks for the entry's scope. The lines that the task logs
+// while it is inside the sinks are not passed to any sink. These are a sink's own diagnostics, or
+// the console's call for an idfxx::log line. So a sink's own lines are never passed back to it,
+// and no line is passed to a sink twice. Where no sink may be called, enter_sinks() returns an
+// entry that tests false and marks nothing.
 class [[nodiscard]] sink_entry {
 public:
     sink_entry(const sink_entry&) = delete;

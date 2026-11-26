@@ -21,13 +21,13 @@ idfxx is a family of independently installable components covering:
 - **[System services](components/system/README.md):** tasks, timers, queues, event loops and event
   groups, sleep, and an interactive console
 - **[Networking](components/network/README.md):** TCP/UDP sockets and DNS, network interfaces, and
-  WiFi
+  Wi-Fi
 - **[Radio](components/radio/README.md):** LoRa transceivers
 - **[Peripherals](components/peripherals/README.md):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons,
   and rotary encoders
 - **[Storage](components/storage/README.md):** NVS, flash partitions, OTA updates, SD cards, and FAT
   filesystems
-- **[Displays](components/displays/README.md):** LCD and e-paper panels, and touch controllers
+- **[Displays](components/displays/README.md):** LCD and ePaper panels, and touch controllers
 - **[Graphics](components/graphics/README.md):** drawing primitives, bitmap fonts, and JPEG images
 - **[Sensors](components/sensors/README.md):** temperature and humidity sensors
 - **[Real-time clocks](components/rtc/README.md):** external RTC chips, with alarms and timers
@@ -127,21 +127,21 @@ All idfxx components provide two API styles:
 
 ### Out-of-Memory
 
-Running out of heap memory is treated as **fatal** — the same as a failed C++ `operator new`. When
-any allocation fails (whether from C++, ESP-IDF, or FreeRTOS), idfxx will:
+Running out of heap memory is treated as **fatal**, in the same way as a failed C++ `operator new`.
+When any allocation fails (whether from C++, ESP-IDF, or FreeRTOS), idfxx will:
 
 - **Throw `std::bad_alloc`** if exceptions are enabled (`CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - **Call `abort()`** if exceptions are disabled
 
 This applies uniformly to both API styles. Heap exhaustion is never returned as a recoverable error
-code in `idfxx::result<T>`: a program can't recover from it in general, since the standard library
-already throws or aborts when an allocation fails. Code that uses idfxx does not need to check for
-out-of-memory errors — either the call succeeds or the program terminates (or an exception
+code in `idfxx::result<T>`. In general, a program can't recover from it, because the standard
+library already throws or aborts when an allocation fails. Code that uses idfxx does not need to
+check for out-of-memory errors. Either the call succeeds, or the program terminates (or an exception
 propagates).
 
 This covers heap exhaustion only. Some ESP-IDF calls also return `ESP_ERR_NO_MEM` when a fixed-size
-resource is used up, such as a full table or no free handle. That is a limit the caller can handle,
-and idfxx reports it as an ordinary error.
+resource is used up, such as a full table or no free handle. That is a limit that the caller can
+handle, and idfxx reports it as an ordinary error.
 
 If you need to handle potential out-of-memory conditions gracefully (e.g. pre-checking available
 heap before a large allocation), use the ESP-IDF and FreeRTOS APIs directly.
@@ -154,15 +154,15 @@ Several idfxx types provide `std::formatter` specializations (e.g. `gpio`, `i2c:
 `spi::host_device`, `core_id`, `flags<E>`). These are controlled by the `CONFIG_IDFXX_STD_FORMAT`
 Kconfig option (under **IDFXX** menu), which is enabled by default.
 
-Disabling this option prevents component headers from pulling in `<format>`, which can significantly
+Disabling this option prevents component headers from including `<format>`, which can significantly
 reduce image size. Note that `idfxx_log` requires `CONFIG_IDFXX_STD_FORMAT` and will produce a build
 error if included without it.
 
 ## Versioning
 
 Repository releases use [calendar versioning](https://calver.org/) (e.g., `v2026.02.10`). Individual
-components follow [semantic versioning](https://semver.org/) independently — a component's version
-is only bumped when that component changes. Use caret constraints (e.g., `^1.0.0`) in your
+components follow [semantic versioning](https://semver.org/) independently. A component's version is
+only bumped when that component changes. Use caret constraints (e.g., `^1.0.0`) in your
 `idf_component.yml` to receive compatible updates.
 
 ## Contributing

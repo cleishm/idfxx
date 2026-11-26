@@ -14,9 +14,9 @@ Display Board EE05.
 - Blanking the panel with `clear()`, switching to 4-level grayscale with `set_color_mode()`, and
   drawing into an `idfxx::epaper::gray4_framebuffer`
 - A fast refresh with `refresh(refresh_mode::fast)`
-- Updating part of the screen with `write_rows()` and partial refreshes, using `start_refresh()` to
-  draw the next frame while the panel is still updating, with a full refresh every 10 updates to
-  clear ghosting
+- Updating part of the screen with `write_rows()` and partial refreshes, with a full refresh every
+  10 updates to clear ghosting
+- Using `start_refresh()` to draw the next frame while the panel is still updating
 - Putting the panel into deep sleep with `sleep()`, after which the image stays on screen without
   power
 
@@ -44,8 +44,8 @@ the EE05's display wiring:
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
 > [!NOTE]
-> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for
-> the display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
+> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example uses for the
+> display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
 > enabled as a secondary console by default.
 
 ## How to use

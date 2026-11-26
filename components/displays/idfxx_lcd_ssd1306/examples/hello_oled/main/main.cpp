@@ -15,7 +15,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_SDA = idfxx::gpio_8;
 static constexpr auto PIN_SCL = idfxx::gpio_9;
 
@@ -31,8 +31,8 @@ extern "C" void app_main() {
             }
         );
 
-        // --- Panel I/O (i2c_io_config supplies the SSD1306 framing; some
-        // modules use address 0x3D) ---
+        // --- Panel I/O (i2c_io_config supplies the SSD1306 framing. Some
+        // modules use address 0x3D.) ---
         idfxx::panel_io io(bus, idfxx::lcd::ssd1306::i2c_io_config());
 
         // --- SSD1306 panel ---
@@ -80,8 +80,9 @@ extern "C" void app_main() {
             for (size_t y = 26; y < 30; ++y) {
                 fb.set_pixel(bar_x, y, true);
             }
-            // Only the affected column is transferred (rows rounded out to the
-            // containing page, i.e. rows 24-31): a single byte on the bus.
+            // Only the affected column is transferred, as a single byte on the
+            // bus. The rows are rounded out to the page that contains them (rows
+            // 24-31).
             display.write_region(fb, bar_x, 26, bar_x + 1, 30);
 
             if (++bar_x < fb.width() - 2) {

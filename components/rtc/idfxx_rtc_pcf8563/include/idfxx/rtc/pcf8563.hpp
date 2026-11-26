@@ -10,7 +10,7 @@
  * @ingroup idfxx_rtc
  *
  * Keeps calendar time on a PCF8563 on an I2C bus, through the chip-agnostic
- * @ref idfxx::rtc::clock interface, and exposes the chip's alarm, countdown
+ * @ref idfxx::rtc::clock interface. Also exposes the chip's alarm, countdown
  * timer, clock output and oscillator stop control.
  *
  * Depends on @ref idfxx_rtc for the clock interface, @ref idfxx_i2c for the
@@ -45,15 +45,15 @@ inline constexpr uint32_t max_timer_ticks = 255u * 60u * 4096u;
 
 // The number of 1/4096 s ticks in a period, or std::nullopt if the period is
 // not positive, is longer than 255 minutes, or is not a whole number of ticks.
-// It never rounds and never overflows, at compile time or run time: the count
-// is checked to be positive before it is widened, and every product is bounded
-// by division before it is formed.
+// It never rounds and never overflows, at compile time or run time. The count
+// is checked to be positive before it is widened. Before a product is computed,
+// one factor is compared with the limit divided by the other factors.
 template<typename Rep, typename Period>
     requires std::integral<Rep>
 [[nodiscard]] constexpr std::optional<uint32_t>
 timer_ticks(const std::chrono::duration<Rep, Period>& period) noexcept {
     // One unit of Period is n/d s = n * k / b ticks, where k/b is 4096/d in
-    // lowest terms. n/d is reduced and so is k/b, so units * n * k / b is whole
+    // lowest terms. n/d and k/b are both reduced, so units * n * k / b is whole
     // exactly when b divides units.
     constexpr auto n = static_cast<uintmax_t>(Period::type::num);
     constexpr auto d = static_cast<uintmax_t>(Period::type::den);
@@ -84,8 +84,8 @@ timer_ticks(const std::chrono::duration<Rep, Period>& period) noexcept {
  * @headerfile <idfxx/rtc/pcf8563>
  * @brief PCF8563 event flags.
  *
- * Each value is the bit the chip sets in its Control_status_2 register when
- * the event occurs; it stays set until cleared. Accessible as
+ * Each value is the bit that the chip sets in its Control_status_2 register
+ * when the event occurs. The bit stays set until it is cleared. Accessible as
  * `pcf8563::event` after the class definition.
  */
 enum class pcf8563_event : uint8_t {
@@ -106,8 +106,8 @@ namespace idfxx::rtc {
  *
  * The driver creates and owns its own I2C device on the given bus, so the
  * caller only keeps the bus alive. Creating the driver probes the chip's
- * address to check that it responds, and writes nothing: the chip keeps
- * whatever time, alarm, timer and clock output settings it already had.
+ * address to check that it responds. It writes nothing to the chip, so the chip
+ * keeps the time, alarm, timer and clock output settings that it already had.
  *
  * @code
  * using namespace quanta::frequency_literals;
@@ -126,31 +126,36 @@ namespace idfxx::rtc {
  * century bit as 0.
  *
  * **Time validity.** The time is valid while the chip is keeping reliable
- * time. It is not valid while the voltage-low (VL) flag is set, which the chip
- * does at power-on and when its supply drops too far for the oscillator to keep
- * time; while the clock is stopped (see stop()); or while the time registers
- * hold something other than a time from 2000 to 2099. While it is not valid,
- * now() returns `std::nullopt`. set_time() writes the time, which clears VL,
- * then restarts a stopped clock, so the time is valid afterward: it recovers
- * every case. If the restart fails, the time has already been written and
- * set_time() reports the transfer error; call it again.
+ * time. It is not valid in these cases:
+ * - The voltage-low (VL) flag is set. The chip sets it at power-on, and when
+ *   its supply drops too far for the oscillator to keep time.
+ * - The clock is stopped (see stop()).
+ * - The time registers hold something other than a time from 2000 to 2099.
  *
- * **Errors.** `errc::invalid_response` and `errc::timeout` mean an I2C
- * transfer failed, as @ref idfxx::i2c::master_device documents; retry the
- * call. `errc::invalid_state` means an alarm setting read back from the chip
- * doesn't decode (see alarm()); set it again with set_alarm().
+ * While the time is not valid, now() returns `std::nullopt`. set_time() writes
+ * the time, which clears VL, and then restarts a stopped clock. This makes the
+ * time valid again in each of these cases. If the restart fails, the time has
+ * already been written and set_time() reports the transfer error. Call
+ * set_time() again.
+ *
+ * **Errors.** `errc::invalid_response` and `errc::timeout` mean that an I2C
+ * transfer failed, as @ref idfxx::i2c::master_device documents. Retry the
+ * call. `errc::invalid_state` means that an enabled alarm field that was read
+ * back from the chip holds an impossible value (see alarm()). Set the alarm
+ * again with set_alarm().
  *
  * **Clock output.** The CLKOUT pin runs at 32.768 kHz from power-on. Boards
  * that don't use it should call `set_clkout(std::nullopt)` to turn it off and
  * save current.
  *
  * **Interrupts.** The chip's INT pin is an open-drain, active-low interrupt
- * output: the chip pulls it low while an enabled alarm or timer interrupt is
- * signaling, and releases it otherwise, so it needs a pull-up. The driver
- * exposes the alarm and timer interrupt enables and their event flags (see
- * events() and clear_events()); it does not configure a GPIO or an ISR for INT.
+ * output. The chip pulls it low while an enabled alarm or timer interrupt is
+ * signaling, and releases it otherwise. INT therefore needs a pull-up. The
+ * driver exposes the alarm and timer interrupt enables and their event flags
+ * (see events() and clear_events()). It does not configure a GPIO or an ISR for
+ * INT.
  *
- * A driver is not thread-safe: use it from one task, or synchronize access
+ * A driver is not thread-safe. Use it from one task, or synchronize access
  * externally. Other devices may share the bus.
  *
  * This type is non-copyable and move-only. A moved-from object must not be
@@ -166,7 +171,7 @@ public:
      * @headerfile <idfxx/rtc/pcf8563>
      * @brief Duration of the countdown timer, in ticks of 1/4096 s.
      *
-     * Holds every period the timer can produce exactly, from 1/4096 s up to
+     * Holds every period that the timer can produce exactly, from 1/4096 s up to
      * 255 minutes. timer_remaining() returns the time left in this type.
      */
     using timer_duration = std::chrono::duration<uint32_t, std::ratio<1, 4096>>;
@@ -189,7 +194,7 @@ public:
      * @brief How the countdown timer drives the INT pin.
      */
     enum class timer_interrupt : uint8_t {
-        none,  ///< INT is not driven by the timer (TIE = 0); the timer flag is still set.
+        none,  ///< INT is not driven by the timer (TIE = 0). The timer flag is still set.
         level, ///< INT is held low while the timer flag is set (TIE = 1, TI_TP = 0).
         pulse, ///< INT pulses each time the countdown reaches zero (TIE = 1, TI_TP = 1).
     };
@@ -211,10 +216,10 @@ public:
      * @headerfile <idfxx/rtc/pcf8563>
      * @brief Alarm settings.
      *
-     * The alarm fires when every set field matches the current time: the
-     * chip then sets the alarm flag (see events()) and, if @ref interrupt
-     * is true, pulls INT low until the flag is cleared with clear_events(). A field left
-     * empty takes no part in the match.
+     * The alarm fires when every set field matches the current time. The
+     * chip then sets the alarm flag (see events()). If @ref interrupt is
+     * true, the chip also pulls INT low until the flag is cleared with
+     * clear_events(). A field that is left empty is not compared.
      *
      * The weekday field compares against the chip's weekday register, which
      * set_time() writes from the date.
@@ -352,7 +357,7 @@ public:
     /**
      * @brief Move constructor.
      *
-     * @param other The driver to move from; it must not be used afterward.
+     * @param other The driver to move from. It must not be used afterward.
      */
     pcf8563(pcf8563&& other) noexcept;
 
@@ -361,7 +366,7 @@ public:
      *
      * Releases this driver's I2C device, then takes over @p other's.
      *
-     * @param other The driver to move from; it must not be used afterward.
+     * @param other The driver to move from. It must not be used afterward.
      * @return A reference to this driver.
      */
     pcf8563& operator=(pcf8563&& other) noexcept;
@@ -378,8 +383,8 @@ public:
     /**
      * @brief Resumes timekeeping after stop().
      *
-     * Clears the chip's STOP bit, continuing from the time the clock held when
-     * it stopped. The first one-second increment comes about 0.508 s
+     * Clears the chip's STOP bit, continuing from the time that the clock held
+     * when it stopped. The first one-second increment comes about 0.508 s
      * afterward. Does nothing to a clock that is already running. To set the
      * time as well, call set_time() instead, which also restarts the clock.
      *
@@ -391,16 +396,16 @@ public:
     /**
      * @brief Stops timekeeping.
      *
-     * Sets the chip's STOP bit, which holds its sub-second divider in reset:
-     * the time counters stop until start() or set_time(). A 32.768 kHz clock
-     * output keeps running; the 1.024 kHz, 32 Hz and 1 Hz outputs stop. While
-     * the clock is stopped its time is not valid: now() returns
-     * `std::nullopt`.
+     * Sets the chip's STOP bit, which holds its sub-second divider in reset.
+     * The time counters stop until start() or set_time() is called. A
+     * 32.768 kHz clock output keeps running. The 1.024 kHz, 32 Hz and 1 Hz
+     * outputs stop. While the clock is stopped, its time is not valid, and
+     * now() returns `std::nullopt`.
      *
      * To set the time on a precise second, stop the clock, then call
-     * set_time(t): the clock starts counting from that write, its first
-     * one-second increment about 0.508 s later, so make the write about 0.49 s
-     * after t.
+     * set_time(t). The clock starts counting from that write, and its first
+     * one-second increment comes about 0.508 s later. So make the write about
+     * 0.49 s after t.
      *
      * @code
      * rtc.stop();
@@ -426,8 +431,8 @@ public:
     /**
      * @brief Resumes timekeeping after try_stop().
      *
-     * Clears the chip's STOP bit, continuing from the time the clock held when
-     * it stopped. The first one-second increment comes about 0.508 s
+     * Clears the chip's STOP bit, continuing from the time that the clock held
+     * when it stopped. The first one-second increment comes about 0.508 s
      * afterward. Does nothing to a clock that is already running. To set the
      * time as well, call try_set_time() instead, which also restarts the clock.
      *
@@ -438,16 +443,16 @@ public:
     /**
      * @brief Stops timekeeping.
      *
-     * Sets the chip's STOP bit, which holds its sub-second divider in reset:
-     * the time counters stop until try_start() or try_set_time(). A
-     * 32.768 kHz clock output keeps running; the 1.024 kHz, 32 Hz and 1 Hz
-     * outputs stop. While the clock is stopped its time is not valid:
+     * Sets the chip's STOP bit, which holds its sub-second divider in reset.
+     * The time counters stop until try_start() or try_set_time() is called. A
+     * 32.768 kHz clock output keeps running. The 1.024 kHz, 32 Hz and 1 Hz
+     * outputs stop. While the clock is stopped, its time is not valid, and
      * try_now() returns `std::nullopt`.
      *
      * To set the time on a precise second, stop the clock, then call
-     * try_set_time(t): the clock starts counting from that write, its first
-     * one-second increment about 0.508 s later, so make the write about 0.49 s
-     * after t.
+     * try_set_time(t). The clock starts counting from that write, and its
+     * first one-second increment comes about 0.508 s later. So make the write
+     * about 0.49 s after t.
      *
      * @return Success, or an error on I2C failure.
      */
@@ -474,8 +479,8 @@ public:
      * @brief Configures the alarm.
      *
      * Writes all four alarm fields, then the alarm interrupt enable. Fields
-     * left empty are disabled; `set_alarm({})` turns the alarm off entirely.
-     * The alarm flag is left as it is; clear it with clear_events().
+     * left empty are disabled. `set_alarm({})` turns the alarm off entirely.
+     * The alarm flag is left as it is. Clear it with clear_events().
      *
      * @code
      * using namespace std::chrono_literals;
@@ -510,13 +515,13 @@ public:
      * @brief Configures the alarm.
      *
      * Writes all four alarm fields, then the alarm interrupt enable. Fields
-     * left empty are disabled; `try_set_alarm({})` turns the alarm off
-     * entirely. The alarm flag is left as it is; clear it with
+     * left empty are disabled. `try_set_alarm({})` turns the alarm off
+     * entirely. The alarm flag is left as it is. Clear it with
      * try_clear_events().
      *
      * @param alarm The alarm settings.
      * @return Success, or an error.
-     * @retval invalid_arg A field is out of range; nothing was written.
+     * @retval invalid_arg A field is out of range. Nothing was written.
      */
     [[nodiscard]] result<void> try_set_alarm(const alarm_config& alarm);
 
@@ -540,7 +545,7 @@ public:
     /**
      * @brief Starts the countdown timer with a period, without driving INT.
      *
-     * Equivalent to `start_timer(period, timer_config{})`; see that overload
+     * Equivalent to `start_timer(period, timer_config{})`. See that overload
      * for how the period is produced.
      *
      * @code
@@ -548,7 +553,7 @@ public:
      * rtc.start_timer(250ms);
      * @endcode
      *
-     * @tparam Rep    Duration arithmetic type; must be an integer type.
+     * @tparam Rep    Duration arithmetic type. Must be an integer type.
      * @tparam Period Duration period type.
      * @param period The period, from 1/4096 s to 255 minutes, in whole ticks of 1/4096 s.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -565,20 +570,23 @@ public:
      * @brief Starts the countdown timer with a period.
      *
      * Picks the fastest source clock that produces @p period exactly as a
-     * count of 1 to 255 ticks: for example 30 s runs at 1 Hz with a count of
-     * 30, 250 ms at 64 Hz with a count of 16, and 5 min at 1/60 Hz with a
-     * count of 5. The period is never rounded: one that is not positive, is
-     * longer than 255 minutes, or that no source produces exactly, such as
-     * 100 ms, is rejected.
+     * count of 1 to 255 ticks. For example:
+     * - 30 s runs at 1 Hz with a count of 30.
+     * - 250 ms runs at 64 Hz with a count of 16.
+     * - 5 min runs at 1/60 Hz with a count of 5.
      *
-     * The timer repeats: each time the countdown reaches zero the chip sets
+     * The period is never rounded. A period is rejected if it is not positive,
+     * if it is longer than 255 minutes, or if no source produces it exactly
+     * (such as 100 ms).
+     *
+     * The timer repeats. Each time the countdown reaches zero, the chip sets
      * the timer flag (see events()) and reloads the count.
      *
-     * The chip is written in this order, so INT cannot fire from a stale
-     * setting: the timer is disabled with its new source and count in one
-     * write, then the interrupt mode is set, then the timer is enabled. A timer
-     * flag left set by an earlier period stays set; clear it with
-     * clear_events() first if INT is in level mode.
+     * The chip is written in this order, so that INT cannot be driven by an
+     * old setting. First, the timer is disabled with its new source and count
+     * in one write. Then the interrupt mode is set. Then the timer is enabled.
+     * A timer flag that an earlier period left set stays set. If INT is in
+     * level mode, clear the flag with clear_events() first.
      *
      * @code
      * using namespace std::chrono_literals;
@@ -586,7 +594,7 @@ public:
      * rtc.start_timer(5min, {.interrupt = idfxx::rtc::pcf8563::timer_interrupt::level});
      * @endcode
      *
-     * @tparam Rep    Duration arithmetic type; must be an integer type.
+     * @tparam Rep    Duration arithmetic type. Must be an integer type.
      * @tparam Period Duration period type.
      * @param period The period, from 1/4096 s to 255 minutes, in whole ticks of 1/4096 s.
      * @param cfg    The timer settings.
@@ -616,9 +624,9 @@ public:
     /**
      * @brief Starts the countdown timer with an explicit source and count.
      *
-     * The period is @p count ticks of @p source. The timer repeats, and the
-     * chip is written in the same order as by the start_timer() overload that
-     * takes a period and a timer_config.
+     * The period is @p count ticks of @p source. The timer repeats. The chip
+     * is written in the same order as by the start_timer() overload that takes
+     * a period and a timer_config.
      *
      * @param source The source clock.
      * @param count  The number of source ticks per period (1–255).
@@ -635,8 +643,8 @@ public:
      * @brief Reads the time left in the current countdown period.
      *
      * The countdown register cannot be frozen while it is read, so it is read
-     * until two consecutive reads agree. At 4096 Hz it may change between
-     * every read; after a few attempts the latest value is returned.
+     * until two consecutive reads agree. At 4096 Hz, it may change between
+     * every read. After a few attempts, the latest value is returned.
      *
      * @return The time left in the current period, or zero if the timer is not running.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -659,14 +667,14 @@ public:
     /**
      * @brief Starts the countdown timer with a period, without driving INT.
      *
-     * Equivalent to `try_start_timer(period, timer_config{})`; see that
+     * Equivalent to `try_start_timer(period, timer_config{})`. See that
      * overload for how the period is produced.
      *
-     * @tparam Rep    Duration arithmetic type; must be an integer type.
+     * @tparam Rep    Duration arithmetic type. Must be an integer type.
      * @tparam Period Duration period type.
      * @param period The period, from 1/4096 s to 255 minutes, in whole ticks of 1/4096 s.
      * @return Success, or an error.
-     * @retval invalid_arg The timer cannot produce @p period exactly; nothing was written.
+     * @retval invalid_arg The timer cannot produce @p period exactly. Nothing was written.
      */
     template<typename Rep, typename Period>
         requires std::integral<Rep>
@@ -678,28 +686,31 @@ public:
      * @brief Starts the countdown timer with a period.
      *
      * Picks the fastest source clock that produces @p period exactly as a
-     * count of 1 to 255 ticks: for example 30 s runs at 1 Hz with a count of
-     * 30, 250 ms at 64 Hz with a count of 16, and 5 min at 1/60 Hz with a
-     * count of 5. The period is never rounded: one that is not positive, is
-     * longer than 255 minutes, or that no source produces exactly, such as
-     * 100 ms, is rejected.
+     * count of 1 to 255 ticks. For example:
+     * - 30 s runs at 1 Hz with a count of 30.
+     * - 250 ms runs at 64 Hz with a count of 16.
+     * - 5 min runs at 1/60 Hz with a count of 5.
      *
-     * The timer repeats: each time the countdown reaches zero the chip sets
+     * The period is never rounded. A period is rejected if it is not positive,
+     * if it is longer than 255 minutes, or if no source produces it exactly
+     * (such as 100 ms).
+     *
+     * The timer repeats. Each time the countdown reaches zero, the chip sets
      * the timer flag (see try_events()) and reloads the count.
      *
-     * The chip is written in this order, so INT cannot fire from a stale
-     * setting: the timer is disabled with its new source and count in one
-     * write, then the interrupt mode is set, then the timer is enabled. A timer
-     * flag left set by an earlier period stays set; clear it with
-     * try_clear_events() first if INT is in level mode.
+     * The chip is written in this order, so that INT cannot be driven by an
+     * old setting. First, the timer is disabled with its new source and count
+     * in one write. Then the interrupt mode is set. Then the timer is enabled.
+     * A timer flag that an earlier period left set stays set. If INT is in
+     * level mode, clear the flag with try_clear_events() first.
      *
-     * @tparam Rep    Duration arithmetic type; must be an integer type.
+     * @tparam Rep    Duration arithmetic type. Must be an integer type.
      * @tparam Period Duration period type.
      * @param period The period, from 1/4096 s to 255 minutes, in whole ticks of 1/4096 s.
      * @param cfg    The timer settings.
      * @return Success, or an error.
-     * @retval invalid_arg The timer cannot produce @p period exactly, or @p cfg is invalid;
-     *         nothing was written.
+     * @retval invalid_arg The timer cannot produce @p period exactly, or @p cfg is invalid.
+     *         Nothing was written.
      */
     template<typename Rep, typename Period>
         requires std::integral<Rep>
@@ -720,22 +731,22 @@ public:
      * @param source The source clock.
      * @param count  The number of source ticks per period (1–255).
      * @return Success, or an error.
-     * @retval invalid_arg @p count is 0 or @p source is invalid; nothing was written.
+     * @retval invalid_arg @p count is 0 or @p source is invalid. Nothing was written.
      */
     [[nodiscard]] result<void> try_start_timer(timer_source source, uint8_t count);
 
     /**
      * @brief Starts the countdown timer with an explicit source and count.
      *
-     * The period is @p count ticks of @p source. The timer repeats, and the
-     * chip is written in the same order as by the try_start_timer() overload
-     * that takes a period and a timer_config.
+     * The period is @p count ticks of @p source. The timer repeats. The chip
+     * is written in the same order as by the try_start_timer() overload that
+     * takes a period and a timer_config.
      *
      * @param source The source clock.
      * @param count  The number of source ticks per period (1–255).
      * @param cfg    The timer settings.
      * @return Success, or an error.
-     * @retval invalid_arg @p count is 0, or @p source or @p cfg is invalid; nothing was written.
+     * @retval invalid_arg @p count is 0, or @p source or @p cfg is invalid. Nothing was written.
      */
     [[nodiscard]] result<void>
     try_start_timer(timer_source source, uint8_t count, const timer_config& cfg);
@@ -744,8 +755,8 @@ public:
      * @brief Reads the time left in the current countdown period.
      *
      * The countdown register cannot be frozen while it is read, so it is read
-     * until two consecutive reads agree. At 4096 Hz it may change between
-     * every read; after a few attempts the latest value is returned.
+     * until two consecutive reads agree. At 4096 Hz, it may change between
+     * every read. After a few attempts, the latest value is returned.
      *
      * @return The time left in the current period, or zero if the timer is not
      *         running, or an error on I2C failure.
@@ -788,7 +799,7 @@ public:
      * rtc.clear_events(e);
      * @endcode
      *
-     * @return The set of events whose flags are set; empty if none is.
+     * @return The set of events whose flags are set. The set is empty if no flag is set.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on I2C failure.
      */
@@ -797,14 +808,14 @@ public:
     /**
      * @brief Clears event flags.
      *
-     * Clears only the named flags, in one write of the chip's status, and
-     * writes nothing if none of them is set. Clearing a flag releases INT if
-     * that flag was driving it.
+     * Clears only the named flags, in one write of the chip's status. If none
+     * of them is set, nothing is written. Clearing a flag releases INT if that
+     * flag was driving it.
      *
-     * The chip clears a flag when a 0 is written to it and leaves it set when
-     * a 1 is written, so clearing the events that were read never wipes one
-     * that arrived after the read: an event that fires in between stays set
-     * for the next events().
+     * The chip clears a flag when a 0 is written to it, and leaves it set when
+     * a 1 is written. So clearing the events that were read never clears an
+     * event that occurred after the read. An event that occurs between the
+     * read and the clear stays set for the next events() call.
      *
      * @code
      * auto e = rtc.events();
@@ -812,7 +823,7 @@ public:
      * rtc.clear_events(e);
      * @endcode
      *
-     * @param events The events whose flags to clear; the others are left as they are.
+     * @param events The events whose flags to clear. The others are left as they are.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on I2C failure.
      */
@@ -833,16 +844,16 @@ public:
     /**
      * @brief Clears event flags.
      *
-     * Clears only the named flags, in one write of the chip's status, and
-     * writes nothing if none of them is set. Clearing a flag releases INT if
-     * that flag was driving it.
+     * Clears only the named flags, in one write of the chip's status. If none
+     * of them is set, nothing is written. Clearing a flag releases INT if that
+     * flag was driving it.
      *
-     * The chip clears a flag when a 0 is written to it and leaves it set when
-     * a 1 is written, so clearing the events that were read never wipes one
-     * that arrived after the read: an event that fires in between stays set
-     * for the next try_events().
+     * The chip clears a flag when a 0 is written to it, and leaves it set when
+     * a 1 is written. So clearing the events that were read never clears an
+     * event that occurred after the read. An event that occurs between the
+     * read and the clear stays set for the next try_events() call.
      *
-     * @param events The events whose flags to clear; the others are left as they are.
+     * @param events The events whose flags to clear. The others are left as they are.
      * @return Success, or an error on I2C failure.
      */
     [[nodiscard]] result<void> try_clear_events(flags<event> events);

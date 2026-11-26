@@ -1,6 +1,6 @@
-# The logger needs std::format: without CONFIG_IDFXX_STD_FORMAT nothing is compiled, so that an
-# app can turn formatting off while a component it uses still lists idfxx_log. Including
-# <idfxx/log> then stops the build with an error saying so.
+# The logger needs std::format. Without CONFIG_IDFXX_STD_FORMAT nothing is compiled, so that an
+# app can turn formatting off while a component that it uses still lists idfxx_log. Including
+# <idfxx/log> then stops the build with an error that says the option must be enabled.
 if(CONFIG_IDFXX_STD_FORMAT)
     set(_srcs "src/log.cpp" "src/sink.cpp")
     if(CONFIG_IDFXX_LOG_ALL_LINES)

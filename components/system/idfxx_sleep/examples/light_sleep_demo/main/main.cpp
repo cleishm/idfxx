@@ -4,7 +4,7 @@
 //
 // The chip light-sleeps until either a timer expires or the BOOT button is
 // pressed, then reports what woke it. Execution resumes in place after each
-// wake — all state is retained across light sleep.
+// wake. All state is retained across light sleep.
 
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -31,8 +31,8 @@ static constexpr auto SLEEP_INTERVAL = 10s;
 extern "C" void app_main() {
     logger.info("=== Light Sleep Demo ===");
 
-    // The wake pin must be an input. Most boards strap BOOT with an external
-    // pull-up; enable the internal one to cover the rest.
+    // The wake pin must be an input. Most boards connect BOOT to an external
+    // pull-up. Enable the internal pull-up for boards that do not have one.
     idfxx::gpio pin = WAKE_PIN;
     pin.set_direction(idfxx::gpio::mode::input);
     pin.set_pull_mode(idfxx::gpio::pull_mode::pullup);
@@ -55,8 +55,8 @@ extern "C" void app_main() {
             break;
         case idfxx::sleep::wakeup_source::gpio:
             logger.info("woke on BOOT button");
-            // Wait for release; a held button would otherwise wake the next
-            // sleep immediately too.
+            // Wait for release. Otherwise, a held button would also wake the
+            // next sleep immediately.
             while (pin.get_level() == idfxx::gpio::level::low) {
                 idfxx::delay(10ms);
             }

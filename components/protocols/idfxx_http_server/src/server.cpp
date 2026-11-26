@@ -86,9 +86,9 @@ namespace {
 const char* TAG = "idfxx::httpd";
 
 // Stopping fails only when the stop request cannot be delivered to the server task (e.g. while
-// lwIP is out of buffers), which leaves the server running and the stop safe to retry. The server
-// task may still call into the handler records and the server context, so teardown cannot proceed
-// until the stop succeeds.
+// lwIP is out of buffers). The server then keeps running, and the stop is safe to retry. The
+// server task may still call into the handler records and the server context, so teardown cannot
+// proceed until the stop succeeds.
 constexpr int stop_attempts = 10;
 constexpr std::chrono::milliseconds stop_retry_delay{50};
 
@@ -267,7 +267,7 @@ esp_err_t server::_uri_handler_trampoline(httpd_req_t* req) {
     }
 #ifdef CONFIG_HTTPD_WS_SUPPORT
     // Unread payload would be parsed as the next frame header, so the
-    // connection cannot continue. Returning an error makes httpd close it.
+    // connection cannot be used further. Returning an error makes httpd close it.
     if (r._ws_payload_unread) {
         ESP_LOGW(
             TAG,
@@ -818,8 +818,8 @@ result<std::string> request::try_read_body() {
 
 namespace {
 
-// Text for the status line or a header value: a line break would split the response, and a null
-// character would cut short the C string httpd takes.
+// Text for the status line or a header value. A line break would split the response. A null
+// character would truncate the C string that httpd receives.
 bool valid_header_text(std::string_view text) {
     return text.find_first_of(std::string_view{"\r\n\0", 3}) == std::string_view::npos;
 }
@@ -1059,7 +1059,7 @@ result<request::ws_frame> request::try_ws_recv(byte_span buf) {
     esp_err_t err = httpd_ws_recv_frame(_req, &ws_pkt, 0);
     if (err != ESP_OK) {
         // Part of the header may have been received, so the position in the
-        // stream is unknown; have the trampoline close the connection
+        // stream is unknown. Have the trampoline close the connection
         _ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame (header) failed: %s", esp_err_to_name(err));
         return http_server_error(err);
@@ -1088,7 +1088,7 @@ result<request::ws_frame> request::try_ws_recv(byte_span buf) {
     err = httpd_ws_recv_frame(_req, &ws_pkt, ws_pkt.len);
     if (err != ESP_OK) {
         // Part of the payload may have been received, so the position in the
-        // stream is unknown; have the trampoline close the connection
+        // stream is unknown. Have the trampoline close the connection
         _ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame (payload) failed: %s", esp_err_to_name(err));
         return http_server_error(err);
@@ -1103,8 +1103,8 @@ result<request::ws_frame> request::try_ws_recv(byte_span buf) {
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 result<request::ws_frame_reader> request::try_ws_recv_begin() {
-    // A second header read would take payload or a later frame as a header,
-    // as would retrying after a partially received header
+    // A second header read would take payload or a later frame as a header.
+    // Retrying after a partially received header would do the same.
     if (_ws_frame_begun) {
         return error(idfxx::errc::invalid_state);
     }
@@ -1116,7 +1116,7 @@ result<request::ws_frame_reader> request::try_ws_recv_begin() {
     esp_err_t err = httpd_ws_recv_frame_part(_req, &ws_pkt, 0);
     if (err != ESP_OK) {
         // Part of the header may have been received, so the position in the
-        // stream is unknown; have the trampoline close the connection
+        // stream is unknown. Have the trampoline close the connection
         _ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame_part (header) failed: %s", esp_err_to_name(err));
         return http_server_error(err);
@@ -1171,8 +1171,8 @@ result<byte_span> request::ws_frame_reader::try_read(byte_span buf) {
         return error(idfxx::errc::invalid_arg);
     }
 
-    // httpd keeps the partial-read position in the frame struct; len != 0
-    // tells it the header has already been received.
+    // httpd keeps the partial-read position in the frame struct. A nonzero
+    // len means that the header has already been received.
     httpd_ws_frame_t ws_pkt{};
     ws_pkt.type = static_cast<httpd_ws_type_t>(_type);
     ws_pkt.final = _final;
@@ -1183,7 +1183,7 @@ result<byte_span> request::ws_frame_reader::try_read(byte_span buf) {
     esp_err_t err = httpd_ws_recv_frame_part(_req->_req, &ws_pkt, buf.size());
     if (err != ESP_OK) {
         // Part of the payload may have been received, so the position in the
-        // stream is unknown; have the trampoline close the connection
+        // stream is unknown. Have the trampoline close the connection
         _failed = true;
         _req->_ws_payload_unread = true;
         ESP_LOGD(TAG, "httpd_ws_recv_frame_part (payload) failed: %s", esp_err_to_name(err));

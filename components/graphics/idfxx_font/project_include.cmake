@@ -23,17 +23,17 @@
 #       [REPLACEMENT <char>|U+XXXX|none]
 #   )
 #
-# This generates <NAME>_<size>.cpp for each size plus a header <NAMESPACE>/<NAME>.hpp declaring
-# every font (a nested namespace a::b gives a/b/<NAME>.hpp), adds the sources to the component, and
-# puts the generated directory on the component's (public) include path:
+# This generates <NAME>_<size>.cpp for each size, plus a header <NAMESPACE>/<NAME>.hpp that declares
+# every font (a nested namespace a::b gives a/b/<NAME>.hpp). It adds the sources to the component
+# and puts the generated directory on the component's (public) include path:
 #
 #   #include "fonts/inter.hpp"
 #   idfxx::gfx::draw_text(canvas, fonts::inter_48, x, y, "Hello");
 #
-# Each font is regenerated when the font file or the generator changes. Fonts the application
-# never references are dropped at link time.
+# Each font is regenerated when the font file or the generator changes. Fonts that the
+# application never references are dropped at link time.
 #
-# The generator needs freetype-py. By default it runs with the ESP-IDF Python; set the cache
+# The generator needs freetype-py. By default, it runs with the ESP-IDF Python. Set the cache
 # variable IDFXX_FONT_PYTHON to use another interpreter, e.g.
 #   idf.py -DIDFXX_FONT_PYTHON=/path/to/python reconfigure
 

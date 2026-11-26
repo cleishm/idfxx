@@ -12,7 +12,7 @@ Shows how to report and handle idfxx errors without exceptions, using `idfxx::re
 - Stopping the program on an unexpected error with `idfxx::abort_on_error()`, with and without a
   callback that logs the error first
 
-The example uses the result-based API (`try_*`); `CONFIG_COMPILER_CXX_EXCEPTIONS` is not set in
+The example uses the result-based API (`try_*`). `CONFIG_COMPILER_CXX_EXCEPTIONS` is not set in
 `sdkconfig.defaults`.
 
 ## Hardware required

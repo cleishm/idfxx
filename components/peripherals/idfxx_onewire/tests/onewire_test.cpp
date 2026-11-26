@@ -19,7 +19,7 @@ using namespace idfxx::onewire;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // address is trivially copyable and constexpr-constructible
@@ -76,8 +76,9 @@ static_assert(has_try_write<idfxx::byte_view>);
 static_assert(has_try_write<std::initializer_list<uint8_t>>);
 
 // ...and they resolve as: scalar -> single byte, braced list -> initializer_list, buffer ->
-// byte_view. All of bus's overloads return result<void>, so the choice is pinned on a probe with
-// the same parameter types.
+// byte_view. All of bus's overloads return result<void>, so their return types cannot show which
+// overload is chosen. A probe with the same parameter types and distinct return types checks the
+// choice instead.
 namespace write_probe {
 struct scalar {};
 struct list {};

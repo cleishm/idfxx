@@ -15,7 +15,7 @@ namespace {
 
 // Prepares to create a key: initializes the crypto library, refuses a MAC algorithm that doesn't
 // take the key type, and sets the key's type and policy in `attributes`. PSA doesn't check a key's
-// permitted algorithm against its type, and such a key would be one nothing can use.
+// permitted algorithm against its type, and no operation could use such a key.
 result<void> prepare(const key::config& cfg, psa_key_attributes_t& attributes) {
     if (auto r = detail::psa_init(); !r) {
         return r;
@@ -73,7 +73,7 @@ key::_adopt(psa_status_t status, psa_key_id_t id, key_type type, key_algorithm a
         return error(r.error());
     }
     // The key is owned from here on, so that it is destroyed if reading it back fails. Its size is
-    // the one PSA settled on, and its usage includes the usages implied by those requested.
+    // the one that PSA chose, and its usage includes the usages implied by those requested.
     key k{id, type, algorithm};
     psa_key_attributes_t attributes = psa_key_attributes_init();
     status = psa_get_key_attributes(id, &attributes);
@@ -91,7 +91,7 @@ result<key> key::try_import(const config& cfg, byte_view material) {
     if (auto r = prepare(cfg, attributes); !r) {
         return error(r.error());
     }
-    // PSA rejects empty key material; decide it here rather than relying on how the PSA
+    // PSA rejects empty key material. Check for it here rather than rely on how the PSA
     // implementation reports it.
     if (material.empty()) {
         psa_reset_key_attributes(&attributes);
@@ -117,7 +117,7 @@ result<key> key::try_generate(const config& cfg, std::size_t bits) {
 }
 
 result<key> key::try_copy(flags<key_usage> usage) const {
-    // The copy takes this key's type and size; its policy is the intersection of this key's
+    // The copy takes this key's type and size. Its policy is the intersection of this key's
     // policy with the one requested here
     psa_key_attributes_t attributes = psa_key_attributes_init();
     psa_set_key_usage_flags(&attributes, to_underlying(usage));

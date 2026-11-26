@@ -20,7 +20,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // partition_source models byte_source
@@ -168,7 +168,7 @@ TEST_CASE("partition_source make rejects out-of-range windows", "[idfxx][partiti
     };
     const window cases[] = {
         {0, size + 1},    // one byte past the end
-        {size - 8, 9},    // tail window one byte too long
+        {size - 8, 9},    // tail range one byte too long
         {size, 1},        // starts at the end
         {size + 1, 0},    // starts past the end
         {1, max},         // offset + length overflows
@@ -226,7 +226,7 @@ TEST_CASE("partition_source copies read independently", "[idfxx][partition]") {
     TEST_ASSERT_EQUAL(part.size() - 4, a.remaining());
     TEST_ASSERT_EQUAL(part.size() - 8, b.remaining());
 
-    // a resumes from where it was copied, not from where b got to
+    // a resumes from the position where it was copied, not from b's position
     auto n = a.try_read(buf);
     TEST_ASSERT_TRUE(n.has_value());
     TEST_ASSERT_EQUAL(4, *n);

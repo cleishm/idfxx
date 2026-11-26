@@ -16,7 +16,7 @@ using namespace idfxx::console;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // command is not default constructible (the name must be set)

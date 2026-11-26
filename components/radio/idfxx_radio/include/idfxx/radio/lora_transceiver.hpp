@@ -11,16 +11,16 @@
  * @defgroup idfxx_radio Radio Component
  * @brief Abstract LoRa radio transceiver interface and shared types.
  *
- * Provides a chip-agnostic abstract base class (`idfxx::radio::lora_transceiver`) that
- * concrete drivers — `idfxx::radio::sx126x` and future siblings — implement.
+ * Provides a chip-agnostic abstract base class (`idfxx::radio::lora_transceiver`). Concrete
+ * drivers implement it: `idfxx::radio::sx126x` and future drivers for other chips.
  * Application code, higher-layer protocols (LoRaWAN, mesh), and event-loop
  * listeners bind to this interface rather than to any specific chip.
  *
  * Frequency, output power, sync word, and the transmit/receive operations are
- * modulation-agnostic; the LoRa modulation and packet parameters are configured
+ * modulation-agnostic. The LoRa modulation and packet parameters are configured
  * through `set_modulation` and `set_packet_params`.
  *
- * Depends on @ref idfxx_core for error handling; the typed events drivers
+ * Depends on @ref idfxx_core for error handling. The typed events that drivers
  * post are declared in `<idfxx/radio/events>`.
  * @{
  */
@@ -46,19 +46,22 @@ namespace idfxx::radio {
  * @headerfile <idfxx/radio/lora_transceiver>
  * @brief Abstract base class for LoRa radio transceivers.
  *
- * The public interface is non-virtual; concrete drivers (e.g.
+ * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::radio::sx126x`) customize behavior by overriding the protected
- * `do_*` hooks, mirroring the standard library's non-virtual-interface
- * pattern (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  *
- * Three coordinated styles are exposed: blocking calls (`transmit`/`receive`/
- * `scan_channel`), future-based one-shot operations (`start_transmit`,
- * single-shot `start_receive(buffer)`, and `start_channel_scan`, each
- * returning an `idfxx::future`), and event-loop dispatch for packet streams
- * (continuous and duty-cycled `start_listening`, surfacing packets via the
- * typed events declared in `<idfxx/radio/events>`; pair them with
- * `read_received`). Futures and events coexist: one-shot operations also post
- * their completion event when an event loop is configured.
+ * Three coordinated styles are exposed:
+ * - Blocking calls: `transmit`, `receive` and `scan_channel`.
+ * - Future-based one-shot operations: `start_transmit`, single-shot
+ *   `start_receive(buffer)` and `start_channel_scan`. Each returns an
+ *   `idfxx::future`.
+ * - Event-loop dispatch for packet streams: continuous and duty-cycled
+ *   `start_listening`. Packets are reported through the typed events declared
+ *   in `<idfxx/radio/events>`. Use `read_received` with these events.
+ *
+ * Futures and events coexist: one-shot operations also post their completion
+ * event when an event loop is configured.
  */
 class lora_transceiver {
 public:
@@ -109,10 +112,10 @@ public:
      * @brief Computes the time-on-air of a packet under the configured link parameters.
      *
      * Equivalent to the free function @ref idfxx::radio::time_on_air called
-     * with @ref modulation and @ref packet_params, so it always agrees with
-     * what the radio was actually configured with.
+     * with @ref modulation and @ref packet_params. The result therefore always
+     * matches the parameters that the radio is configured with.
      *
-     * @param payload_length Number of payload bytes the packet carries.
+     * @param payload_length Number of payload bytes that the packet carries.
      * @return The packet's time-on-air.
      *
      * @code
@@ -127,19 +130,22 @@ public:
      * @brief Computes duty-cycle receive windows for the configured link parameters.
      *
      * Equivalent to the free function @ref idfxx::radio::rx_duty_cycle_for
-     * called with @ref modulation, the configured preamble length (senders on
-     * the link are assumed to use the same @ref packet_params), and the
-     * driver's minimum worthwhile sleep window — which includes any oscillator
-     * start-up cost the chip pays on each wake (e.g. the SX126x TCXO delay).
+     * called with these arguments:
+     * - @ref modulation.
+     * - The configured preamble length. Senders on the link are assumed to use
+     *   the same @ref packet_params.
+     * - The driver's minimum worthwhile sleep window. This window includes any
+     *   oscillator start-up time that the chip needs on each wake (e.g. the
+     *   SX126x TCXO delay).
      *
-     * Returns `std::nullopt` when duty-cycling cannot reliably catch packets;
-     * passing the result straight to @ref start_listening then falls back to
-     * continuous receive.
+     * Returns `std::nullopt` when duty-cycling cannot reliably detect packets.
+     * If this result is passed directly to @ref start_listening, the radio then
+     * uses continuous receive.
      *
-     * @param min_symbols Minimum preamble symbols the radio must observe to
-     *                    detect a packet; must be at least 1.
+     * @param min_symbols Minimum preamble symbols that the radio must observe to
+     *                    detect a packet. Must be at least 1.
      * @return The listen/sleep windows, or `std::nullopt` if duty-cycling
-     *         cannot reliably catch packets.
+     *         cannot reliably detect packets.
      *
      * @code
      * radio.start_listening(radio.rx_duty_cycle_for());
@@ -160,8 +166,8 @@ public:
     /**
      * @brief Puts the radio in standby mode.
      *
-     * Standby stops any in-progress receive or channel scan and parks the
-     * radio with its configuration retained, ready for the next operation.
+     * Standby stops any in-progress receive or channel scan. The radio keeps
+     * its configuration and is ready for the next operation.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -196,9 +202,9 @@ public:
      * @brief Starts duty-cycled (periodic) receive for low-power listening.
      *
      * The radio alternates between listening for @p rx_period and sleeping
-     * for @p sleep_period, repeating until a packet arrives or the mode is
-     * changed. As with the continuous overload, packets surface through
-     * `rx_done` (and `crc_error`) events; use @ref read_received to extract
+     * for @p sleep_period. It repeats this until a packet arrives or the mode
+     * is changed. As with the continuous overload, packets are reported through
+     * `rx_done` (and `crc_error`) events. Use @ref read_received to extract
      * the payload.
      *
      * @param rx_period    Time to listen in each cycle.
@@ -229,10 +235,11 @@ public:
     /**
      * @brief Starts duty-cycled receive, falling back to continuous receive.
      *
-     * Accepts the result of @ref rx_duty_cycle_for directly: starts
-     * duty-cycled receive when @p cycle holds windows, and continuous receive
-     * when it is `std::nullopt` (duty-cycling could not reliably catch
-     * packets for the link's modulation and preamble length).
+     * Accepts the result of @ref rx_duty_cycle_for directly. When @p cycle
+     * holds windows, it starts duty-cycled receive. When @p cycle is
+     * `std::nullopt`, it starts continuous receive. `std::nullopt` means that
+     * duty-cycling cannot reliably detect packets for the link's modulation
+     * and preamble length.
      *
      * @param cycle Listen/sleep windows, or `std::nullopt` for continuous receive.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -249,10 +256,10 @@ public:
     /**
      * @brief Starts a one-shot channel-activity scan and returns a future.
      *
-     * The returned future completes with the scan result (@ref cad_info);
-     * when an event loop is configured the result is also posted as a
-     * `cad_done` event. Uses driver-default detection parameters; drivers may
-     * expose a chip-specific method to tune those (e.g.
+     * The returned future completes with the scan result (@ref cad_info).
+     * When an event loop is configured, the result is also posted as a
+     * `cad_done` event. The scan uses driver-default detection parameters.
+     * Drivers may expose a chip-specific method to tune them (e.g.
      * `sx126x::set_cad_params`). For a blocking scan, use @ref scan_channel
      * instead.
      *
@@ -271,9 +278,9 @@ public:
      * @brief Scans the channel for LoRa activity, blocking until the result is known.
      *
      * Runs one channel-activity-detection operation with driver-default
-     * detection parameters and blocks until it completes, returning whether
-     * activity was detected. Intended for listen-before-talk: scan, then
-     * transmit only if the channel is clear.
+     * detection parameters. It blocks until the operation completes and
+     * returns whether activity was detected. Intended for listen-before-talk:
+     * scan, then transmit only if the channel is clear.
      *
      * @return The scan result (whether activity was detected).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -285,8 +292,8 @@ public:
     /**
      * @brief Returns whether LoRa activity is currently detected on the channel.
      *
-     * Convenience over @ref scan_channel for listen-before-talk: scan, then
-     * transmit only if the channel is clear.
+     * A convenience form of @ref scan_channel for listen-before-talk: scan,
+     * then transmit only if the channel is clear.
      *
      * @return true if LoRa activity was detected on the channel.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -305,8 +312,8 @@ public:
     /**
      * @brief Puts the radio in standby mode.
      *
-     * Standby stops any in-progress receive or channel scan and parks the
-     * radio with its configuration retained, ready for the next operation.
+     * Standby stops any in-progress receive or channel scan. The radio keeps
+     * its configuration and is ready for the next operation.
      *
      * @return Success, or an error.
      */
@@ -325,7 +332,7 @@ public:
     /**
      * @brief Starts continuous-receive mode.
      *
-     * Packets surface through `rx_done` (and `crc_error`) events; use
+     * Packets are reported through `rx_done` (and `crc_error`) events. Use
      * @ref try_read_received to extract the payload. Call @ref try_standby
      * to stop receiving.
      *
@@ -369,9 +376,9 @@ public:
     /**
      * @brief Starts duty-cycled receive, falling back to continuous receive.
      *
-     * Accepts the result of @ref rx_duty_cycle_for directly: starts
-     * duty-cycled receive when @p cycle holds windows, and continuous receive
-     * when it is `std::nullopt`.
+     * Accepts the result of @ref rx_duty_cycle_for directly. When @p cycle
+     * holds windows, it starts duty-cycled receive. When @p cycle is
+     * `std::nullopt`, it starts continuous receive.
      *
      * @param cycle Listen/sleep windows, or `std::nullopt` for continuous receive.
      * @return Success, or an error.
@@ -383,8 +390,8 @@ public:
     /**
      * @brief Starts a one-shot channel-activity scan and returns a future.
      *
-     * The returned future completes with the scan result (@ref cad_info);
-     * when an event loop is configured the result is also posted as a
+     * The returned future completes with the scan result (@ref cad_info).
+     * When an event loop is configured, the result is also posted as a
      * `cad_done` event. The future completes with `errc::not_finished` if the
      * scan is canceled by a mode change (@ref try_standby or @ref try_sleep).
      *
@@ -392,7 +399,7 @@ public:
      * the result remains observable through the `cad_done` event.
      *
      * @return A future completing with the scan result, or an error.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     [[nodiscard]] result<idfxx::future<cad_info>> try_start_channel_scan() {
         return do_start_channel_scan();
@@ -408,7 +415,7 @@ public:
      *
      * @return The scan result, or an error.
      * @retval timeout The scan did not complete within @ref scan_guard_window.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     [[nodiscard]] result<cad_info> try_scan_channel() {
         auto f = try_start_channel_scan();
@@ -421,12 +428,12 @@ public:
     /**
      * @brief Returns whether LoRa activity is currently detected on the channel.
      *
-     * Convenience over @ref try_scan_channel for listen-before-talk: scan,
-     * then transmit only if the channel is clear.
+     * A convenience form of @ref try_scan_channel for listen-before-talk:
+     * scan, then transmit only if the channel is clear.
      *
      * @return true if LoRa activity was detected on the channel, or an error.
      * @retval timeout The scan did not complete within @ref scan_guard_window.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     [[nodiscard]] result<bool> try_channel_busy() {
         auto r = try_scan_channel();
@@ -445,9 +452,9 @@ public:
      * @brief Applies a complete link configuration.
      *
      * Sets the frequency, output power, modulation, packet framing, and
-     * network (sync word) in one call — equivalent to calling the individual
-     * setters in sequence. Both ends of a link must agree on every field
-     * except the output power.
+     * network (sync word) in one call. This is equivalent to calling the
+     * individual setters in sequence. Both ends of a link must agree on every
+     * field except the output power.
      *
      * @param link Link configuration.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -474,8 +481,8 @@ public:
 
     /**
      * @brief Sets the transmit output power.
-     * @param power Output power. Valid range depends on the chip variant;
-     *              drivers return `errc::invalid_arg` for values outside
+     * @param power Output power. Valid range depends on the chip variant.
+     *              Drivers return `errc::invalid_arg` for values outside
      *              their supported range.
      * @param ramp  Output-power ramp-up time (driver maps to nearest supported value).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -504,10 +511,10 @@ public:
     /**
      * @brief Selects the LoRa network by setting the sync word.
      *
-     * Senders and receivers must select the same network to hear each other.
-     * Each driver maps the selection to its chip's native sync-word encoding;
-     * chip-specific raw values remain available through driver-specific
-     * overloads (e.g. `sx126x::set_sync_word(uint16_t)`).
+     * Senders and receivers must select the same network to receive each
+     * other's packets. Each driver maps the selection to its chip's native
+     * sync-word encoding. Chip-specific raw values remain available through
+     * driver-specific overloads (e.g. `sx126x::set_sync_word(uint16_t)`).
      *
      * @param network Network whose sync word to use.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -520,9 +527,9 @@ public:
      * @brief Applies a complete link configuration.
      *
      * Sets the frequency, output power, modulation, packet framing, and
-     * network (sync word) in one call — equivalent to calling the individual
-     * setters in sequence, stopping at the first failure. Both ends of a link
-     * must agree on every field except the output power.
+     * network (sync word) in one call. This is equivalent to calling the
+     * individual setters in sequence, and it stops at the first failure. Both
+     * ends of a link must agree on every field except the output power.
      *
      * @param link Link configuration.
      * @return Success, or the first setter's error.
@@ -598,8 +605,9 @@ public:
     /**
      * @brief Selects the LoRa network by setting the sync word.
      *
-     * Senders and receivers must select the same network to hear each other.
-     * Each driver maps the selection to its chip's native sync-word encoding.
+     * Senders and receivers must select the same network to receive each
+     * other's packets. Each driver maps the selection to its chip's native
+     * sync-word encoding.
      *
      * @param network Network whose sync word to use.
      * @return Success, or an error.
@@ -616,8 +624,9 @@ public:
     /**
      * @brief Transmits a packet and blocks until completion, sizing the timeout automatically.
      *
-     * Waits at most the packet's @ref time_on_air — computed from the
-     * configured link parameters — plus @ref transmit_timeout_margin.
+     * Waits at most the packet's @ref time_on_air plus
+     * @ref transmit_timeout_margin. The time-on-air is computed from the
+     * configured link parameters.
      *
      * @param data Payload to transmit (1–255 bytes).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -646,8 +655,8 @@ public:
      *         the start of @p buffer), RSSI and SNR.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::timeout`,
-     *         `errc::invalid_crc`, and `errc::invalid_size` (packet larger
-     *         than @p buffer; nothing is written).
+     *         `errc::invalid_crc`, and `errc::invalid_size` (the packet is
+     *         larger than @p buffer and nothing is written).
      */
     template<typename Rep, typename Period>
     [[nodiscard]] rx_info
@@ -659,13 +668,14 @@ public:
     /**
      * @brief Transmits a packet and blocks until completion, sizing the timeout automatically.
      *
-     * Waits at most the packet's @ref time_on_air — computed from the
-     * configured link parameters — plus @ref transmit_timeout_margin.
+     * Waits at most the packet's @ref time_on_air plus
+     * @ref transmit_timeout_margin. The time-on-air is computed from the
+     * configured link parameters.
      *
      * @param data Payload to transmit (1–255 bytes).
      * @return Success, or an error.
      * @retval invalid_arg The payload is empty or longer than 255 bytes.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      * @retval timeout The transmit did not complete in time.
      */
     [[nodiscard]] result<void> try_transmit(byte_view data) {
@@ -683,7 +693,7 @@ public:
      * @param timeout Maximum time to wait for transmit completion.
      * @return Success, or an error.
      * @retval invalid_arg The payload is empty or longer than 255 bytes.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      * @retval timeout The transmit did not complete within the specified duration.
      */
     template<typename Rep, typename Period>
@@ -703,16 +713,16 @@ public:
      * wait on the returned future. If no packet arrives within @p timeout the
      * radio is returned to standby and `errc::timeout` is reported.
      *
-     * @param buffer  Buffer to receive into; size it for the largest packet
+     * @param buffer  Buffer to receive into. Size it for the largest packet
      *                expected (at most @ref max_payload_length bytes).
      * @param timeout Maximum time to wait for a packet.
      * @return Information about the received packet (its length is the number of bytes written
      *         to the start of @p buffer), or an error.
      * @retval timeout No packet arrived within the timeout.
      * @retval invalid_crc The received packet failed its CRC check.
-     * @retval invalid_size The packet was larger than @p buffer; nothing was
+     * @retval invalid_size The packet was larger than @p buffer. Nothing was
      *         written and the packet is discarded.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<rx_info>
@@ -732,17 +742,18 @@ public:
     /**
      * @brief Starts a transmit and returns a future tracking its completion.
      *
-     * The companion to the blocking @ref transmit. The call returns as soon
-     * as the packet is staged and transmission has started, so the caller's
-     * task is free to do other work and can await the returned future when it
+     * This is the non-blocking form of @ref transmit. The call returns as
+     * soon as the packet is staged and transmission has started. The caller's
+     * task can then do other work and wait on the returned future when it
      * needs the result. When an event loop is configured, completion is also
      * posted as a `tx_done` event.
      *
-     * Only one data-path operation may be in flight at a time; calling this
+     * Only one data-path operation may be in progress at a time. Calling this
      * (or any other transmit/receive/scan) again before completion returns
-     * `errc::invalid_state`. There is no built-in transmit timeout — wait on
-     * the future with a `try_wait_for()` sized via @ref time_on_air and call
-     * @ref standby to cancel the operation if it never completes.
+     * `errc::invalid_state`. There is no built-in transmit timeout. Wait on
+     * the future with `try_wait_for()` and a timeout based on
+     * @ref time_on_air. Call @ref standby to cancel the operation if it never
+     * completes.
      *
      * Dropping the future without waiting is safe: the transmission continues
      * and completion remains observable through the `tx_done` event.
@@ -761,13 +772,13 @@ public:
     /**
      * @brief Starts a single-shot receive into the caller's buffer.
      *
-     * Receives exactly one packet: the radio listens until a packet arrives,
-     * copies the payload into @p buffer, completes the returned future with
-     * the packet's @ref rx_info, and returns to standby. A packet larger than
-     * @p buffer is never truncated: nothing is written and the future fails
-     * with `errc::invalid_size`, so size the buffer for the largest packet
-     * expected (at most @ref max_payload_length bytes). For a packet stream,
-     * use the continuous or duty-cycled @ref start_listening overloads
+     * Receives exactly one packet. The radio listens until a packet arrives.
+     * It then copies the payload into @p buffer, completes the returned future
+     * with the packet's @ref rx_info, and returns to standby. A packet larger
+     * than @p buffer is never truncated. Instead, nothing is written and the
+     * future fails with `errc::invalid_size`. Size the buffer for the largest
+     * packet expected (at most @ref max_payload_length bytes). For a packet
+     * stream, use the continuous or duty-cycled @ref start_listening overloads
      * instead.
      *
      * @p buffer must remain valid until the future completes or the
@@ -792,18 +803,21 @@ public:
      * @brief Pops the oldest undelivered packet into the caller's buffer.
      *
      * Typically called from a `rx_done` event handler while listening
-     * (@ref start_listening). Packets that arrive while listening queue in a
-     * small driver-internal FIFO, so a handler that runs after a delay still
-     * collects every packet in arrival order — one pop per `rx_done` event.
-     * Only listening packets are queued: a single-shot @ref receive or
-     * @ref start_receive delivers its packet into the caller's buffer instead,
-     * and packets that fail their CRC check (reported as `crc_error`) are
-     * discarded. When the FIFO overflows, the oldest packet is dropped. Always
-     * pair the copied bytes with the @ref rx_info this call returns — after
-     * an overflow the `rx_done` event may describe a dropped packet.
+     * (@ref start_listening). Packets that arrive while listening are queued
+     * in a small driver-internal FIFO. A handler that runs after a delay
+     * therefore still collects every packet in arrival order, with one pop per
+     * `rx_done` event. Only packets received while listening are queued:
+     * - A single-shot @ref receive or @ref start_receive delivers its packet
+     *   into the caller's buffer instead.
+     * - Packets that fail their CRC check (reported as `crc_error`) are
+     *   discarded.
      *
-     * A packet larger than @p buffer is never truncated: it is popped and
-     * discarded and `errc::invalid_size` is reported, so size the buffer for
+     * When the FIFO overflows, the oldest packet is dropped. Always pair the
+     * copied bytes with the @ref rx_info that this call returns. After an
+     * overflow, the `rx_done` event may describe a dropped packet.
+     *
+     * A packet larger than @p buffer is never truncated. Instead, it is popped
+     * and discarded, and `errc::invalid_size` is reported. Size the buffer for
      * the largest packet expected (at most @ref max_payload_length bytes).
      *
      * @param buffer Buffer to copy the payload into.
@@ -823,10 +837,10 @@ public:
      * @brief Starts a transmit and returns a future tracking its completion.
      *
      * The call returns as soon as the packet is staged and transmission has
-     * started; the returned future completes when the packet has been sent
+     * started. The returned future completes when the packet has been sent
      * (or with `errc::not_finished` if the operation is canceled by a mode
      * change). When an event loop is configured, completion is also posted as
-     * a `tx_done` event. Only one data-path operation may be in flight at a
+     * a `tx_done` event. Only one data-path operation may be in progress at a
      * time.
      *
      * Dropping the future without waiting is safe: the transmission continues
@@ -837,7 +851,7 @@ public:
      *             outlive the call.
      * @return A future completing when the packet has been sent, or an error.
      * @retval invalid_arg The payload is empty or longer than 255 bytes.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     [[nodiscard]] result<idfxx::future<void>> try_start_transmit(byte_view data) {
         if (data.empty() || data.size() > max_payload_length) {
@@ -849,15 +863,16 @@ public:
     /**
      * @brief Starts a single-shot receive into the caller's buffer.
      *
-     * Receives exactly one packet: the radio listens until a packet arrives,
-     * copies the payload into @p buffer, completes the returned future with
-     * the packet's @ref rx_info, and returns to standby. The future completes
-     * with `errc::invalid_crc` if the packet failed its CRC check, with
-     * `errc::invalid_size` if the packet was larger than @p buffer (nothing is
-     * written and the packet is discarded — size the buffer for the largest
-     * packet expected, at most @ref max_payload_length bytes), and with
-     * `errc::not_finished` if the operation is canceled by a mode change
-     * (@ref try_standby or @ref try_sleep).
+     * Receives exactly one packet. The radio listens until a packet arrives.
+     * It then copies the payload into @p buffer, completes the returned future
+     * with the packet's @ref rx_info, and returns to standby. The future
+     * completes with an error in these cases:
+     * - `errc::invalid_crc` if the packet failed its CRC check.
+     * - `errc::invalid_size` if the packet was larger than @p buffer. Nothing
+     *   is written and the packet is discarded. Size the buffer for the
+     *   largest packet expected (at most @ref max_payload_length bytes).
+     * - `errc::not_finished` if the operation is canceled by a mode change
+     *   (@ref try_standby or @ref try_sleep).
      *
      * @p buffer must remain valid until the future completes or the
      * operation is canceled.
@@ -870,7 +885,7 @@ public:
      * @param buffer Buffer to receive the payload into.
      * @return A future completing with information about the received packet (its length is
      *         the number of bytes written to the start of @p buffer), or an error.
-     * @retval invalid_state Another transmit, receive, or scan is already in flight.
+     * @retval invalid_state Another transmit, receive, or scan is already in progress.
      */
     [[nodiscard]] result<idfxx::future<rx_info>> try_start_receive(byte_span buffer) {
         return do_start_receive(buffer);
@@ -879,19 +894,19 @@ public:
     /**
      * @brief Pops the oldest undelivered packet into the caller's buffer.
      *
-     * Packets that arrive while listening queue in a small driver-internal
-     * FIFO (see @ref read_received); single-shot receives deliver into the
-     * caller's buffer and are not queued. Always pair the copied bytes with
-     * the @ref rx_info this call returns — after an overflow the `rx_done`
-     * event may describe a dropped packet.
+     * Packets that arrive while listening are queued in a small
+     * driver-internal FIFO (see @ref read_received). Single-shot receives
+     * deliver into the caller's buffer and are not queued. Always pair the
+     * copied bytes with the @ref rx_info that this call returns. After an
+     * overflow, the `rx_done` event may describe a dropped packet.
      *
-     * @param buffer Buffer to copy the payload into; size it for the largest
+     * @param buffer Buffer to copy the payload into. Size it for the largest
      *               packet expected (at most @ref max_payload_length bytes).
      * @return Information about the packet (its length is the number of bytes written to the
      *         start of @p buffer), or an error.
      * @retval not_found No undelivered packet is queued.
-     * @retval invalid_size The packet was larger than @p buffer; it was popped
-     *         and discarded, nothing written.
+     * @retval invalid_size The packet was larger than @p buffer. It was popped
+     *         and discarded, and nothing was written.
      */
     [[nodiscard]] result<rx_info> try_read_received(byte_span buffer) {
         return do_read_received(buffer);
@@ -905,15 +920,16 @@ public:
     /**
      * @brief Confirms the radio chip is present and answering.
      *
-     * A driver can bring up with nothing attached — an idle bus can look like
-     * a ready chip — so this exchanges data with the chip in a way a missing
-     * or unresponsive chip cannot satisfy, leaving the radio's configuration
-     * unchanged. Cold-start construction of a driver performs this check
-     * itself; call it explicitly after a warm start, or at any later point to
-     * confirm the chip is still answering. A sleeping radio may need to be
-     * woken to answer; it is then left in standby (see @ref current_mode).
+     * A driver can initialize successfully with nothing attached, because an
+     * idle bus can look like a ready chip. This call therefore exchanges data
+     * with the chip in a way that a missing or unresponsive chip cannot
+     * satisfy. It leaves the radio's configuration unchanged. A driver
+     * constructed with a cold start performs this check itself. Call it
+     * explicitly after a warm start, or at any later point to confirm that the
+     * chip is still answering. A sleeping radio may need to be woken to
+     * answer. It is then left in standby (see @ref current_mode).
      *
-     * @pre No transmit, receive, or channel scan is in flight.
+     * @pre No transmit, receive, or channel scan is in progress.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `errc::not_found` if no
      *         chip answers.
@@ -945,13 +961,14 @@ public:
     /**
      * @brief Confirms the radio chip is present and answering.
      *
-     * Exchanges data with the chip in a way a missing or unresponsive chip
-     * cannot satisfy, leaving the radio's configuration unchanged. A sleeping
-     * radio may need to be woken to answer; it is then left in standby.
+     * Exchanges data with the chip in a way that a missing or unresponsive
+     * chip cannot satisfy. It leaves the radio's configuration unchanged. A
+     * sleeping radio may need to be woken to answer. It is then left in
+     * standby.
      *
      * @return Success if a chip answers, or an error.
      * @retval not_found No chip answered.
-     * @retval invalid_state A transmit, receive, or scan is in flight.
+     * @retval invalid_state A transmit, receive, or scan is in progress.
      */
     [[nodiscard]] result<void> try_probe() { return do_probe(); }
 
@@ -972,16 +989,16 @@ public:
     /// Maximum LoRa payload length in bytes.
     static constexpr size_t max_payload_length = 255;
 
-    /// Margin added to the packet's time-on-air when the blocking @ref transmit
-    /// overload without a timeout sizes its own wait: covers command staging,
-    /// PA ramp-up, and scheduling latency on top of the pure air-time.
+    /// Margin that the blocking @ref transmit overload without a timeout adds
+    /// to the packet's time-on-air to set its own wait. It covers command
+    /// staging, PA ramp-up, and scheduling latency in addition to the
+    /// time-on-air itself.
     static constexpr std::chrono::milliseconds transmit_timeout_margin{250};
 
     /// Guard window for the blocking @ref scan_channel. Channel-activity
     /// detection completes within a few symbol times even at the slowest
-    /// modulation, so it takes no caller-supplied timeout; the blocking form
-    /// waits at most this long before canceling the scan and reporting
-    /// `errc::timeout`.
+    /// modulation, so @ref scan_channel has no timeout parameter. It waits at
+    /// most this long, then cancels the scan and reports `errc::timeout`.
     static constexpr std::chrono::milliseconds scan_guard_window{1000};
 
 protected:
@@ -993,9 +1010,9 @@ protected:
     // Customization hooks
     //
     // Concrete drivers override these (typically privately). Each hook
-    // implements the correspondingly named public method; argument validation
-    // common to all chips (payload length, positive durations) has already
-    // been performed by the public wrappers.
+    // implements the correspondingly named public method. The public methods
+    // have already performed the argument validation that is common to all
+    // chips (payload length, positive durations).
     // =========================================================================
 
     /// Hook for @ref current_mode.
@@ -1037,63 +1054,65 @@ protected:
     [[nodiscard]] virtual result<void> do_set_sync_word(lora_network network) = 0;
 
     /// Hook for @ref try_start_transmit. The payload is non-empty and at most
-    /// @ref max_payload_length bytes, and is staged before the hook returns
-    /// (the caller's buffer need not outlive the call). The returned future
+    /// @ref max_payload_length bytes. It is staged before the hook returns, so
+    /// the caller's buffer need not outlive the call. The returned future
     /// must complete when the packet has been sent, or with
     /// `errc::not_finished` if the operation is canceled (standby, sleep, or
     /// driver teardown).
     [[nodiscard]] virtual result<idfxx::future<void>> do_start_transmit(byte_view data) = 0;
     /// Hook for @ref try_start_receive(byte_span) (single-shot
     /// receive). The returned future must complete with the received packet's
-    /// info (`errc::invalid_crc` on CRC failure, `errc::invalid_size` if the
-    /// packet is larger than the buffer — never truncate), or with
-    /// `errc::not_finished` if the operation is canceled (standby, sleep, or
-    /// driver teardown); the buffer must never be written after the future
-    /// completes.
+    /// info, or with `errc::not_finished` if the operation is canceled
+    /// (standby, sleep, or driver teardown). On CRC failure it completes with
+    /// `errc::invalid_crc`. If the packet is larger than the buffer, it
+    /// completes with `errc::invalid_size`. Never truncate. The buffer must
+    /// never be written after the future completes.
     [[nodiscard]] virtual result<idfxx::future<rx_info>> do_start_receive(byte_span buffer) = 0;
-    /// Hook for @ref try_read_received. Must pop the oldest queued packet;
-    /// `errc::not_found` when none is queued, `errc::invalid_size` (packet
-    /// popped and discarded) if it is larger than the buffer — never truncate.
+    /// Hook for @ref try_read_received. Must pop the oldest queued packet.
+    /// Report `errc::not_found` when none is queued. If the packet is larger
+    /// than the buffer, pop and discard it and report `errc::invalid_size`.
+    /// Never truncate.
     [[nodiscard]] virtual result<rx_info> do_read_received(byte_span buffer) = 0;
 
-    /// Hook for @ref try_probe. Must exchange data with the chip in a way an
-    /// absent or unresponsive chip cannot satisfy (e.g. round-trip a register),
-    /// report `errc::not_found` if it cannot, and leave the chip's
-    /// configuration unchanged. If the chip has to be woken to answer, leave
-    /// it in standby and reflect that in @ref do_current_mode.
+    /// Hook for @ref try_probe. Must exchange data with the chip in a way that
+    /// an absent or unresponsive chip cannot satisfy (e.g. write a register and
+    /// read it back). Report `errc::not_found` if the chip fails this check.
+    /// Leave the chip's configuration unchanged. If the chip has to be woken to
+    /// answer, leave it in standby and reflect that in @ref do_current_mode.
     [[nodiscard]] virtual result<void> do_probe() = 0;
     /// Hook for @ref try_last_packet_status.
     [[nodiscard]] virtual result<packet_status> do_last_packet_status() = 0;
     /// Hook for @ref try_current_rssi.
     [[nodiscard]] virtual result<quanta::electro::centi_dbm> do_current_rssi() = 0;
 
-    /// Hook for @ref rx_duty_cycle_for, returning the shortest sleep window worth
-    /// duty-cycling for on this chip. Drivers add any per-wake oscillator
-    /// start-up cost to the generic default (e.g. the SX126x adds its
-    /// configured TCXO start-up delay).
+    /// Hook for @ref rx_duty_cycle_for. Returns the shortest sleep window worth
+    /// duty-cycling for on this chip. Drivers add any oscillator start-up time
+    /// that the chip needs on each wake to the generic default (e.g. the SX126x
+    /// adds its configured TCXO start-up delay).
     [[nodiscard]] virtual std::chrono::microseconds do_rx_duty_cycle_min_sleep() const noexcept {
         return default_min_rx_sleep;
     }
 
 private:
     // Link parameters applied by the last successful try_set_modulation /
-    // try_set_packet_params; served back by modulation()/packet_params()
-    // and consumed by the time_on_air/rx_duty_cycle_for members.
+    // try_set_packet_params. modulation()/packet_params() return them, and
+    // the time_on_air/rx_duty_cycle_for members use them.
     lora_modulation _modulation{};
     lora_packet_params _packet_params{};
 
-    // Shared tail of the blocking compositions (try_transmit / try_receive /
-    // try_scan_channel): waits for the operation's future, canceling the
-    // operation via try_standby if it does not complete in time and masking
-    // the resulting cancellation error back to `errc::timeout`.
+    // Common final step of the blocking methods (try_transmit / try_receive /
+    // try_scan_channel). It waits for the operation's future. If the
+    // operation does not complete in time, it cancels the operation via
+    // try_standby and reports the resulting cancellation error as
+    // `errc::timeout`.
     template<typename T>
     [[nodiscard]] result<T> _await(const idfxx::future<T>& f, std::chrono::milliseconds timeout) {
         auto r = f.try_wait_for(timeout);
         if (r || r.error() != errc::timeout) {
             return r;
         }
-        // The completion IRQ may land between the wait timing out and the
-        // cancel below; only cancel an operation that is still pending.
+        // The completion IRQ may arrive between the wait timing out and the
+        // cancel below. Only cancel an operation that is still pending.
         if (f.done()) {
             return f.try_wait();
         }

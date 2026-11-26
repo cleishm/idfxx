@@ -110,8 +110,9 @@ result<byte_span> connectionless_channel::try_recv(byte_span buf) {
     if (!nb) {
         return error(nb.error());
     }
-    // A packet is delivered whole or not at all: an overrun is reported rather
-    // than silently truncated, matching the BSD `connectionless_socket_base`.
+    // A packet is delivered whole or not at all. A packet that is larger than the
+    // buffer is reported as an error rather than silently truncated. This matches
+    // the BSD `connectionless_socket_base`.
     if (nb->len() > buf.size()) {
         return error(errc::message_too_long);
     }

@@ -21,7 +21,7 @@ using namespace std::chrono_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // picoseconds is a signed 64-bit duration finer than nanoseconds
@@ -133,7 +133,7 @@ static_assert(rtc_clock::is_steady);
 static_assert(std::is_same_v<decltype(rtc_clock::now()), rtc_clock::time_point>);
 static_assert(noexcept(rtc_clock::now()));
 
-// A time_point is constant-initialized, so it can live in RTC memory and survive deep sleep
+// A time_point is constant-initialized, so it can be stored in RTC memory and survive deep sleep
 RTC_DATA_ATTR constinit static rtc_clock::time_point rtc_saved_time_point;
 
 TEST_CASE("rtc_clock::now() has advanced since power-on", "[idfxx][chrono]") {

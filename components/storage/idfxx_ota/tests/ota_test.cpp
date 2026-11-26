@@ -19,7 +19,7 @@ using namespace idfxx::ota;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // update is not default constructible (must use make() factory or constructor)
@@ -44,7 +44,7 @@ static_assert(std::is_copy_assignable_v<app_description>);
 static_assert(std::is_same_v<decltype(std::declval<const app_description&>().app_elf_sha256()),
                              std::array<std::byte, 32>>);
 
-// update writes take a byte view: both std::byte and uint8_t buffers are accepted
+// update writes take a byte view. Both std::byte and uint8_t buffers are accepted
 using try_write_fn = decltype(&update::try_write);
 static_assert(std::is_invocable_r_v<result<void>, try_write_fn, update&, byte_view>);
 static_assert(std::is_invocable_v<try_write_fn, update&, const std::array<uint8_t, 4>&>);
@@ -156,7 +156,7 @@ TEST_CASE("ota app_partition_count returns non-zero", "[idfxx][ota]") {
 }
 
 TEST_CASE("ota rollback_possible returns a boolean", "[idfxx][ota]") {
-    // Just verify it doesn't crash - result depends on partition layout
+    // Just verify it doesn't crash. The result depends on the partition layout
     (void)rollback_possible();
 }
 
@@ -165,7 +165,7 @@ TEST_CASE("ota partition_state for running partition", "[idfxx][ota]") {
     TEST_ASSERT_TRUE(part_result.has_value());
 
     auto state_result = try_partition_state(*part_result);
-    // May fail if no OTA data partition, but should not crash
+    // May fail if there is no OTA data partition, but should not crash
     if (state_result.has_value()) {
         auto state = *state_result;
         // State should be one of the valid values

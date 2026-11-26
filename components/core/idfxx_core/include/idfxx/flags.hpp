@@ -298,7 +298,7 @@ flags(E) -> flags<E>;
 /**
  * @brief Returns the underlying integral value of a flags object.
  *
- * Free function equivalent of `flags<E>::value()`.
+ * Use it where the raw value is needed, such as when passing the flags to an ESP-IDF function.
  *
  * @tparam E The flag enum type (must satisfy flag_enum concept).
  * @param f The flags value.

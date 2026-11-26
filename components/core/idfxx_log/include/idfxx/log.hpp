@@ -26,8 +26,8 @@
  * - Free functions for ad-hoc logging with an explicit tag
  * - A @ref idfxx::log::logger "logger" class for repeated logging with a fixed tag
  *
- * Optional convenience macros provide zero-cost elimination of filtered
- * messages, including their argument evaluation.
+ * With the optional convenience macros, the compiler eliminates a call that
+ * is filtered out at compile time, including the evaluation of its arguments.
  *
  * Sinks (@ref idfxx::log::sink "sink") receive log lines in addition to the console. Each sink
  * chooses which lines it wants. A sink can receive the lines logged through idfxx::log or, with
@@ -54,7 +54,7 @@ namespace idfxx::log {
  * @brief Log severity level.
  *
  * Severity levels matching ESP-IDF's log levels, from most to least severe.
- * Messages are only output when their level is at or above the configured
+ * Messages are only output when their severity is at or above the configured
  * threshold for the associated tag.
  */
 enum class level : uint8_t {
@@ -69,9 +69,9 @@ enum class level : uint8_t {
 /// @cond INTERNAL
 namespace detail {
 
-// Returns true if any added sink wants the line. log() uses this to format a line that the tag's
-// runtime level would otherwise skip. Always false in an interrupt, while the flash cache is
-// disabled, before the scheduler starts, and while the calling task is inside a sink.
+// Returns true if any added sink wants the line. log() uses this to decide whether to format a line
+// that is more verbose than the tag's runtime level. Always false in an interrupt, while the flash
+// cache is disabled, before the scheduler starts, and while the calling task is inside a sink.
 [[nodiscard]] bool wanted_by_sink(level lvl, const char* tag) noexcept;
 
 } // namespace detail
@@ -81,8 +81,8 @@ namespace detail {
  * @headerfile <idfxx/log>
  * @brief Log a pre-formatted message at the specified level.
  *
- * The message is only output if the tag's runtime log level permits output
- * at the specified severity. No format processing is performed on the message.
+ * The message is only output if its severity is at or above the tag's runtime
+ * log level. No format processing is performed on the message.
  *
  * @param lvl The log severity level.
  * @param tag The log tag identifying the source.
@@ -94,8 +94,8 @@ void log(level lvl, const char* tag, std::string_view msg);
  * @headerfile <idfxx/log>
  * @brief Log a message at the specified level.
  *
- * The message is only formatted if the tag's runtime log level outputs the line, or if a sink (see
- * @ref add_sink) wants it. Format strings are validated at compile time.
+ * The message is only formatted if its severity is at or above the tag's runtime log level, or if a
+ * sink (see @ref add_sink) wants it. Format strings are validated at compile time.
  *
  * @tparam Args Format argument types, deduced from the arguments.
  * @param lvl The log severity level.
@@ -244,8 +244,8 @@ inline void verbose(const char* tag, std::string_view msg) {
  * @headerfile <idfxx/log>
  * @brief Set the runtime log level for a specific tag.
  *
- * Messages with a severity below the configured level are suppressed at
- * runtime for the specified tag.
+ * Messages more verbose than the configured level are suppressed at runtime
+ * for the specified tag.
  *
  * @param tag The log tag to configure.
  * @param lvl The minimum severity level to output.
@@ -280,7 +280,7 @@ void buffer_hex(level lvl, const char* tag, const void* buffer, uint16_t length)
  * @brief Log a contiguous range as hexadecimal bytes.
  *
  * Outputs the buffer contents as hex values, 16 bytes per line.
- * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ * Only the first 65535 bytes are logged. Any remainder is silently truncated.
  *
  * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
  * @param lvl The log severity level.
@@ -319,7 +319,7 @@ void buffer_char(level lvl, const char* tag, const void* buffer, uint16_t length
  *
  * Outputs the buffer contents as characters, 16 per line. Non-printable
  * characters are not shown.
- * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ * Only the first 65535 bytes are logged. Any remainder is silently truncated.
  *
  * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
  * @param lvl The log severity level.
@@ -358,7 +358,7 @@ void buffer_hex_dump(level lvl, const char* tag, const void* buffer, uint16_t le
  *
  * Outputs a hex dump with memory addresses, hex values, and ASCII
  * representation, similar to the output of the `xxd` command.
- * Only the first 65535 bytes are logged; any remainder is silently truncated.
+ * Only the first 65535 bytes are logged. Any remainder is silently truncated.
  *
  * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
  * @param lvl The log severity level.
@@ -532,8 +532,8 @@ public:
     /**
      * @brief Set the runtime log level for this logger's tag.
      *
-     * Messages with a severity below the configured level are suppressed
-     * at runtime.
+     * Messages more verbose than the configured level are suppressed at
+     * runtime.
      *
      * @param lvl The minimum severity level to output.
      */
@@ -553,7 +553,7 @@ public:
     /**
      * @brief Log a contiguous range as hexadecimal bytes.
      *
-     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     * Only the first 65535 bytes are logged. Any remainder is silently truncated.
      *
      * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
      * @param lvl The log severity level.
@@ -580,7 +580,7 @@ public:
      * @brief Log a contiguous range as printable characters.
      *
      * Non-printable characters are not shown.
-     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     * Only the first 65535 bytes are logged. Any remainder is silently truncated.
      *
      * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
      * @param lvl The log severity level.
@@ -606,7 +606,7 @@ public:
     /**
      * @brief Log a contiguous range as a formatted hex dump.
      *
-     * Only the first 65535 bytes are logged; any remainder is silently truncated.
+     * Only the first 65535 bytes are logged. Any remainder is silently truncated.
      *
      * @tparam R A contiguous range type (e.g., std::vector, std::span, std::array).
      * @param lvl The log severity level.
@@ -628,7 +628,8 @@ private:
  *
  * A sink added with @ref add_sink receives each line that it wants. For example, a sink can store
  * the log in flash or send it over the network. A sink's choice of lines is independent of the
- * console's log levels: a sink can receive a line that `set_level()` hides from the console.
+ * console's log levels: a sink can receive a line that is more verbose than the level set with
+ * `set_level()`.
  *
  * Both functions are called from the task that logged the line, and several tasks can call them
  * at the same time. They are never called from an interrupt, while the flash cache is disabled, or
@@ -722,12 +723,12 @@ inline constexpr all_lines_t all_lines{};
  *
  * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
  * Each line is passed to the sink complete and as formatted, after the console has printed it. A
- * line that the console's log level hides is still passed to the sink.
+ * line that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive:
  * - buffer dumps (@ref buffer_hex and the related functions),
- * - lines that the formatting functions and macros skip because they are above the compile-time
- *   maximum level (`LOG_LOCAL_LEVEL`),
+ * - lines that the formatting functions and macros skip because they are more verbose than the
+ *   compile-time maximum level (`LOG_LOCAL_LEVEL`),
  * - lines that other code logs through ESP-IDF's log.
  *
  * To receive buffer dumps and other code's lines as well, add the sink with @ref all_lines.
@@ -750,12 +751,12 @@ void add_sink(sink& s);
  *
  * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
  * Each line is passed to the sink complete and as formatted, after the console has printed it. A
- * line that the console's log level hides is still passed to the sink.
+ * line that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive:
  * - buffer dumps (@ref buffer_hex and the related functions),
- * - lines that the formatting functions and macros skip because they are above the compile-time
- *   maximum level (`LOG_LOCAL_LEVEL`),
+ * - lines that the formatting functions and macros skip because they are more verbose than the
+ *   compile-time maximum level (`LOG_LOCAL_LEVEL`),
  * - lines that other code logs through ESP-IDF's log.
  *
  * To receive buffer dumps and other code's lines as well, add the sink with @ref all_lines.
@@ -779,15 +780,15 @@ void add_sink(sink& s);
  * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
  * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
  * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
- * that the console's log level hides is still passed to the sink.
+ * that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive these ESP-IDF log lines:
  * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),
  * - lines logged in ESP-IDF's binary log mode,
- * - lines above the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or `LOG_LOCAL_LEVEL`
- *   in a source file),
- * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines above the master level. The
- *   macros skip these lines before logging them.
+ * - lines more verbose than the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or
+ *   `LOG_LOCAL_LEVEL` in a source file),
+ * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines more verbose than the master
+ *   level. The macros skip these lines before logging them.
  *
  * Lines logged through idfxx::log (with @ref log, a @ref logger and the `IDFXX_LOGx` macros) are
  * passed to the sink complete and as formatted, whatever their length. This is the same as for a
@@ -798,8 +799,9 @@ void add_sink(sink& s);
  * Each call to `esp_log` is one line, whether or not its format string ends in a newline.
  * `ESP_LOGx` and `ESP_LOG_BUFFER_*` call `esp_log`. Some libraries log one line in several calls
  * to `esp_log_write`: a prefix, then the message, then a newline. Such a line is passed to the
- * sink once, complete, when its newline arrives, with the level and tag of its first call. A line
- * logged through idfxx::log in the meantime does not end or extend the unfinished line.
+ * sink once, complete, when its newline arrives. It has the level and tag of its first call. A
+ * line logged through idfxx::log before the newline arrives does not end or extend the unfinished
+ * line.
  *
  * A line longer than `CONFIG_IDFXX_LOG_SINK_MAX_LINE` bytes is shortened to that limit, at a UTF-8
  * character boundary. The limit includes the prefix that the line's caller formatted before the
@@ -830,15 +832,15 @@ void add_sink(all_lines_t, sink& s);
  * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
  * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
  * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
- * that the console's log level hides is still passed to the sink.
+ * that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive these ESP-IDF log lines:
  * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),
  * - lines logged in ESP-IDF's binary log mode,
- * - lines above the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or `LOG_LOCAL_LEVEL`
- *   in a source file),
- * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines above the master level. The
- *   macros skip these lines before logging them.
+ * - lines more verbose than the compile-time maximum level (`CONFIG_LOG_MAXIMUM_LEVEL`, or
+ *   `LOG_LOCAL_LEVEL` in a source file),
+ * - with `CONFIG_LOG_MASTER_LEVEL` under log v1, `ESP_LOGx` lines more verbose than the master
+ *   level. The macros skip these lines before logging them.
  *
  * Lines logged through idfxx::log (with @ref log, a @ref logger and the `IDFXX_LOGx` macros) are
  * passed to the sink complete and as formatted, whatever their length. This is the same as for a
@@ -849,8 +851,9 @@ void add_sink(all_lines_t, sink& s);
  * Each call to `esp_log` is one line, whether or not its format string ends in a newline.
  * `ESP_LOGx` and `ESP_LOG_BUFFER_*` call `esp_log`. Some libraries log one line in several calls
  * to `esp_log_write`: a prefix, then the message, then a newline. Such a line is passed to the
- * sink once, complete, when its newline arrives, with the level and tag of its first call. A line
- * logged through idfxx::log in the meantime does not end or extend the unfinished line.
+ * sink once, complete, when its newline arrives. It has the level and tag of its first call. A
+ * line logged through idfxx::log before the newline arrives does not end or extend the unfinished
+ * line.
  *
  * A line longer than `CONFIG_IDFXX_LOG_SINK_MAX_LINE` bytes is shortened to that limit, at a UTF-8
  * character boundary. The limit includes the prefix that the line's caller formatted before the
@@ -945,7 +948,7 @@ struct formatter<idfxx::log::level> {
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
 
 /**
- * @brief Log at error level with zero-cost elimination when compile-time filtered.
+ * @brief Log at error level, with no runtime cost if the call is filtered out at compile time.
  *
  * When `LOG_LOCAL_LEVEL` is set below `ESP_LOG_ERROR`, the compiler eliminates
  * the entire log call including argument evaluation.
@@ -962,7 +965,7 @@ struct formatter<idfxx::log::level> {
     } while (0)
 
 /**
- * @brief Log at warning level with zero-cost elimination when compile-time filtered.
+ * @brief Log at warning level, with no runtime cost if the call is filtered out at compile time.
  *
  * @param tag The log tag (a `const char*`).
  * @param fmt A std::format format string.
@@ -976,7 +979,7 @@ struct formatter<idfxx::log::level> {
     } while (0)
 
 /**
- * @brief Log at info level with zero-cost elimination when compile-time filtered.
+ * @brief Log at info level, with no runtime cost if the call is filtered out at compile time.
  *
  * @param tag The log tag (a `const char*`).
  * @param fmt A std::format format string.
@@ -990,7 +993,7 @@ struct formatter<idfxx::log::level> {
     } while (0)
 
 /**
- * @brief Log at debug level with zero-cost elimination when compile-time filtered.
+ * @brief Log at debug level, with no runtime cost if the call is filtered out at compile time.
  *
  * @param tag The log tag (a `const char*`).
  * @param fmt A std::format format string.
@@ -1004,7 +1007,7 @@ struct formatter<idfxx::log::level> {
     } while (0)
 
 /**
- * @brief Log at verbose level with zero-cost elimination when compile-time filtered.
+ * @brief Log at verbose level, with no runtime cost if the call is filtered out at compile time.
  *
  * @param tag The log tag (a `const char*`).
  * @param fmt A std::format format string.

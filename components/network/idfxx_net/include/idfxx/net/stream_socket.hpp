@@ -37,18 +37,19 @@ class listener;
  * @headerfile <idfxx/net/stream_socket>
  * @brief A TCP stream socket.
  *
- * Use `idfxx::net::listener` to accept inbound connections; this class is for
+ * Use `idfxx::net::listener` to accept inbound connections. This class is for
  * outbound client connections and for the per-connection socket returned by
  * the listener.
  *
  * Ownership is exclusive: the socket is non-copyable and move-only. A
  * moved-from socket may only be destroyed, move-assigned, or queried via
- * `is_open()` (which returns `false`); calling any other method on it is
+ * `is_open()` (which returns `false`). Calling any other method on it is
  * undefined behavior. The destructor closes the socket if open.
  *
- * The class is `[[nodiscard]]`: a connect-on-construct temporary that is
- * discarded (e.g. `stream_socket{peer};` as a statement) warns, since the
- * connection it just opened would be immediately closed.
+ * The class is `[[nodiscard]]`. The compiler warns when a temporary that
+ * connects on construction is discarded (e.g. `stream_socket{peer};` as a
+ * statement), because the connection that it opened would be closed
+ * immediately.
  *
  * @code
  * idfxx::net::stream_socket sock(idfxx::net::endpoint(idfxx::net::ipv4_addr(127, 0, 0, 1), 8080));
@@ -82,8 +83,8 @@ public:
         /// Allow `bind` to reuse a local address that is still in `TIME_WAIT`. Equivalent
         /// to the POSIX `SO_REUSEADDR` socket option.
         bool reuse_address = false;
-        /// Disable Nagle's algorithm — small writes go out immediately rather than being
-        /// coalesced. Equivalent to the POSIX `TCP_NODELAY` option.
+        /// Disable Nagle's algorithm, so that small writes are sent immediately rather than
+        /// being coalesced. Equivalent to the POSIX `TCP_NODELAY` option.
         bool no_delay = false;
         /// Send periodic probes on idle TCP connections to detect dead peers. Equivalent
         /// to the POSIX `SO_KEEPALIVE` option.
@@ -242,8 +243,8 @@ public:
     /**
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint.
      *
-     * Endpoints are tried in resolution order. The first successful connection wins;
-     * if every candidate fails, the last connect error is reported. If resolution
+     * Endpoints are tried in resolution order. The first connection that succeeds is
+     * used. If every candidate fails, the last connect error is reported. If resolution
      * succeeds but yields no candidates, throws `errc::name_not_found`.
      *
      * @warning This constructor performs a blocking DNS resolution and TCP
@@ -270,7 +271,7 @@ public:
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint,
      *        using default socket configuration.
      *
-     * The `std::string_view` host selects this resolving overload; pass an
+     * The `std::string_view` host selects this resolving overload. Pass an
      * `endpoint` to connect directly without resolution.
      *
      * Equivalent to `connect_to(host, port, {}, {})`. See the four-argument
@@ -285,8 +286,8 @@ public:
     /**
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint.
      *
-     * Endpoints are tried in resolution order. The first successful connection wins;
-     * if every candidate fails, the last connect error is returned. If resolution
+     * Endpoints are tried in resolution order. The first connection that succeeds is
+     * used. If every candidate fails, the last connect error is returned. If resolution
      * succeeds but yields no candidates, returns `errc::name_not_found`.
      *
      * @param host Host name or numeric address.
@@ -337,8 +338,9 @@ public:
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint,
      *        bounding each per-candidate attempt by @p timeout.
      *
-     * The timeout is applied **per candidate**, not as a total deadline — total time
-     * may reach `N × timeout` if every candidate hangs to the limit.
+     * The timeout is applied **per candidate**, not as a total deadline. The total
+     * time can reach `N × timeout` if the attempt to every candidate runs until the
+     * timeout expires.
      *
      * @warning This constructor performs a blocking DNS resolution and TCP
      *          connect, and throws `std::system_error` on resolution failure or
@@ -391,9 +393,10 @@ public:
      * @brief Resolves @p host : @p port and connects to the first reachable endpoint,
      *        bounding each per-candidate attempt by @p timeout.
      *
-     * The timeout is applied **per candidate**, not as a total deadline — total time
-     * may reach `N × timeout` if every candidate hangs to the limit. If every candidate
-     * fails (with `errc::timed_out` or otherwise), the last error is returned.
+     * The timeout is applied **per candidate**, not as a total deadline. The total
+     * time can reach `N × timeout` if the attempt to every candidate runs until the
+     * timeout expires. If every candidate fails (with `errc::timed_out` or otherwise),
+     * the last error is returned.
      *
      * @tparam Rep    Duration representation.
      * @tparam Period Duration period.
@@ -428,7 +431,7 @@ public:
      *                resolutions are rounded up.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error if the timeout fires or on other failure.
+     * @throws std::system_error if the timeout expires or on other failure.
      */
     template<typename Rep, typename Period>
     void connect_for(const endpoint& peer, const std::chrono::duration<Rep, Period>& timeout) {
@@ -462,7 +465,7 @@ public:
      * @brief Sends bytes on the connected socket.
      *
      * May send fewer bytes than requested. See `send_all` for a helper that
-     * retries until the buffer is fully drained.
+     * retries until the whole buffer is sent.
      *
      * @param buf Data to send.
      *
@@ -481,7 +484,7 @@ public:
      * @brief Sends bytes on the connected socket.
      *
      * May send fewer bytes than requested. See `try_send_all` for a helper that
-     * retries until the buffer is fully drained.
+     * retries until the whole buffer is sent.
      *
      * @param buf Data to send.
      * @return Number of bytes sent, or an error.
@@ -592,9 +595,9 @@ public:
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
      * On failure, including a receive timeout or the peer closing early, an
-     * unspecified number of bytes have already been consumed from the stream and
-     * the contents of @p buf are unspecified, so the position in the stream is no
-     * longer known.
+     * unspecified number of bytes have already been consumed from the stream.
+     * Because of this, the position in the stream is no longer known. The contents
+     * of @p buf are unspecified.
      *
      * @param buf Buffer to fill exactly.
      *
@@ -612,9 +615,9 @@ public:
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
      * On failure, including a receive timeout or the peer closing early, an
-     * unspecified number of bytes have already been consumed from the stream and
-     * the contents of @p buf are unspecified, so the position in the stream is no
-     * longer known.
+     * unspecified number of bytes have already been consumed from the stream.
+     * Because of this, the position in the stream is no longer known. The contents
+     * of @p buf are unspecified.
      *
      * @param buf Buffer to fill exactly.
      * @return Success, or an error.
@@ -631,11 +634,11 @@ public:
      *
      * Receives up to `buf.size()` bytes, as `recv` does, and returns how
      * many were received. A return of 0 for a non-empty @p buf means the peer
-     * has closed the connection; an empty @p buf returns 0 without waiting for
-     * data. Fewer bytes than requested may be returned before the end of the
-     * stream. Once 0 has been returned, further reads fail with
-     * `errc::not_connected`. Together with @ref try_read, this lets the socket
-     * be used as an `idfxx::byte_source`.
+     * has closed the connection. For an empty @p buf, the call returns 0 without
+     * waiting for data. Fewer bytes than requested may be returned before the end
+     * of the stream. Once 0 has been returned, further reads fail with
+     * `errc::not_connected`. This method and @ref try_read make the socket usable
+     * as an `idfxx::byte_source`.
      *
      * @param buf Buffer to read into.
      *
@@ -654,15 +657,16 @@ public:
      *
      * Receives up to `buf.size()` bytes, as `try_recv` does, and returns
      * how many were received. A return of 0 for a non-empty @p buf means the
-     * peer has closed the connection; an empty @p buf returns 0 without
-     * waiting for data. Fewer bytes than requested may be returned before the
-     * end of the stream. Once 0 has been returned, further reads fail with
-     * `errc::not_connected`. Lets the socket be used as an `idfxx::byte_source`.
+     * peer has closed the connection. For an empty @p buf, the call returns 0
+     * without waiting for data. Fewer bytes than requested may be returned before
+     * the end of the stream. Once 0 has been returned, further reads fail with
+     * `errc::not_connected`. This method makes the socket usable as an
+     * `idfxx::byte_source`.
      *
      * @param buf Buffer to read into.
      * @return Number of bytes received (0 if the peer has closed the
-     *         connection), or an error — the same errors as `try_recv`,
-     *         including when a receive timeout expires.
+     *         connection), or an error. The errors are the same as those of
+     *         `try_recv`, including the error when a receive timeout expires.
      *
      * @see try_recv
      */
@@ -691,10 +695,12 @@ public:
     /**
      * @brief Shuts down one direction on the socket (half-close).
      *
-     * The two directions are independent: after `shutdown(direction::send)` the
-     * peer sees end-of-stream but local `recv` keeps returning any data the peer
-     * sends until it closes; after `shutdown(direction::receive)` further local
-     * reads return end-of-stream while sends still succeed.
+     * The two directions are independent:
+     * - After `shutdown(direction::send)`, the peer sees end-of-stream. Local
+     *   `recv` continues to return any data that the peer sends until the peer
+     *   closes.
+     * - After `shutdown(direction::receive)`, further local reads return
+     *   end-of-stream. Sends still succeed.
      *
      * @param dir Direction to shut down.
      *
@@ -707,10 +713,12 @@ public:
     /**
      * @brief Shuts down one direction on the socket (half-close).
      *
-     * The two directions are independent: after `shutdown(direction::send)` the
-     * peer sees end-of-stream but local `recv` keeps returning any data the peer
-     * sends until it closes; after `shutdown(direction::receive)` further local
-     * reads return end-of-stream while sends still succeed.
+     * The two directions are independent:
+     * - After `shutdown(direction::send)`, the peer sees end-of-stream. Local
+     *   `recv` continues to return any data that the peer sends until the peer
+     *   closes.
+     * - After `shutdown(direction::receive)`, further local reads return
+     *   end-of-stream. Sends still succeed.
      *
      * @param dir Direction to shut down.
      * @return Success, or an error.
@@ -720,17 +728,18 @@ public:
     // ----- TCP-only options (setters) -----
 
     /**
-     * @brief Toggles whether Nagle's algorithm is disabled — when on, small writes are
-     *        sent immediately rather than being coalesced. Equivalent to the POSIX
-     *        `TCP_NODELAY` socket option.
+     * @brief Toggles whether Nagle's algorithm is disabled. When @p on is true, small
+     *        writes are sent immediately rather than being coalesced. Equivalent to the
+     *        POSIX `TCP_NODELAY` socket option.
      *
      * @param on Whether to disable Nagle's algorithm.
      */
     void set_no_delay(bool on) noexcept;
 
     /**
-     * @brief Toggles TCP keep-alive — periodic probes on idle connections to detect
-     *        dead peers. Equivalent to the POSIX `SO_KEEPALIVE` socket option.
+     * @brief Toggles TCP keep-alive. Keep-alive sends periodic probes on idle
+     *        connections to detect dead peers. Equivalent to the POSIX `SO_KEEPALIVE`
+     *        socket option.
      *
      * @param on Whether to enable keep-alive.
      */

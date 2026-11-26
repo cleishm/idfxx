@@ -223,7 +223,7 @@ public:
 
     /**
      * @headerfile <idfxx/gpio>
-     * @brief Configuration parameters for idfxx::gpio_config
+     * @brief Configuration parameters for idfxx::configure_gpios().
      */
     struct config {
         enum mode mode = mode::disable;
@@ -643,7 +643,7 @@ public:
     /**
      * @brief Removes a specific ISR handler.
      * @retval invalid_state If called on gpio::nc().
-     * @retval invalid_arg If the handle is not valid for this gpio.
+     * @retval invalid_arg If the handle belongs to a different gpio.
      */
     result<void> try_isr_handler_remove(isr_handle handle);
     /**
@@ -748,7 +748,7 @@ public:
      * @retval not_supported If the GPIO doesn't support hold.
      */
     result<void> try_hold_disable();
-// esp32p4 has no deep-sleep hold in ESP-IDF 5.5.0, and per-pin hold in later versions.
+// esp32p4 has no deep-sleep hold in ESP-IDF 5.5.0. Later versions have per-pin hold.
 #if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP && !CONFIG_IDF_TARGET_ESP32P4
     /**
      * @brief Enables hold for all digital GPIOs during deep sleep.
@@ -759,15 +759,15 @@ public:
      * @note Not available on targets where SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP is
      *       set (e.g. esp32c6, esp32h2). On those targets, per-pin hold_enable() is
      *       sufficient to retain GPIO state through deep sleep. Also not available on
-     *       esp32p4, which has no deep-sleep hold in ESP-IDF 5.5.0 and per-pin hold in
-     *       later versions.
+     *       esp32p4. ESP-IDF 5.5.0 has no deep-sleep hold on esp32p4, and later versions
+     *       have per-pin hold.
      */
     static void deep_sleep_hold_enable();
     /**
      * @brief Disables hold for all digital GPIOs during deep sleep.
      *
      * @note Not available on targets where SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP is
-     *       set (e.g. esp32c6, esp32h2), nor on esp32p4.
+     *       set (e.g. esp32c6, esp32h2). Also not available on esp32p4.
      */
     static void deep_sleep_hold_disable();
 #endif

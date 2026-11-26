@@ -21,8 +21,8 @@ namespace idfxx::epaper {
 
 namespace {
 
-// EL133UF1 command set. The controller IC is unpublished; the commands
-// follow the UltraChip lineage (cf. UC8179), and the initialization
+// EL133UF1 command set. The controller IC is unpublished. The commands
+// follow UltraChip's command family (cf. UC8179). The initialization
 // sequence and register values follow Seeed Studio's Seeed_GFX driver
 // for the T133A01 module built on this glass (MIT/BSD-licensed).
 constexpr uint8_t cmd_panel_setting = 0x00; // Panel setting
@@ -66,8 +66,8 @@ constexpr uint8_t pll_value(el133uf1::fast_quality quality) noexcept {
     return 0x04;
 }
 
-// Holds a variable at a value for the guard's lifetime, restoring the previous
-// value on scope exit (including by exception).
+// Holds a variable at a value for the guard's lifetime. Restores the previous
+// value on scope exit, including an exit by exception.
 template<typename T>
 class scoped_value {
 public:
@@ -84,7 +84,7 @@ private:
     T _saved;
 };
 
-// First ID byte an answering controller returns. An unselected or
+// First ID byte that an answering controller returns. An unselected or
 // unresponsive controller leaves MISO idle, which never reads as this value.
 constexpr uint8_t id_present = 0x01;
 
@@ -129,8 +129,8 @@ constexpr quanta::frequency::hertz read_clock{4'000'000};
 constexpr const char* TAG = "idfxx::el133uf1";
 
 // Holds the chip-select line(s) of a transfer low (selected) for its
-// lifetime, releasing them high on every exit path. Declared after the
-// device lock, so chip select releases before the bus does.
+// lifetime. Releases them high on every exit path. Declared after the
+// device lock, so that chip select is released before the bus is.
 class chip_select {
 public:
     explicit chip_select(gpio first, gpio second) noexcept
@@ -228,7 +228,7 @@ result<el133uf1> el133uf1::make(spi::master_bus& bus, el133uf1::config cfg) {
     if (auto r = display._init(); !r) {
         return error(r.error());
     }
-    // The panel's native format is six-color; the base starts in mono.
+    // The panel's native format is six-color. The base starts in mono.
     if (auto r = display.try_set_color_mode(color_mode::color6); !r) {
         return error(r.error());
     }
@@ -273,10 +273,10 @@ el133uf1& el133uf1::operator=(el133uf1&& other) noexcept {
 }
 
 el133uf1::~el133uf1() {
-    // Leaving the controllers powered degrades the glass; power off and
-    // park them in deep sleep unless the caller already did. A refresh
-    // still driving finishes first — powering off mid-waveform also
-    // stresses the glass.
+    // Leaving the controllers powered degrades the glass, so power them off
+    // and put them in deep sleep, unless the caller already did. A refresh
+    // that is still running finishes first, because powering off during a
+    // waveform also stresses the glass.
     if (!_moved_from() && !asleep()) {
         (void)_settle();
         (void)_enter_deep_sleep();
@@ -299,15 +299,15 @@ result<void> el133uf1::do_write(
     }
     // Expand 1-bpp ink/paper into the shadow's six-color nibbles: ink is
     // black, paper is white. The destination column is a multiple of 8, so
-    // each source byte expands to 4 consecutive shadow bytes, and since the
-    // plane split (byte 300) is a multiple of 4, those never straddle it.
+    // each source byte expands to 4 consecutive shadow bytes. The plane
+    // split (byte 300) is a multiple of 4, so those bytes never straddle it.
     // An odd-width framebuffer's last pixel shares its byte with a
-    // neighbor outside the band, which is preserved.
+    // neighbor outside the band. That neighbor is preserved.
     const size_t width = fb.width();
     const size_t whole = width / 8; // full source bytes per row
     const size_t rem = width % 8;   // pixels in a trailing partial byte
     const size_t x0 = x / 2;        // first panel byte
-    // Source bytes before this index land in plane 0, the rest in plane 1.
+    // Source bytes before this index go to plane 0, and the rest to plane 1.
     const size_t split = x0 < plane_stride ? (plane_stride - x0) / 4 : 0;
     for (size_t r = row_start; r < row_end; ++r) {
         const auto src = fb.row(r);
@@ -346,9 +346,9 @@ result<void> el133uf1::do_write(
         return error(errc::invalid_state);
     }
     // The framebuffer's nibble packing matches the shadow's, and x is even,
-    // so each row is a byte copy split at the master/slave boundary (byte
-    // 300 of the panel row). An odd-width framebuffer's last byte carries a
-    // padding nibble that must not clobber the neighboring pixel.
+    // so each row is a byte copy, split at the master/slave boundary (byte
+    // 300 of the panel row). An odd-width framebuffer's last byte holds a
+    // padding nibble that must not overwrite the neighboring pixel.
     const size_t width = fb.width();
     const size_t whole = width / 2;   // full bytes per row
     const bool tail = width % 2 != 0; // trailing single pixel
@@ -412,8 +412,8 @@ result<void> el133uf1::do_refresh(refresh_mode mode) {
     if (auto r = _cmd(target::both, cmd_power_on); !r) {
         return r;
     }
-    // The rails are up: from here on, whatever fails, _settle must still
-    // power them off.
+    // The rails are up. From here on, _settle must power them off even if a
+    // later step fails.
     _pending = pending::power_off;
     if (auto r = wait_busy(); !r) {
         return r;
@@ -424,10 +424,10 @@ result<void> el133uf1::do_refresh(refresh_mode mode) {
     if (auto r = _cmd(target::both, cmd_refresh, {0x00}); !r) {
         return r;
     }
-    // Give the controllers time to assert BUSY before anyone polls it, then
-    // return with the glass still driving: the base class settles (via
-    // do_wait) before the next controller command, and _settle powers the
-    // rails off once the update finishes.
+    // Give the controllers time to assert BUSY before anything polls it.
+    // Then return while the glass is still updating. The base class calls
+    // do_wait before the next controller command, and _settle (through
+    // do_wait) powers the rails off when the update finishes.
     idfxx::delay(10ms);
     return {};
 }
@@ -437,8 +437,8 @@ bool el133uf1::do_supports(enum color_mode mode) const noexcept {
 }
 
 bool el133uf1::do_supports(refresh_mode mode) const noexcept {
-    // The glass has a single waveform, run at the full or the fast frame
-    // clock; no differential (partial) mode.
+    // The glass has a single waveform, which runs at the full or the fast
+    // frame clock. It has no differential (partial) mode.
     return mode == refresh_mode::full || mode == refresh_mode::fast;
 }
 
@@ -447,7 +447,7 @@ result<void> el133uf1::do_set_color_mode(enum color_mode mode) {
     if (_moved_from()) {
         return error(errc::invalid_state);
     }
-    // Both supported modes share the six-color upload format; the mode only
+    // Both supported modes share the six-color upload format. The mode only
     // selects how framebuffers are expanded into the shadow, so nothing
     // changes on the controllers.
     return {};
@@ -470,8 +470,8 @@ result<void> el133uf1::do_wake() {
         // pending power-off still applies.
         return r;
     }
-    // The reset discarded any update do_refresh left running. The shadow
-    // frame survives: the next refresh re-uploads it.
+    // The reset discarded any update that do_refresh left running. The
+    // shadow frame is kept, and the next refresh uploads it again.
     _pending = pending::none;
     if (auto r = _confirm_presence(); !r) {
         return r;
@@ -539,12 +539,12 @@ result<void> el133uf1::_stream(target to, uint8_t cmd, std::span<const uint8_t> 
 }
 
 result<void> el133uf1::_send(std::span<const uint8_t> bytes) {
-    // Stage through the internal DMA buffer: the shadow lives in PSRAM and
-    // command parameters may live in flash (constant parameter lists can be
-    // placed there), neither of which the SPI DMA reads, so the bus driver
-    // would otherwise allocate a bounce buffer per transfer.
+    // Stage through the internal DMA buffer. The shadow is in PSRAM, and
+    // command parameters may be in flash (constant parameter lists can be
+    // placed there). The SPI DMA cannot read either of these, so without
+    // staging the bus driver would allocate a bounce buffer per transfer.
     // An interrupt-driven transfer lets other tasks run while DMA sends
-    // each chunk; the device lock already keeps the sequence exclusive.
+    // each chunk. The device lock already keeps the sequence exclusive.
     std::ranges::copy(bytes, _chunk.begin());
     return _device.try_transmit(std::span<const uint8_t>(_chunk).first(bytes.size()));
 }
@@ -562,9 +562,10 @@ result<void> el133uf1::_confirm_presence() {
         const char* name;
     } controllers[]{{_master_cs, "master"}, {_slave_cs, "slave"}};
     for (const auto& controller : controllers) {
-        // The command goes out in the command phase, so the transaction has
+        // The command is sent in the command phase, so the transaction has
         // no MOSI data phase (half-duplex DMA can't combine both on every
-        // target). The reply lands in the DMA buffer, as _send stages writes.
+        // target). The reply is read into the DMA buffer, in the same way
+        // that _send stages writes.
         const std::span<uint8_t> reply = std::span(_chunk).first(3);
         {
             std::lock_guard lock(_device);
@@ -601,8 +602,8 @@ result<void> el133uf1::_confirm_presence() {
 }
 
 result<void> el133uf1::_init() {
-    // Register sequence from the vendor drivers; several registers are
-    // undocumented and their values are carried over verbatim. Each write
+    // Register sequence from the vendor drivers. Several registers are
+    // undocumented, and their values are carried over verbatim. Each write
     // is followed by the vendor's settle delay.
     const struct {
         target to;
@@ -655,12 +656,13 @@ result<void> el133uf1::_upload() {
 }
 
 result<void> el133uf1::_settle(std::optional<std::chrono::milliseconds> timeout) {
-    // Completes what do_refresh left behind once the rails came up: wait
-    // out BUSY (the update, if one started), then power the rails off. The
-    // base class calls this (via do_wait) before every controller hook, so
-    // a running refresh delays the *next* operation rather than blocking
-    // refresh's caller; the destructor and move-assignment call it
-    // directly. On failure the work stays pending for the next attempt.
+    // Completes the work that do_refresh left pending after the rails came
+    // up. It waits for BUSY to release (the update, if one started), then
+    // powers the rails off. The base class calls this (through do_wait)
+    // before every controller hook, so a running refresh delays the *next*
+    // operation instead of blocking the caller of refresh. The destructor
+    // and move-assignment call it directly. On failure, the work stays
+    // pending for the next attempt.
     if (_pending == pending::none) {
         return {};
     }
@@ -682,7 +684,7 @@ result<void> el133uf1::_enter_deep_sleep() {
     if (auto r = _cmd(target::both, cmd_deep_sleep, {0xA5}); !r) {
         return r;
     }
-    // BUSY is not meaningful while entering deep sleep; give the
+    // BUSY is not meaningful while entering deep sleep. Give the
     // controllers time to power down.
     idfxx::delay(100ms);
     return {};
@@ -697,7 +699,7 @@ std::span<const uint8_t> el133uf1::_plane(size_t index) const noexcept {
 }
 
 uint8_t* el133uf1::_shadow_byte(size_t x, size_t y) noexcept {
-    // Panel byte x / 2 lives in plane 0 for the left half of the row and
+    // Panel byte x / 2 is in plane 0 for the left half of the row and in
     // plane 1 for the right half.
     const size_t byte_x = x / 2;
     const size_t plane = byte_x / plane_stride;

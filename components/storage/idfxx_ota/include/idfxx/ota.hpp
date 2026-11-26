@@ -74,15 +74,23 @@ inline constexpr skip_validation_t skip_validation{};
  */
 enum class errc : esp_err_t {
     // clang-format off
-    partition_conflict     = 0x1501, /*!< Cannot update the currently running partition. */
-    select_info_invalid    = 0x1502, /*!< OTA data partition contains invalid content. */
-    validate_failed        = 0x1503, /*!< OTA app image is invalid. */
-    small_sec_ver          = 0x1504, /*!< Firmware secure version is less than the running firmware. */
-    rollback_failed        = 0x1505, /*!< No valid firmware in passive partition for rollback. */
-    rollback_invalid_state = 0x1506, /*!< Running app is still pending verification; confirm before updating. */
+    /// Cannot update the currently running partition.
+    partition_conflict     = 0x1501,
+    /// OTA data partition contains invalid content.
+    select_info_invalid    = 0x1502,
+    /// OTA app image is invalid.
+    validate_failed        = 0x1503,
+    /// Firmware secure version is less than the running firmware.
+    small_sec_ver          = 0x1504,
+    /// No valid firmware in passive partition for rollback.
+    rollback_failed        = 0x1505,
+    /// Running app is still pending verification. Confirm it before updating.
+    rollback_invalid_state = 0x1506,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-    already_in_progress    = 0x1507, /*!< Another OTA operation is already in progress on the same partition (ESP-IDF 6.1+). */
-    spi_mode_mismatch      = 0x1508, /*!< Image SPI flash mode does not match the running firmware (ESP-IDF 6.1+). */
+    /// Another OTA operation is already in progress on the same partition (ESP-IDF 6.1+).
+    already_in_progress    = 0x1507,
+    /// Image SPI flash mode does not match the running firmware (ESP-IDF 6.1+).
+    spi_mode_mismatch      = 0x1508,
 #endif
     // clang-format on
 };
@@ -305,7 +313,7 @@ public:
      *
      * @return The update session, or an error.
      * @retval ota::errc::partition_conflict if the partition is the currently running partition.
-     * @retval ota::errc::rollback_invalid_state if the running app has not confirmed state.
+     * @retval ota::errc::rollback_invalid_state if the running app is still pending verification.
      */
     [[nodiscard]] static result<update> make(const partition& part);
 
@@ -318,7 +326,7 @@ public:
      * @return The update session, or an error.
      * @retval idfxx::errc::invalid_arg if image_size is a reserved sentinel value.
      * @retval ota::errc::partition_conflict if the partition is the currently running partition.
-     * @retval ota::errc::rollback_invalid_state if the running app has not confirmed state.
+     * @retval ota::errc::rollback_invalid_state if the running app is still pending verification.
      */
     [[nodiscard]] static result<update> make(const partition& part, size_t image_size);
 
@@ -333,7 +341,7 @@ public:
      *
      * @return The update session, or an error.
      * @retval ota::errc::partition_conflict if the partition is the currently running partition.
-     * @retval ota::errc::rollback_invalid_state if the running app has not confirmed state.
+     * @retval ota::errc::rollback_invalid_state if the running app is still pending verification.
      */
     [[nodiscard]] static result<update> make(const partition& part, sequential_erase_tag);
 
@@ -408,7 +416,7 @@ public:
      * automatically copy the staging partition to the final partition.
      *
      * @param final_part The final destination partition.
-     * @param copy       If true, end() copies staging to final automatically.
+     * @param copy       If true, end() copies the staging partition to the final partition.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -423,7 +431,7 @@ public:
      * automatically copy the staging partition to the final partition.
      *
      * @param final_part The final destination partition.
-     * @param copy       If true, end() copies staging to final automatically.
+     * @param copy       If true, end() copies the staging partition to the final partition.
      *
      * @return Success, or an error.
      */
@@ -569,10 +577,10 @@ void set_boot_partition(const partition& part, skip_validation_t);
 /**
  * @brief Checks that an image is valid for the running chip.
  *
- * Verifies the chip ID and chip revision range from the image header and, for
- * app images, that the flash mode recorded in the app description matches the
- * running firmware. May be called before an update session begins, using the
- * first bytes of the image.
+ * Verifies the chip ID and chip revision range from the image header. For app
+ * images, also verifies that the flash mode recorded in the app description
+ * matches the running firmware. May be called before an update session begins,
+ * using the first bytes of the image.
  *
  * @code
  * std::array<std::byte, 512> start;
@@ -585,7 +593,7 @@ void set_boot_partition(const partition& part, skip_validation_t);
  *
  * @param type        Partition type of the image (app or bootloader).
  * @param image_start Leading bytes of the image. A bootloader needs at least the image
- *                    header; an app needs the image header, first segment header and
+ *                    header. An app needs the image header, first segment header and
  *                    app description.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -661,14 +669,14 @@ void check_image_validity(enum partition::type type, byte_view image_start);
 /**
  * @brief Checks that an image is valid for the running chip.
  *
- * Verifies the chip ID and chip revision range from the image header and, for
- * app images, that the flash mode recorded in the app description matches the
- * running firmware. May be called before an update session begins, using the
- * first bytes of the image.
+ * Verifies the chip ID and chip revision range from the image header. For app
+ * images, also verifies that the flash mode recorded in the app description
+ * matches the running firmware. May be called before an update session begins,
+ * using the first bytes of the image.
  *
  * @param type        Partition type of the image (app or bootloader).
  * @param image_start Leading bytes of the image. A bootloader needs at least the image
- *                    header; an app needs the image header, first segment header and
+ *                    header. An app needs the image header, first segment header and
  *                    app description.
  *
  * @return Success, or an error.
@@ -912,8 +920,8 @@ void invalidate_inactive_ota_data_slot();
  * @brief Creates an unexpected error from an ESP-IDF error code, mapping to OTA error codes where
  * possible.
  *
- * Converts the ESP-IDF error code to an OTA-specific error code if a mapping exists,
- * otherwise falls back to the default IDFXX error category.
+ * Converts the ESP-IDF error code to an OTA-specific error code if a mapping exists.
+ * Otherwise, the error code uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

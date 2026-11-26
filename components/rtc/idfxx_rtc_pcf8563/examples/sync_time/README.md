@@ -1,15 +1,15 @@
 # PCF8563 Sync Time
 
 Sets the system time from a PCF8563 real-time clock at boot, or seeds the clock with a fixed time if
-it has lost track.
+the clock's time is not valid.
 
 ## What it demonstrates
 
 - Setting up an I2C bus with `idfxx::i2c::master_bus`
 - Creating an `idfxx::rtc::pcf8563` on the bus with the default address (0x51)
-- Reading the time with `now()`, which returns `std::nullopt` when the clock's time can't be trusted
+- Reading the time with `now()`, which returns `std::nullopt` when the clock's time is not valid
 - Setting the system time from it with `idfxx::chrono::set_system_time()`
-- Seeding a clock that has lost track with `set_time()`
+- Seeding a clock whose time is not valid with `set_time()`
 - Reporting failures by catching `std::system_error`
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
@@ -36,8 +36,8 @@ To use different pins, change `PIN_SDA` and `PIN_SCL` at the top of `main/main.c
 > - ESP32-C3, ESP32-C6 and ESP32-H2: GPIO 8 and 9 are strapping pins.
 
 Some boards have a PCF8563 built in. On the Seeed reTerminal E1004, for example, it is on I2C0 with
-SDA on GPIO 19 and SCL on GPIO 20, so set `PIN_SDA` and `PIN_SCL` to those. Don't use GPIO 19 and 20
-on generic ESP32-S3 boards: they are the USB D-/D+ pins.
+SDA on GPIO 19 and SCL on GPIO 20. On that board, set `PIN_SDA` and `PIN_SCL` to those pins. Don't
+use GPIO 19 and 20 on generic ESP32-S3 boards, because they are the USB D-/D+ pins.
 
 ## How to use
 

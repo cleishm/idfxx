@@ -42,7 +42,7 @@ inline constexpr event<test_event_id> test_void_event_c{test_event_id::event_c};
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // event_base is trivially copyable (just a pointer)
@@ -456,7 +456,7 @@ TEST_CASE("event loop keeps dispatching when a typed or wildcard listener throws
     TEST_ASSERT_TRUE(loop.try_post(test_data_event, test_event_data{2}));
     idfxx::delay(100ms);
 
-    // Two events, each reaching the typed and the wildcard listener
+    // Two events, each received by both the typed and the wildcard listener
     TEST_ASSERT_EQUAL(4, thrown.load());
     TEST_ASSERT_EQUAL(2, received_value.load());
 }

@@ -28,7 +28,7 @@ inline constexpr bool idfxx::enable_flags_operators<test_event> = true;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // event_group<test_event> is not copyable

@@ -30,9 +30,9 @@ public:
      * @brief Receives a single datagram into the given buffer (connected mode).
      *
      * Each call returns exactly one datagram. An oversized datagram is **not**
-     * truncated: if it does not fit in @p buf the whole datagram is consumed and
-     * `errc::message_too_long` is raised, so size the buffer for the largest
-     * expected datagram or use `recv_from`.
+     * truncated. If it does not fit in @p buf, the whole datagram is consumed and
+     * `errc::message_too_long` is raised. Size the buffer for the largest expected
+     * datagram, or use `recv_from`.
      *
      * @param buf Buffer to receive into.
      *
@@ -44,8 +44,8 @@ public:
      *         datagram available.
      *
      * @return View of the datagram's bytes, at the start of @p buf. An empty view is a
-     *         received zero-length datagram — connectionless sockets have no
-     *         end-of-stream, so it never signals peer close.
+     *         received zero-length datagram. Connectionless sockets have no
+     *         end-of-stream, so an empty view never indicates that the peer closed.
      */
     [[nodiscard]] byte_span recv(byte_span buf) { return idfxx::unwrap(try_recv(buf)); }
 #endif
@@ -54,14 +54,15 @@ public:
      * @brief Receives a single datagram into the given buffer (connected mode).
      *
      * Each call returns exactly one datagram. An oversized datagram is **not**
-     * truncated: if it does not fit in @p buf the whole datagram is consumed and
-     * `errc::message_too_long` is returned, so size the buffer for the largest
-     * expected datagram or use `try_recv_from`.
+     * truncated. If it does not fit in @p buf, the whole datagram is consumed and
+     * `errc::message_too_long` is returned. Size the buffer for the largest
+     * expected datagram, or use `try_recv_from`.
      *
      * @param buf Buffer to receive into.
      * @return View of the datagram's bytes, at the start of @p buf, or an error. An empty
-     *         view is a received zero-length datagram — connectionless sockets
-     *         have no end-of-stream, so it never signals peer close.
+     *         view is a received zero-length datagram. Connectionless sockets have
+     *         no end-of-stream, so an empty view never indicates that the peer
+     *         closed.
      * @retval errc::message_too_long The datagram is larger than @p buf.
      * @retval errc::timed_out The receive timeout set by `set_recv_timeout` expired.
      * @retval errc::operation_would_block The socket is non-blocking and no
@@ -96,8 +97,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         datagram is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always `buf.size()`,
+     *         because a datagram is sent in full or not at all.
      */
     size_t send_to(byte_view buf, const endpoint& to) {
         return idfxx::unwrap(try_send_to(buf, to));
@@ -109,8 +110,8 @@ public:
      *
      * @param buf Data to send.
      * @param to  Destination endpoint.
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         datagram is sent in full or not at all — or an error.
+     * @return The number of bytes sent, or an error. On success, this is always
+     *         `buf.size()`, because a datagram is sent in full or not at all.
      */
     [[nodiscard]] result<size_t> try_send_to(byte_view buf, const endpoint& to);
 

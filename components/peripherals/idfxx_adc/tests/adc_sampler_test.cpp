@@ -2,11 +2,11 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx::adc::sampler
-// Continuous conversion needs real analog hardware; these cover the API
+// Continuous conversion needs real analog hardware. These tests cover the API
 // surface, the no-hardware error paths, and a lifecycle pass on a floating
 // ADC1 pin. esp_adc's boot-time calibration hangs under QEMU, so idfxx_adc
-// is kept out of the QEMU test image (see tests/CMakeLists.txt) and these
-// run on hardware.
+// is kept out of the QEMU test image (see idfxx_adc's CMakeLists.txt) and
+// these run on hardware.
 
 #include "idfxx/adc"
 #include "sdkconfig.h"
@@ -196,8 +196,9 @@ TEST_CASE("adc sampler reads calibrated voltages", "[idfxx][adc]") {
     TEST_ASSERT_TRUE(s.has_value());
     TEST_ASSERT_TRUE(s->try_start().has_value());
 
-    // The fused voltage read requires calibration; on chips without it the read
-    // reports not_supported rather than fabricating a voltage.
+    // The voltage read (read and convert in one call) requires calibration. On
+    // chips without calibration, the read reports not_supported instead of
+    // returning an invented voltage.
     std::array<quanta::electro::millivolts, 64> buf{};
     auto n = s->try_read(buf, 1s);
     if (s->calibrated()) {

@@ -17,15 +17,16 @@ namespace {
 
 using tick_duration = idfxx::chrono::tick_clock::duration;
 
-// One scheduler tick: the finest delay vTaskDelay() can express.
+// One scheduler tick: the finest delay that vTaskDelay() can express.
 constexpr auto tick_period = std::chrono::ceil<std::chrono::microseconds>(tick_duration{1});
 
 [[nodiscard]] bool in_isr_context() noexcept {
     return xPortInIsrContext() != 0;
 }
 
-// Ticks to ask vTaskDelay() for so that it does not wake before `remaining` has
-// elapsed: rounded up, and clamped to what TickType_t can carry (the caller loops).
+// The number of ticks to pass to vTaskDelay() so that it does not wake before
+// `remaining` has elapsed. The count is rounded up and clamped to portMAX_DELAY.
+// The caller loops for longer delays.
 [[nodiscard]] TickType_t ticks_for(std::chrono::microseconds remaining) noexcept {
     const auto ticks =
         static_cast<uint64_t>((remaining.count() + tick_period.count() - 1) / tick_period.count());
@@ -57,14 +58,15 @@ void delay(const std::chrono::microseconds& duration) {
     assert(!in_isr_context() && "delay() must not be called from ISR context");
 
     if (duration < tick_period) {
-        // The scheduler cannot resolve sub-tick durations; spin for precision.
+        // The scheduler cannot resolve sub-tick durations. Spin for precision.
         busy_wait(duration);
         return;
     }
 
     // vTaskDelay(n) wakes on the n-th tick interrupt after the call, which can
     // arrive almost a full tick before n tick periods have elapsed. Re-check the
-    // clock and top up until the deadline has passed, so the delay is never short.
+    // clock and delay again until the deadline has passed, so that the delay is
+    // never short.
     const auto deadline = std::chrono::steady_clock::now() + duration;
     auto remaining = duration;
     while (remaining > std::chrono::microseconds::zero()) {

@@ -144,8 +144,8 @@ void timer::_stop_and_delete() noexcept {
 namespace {
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-// How many times an absolute-time call clamped to now is retried when the clamped time slips
-// into the past before the call checks it.
+// How many times in total an absolute-time call with a time clamped to now is made. The call is
+// made again when the clamped time is already too far in the past when ESP-IDF checks it.
 constexpr int max_clamp_attempts = 3;
 
 // Microseconds since boot of a time point, as taken by the esp_timer absolute-time API.
@@ -167,7 +167,7 @@ result<void> timer::try_start_once(clock::time_point time) {
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     // esp_timer_start_once_at() rejects a time in the past with ESP_ERR_INVALID_ARG. Fire at
-    // once instead, both when the time has already passed and when it slips by before the call
+    // once instead, both when the time has already passed and when it passes before the call
     // checks it.
     if (time > clock::now()) {
         auto err = esp_timer_start_once_at(_handle, to_alarm_us(time));
@@ -197,9 +197,10 @@ result<void> timer::_try_restart_at(clock::time_point next, uint64_t period_us) 
         return error(errc::invalid_state);
     }
     // A relative restart would also replace the period of a periodic timer, so clamp a time in
-    // the past to now instead; see _try_start_periodic_at() for why ESP_ERR_INVALID_ARG means
-    // the clamped time slipped further into the past and is retried. The past check comes before
-    // the not-running check, so ESP_ERR_INVALID_STATE means the timer must be started instead.
+    // the past to now instead. See _try_start_periodic_at() for why ESP_ERR_INVALID_ARG means
+    // that the clamped time is too far in the past, and why the call is then retried.
+    // esp_timer_restart_at() checks the time before it checks whether the timer is running, so
+    // ESP_ERR_INVALID_STATE means that the timer must be started instead.
     esp_err_t err = ESP_ERR_INVALID_ARG;
     for (int attempt = 0; attempt < max_clamp_attempts && err == ESP_ERR_INVALID_ARG; ++attempt) {
         auto at = std::max(next, clock::now());
@@ -216,10 +217,10 @@ result<void> timer::_try_start_periodic_at(clock::time_point first, uint64_t int
         return error(errc::invalid_state);
     }
     // There is no relative call that fires a periodic timer at once, so clamp a first time in
-    // the past to now. esp_timer_start_periodic_at() accepts a time no more than the minimum
-    // timer period in the past, and with the handle checked above ESP_ERR_INVALID_ARG can only
-    // mean the time slipped further than that before the call checked it; take a fresh now and
-    // try again, a bounded number of times.
+    // the past to now. esp_timer_start_periodic_at() accepts a time that is no more than the
+    // minimum timer period in the past. The handle is checked above, so ESP_ERR_INVALID_ARG can
+    // only mean that the time was further in the past than that when the call checked it. In
+    // that case, read the current time again and retry, up to max_clamp_attempts times in total.
     esp_err_t err = ESP_ERR_INVALID_ARG;
     for (int attempt = 0; attempt < max_clamp_attempts && err == ESP_ERR_INVALID_ARG; ++attempt) {
         auto at = std::max(first, clock::now());

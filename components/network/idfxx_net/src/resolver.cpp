@@ -95,9 +95,10 @@ void format_port(char (&buf)[6], port_number port) noexcept {
     std::snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(port));
 }
 
-// Max DNS name length per RFC 1035 is 253 characters; one byte for NUL terminator.
+// Max DNS name length per RFC 1035 is 253 characters. One more byte holds the NUL terminator.
 constexpr size_t host_buf_size = 254;
-// Service names rarely exceed a few characters; this comfortably fits both names and numeric ports.
+// Service names rarely exceed a few characters. This size comfortably fits both names and numeric
+// ports.
 constexpr size_t service_buf_size = 32;
 
 template<size_t N>

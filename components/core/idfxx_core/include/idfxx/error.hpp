@@ -199,8 +199,8 @@ template<typename T, typename... Args>
  * @brief Creates an unexpected error from an error code enum.
  *
  * Convenience helper for returning errors from functions that return
- * `idfxx::result<T>`. Works with any registered error code enum
- * (`idfxx::errc`, `nvs::errc`, etc.) via ADL `make_error_code`.
+ * `idfxx::result<T>`. Works with any registered error code enum (such as
+ * `idfxx::errc` and `nvs::errc`) via ADL `make_error_code`.
  *
  * @tparam E An error code enum type registered via `std::is_error_code_enum`.
  * @param e The error code enum value.
@@ -225,8 +225,8 @@ template<typename E>
  * @brief Creates an unexpected error from an error condition enum.
  *
  * Convenience helper for returning errors from functions that return
- * `idfxx::result<T>`. Works with any registered error condition enum
- * (`std::errc`, etc.) via ADL `make_error_code`.
+ * `idfxx::result<T>`. Works with any registered error condition enum (such
+ * as `std::errc`) via ADL `make_error_code`.
  *
  * @tparam E An error condition enum type registered via `std::is_error_condition_enum`.
  * @param e The error condition enum value.
@@ -431,16 +431,16 @@ invoke_guarded_impl(const char* tag, const char* context, const char* subject, F
  * `result<T>` is returned as is, and any other type `U` becomes `result<U>`.
  *
  * When exceptions are enabled, an exception thrown by the callback is caught
- * and returned as an error: a std::system_error as its error code, and any
- * other exception as errc::fail. Each is logged as an error, as
- * "<context> threw: <what>", except a std::system_error thrown by a callback
- * returning `result<T>`, which is treated exactly like returning its error
- * code and left for the caller to handle. A std::bad_alloc is not caught:
- * allocation failure terminates the program, as elsewhere in idfxx. Without
- * exceptions, the callback is invoked directly.
+ * and returned as an error. A std::system_error is returned as its error code.
+ * Any other exception is returned as errc::fail. Every caught exception is
+ * logged as an error, as "<context> threw: <what>", except a std::system_error
+ * thrown by a callback that returns `result<T>`. That exception is treated
+ * exactly like a returned error code, and the caller handles it. A
+ * std::bad_alloc is not caught. Allocation failure terminates the program, as
+ * elsewhere in idfxx. Without exceptions, the callback is invoked directly.
  *
- * As a result, a caller acting on an error from a callback that does not
- * return `result<T>` need not log it again.
+ * If the callback does not return `result<T>`, an error from it is already
+ * logged. The caller does not need to log it again.
  *
  * @tparam F The callable type.
  * @param tag The log tag to use.
@@ -458,8 +458,8 @@ invoke_guarded(const char* tag, const char* context, F&& fn) noexcept {
 /**
  * @brief Invokes a user callback from a context that an exception must never escape.
  *
- * As for invoke_guarded(const char*, const char*, F&&), with the log message
- * naming a subject: "<context> <subject> threw: <what>" (e.g. context
+ * Same as invoke_guarded(const char*, const char*, F&&), but the log message
+ * also names a subject: "<context> <subject> threw: <what>" (e.g. context
  * "Handler for" and a URI as the subject).
  *
  * @tparam F The callable type.
@@ -480,18 +480,15 @@ invoke_guarded(const char* tag, const char* context, const char* subject, F&& fn
 /**
  * @brief Aborts the program if the result contains an error.
  *
- * This overload invokes an optional callback before aborting, allowing for
- * error logging or cleanup. The callback is invoked inline without type erasure,
- * enabling zero-overhead error handling.
- *
- * @warning For std::function or std::move_only_function, ensure the callback is
- *          not null to avoid std::bad_function_call.
+ * This overload invokes a callback before aborting. The callback can log the
+ * error or clean up. The callback is invoked inline without type erasure, so it
+ * adds no overhead. If the callback is an empty function wrapper (such as an
+ * empty std::function), the program aborts without invoking it.
  *
  * @tparam T The success value type.
  * @tparam Callback The callback type (deduced).
  * @param result The result to check.
- * @param on_error Function called with the error code before aborting. Must be
- *                 a valid callable (not null for function wrappers).
+ * @param on_error Function called with the error code before aborting.
  */
 template<typename T, typename Callback>
     requires std::invocable<Callback, std::error_code> &&

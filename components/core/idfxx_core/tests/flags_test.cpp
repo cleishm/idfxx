@@ -24,7 +24,7 @@ enum class test_flag : uint32_t {
 template<>
 inline constexpr bool idfxx::enable_flags_operators<test_flag> = true;
 
-// Sub-int underlying type: the bitwise operators must not trip narrowing
+// Sub-int underlying type: the bitwise operators must not trigger narrowing
 // diagnostics when the operands promote to int.
 enum class narrow_flag : uint16_t {
     flag_a = 1u << 0,
@@ -44,7 +44,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // Trait verification
@@ -73,7 +73,8 @@ static_assert(to_underlying(flags<test_flag>(5u)) == 5u);
 static_assert(to_underlying(flags{test_flag::flag_a} | flags{test_flag::flag_b}) == 3u);
 static_assert(to_underlying(test_flag::flag_a | test_flag::flag_b) == 3u);
 
-// Sub-int underlying types survive the int promotion of the bitwise operators.
+// The bitwise operators give correct results for sub-int underlying types, despite the int
+// promotion.
 static_assert(to_underlying(narrow_flag::flag_a | narrow_flag::flag_b) == 3u);
 static_assert(to_underlying(flags{narrow_flag::flag_a} & flags{narrow_flag::flag_a}) == 1u);
 static_assert(to_underlying(flags{narrow_flag::flag_a} ^ flags{narrow_flag::flag_b}) == 3u);
@@ -183,7 +184,8 @@ TEST_CASE("flags &= modifies in place", "[idfxx][flags]") {
 }
 
 TEST_CASE("flags toggle with ^", "[idfxx][flags]") {
-    // Keep the two flags{...} braced-inits symmetric; clang-format otherwise spaces only the second.
+    // Keep the two flags{...} braced-inits symmetric. Otherwise clang-format spaces only the
+    // second.
     // clang-format off
     auto f = flags{test_flag::flag_a} ^ flags{test_flag::flag_b};
     // clang-format on

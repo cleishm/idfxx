@@ -128,7 +128,7 @@ idfxx::spi::master_device device(bus, {
 });
 
 {
-    // Keep other tasks off the device between the request and the read
+    // Stop other tasks from using the device between the request and the read
     std::lock_guard lk(device);
     device.transmit({0x01, 0x80});      // literal command bytes
     auto status = device.receive<2>();  // std::array<uint8_t, 2>
@@ -177,7 +177,7 @@ idfxx::panel_io panel_io(
 
 **Properties:**
 - `host()` - Get SPI host device
-- `max_transaction_length()` - Largest transaction the bus accepts, in bytes (with or without
+- `max_transaction_length()` - Largest transaction that the bus accepts, in bytes (with or without
   devices attached)
 
 **Lifetime:**
@@ -195,14 +195,14 @@ idfxx::panel_io panel_io(
   such as `{0x9F, 0x00}`
 - `receive(buf)` - Fill a writable buffer completely
 - `receive<N>()` - Receive `N` bytes as a `std::array<uint8_t, N>`
-- `transfer(tx, rx)` - Full-duplex transfer into a writable buffer; `tx` is a `byte_view` or a
+- `transfer(tx, rx)` - Full-duplex transfer into a writable buffer. `tx` is a `byte_view` or a
   literal list
 
 **Full-control transactions:**
 - `transmit(transaction)` / `polling_transmit(transaction)` - Command, address, dummy and data
-  phases, lengths in bits; unset `length` / `rx_length` are derived from the buffers (and the
-  device's duplex mode)
-- `queue_trans(transaction)` - Queue asynchronously; returns an `idfxx::future<void>`
+  phases, with lengths in bits. An unset `length` or `rx_length` is derived from the buffers (and
+  the device's duplex mode)
+- `queue_trans(transaction)` - Queue asynchronously. Returns an `idfxx::future<void>`
 
 **Bus exclusivity:**
 - `lock()`, `try_lock()`, `unlock()` - Lockable, for use with `std::lock_guard`
@@ -229,26 +229,25 @@ Via `idfxx::spi::dma_chan`:
 the following with `errc::invalid_arg` when the bus is created:
 - `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled`
 - `intr_levels` level 4, 5, 6 and `nmi`
-- `intr_flag::iram`, unless `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (and then all callbacks must
-  be in IRAM)
+- `intr_flag::iram`, unless `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled. When `intr_flag::iram` is
+  set, all callbacks must be in IRAM
 
 ## DMA Burst Size
 
-With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. Left
-unset, the driver chooses. When set, the value must be one of the burst sizes supported by the
-chip's DMA controller, and is ignored on chips whose burst size is not configurable.
+With ESP-IDF 6.1 or later, `bus_config::dma_burst_size` sets the DMA burst size in bytes. If it is
+not set, the driver chooses. When it is set, the value must be one of the burst sizes supported by
+the chip's DMA controller. The value is ignored on chips whose burst size is not configurable.
 
 ## Important Notes
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<master_bus>` (always available)
-  - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `make()` returns `idfxx::result<master_bus>`. The constructor throws
+  `std::system_error` and requires `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - Only one bus can be initialized per SPI host
 - The bus must remain alive while devices using it exist
 - DMA enables larger transfers but requires DMA-capable memory
 - Maximum transfer size without DMA is ~64 bytes
-- With DMA, transfer size is limited by `max_transfer_sz` in config; left unset, the driver default
-  applies
+- With DMA, transfer size is limited by `max_transfer_sz` in config. If it is not set, the driver
+  default applies
 - GPIO pins must not be used by other peripherals
 
 ## License

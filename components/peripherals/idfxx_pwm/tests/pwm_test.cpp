@@ -16,17 +16,18 @@ using namespace quanta::frequency_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
-// timer is a value type: copyable and movable (not default constructible — needs a number)
+// timer is a value type: copyable and movable. It is not default constructible, because it
+// needs a number.
 static_assert(!std::is_default_constructible_v<timer>);
 static_assert(std::is_copy_constructible_v<timer>);
 static_assert(std::is_copy_assignable_v<timer>);
 static_assert(std::is_move_constructible_v<timer>);
 static_assert(std::is_move_assignable_v<timer>);
 
-// timer::config is an aggregate; the frequency has no default
+// timer::config is an aggregate. The frequency has no default
 static_assert(std::is_aggregate_v<timer::config>);
 static_assert(!std::is_default_constructible_v<timer::config>);
 static_assert(timer::config{.frequency = quanta::frequency::hertz{5000}}.resolution_bits == 13);

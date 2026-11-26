@@ -25,10 +25,10 @@ using idfxx_epaper_test::recording_epaper_panel;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
-// The panel base is abstract — no concrete controller details leak in.
+// The panel base is abstract: it has no concrete controller details.
 static_assert(std::is_abstract_v<panel>);
 
 // The base is non-copyable so concrete drivers inherit that property.
@@ -53,10 +53,11 @@ static_assert(idfxx::gfx::pixel_surface<color6_framebuffer>);
 static_assert(gray4{} == gray4::white);
 static_assert(bool{} == false); // mono: false = white paper
 // ...except six-color, whose panel-native code 0 is black: the framebuffer's
-// own clear() blanks to white, and windowed canvas clears ink black.
+// own clear() blanks to white, but a windowed canvas clear makes its region
+// black.
 static_assert(color6{} == color6::black);
 
-// Gray levels are the canonical 2-bit values streamed to controller planes.
+// Gray levels are the canonical 2-bit values sent to controller planes.
 static_assert(std::to_underlying(gray4::white) == 0);
 static_assert(std::to_underlying(gray4::light) == 1);
 static_assert(std::to_underlying(gray4::dark) == 2);
@@ -108,7 +109,7 @@ TEST_CASE("epaper mono_framebuffer starts all-white with byte-padded rows", "[id
 TEST_CASE("epaper mono_framebuffer set_pixel uses row-major MSB-first layout", "[idfxx][epaper]") {
     auto fb = mono_framebuffer::make(16, 4).value();
 
-    // (0, 0) is bit 7 of byte 0; ink clears the bit.
+    // (0, 0) is bit 7 of byte 0. Ink clears the bit.
     fb.set_pixel(0, 0, true);
     TEST_ASSERT_EQUAL_HEX8(0x7F, fb.data()[0]);
     TEST_ASSERT_TRUE(fb.get_pixel(0, 0));
@@ -132,7 +133,7 @@ TEST_CASE("epaper mono_framebuffer set_pixel uses row-major MSB-first layout", "
 TEST_CASE("epaper mono_framebuffer row spans and fill", "[idfxx][epaper]") {
     auto fb = mono_framebuffer::make(12, 3).value(); // stride 2
 
-    // fill inks every pixel; the 4 padding bits past the right edge stay white.
+    // fill inks every pixel. The 4 padding bits past the right edge stay white.
     fb.fill(true);
     for (size_t y = 0; y < 3; ++y) {
         TEST_ASSERT_EQUAL_HEX8(0x00, fb.row(y)[0]);
@@ -223,7 +224,7 @@ TEST_CASE("epaper gray4_framebuffer encodes levels across planes", "[idfxx][epap
     TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane(0)[0]);
     TEST_ASSERT_EQUAL_HEX8(0x00, fb.plane(1)[0]);
 
-    // fill sets every pixel; the 4 padding bits past the right edge stay
+    // fill sets every pixel. The 4 padding bits past the right edge stay
     // white (clear) in both planes.
     fb.fill(gray4::black);
     for (size_t p = 0; p < 2; ++p) {
@@ -234,7 +235,7 @@ TEST_CASE("epaper gray4_framebuffer encodes levels across planes", "[idfxx][epap
     }
     TEST_ASSERT_EQUAL(std::to_underlying(gray4::black), std::to_underlying(fb.get_pixel(11, 2)));
 
-    // light sets plane 0 only; its padding stays clear too.
+    // light sets plane 0 only. Its padding stays clear too.
     fb.fill(gray4::light);
     for (size_t y = 0; y < 3; ++y) {
         TEST_ASSERT_EQUAL_HEX8(0xFF, fb.plane_row(0, y)[0]);
@@ -313,12 +314,12 @@ TEST_CASE("epaper color6_framebuffer packs the even pixel in the high nibble", "
     TEST_ASSERT_EQUAL_HEX8(0x31, fb.data()[0]);
     TEST_ASSERT_EQUAL(std::to_underlying(color6::red), std::to_underlying(fb.get_pixel(0, 0)));
 
-    // (1, 0) is the low nibble of the same byte; the high nibble is kept.
+    // (1, 0) is the low nibble of the same byte. The high nibble is kept.
     fb.set_pixel(1, 0, color6::blue);
     TEST_ASSERT_EQUAL_HEX8(0x35, fb.data()[0]);
     TEST_ASSERT_EQUAL(std::to_underlying(color6::blue), std::to_underlying(fb.get_pixel(1, 0)));
 
-    // (4, 1) is the high nibble of the last byte of row 1; the padding
+    // (4, 1) is the high nibble of the last byte of row 1. The padding
     // nibble past the right edge stays white.
     fb.set_pixel(4, 1, color6::green);
     TEST_ASSERT_EQUAL_HEX8(0x61, fb.row(1)[2]);
@@ -336,7 +337,7 @@ TEST_CASE("epaper color6_framebuffer packs the even pixel in the high nibble", "
 TEST_CASE("epaper color6_framebuffer fill and clear", "[idfxx][epaper]") {
     auto fb = color6_framebuffer::make(5, 3).value();
 
-    // fill colors every pixel; the padding nibble past the right edge stays
+    // fill colors every pixel. The padding nibble past the right edge stays
     // white.
     fb.fill(color6::yellow);
     for (size_t y = 0; y < 3; ++y) {
@@ -369,7 +370,7 @@ TEST_CASE("epaper color6_framebuffer fill and clear", "[idfxx][epaper]") {
 TEST_CASE("epaper color6_framebuffer mutable data loads raw bytes", "[idfxx][epaper]") {
     auto fb = color6_framebuffer::make(5, 3).value(); // stride 3
 
-    // (0, 0) red, (1, 0) blue, (3, 1) green; the rest white.
+    // (0, 0) red, (1, 0) blue, (3, 1) green. The rest are white.
     const std::array<uint8_t, 9> saved{0x35, 0x11, 0x11, 0x11, 0x16, 0x11, 0x11, 0x11, 0x11};
     std::span<uint8_t> raw = fb.data();
     TEST_ASSERT_EQUAL(saved.size(), raw.size());
@@ -415,7 +416,7 @@ TEST_CASE("epaper panel write validates placement and mode", "[idfxx][epaper]") 
     TEST_ASSERT_EQUAL(0, display.mono_writes.size());
     TEST_ASSERT_EQUAL(0, display.gray_writes.size());
 
-    // A valid full write reaches the driver hook with the full row range.
+    // A valid full write calls the driver hook with the full row range.
     TEST_ASSERT_TRUE(display.try_write(fb).has_value());
     TEST_ASSERT_EQUAL(1, display.mono_writes.size());
     TEST_ASSERT_EQUAL(0, display.mono_writes[0].x);
@@ -473,7 +474,7 @@ TEST_CASE("epaper panel rejects unsupported color modes before the driver", "[id
     TEST_ASSERT_FALSE(display.supports(color_mode::gray4));
     TEST_ASSERT_FALSE(display.supports(color_mode::color6));
 
-    // Unsupported modes fail without reaching the driver or changing state.
+    // Unsupported modes fail without calling the driver or changing state.
     auto gray = display.try_set_color_mode(color_mode::gray4);
     TEST_ASSERT_FALSE(gray.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_supported), gray.error().value());
@@ -483,7 +484,7 @@ TEST_CASE("epaper panel rejects unsupported color modes before the driver", "[id
     TEST_ASSERT_EQUAL(0, display.color_mode_changes);
     TEST_ASSERT_EQUAL(std::to_underlying(color_mode::mono), std::to_underlying(display.color_mode()));
 
-    // A supported mode reaches the driver.
+    // A supported mode is passed to the driver.
     display.supports_color6 = true;
     TEST_ASSERT_TRUE(display.supports(color_mode::color6));
     TEST_ASSERT_TRUE(display.try_set_color_mode(color_mode::color6).has_value());
@@ -544,7 +545,7 @@ TEST_CASE("epaper panel stores a supported border without the controller", "[idf
     const size_t waits = display.waits;
     const size_t hooks = display.hooks();
 
-    // Setting the border reaches no hook, does not settle, and keeps the
+    // Setting the border calls no hook, does not settle, and keeps the
     // baseline: the next partial refresh stays partial.
     TEST_ASSERT_TRUE(display.try_set_border(border::hold).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(border::hold), std::to_underlying(display.border()));
@@ -574,7 +575,7 @@ TEST_CASE("epaper panel clear invalidates the partial baseline", "[idfxx][epaper
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
 
-    // Clearing reaches the driver and invalidates the baseline: the next
+    // Clearing calls the driver and invalidates the baseline: the next
     // partial refresh is promoted to full.
     TEST_ASSERT_TRUE(display.try_clear().has_value());
     TEST_ASSERT_EQUAL(1, display.clears);
@@ -595,7 +596,7 @@ TEST_CASE("epaper panel forwards gray4 refresh modes to the driver", "[idfxx][ep
     TEST_ASSERT_EQUAL(std::to_underlying(color_mode::gray4), std::to_underlying(display.color_mode()));
 
     // Refresh-mode capability (e.g. gray4 being full-only on current
-    // drivers) is driver policy: a mode the driver accepts is forwarded
+    // drivers) is driver policy: a mode that the driver accepts is forwarded
     // unchanged.
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::full).has_value());
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::fast).has_value());
@@ -603,7 +604,7 @@ TEST_CASE("epaper panel forwards gray4 refresh modes to the driver", "[idfxx][ep
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::partial), std::to_underlying(display.refreshes.back()));
 
-    // Gray4 writes are accepted in gray4 mode; mono writes are not.
+    // Gray4 writes are accepted in gray4 mode. Mono writes are not.
     auto gfb = gray4_framebuffer::make(122, 250).value();
     TEST_ASSERT_TRUE(display.try_write(gfb).has_value());
     TEST_ASSERT_EQUAL(1, display.gray_writes.size());
@@ -696,8 +697,8 @@ TEST_CASE("epaper panel sleep blocks writes and refreshes until wake", "[idfxx][
 TEST_CASE("epaper panel start_refresh returns a completion future", "[idfxx][epaper]") {
     recording_epaper_panel display(122, 250);
 
-    // Starts the refresh and hands back a future; with no BUSY line it is
-    // already complete.
+    // Starts the refresh and returns a future. With no BUSY line, the future
+    // is already complete.
     auto started = display.try_start_refresh();
     TEST_ASSERT_TRUE(started.has_value());
     TEST_ASSERT_TRUE(started->valid());
@@ -730,7 +731,7 @@ TEST_CASE("epaper panel refresh blocks and start_refresh does not", "[idfxx][epa
     TEST_ASSERT_EQUAL(2, display.waits);
     TEST_ASSERT_EQUAL(1, display.hooks_before_last_wait);
 
-    // start_refresh only settles beforehand: completion is the future's.
+    // start_refresh only settles beforehand: the future handles completion.
     TEST_ASSERT_TRUE(display.try_start_refresh().has_value());
     TEST_ASSERT_EQUAL(3, display.waits);
     TEST_ASSERT_EQUAL(1, display.hooks_before_last_wait);
@@ -741,8 +742,8 @@ TEST_CASE("epaper panel settles an outstanding refresh before every controller h
     recording_epaper_panel display(122, 250);
     auto fb = mono_framebuffer::make(122, 250).value();
 
-    // Each command-issuing operation waits first, with the wait landing
-    // before the hook runs.
+    // Each operation that issues a command waits first, before the hook
+    // runs.
     TEST_ASSERT_TRUE(display.try_write(fb).has_value());
     TEST_ASSERT_EQUAL(1, display.waits);
     TEST_ASSERT_EQUAL(0, display.hooks_before_last_wait);
@@ -771,7 +772,7 @@ TEST_CASE("epaper panel settles an outstanding refresh before every controller h
     TEST_ASSERT_TRUE(display.try_wake().has_value());
     TEST_ASSERT_EQUAL(5, display.waits);
 
-    // Waking an awake panel settles first, so the reset cannot cut off an
+    // Waking an awake panel settles first, so the reset cannot interrupt an
     // outstanding update.
     const size_t hooks = display.hooks();
     TEST_ASSERT_TRUE(display.try_wake().has_value());
@@ -784,7 +785,7 @@ TEST_CASE("epaper panel restore_baseline keeps the next partial refresh partial"
     recording_epaper_panel display(128, 64);
     auto fb = mono_framebuffer::make(128, 64).value();
 
-    // A fresh panel has no baseline; restoring one reaches the driver (after
+    // A fresh panel has no baseline. Restoring one calls the driver (after
     // settling) and keeps the next partial refresh partial.
     TEST_ASSERT_TRUE(display.try_restore_baseline(fb).has_value());
     TEST_ASSERT_EQUAL(1, display.restores);
@@ -834,8 +835,8 @@ TEST_CASE("epaper panel restore_baseline validates state and dimensions", "[idfx
     TEST_ASSERT_FALSE(bad_height.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_arg), bad_height.error().value());
 
-    // None of the rejected calls reached the driver, and no baseline was
-    // recorded.
+    // The driver was not called for any of the rejected calls, and no
+    // baseline was recorded.
     TEST_ASSERT_EQUAL(0, display.restores);
     TEST_ASSERT_TRUE(display.try_refresh(refresh_mode::partial).has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(refresh_mode::full), std::to_underlying(display.refreshes.back()));

@@ -4,9 +4,9 @@ Joins a Wi-Fi network and receives webhooks over HTTP, accepting a request only 
 signed with HMAC-SHA-256 under a secret shared with the sender.
 
 Each request carries its signature in an `X-Signature: sha256=<hex>` header, in the style of GitHub
-webhooks. The board authenticates the body as it arrives, so it never has to fit in memory, and
-answers `200 OK` if the signature matches, or `401 Unauthorized` if the header is missing or
-malformed or the signature doesn't match.
+webhooks. The board authenticates the body as it arrives, so it never has to fit in memory. It
+answers `200 OK` if the signature matches. It answers `401 Unauthorized` if the header is missing or
+malformed, or if the signature doesn't match.
 
 ## What it demonstrates
 
@@ -37,7 +37,7 @@ The ESP32-H2 has no Wi-Fi, so it can't run this example.
 
 Set `WIFI_SSID` and `WIFI_PASSWORD` in `main/main.cpp` to your network's name and password, and
 `WEBHOOK_SECRET` to the secret shared with the senders (it must not be empty). Building a secret
-into the firmware keeps the example short; a real application should provision it per device
+into the firmware keeps the example short. A real application should provision it per device
 instead, for example into encrypted NVS.
 
 ## How to use
@@ -75,12 +75,12 @@ SIG=$(openssl dgst -sha256 -hmac "$SECRET" -r payload.json | cut -d' ' -f1)
 curl -i --data-binary @payload.json -H "X-Signature: sha256=$SIG" http://<IP>/hook
 ```
 
-The board answers `200 OK` and logs the size of the webhook. Use `--data-binary` rather than `-d`,
-which strips newlines from the file, so the board would receive a different body from the one that
+The board answers `200 OK` and logs the size of the webhook. Use `--data-binary` rather than `-d`.
+`-d` strips newlines from the file, so the board would receive a different body from the one that
 was signed.
 
-To see a request rejected, sign it with a different secret, or leave out the `X-Signature` header;
-the board answers `401 Unauthorized`:
+To see a request rejected, sign it with a different secret, or leave out the `X-Signature` header.
+The board answers `401 Unauthorized`:
 
 ```bash
 SIG=$(openssl dgst -sha256 -hmac wrong-secret -r payload.json | cut -d' ' -f1)

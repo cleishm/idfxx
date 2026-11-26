@@ -100,8 +100,8 @@ Key configuration options:
 - `pin_a`, `pin_b` - Encoder pins (required)
 - `encoder_pins_pull_mode` - Pull mode for encoder pins A and B (default: pullup, nullopt to leave
   unchanged)
-- `acceleration_threshold` - Acceleration trigger interval (default: 200ms)
-- `acceleration_cap` - Maximum acceleration limit (default: 4ms)
+- `acceleration_threshold` - Acceleration starts below this interval (default: 200ms)
+- `acceleration_cap` - Minimum interval, which limits the maximum acceleration (default: 4ms)
 - `polling_interval` - GPIO polling interval (default: 1ms)
 
 ## Error Handling
@@ -115,7 +115,8 @@ Error codes from `idfxx::errc`:
 
 ## Important Notes
 
-- **Non-copyable/move-only**: Encoder is non-copyable and move-only.
+- **Non-copyable/move-only**: Encoder is non-copyable and move-only. A moved-from object must not
+  be used: any operation other than destruction or assignment is undefined behavior.
 - **Automatic cleanup**: The destructor automatically stops tracking and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call
   back into the encoder API.

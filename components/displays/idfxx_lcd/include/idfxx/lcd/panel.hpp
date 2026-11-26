@@ -47,16 +47,17 @@ class rgb565_framebuffer;
  * @headerfile <idfxx/lcd/panel>
  * @brief Abstract base class for LCD panels.
  *
- * The public interface is non-virtual; concrete drivers (e.g.
+ * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::lcd::ili9341`) customize behavior by overriding the protected
- * `do_*` hooks, mirroring the standard library's non-virtual-interface
- * pattern (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  *
- * Framebuffer contents reach the display through @ref write (the whole
- * framebuffer), @ref write_rows (a horizontal band) and @ref write_region
- * (a rectangle), each placing the framebuffer's origin at a destination
- * pixel. A write does not retain a reference to the framebuffer: it may be
- * redrawn immediately after the call returns.
+ * Framebuffer contents are sent to the display through @ref write (the
+ * whole framebuffer), @ref write_rows (a horizontal band) and
+ * @ref write_region (a rectangle). Each method places the framebuffer's
+ * origin at a destination pixel. A write does not retain a reference to the
+ * framebuffer: the framebuffer may be redrawn immediately after the call
+ * returns.
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer fb(display.width(), display.height());
@@ -147,9 +148,9 @@ public:
      * The axes are swapped by a successful @ref swap_xy and are not swapped
      * initially.
      *
-     * Writing a @ref mono_framebuffer needs the axes unswapped: its pages group
-     * rows, while a swapped 1-bpp panel pages along columns. Such writes fail
-     * with `errc::invalid_state` while the axes are swapped.
+     * Writing a @ref mono_framebuffer requires the axes to be unswapped. Its
+     * pages group rows, but a swapped 1-bpp panel groups columns into pages.
+     * Such writes fail with `errc::invalid_state` while the axes are swapped.
      *
      * @return true while the axes are swapped, false otherwise.
      */
@@ -159,9 +160,9 @@ public:
      * @brief Returns the size of a pixel in the panel's native format, in bits.
      *
      * This is the size of each pixel in the data passed to @ref draw_bitmap
-     * (e.g. 16 for RGB565, 1 for an SSD1306), which may exceed the configured
-     * color depth: an ILI9341 configured for 18 bpp reports 24, as it receives
-     * each pixel in three bytes.
+     * (e.g. 16 for RGB565, 1 for an SSD1306). It may exceed the configured
+     * color depth. For example, an ILI9341 configured for 18 bpp reports 24,
+     * because it receives each pixel in three bytes.
      *
      * @return The bits per pixel of the panel's native format.
      */
@@ -194,7 +195,7 @@ public:
      *
      * @param fb The framebuffer to draw.
      * @param x  Destination column of the framebuffer's left edge.
-     * @param y  Destination row of the framebuffer's top edge; must be a
+     * @param y  Destination row of the framebuffer's top edge. Must be a
      *           multiple of 8 (the page-packed layout groups rows into
      *           8-row pages).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -211,15 +212,15 @@ public:
      * @brief Draws a horizontal band of an RGB565 framebuffer to the display.
      *
      * Draws rows `[row_start, row_end)` of @p fb across its full width, with
-     * the framebuffer's origin at pixel (@p x, @p y) — row `r` of the
-     * framebuffer lands at display row `y + r`, so a band written from a
-     * full-frame framebuffer lands exactly where the full write would place
-     * it. The band transfers in a single draw. The panel must use the RGB565
+     * the framebuffer's origin at pixel (@p x, @p y). Row `r` of the
+     * framebuffer is drawn at display row `y + r`, so a band written from a
+     * full-frame framebuffer is drawn exactly where the full write would place
+     * it. The band is sent in a single draw. The panel must use the RGB565
      * format.
      *
      * @param fb        The framebuffer to draw from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
      * @param x         Destination column of the framebuffer origin.
      * @param y         Destination row of the framebuffer origin.
@@ -242,20 +243,19 @@ public:
      * @brief Draws a horizontal band of a monochrome framebuffer to the display.
      *
      * Draws rows `[row_start, row_end)` of @p fb across its full width, with
-     * the framebuffer's origin at pixel (@p x, @p y) — row `r` of the
-     * framebuffer lands at display row `y + r`, so a band written from a
-     * full-frame framebuffer lands exactly where the full write would place
+     * the framebuffer's origin at pixel (@p x, @p y). Row `r` of the
+     * framebuffer is drawn at display row `y + r`, so a band written from a
+     * full-frame framebuffer is drawn exactly where the full write would place
      * it. The rows are expanded outward to page boundaries (multiples of 8)
-     * to match the page-packed layout, and the band transfers in a single
-     * draw. The panel must use the page-packed 1-bpp format (e.g. an
-     * SSD1306).
+     * to match the page-packed layout. The band is sent in a single draw. The
+     * panel must use the page-packed 1-bpp format (e.g. an SSD1306).
      *
      * @param fb        The framebuffer to draw from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
      * @param x         Destination column of the framebuffer origin.
-     * @param y         Destination row of the framebuffer origin; must be a
+     * @param y         Destination row of the framebuffer origin. Must be a
      *                  multiple of 8.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
@@ -278,17 +278,17 @@ public:
      * @brief Draws a rectangular region of an RGB565 framebuffer to the display.
      *
      * Draws columns `[x_start, x_end)` and rows `[y_start, y_end)` of @p fb,
-     * with the framebuffer's origin at pixel (@p x, @p y) — framebuffer pixel
-     * `(c, r)` lands at display pixel `(x + c, y + r)`. Full-width regions
-     * transfer in a single draw; narrower regions transfer one draw per row.
-     * The panel must use the RGB565 format.
+     * with the framebuffer's origin at pixel (@p x, @p y). Framebuffer pixel
+     * `(c, r)` is drawn at display pixel `(x + c, y + r)`. A full-width region
+     * is sent in a single draw. A narrower region is sent with one draw per
+     * row. The panel must use the RGB565 format.
      *
      * @param fb      The framebuffer to draw from.
      * @param x_start First framebuffer column of the region, inclusive.
      * @param y_start First framebuffer row of the region, inclusive.
-     * @param x_end   End framebuffer column, exclusive; must satisfy
+     * @param x_end   End framebuffer column, exclusive. Must satisfy
      *                `x_start < x_end <= fb.width()`.
-     * @param y_end   End framebuffer row, exclusive; must satisfy
+     * @param y_end   End framebuffer row, exclusive. Must satisfy
      *                `y_start < y_end <= fb.height()`.
      * @param x       Destination column of the framebuffer origin.
      * @param y       Destination row of the framebuffer origin.
@@ -313,22 +313,22 @@ public:
      * @brief Draws a rectangular region of a monochrome framebuffer to the display.
      *
      * Draws columns `[x_start, x_end)` and rows `[y_start, y_end)` of @p fb,
-     * with the framebuffer's origin at pixel (@p x, @p y) — framebuffer pixel
-     * `(c, r)` lands at display pixel `(x + c, y + r)`. The rows are expanded
-     * outward to page boundaries (multiples of 8) to match the page-packed
-     * layout. Full-width regions transfer in a single draw; narrower regions
-     * transfer one draw per page. The panel must use the page-packed 1-bpp
-     * format (e.g. an SSD1306).
+     * with the framebuffer's origin at pixel (@p x, @p y). Framebuffer pixel
+     * `(c, r)` is drawn at display pixel `(x + c, y + r)`. The rows are
+     * expanded outward to page boundaries (multiples of 8) to match the
+     * page-packed layout. A full-width region is sent in a single draw. A
+     * narrower region is sent with one draw per page. The panel must use the
+     * page-packed 1-bpp format (e.g. an SSD1306).
      *
      * @param fb      The framebuffer to draw from.
      * @param x_start First framebuffer column of the region, inclusive.
      * @param y_start First framebuffer row of the region, inclusive.
-     * @param x_end   End framebuffer column, exclusive; must satisfy
+     * @param x_end   End framebuffer column, exclusive. Must satisfy
      *                `x_start < x_end <= fb.width()`.
-     * @param y_end   End framebuffer row, exclusive; must satisfy
+     * @param y_end   End framebuffer row, exclusive. Must satisfy
      *                `y_start < y_end <= fb.height()`.
      * @param x       Destination column of the framebuffer origin.
-     * @param y       Destination row of the framebuffer origin; must be a
+     * @param y       Destination row of the framebuffer origin. Must be a
      *                multiple of 8.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for
@@ -374,7 +374,7 @@ public:
      *
      * @param fb The framebuffer to draw.
      * @param x  Destination column of the framebuffer's left edge.
-     * @param y  Destination row of the framebuffer's top edge; must be a
+     * @param y  Destination row of the framebuffer's top edge. Must be a
      *           multiple of 8 (the page-packed layout groups rows into
      *           8-row pages).
      * @return Success, or an error.
@@ -389,15 +389,15 @@ public:
      * @brief Draws a horizontal band of an RGB565 framebuffer to the display.
      *
      * Draws rows `[row_start, row_end)` of @p fb across its full width, with
-     * the framebuffer's origin at pixel (@p x, @p y) — row `r` of the
-     * framebuffer lands at display row `y + r`, so a band written from a
-     * full-frame framebuffer lands exactly where the full write would place
-     * it. The band transfers in a single draw. The panel must use the RGB565
+     * the framebuffer's origin at pixel (@p x, @p y). Row `r` of the
+     * framebuffer is drawn at display row `y + r`, so a band written from a
+     * full-frame framebuffer is drawn exactly where the full write would place
+     * it. The band is sent in a single draw. The panel must use the RGB565
      * format.
      *
      * @param fb        The framebuffer to draw from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
      * @param x         Destination column of the framebuffer origin.
      * @param y         Destination row of the framebuffer origin.
@@ -418,20 +418,19 @@ public:
      * @brief Draws a horizontal band of a monochrome framebuffer to the display.
      *
      * Draws rows `[row_start, row_end)` of @p fb across its full width, with
-     * the framebuffer's origin at pixel (@p x, @p y) — row `r` of the
-     * framebuffer lands at display row `y + r`, so a band written from a
-     * full-frame framebuffer lands exactly where the full write would place
+     * the framebuffer's origin at pixel (@p x, @p y). Row `r` of the
+     * framebuffer is drawn at display row `y + r`, so a band written from a
+     * full-frame framebuffer is drawn exactly where the full write would place
      * it. The rows are expanded outward to page boundaries (multiples of 8)
-     * to match the page-packed layout, and the band transfers in a single
-     * draw. The panel must use the page-packed 1-bpp format (e.g. an
-     * SSD1306).
+     * to match the page-packed layout. The band is sent in a single draw. The
+     * panel must use the page-packed 1-bpp format (e.g. an SSD1306).
      *
      * @param fb        The framebuffer to draw from.
      * @param row_start First framebuffer row of the band, inclusive.
-     * @param row_end   End framebuffer row, exclusive; must satisfy
+     * @param row_end   End framebuffer row, exclusive. Must satisfy
      *                  `row_start < row_end <= fb.height()`.
      * @param x         Destination column of the framebuffer origin.
-     * @param y         Destination row of the framebuffer origin; must be a
+     * @param y         Destination row of the framebuffer origin. Must be a
      *                  multiple of 8.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the row range is invalid, or @p y
@@ -452,17 +451,17 @@ public:
      * @brief Draws a rectangular region of an RGB565 framebuffer to the display.
      *
      * Draws columns `[x_start, x_end)` and rows `[y_start, y_end)` of @p fb,
-     * with the framebuffer's origin at pixel (@p x, @p y) — framebuffer pixel
-     * `(c, r)` lands at display pixel `(x + c, y + r)`. Full-width regions
-     * transfer in a single draw; narrower regions transfer one draw per row.
-     * The panel must use the RGB565 format.
+     * with the framebuffer's origin at pixel (@p x, @p y). Framebuffer pixel
+     * `(c, r)` is drawn at display pixel `(x + c, y + r)`. A full-width region
+     * is sent in a single draw. A narrower region is sent with one draw per
+     * row. The panel must use the RGB565 format.
      *
      * @param fb      The framebuffer to draw from.
      * @param x_start First framebuffer column of the region, inclusive.
      * @param y_start First framebuffer row of the region, inclusive.
-     * @param x_end   End framebuffer column, exclusive; must satisfy
+     * @param x_end   End framebuffer column, exclusive. Must satisfy
      *                `x_start < x_end <= fb.width()`.
-     * @param y_end   End framebuffer row, exclusive; must satisfy
+     * @param y_end   End framebuffer row, exclusive. Must satisfy
      *                `y_start < y_end <= fb.height()`.
      * @param x       Destination column of the framebuffer origin.
      * @param y       Destination row of the framebuffer origin.
@@ -485,22 +484,22 @@ public:
      * @brief Draws a rectangular region of a monochrome framebuffer to the display.
      *
      * Draws columns `[x_start, x_end)` and rows `[y_start, y_end)` of @p fb,
-     * with the framebuffer's origin at pixel (@p x, @p y) — framebuffer pixel
-     * `(c, r)` lands at display pixel `(x + c, y + r)`. The rows are expanded
-     * outward to page boundaries (multiples of 8) to match the page-packed
-     * layout. Full-width regions transfer in a single draw; narrower regions
-     * transfer one draw per page. The panel must use the page-packed 1-bpp
-     * format (e.g. an SSD1306).
+     * with the framebuffer's origin at pixel (@p x, @p y). Framebuffer pixel
+     * `(c, r)` is drawn at display pixel `(x + c, y + r)`. The rows are
+     * expanded outward to page boundaries (multiples of 8) to match the
+     * page-packed layout. A full-width region is sent in a single draw. A
+     * narrower region is sent with one draw per page. The panel must use the
+     * page-packed 1-bpp format (e.g. an SSD1306).
      *
      * @param fb      The framebuffer to draw from.
      * @param x_start First framebuffer column of the region, inclusive.
      * @param y_start First framebuffer row of the region, inclusive.
-     * @param x_end   End framebuffer column, exclusive; must satisfy
+     * @param x_end   End framebuffer column, exclusive. Must satisfy
      *                `x_start < x_end <= fb.width()`.
-     * @param y_end   End framebuffer row, exclusive; must satisfy
+     * @param y_end   End framebuffer row, exclusive. Must satisfy
      *                `y_start < y_end <= fb.height()`.
      * @param x       Destination column of the framebuffer origin.
-     * @param y       Destination row of the framebuffer origin; must be a
+     * @param y       Destination row of the framebuffer origin. Must be a
      *                multiple of 8.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if the region is invalid, or @p y is
@@ -526,7 +525,7 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation.
+     * monochrome OLEDs). See the concrete driver's documentation.
      * @p color_data must hold exactly
      * `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
      * (see @ref native_bits_per_pixel). To draw from part of a larger buffer,
@@ -539,10 +538,10 @@ public:
      * display.draw_bitmap(0, 0, 240, 40, std::as_bytes(std::span{band}));
      * @endcode
      *
-     * @param x_start    Start column, inclusive; must be non-negative.
-     * @param y_start    Start row, inclusive; must be non-negative.
-     * @param x_end      End column, exclusive; must be greater than @p x_start.
-     * @param y_end      End row, exclusive; must be greater than @p y_start.
+     * @param x_start    Start column, inclusive. Must be non-negative.
+     * @param y_start    Start row, inclusive. Must be non-negative.
+     * @param x_end      End column, exclusive. Must be greater than @p x_start.
+     * @param y_end      End row, exclusive. Must be greater than @p y_start.
      * @param color_data Pixel data for the region in the panel's native format.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error, including `errc::invalid_arg` for an
@@ -594,7 +593,7 @@ public:
      * The region is end-exclusive: it spans columns `[x_start, x_end)` and rows
      * `[y_start, y_end)`. The buffer layout of @p color_data is panel-specific
      * (e.g. RGB565 pixels for color panels, page-packed 1-bpp data for
-     * monochrome OLEDs); consult the concrete driver's documentation.
+     * monochrome OLEDs). See the concrete driver's documentation.
      * @p color_data must hold exactly
      * `(x_end - x_start) * (y_end - y_start) * native_bits_per_pixel() / 8` bytes
      * (see @ref native_bits_per_pixel). To draw from part of a larger buffer,
@@ -602,10 +601,10 @@ public:
      * panel does not retain @p color_data: the buffer may be reused as soon as
      * the call returns.
      *
-     * @param x_start    Start column, inclusive; must be non-negative.
-     * @param y_start    Start row, inclusive; must be non-negative.
-     * @param x_end      End column, exclusive; must be greater than @p x_start.
-     * @param y_end      End row, exclusive; must be greater than @p y_start.
+     * @param x_start    Start column, inclusive. Must be non-negative.
+     * @param y_start    Start row, inclusive. Must be non-negative.
+     * @param x_end      End column, exclusive. Must be greater than @p x_start.
+     * @param y_end      End row, exclusive. Must be greater than @p y_start.
      * @param color_data Pixel data for the region in the panel's native format.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg if a start coordinate is negative, or an
@@ -668,16 +667,17 @@ protected:
      *                       report dimensions.
      * @param height         Native height in pixels, or 0 if the driver does
      *                       not report dimensions.
-     * @param bits_per_pixel Size of a pixel in the data the panel receives, in
-     *                       bits (e.g. 24 for an ILI9341 configured for 18 bpp,
-     *                       as each 18-bit pixel is sent in three bytes);
-     *                       @ref try_draw_bitmap checks the size of its data
-     *                       against this.
-     * @param queued_io      The panel I/O handle when its color transfers
+     * @param bits_per_pixel Size of a pixel in the data that the panel
+     *                       receives, in bits (e.g. 24 for an ILI9341
+     *                       configured for 18 bpp, because each 18-bit pixel
+     *                       is sent in three bytes). @ref try_draw_bitmap
+     *                       checks the size of its data against this value.
+     * @param queued_io      The panel I/O handle, if its color transfers
      *                       continue in the background after a write
-     *                       (`idfxx::panel_io::queues_color_transfers()`), so
-     *                       that draws wait for them before returning; nullptr
-     *                       when they complete before the write returns.
+     *                       (`idfxx::panel_io::queues_color_transfers()`).
+     *                       Draws then wait for the transfers before they
+     *                       return. Pass nullptr if the transfers complete
+     *                       before the write returns.
      */
     panel(
         size_t width,
@@ -703,8 +703,8 @@ protected:
     [[nodiscard]] virtual esp_lcd_panel_handle_t do_idf_handle() const = 0;
     /// Hook for @ref try_draw_bitmap, called only with a valid region and with
     /// @p color_data exactly the size of that region. An override must not
-    /// return until the pixel data has been consumed, as callers may reuse the
-    /// buffer at once. The default implementation draws via the panel handle
+    /// return until the pixel data has been consumed, because callers may reuse
+    /// the buffer at once. The default implementation draws via the panel handle
     /// returned by do_idf_handle(), then waits for queued color transfers on
     /// the panel I/O handle given at construction, if any.
     [[nodiscard]] virtual result<void>

@@ -210,14 +210,16 @@ The `idfxx::ota::errc` enum provides OTA-specific error codes:
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs
-  - Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS` to be enabled
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
   - Use result-based API when exceptions are disabled or for explicit error handling
   - Use exception-based API for cleaner code when exceptions are available
 - The `update` destructor automatically aborts an unfinished session
 - Call `mark_valid()` early in a new firmware's lifecycle to prevent automatic rollback
 - `mark_invalid_and_rollback()` reboots the device on success and does not return
-- Use `sequential_erase` as the image_size when the total size is unknown and writes are sequential
+- When the total size is unknown and writes are sequential, pass the `sequential_erase` tag instead
+  of an image size: `update(part, idfxx::ota::sequential_erase)`. The flash is then erased as data
+  is written
 - `next_update_partition()` uses round-robin selection starting from the running partition
 
 ## License

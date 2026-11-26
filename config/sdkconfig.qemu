@@ -1,7 +1,8 @@
 # QEMU-specific configuration for ESP32-S3
 # This file is copied to the build directory's sdkconfig before building for QEMU
 
-# Inherit base C++ settings from sdkconfig.defaults
+# The same C++ settings as config/sdkconfig.defaults. They are repeated here because
+# `just test` builds with this file as the only defaults file.
 CONFIG_COMPILER_CXX_EXCEPTIONS=y
 CONFIG_COMPILER_CXX_RTTI=y
 
@@ -18,10 +19,10 @@ CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 
-# No USB Serial/JTAG secondary console: from ESP-IDF 6.1.1 its startup waits for BBPLL
-# calibration, which QEMU before esp-develop-9.2.2-20261109 never reports, so boot hangs.
-# Fixed in espressif/qemu 98feb8b8; drop this once ESP-IDF's tools.json pins a QEMU that has it
-# (the CI qemu-test job fails when it does).
+# No USB Serial/JTAG secondary console. From ESP-IDF 6.1.1, its startup waits for BBPLL
+# calibration. QEMU before esp-develop-9.2.2-20261109 never reports the calibration, so boot hangs.
+# The fix is in espressif/qemu 98feb8b8. Remove this setting when ESP-IDF's tools.json pins a QEMU
+# that has the fix. The CI qemu-test job fails when that happens.
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
 # Larger main task stack for TLS tests
@@ -61,5 +62,6 @@ CONFIG_MBEDTLS_THREADING_C=y
 CONFIG_MBEDTLS_THREADING_PTHREAD=y
 # CONFIG_MBEDTLS_THREADING_ALT is not set
 
-# Lets idfxx_log's tests add sinks that receive every log line. The option is off by default.
+# With this option enabled, idfxx_log's tests can add sinks that receive every log line. The option
+# is off by default.
 CONFIG_IDFXX_LOG_ALL_LINES=y

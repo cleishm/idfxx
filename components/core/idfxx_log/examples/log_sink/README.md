@@ -6,7 +6,7 @@ receives lines logged through `idfxx::log` and lines logged through ESP-IDF's lo
 ## What it demonstrates
 
 - Writing a sink: a class derived from `idfxx::log::sink`. Its `do_wants()` selects warnings and
-  errors. Its `do_write()` stores copies of the last 8 lines, protected by a mutex because several
+  errors. Its `do_write()` stores copies of the last 8 lines. A mutex protects them because several
   tasks can log at the same time
 - Adding the sink for every log line with `idfxx::log::add_sink(idfxx::log::all_lines, sink)`
 - Lowering one tag's console level with `idfxx::log::set_level()`: the console no longer prints
@@ -31,7 +31,7 @@ A sink can receive every ESP-IDF log line only when `CONFIG_IDFXX_LOG_ALL_LINES`
 (Component config → IDFXX log → Let sinks receive every log line). The example's
 `sdkconfig.defaults` already enables it. With this option enabled, idfxx_log wraps `esp_log` and
 `esp_log_va` at link time, so nothing else in the app may wrap them. Each task that logs while
-such a sink is added also uses more stack; the option's help text gives the amounts.
+such a sink is added also uses more stack. The option's help text gives the amounts.
 
 ## How to use
 

@@ -87,8 +87,8 @@ if (auto r = sta_netif.try_get_hostname(); r) {
 
 ### DHCP Server Options
 
-A WiFi access point's DHCP server starts on its own, and options can only be changed while the
-server is stopped, so stop it before starting it with a configuration:
+A Wi-Fi access point's DHCP server starts automatically. Options can only be changed while the
+server is stopped, so stop the server before you start it with a configuration:
 
 ```cpp
 #include <idfxx/netif>
@@ -103,8 +103,8 @@ ap_netif.dhcp_server_start({
 });
 ```
 
-Options left unset keep their current setting. A captive-portal URI can be replaced but not withdrawn: once offered, the interface
-keeps offering it until it is destroyed.
+Options left unset keep their current setting. A captive-portal URI can be replaced but not
+withdrawn. Once a URI is offered, the interface keeps offering it until the interface is destroyed.
 
 ### SNTP Time Synchronization
 
@@ -220,15 +220,19 @@ Available events: `sta_got_ip4`, `sta_lost_ip4`, `ap_sta_ip4_assigned`, `got_ip6
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs.
-  Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
-- **RAII Ownership**: The `interface` class owns its network interface handle. Move-only semantics
-  prevent accidental copies.
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
+- **RAII Ownership**: An `interface` is owning or non-owning. An owning interface, such as one
+  from `idfxx::wifi::make_sta_netif()`, stops any running DHCP client or server and destroys its
+  network interface handle on destruction. A non-owning interface, such as one from
+  `get_default()` or `find_by_key()`, does not manage the handle's lifetime. The underlying
+  interface must outlive it. Only an owning interface can set a DHCP server captive-portal URI.
+  `interface` is non-copyable and move-only.
 - **Prerequisites**: Create the system event loop before using netif functions. Call `init()` before
   creating any network interfaces.
 - **IP Address Byte Order**: `ipv4_addr` stores addresses in network byte order.
 - **DHCP Server Options**: `dhcp_server_start(config)` fails with `dhcp_already_started` while the
-  server runs, and the lease time is rounded up to whole `CONFIG_LWIP_DHCPS_LEASE_UNIT` seconds.
+  server runs. The lease time is rounded up to whole `CONFIG_LWIP_DHCPS_LEASE_UNIT` seconds.
   The DHCP server API is absent when `CONFIG_LWIP_DHCPS` is disabled.
 
 ## License

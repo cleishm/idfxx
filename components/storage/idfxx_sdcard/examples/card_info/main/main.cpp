@@ -23,8 +23,8 @@ static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_MISO = idfxx::gpio_13;
 static constexpr auto PIN_CS = idfxx::gpio_10;
-// Card detect: a slot with a card-detect switch can wire it here (active low: low when a card is
-// in).
+// Card detect: if the slot has a card-detect switch, set its pin here. The switch is active low: it
+// is low when a card is inserted.
 static constexpr auto PIN_DETECT = idfxx::gpio::nc();
 
 extern "C" void app_main() {
@@ -79,8 +79,8 @@ extern "C" void app_main() {
         logger.info("Bus:      {}, {} kHz", card.width(), card.frequency().count() / 1000);
 
         // --- First sector ---
-        // On a formatted card this is the partition table (MBR) or the filesystem's boot sector;
-        // both end in the signature 55 aa.
+        // On a formatted card this is the partition table (MBR) or the filesystem's boot sector.
+        // Both end in the signature 55 aa.
         std::vector<uint8_t> sector(card.sector_size());
         card.read_sectors(0, sector);
         logger.info("Sector 0:");

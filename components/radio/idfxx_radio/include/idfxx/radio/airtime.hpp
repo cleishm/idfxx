@@ -11,9 +11,9 @@
  *
  * A pure, side-effect-free helper that computes how long a LoRa packet of a
  * given length will occupy the channel for a set of modulation and framing
- * parameters. It needs no chip and performs no I/O, so it is `constexpr` and
- * can size transmit timeouts, schedule duty cycles, or feed listen-before-talk
- * logic without ever touching hardware.
+ * parameters. It needs no chip and performs no I/O, so it is `constexpr`. It
+ * can size transmit timeouts, schedule duty cycles, or provide input to
+ * listen-before-talk logic without accessing hardware.
  */
 
 #include <idfxx/radio/types.hpp>
@@ -29,9 +29,9 @@ namespace idfxx::radio {
 /// @cond INTERNAL
 namespace detail {
 
-/// Channel bandwidth. The two fractional bandwidths return their exact LoRa
-/// values — 15.625 kHz and 31.25 kHz — rather than the rounded kHz that name
-/// the enumerators.
+/// Channel bandwidth. For the two fractional bandwidths, this returns the exact
+/// LoRa values (15.625 kHz and 31.25 kHz), not the rounded kHz values in the
+/// enumerator names.
 [[nodiscard]] constexpr quanta::frequency::hertz channel_bandwidth(bandwidth bw) noexcept {
     switch (bw) {
     case bandwidth::bw_7_8:
@@ -58,8 +58,8 @@ namespace detail {
     return quanta::frequency::hertz{125'000}; // safe default = 125 kHz
 }
 
-/// Number of LoRa symbols carrying the payload — the `8 + ...` term of the
-/// Semtech air-time equation. Inputs map to the standard symbols: PL = payload
+/// Number of LoRa symbols that carry the payload. This is the `8 + ...` term of
+/// the Semtech air-time equation. Inputs map to the standard symbols: PL = payload
 /// bytes, IH = implicit (fixed) header, CRC = CRC enabled, DE = low-data-rate
 /// optimization, CR = coding-rate index 1..4 (cr_4_5..cr_4_8).
 ///
@@ -116,9 +116,9 @@ namespace detail {
  * @param mod            Modulation parameters (spreading factor, bandwidth,
  *                       coding rate, low-data-rate optimization).
  * @param pkt            Packet framing (preamble length, header type, CRC).
- *                       `pkt.payload_length` is ignored — @p payload_length is
+ *                       `pkt.payload_length` is ignored. @p payload_length is
  *                       the byte count used.
- * @param payload_length Number of payload bytes the packet carries.
+ * @param payload_length Number of payload bytes that the packet carries.
  * @return The packet's time-on-air.
  *
  * @note The equation is exact for spreading factors SF7–SF12. SF5 and SF6 reuse
@@ -149,8 +149,8 @@ namespace detail {
     const uint64_t n_symbol_x4 = (static_cast<uint64_t>(pkt.preamble_length) + n_payload) * 4 + 17;
 
     // T = n_symbol · (2^SF / BW). Fold the ×4 of n_symbol_x4 into the divisor and
-    // scale by 1e6 µs/s, then round to the nearest microsecond — all in integer
-    // arithmetic so the result is deterministic and constexpr-evaluable.
+    // scale by 1e6 µs/s, then round to the nearest microsecond. All steps use
+    // integer arithmetic, so the result is deterministic and constexpr-evaluable.
     const uint64_t numerator = n_symbol_x4 * (uint64_t{1} << sf) * 1'000'000ull;
     const uint64_t denominator = 4ull * bw;
     const uint64_t us = (numerator + denominator / 2) / denominator;

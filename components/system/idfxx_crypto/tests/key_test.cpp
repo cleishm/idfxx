@@ -37,7 +37,7 @@ bool key_exists(psa_key_id_t id) {
     return status == PSA_SUCCESS;
 }
 
-// The algorithm AES keys are created for: AES-CMAC where it is enabled.
+// The algorithm that AES keys are created for: AES-CMAC where it is enabled.
 #ifdef PSA_WANT_ALG_CMAC
 constexpr crypto::key_algorithm aes_algorithm = crypto::mac::algorithm::cmac;
 #else
@@ -48,7 +48,7 @@ constexpr crypto::key_algorithm aes_algorithm{};
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 #ifndef PSA_WANT_KEY_TYPE_RAW_DATA
@@ -110,8 +110,8 @@ static_assert(
 static_assert(std::is_nothrow_copy_constructible_v<crypto::key_algorithm>);
 
 // key_algorithm for a MAC with truncated tags: constructed explicitly from the MAC algorithm and
-// a constant tag length (an invalid one is a compile error), the PSA truncated algorithm below the
-// full length and the plain one at it
+// a constant tag size (an invalid one is a compile error). Below the full size, it is the PSA
+// truncated algorithm. At the full size, it is the plain algorithm
 namespace {
 template<typename T>
 concept copy_list_initializable_from_mac_and_length =
@@ -133,11 +133,11 @@ static_assert(crypto::key_algorithm{hmac_sha256, 32}.idf_algorithm() ==
               PSA_ALG_HMAC(PSA_ALG_SHA_256));
 static_assert(crypto::key_algorithm{hmac_sha256, 16} != crypto::key_algorithm{hmac_sha256});
 static_assert(crypto::key_algorithm{hmac_sha256, 16} != crypto::key_algorithm{hmac_sha256, 17});
-// A constant tag length works in constant expressions too
+// A constant tag size works in constant expressions too
 constexpr crypto::key_algorithm hmac_sha256_128{hmac_sha256, 16};
 static_assert(hmac_sha256_128.idf_algorithm() ==
               PSA_ALG_TRUNCATED_MAC(PSA_ALG_HMAC(PSA_ALG_SHA_256), 16));
-// A tag length known only at runtime goes through truncated() / try_truncated()
+// A tag size known only at runtime is passed to truncated() / try_truncated()
 static_assert(std::is_same_v<
               decltype(crypto::key_algorithm::try_truncated(hmac_sha256, std::size_t{})),
               result<crypto::key_algorithm>>);
@@ -302,8 +302,8 @@ TEST_CASE("crypto key generate reports its attributes", "[idfxx][crypto]") {
 
 TEST_CASE("crypto key algorithm with truncated mac tags", "[idfxx][crypto]") {
     auto material = pattern(32);
-    // Tag lengths from 4 to the full tag length, known only at runtime: the same algorithms as the
-    // constant forms, and the full length is the plain algorithm
+    // Tag sizes from 4 to the full tag size, known only at runtime: the same algorithms as the
+    // constant forms, and the full size is the plain algorithm
     for (size_t n : {4, 16, 31, 32}) {
         auto alg = ok(crypto::key_algorithm::try_truncated(hmac_sha256, n));
         TEST_ASSERT_EQUAL_UINT32(
@@ -395,7 +395,7 @@ TEST_CASE("crypto key creation refuses a mac algorithm its type doesn't take", "
     }
 #endif
 
-    // A key permitted no algorithm can have any type
+    // A key that permits no algorithm can have any type
     for (auto type : {crypto::key_type::hmac, crypto::key_type::aes, crypto::key_type::raw_data}) {
         auto k = ok(crypto::key::try_import(
             {.type = type, .usage = crypto::key_usage::export_key}, material
@@ -527,7 +527,7 @@ TEST_CASE("crypto key destroy and move", "[idfxx][crypto]") {
         auto k = ok(crypto::key::try_import(cfg, material));
     }
 
-    // Move construction transfers the key; the source can then be destroyed
+    // Move construction transfers the key. The source can then be destroyed
     {
         auto a = ok(crypto::key::try_import(cfg, material));
         id = a.idf_handle();

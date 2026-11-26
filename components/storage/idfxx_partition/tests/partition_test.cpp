@@ -17,7 +17,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // mmap_config defaults
@@ -190,8 +190,8 @@ TEST_CASE("partition mmap_handle default is invalid", "[idfxx][partition]") {
     TEST_ASSERT_EQUAL(0, handle.size());
 }
 
-// The mmap tests map phy_init rather than ota_0: the running app executes from
-// ota_0, and unmapping its first flash page unmaps the app's own read-only data.
+// The mmap tests map phy_init rather than ota_0. The running app executes from
+// ota_0, and unmapping its first flash page also unmaps the app's own read-only data.
 
 TEST_CASE("partition try_mmap with default config matches read", "[idfxx][partition]") {
     auto p = partition::try_find(partition::type::data, partition::subtype::data_phy);

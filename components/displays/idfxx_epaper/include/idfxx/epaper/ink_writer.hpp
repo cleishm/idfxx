@@ -9,8 +9,8 @@
  * @brief Writes frames of panel inks, read from a byte source, to a panel or framebuffer.
  * @ingroup idfxx_epaper
  *
- * For a picture already converted to a panel's inks elsewhere, such as on a
- * phone or in a browser, and delivered to the device as bytes. See
+ * This is for a picture that was converted to a panel's inks elsewhere, such as
+ * on a phone or in a browser, and delivered to the device as bytes. See
  * @ref idfxx::epaper::write_inks for the format of a frame.
  */
 
@@ -40,21 +40,27 @@ namespace idfxx::epaper {
  * @brief Where a frame of inks goes on its destination, and how much of it is read at a time.
  *
  * The left edge of the rectangle must be a multiple of the color mode's
- * `x_alignment`, 8 for @ref color_mode::mono and @ref color_mode::gray4 and 2
- * for @ref color_mode::color6, and so must its right edge unless it is the
- * destination's right edge. The rectangle must fit on the destination: a frame
- * has a fixed number of bytes, so it is never clipped.
+ * `x_alignment`: 8 for @ref color_mode::mono and @ref color_mode::gray4, and 2
+ * for @ref color_mode::color6. The right edge must also be a multiple of it,
+ * unless it is the destination's right edge. The rectangle must fit on the
+ * destination: a frame has a fixed number of bytes, so it is never clipped.
  */
 struct ink_options {
     /** @brief The column of the rectangle's left edge. */
     size_t x = 0;
     /** @brief The row of the rectangle's top edge. */
     size_t y = 0;
-    /** @brief The rectangle's width in pixels; `std::nullopt` reaches the destination's right edge.
+    /**
+     * @brief The rectangle's width in pixels.
+     *
+     * With `std::nullopt`, the rectangle extends to the destination's right edge.
      */
     std::optional<size_t> width = std::nullopt;
-    /** @brief The rectangle's height in pixels; `std::nullopt` reaches the destination's bottom
-     * edge. */
+    /**
+     * @brief The rectangle's height in pixels.
+     *
+     * With `std::nullopt`, the rectangle extends to the destination's bottom edge.
+     */
     std::optional<size_t> height = std::nullopt;
     /**
      * @brief The number of rows read at a time.
@@ -67,7 +73,7 @@ struct ink_options {
 /** @cond INTERNAL */
 namespace detail {
 
-// A byte source of any type, for the code behind the templates below.
+// A byte source of any type, for the non-template code that the templates below call.
 struct ink_source {
     void* source;
     result<size_t> (*read)(void* source, std::span<uint8_t> into);
@@ -110,47 +116,49 @@ try_write_inks(mono_framebuffer& framebuffer, const ink_source& source, const in
  * @ref panel::write_rows. Nothing changes on the glass until the caller calls
  * @ref panel::refresh.
  *
- * A frame is rows from top to bottom with no header, each row padded to a whole
- * byte. The panel's @ref panel::color_mode picks the format, and `w` is the width
- * of the rectangle in @p options:
+ * A frame is rows from top to bottom with no header. Each row is padded to a whole
+ * byte. The panel's @ref panel::color_mode selects the format. In this list, `w` is
+ * the width of the rectangle in @p options:
  *
  * - In @ref color_mode::color6, 4 bits per pixel, high nibble first, each a @ref color6
  *   value (0, 1, 2, 3, 5 or 6), with `(w + 1) / 2` bytes in a row.
- * - In @ref color_mode::gray4, 2 bits per pixel, high bits first, from 0, the darkest, to
- *   3, the lightest, with `(w + 3) / 4` bytes in a row. These codes are the reverse of
- *   @ref gray4 values, in which 0 is white.
- * - In @ref color_mode::mono, 1 bit per pixel, high bit first, 1 being white and 0 black,
- *   with `(w + 7) / 8` bytes in a row.
+ * - In @ref color_mode::gray4, 2 bits per pixel, high bits first, with `(w + 3) / 4`
+ *   bytes in a row. Values run from 0 (the darkest) to 3 (the lightest). These codes
+ *   are the reverse of @ref gray4 values, in which 0 is white.
+ * - In @ref color_mode::mono, 1 bit per pixel, high bit first, with `(w + 7) / 8`
+ *   bytes in a row. 1 is white and 0 is black.
  *
  * The `cleishm/epaper-image` library's `epi_pack_row` produces these rows.
  *
- * Exactly the frame's bytes are read. Bytes after the frame are neither read nor
- * checked, and the end of the stream isn't looked for, so a source such as an
- * open connection doesn't block once the frame is complete. The arguments are
- * checked before any byte is read.
+ * Exactly the frame's bytes are read. Bytes after the frame are not read or
+ * checked, and this function does not wait for the end of the stream. So a source
+ * such as an open connection doesn't block once the frame is complete. The
+ * arguments are checked before any byte is read.
  *
  * What is and isn't checked in the bytes:
  * - In @ref color_mode::color6, every nibble must be a @ref color6 value,
  *   including the padding nibble of a row of odd width. A band is checked before
- *   any of it is written, so nothing of an invalid band reaches the panel.
+ *   any of it is written, so no part of an invalid band is written to the panel.
  * - In @ref color_mode::mono and @ref color_mode::gray4, every value is a valid
- *   ink, so only the length of a frame can be checked: corruption isn't visible.
+ *   ink, so only the length of a frame can be checked. Corruption cannot be
+ *   detected.
  * - A frame made for other glass of the same size and mode can't be detected.
- *   Checking which panel a frame is for is the application's job, for instance on
- *   connecting.
+ *   The application must check which panel a frame is for, for example when it
+ *   connects.
  *
- * A row's padding is always written as white, whatever arrives.
+ * A row's padding is always written as white, whatever value the frame contains.
  *
- * When this fails part way, the bands written so far stay in the panel's memory,
- * and after an error from the panel so may part of the band being written. The
- * glass doesn't change until a refresh, but any later refresh shows them, so write
- * the frame again first. The partial-refresh baseline isn't affected: it remains
- * what is on the glass, so a partial refresh after the frame has been written again
- * is correct. Writing the frame to a framebuffer first, and only then the framebuffer
- * to the panel, gives all-or-nothing at the cost of a frame's memory.
+ * If this fails part way, the bands written so far stay in the panel's memory.
+ * After an error from the panel, part of the band being written may also stay
+ * there. The glass doesn't change until a refresh, but any later refresh shows
+ * them, so write the frame again first. The partial-refresh baseline isn't
+ * affected: it remains what is on the glass, so a partial refresh after the frame
+ * has been written again is correct. To write all of the frame or none of it,
+ * write the frame to a framebuffer first, and then write the framebuffer to the
+ * panel. This uses a frame's memory.
  *
- * To verify a frame, wrap the source in a `byte_source` of the application's own
- * that computes a CRC as the bytes pass, and compare it before refreshing:
+ * To verify a frame, wrap the source in an application-defined `byte_source` that
+ * computes a CRC of the bytes as they are read. Compare the CRC before refreshing:
  *
  * @code
  * template<idfxx::byte_source Source>
@@ -203,9 +211,10 @@ void write_inks(panel& display, Source& source, const ink_options& options = {})
  * @brief Writes a frame of 1-bit inks from a byte source to a monochrome framebuffer.
  *
  * Takes the same frames as the @ref write_inks overload for a panel in
- * @ref color_mode::mono, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::mono. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
  * Every value is a valid ink, so only the length of a frame can be checked. A row's
  * padding is ignored, and the framebuffer's padding bits stay white.
@@ -231,9 +240,10 @@ void write_inks(mono_framebuffer& framebuffer, Source& source, const ink_options
  * @brief Writes a frame of 2-bit inks from a byte source to a grayscale framebuffer.
  *
  * Takes the same frames as the @ref write_inks overload for a panel in
- * @ref color_mode::gray4, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::gray4. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
  * Every value is a valid ink, so only the length of a frame can be checked. A row's
  * padding is ignored, and the framebuffer's padding bits stay white.
@@ -259,12 +269,13 @@ void write_inks(gray4_framebuffer& framebuffer, Source& source, const ink_option
  * @brief Writes a frame of 4-bit inks from a byte source to a six-color framebuffer.
  *
  * Takes the same frames as the @ref write_inks overload for a panel in
- * @ref color_mode::color6, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::color6. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
- * Every nibble must be a @ref color6 value, including a row's padding nibble, though
- * the framebuffer's padding nibble stays white whichever value arrives.
+ * Every nibble must be a @ref color6 value, including a row's padding nibble. The
+ * framebuffer's padding nibble stays white, whatever value the frame contains.
  *
  * @tparam Source A @ref idfxx::byte_source.
  * @param framebuffer The framebuffer to write to.
@@ -290,7 +301,7 @@ void write_inks(color6_framebuffer& framebuffer, Source& source, const ink_optio
  *
  * Reads the frame a band of rows at a time and writes each band with
  * @ref panel::try_write_rows. Nothing changes on the glass until the caller calls
- * @ref panel::try_refresh. The panel's @ref panel::color_mode picks the format. See
+ * @ref panel::try_refresh. The panel's @ref panel::color_mode selects the format. See
  * the throwing @ref write_inks overload for a panel for the format of a frame, what
  * is checked in it, what a failure leaves in the panel, and how to verify a frame.
  *
@@ -302,7 +313,7 @@ void write_inks(color6_framebuffer& framebuffer, Source& source, const ink_optio
  * @retval idfxx::errc::invalid_state The panel is asleep. Nothing has been read.
  * @retval idfxx::errc::invalid_arg `band_rows` or the rectangle's size is zero, or the
  *         rectangle doesn't fit or isn't aligned (see @ref ink_options), and nothing
- *         has been read; or a six-color band holds an invalid value, and nothing of
+ *         has been read; or a six-color band holds an invalid value, and no part of
  *         that band has been written.
  * @retval idfxx::errc::invalid_size The stream ended before the frame did.
  * @retval other An error from the source or the panel, unchanged.
@@ -318,9 +329,10 @@ try_write_inks(panel& display, Source& source, const ink_options& options = {}) 
  * @brief Writes a frame of 1-bit inks from a byte source to a monochrome framebuffer.
  *
  * Takes the same frames as the @ref try_write_inks overload for a panel in
- * @ref color_mode::mono, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::mono. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
  * Every value is a valid ink, so only the length of a frame can be checked. A row's
  * padding is ignored, and the framebuffer's padding bits stay white.
@@ -348,9 +360,10 @@ try_write_inks(mono_framebuffer& framebuffer, Source& source, const ink_options&
  * @brief Writes a frame of 2-bit inks from a byte source to a grayscale framebuffer.
  *
  * Takes the same frames as the @ref try_write_inks overload for a panel in
- * @ref color_mode::gray4, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::gray4. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
  * Every value is a valid ink, so only the length of a frame can be checked. A row's
  * padding is ignored, and the framebuffer's padding bits stay white.
@@ -378,12 +391,13 @@ try_write_inks(gray4_framebuffer& framebuffer, Source& source, const ink_options
  * @brief Writes a frame of 4-bit inks from a byte source to a six-color framebuffer.
  *
  * Takes the same frames as the @ref try_write_inks overload for a panel in
- * @ref color_mode::color6, under the same alignment rules, as the frame is packed
- * into whole bytes. Pixels outside the rectangle aren't changed. Bands read before
- * a failure stay in the framebuffer, and nothing of the band being read reaches it.
+ * @ref color_mode::color6. The same alignment rules apply, because the frame is
+ * packed into whole bytes. Pixels outside the rectangle aren't changed. Bands read
+ * before a failure stay in the framebuffer, and no part of the band being read is
+ * written to it.
  *
- * Every nibble must be a @ref color6 value, including a row's padding nibble, though
- * the framebuffer's padding nibble stays white whichever value arrives.
+ * Every nibble must be a @ref color6 value, including a row's padding nibble. The
+ * framebuffer's padding nibble stays white, whatever value the frame contains.
  *
  * @tparam Source A @ref idfxx::byte_source.
  * @param framebuffer The framebuffer to write to.
@@ -393,8 +407,8 @@ try_write_inks(gray4_framebuffer& framebuffer, Source& source, const ink_options
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg `band_rows` or the rectangle's size is zero, or the
  *         rectangle doesn't fit or isn't aligned (see @ref ink_options), and nothing
- *         has been read; or a band holds an invalid value, and nothing of that band
- *         has reached the framebuffer.
+ *         has been read; or a band holds an invalid value, and no part of that band
+ *         has been written to the framebuffer.
  * @retval idfxx::errc::invalid_size The stream ended before the frame did.
  * @retval other An error from the source, unchanged.
  */

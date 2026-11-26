@@ -23,7 +23,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
   Ink EL133UF1 glass)
 
 The example is for the ESP32-S3 only (`sdkconfig.defaults` sets the target to `esp32s3`). It also
-needs octal PSRAM, which `sdkconfig.defaults` enables along with 8 MB of flash: the driver keeps a
+needs octal PSRAM, which `sdkconfig.defaults` enables along with 8 MB of flash. The driver keeps a
 960 KB copy of the frame in PSRAM, and the conversion takes about 193 KB more. The defaults also set
 240 MHz and `-O2`, which make the conversion over twice as fast.
 
@@ -65,11 +65,12 @@ upright with the E1004 in the same landscape orientation as the `e1004_demo` exa
 on the panel.
 
 The photo in `main/photo.jpg` is stored on its side, with an EXIF orientation that says to turn it a
-quarter turn clockwise. `TURN` in `main/main.cpp` is the opposite quarter turn, so the two cancel
-and the photo is written as it is stored, with no frame in memory. If your E1004 stands the other
+quarter turn clockwise. `TURN` in `main/main.cpp` is the opposite quarter turn, so the two cancel.
+The photo is then written as it is stored, with no frame in memory. If your E1004 stands the other
 way up, set `TURN` to `idfxx::image::orientation::rotate_90`. To show your own photo, replace
-`main/photo.jpg`: one stored upright also shows in landscape with the current `TURN`. Either change
-holds a 5.76 MB frame while the photo is converted, which the board's 8 MB of PSRAM has room for.
+`main/photo.jpg`. A photo stored upright also shows in landscape with the current `TURN`. Either
+change needs a 5.76 MB frame while the photo is converted. The board's 8 MB of PSRAM has room for
+it.
 
 The photo is `kodim23` from the [Kodak Lossless True Color Image
 Suite](https://r0k.us/graphics/kodak/), photographed by Steve Kelly. That page states its
