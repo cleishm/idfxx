@@ -773,7 +773,7 @@ struct volume::state : detail::mount_base {
         if (fr == FR_OK && (info.fattrib & (AM_DIR | AM_RDO)) != 0) {
             ESP_LOGE(
                 TAG,
-                "Can't replace %s%s: a directory or read-only file",
+                "Can't replace %s%s: it is a directory or a read-only file",
                 base_path.c_str(),
                 p.target.c_str() + 2
             );

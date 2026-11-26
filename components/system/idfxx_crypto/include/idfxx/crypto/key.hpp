@@ -43,8 +43,8 @@
 // implementation that only the ROM port provides, so its locks fail. Select the pthread
 // implementation instead.
 #ifndef CONFIG_MBEDTLS_THREADING_C
-#error "idfxx_crypto keys require CONFIG_MBEDTLS_THREADING_C=y"
-#error "on ESP-IDF 5.5, also CONFIG_MBEDTLS_THREADING_PTHREAD=y and CONFIG_MBEDTLS_THREADING_ALT=n"
+#error "idfxx_crypto keys require CONFIG_MBEDTLS_THREADING_C=y and, on ESP-IDF 5.5, also " \
+    "CONFIG_MBEDTLS_THREADING_PTHREAD=y and CONFIG_MBEDTLS_THREADING_ALT=n"
 #endif
 
 namespace idfxx::crypto {

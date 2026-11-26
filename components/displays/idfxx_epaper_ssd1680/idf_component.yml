@@ -1,4 +1,4 @@
-version: "3.0.0"
+version: "3.0.1"
 description: "SSD1680 ePaper panel driver (up to 176x296, e.g. 2.13\" 122x250)"
 url: "https://github.com/cleishm/idfxx/tree/main/components/displays/idfxx_epaper_ssd1680"
 repository: "https://github.com/cleishm/idfxx.git"

@@ -46,7 +46,7 @@ namespace {
 void draw_title_screen(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas) {
     canvas.clear();
     canvas.fill_rect(0, 0, canvas.width(), 14, true);
-    canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx epaper", false);
+    canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx ePaper", false);
     canvas.draw_rect(2, 20, canvas.width() - 4, 40, true);
     canvas.draw_text(idfxx::font::spleen_8x16, 8, 30, "hello", true, 2);
     canvas.draw_text(idfxx::font::spleen_5x8, 4, 70, "SSD1680 122x250", true);
@@ -162,7 +162,7 @@ extern "C" void app_main() {
         // --- Stage 6: closing screen ---
         canvas.clear();
         canvas.fill_rect(0, 0, canvas.width(), 14, true);
-        canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx epaper", false);
+        canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx ePaper", false);
         canvas.draw_text(idfxx::font::spleen_8x16, 8, 100, "demo", true, 2);
         canvas.draw_text(idfxx::font::spleen_8x16, 8, 136, "complete", true);
         display.write(fb);

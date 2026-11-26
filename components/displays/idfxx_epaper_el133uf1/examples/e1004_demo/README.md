@@ -73,8 +73,8 @@ The panel shows three screens, 10 seconds apart. Each refresh takes 25-30 second
 panel is cold), and the panel flashes through several colors while it updates.
 
 1. Six vertical color bars (black, white, yellow, red, blue and green) drawn in landscape, each
-   labeled with its color name. Below them are "idfxx epaper" and, in red, "EL133UF1 1200x1600
+   labeled with its color name. Below them are "idfxx ePaper" and, in red, "EL133UF1 1200x1600
    Spectra 6".
-2. A black-and-white page in portrait, with "idfxx epaper" on a black banner, a large "hello" in a
+2. A black-and-white page in portrait, with "idfxx ePaper" on a black banner, a large "hello" in a
    box, "monochrome, banded", and twelve numbered lines
 3. A closing "demo complete" screen, which stays on the panel after it goes to sleep

@@ -107,7 +107,7 @@ try {
     // ... application code ...
 
 } catch (const std::system_error& e) {
-    idfxx::log::error("wifi", "WiFi error: {}", e.what());
+    idfxx::log::error("wifi", "Wi-Fi error: {}", e.what());
 }
 ```
 
@@ -154,7 +154,7 @@ try {
     }
 
 } catch (const std::system_error& e) {
-    idfxx::log::error("wifi", "WiFi error: {}", e.what());
+    idfxx::log::error("wifi", "Wi-Fi error: {}", e.what());
 }
 ```
 

@@ -772,21 +772,21 @@ const char* wifi::error_category::name() const noexcept {
 std::string wifi::error_category::message(int ec) const {
     switch (wifi::errc(ec)) {
     case wifi::errc::not_init:
-        return "WiFi driver was not initialized";
+        return "Wi-Fi driver was not initialized";
     case wifi::errc::not_started:
-        return "WiFi driver was not started";
+        return "Wi-Fi driver was not started";
     case wifi::errc::not_stopped:
-        return "WiFi driver was not stopped";
+        return "Wi-Fi driver was not stopped";
     case wifi::errc::if_error:
-        return "WiFi interface error";
+        return "Wi-Fi interface error";
     case wifi::errc::mode:
-        return "WiFi mode error";
+        return "Wi-Fi mode error";
     case wifi::errc::state:
-        return "WiFi internal state error";
+        return "Wi-Fi internal state error";
     case wifi::errc::conn:
-        return "WiFi internal control block of station error";
+        return "Wi-Fi internal control block of station error";
     case wifi::errc::nvs:
-        return "WiFi internal NVS module error";
+        return "Wi-Fi internal NVS module error";
     case wifi::errc::mac:
         return "MAC address is invalid";
     case wifi::errc::ssid:
@@ -794,23 +794,23 @@ std::string wifi::error_category::message(int ec) const {
     case wifi::errc::password:
         return "Password is invalid";
     case wifi::errc::timeout:
-        return "WiFi timeout";
+        return "Wi-Fi timeout";
     case wifi::errc::wake_fail:
-        return "WiFi is in sleep state and wakeup failed";
+        return "Wi-Fi is in sleep state and wakeup failed";
     case wifi::errc::would_block:
         return "The caller would block";
     case wifi::errc::not_connect:
-        return "Station still in disconnect status";
+        return "Station is still disconnected";
     case wifi::errc::post:
-        return "Failed to post event to WiFi task";
+        return "Failed to post event to Wi-Fi task";
     case wifi::errc::init_state:
-        return "Invalid WiFi state when init/deinit is called";
+        return "Invalid Wi-Fi state when init/deinit is called";
     case wifi::errc::stop_state:
-        return "WiFi stop in progress";
+        return "Wi-Fi stop in progress";
     case wifi::errc::not_assoc:
-        return "WiFi connection not associated";
+        return "Wi-Fi connection not associated";
     case wifi::errc::tx_disallow:
-        return "WiFi TX is disallowed";
+        return "Wi-Fi TX is disallowed";
     case wifi::errc::twt_full:
         return "No available TWT flow ID";
     case wifi::errc::twt_setup_timeout:

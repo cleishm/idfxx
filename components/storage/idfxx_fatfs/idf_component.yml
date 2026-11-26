@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.0.1"
 description: "FAT filesystems on SD cards and flash partitions, used through standard file I/O"
 url: "https://github.com/cleishm/idfxx/tree/main/components/storage/idfxx_fatfs"
 repository: "https://github.com/cleishm/idfxx.git"

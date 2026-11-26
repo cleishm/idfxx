@@ -68,7 +68,7 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 
 The panel steps through six screens, about five seconds apart:
 
-1. A title screen with "idfxx epaper" on a black banner, a large "hello" in a box, and "SSD1680
+1. A title screen with "idfxx ePaper" on a black banner, a large "hello" in a box, and "SSD1680
    122x250"
 2. Four horizontal bands, from white through light and dark gray to black
 3. The title screen again, back in black and white

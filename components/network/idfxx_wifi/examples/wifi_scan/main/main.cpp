@@ -19,7 +19,7 @@ extern "C" void app_main() {
         idfxx::wifi::start();
 
         // --- Perform a blocking scan ---
-        logger.info("Starting WiFi scan...");
+        logger.info("Starting Wi-Fi scan...");
         auto results = idfxx::wifi::scan();
         logger.info("Scan complete: found {} access point(s)", results.size());
 
@@ -39,6 +39,6 @@ extern "C" void app_main() {
         idfxx::wifi::deinit();
 
     } catch (const std::system_error& e) {
-        logger.error("WiFi error: {}", e.what());
+        logger.error("Wi-Fi error: {}", e.what());
     }
 }

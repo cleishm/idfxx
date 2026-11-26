@@ -21,7 +21,7 @@ extern "C" void app_main() {
     logger.info("Revision: {}.{}", info.major_revision(), info.minor_revision());
 
     auto features = info.features();
-    logger.info("WiFi:           {}", features.contains(idfxx::chip_feature::wifi));
+    logger.info("Wi-Fi:          {}", features.contains(idfxx::chip_feature::wifi));
     logger.info("BLE:            {}", features.contains(idfxx::chip_feature::ble));
     logger.info("BT Classic:     {}", features.contains(idfxx::chip_feature::bt_classic));
     logger.info("IEEE 802.15.4:  {}", features.contains(idfxx::chip_feature::ieee802154));
@@ -32,23 +32,23 @@ extern "C" void app_main() {
     logger.info("=== MAC Addresses ===");
 
     auto base = idfxx::base_mac_address();
-    logger.info("Base MAC:     {}", base);
+    logger.info("Base MAC:      {}", base);
 
 #if SOC_WIFI_SUPPORTED
     auto wifi_sta = idfxx::read_mac(idfxx::mac_type::wifi_sta);
-    logger.info("WiFi STA MAC: {}", wifi_sta);
+    logger.info("Wi-Fi STA MAC: {}", wifi_sta);
 
     auto wifi_ap = idfxx::read_mac(idfxx::mac_type::wifi_softap);
-    logger.info("WiFi AP MAC:  {}", wifi_ap);
+    logger.info("Wi-Fi AP MAC:  {}", wifi_ap);
 #endif
 
 #if CONFIG_ESP_MAC_ADDR_UNIVERSE_BT
     auto bt = idfxx::read_mac(idfxx::mac_type::bt);
-    logger.info("BT MAC:       {}", bt);
+    logger.info("BT MAC:        {}", bt);
 #endif
 
     auto eth = idfxx::read_mac(idfxx::mac_type::ethernet);
-    logger.info("Ethernet MAC: {}", eth);
+    logger.info("Ethernet MAC:  {}", eth);
 
     // Format the raw bytes of a MAC address
     logger.info(

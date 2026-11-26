@@ -63,6 +63,6 @@ extern "C" void app_main() {
         }
 
     } catch (const std::system_error& e) {
-        logger.error("WiFi error: {}", e.what());
+        logger.error("Wi-Fi error: {}", e.what());
     }
 }

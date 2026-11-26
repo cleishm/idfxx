@@ -60,7 +60,7 @@ extern "C" void app_main() {
         idfxx::wifi::start();
         idfxx::wifi::connect();
 
-        logger.info("WiFi station started, connecting to {}...", WIFI_SSID);
+        logger.info("Wi-Fi station started, connecting to {}...", WIFI_SSID);
 
         // --- Main loop ---
         while (true) {
@@ -68,6 +68,6 @@ extern "C" void app_main() {
         }
 
     } catch (const std::system_error& e) {
-        logger.error("WiFi error: {}", e.what());
+        logger.error("Wi-Fi error: {}", e.what());
     }
 }
