@@ -76,7 +76,7 @@ concept has_periodic_at = requires(T& t) {
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // timer is not default constructible
@@ -860,7 +860,7 @@ TEST_CASE("timer try_restart with time_point in the past keeps the period of a p
     TEST_ASSERT_NOT_EQUAL(0, first_at.load());
     TEST_ASSERT_LESS_THAN_INT32(100000, us_after(started, first_at.load()));
 
-    // Fired once promptly, then waits out the original period
+    // It fired once promptly. It now waits for the original period before it fires again
     idfxx::delay(100ms);
     TEST_ASSERT_EQUAL(1, count.load());
     TEST_ASSERT_TRUE(result->is_active());
@@ -1406,8 +1406,9 @@ TEST_CASE("timer move assignment cleans up target", "[idfxx][timer]") {
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 
 TEST_CASE("timer keeps firing when the callback throws", "[idfxx][timer][exceptions]") {
-    // Only the first calls throw, each kind twice. Unwinding takes tens of milliseconds on hardware,
-    // so throwing on every tick would leave the timer task permanently behind, starving this task.
+    // Only the first calls throw, each kind twice. Unwinding takes tens of milliseconds on
+    // hardware. If the callback threw on every tick, the timer task would always be busy, and this
+    // task would never get to run.
     constexpr int throwing_calls = 6;
     std::atomic<int> count{0};
     {
@@ -1436,7 +1437,7 @@ TEST_CASE("timer keeps firing when the callback throws", "[idfxx][timer][excepti
         TEST_ASSERT_GREATER_OR_EQUAL(throwing_calls + 3, count.load());
         TEST_ASSERT_TRUE(t.is_active());
 
-        // Destroying the timer waits for the callback, so would hang if a
+        // Destroying the timer waits for the callback, so it would hang if a
         // throw had left the timer locked
     }
     int final_count = count.load();

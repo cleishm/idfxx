@@ -26,7 +26,7 @@ The ESP32-H2 has no Wi-Fi, so it can't run this example.
 ## Configuration
 
 Set `WIFI_SSID` and `WIFI_PASSWORD` in `main/main.cpp` to your network's name and password. The
-example pings `8.8.8.8`; to ping a different IPv4 address, change `TARGET_HOST` in the same file.
+example pings `8.8.8.8`. To ping a different IPv4 address, change `TARGET_HOST` in the same file.
 
 ## How to use
 

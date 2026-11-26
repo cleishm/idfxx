@@ -44,8 +44,8 @@ TEST_CASE("net error code maps to std::errc", "[net]") {
 TEST_CASE("net default_error_condition canonicalizes codes", "[net]") {
     // default_error_condition() yields the canonical std::errc condition, so the
     // comparison works in both directions (condition == code, not just code ==
-    // condition) now that the mapping lives in default_error_condition rather
-    // than a one-directional equivalent() override.
+    // condition). This works because the mapping is in default_error_condition
+    // rather than in a one-directional equivalent() override.
     auto cond = std::make_error_condition(std::errc::connection_reset);
     TEST_ASSERT_TRUE(cond == make_error_code(idfxx::net::errc::connection_reset));
 
@@ -68,9 +68,10 @@ TEST_CASE("core and net timeout codes share a default_error_condition", "[net]")
 }
 
 TEST_CASE("net netconn error codes map to std::errc", "[net]") {
-    // Netconn-path codes that have a clean POSIX synonym must compare equal to
-    // it, exactly like the socket-path code for the same logical condition —
-    // so `ec == std::errc::connection_reset` holds regardless of which layer
+    // Codes from the netconn API that have a clean POSIX synonym must compare
+    // equal to it, exactly like the code from the socket API for the same logical
+    // condition.
+    // Then `ec == std::errc::connection_reset` holds regardless of which layer
     // produced the error.
     auto ec = make_error_code(idfxx::net::errc::netconn_reset);
     TEST_ASSERT_TRUE(ec == std::errc::connection_reset);

@@ -313,7 +313,7 @@ TEST_CASE("queue blocking send succeeds when consumer frees space", "[idfxx][que
     idfxx::delay(100ms);
     TEST_ASSERT_TRUE(sent.load());
 
-    // Receive the item the producer sent
+    // Receive the item that the producer sent
     auto recv2 = q.try_receive(0ms);
     TEST_ASSERT_TRUE(recv2.has_value());
     TEST_ASSERT_EQUAL(2, *recv2);
@@ -478,8 +478,8 @@ TEST_CASE("queue::make with explicit internal storage", "[idfxx][queue]") {
 #if CONFIG_SPIRAM
 
 // The esp32s3 test app enables PSRAM, but the module may have none fitted
-// (and QEMU emulates none); boot then continues without it. PSRAM-backed
-// tests skip in that case, since allocation failure aborts.
+// (and QEMU emulates none). Boot then continues without it. PSRAM-backed
+// tests are skipped in that case, because allocation failure aborts.
 static bool psram_available() {
     return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
 }

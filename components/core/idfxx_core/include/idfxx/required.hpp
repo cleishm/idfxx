@@ -43,7 +43,8 @@ class required;
 
 namespace detail {
 // Used to test that U initializes T without narrowing, as copy-list-initialization
-// of an aggregate member would (the technique std::variant's converting constructor uses).
+// of an aggregate member would (the technique that std::variant's converting constructor
+// uses).
 template<typename T>
 struct required_arr {
     T x[1];
@@ -72,7 +73,7 @@ constexpr bool required_fits(U v) noexcept {
     }
 }
 
-// Not constexpr: reaching it during constant evaluation makes the
+// Not constexpr: calling it during constant evaluation makes the
 // initialization ill-formed, as a narrowing integer constant would be.
 inline void required_integer_constant_out_of_range() noexcept {}
 
@@ -98,15 +99,15 @@ inline constexpr bool is_required_v<required<T>> = true;
  * `std::chrono::milliseconds` to `std::chrono::microseconds`. Narrowing
  * conversions (such as `int` to `uint8_t`, `double` to `int`, or a pointer to
  * `bool`) are rejected, as they are for a plain member in aggregate
- * initialization; as there, an integer constant that fits in an integral `T`
- * is accepted (`.address = 0x3C` for a `required<uint16_t>`).
+ * initialization. As for a plain member, an integer constant that fits in an
+ * integral `T` is accepted (`.address = 0x3C` for a `required<uint16_t>`).
  *
  * A braced list does not initialize the field directly, because the
- * converting constructor cannot deduce its type; name the type instead, as in
+ * converting constructor cannot deduce its type. Name the type instead, as in
  * `.range = std::pair{1, 2}`.
  *
- * Access the stored value with get(), `*` or `->`; these follow the value
- * category of the `required<T>`, so a move-only value such as a
+ * Access the stored value with get(), `*` or `->`. These follow the value
+ * category of the `required<T>`. So a move-only value such as a
  * `std::move_only_function` can be called through a non-const lvalue and
  * moved out of an rvalue (`std::move(cfg.callback).get()`). The implicit
  * conversion yields a `const T&`, so a `required<T>` can be passed wherever a

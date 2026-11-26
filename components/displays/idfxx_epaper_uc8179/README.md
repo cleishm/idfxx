@@ -6,7 +6,7 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
 
 ## Features
 
-- Implements the full `idfxx::epaper::panel` interface — application code written against the
+- Implements the full `idfxx::epaper::panel` interface. Application code written against the
   abstract panel works unchanged.
 - Full, fast (register-written shortened waveform), and flicker-free partial refreshes.
 - 4-level grayscale (`color_mode::gray4`) using the glass's factory grayscale waveform, with a
@@ -16,8 +16,8 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
 - `restore_baseline()` support, to keep partial refreshes across a wake or an ESP32 deep sleep (in
   `color_mode::mono`).
 - No shadow frame: the UC8179 copies the new-image RAM to the previous-image RAM when a refresh
-  completes, so partial refreshes diff against what is on the glass without host-side bookkeeping.
-- Configurable dimensions covering all UC8179 glasses (up to 800 sources x 600 gates); defaults
+  completes, so partial refreshes start from the image on the glass without host-side bookkeeping.
+- Configurable dimensions covering all UC8179 glasses (up to 800 sources x 600 gates). The defaults
   match the 7.5" 800x480 GDEY075T7 glass.
 - `spi_io_config()` helper pre-fills the controller's SPI framing for `idfxx::panel_io`.
 
@@ -134,17 +134,21 @@ See `examples/ee05_demo` for a complete application exercising all refresh modes
 
 The panel API (`write`, `write_rows`, `clear`, `restore_baseline`, `refresh`, `start_refresh`,
 `set_color_mode`, `set_border`, `sleep`, `wake`, and their `try_*` forms) is inherited from
-`idfxx::epaper::panel` — see the `idfxx_epaper` documentation.
+`idfxx::epaper::panel`. See the `idfxx_epaper` documentation.
 
 Driver-specific surface:
 
-- `uc8179(panel_io&, config)` / `uc8179::make(panel_io&, config)` — construction; resets and
+- `uc8179(panel_io&, config)` / `uc8179::make(panel_io&, config)` — construction. Resets and
   initializes the controller and clears both image planes to white.
-- `config` — `width`/`height` (default 800x480; width must be a multiple of 8), `reset_gpio`
-  (required for `wake`, strongly recommended in general), `busy_gpio` (required), `busy_timeout`
-  (default 30 s), `border` (default `border::white`; all three values supported, changeable later
-  with `set_border`), `gray4_frame_rate` / `gray4_source_voltage` (grayscale operating point,
-  default 20 Hz at +/-15 V).
+- `config` fields:
+  - `width`/`height`: default 800x480. The width must be a multiple of 8.
+  - `reset_gpio`: required for `wake`, strongly recommended in general.
+  - `busy_gpio`: required.
+  - `busy_timeout`: default 30 s.
+  - `border`: default `border::white`. All three values are supported. Can be changed later with
+    `set_border`.
+  - `gray4_frame_rate` / `gray4_source_voltage`: the grayscale operating point, default 20 Hz at
+    +/-15 V.
 - `spi_io_config(cs, dc, pclk = 10 MHz)` — pre-filled `panel_io::spi_config` (mode 0, 8-bit
   command/parameter framing).
 
@@ -153,10 +157,10 @@ Driver-specific surface:
 Uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`:
 
 - `errc::invalid_arg` — unconnected `busy_gpio`, dimensions outside the controller's 800x600 range,
-  a width not a multiple of 8, an unsupported `gray4_frame_rate` or `gray4_source_voltage`, or
-  invalid write placement.
-- `errc::invalid_state` — writing/refreshing while asleep, a framebuffer not matching the color
-  mode, or `wake` without a `reset_gpio`.
+  a width that is not a multiple of 8, an unsupported `gray4_frame_rate` or `gray4_source_voltage`,
+  or invalid write placement.
+- `errc::invalid_state` — writing/refreshing while asleep, a framebuffer that does not match the
+  color mode, or `wake` without a `reset_gpio`.
 - `errc::timeout` — the BUSY line did not release within `busy_timeout`.
 - `errc::not_supported` — `fast`/`partial` refresh in gray4 mode.
 
@@ -165,8 +169,8 @@ Using a moved-from driver object is undefined behavior.
 ## Important Notes
 
 - **BUSY is required.** The UC8179 holds BUSY low (active low, unlike the SSD1680) for several
-  seconds during full refreshes of the 7.5" glass; `refresh` blocks on it (with a tick-sleep poll,
-  not a busy-spin). `start_refresh` returns while the glass is still driving: the driver then waits
+  seconds during full refreshes of the 7.5" glass. `refresh` blocks on it (with a tick-sleep poll,
+  not a busy-spin). `start_refresh` returns while the glass is still updating. The driver then waits
   for BUSY before the next controller command.
 - **Memory**: a full-frame `mono_framebuffer` at 800x480 is 48 KB and a `gray4_framebuffer` is 96
   KB, all DRAM. Grayscale writes additionally stage each plane through a transient buffer of up to
@@ -174,48 +178,56 @@ Using a moved-from driver object is undefined behavior.
   `gfx::render_banded` with a band-sized framebuffer keeps mono drawing memory small.
 - **Waveform switching resets the controller.** The UC8179 selects its waveform at initialization,
   so changing refresh mode between refreshes hardware-resets and re-initializes the controller
-  (image RAM survives). Wire `reset_gpio` — without it, mode switches leave stale register state
-  behind. Repeated refreshes in the same mode skip this entirely.
+  (the image RAM is kept). Wire `reset_gpio`. Without it, mode switches leave stale register state
+  behind. Repeated refreshes in the same mode do not reset the controller.
 - **Fast refresh uses register-written waveform tables** (from Seeed's driver for this glass).
-  Quality varies by panel batch and temperature — validate on hardware, and prefer `full` when in
-  doubt.
+  Quality varies by panel batch and temperature. Validate it on hardware, and use `full` if you are
+  not sure.
 - **Gray4 levels are tunable, and shift when you tune them.** The grayscale waveform tables are the
   factory grayscale waveform of the GDEY075T7 glass (on other UC8179 glasses, validate on hardware).
-  `config::gray4_frame_rate` and `config::gray4_source_voltage` select the operating point. The
-  default, 20 Hz at +/-15 V, gives the deepest black and the widest gray spacing, independent of the
-  image content, at ~9 s per refresh. 50 Hz at +/-10 V keeps the vendor's 3.6 s refresh with
-  content-stable levels, but its black is lighter and both grays sit in the dark end of the range.
-  The vendor's own point, 50 Hz at +/-15 V, gives a deep black at 3.6 s, but its gray levels drop by
-  up to ~15 % on content with dense horizontal detail (the drive supplies sag under source-switching
-  load). The gray levels move with either setting, so recalibrate any gray mapping after changing
-  them.
-- **Fast refresh trades contrast for durability of the image.** The shortened waveform under-drives
-  the ink, leaving black pixels in a weakly held state: they look black on their own, but a
-  subsequent partial refresh can settle them to a visibly gray level (a one-time step, not
-  progressive fading). Start a long partial-refresh sequence from a `full` refresh, which drives
-  pixels to their stable extremes.
+  `config::gray4_frame_rate` and `config::gray4_source_voltage` select the operating point:
+  - 20 Hz at +/-15 V (the default): the deepest black and the widest gray spacing, independent of
+    the image content. A refresh takes ~9 s.
+  - 50 Hz at +/-10 V: keeps the vendor's 3.6 s refresh, and the levels do not depend on the
+    content. But the black is lighter, and both grays are in the dark end of the range.
+  - 50 Hz at +/-15 V (the vendor's own operating point): a deep black at 3.6 s. But the gray levels
+    drop by up to ~15 % on content with dense horizontal detail (the drive supplies sag under
+    source-switching load).
+
+  The gray levels move with either setting, so recalibrate any gray mapping after changing them.
+- **Fast refresh gives less durable contrast.** The shortened waveform under-drives the ink, and
+  leaves black pixels in a weakly held state. They look black on their own, but a later partial
+  refresh can change them to a visibly gray level. This is a one-time step, not progressive fading.
+  Start a long partial-refresh sequence with a `full` refresh, which drives pixels to their stable
+  extremes.
 - **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean accumulated ghosting.
-- **A white border flashes with each full refresh.** The controller has no fixed-level border drive:
-  it drives the border with the black-to-white pixel waveform, so `border::white` flashes along with
-  the image. `border::hold` leaves the border undriven, keeping its last color — once the border is
-  white, switching to `hold` stops it flashing. Whether a floating border stays clean across many
-  full refreshes depends on the glass; drive it white again now and then if it grays. In
-  `color_mode::gray4` white is not drivable, so a white setting holds the border (black is still
-  driven). Partial refreshes and deep sleep always float the border, whatever the setting.
+- **A white border flashes with each full refresh.** The controller has no fixed-level border
+  drive. It drives the border with the black-to-white pixel waveform, so with `border::white` the
+  border flashes along with the image. `border::hold` leaves the border undriven, so it keeps its
+  last color. Once the border is white, switching to `hold` stops it flashing. Whether a floating
+  border stays clean across many full refreshes depends on the glass. If it turns gray, drive it
+  white again occasionally. In `color_mode::gray4`, the border cannot be driven white, so a white
+  setting holds the border (black is still driven). Partial refreshes and deep sleep always float
+  the border, whatever the setting.
 - **Gray4 amplifies ghosting from long-displayed content.** The gray midtones are open-loop drives,
-  so they expose residual polarization the ink accumulates while content sits in one state — content
-  that was black on the glass for a long time can ghost faintly through the gray levels even after
-  the panel has been cleared to a uniform white. The simplest mitigation is sequencing: refresh
-  grayscale content while the glass is fresh, before any one image has been held for long
-  (`examples/ee05_demo` runs its grayscale stage early for exactly this reason). Repeated scrub
-  cycles do not help once the polarization exists: a drive applied identically to every pixel cannot
-  remove a per-pixel differential. When long-held content is unavoidable, inverse compensation
-  works: display the *inverse* of the long-held content (every pixel makes a full opposite
-  transition), hold it — the compensation grows with hold time, and a hold approaching the original
-  display time all but eliminates the ghost — then `clear()` and refresh. In mono mode `clear()`
-  blanks only the new-image plane, so that final refresh applies the deep black-to-white erase
-  waveform to previously-black pixels rather than the gentle white-to-white one.
-- The destructor powers off an awake controller and puts it into deep sleep; call `wake()` after
+  so they show the residual polarization that the ink builds up while content stays in one state.
+  Content that was black on the glass for a long time can show as a faint ghost through the gray
+  levels, even after the panel has been cleared to a uniform white. The simplest mitigation is to
+  order the refreshes. Refresh grayscale content while the glass is fresh, before any one image has
+  been held for long. `examples/ee05_demo` runs its grayscale stage early for this reason. Repeated
+  scrub cycles do not help once the polarization exists: a drive applied identically to every pixel
+  cannot remove a per-pixel differential. When long-held content is unavoidable, inverse
+  compensation works:
+  1. Display the *inverse* of the long-held content, so that every pixel makes a full opposite
+     transition.
+  2. Hold it. The compensation grows with hold time. A hold that approaches the original display
+     time almost removes the ghost.
+  3. Call `clear()` and refresh.
+
+  In mono mode, `clear()` blanks only the new-image plane, so the final refresh applies the deep
+  black-to-white erase waveform to previously-black pixels, instead of the gentle white-to-white
+  one.
+- The destructor powers off an awake controller and puts it into deep sleep. Call `wake()` after
   re-constructing a driver on a previously slept panel.
 
 ## License

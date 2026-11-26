@@ -26,7 +26,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 - Any ESP32-series development board with at least 4 MB of flash
 
 The partition table in `partitions.csv` gives the app 1 MB and the `storage` partition 1 MB. To
-change the filesystem's size, change the size of `storage`; `sdkconfig.defaults` selects the
+change the filesystem's size, change the size of `storage`. `sdkconfig.defaults` selects the
 partition table and the 4 MB flash size.
 
 ## How to use

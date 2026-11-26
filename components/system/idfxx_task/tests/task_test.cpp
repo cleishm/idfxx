@@ -24,7 +24,7 @@ using namespace std::chrono_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // task is not default constructible
@@ -195,7 +195,8 @@ TEST_CASE("task::make accepts stack of configMINIMAL_STACK_SIZE", "[idfxx][task]
 }
 
 TEST_CASE("task::make rejects a core FreeRTOS does not run on", "[idfxx][task][config]") {
-    // One past the last core FreeRTOS schedules on (core_1 when CONFIG_FREERTOS_UNICORE is set)
+    // One past the last core that FreeRTOS schedules on (core_1 when CONFIG_FREERTOS_UNICORE is
+    // set)
     auto missing = static_cast<core_id>(configNUMBER_OF_CORES);
     auto t = task::make({.name = "bad_core", .core_affinity = missing}, [](task::self&) {});
     TEST_ASSERT_FALSE(t.has_value());
@@ -708,7 +709,7 @@ TEST_CASE("destructor requests stop before joining", "[idfxx][task][stop]") {
         idfxx::delay(50ms);
         TEST_ASSERT_FALSE(exited.load());
 
-        // Destructor fires here — should request_stop() then join
+        // The destructor runs here. It should request_stop() then join
     }
 
     TEST_ASSERT_TRUE(exited.load());
@@ -795,8 +796,8 @@ TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
 
 #if CONFIG_SPIRAM
 
-// The esp32s3 test app enables PSRAM, but the module may have none fitted
-// (and QEMU emulates none); boot then continues without it. PSRAM-backed
+// The esp32s3 test app enables PSRAM, but the module may have no PSRAM fitted,
+// and QEMU emulates none. Boot then continues without PSRAM. PSRAM-backed
 // tests skip in that case, since allocation failure aborts.
 static bool psram_available() {
     return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
@@ -1109,7 +1110,7 @@ TEST_CASE("wait_for returns false on timeout", "[idfxx][task][notify]") {
     });
     TEST_ASSERT_TRUE(t.has_value());
 
-    // Don't send any notification — let it time out
+    // Don't send any notification. Let it time out
     idfxx::delay(200ms);
     TEST_ASSERT_TRUE(timed_out.load());
 }
@@ -1145,7 +1146,7 @@ TEST_CASE("take_for returns 0 on timeout", "[idfxx][task][notify]") {
     });
     TEST_ASSERT_TRUE(t.has_value());
 
-    // Don't send any notification — let it time out
+    // Don't send any notification. Let it time out
     idfxx::delay(200ms);
     TEST_ASSERT_EQUAL(0, count.load());
 }
@@ -1189,7 +1190,7 @@ TEST_CASE("destructor wakes a task blocked in wait", "[idfxx][task][notify]") {
         idfxx::delay(50ms);
         TEST_ASSERT_FALSE(exited.load());
 
-        // Destructor fires here — should request_stop() + notify to wake + join
+        // The destructor runs here. It should request_stop(), notify the task to wake it, and join
     }
 
     TEST_ASSERT_TRUE(exited.load());

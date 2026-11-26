@@ -16,16 +16,17 @@
  * screens, by The Inter Project Authors (SIL Open Font License 1.1). The
  * bundled fonts are Inter 4.1 Regular and Medium, rasterized to 1-bit glyphs
  * at each size, so they are drawn at their native size rather than scaled.
- * Each covers Windows-1252: printable ASCII, Latin-1 (accented letters, `©`,
- * `°`, ...) and the typographic punctuation Windows-1252 adds (curly quotes,
- * dashes, ellipsis, bullet, `€`, `™`, ...). Other code points are drawn as
- * `?`.
+ * Each covers Windows-1252: printable ASCII, Latin-1 (such as accented
+ * letters, `©` and `°`) and the typographic punctuation that Windows-1252 adds
+ * (such as curly quotes, dashes, ellipsis, bullet, `€` and `™`). Other code
+ * points are drawn as `?`.
  *
- * Sizes are em sizes; capitals are roughly three quarters of the size tall.
- * Medium is the heavier weight: at 16 pixels its stems are 2 pixels wide
- * where Regular's are 1, so it holds up better for small text on
- * low-resolution or ePaper displays. Each font lives in its own translation
- * unit, so a size an application never references is dropped at link time.
+ * Sizes are em sizes. Capitals are roughly three quarters of the size tall.
+ * Medium is the heavier weight. At 16 pixels, its stems are 2 pixels wide,
+ * and Regular's stems are 1 pixel wide. So Medium is easier to read as small
+ * text on low-resolution or ePaper displays. Each font is in its own
+ * translation unit, so a size that an application never references is
+ * dropped at link time.
  *
  * @code
  * const auto& f = idfxx::font::inter_24;
@@ -44,28 +45,28 @@
  */
 namespace idfxx::font {
 
-/// Inter Regular, 16 px — body text; 20-pixel line height.
+/// Inter Regular, 16 px, for body text, with a 20-pixel line height.
 extern const proportional_font inter_16;
 
-/// Inter Regular, 24 px — subheadings; 30-pixel line height.
+/// Inter Regular, 24 px, for subheadings, with a 30-pixel line height.
 extern const proportional_font inter_24;
 
-/// Inter Regular, 32 px — headings; 39-pixel line height.
+/// Inter Regular, 32 px, for headings, with a 39-pixel line height.
 extern const proportional_font inter_32;
 
-/// Inter Regular, 48 px — large headings and readouts; 59-pixel line height.
+/// Inter Regular, 48 px, for large headings and readouts, with a 59-pixel line height.
 extern const proportional_font inter_48;
 
-/// Inter Medium, 16 px — body text; 20-pixel line height.
+/// Inter Medium, 16 px, for body text, with a 20-pixel line height.
 extern const proportional_font inter_medium_16;
 
-/// Inter Medium, 24 px — subheadings; 30-pixel line height.
+/// Inter Medium, 24 px, for subheadings, with a 30-pixel line height.
 extern const proportional_font inter_medium_24;
 
-/// Inter Medium, 32 px — headings; 39-pixel line height.
+/// Inter Medium, 32 px, for headings, with a 39-pixel line height.
 extern const proportional_font inter_medium_32;
 
-/// Inter Medium, 48 px — large headings and readouts; 59-pixel line height.
+/// Inter Medium, 48 px, for large headings and readouts, with a 59-pixel line height.
 extern const proportional_font inter_medium_48;
 
 } // namespace idfxx::font

@@ -614,7 +614,7 @@ result<void> nvs::flash::try_init(const partition& part, const secure_config& cf
     nvs_sec_cfg_t nvs_cfg{};
     std::memcpy(nvs_cfg.eky, cfg.eky.data(), key_size);
     std::memcpy(nvs_cfg.tky, cfg.tky.data(), key_size);
-    // No nvs_flash_secure_init_partition_ptr — use label-based API
+    // There is no nvs_flash_secure_init_partition_ptr, so use the label-based API
     std::string label_str{part.label()};
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), &nvs_cfg);
     memset(&nvs_cfg, 0, sizeof(nvs_cfg)); // Clear sensitive data
@@ -632,7 +632,7 @@ result<void> nvs::flash::try_init(const partition& part, const secure_config& cf
 }
 
 result<void> nvs::flash::try_init(insecure_t, const partition& part) {
-    // No nvs_flash_secure_init_partition_ptr — use label-based API
+    // There is no nvs_flash_secure_init_partition_ptr, so use the label-based API
     std::string label_str{part.label()};
     esp_err_t err = nvs_flash_secure_init_partition(label_str.c_str(), nullptr);
     if (err != ESP_OK) {

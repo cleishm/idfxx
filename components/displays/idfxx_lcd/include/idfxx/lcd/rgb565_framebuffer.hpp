@@ -36,12 +36,12 @@ namespace idfxx::lcd {
  * a color panel's draw_bitmap. The pixel (x, y) is at index
  * `y * width() + x`.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then draw it on
- * a panel with @ref panel::write (or @ref panel::write_rows /
+ * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
+ * Then draw it on a panel with @ref panel::write (or @ref panel::write_rows /
  * @ref panel::write_region for part of it). A full frame at 16 bpp is large
  * (a 240x320 panel needs 150 KB), so the framebuffer may also be sized as a
- * horizontal band and written at a destination offset, rendering the frame
- * in slices:
+ * horizontal band and written at a destination offset. This renders the
+ * frame in slices:
  *
  * @code
  * idfxx::lcd::rgb565_framebuffer band(display.width(), 40);
@@ -64,8 +64,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels black.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
@@ -77,8 +77,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels black.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @return The new rgb565_framebuffer, or an error.
      * @retval idfxx::errc::invalid_arg if @p width or @p height is zero.
@@ -139,7 +139,7 @@ public:
      * @brief Returns the raw pixel data.
      *
      * The span holds `width() * height()` values in the row-major layout
-     * described in the class documentation; its bytes
+     * described in the class documentation. Its bytes
      * (`std::as_bytes(fb.data())`) are suitable for passing directly to a
      * color panel's draw_bitmap.
      *

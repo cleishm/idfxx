@@ -13,13 +13,13 @@
  * @brief One-shot and incremental message digests: SHA-2, SHA-3, SHA-1 and MD5.
  *
  * Each algorithm has a `hasher` alias (`idfxx::crypto::hash::sha256`,
- * `idfxx::crypto::hash::sha3_256`, ...) whose static `compute()` and `compare()` digest a complete
- * message in one call, and whose instances digest a message supplied in pieces with `update()`. Use
- * these when the algorithm is known at compile time.
+ * `idfxx::crypto::hash::sha3_256`, ...). Its static `compute()` and `compare()` digest a complete
+ * message in one call. Its instances digest a message supplied in pieces with `update()`. Use these
+ * aliases when the algorithm is known at compile time.
  *
- * `idfxx::crypto::hash::operation` offers the same operations with an algorithm chosen at runtime,
- * writing digests into a caller-supplied buffer. `hash::digest_size()` and `hash::block_size()`
- * give an algorithm's sizes, in constant expressions too.
+ * `idfxx::crypto::hash::operation` offers the same operations with an algorithm chosen at runtime.
+ * It writes digests into a caller-supplied buffer. `hash::digest_size()` and `hash::block_size()`
+ * give an algorithm's sizes, and are also usable in constant expressions.
  *
  * An algorithm (its `hash::algorithm` enumerator and its alias) is available only when it is
  * enabled in the mbedTLS configuration (`Component config` → `mbedTLS` in menuconfig). MD5, SHA-1
@@ -140,10 +140,10 @@ class hasher;
  * The static `compute()` and `compare()` digest a complete message in one call. An instance
  * digests a message supplied in pieces: `update()` adds data, and `finish()` (or `verify()`)
  * completes the message. After `finish()` or `verify()`, the operation is ready for a new message.
- * A failed `update()`, `finish()` or `verify()` discards the partially digested message, leaving
- * the operation ready for a new message, except that `finish()` failing with
- * `errc::buffer_too_small` leaves the message unchanged. A failed `clone()` leaves the operation
- * unchanged.
+ * A failed `update()`, `finish()` or `verify()` discards the partially digested message, and the
+ * operation is ready for a new message. The exception is `finish()` failing with
+ * `errc::buffer_too_small`, which leaves the message unchanged. A failed `clone()` leaves the
+ * operation unchanged.
  *
  * Creating an operation checks the algorithm: it fails with `errc::not_supported` for a hash
  * algorithm that is not supported (for example one not enabled in the mbedTLS configuration), and
@@ -385,7 +385,7 @@ public:
     /**
      * @brief Returns the hash algorithm.
      *
-     * @return The algorithm the operation was created with.
+     * @return The algorithm that the operation was created with.
      */
     [[nodiscard]] hash::algorithm algorithm() const noexcept;
 
@@ -463,7 +463,7 @@ public:
      *
      * Without any preceding `update()`, writes the digest of the empty message. Afterward, the
      * operation is ready for a new message. If `digest` is too small, the message is left
-     * unchanged, so it can be finished again with a larger buffer; on any other failure it is
+     * unchanged, so it can be finished again with a larger buffer. On any other failure, it is
      * discarded.
      *
      * @param digest The buffer to write the digest to, at least `digest_size()` bytes.
@@ -481,7 +481,7 @@ public:
      *
      * Without any preceding `try_update()`, writes the digest of the empty message. Afterward,
      * the operation is ready for a new message. If `digest` is too small, the message is left
-     * unchanged, so it can be finished again with a larger buffer; on any other failure it is
+     * unchanged, so it can be finished again with a larger buffer. On any other failure, it is
      * discarded.
      *
      * @param digest The buffer to write the digest to, at least `digest_size()` bytes.
@@ -527,7 +527,7 @@ public:
      * @return The copy.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure (for example `errc::hardware_failure`); this operation
+     * @throws std::system_error on failure (for example `errc::hardware_failure`). This operation
      *         is unchanged.
      */
     [[nodiscard]] operation clone() const { return unwrap(try_clone()); }
@@ -537,7 +537,7 @@ public:
      * @brief Creates an independent copy of this operation, including its partially digested
      *        message.
      *
-     * @return The copy, or an error (for example `errc::hardware_failure`); on failure this
+     * @return The copy, or an error (for example `errc::hardware_failure`). On failure, this
      *         operation is unchanged.
      */
     [[nodiscard]] result<operation> try_clone() const;
@@ -555,7 +555,7 @@ private:
     struct state;
 
     // Creates an operation without checking the algorithm, for `hasher`, whose algorithm is a
-    // compile-time constant. An algorithm that is not supported fails on first use instead.
+    // compile-time constant. If the algorithm is not supported, the first use fails instead.
     struct unchecked_t {};
     operation(unchecked_t, hash::algorithm alg);
 
@@ -727,7 +727,7 @@ public:
     /**
      * @brief Creates a hasher ready for a new message.
      *
-     * Allocates the hasher's state; allocation failure is treated as fatal (`std::bad_alloc`, or
+     * Allocates the hasher's state. Allocation failure is treated as fatal (`std::bad_alloc`, or
      * abort when exceptions are disabled). Available whether or not exceptions are enabled.
      */
     hasher()
@@ -873,8 +873,8 @@ public:
      * @return The copy.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure (for example `errc::hardware_failure`); this hasher
-     *         is unaffected.
+     * @throws std::system_error on failure (for example `errc::hardware_failure`). This hasher is
+     *         unchanged.
      */
     [[nodiscard]] hasher clone() const { return unwrap(try_clone()); }
 #endif
@@ -883,8 +883,8 @@ public:
      * @brief Creates an independent copy of this hasher, including its partially digested
      *        message.
      *
-     * @return The copy, or an error (for example `errc::hardware_failure`); on failure this
-     *         hasher is unaffected.
+     * @return The copy, or an error (for example `errc::hardware_failure`). On failure, this
+     *         hasher is unchanged.
      */
     [[nodiscard]] result<hasher> try_clone() const {
         return _op.try_clone().transform([](operation&& op) { return hasher{std::move(op)}; });

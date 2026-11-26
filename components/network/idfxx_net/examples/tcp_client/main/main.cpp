@@ -42,14 +42,15 @@ extern "C" void app_main() {
 
         // --- DNS resolve + TCP client ---
         // The (host, port) constructor resolves the host and tries each returned
-        // endpoint in turn, returning the first one that connects (the same as
-        // the `connect_to(host, port)` factory).
+        // endpoint in order until one connects (the same as the
+        // `connect_to(host, port)` factory).
         logger.info("Connecting to {}:{}...", HOST, PORT);
         idfxx::net::stream_socket sock(HOST, PORT, {.no_delay = true});
         logger.info("Connected to {}", sock.peer_endpoint());
         sock.set_recv_timeout(5s);
 
-        // `Connection: close` so the server hangs up after the response, giving us a clean EOF.
+        // `Connection: close` makes the server close the connection after the response, so
+        // that the client sees a clean EOF.
         constexpr std::string_view request = "GET / HTTP/1.0\r\n"
                                              "Host: example.com\r\n"
                                              "Connection: close\r\n"
@@ -81,9 +82,9 @@ extern "C" void app_main() {
 
 namespace {
 
-// Brings up the WiFi STA, blocks until DHCP assigns an IPv4 address, and
-// registers an auto-reconnect listener for the rest of the program's lifetime.
-// Returns the assigned address. Call once.
+// Starts the Wi-Fi station (STA) and blocks until DHCP assigns an IPv4 address.
+// Also registers a listener that reconnects automatically for the rest of the
+// program's lifetime. Returns the assigned address. Call once.
 idfxx::net::ipv4_addr connect_to_wifi() {
     idfxx::event_loop::create_system();
     idfxx::netif::init();
@@ -102,8 +103,8 @@ idfxx::net::ipv4_addr connect_to_wifi() {
     loop.listener_add(
         idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            // Listener runs in the event-loop trampoline (C frame); exceptions
-            // must not escape, so suppress at this boundary.
+            // The listener runs in the event-loop trampoline (a C frame).
+            // Exceptions must not escape it, so catch them at this boundary.
             try {
                 idfxx::wifi::connect();
             } catch (const std::system_error& e) {

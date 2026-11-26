@@ -12,7 +12,7 @@ one of its files.
   `partitions.csv`
 - Mounting the image by its partition label at `/assets` with `idfxx::fatfs::image`
 - Listing a directory with `opendir()` and `readdir()`, and reading a file with `std::ifstream`
-- Opening a file for writing failing, as the image is read-only
+- Showing that opening a file for writing fails, because the image is read-only
 - Catching the `std::system_error` thrown when the image can't be mounted
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
@@ -22,7 +22,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 - Any ESP32-series development board
 
-The image holds the files in `data/`; change them and rebuild to change the image. The `assets`
+The image holds the files in `data/`. Change them and rebuild to change the image. The `assets`
 partition is 128 KB, set in `partitions.csv`. `sdkconfig.defaults` selects the partition table and
 enables long file names.
 

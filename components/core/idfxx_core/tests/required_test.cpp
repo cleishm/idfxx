@@ -214,7 +214,7 @@ static_assert(!eq_comparable<required<not_comparable>, required<not_comparable>>
 static_assert(required<int>(1) == required<int>(1));
 static_assert(required<int>(1) != required<int>(2));
 
-// Equality with values T compares equal to, in both argument orders
+// Equality with values that T compares equal to, in both argument orders
 static_assert(eq_comparable<required<pin>, pin>);
 static_assert(eq_comparable<pin, required<pin>>);
 static_assert(required<pin>(pin_5) == pin_5);

@@ -6,7 +6,7 @@
 //
 // No input makes the crypto library's update fail, so the test app links with
 // -Wl,--wrap=psa_hash_update and -Wl,--wrap=psa_mac_update (see link_options.cmake). The wrappers
-// below pass every call through to the library, except the one a test arms them to fail.
+// below pass every call through to the library, except the one that a test arms them to fail.
 
 #include "crypto_test_utils.hpp"
 #include "idfxx/crypto/hash"
@@ -28,8 +28,8 @@ using namespace idfxx_crypto_test;
 
 namespace {
 
-// A failure to inject: the wrapped function fails its fail_call-th call since being armed (none
-// when 0), as the library does on a fault, and counts the calls it has seen.
+// A failure to inject: the wrapped function fails its fail_call-th call since being armed (no call
+// when 0), as the library does on a fault. It also counts the calls that it has seen.
 struct injected_failure {
     unsigned fail_call = 0;
     unsigned calls = 0;
@@ -60,8 +60,8 @@ bool should_fail(injected_failure& f) {
     return true;
 }
 
-// The update calls the crypto library sees for one update of n bytes: one, or one per 4096-byte
-// chunk where the library would otherwise copy the whole input to the heap (ESP-IDF 5.5).
+// The update calls that the crypto library receives for one update of n bytes: one, or one per
+// 4096-byte chunk where the library would otherwise copy the whole input to the heap (ESP-IDF 5.5).
 constexpr unsigned library_calls(std::size_t n) {
 #ifdef MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS
     return n > 0 ? 1 : 0;

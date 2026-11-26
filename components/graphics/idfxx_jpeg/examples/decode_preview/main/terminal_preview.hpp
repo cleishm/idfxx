@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Only prints an image to the terminal; you don't need to read this to follow the example.
+// Only prints an image to the terminal. You don't need to read this to follow the example.
 
 #pragma once
 
@@ -20,8 +20,8 @@ inline void print_image(idfxx::image::view<const idfxx::image::rgb888> picture) 
             const idfxx::image::rgb888 upper = picture[x, y];
             const idfxx::image::rgb888 lower =
                 y + 1 < picture.height() ? picture[x, y + 1] : idfxx::image::rgb888{};
-            // An upper half block (U+2580): the foreground color fills its top half, the background
-            // its bottom.
+            // An upper half block (U+2580): the foreground color fills its top half, and the
+            // background color fills its bottom half.
             line += std::format(
                 "\x1b[38;2;{};{};{};48;2;{};{};{}m▀",
                 upper.r,

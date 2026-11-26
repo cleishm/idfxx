@@ -401,7 +401,7 @@ result<void> try_check_image_validity(enum partition::type type, byte_view image
     constexpr size_t app_desc_offset =
         sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t);
 
-    // Copy into aligned locals; the view's data may be unaligned
+    // Copy into aligned locals. The view's data may be unaligned
     esp_image_header_t header;
     esp_app_desc_t desc;
     const esp_app_desc_t* desc_ptr = nullptr;
@@ -481,7 +481,7 @@ void mark_valid() {
 
 void mark_invalid_and_rollback() {
     unwrap(try_mark_invalid_and_rollback());
-    // Should not reach here - esp_ota_mark_app_invalid_rollback_and_reboot reboots on success
+    // Should not reach here. esp_ota_mark_app_invalid_rollback_and_reboot reboots on success
     __builtin_unreachable();
 }
 
@@ -497,7 +497,7 @@ result<void> try_mark_valid() {
 }
 
 result<void> try_mark_invalid_and_rollback() {
-    // Only returns on failure - on success the device reboots
+    // Only returns on failure. On success, the device reboots
     return checked(
         esp_ota_mark_app_invalid_rollback_and_reboot(),
         "esp_ota_mark_app_invalid_rollback_and_reboot"

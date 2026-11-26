@@ -88,8 +88,8 @@ enum class intr_flag : int {
     /**
      * @brief Interrupt can be shared only with interrupts that explicitly bind to it.
      *
-     * Like `shared`, but the interrupt line is not open to arbitrary sharers: it can only be shared
-     * with allocations that bind to this specific interrupt (by handle or name) when allocating.
+     * Like `shared`, but other allocations can share the interrupt line only if they bind to this
+     * specific interrupt (by handle or name) when they are allocated.
      *
      * @note Available only with ESP-IDF 6.1 and later.
      */

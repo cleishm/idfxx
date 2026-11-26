@@ -31,7 +31,8 @@ inline constexpr gpio miso = gpio_8;
 inline constexpr gpio cs = gpio_14;
 inline constexpr gpio detect = gpio_15; // Active low
 inline constexpr gpio power = gpio_16;  // Slot power enable, active high
-// The panel's CS lines are left alone: driving them high while the panel is unpowered back-powers it.
+// The panel's CS lines are not driven, because driving them high while the panel is unpowered
+// back-powers the panel.
 inline constexpr std::array<gpio, 0> other_cs{};
 
 #elif CONFIG_IDFXX_TEST_SD_RIG_TFT_FEATHERWING
@@ -76,7 +77,7 @@ inline bool card_inserted() {
     return d.get_level() == gpio::level::low;
 }
 
-/// Switches slot power, where the board can, and deselects the bus's other devices.
+/// Switches slot power, if the board supports it, and deselects the other devices on the bus.
 inline void slot_power(bool on) {
     for (gpio pin : other_cs) {
         TEST_ASSERT_TRUE(pin.try_set_direction(gpio::mode::output).has_value());
@@ -114,9 +115,9 @@ inline card make_card(
 
 namespace detail {
 
-// The bus and card a test is using. They are held in static storage rather than in the test's stack frame: a
-// failed Unity assertion longjmps out of the test, skipping destructors, which would leave SPI2 initialized and
-// fail every later test that uses it.
+// The bus and card that a test is using. They are held in static storage rather than in the test's
+// stack frame. A failed Unity assertion longjmps out of the test, and destructors do not run. A bus
+// on the stack would then leave SPI2 initialized, and every later test that uses SPI2 would fail.
 inline std::optional<spi::master_bus>& held_bus() {
     static std::optional<spi::master_bus> bus;
     return bus;
@@ -133,8 +134,8 @@ inline bool& slot_powered() {
     return powered;
 }
 
-// Destroys whatever a test left behind: the card, then its bus. Then powers the slot off, if card_fixture powered it
-// on.
+// Destroys the card and then its bus, if a test did not destroy them. Then powers the slot off, if
+// card_fixture powered it on.
 inline void release_held() {
     held_card().reset();
     held_bus().reset();
@@ -144,17 +145,17 @@ inline void release_held() {
     }
 }
 
-// Has release_held() run after every test from now on, so that a test that fails leaves nothing behind. Called
-// before anything is held.
+// Registers release_held() to run after every test from now on, so that nothing stays held after a
+// test fails. Called before anything is held.
 inline void release_after_each_test() {
     idfxx::test::run_after_each_test(&release_held);
 }
 
 } // namespace detail
 
-/// A [hw] test's bus and card, on the board's SD slot. Construction powers the slot and initializes the card;
-/// destruction releases the card and the bus, then powers the slot off. A test that fails before the fixture is
-/// destroyed has this done after it.
+/// A [hw] test's bus and card, on the board's SD slot. Construction powers the slot and initializes
+/// the card. Destruction releases the card and the bus, then powers the slot off. If a test fails
+/// before the fixture is destroyed, the release is done after the test.
 class card_fixture {
 public:
     card_fixture() {
@@ -182,8 +183,9 @@ public:
     }
 };
 
-/// An SPI2 bus with no pins, for tests whose card configurations are rejected, or fail for lack of a card. Held in the
-/// same storage as card_fixture's bus, so that a failed test doesn't leave SPI2 initialized.
+/// An SPI2 bus with no pins, for tests whose card configurations are rejected, or fail because
+/// there is no card. Held in the same storage as card_fixture's bus, so that a failed test doesn't
+/// leave SPI2 initialized.
 class unwired_bus_fixture {
 public:
     explicit unwired_bus_fixture(spi::dma_chan dma = spi::dma_chan::ch_auto) {
@@ -203,7 +205,8 @@ public:
 
 } // namespace idfxx::sdcard::test
 
-// Skips the test, before anything needing cleanup is created, when there is no board or its slot is empty.
+// Skips the test when there is no board or its slot is empty. Use it before anything that needs
+// cleanup is created.
 #define IDFXX_REQUIRE_SD_CARD()                                                                                        \
     do {                                                                                                               \
         if (!::idfxx::sdcard::test::has_board) {                                                                       \

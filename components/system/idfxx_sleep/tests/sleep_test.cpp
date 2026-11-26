@@ -21,9 +21,10 @@ using namespace std::chrono_literals;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// wakeup_source values match ESP-IDF constants for the version-stable prefix
-// (IDF v6.0 inserted UART1/UART2 after uart, shifting every later value; the
-// implementation translates those sources instead of relying on equal values).
+// wakeup_source values up to uart match ESP-IDF constants in every IDF version.
+// IDF v6.0 inserted UART1/UART2 after uart, which shifted every later value.
+// The implementation translates the later sources instead of relying on equal
+// values.
 static_assert(std::to_underlying(sleep::wakeup_source::ext0) == ESP_SLEEP_WAKEUP_EXT0);
 static_assert(std::to_underlying(sleep::wakeup_source::ext1) == ESP_SLEEP_WAKEUP_EXT1);
 static_assert(std::to_underlying(sleep::wakeup_source::timer) == ESP_SLEEP_WAKEUP_TIMER);
@@ -34,7 +35,7 @@ static_assert(std::to_underlying(sleep::wakeup_source::uart) == ESP_SLEEP_WAKEUP
 
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
 // ext1_mode's low trigger is named all_low on the original ESP32 (the only
-// chip where it wakes on all selected pins) and any_low everywhere else; only
+// chip where it wakes on all selected pins) and any_low everywhere else. Only
 // the matching enumerator is defined per target.
 #if CONFIG_IDF_TARGET_ESP32
 static_assert(std::to_underlying(sleep::ext1_mode::all_low) == ESP_EXT1_WAKEUP_ALL_LOW);
@@ -126,8 +127,8 @@ TEST_CASE("first boot reports no deep-sleep GPIO wakeup pins", "[sleep]") {
 }
 #endif
 
-// Light sleep needs real power-management hardware; QEMU does not emulate it
-// (esp_light_sleep_start never returns there).
+// Light sleep needs real power-management hardware. QEMU does not emulate it
+// (esp_light_sleep_start never returns in QEMU).
 TEST_CASE("light sleep wakes on timer", "[sleep][hw]") {
     auto cause = sleep::try_light_sleep(sleep::timer_wake{50ms});
     TEST_ASSERT_TRUE(cause.has_value());

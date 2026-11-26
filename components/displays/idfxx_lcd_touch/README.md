@@ -120,7 +120,7 @@ idfxx::lcd::touch::config touch_config{
 ### Custom Coordinate Processing
 
 Apply custom transformations after reading coordinates. The callback runs before the `swap_xy`,
-`mirror_x` and `mirror_y` transformations, so it sees coordinates in the controller's own
+`mirror_x` and `mirror_y` transformations, so it receives coordinates in the controller's own
 orientation:
 
 ```cpp
@@ -171,13 +171,14 @@ idfxx::lcd::touch::config touch_config{
 ### `touch` (Abstract Base Class)
 
 **Methods:**
-- `idf_handle()` - Get ESP-IDF touch handle (non-virtual; implemented by the `do_idf_handle()` hook)
+- `idf_handle()` - Get ESP-IDF touch handle (a non-virtual method that the `do_idf_handle()` hook
+  implements)
 
 **Configuration:**
 - `config` - Touch controller configuration structure
 
 **Lifetime:**
-- Pure abstract class, instantiate via concrete implementations
+- Pure abstract class. Instantiate it through a concrete implementation
 - Implementations typically manage ESP-IDF handle lifecycle
 
 ## Configuration
@@ -258,7 +259,7 @@ private:
 
 ## Important Notes
 
-- `idfxx::lcd::touch` is an abstract base class; use concrete implementations for actual touch
+- `idfxx::lcd::touch` is an abstract base class. Use concrete implementations for actual touch
   controllers
 - Coordinate transformations (swap, mirror) are applied by ESP-IDF automatically
 - Custom `process_coordinates` callback runs before automatic transformations, on the coordinates as
@@ -266,7 +267,7 @@ private:
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by `process_coordinates`
   is logged, and that read reports no touch points
 - Reset and interrupt pins are optional (use `gpio::nc()` if not needed)
-- Touch coordinates are device-specific; verify orientation matches your display
+- Touch coordinates are device-specific. Verify that the orientation matches your display
 
 ## License
 

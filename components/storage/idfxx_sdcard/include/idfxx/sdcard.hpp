@@ -59,8 +59,8 @@ enum class card_type {
     sdsc, ///< SD Standard Capacity (up to 2 GB).
     sdhc, ///< SD High Capacity (more than 2 GB, less than 32 GiB).
     /// SD Extended Capacity (32 GiB, 2^35 bytes, or more). SDXC cards identify themselves as SDHC
-    /// on the bus; the type is derived from the card's size, which for an SDXC card is above the
-    /// largest size an SDHC card can have.
+    /// on the bus. The type is derived from the card's size, because the size of an SDXC card is
+    /// above the largest size that an SDHC card can have.
     sdxc,
     mmc, ///< MMC or eMMC.
 };
@@ -82,24 +82,23 @@ enum class bus_width : uint8_t {
  * @headerfile <idfxx/sdcard>
  * @brief Bus speed mode for a card on an SDMMC host slot.
  *
- * Selects the timing the card is switched to during initialization, and with
- * it the bus clock. A card that doesn't support the requested mode is run in
- * a slower one instead, as described for each mode; card::frequency()
- * reports the clock that results. Select the mode with
- * card::sdmmc_config::speed. (Over SPI, the mode follows the clock, which is
- * limited by card::spi_config::max_frequency.)
+ * Selects the timing that the card is switched to during initialization. The
+ * mode also sets the bus clock. A card that doesn't support the requested
+ * mode is run in a slower mode instead, as described for each mode.
+ * card::frequency() reports the resulting clock. Select the mode with
+ * card::sdmmc_config::speed. (Over SPI, the mode is selected from the clock,
+ * and card::spi_config::max_frequency limits the clock.)
  *
- * The UHS-I modes (`sdr50`, `ddr50` and `sdr104`) signal at 1.8 V, switched
- * through card::sdmmc_config::io_power_ldo, which must be set.
+ * The UHS-I modes (`sdr50`, `ddr50` and `sdr104`) signal at 1.8 V. The voltage
+ * is switched through card::sdmmc_config::io_power_ldo, which must be set.
  */
 enum class bus_speed : uint8_t {
     /// Default speed, with a 20 MHz clock: SD default speed, or MMC backward-compatible timing.
     default_speed = 0,
-    /// High speed, with a 40 MHz clock. SD cards use SD high speed; a card without it runs in
-    /// default speed at
-    /// 20 MHz. MMC/eMMC devices use high-speed timing, with dual data rate on a 4-bit bus when the
-    /// device supports
-    /// it; a device limited to 26 MHz runs in backward-compatible timing, at up to 26 MHz.
+    /// High speed, with a 40 MHz clock. SD cards use SD high speed. An SD card that doesn't support
+    /// high speed runs in default speed at 20 MHz. MMC/eMMC devices use high-speed timing, with
+    /// dual data rate on a 4-bit bus when the device supports it. A device limited to 26 MHz runs
+    /// in backward-compatible timing, at up to 26 MHz.
     high_speed = 1,
 #if SOC_SDMMC_UHS_I_SUPPORTED || defined(__DOXYGEN__)
     /// UHS-I SDR50, with a 100 MHz clock. An SD card that isn't UHS-I, or doesn't support SDR50,
@@ -109,26 +108,20 @@ enum class bus_speed : uint8_t {
     /// @note Only available on targets that support UHS-I (esp32p4).
     sdr50 = 2,
     /// UHS-I DDR50: dual data rate, with a 50 MHz clock. An SD card that isn't UHS-I runs in SD
-    /// high speed at
-    /// 50 MHz (or, without high speed, in default speed at 20 MHz); a UHS-I card that doesn't
-    /// support DDR50 runs in
-    /// default speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, but at up to 50 MHz. The
-    /// host doesn't
-    /// support dual data rate on an 8-bit slot: with eight data lines, a card that supports DDR50
-    /// fails
-    /// initialization with `errc::not_supported`.
+    /// high speed at 50 MHz. If it doesn't support high speed, it runs in default speed at 20 MHz.
+    /// A UHS-I card that doesn't support DDR50 runs in default speed at 20 MHz. MMC/eMMC devices
+    /// run as in `high_speed`, but at up to 50 MHz. The host doesn't support dual data rate on an
+    /// 8-bit slot. With eight data lines, a card that supports DDR50 fails initialization with
+    /// `errc::not_supported`.
     /// @note Only available on targets that support UHS-I (esp32p4).
     ddr50 = 3,
 #endif
 #if (SOC_SDMMC_UHS_I_SUPPORTED && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)) ||              \
     defined(__DOXYGEN__)
     /// UHS-I SDR104, with a 200 MHz clock. An SD card that isn't UHS-I, or doesn't support SDR104,
-    /// runs in default
-    /// speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, without dual data rate, but at up
-    /// to 50 MHz.
-    /// ESP32-P4 chips before revision 3.0 don't support SDR104: a card that supports it fails
-    /// initialization there
-    /// with `errc::not_supported`.
+    /// runs in default speed at 20 MHz. MMC/eMMC devices run as in `high_speed`, without dual data
+    /// rate, but at up to 50 MHz. ESP32-P4 chips before revision 3.0 don't support SDR104. On these
+    /// chips, a card that supports SDR104 fails initialization with `errc::not_supported`.
     /// @note Only available on targets that support UHS-I (esp32p4), with ESP-IDF 6.0 or later.
     sdr104 = 4,
 #endif
@@ -166,7 +159,7 @@ public:
      *
      * Up to five characters on SD cards, up to seven on MMC v1 devices and up
      * to six on later MMC/eMMC devices. The view refers to this card_id
-     * object and is valid as long as it is.
+     * object and is valid for as long as the object exists.
      *
      * @return The product name.
      */
@@ -182,7 +175,7 @@ public:
     /**
      * @brief Returns the OEM/application ID.
      *
-     * On SD cards this is usually two ASCII characters; it is 0 on MMC v1 devices.
+     * On SD cards this is usually two ASCII characters. It is 0 on MMC v1 devices.
      *
      * @return The OEM/application ID.
      */
@@ -235,10 +228,10 @@ private:
  * @headerfile <idfxx/sdcard>
  * @brief An initialized memory card (SD or MMC/eMMC) on an SPI bus or an SDMMC host slot.
  *
- * Construction attaches to the card and runs its initialization sequence;
- * the card is then ready for raw sector I/O or for mounting a filesystem.
- * The card owns the SPI device or SDMMC slot it uses and releases it when
- * destroyed.
+ * Construction attaches to the card and runs its initialization sequence.
+ * The card is then ready for raw sector I/O or for mounting a filesystem.
+ * The card owns the SPI device or SDMMC slot that it uses, and releases it
+ * when the card is destroyed.
  *
  * The card's state is held on the heap at a fixed address, so a filesystem
  * mounted on the card stays valid when the card object is moved. The card
@@ -252,13 +245,14 @@ private:
  * identity and geometry accessors (type(), id(), size(), sector_size(),
  * sector_count(), frequency(), width()), is_present(), is_write_protected()
  * and idf_handle(). probe(), the raw sector reads and writes and the erase
- * operations must not be: they send commands to the card that bypass the
- * filesystem's locking and caches.
+ * operations must not be used. They send commands to the card that bypass
+ * the filesystem's locking and caches.
  *
- * A card that is removed must be initialized again once it is reinserted:
- * unmount any filesystem on it, destroy the card object, create a new one
- * once a card is present (make() fails with `errc::not_found` while the
- * card-detect pin reports an empty slot), then mount the filesystem again.
+ * A card that is removed must be initialized again after it is reinserted.
+ * Unmount any filesystem on it and destroy the card object. Create a new
+ * card object when a card is present (make() fails with `errc::not_found`
+ * while the card-detect pin reports an empty slot). Then mount the
+ * filesystem again.
  *
  * This type is non-copyable and move-only. A moved-from object must not be
  * used: any operation other than destruction or assignment is undefined
@@ -287,13 +281,13 @@ public:
      * @brief Configuration for a card on an SPI bus.
      *
      * The bus must already be initialized, with DMA enabled
-     * (spi::dma_chan::ch_auto or a specific channel): card::make() rejects a
+     * (spi::dma_chan::ch_auto or a specific channel). card::make() rejects a
      * bus without DMA with `errc::invalid_arg`, before the card is contacted.
-     * The card adds its own device to the bus and drives its chip select
-     * itself, so the bus can be shared with other devices.
+     * The card adds its own device to the bus and drives its own chip select,
+     * so the bus can be shared with other devices.
      *
      * `cs`, `card_detect` and `write_protect` must not be any of the bus's
-     * own SCLK, MOSI or MISO pins; this is not checked.
+     * own SCLK, MOSI or MISO pins. This is not checked.
      *
      * @code
      * using namespace quanta::frequency_literals;
@@ -317,32 +311,33 @@ public:
         /// pull-up (active low) or pull-down (active high) is enabled, so an unconnected switch
         /// reads as not protected.
         gpio::level write_protect_active_level = gpio::level::low;
-        /// Upper bound on the bus clock once the card is initialized. Must be at least 400 kHz, the
+        /// Upper limit on the bus clock once the card is initialized. Must be at least 400 kHz, the
         /// card identification clock.
         ///
-        /// The card runs at the highest clock the bus supports at or below this value, and never
-        /// above 50 MHz, the SD high-speed limit. On most targets the bus supports 40, 26.7, 20, 16
-        /// MHz and so on: 26 MHz gives 20 MHz, and 50 MHz gives 40 MHz. On esp32, a bus on GPIO
-        /// matrix pins runs at 26.7 MHz or less; use the SPI host's IO MUX pins for 40 MHz. With
-        /// ESP-IDF 5.5.0 on esp32p4, the bus's slowest clock is about 470 kHz, used for any lower
-        /// value.
+        /// The card runs at the highest clock that the bus supports at or below this value, and
+        /// never above 50 MHz, the SD high-speed limit. On most targets the bus supports clocks
+        /// such as 40, 26.7, 20 and 16 MHz. For example, a value of 26 MHz gives 20 MHz, and a
+        /// value of 50 MHz gives 40 MHz. On esp32, a bus on GPIO matrix pins runs at 26.7 MHz or
+        /// less. Use the SPI host's IO MUX pins for 40 MHz. With ESP-IDF 5.5.0 on esp32p4, the
+        /// bus's slowest clock is about 470 kHz. The bus uses this clock for any lower value.
         ///
         /// Above 20 MHz, the card is switched to high speed. A card that doesn't support high speed
         /// runs at 20 MHz, or the next supported clock below it. See card::frequency().
         quanta::frequency::hertz max_frequency{20'000'000};
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3) || defined(__DOXYGEN__)
-        /// How long to wait, before each command, for MISO to read high (the card not busy).
-        /// `std::nullopt` uses the driver's default; zero sends each command without waiting. At
-        /// most 127 ms.
+        /// How long to wait, before each command, for MISO to read high (which means that the card
+        /// is not busy). With `std::nullopt`, the driver's default is used. With zero, each command
+        /// is sent without waiting. At most 127 ms.
         ///
         /// When the wait times out, the command is sent anyway, so the timeout only bounds the
         /// delay. On a bus where another device can hold MISO low, such as an unpowered device on
-        /// the same lines, the wait times out before every command; a short timeout, such as 1 ms,
+        /// the same lines, the wait times out before every command. A short timeout, such as 1 ms,
         /// then avoids most of that delay. A card that is still busy may then reject the command.
         ///
-        /// Zero also skips the idle clocks sent to the card while waiting. On a bus shared with
-        /// another active device, the first command after that device's transfers can then fail
-        /// with `errc::timeout`; a short non-zero timeout keeps the idle clocks.
+        /// With zero, the idle clocks that are normally sent to the card during the wait are not
+        /// sent either. On a bus shared with another active device, the first command after that
+        /// device's transfers can then fail with `errc::timeout`. With a short non-zero timeout,
+        /// the idle clocks are still sent.
         ///
         /// @note Only available with ESP-IDF 5.5.3 or later.
         std::optional<std::chrono::milliseconds> miso_wait_timeout = std::nullopt;
@@ -365,16 +360,16 @@ public:
      * @headerfile <idfxx/sdcard>
      * @brief Configuration for a card on an SDMMC host slot.
      *
-     * The SDMMC host is initialized on first use and shared between slots
-     * (and with other code that uses it); each card owns its slot. A card
-     * and other code (such as esp_vfs_fat_sdmmc_mount()) can use different
-     * slots of the host at the same time, but not the same slot (see
+     * The SDMMC host is initialized on first use. It is shared between slots,
+     * and with other code that uses it. Each card owns its slot. A card and
+     * other code (such as esp_vfs_fat_sdmmc_mount()) can use different slots
+     * of the host at the same time, but not the same slot (see
      * card::make(const sdmmc_config&) for ESP-IDF 5.5).
      *
-     * The bus width is the number of data lines supplied: D0 alone gives a
-     * 1-bit bus, D0-D3 a 4-bit bus and D0-D7 an 8-bit bus (data lines must be
-     * supplied in those groups). On esp32, where each slot uses its dedicated
-     * pins, the default width is the slot's maximum.
+     * The bus width is the number of data lines that are supplied. D0 alone
+     * gives a 1-bit bus, D0-D3 a 4-bit bus and D0-D7 an 8-bit bus. Data lines
+     * must be supplied in those groups. On esp32, where each slot uses its
+     * dedicated pins, the default width is the slot's maximum.
      *
      * The card's CMD and data lines need pull-ups (10 kOhm is typical).
      *
@@ -399,8 +394,8 @@ public:
 #if SOC_SDMMC_USE_GPIO_MATRIX || defined(__DOXYGEN__)
         /// @name Signal pins
         /// Routed through the GPIO matrix, except on esp32p4 slot 0, where they must be the slot's
-        /// dedicated pins (CLK 43, CMD 44, D0-D3 39-42, D4-D7 45-48; `errc::invalid_arg`
-        /// otherwise).
+        /// dedicated pins (CLK 43, CMD 44, D0-D3 39-42, D4-D7 45-48). Other pins on that slot are
+        /// rejected with `errc::invalid_arg`.
         /// @note Absent on esp32, whose slots use dedicated pins only.
         /// @{
 
@@ -426,10 +421,10 @@ public:
         idfxx::gpio d7 = gpio::nc();
         /// @}
 #endif
-        /// Bus width to use, or std::nullopt for the widest the supplied data pins allow (on esp32,
-        /// the slot's maximum). A width wider than the supplied pins (or the slot) allow is
-        /// rejected with `errc::invalid_arg`; a narrower one leaves the extra pins unused. The
-        /// width used is the lower of this and the card's own; see card::width().
+        /// Bus width to use, or std::nullopt for the widest width that the supplied data pins allow
+        /// (on esp32, the slot's maximum). A width wider than the supplied pins (or the slot) allow
+        /// is rejected with `errc::invalid_arg`. A narrower width leaves the extra pins unused. The
+        /// width used is the lower of this width and the card's own width. See card::width().
         std::optional<enum bus_width> width = std::nullopt;
         /// Card-detect input, or gpio::nc() if the slot has none. Active low: the card is present
         /// when the pin is low. Needs an external pull-up.
@@ -438,27 +433,28 @@ public:
         idfxx::gpio write_protect = gpio::nc();
         /// Level of the write-protect input when the card is write-protected.
         gpio::level write_protect_active_level = gpio::level::low;
-        /// Enables the weak internal pull-ups on the CMD and data lines. These are no substitute
-        /// for external pull-ups, but can be enough for short connections at low clock rates.
+        /// Enables the weak internal pull-ups on the CMD and data lines. These do not replace
+        /// external pull-ups, but can be enough for short connections at low clock rates.
         bool internal_pullups = false;
-        /// Bus speed mode, which sets the bus clock. The clock that results, and how a card that
-        /// doesn't support the mode is run instead, are described for each bus_speed value; see
-        /// also card::frequency(). The UHS-I modes need `io_power_ldo`: `errc::invalid_arg`
-        /// otherwise.
+        /// Bus speed mode, which sets the bus clock. The documentation of each bus_speed value
+        /// gives the resulting clock, and how a card that doesn't support the mode is run instead.
+        /// See also card::frequency(). The UHS-I modes need `io_power_ldo`. Without it, card
+        /// creation fails with `errc::invalid_arg`.
         enum bus_speed speed = bus_speed::default_speed;
         /// Upper limit on the bus clock in bus_speed::default_speed and bus_speed::high_speed, or
         /// std::nullopt for the mode's own clock. A limit above the mode's clock has no effect.
         /// Must be at least 400 kHz, the card identification clock. In high speed, a limit of 20
         /// MHz or less leaves an SD card in default speed, and a limit of 26 MHz or less leaves an
-        /// MMC/eMMC device in backward-compatible timing. Must not be set with a UHS-I mode, which
-        /// needs its own clock: `errc::invalid_arg` otherwise.
+        /// MMC/eMMC device in backward-compatible timing. Must not be set with a UHS-I mode,
+        /// because a UHS-I mode needs its own clock. If it is set with a UHS-I mode, card creation
+        /// fails with `errc::invalid_arg`.
         std::optional<quanta::frequency::hertz> max_frequency = std::nullopt;
 #if SOC_SDMMC_IO_POWER_EXTERNAL || defined(__DOXYGEN__)
         /// The on-chip LDO channel that supplies the card's I/O voltage, or std::nullopt if the
         /// board supplies it otherwise. On Espressif's ESP32-P4 boards the SD slot is powered from
         /// channel 4. The card takes the channel when it is created and releases it when it is
-        /// destroyed. A channel that doesn't exist, or that is already in use by other code, fails
-        /// the card's creation with `errc::invalid_arg`.
+        /// destroyed. If the channel doesn't exist, or is already in use by other code, card
+        /// creation fails with `errc::invalid_arg`.
         /// @note Only available on targets whose SD I/O can be supplied by an on-chip LDO
         /// (esp32p4).
         std::optional<int> io_power_ldo = std::nullopt;
@@ -475,10 +471,10 @@ public:
      * @brief Initializes a card on an SPI bus.
      *
      * Adds a device for the card to @p bus and runs the card's
-     * initialization sequence. Does not take ownership of @p bus: the caller
+     * initialization sequence. Does not take ownership of @p bus. The caller
      * must ensure that the bus outlives the card.
      *
-     * @param bus The SPI bus the card is on, initialized with DMA enabled.
+     * @param bus The SPI bus that the card is on, initialized with DMA enabled.
      * @param cfg Card configuration.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -496,10 +492,10 @@ public:
      * @brief Initializes a card on an SPI bus.
      *
      * Adds a device for the card to @p bus and runs the card's
-     * initialization sequence. Does not take ownership of @p bus: the caller
+     * initialization sequence. Does not take ownership of @p bus. The caller
      * must ensure that the bus outlives the card.
      *
-     * @param bus The SPI bus the card is on, initialized with DMA enabled.
+     * @param bus The SPI bus that the card is on, initialized with DMA enabled.
      * @param cfg Card configuration.
      *
      * @return The initialized card, or an error.
@@ -564,8 +560,8 @@ public:
      * other code.
      * @retval errc::invalid_state The slot is in use by another card or, with ESP-IDF 6.0 and
      * later, by other code (for example esp_vfs_fat_sdmmc_mount()). ESP-IDF 5.5 can't detect the
-     * latter: don't pass such a slot there, because the card would take it over, and destroying the
-     * card can shut the host down under the other code.
+     * latter. With ESP-IDF 5.5, don't pass such a slot, because the card would take the slot over.
+     * Destroying the card can then shut down the host while the other code still uses it.
      * @retval errc::not_found The card-detect pin reports that no card is inserted.
      * @retval errc::timeout The card did not respond.
      * @retval errc::invalid_response The card sent an invalid response.
@@ -588,7 +584,7 @@ public:
     card(const card&) = delete;
     card& operator=(const card&) = delete;
 
-    /** @brief Move constructor. Transfers ownership of the card; a mounted filesystem stays valid.
+    /** @brief Move constructor. Transfers ownership of the card. A mounted filesystem stays valid.
      */
     card(card&& other) noexcept;
 
@@ -637,8 +633,8 @@ public:
     /**
      * @brief Returns the bus clock in use.
      *
-     * The clock the card runs at, in whole kHz. It can be below the
-     * configured speed or max_frequency: see sdmmc_config::speed and
+     * The clock that the card runs at, in whole kHz. It can be below the clock
+     * of the configured speed or max_frequency. See sdmmc_config::speed and
      * spi_config::max_frequency.
      *
      * @return The actual clock frequency.
@@ -648,7 +644,7 @@ public:
     /**
      * @brief Returns the data bus width in use.
      *
-     * @return The bus width; always bus_width::one over SPI.
+     * @return The bus width. This is always bus_width::one over SPI.
      */
     [[nodiscard]] enum bus_width width() const noexcept;
 
@@ -660,7 +656,7 @@ public:
      * @brief Returns whether a card is in the slot, according to the card-detect pin.
      *
      * Reads the pin each time it is called. Does not communicate with the
-     * card, so it may be used while a filesystem is mounted on the card; use
+     * card, so it may be used while a filesystem is mounted on the card. Use
      * probe() to check that the card responds.
      *
      * @return true if the card-detect pin is low, or if no card-detect pin is configured.
@@ -673,8 +669,8 @@ public:
      * Reads the pin each time it is called. Does not communicate with the
      * card, so it may be used while a filesystem is mounted on the card.
      *
-     * @return true if the write-protect pin is at its active level; false if it is not, or if no
-     * write-protect pin is configured.
+     * @return true if the write-protect pin is at its active level. Returns false if it is not, or
+     * if no write-protect pin is configured.
      */
     [[nodiscard]] bool is_write_protected() const;
 
@@ -682,8 +678,8 @@ public:
     /**
      * @brief Checks that the card responds, by querying its status.
      *
-     * Must not be used while a filesystem is mounted on the card, whose
-     * commands it is not serialized with.
+     * Must not be used while a filesystem is mounted on the card, because
+     * probe() is not serialized with the filesystem's commands.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the card does not respond, with the error codes listed for
@@ -703,8 +699,8 @@ public:
     /**
      * @brief Checks that the card responds, by querying its status.
      *
-     * Must not be used while a filesystem is mounted on the card, whose
-     * commands it is not serialized with.
+     * Must not be used while a filesystem is mounted on the card, because
+     * probe() is not serialized with the filesystem's commands.
      *
      * @return Success, or an error.
      * @retval errc::not_found The card-detect pin reports that the card has been removed.
@@ -727,13 +723,14 @@ public:
     /**
      * @brief Reads whole sectors from the card.
      *
-     * Fills the whole of @p dst, whose size must be a multiple of sector_size(): the number of
-     * sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without checking
-     * @p first or contacting the card. Must not be used while a filesystem is mounted on the card.
+     * Fills the whole of @p dst. The size of @p dst must be a multiple of sector_size(). The
+     * number of sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without
+     * checking @p first or contacting the card. Must not be used while a filesystem is mounted on
+     * the card.
      *
      * @param first The first sector to read.
-     * @param dst   Buffer to read into; its size is the number of bytes to read, a multiple of
-     *              sector_size().
+     * @param dst   Buffer to read into. Its size is the number of bytes to read, which must be a
+     *              multiple of sector_size().
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for try_read_sectors().
@@ -749,13 +746,14 @@ public:
     /**
      * @brief Reads whole sectors from the card.
      *
-     * Fills the whole of @p dst, whose size must be a multiple of sector_size(): the number of
-     * sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without checking
-     * @p first or contacting the card. Must not be used while a filesystem is mounted on the card.
+     * Fills the whole of @p dst. The size of @p dst must be a multiple of sector_size(). The
+     * number of sectors read is `dst.size() / sector_size()`. Reading no bytes succeeds without
+     * checking @p first or contacting the card. Must not be used while a filesystem is mounted on
+     * the card.
      *
      * @param first The first sector to read.
-     * @param dst   Buffer to read into; its size is the number of bytes to read, a multiple of
-     *              sector_size().
+     * @param dst   Buffer to read into. Its size is the number of bytes to read, which must be a
+     *              multiple of sector_size().
      *
      * @return Success, or an error.
      * @retval errc::invalid_size The size of @p dst is not a multiple of sector_size(), or the
@@ -771,13 +769,13 @@ public:
     /**
      * @brief Writes whole sectors to the card.
      *
-     * The size of @p src must be a multiple of sector_size(): the number of sectors written is
+     * The size of @p src must be a multiple of sector_size(). The number of sectors written is
      * `src.size() / sector_size()`. Writing no bytes succeeds without checking @p first or
      * contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to write.
-     * @param src   Data to write; its size is the number of bytes to write, a multiple of
-     *              sector_size().
+     * @param src   Data to write. Its size is the number of bytes to write, which must be a
+     *              multiple of sector_size().
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, with the error codes listed for try_write_sectors().
@@ -793,13 +791,13 @@ public:
     /**
      * @brief Writes whole sectors to the card.
      *
-     * The size of @p src must be a multiple of sector_size(): the number of sectors written is
+     * The size of @p src must be a multiple of sector_size(). The number of sectors written is
      * `src.size() / sector_size()`. Writing no bytes succeeds without checking @p first or
      * contacting the card. Must not be used while a filesystem is mounted on the card.
      *
      * @param first The first sector to write.
-     * @param src   Data to write; its size is the number of bytes to write, a multiple of
-     *              sector_size().
+     * @param src   Data to write. Its size is the number of bytes to write, which must be a
+     *              multiple of sector_size().
      *
      * @return Success, or an error.
      * @retval errc::invalid_size The size of @p src is not a multiple of sector_size(), or the
@@ -820,7 +818,7 @@ public:
      * @brief Returns whether the card supports discard (erase_sectors() with
      * ::idfxx::sdcard::discard).
      *
-     * SD cards support discard only on an SDMMC host slot, never over SPI;
+     * SD cards support discard only on an SDMMC host slot, never over SPI.
      * MMC/eMMC devices from version 4.5 support it.
      *
      * @return true if discard is supported.
@@ -867,8 +865,8 @@ public:
      * @brief Discards a range of sectors.
      *
      * Selected by passing idfxx::sdcard::discard. The sectors are marked as
-     * unused without being cleared: their contents are undefined until they
-     * are rewritten. Requires supports_discard().
+     * unused without being cleared, so their contents are undefined until
+     * they are rewritten. Requires supports_discard().
      *
      * Must not be used while a filesystem is mounted on the card.
      *
@@ -896,8 +894,8 @@ public:
      * cards, erased sectors read back as all zeros or all ones, depending on
      * the card. On MMC/eMMC devices every sector is trimmed, which requires
      * the device to support it (`errc::not_supported` otherwise). The device
-     * may keep old data in internal blocks it no longer maps; on MMC/eMMC
-     * devices that support it, sanitize() removes it.
+     * may keep old data in internal blocks that it no longer maps. On MMC/eMMC
+     * devices that support it, sanitize() removes this data.
      *
      * Must not be used while a filesystem is mounted on the card. Destroys
      * all data on the card, including any partition table and filesystem.
@@ -964,8 +962,8 @@ public:
      * @brief Discards a range of sectors.
      *
      * Selected by passing idfxx::sdcard::discard. The sectors are marked as
-     * unused without being cleared: their contents are undefined until they
-     * are rewritten. Requires supports_discard().
+     * unused without being cleared, so their contents are undefined until
+     * they are rewritten. Requires supports_discard().
      *
      * Must not be used while a filesystem is mounted on the card.
      *
@@ -992,8 +990,8 @@ public:
      * cards, erased sectors read back as all zeros or all ones, depending on
      * the card. On MMC/eMMC devices every sector is trimmed, which requires
      * the device to support it (`errc::not_supported` otherwise). The device
-     * may keep old data in internal blocks it no longer maps; on MMC/eMMC
-     * devices that support it, sanitize() removes it.
+     * may keep old data in internal blocks that it no longer maps. On MMC/eMMC
+     * devices that support it, sanitize() removes this data.
      *
      * Must not be used while a filesystem is mounted on the card. Destroys
      * all data on the card, including any partition table and filesystem.
@@ -1038,8 +1036,9 @@ public:
      * the card object is moved, so it can be passed to ESP-IDF functions
      * such as esp_vfs_fat_register() or sdmmc_card_print_info(). Commands
      * sent through it are not serialized with this object's operations.
-     * Sector reads and writes through it, such as a FAT filesystem's, take
-     * buffers anywhere in memory, as read_sectors() and write_sectors() do.
+     * Sector reads and writes through it, such as those of a FAT filesystem,
+     * accept buffers anywhere in memory, as read_sectors() and write_sectors()
+     * do.
      *
      * @return The card structure.
      */

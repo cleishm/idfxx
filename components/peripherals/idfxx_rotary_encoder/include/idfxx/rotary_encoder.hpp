@@ -48,8 +48,8 @@ public:
      *
      * Every field other than pin_a, pin_b, and callback has a sensible default.
      *
-     * The pull mode field defaults to pullup as a convenience, but external pull-up resistors are
-     * recommended. When using external pull-ups, set the pull mode field to
+     * encoder_pins_pull_mode defaults to pullup as a convenience, but external pull-up resistors
+     * are recommended. When using external pull-ups, set encoder_pins_pull_mode to
      * gpio::pull_mode::floating to disable internal pull resistors, or to std::nullopt if the pins
      * have already been configured.
      *
@@ -89,9 +89,9 @@ public:
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience;
-     * set to gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt
-     * if the pins have already been configured.
+     * @param cfg Encoder configuration. encoder_pins_pull_mode defaults to pullup as a
+     * convenience. Set it to gpio::pull_mode::floating when using external pull-ups
+     * (recommended), or to std::nullopt if the pins have already been configured.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      * @throws std::system_error with errc::invalid_arg if pin_a or pin_b is not connected, or
@@ -103,9 +103,9 @@ public:
     /**
      * @brief Creates a rotary encoder and begins tracking.
      *
-     * @param cfg Encoder configuration. The pull mode field defaults to pullup as a convenience;
-     * set to gpio::pull_mode::floating when using external pull-ups (recommended), or std::nullopt
-     * if the pins have already been configured.
+     * @param cfg Encoder configuration. encoder_pins_pull_mode defaults to pullup as a
+     * convenience. Set it to gpio::pull_mode::floating when using external pull-ups
+     * (recommended), or to std::nullopt if the pins have already been configured.
      * @return The new rotary encoder, or an error.
      * @retval invalid_arg pin_a or pin_b is not connected, or callback is empty.
      */
@@ -126,7 +126,7 @@ public:
     /**
      * @brief Disables acceleration on the encoder.
      *
-     * Position deltas return to reporting single steps regardless of turning speed.
+     * Each position delta is then a single step, regardless of turning speed.
      *
      * Has no effect on a moved-from encoder.
      */

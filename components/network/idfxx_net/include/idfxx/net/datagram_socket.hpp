@@ -37,17 +37,19 @@ namespace idfxx::net {
  * explicit per-message addressing, or call `connect()` to set a default peer
  * for `send` / `recv`.
  *
- * Neither receive path silently truncates: `recv_from` reports an oversized
- * datagram via `datagram::truncated`, while the connected-mode `recv(buf)`
- * returns `errc::message_too_long`. Either way the datagram is consumed whole,
- * so size the buffer for the largest expected datagram (e.g. 1500 bytes). On a
- * connectionless socket an empty `recv` result is a received zero-length datagram,
- * never an end-of-stream signal.
+ * No receive call truncates a datagram silently:
+ * - `recv_from` reports an oversized datagram in `datagram::truncated`.
+ * - The connected-mode `recv(buf)` returns `errc::message_too_long`.
+ *
+ * In both cases, the whole datagram is consumed. Size the buffer for the largest
+ * expected datagram (e.g. 1500 bytes). On a connectionless socket, an empty
+ * `recv` result is a received zero-length datagram. It is never an end-of-stream
+ * signal.
  *
  * Ownership is exclusive: the socket is non-copyable and move-only. A
  * moved-from socket may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `-1`); calling any other method
- * on it is undefined behavior. The destructor closes the socket if open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns `-1`).
+ * Calling any other method on it is undefined behavior. The destructor closes the socket if open.
  *
  * @code
  * idfxx::net::datagram_socket sock(idfxx::net::address_family::ipv4);
@@ -163,8 +165,8 @@ public:
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
      *
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         datagram is sent in full or not at all.
+     * @return The number of bytes sent. On success, this is always `buf.size()`,
+     *         because a datagram is sent in full or not at all.
      */
     size_t send(byte_view buf) { return idfxx::unwrap(try_send(buf)); }
 #endif
@@ -173,8 +175,8 @@ public:
      * @brief Sends a datagram on a connected socket (after `try_connect`).
      *
      * @param buf Data to send.
-     * @return The number of bytes sent — always `buf.size()` on success, since a
-     *         datagram is sent in full or not at all — or an error.
+     * @return The number of bytes sent, or an error. On success, this is always
+     *         `buf.size()`, because a datagram is sent in full or not at all.
      */
     [[nodiscard]] result<size_t> try_send(byte_view buf);
 
@@ -270,9 +272,9 @@ public:
      * @brief Selects the local interface used for outgoing IPv4 multicast.
      *        Equivalent to the POSIX `IP_MULTICAST_IF` option.
      *
-     *        The address is not validated against the host's interface list — an
-     *        address that does not correspond to a local interface is stored and
-     *        causes subsequent multicast sends to misroute rather than failing here.
+     *        The address is not validated against the host's interface list. If the
+     *        address does not correspond to a local interface, this call stores it and
+     *        does not fail. Later multicast sends are then misrouted.
      *
      * @param addr Local interface address.
      *
@@ -289,9 +291,9 @@ public:
      * @brief Selects the local interface used for outgoing IPv4 multicast.
      *        Equivalent to the POSIX `IP_MULTICAST_IF` option.
      *
-     *        The address is not validated against the host's interface list — an
-     *        address that does not correspond to a local interface is stored and
-     *        causes subsequent multicast sends to misroute rather than failing here.
+     *        The address is not validated against the host's interface list. If the
+     *        address does not correspond to a local interface, this call stores it and
+     *        does not fail. Later multicast sends are then misrouted.
      *
      * @param addr Local interface address.
      *
@@ -365,9 +367,9 @@ public:
      * @brief Selects the local interface used for outgoing IPv6 multicast.
      *        Equivalent to the POSIX `IPV6_MULTICAST_IF` option.
      *
-     *        The index is not validated against the host's interface list — an
-     *        index that does not correspond to a local interface is stored and
-     *        causes subsequent multicast sends to misroute rather than failing here.
+     *        The index is not validated against the host's interface list. If the
+     *        index does not correspond to a local interface, this call stores it and
+     *        does not fail. Later multicast sends are then misrouted.
      *
      * @param if_index Interface index.
      *
@@ -385,9 +387,9 @@ public:
      * @brief Selects the local interface used for outgoing IPv6 multicast.
      *        Equivalent to the POSIX `IPV6_MULTICAST_IF` option.
      *
-     *        The index is not validated against the host's interface list — an
-     *        index that does not correspond to a local interface is stored and
-     *        causes subsequent multicast sends to misroute rather than failing here.
+     *        The index is not validated against the host's interface list. If the
+     *        index does not correspond to a local interface, this call stores it and
+     *        does not fail. Later multicast sends are then misrouted.
      *
      * @param if_index Interface index.
      *

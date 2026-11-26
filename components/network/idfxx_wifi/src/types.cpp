@@ -973,7 +973,7 @@ wifi::home_channel_change_event_data::from_opaque(const void* event_data) {
     };
 }
 
-// FTM timestamps are unsigned picosecond counts; int64 covers about 106 days of them.
+// FTM timestamps are unsigned picosecond counts. An int64 holds about 106 days of picoseconds.
 static idfxx::chrono::picoseconds to_picoseconds(uint64_t ps) {
     return idfxx::chrono::picoseconds{static_cast<int64_t>(ps)};
 }

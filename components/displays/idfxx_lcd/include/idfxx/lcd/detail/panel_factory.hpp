@@ -39,7 +39,7 @@ using panel_factory = esp_err_t (*)(
  * For use by panel driver components implementing @ref idfxx::lcd::panel.
  *
  * @param factory   The vendor panel factory (e.g. `esp_lcd_new_panel_ili9341`).
- * @param io_handle The panel I/O handle the panel communicates through.
+ * @param io_handle The panel I/O handle that the panel communicates through.
  * @param cfg       The panel configuration.
  *
  * @return The initialized panel handle, or an error.

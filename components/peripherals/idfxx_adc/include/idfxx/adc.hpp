@@ -11,17 +11,17 @@
  * @defgroup idfxx_adc ADC Component
  * @brief Type-safe one-shot and continuous ADC reads for ESP32.
  *
- * Two acquisition modes, one type per mode:
+ * The component has two acquisition modes, with one type for each mode:
  *
- * - @ref idfxx::adc::input "input" reads a single analog input on demand — the typical
- *   battery-voltage or sensor-divider case.
+ * - @ref idfxx::adc::input "input" reads a single analog input on demand. Typical uses are a
+ *   battery voltage or a sensor divider.
  * - @ref idfxx::adc::sampler "sampler" converts one or more pins round-robin at a fixed rate in
- *   the background, delivering results as parsed per-pin samples — the
- *   waveform-capture and signal-statistics case.
+ *   the background. It delivers the results as parsed samples, each tagged with its pin. Typical
+ *   uses are waveform capture and signal statistics.
  *
- * In both modes the ADC unit and channel are resolved from the GPIO pin,
- * and readings convert to typed voltages (`quanta::electro::millivolts`) with the
- * chip's factory calibration when available.
+ * In both modes, the ADC unit and channel are resolved from the GPIO pin.
+ * Readings convert to typed voltages (`quanta::electro::millivolts`) with the
+ * chip's factory calibration when it is available.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin
  * configuration.
@@ -54,7 +54,7 @@ namespace idfxx::adc {
  * @headerfile <idfxx/adc>
  * @brief Input attenuation, which sets the measurable voltage range.
  *
- * Higher attenuation extends the range at some cost in accuracy. On most
+ * Higher attenuation extends the range but reduces accuracy. On most
  * chips `db_12` measures roughly up to the supply voltage.
  */
 enum class attenuation : uint8_t {
@@ -68,13 +68,13 @@ enum class attenuation : uint8_t {
  * @headerfile <idfxx/adc>
  * @brief External voltage-divider ratio between a source and an ADC pin.
  *
- * Describes a resistive divider on the board: the source voltage is the pin
+ * Describes a resistive divider on the board. The source voltage is the pin
  * voltage multiplied by `num / den`. The default 1:1 means the pin is
  * connected directly to the source.
  */
 struct divider_ratio {
-    int num = 1; ///< Ratio numerator (source = pin × num / den); must be positive.
-    int den = 1; ///< Ratio denominator; must be positive.
+    int num = 1; ///< Ratio numerator (source = pin × num / den). Must be positive.
+    int den = 1; ///< Ratio denominator. Must be positive.
 
     /**
      * @brief Compares two divider ratios for equality.
@@ -84,8 +84,8 @@ struct divider_ratio {
     /**
      * @brief Returns the source voltage for a voltage measured at the pin.
      *
-     * Multiplies by `num / den`, truncating toward zero, without overflowing for any result that
-     * `millivolts` can hold. It is the conversion @ref input::read_voltage applies to the
+     * Multiplies by `num / den` and truncates toward zero. It does not overflow for any result that
+     * `millivolts` can hold. This is the conversion that @ref input::read_voltage applies to the
      * calibrated pin voltage.
      *
      * @code
@@ -99,8 +99,9 @@ struct divider_ratio {
      */
     [[nodiscard]] constexpr quanta::electro::millivolts
     source_voltage(quanta::electro::millivolts pin) const noexcept {
-        // pin × num / den, split as (q × den + r) × num / den so no intermediate exceeds the
-        // result: q and r share pin's sign, so the truncated parts add exactly.
+        // Computes pin × num / den as (q × den + r) × num / den so that no intermediate value
+        // exceeds the result. q and r have the same sign as pin, so the truncated parts add
+        // exactly.
         const auto q = pin.count() / den;
         const auto r = pin.count() % den;
         return quanta::electro::millivolts{q * num + r * num / den};
@@ -128,8 +129,8 @@ public:
         idfxx::required<idfxx::gpio> pin;                  ///< ADC-capable GPIO.
         enum attenuation attenuation = attenuation::db_12; ///< Input range selection.
         /// External voltage-divider ratio between the source and the pin.
-        /// @ref read_voltage scales by it to report the source voltage;
-        /// @ref read_pin_voltage and @ref read_raw are unaffected.
+        /// @ref read_voltage scales by it to report the source voltage.
+        /// It does not affect @ref read_pin_voltage and @ref read_raw.
         divider_ratio divider{};
 
         /**
@@ -281,7 +282,7 @@ private:
  * @brief A continuous sampler over one or more analog pins.
  *
  * Converts the configured pins round-robin at a fixed total rate and
- * buffers the results internally; readers drain them with @ref read /
+ * buffers the results internally. Readers drain them with @ref read /
  * @ref try_read. Claims the pins' ADC unit (ADC1) for the lifetime of the
  * object. Move-only.
  *
@@ -313,13 +314,13 @@ public:
         idfxx::required<std::vector<idfxx::gpio>> pins;
         /// Input range selection, applied uniformly to all pins (hardware limitation).
         enum attenuation attenuation = attenuation::db_12;
-        /// Total conversion rate across all pins; each pin samples at this rate divided by
-        /// the pin count. Valid range is chip-specific; 20 kHz works on every target.
+        /// Total conversion rate across all pins. Each pin samples at this rate divided by
+        /// the pin count. The valid range is chip-specific. 20 kHz works on every target.
         quanta::frequency::hertz sample_rate{20'000};
-        /// Samples delivered per driver transfer — the read granularity.
+        /// Samples delivered per driver transfer. This is the read granularity.
         size_t frame_samples = 256;
         /// Internal pool capacity in samples (at least @ref frame_samples). Reads must
-        /// drain the pool faster than it fills or data is dropped (see @ref overruns).
+        /// drain the pool faster than it fills. Otherwise, data is dropped (see @ref overruns).
         size_t buffer_samples = 1024;
 
         /**
@@ -368,11 +369,13 @@ public:
      *
      * @param cfg Sampler configuration.
      * @return The sampler, or an error.
-     * @retval idfxx::errc::invalid_arg The pin list is empty, exceeds the
-     *         chip's conversion-pattern length, contains duplicates or
-     *         unconnected pins, or a pin is not ADC1-capable; or
-     *         `frame_samples` is zero, `buffer_samples` is smaller than
-     *         `frame_samples`, or `sample_rate` is not positive.
+     * @retval idfxx::errc::invalid_arg The configuration is invalid. One of these is true:
+     *         - The pin list is empty or exceeds the chip's conversion-pattern length.
+     *         - The pin list contains duplicates or unconnected pins.
+     *         - A pin is not ADC1-capable.
+     *         - `frame_samples` is zero.
+     *         - `buffer_samples` is smaller than `frame_samples`.
+     *         - `sample_rate` is not positive.
      */
     [[nodiscard]] static result<sampler> make(config cfg);
 
@@ -405,8 +408,8 @@ public:
      * @brief Returns the number of dropped-data events since the last start.
      *
      * Increments each time the internal pool overflows because samples were
-     * not read fast enough; the samples produced while the pool was full are
-     * lost. Reset to zero by @ref start / @ref try_start.
+     * not read fast enough. The samples produced while the pool was full are
+     * lost. @ref start and @ref try_start reset the count to zero.
      *
      * @return Cumulative overrun count since the sampler was last started.
      */
@@ -462,8 +465,8 @@ public:
      * @brief Reads samples, blocking until at least one is available.
      *
      * Fills `out` with parsed samples in conversion order, tagging each with
-     * its source pin. Returns as soon as at least one sample is available;
-     * it does not wait to fill the entire span.
+     * its source pin. Returns as soon as at least one sample is available.
+     * It does not wait to fill the entire span.
      *
      * @param out Destination for the samples (must not be empty).
      * @return The number of samples written to `out` (always at least 1).
@@ -478,8 +481,8 @@ public:
      * @brief Reads samples, blocking until at least one is available or the timeout expires.
      *
      * Fills `out` with parsed samples in conversion order, tagging each with
-     * its source pin. Returns as soon as at least one sample is available;
-     * it does not wait to fill the entire span.
+     * its source pin. Returns as soon as at least one sample is available.
+     * It does not wait to fill the entire span.
      *
      * @tparam Rep The representation type of the duration.
      * @tparam Period The period type of the duration.
@@ -500,12 +503,13 @@ public:
     /**
      * @brief Reads samples as calibrated voltages, blocking until at least one is available.
      *
-     * Convenience for the single-pin case: reads and converts in one call, writing calibrated
-     * voltages in conversion order. Returns as soon as at least one sample is available; it does
+     * Convenience for the single-pin case. It reads and converts in one call, and writes calibrated
+     * voltages in conversion order. Returns as soon as at least one sample is available. It does
      * not wait to fill the entire span.
      *
-     * For a multi-pin sampler the source pin of each voltage cannot be recovered from `out`; read
-     * with @ref read(std::span<sample>) and convert with @ref to_voltage to keep the association.
+     * For a multi-pin sampler, the source pin of each voltage cannot be recovered from `out`.
+     * To keep the association, read with @ref read(std::span<sample>) and convert with
+     * @ref to_voltage.
      *
      * @param out Destination for the voltages (must not be empty).
      * @return The number of voltages written to `out` (always at least 1).
@@ -522,8 +526,8 @@ public:
      * @brief Reads samples as calibrated voltages, blocking until at least one is available or the
      *        timeout expires.
      *
-     * Convenience for the single-pin case: reads and converts in one call, writing calibrated
-     * voltages in conversion order. Returns as soon as at least one sample is available; it does
+     * Convenience for the single-pin case. It reads and converts in one call, and writes calibrated
+     * voltages in conversion order. Returns as soon as at least one sample is available. It does
      * not wait to fill the entire span.
      *
      * @tparam Rep The representation type of the duration.
@@ -549,8 +553,8 @@ public:
      * @brief Reads samples, blocking until at least one is available.
      *
      * Fills `out` with parsed samples in conversion order, tagging each with
-     * its source pin. Returns as soon as at least one sample is available;
-     * it does not wait to fill the entire span.
+     * its source pin. Returns as soon as at least one sample is available.
+     * It does not wait to fill the entire span.
      *
      * @param out Destination for the samples (must not be empty).
      * @return The number of samples written to `out` (always at least 1), or
@@ -566,8 +570,8 @@ public:
      * @brief Reads samples, blocking until at least one is available or the timeout expires.
      *
      * Fills `out` with parsed samples in conversion order, tagging each with
-     * its source pin. Returns as soon as at least one sample is available;
-     * it does not wait to fill the entire span.
+     * its source pin. Returns as soon as at least one sample is available.
+     * It does not wait to fill the entire span.
      *
      * @tparam Rep The representation type of the duration.
      * @tparam Period The period type of the duration.
@@ -588,13 +592,13 @@ public:
     /**
      * @brief Reads samples as calibrated voltages, blocking until at least one is available.
      *
-     * Convenience for the single-pin case: reads and converts in one call, writing calibrated
-     * voltages in conversion order. Returns as soon as at least one sample is available; it does
+     * Convenience for the single-pin case. It reads and converts in one call, and writes calibrated
+     * voltages in conversion order. Returns as soon as at least one sample is available. It does
      * not wait to fill the entire span.
      *
-     * For a multi-pin sampler the source pin of each voltage cannot be recovered from `out`; read
-     * with @ref try_read(std::span<sample>) and convert with @ref try_to_voltage to keep the
-     * association.
+     * For a multi-pin sampler, the source pin of each voltage cannot be recovered from `out`. To
+     * keep the association, read with @ref try_read(std::span<sample>) and convert with
+     * @ref try_to_voltage.
      *
      * @param out Destination for the voltages (must not be empty).
      * @return The number of voltages written to `out` (always at least 1), or an error.
@@ -611,8 +615,8 @@ public:
      * @brief Reads samples as calibrated voltages, blocking until at least one is available or the
      *        timeout expires.
      *
-     * Convenience for the single-pin case: reads and converts in one call, writing calibrated
-     * voltages in conversion order. Returns as soon as at least one sample is available; it does
+     * Convenience for the single-pin case. It reads and converts in one call, and writes calibrated
+     * voltages in conversion order. Returns as soon as at least one sample is available. It does
      * not wait to fill the entire span.
      *
      * @tparam Rep The representation type of the duration.
@@ -652,8 +656,8 @@ public:
      * @brief Converts a raw conversion value from a single-pin sampler to a voltage.
      *
      * Convenience for samplers configured with exactly one pin, where the pin
-     * association is unambiguous — converts values computed from raw samples
-     * (a minimum, maximum, or mean) without fabricating a @ref sample.
+     * association is unambiguous. It converts values computed from raw samples
+     * (a minimum, maximum, or mean) without constructing a @ref sample.
      *
      * @param raw Raw conversion value (as in @ref sample::raw).
      * @return The calibrated voltage at the sampler's pin.
@@ -673,11 +677,12 @@ public:
      * @brief Converts a batch of samples to voltages using factory calibration.
      *
      * Writes `out[i]` as the calibrated voltage of `in[i]`, preserving order and pin association.
-     * Resolves each pin's calibration once per run of like-pinned samples, so converting a whole
-     * read is cheaper than calling @ref to_voltage(const sample&) const per element.
+     * Resolves the calibration once for each run of consecutive samples from the same pin. This
+     * makes converting a whole read cheaper than calling @ref to_voltage(const sample&) const for
+     * each element.
      *
      * @param in Samples previously produced by this sampler.
-     * @param out Destination for the voltages; must be at least as large as `in`.
+     * @param out Destination for the voltages. Must be at least as large as `in`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if `out` is smaller than `in` or a
      *         sample's pin is not one of this sampler's configured pins, or
@@ -726,7 +731,7 @@ public:
      * Writes `out[i]` as the calibrated voltage of `in[i]`, preserving order and pin association.
      *
      * @param in Samples previously produced by this sampler.
-     * @param out Destination for the voltages; must be at least as large as `in`.
+     * @param out Destination for the voltages. Must be at least as large as `in`.
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg `out` is smaller than `in`, or a sample's pin is not one of
      *         this sampler's configured pins.

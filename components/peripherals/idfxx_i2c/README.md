@@ -7,15 +7,16 @@ Type-safe I2C master bus driver for ESP32.
 ## Features
 
 - I2C bus and device lifecycle management
-- Thread-safe bus access with a `TimedLockable` interface; transfers wait at most their timeout for
-  the bus
+- Thread-safe bus access with a `TimedLockable` interface. Each transfer waits for the bus for at
+  most its timeout
 - Device scanning and probing
 - Register-based read/write operations (one-byte or two-byte register addresses), including single
   bytes and multi-byte integer values in a chosen byte order
 - Raw transmit/receive, multi-buffer transmit, and custom operation sequences
 - Byte buffers passed as `idfxx::byte_view` / `idfxx::byte_span`, so `uint8_t` and
-  `std::byte` containers both work; literal bytes as braced lists; fixed-size reads returned as
-  `std::array`
+  `std::byte` containers both work
+- Literal bytes passed as braced lists
+- Fixed-size reads returned as `std::array`
 - `std::chrono` timeout support
 
 ## Requirements
@@ -185,12 +186,12 @@ for (uint8_t byte : read_data) {
     idfxx::log::info("I2C", "0x{:02X}", byte);
 }
 
-// Or read into a buffer of your own; the whole buffer is filled
+// Or read into a buffer of your own. The whole buffer is filled
 std::vector<uint8_t> block(32);
 sensor.read_register(0x40, block);
 ```
 
-Devices with 16-bit register addresses, such as larger EEPROMs, opt in with `register_address`:
+For devices with 16-bit register addresses, such as larger EEPROMs, set `register_address`:
 
 ```cpp
 idfxx::i2c::master_device eeprom(bus, 0x50, {
@@ -225,8 +226,8 @@ device.receive(rx_data);
 
 ### Thread-Safe Access
 
-The `master_bus` class implements the TimedLockable concept. Transfers take the same lock, so
-holding it groups several transfers without interruption:
+The `master_bus` class implements the TimedLockable concept. Transfers take the same lock. While
+you hold the lock, no other task can start a transfer between your transfers:
 
 ```cpp
 using namespace quanta::frequency_literals;
@@ -339,8 +340,8 @@ the exception-based methods).
 **Transfers** (`transmit`, `receive`, register methods, `execute_operations`, `change_address`):
 - `idfxx::errc::invalid_response` - The device didn't acknowledge (NACK), the transfer timed out on
   the bus (including clock stretching beyond `scl_wait_us`), or it didn't finish within the timeout.
-  The driver can't tell these apart, and they are reported the same way on every supported ESP-IDF
-  version, so raise the timeout for long transfers.
+  The driver can't tell these apart. They are reported the same way on every supported ESP-IDF
+  version. For long transfers, raise the timeout.
 - `idfxx::errc::timeout` - The bus could not be acquired within the timeout
 - `idfxx::errc::invalid_arg` - An argument was rejected before anything was sent: a register above
   0xFF with one-byte register addresses, an empty register read buffer, or an address that doesn't
@@ -350,7 +351,7 @@ the exception-based methods).
 **Probing** (`probe`, `scan_devices`):
 - `idfxx::errc::not_found` - No device acknowledged
 - `idfxx::errc::timeout` - The bus could not be acquired in time, or the probe timed out on the bus
-  (for example, SCL held low); the driver reports both the same way
+  (for example, SCL held low). The driver reports both the same way
 
 **Construction** (`master_bus`, `master_device`):
 - `idfxx::errc::invalid_arg` - An unconnected SDA/SCL pin, a zero bus frequency, a non-positive
@@ -359,7 +360,7 @@ the exception-based methods).
 - `idfxx::errc::not_supported` - A setting the target or port doesn't support, such as `allow_pd` or
   an LP I2C clock source
 - `idfxx::errc::not_found` - No free interrupt
-- Other driver errors are passed through; running out of memory throws `std::bad_alloc` (or aborts
+- Other driver errors are passed through. Running out of memory throws `std::bad_alloc` (or aborts
   when exceptions are disabled)
 
 ## Integration
@@ -369,29 +370,30 @@ project via the ESP-IDF Component Manager or CMakeLists.txt.
 
 ## Important Notes
 
-- Addresses are 7-bit by default (not including R/W bit); 10-bit addressing is available via
+- Addresses are 7-bit by default (not including R/W bit). 10-bit addressing is available via
   `config.addr_10bit` on targets with `SOC_I2C_SUPPORT_10BIT_ADDR` (e.g., esp32, esp32s3,
   esp32c3/c6, esp32h2, esp32p4). The field is not present on targets without this capability (e.g.,
   esp32s2).
-- Register addresses are one byte by default; set `config.register_address` to
-  `register_address_size::two_bytes` for devices with 16-bit register addresses, which are then sent
-  MSB first. With one-byte register addresses, a register above 0xFF fails with
+- Register addresses are one byte by default. For devices with 16-bit register addresses, set
+  `config.register_address` to `register_address_size::two_bytes`. The register addresses are then
+  sent MSB first. With one-byte register addresses, a register above 0xFF fails with
   `idfxx::errc::invalid_arg` before anything is sent
 - Multi-byte integer register values always take a byte order. `write_register(reg, value)` writes
-  one byte from a `uint8_t` or an `int` such as a plain literal; an unsigned value of any wider type
-  doesn't compile, rather than writing only its low byte. That includes wide unsigned masks such as
-  `0x80u` or ESP-IDF's `BIT(n)`, so declare single-byte register bits as `uint8_t` constants
-  (`constexpr uint8_t ctrl_enable = 0x80;`)
-- The bus must remain alive while devices using it exist; the caller is responsible for ensuring
+  one byte from a `uint8_t` or an `int` such as a plain literal. With an unsigned value of any wider
+  type, the call doesn't compile, so it can't write only the low byte. This includes wide unsigned
+  masks such as `0x80u` or ESP-IDF's `BIT(n)`. Declare single-byte register bits as `uint8_t`
+  constants (`constexpr uint8_t ctrl_enable = 0x80;`)
+- The bus must remain alive while devices that use it exist. The caller is responsible for ensuring
   this
 - Default timeout is 50ms (`idfxx::i2c::DEFAULT_TIMEOUT`)
 - Bus scanning probes addresses 0x08-0x77
 - Multiple devices can share the same bus
 - Every transfer finishes before the call that starts it returns
-- Bus access is thread-safe via an internal mutex; each transfer waits at most its timeout for it
+- Bus access is thread-safe via an internal mutex. Each transfer waits for the mutex for at most its
+  timeout
 - With ESP-IDF 6.1 or later and `CONFIG_I2C_ISR_IRAM_SAFE` enabled, buffers that receive data
   (`receive`, `read_register`, and read operations in `execute_operations`) must reside in internal
-  RAM, not PSRAM; otherwise the call fails with `idfxx::errc::invalid_arg`
+  RAM, not PSRAM. Otherwise the call fails with `idfxx::errc::invalid_arg`
 
 ## License
 

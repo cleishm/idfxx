@@ -8,15 +8,16 @@ Pixel image views, owning buffers, EXIF orientation transforms, and placing imag
 
 - `rgb888`: a 24-bit RGB pixel, laid out as three packed bytes so arrays of it match packed RGB888
   image data
-- `view<P>`: a non-owning, row-major window onto pixels with an optional row stride, so a view can
-  address a rectangle inside a larger image; cheap to copy, with `view<P>` converting implicitly to
-  read-only `view<const P>`
+- `view<P>`: a non-owning, row-major window onto pixels with an optional row stride, so that a view
+  can address a rectangle inside a larger image. A view is cheap to copy, and `view<P>` converts
+  implicitly to read-only `view<const P>`
 - `buffer<P, Allocator>`: an owning, tightly packed image with value-semantic copy and move, and a
-  configurable allocator (e.g. PSRAM for large images); converts implicitly to a view of its pixels
+  configurable allocator (e.g. PSRAM for large images). A buffer converts implicitly to a view of
+  its pixels
 - Pixel access by `img[x, y]`, whole rows as `std::span`, and `subview(x, y, w, h)` for regions
-- Drawing with idfxx_gfx: `set_pixel` ignores writes outside the image, so a buffer or a view of
-  mutable pixels is an `idfxx::gfx::pixel_surface` that a `gfx::canvas` can draw on, clipped to its
-  bounds
+- Drawing with idfxx_gfx: `set_pixel` ignores writes outside the image. So a buffer or a view of
+  mutable pixels is an `idfxx::gfx::pixel_surface`, and a `gfx::canvas` can draw on it, clipped to
+  its bounds
 - `orientation`: the eight EXIF orientations, with values matching EXIF tag 0x0112 so a parsed tag
   casts directly
 - Orientation algebra: `inverse`, `compose` (fuse an image's EXIF orientation with a display
@@ -26,15 +27,15 @@ Pixel image views, owning buffers, EXIF orientation transforms, and placing imag
   directly
 - `sink<S, P>`: the concept for a destination that receives pixels block by block from a producer
   such as an image decoder, and can stop it by returning an error
-- `renderer`: places an image on a screen in bounded memory, row by row: turned to its displayed
-  orientation, cropped, resampled to a target rectangle (`cover`, `fit` or `stretch`), clipped to
-  the screen, and aligned for destinations that need it
+- `renderer`: places an image on a screen in bounded memory, row by row. It turns the image to its
+  displayed orientation, crops it, resamples it to a target rectangle (`cover`, `fit` or
+  `stretch`), clips it to the screen, and aligns it for destinations that need alignment
 - `render(decoder, out, placement, config)`: decodes through a renderer, at the smallest decode
   scale that covers the output, with any `idfxx::image::decoder`
 - Four resampling filters (`box`, `bilinear`, `bicubic`, `lanczos3`), computed in fixed point with
   the same output on every target
-- No failure modes in images, views and orientations: their operations are infallible given their
-  documented preconditions; rendering returns or throws errors
+- No failure modes in images, views and orientations: their operations cannot fail when their
+  documented preconditions are met. Rendering returns or throws errors
 
 ## Requirements
 
@@ -97,9 +98,9 @@ psram_image rotated = idfxx::image::oriented(frame, idfxx::image::orientation::r
 
 ### Receiving pixels through a sink
 
-A producer such as a decoder hands an image to a `sink` one block at a time: the block's top-left
-position in the full image and a read-only view of its pixels. Returning an error stops the
-producer, which returns that error.
+A producer such as a decoder passes an image to a `sink` one block at a time. For each block, it
+passes the block's top-left position in the full image and a read-only view of its pixels. When the
+sink returns an error, the producer stops and returns that error.
 
 ```cpp
 #include <idfxx/image>
@@ -123,9 +124,9 @@ static_assert(idfxx::image::sink<decltype(to_screen)>);
 
 ### Placing an image on a screen
 
-`render` decodes an image and delivers the rows of the placed picture to a sink: top to bottom, at
-their position on the screen, each the full width of the output. It works with any
-`idfxx::image::decoder`, not only JPEG.
+`render` decodes an image and delivers the rows of the placed picture to a sink. It delivers them
+from top to bottom, at their position on the screen. Each row is the full width of the output. It
+works with any `idfxx::image::decoder`, not only JPEG.
 
 ```cpp
 #include <idfxx/image>
@@ -152,7 +153,7 @@ idfxx::jpeg::decoder dec2 = /* ... */;
 const image::placement where{
     .target = image::rect{.x = 160, .y = 0, .width = 160, .height = 240},
     .layout = image::layout::fit,
-    .orientation = image::orientation::rotate_90,     // on top of the EXIF orientation
+    .orientation = image::orientation::rotate_90,     // applied after the EXIF orientation
     .crop = image::rect{.x = 100, .y = 100, .width = 800, .height = 600},
     .background = {0, 0, 0},
     .filter = image::filter::bicubic,
@@ -167,7 +168,7 @@ if (auto r = image::try_render(dec2, to_panel, where, config); !r) {
 }
 ```
 
-Or feed a `renderer` yourself, with source rows from anywhere:
+Or push source rows from any source into a `renderer` yourself:
 
 ```cpp
 image::renderer r(width, height, image::orientation::identity, where, config);
@@ -185,47 +186,47 @@ for (size_t y = 0; y < height; ++y) {
 | `buffer<P, Allocator>(w, h[, fill][, alloc])` | Owning, tightly packed image; pixels value-initialized or set to `fill`. |
 | `width()` / `height()` / `stride()` / `empty()` / `data()` | Dimensions and storage of a view or buffer. |
 | `img[x, y]` | Pixel at column `x`, row `y`. |
-| `set_pixel(x, y, p)` | Writes `p` at column `x`, row `y`; ignored outside the image. Makes a buffer or mutable view an `idfxx::gfx::pixel_surface`. |
-| `get_pixel(x, y)` | The value of the pixel at column `x`, row `y`; a value-initialized pixel outside the image. |
+| `set_pixel(x, y, p)` | Writes `p` at column `x`, row `y`. A write outside the image is ignored. This makes a buffer or mutable view an `idfxx::gfx::pixel_surface`. |
+| `get_pixel(x, y)` | The value of the pixel at column `x`, row `y`, or a value-initialized pixel outside the image. |
 | `fill(p)` / `clear()` | Sets every pixel of a buffer or mutable view to `p`, or to a value-initialized pixel. A view's rows are filled one at a time, so nothing between them changes. |
 | `row(y)` | Row `y` as a `std::span` of `width()` pixels. |
 | `subview(x, y, w, h)` | View of a rectangular region (read-only for a const buffer). |
 | `orientation` | `identity`, `flip_horizontal`, `rotate_180`, `flip_vertical`, `transpose`, `rotate_90`, `transverse`, `rotate_270` (EXIF values 1-8). |
-| `to_string(o)` | The enumerator's name, such as `"rotate_90"`; also formattable with `std::format` when `CONFIG_IDFXX_STD_FORMAT` is enabled. |
+| `to_string(o)` | The enumerator's name, such as `"rotate_90"`. An orientation is also formattable with `std::format` when `CONFIG_IDFXX_STD_FORMAT` is enabled. |
 | `swaps_axes(o)` | True when `o` exchanges width and height (EXIF 5-8). |
 | `inverse(o)` | The orientation undoing `o`. |
 | `compose(first, second)` | The single orientation equal to applying `first`, then `second`. |
 | `source_point(o, p, src_w, src_h)` | The source pixel shown at `p` in the oriented image. |
 | `orient(src, dst, o)` | Copy `src` into `dst` with `o` applied. |
-| `oriented(src, o[, alloc])` | A new `buffer` holding `src` with `o` applied; allocated like `src` when it is a buffer, unless `alloc` is given. |
+| `oriented(src, o[, alloc])` | A new `buffer` holding `src` with `o` applied. It is allocated like `src` when `src` is a buffer, unless `alloc` is given. |
 | `sink<S, P = rgb888>` | Concept: `S&` is callable as `(point, view<const P>)` returning `idfxx::result<void>`. |
 | `rect` | A rectangle with a signed origin, so it can overhang: `x`, `y`, `width`, `height`. |
 | `size` | A `width` and a `height`. |
 | `oriented_size(o, w, h)` | The size of a `w` x `h` image with `o` applied. |
 | `filter` | `box`, `bilinear`, `bicubic`, `lanczos3`. |
-| `layout` | `cover` fills the target and crops the excess, `fit` fits inside it on the background, `stretch` scales each axis to it. |
-| `placement` | Where and how: `target` (default the whole screen), `layout`, `orientation`, `crop`, `background`, `filter`, `fill_to_alignment`. |
+| `layout` | `cover` fills the target and crops the excess. `fit` fits inside the target on the background. `stretch` scales each axis to the target. |
+| `placement` | Where and how to place the picture: `target` (default the whole screen), `layout`, `orientation`, `crop`, `background`, `filter`, `fill_to_alignment`. |
 | `render_config` | `screen_width` and `screen_height` (required), `x_alignment`, `memory_limit`, `frame_mem`. |
 | `renderer(w, h, source_orientation, placement, config)` / `renderer::make(...)` | A renderer for an image of `w` x `h`. |
-| `output()` / `empty()` | The rectangle of rows delivered, in screen coordinates; whether it has none. |
-| `push(at, rows, out)` / `try_push(at, rows, out)` | Takes the next source rows, and delivers the output rows they complete to the sink `out`. |
-| `decoder`, `scaling_decoder` | Concepts for what `render` and `renderer` read from a decoder; a `scaling_decoder` also decodes at a reduced scale. |
-| `render(decoder, out, placement, config)` / `try_render(...)` | Decodes through a renderer, at the decode scale the output needs. |
-| `renderer(decoder, placement, config)` / `renderer::make(decoder, ...)` | A renderer for a decoder's image, at the decode scale the output needs, for a destination that has to know `output()` before the first row. |
+| `output()` / `empty()` | The rectangle of rows that the renderer delivers, in screen coordinates, and whether that rectangle is empty. |
+| `push(at, rows, out)` / `try_push(at, rows, out)` | Takes the next source rows, and delivers the output rows that they complete to the sink `out`. |
+| `decoder`, `scaling_decoder` | Concepts for what `render` and `renderer` read from a decoder. A `scaling_decoder` also decodes at a reduced scale. |
+| `render(decoder, out, placement, config)` / `try_render(...)` | Decodes through a renderer, at the decode scale that the output needs. |
+| `renderer(decoder, placement, config)` / `renderer::make(decoder, ...)` | A renderer for a decoder's image, at the decode scale that the output needs, for a destination that has to know `output()` before the first row. |
 
 ## Error Handling
 
-Images, views and orientations have no failure modes and no error codes: there are no `try_*`
-variants for them, and the only `result` type they involve is the one a `sink` returns to the
-producer feeding it. Instead, their functions have documented preconditions that the caller is
-responsible for meeting, and which are not checked at run time:
+Images, views and orientations have no failure modes and no error codes. They have no `try_*`
+variants. The only `result` type that they involve is the one that a `sink` returns to the producer
+that feeds it. Instead, their functions have documented preconditions. The caller is responsible for
+meeting them, and they are not checked at run time:
 
-- Pixel coordinates and rows must be within the image (`x < width()`, `y < height()`), except for
-  `set_pixel`, which ignores writes outside it, and `get_pixel`, which returns a value-initialized
-  pixel; subview regions must lie within their parent.
+- Pixel coordinates and rows must be within the image (`x < width()`, `y < height()`). The
+  exceptions are `set_pixel`, which ignores writes outside the image, and `get_pixel`, which returns
+  a value-initialized pixel. Subview regions must lie within their parent.
 - A view's stride must be at least its width, and its storage must outlive it.
-- For `orient`, `dst` must have `src`'s dimensions — exchanged when `swaps_axes(o)` — and must not
-  overlap `src`.
+- For `orient`, `dst` must have `src`'s dimensions, exchanged when `swaps_axes(o)` is true. `dst`
+  must not overlap `src`.
 
 Memory allocation is the allocator's responsibility: with the default `std::allocator`, constructing
 a buffer that cannot be allocated throws `std::bad_alloc` (or aborts when exceptions are disabled).
@@ -240,47 +241,48 @@ Rendering has both API styles. It uses these error codes:
 | `idfxx::errc::invalid_state` | When pushing: rows out of sequence or past the end of the image, or after a sink failed. |
 
 An error from the sink or the decoder is returned unchanged. Running out of memory throws
-`std::bad_alloc`, or aborts when exceptions are disabled; set `memory_limit` to get
+`std::bad_alloc`, or aborts when exceptions are disabled. Set `memory_limit` to get
 `image::errc::too_large` instead.
 
 ## Important Notes
 
-- Each `orientation` value names the transform that makes the stored image display upright, matching
-  the EXIF meaning of the tag: an image tagged 6 is stored rotated a quarter turn counter-clockwise,
-  and `rotate_90` turns it clockwise to display. Rotations are clockwise.
+- Each `orientation` value names the transform that makes the stored image display upright. This
+  matches the EXIF meaning of the tag. An image tagged 6 is stored rotated a quarter turn
+  counter-clockwise, and `rotate_90` turns it clockwise to display it. Rotations are clockwise.
 - `compose(first, second)` is ordered: `first` is applied, then `second`. It is generally not
   commutative.
-- A view is non-owning and its constness is shallow, as with `std::span`: a `const view<P>` still
-  allows writes; use `view<const P>` for read-only access. Subviews of a buffer keep the buffer's
+- A view is non-owning and its constness is shallow, as with `std::span`. A `const view<P>` still
+  allows writes. Use `view<const P>` for read-only access. Subviews of a buffer keep the buffer's
   stride.
 - Moving a buffer transfers its pixels without copying them. The exception, as with `std::vector`,
   is move assignment with a stateful allocator that doesn't propagate on move: if the two allocators
   compare unequal, the pixels are copied into newly allocated storage. A moved-from buffer must not
   be used: any operation other than destruction or assignment is undefined behavior.
 - `orient` and `oriented` accept a buffer or a view (const or not) directly for both source and
-  destination; a temporary buffer cannot be a destination.
+  destination. A temporary buffer cannot be a destination.
 - `oriented` allocates its result with a copy of the source buffer's allocator (a PSRAM image stays
   in PSRAM), or with `std::allocator` when the source is a view. Pass an allocator explicitly to
   choose otherwise, e.g. `oriented(view, o, idfxx::spiram_allocator<idfxx::image::rgb888>())`.
 - The renderer needs no frame when the source's orientation composed with the placement's is
   `identity` or `flip_horizontal`. Its memory then grows with the output width and the filter's
-  reach: about 106 KB for 4000x3000 onto 1200x1600 with `lanczos3`, 41 KB with `bilinear`. Any other
-  orientation also holds one frame of the output at 3 bytes a pixel (5.76 MB at 1200x1600),
-  allocated from `render_config::frame_mem` (the default heap unless set, e.g. to
-  `idfxx::memory::capabilities::spiram`), and delivers its rows after the last source row. The image
-  itself is never held.
+  reach: about 106 KB for 4000x3000 onto 1200x1600 with `lanczos3`, and 41 KB with `bilinear`. For
+  any other orientation, the renderer also holds one frame of the output at 3 bytes a pixel (5.76 MB
+  at 1200x1600). It allocates the frame from `render_config::frame_mem` (the default heap unless
+  set, e.g. to `idfxx::memory::capabilities::spiram`), and delivers its rows after the last source
+  row. The image itself is never held.
 - `render` decodes nothing when the target is fully off-screen. A target whose visible part shows
   only background, such as `fit` with the picture off-screen, is still decoded, at the smallest
-  scale the decoder offers.
-- A target and its alignment are in the coordinates of the screen, and a crop in those of the
-  full-size image with both orientations applied, also when it is decoded at a reduced scale.
-- Every clipped pixel is the same as in the whole picture, but the output is only the same across
-  orientations where the arithmetic is: the resampler works in the stored orientation, and its
-  passes round in turn, so a picture and the same picture stored rotated can differ by rounding.
-- `render` uses up the decoder: a decoder decodes once.
-- Pushing and `render` give way to lower-priority tasks about every half second of a long operation,
-  including while a slow sink runs, so that the idle task the task watchdog looks after can run.
-  Don't call them from an ISR or critical section.
+  scale that the decoder offers.
+- A target and its alignment are in screen coordinates. A crop is in the coordinates of the
+  full-size image with both orientations applied, also when the image is decoded at a reduced scale.
+- Every clipped pixel is the same as in the whole picture. But the output is the same across
+  orientations only where the arithmetic is the same. The resampler works in the stored orientation,
+  and it rounds after each of its passes. So a picture and the same picture stored rotated can
+  differ by rounding.
+- `render` decodes the decoder's image, and a decoder can decode only once.
+- Pushing and `render` yield to lower-priority tasks about every half second of a long operation,
+  including while a slow sink runs, so that the idle task can run. The task watchdog monitors the
+  idle task. Don't call them from an ISR or critical section.
 
 ## License
 

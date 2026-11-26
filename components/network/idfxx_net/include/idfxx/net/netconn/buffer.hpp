@@ -42,16 +42,17 @@ class connectionless_channel;
  * @brief Owning handle for a netconn buffer.
  *
  * A buffer holds the data returned by `*_channel::try_recv` and, for UDP, the
- * source address and port. Data may span multiple segments — iterate
- * `segments()` to walk them without copying, or `copy_into()` to gather into
- * a contiguous buffer.
+ * source address and port. Data may span multiple segments. Iterate over
+ * `segments()` to read them without copying, or use `copy_into()` to gather them
+ * into a contiguous buffer.
  *
  * Ownership is exclusive: the buffer is non-copyable and move-only. A
  * moved-from buffer may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `nullptr`); calling any other
- * method on it is undefined behavior. The destructor releases the held buffer.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns
+ * `nullptr`). Calling any other method on it is undefined behavior. The
+ * destructor releases the held buffer.
  *
- * @warning `attach()` references external memory rather than copying it; the
+ * @warning `attach()` references external memory rather than copying it. The
  * referenced buffer must outlive the send (see the method documentation). To
  * send a transient buffer without that obligation, prefer the copying
  * `datagram_channel::try_send(byte_view)` / `raw_channel::try_send(byte_view)`
@@ -84,8 +85,9 @@ public:
     /**
      * @brief Returns the underlying lwIP `netbuf*`, or `nullptr` if moved-from / empty.
      *
-     * For observation and interop only: do not free or re-own the returned
-     * netbuf — doing so desynchronizes this handle's invariants.
+     * For observation and interop only. Do not free the returned netbuf or take
+     * ownership of it. Doing so makes the state of this handle inconsistent with
+     * the netbuf.
      */
     [[nodiscard]] ::netbuf* idf_handle() const noexcept { return _buf; }
 
@@ -110,7 +112,7 @@ public:
      * range may be traversed more than once and the buffer remains usable
      * afterward.
      *
-     * Obtained from `buffer::segments()`; not constructed directly.
+     * Obtain it from `buffer::segments()`. It is not constructed directly.
      */
     class segment_view {
     public:
@@ -120,8 +122,8 @@ public:
             using value_type = byte_view;
             using difference_type = std::ptrdiff_t;
             using iterator_concept = std::forward_iterator_tag;
-            // operator* yields a prvalue view, so the C++17 category tops out at
-            // input; iterator_concept above is what makes it a forward_iterator.
+            // operator* yields a prvalue view, so the highest C++17 category it can
+            // have is input. The iterator_concept above makes it a forward_iterator.
             using iterator_category = std::input_iterator_tag;
 
             /// @brief Constructs a past-the-end iterator.
@@ -140,7 +142,7 @@ public:
                 return tmp;
             }
 
-            /// @brief Compares two iterators; equal iff they reference the same segment.
+            /// @brief Compares two iterators. They are equal iff they reference the same segment.
             [[nodiscard]] bool operator==(const iterator& other) const noexcept {
                 return _seg == other._seg;
             }
@@ -170,15 +172,15 @@ public:
     /**
      * @brief Returns a forward range over the buffer's data segments.
      *
-     * Walk a multi-segment receive without copying:
+     * Iterate over the segments of a multi-segment receive without copying:
      * @code
      * for (auto seg : buf.segments()) {
      *     // process seg (an idfxx::byte_view) without copying
      * }
      * @endcode
      *
-     * The range is safe to obtain from a moved-from or empty buffer — it is
-     * simply empty.
+     * The range is safe to obtain from a moved-from or empty buffer. In that case,
+     * the range is empty.
      *
      * @return A `segment_view` spanning the buffer's segments in order.
      */
@@ -187,7 +189,7 @@ public:
     /**
      * @brief Copies the segments, in order, into a destination buffer.
      *
-     * Copies `min(len(), dst.size())` bytes; any data beyond the end of @p dst is not copied.
+     * Copies `min(len(), dst.size())` bytes. Any data beyond the end of @p dst is not copied.
      *
      * @param dst Destination buffer.
      * @return Number of bytes copied (≤ `dst.size()`).
@@ -201,11 +203,11 @@ public:
      * The data is referenced, not copied.
      *
      * @warning @p data must remain valid and unmodified until the buffer has
-     *          been handed to and consumed by a send
-     *          (`netconn::datagram_channel::try_send` / `try_send_to` or the raw
-     *          equivalents). Sending a transient buffer is a use-after-free; for
-     *          that case use the copying `*_channel::try_send(byte_view)`
-     *          overloads, which manage the buffer's lifetime internally.
+     *          been passed to a send (`netconn::datagram_channel::try_send` /
+     *          `try_send_to` or the raw equivalents) and the send has used it.
+     *          Sending a transient buffer is a use-after-free. For that case, use
+     *          the copying `*_channel::try_send(byte_view)` overloads, which
+     *          manage the buffer's lifetime internally.
      *
      * @param data Buffer to reference.
      *
@@ -221,11 +223,11 @@ public:
      * The data is referenced, not copied.
      *
      * @warning @p data must remain valid and unmodified until the buffer has
-     *          been handed to and consumed by a send
-     *          (`netconn::datagram_channel::try_send` / `try_send_to` or the raw
-     *          equivalents). Sending a transient buffer is a use-after-free; for
-     *          that case use the copying `*_channel::try_send(byte_view)`
-     *          overloads, which manage the buffer's lifetime internally.
+     *          been passed to a send (`netconn::datagram_channel::try_send` /
+     *          `try_send_to` or the raw equivalents) and the send has used it.
+     *          Sending a transient buffer is a use-after-free. For that case, use
+     *          the copying `*_channel::try_send(byte_view)` overloads, which
+     *          manage the buffer's lifetime internally.
      *
      * @param data Buffer to reference.
      * @return Success, or an error.
@@ -249,9 +251,9 @@ private:
 /// @cond INTERNAL
 // A `segment_view` iterator points into the owning buffer's netbuf chain, not
 // into the view object itself, so it stays valid after the view is destroyed
-// (as long as the buffer lives). That makes the view a borrowed range: piping a
-// temporary's segments through a view adaptor — `buf.segments() | views::…` —
-// does not dangle.
+// (as long as the buffer lives). That makes the view a borrowed range. Passing
+// the segments of a temporary view through a view adaptor
+// (`buf.segments() | views::…`) does not leave a dangling iterator.
 template<>
 inline constexpr bool
     std::ranges::enable_borrowed_range<idfxx::net::netconn::buffer::segment_view> = true;

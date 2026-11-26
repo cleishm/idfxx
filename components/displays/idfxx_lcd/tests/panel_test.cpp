@@ -60,7 +60,7 @@ TEST_CASE("panel draw_bitmap passes exactly sized data to the driver", "[idfxx][
 
 TEST_CASE("panel draw_bitmap rejects data of the wrong size", "[idfxx][lcd]") {
     recording_panel display(16);
-    // A full 8x4 frame; the region below is the top 8x2 rows (32 bytes).
+    // A full 8x4 frame. The region below is the top 8x2 rows (32 bytes).
     std::array<uint8_t, 8 * 4 * 2> frame{};
     idfxx::byte_view view{frame};
 
@@ -72,7 +72,7 @@ TEST_CASE("panel draw_bitmap rejects data of the wrong size", "[idfxx][lcd]") {
     assert_error(display.try_draw_bitmap(0, 0, 8, 2, view.first(33)), idfxx::errc::invalid_size);
     assert_error(display.try_draw_bitmap(0, 0, 8, 2, frame), idfxx::errc::invalid_size);
 
-    // A region whose size overflows size_t; 65536 * 8192 * 24 bits wraps to 0 in 32 bits.
+    // A region whose size overflows size_t. 65536 * 8192 * 24 bits wraps to 0 in 32 bits.
     recording_panel wide(24);
     assert_error(wide.try_draw_bitmap(0, 0, 65536, 8192, {}), idfxx::errc::invalid_size);
     assert_error(display.try_draw_bitmap(0, 0, INT32_MAX, INT32_MAX, {}), idfxx::errc::invalid_size);

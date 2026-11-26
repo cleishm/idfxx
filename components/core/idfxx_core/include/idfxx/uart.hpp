@@ -53,7 +53,7 @@ enum class uart_port : int {
  * @brief Returns a string representation of a UART port identifier.
  *
  * @param p The port identifier to convert.
- * @return "UART0", "UART1", etc., or "unknown(N)" for unrecognized values.
+ * @return The port name (such as "UART0" or "UART1"), or "unknown(N)" for unrecognized values.
  */
 [[nodiscard]] inline std::string to_string(uart_port p) {
     switch (p) {

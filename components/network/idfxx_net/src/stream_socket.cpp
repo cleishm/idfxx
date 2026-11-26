@@ -144,9 +144,9 @@ result<stream_socket> stream_socket::connect_to(const endpoint& peer, const conf
 
 namespace {
 
-// Walks the resolved candidates and attempts @p attempt on each. Returns the
-// first success, or the last attempt error if every candidate failed, or
-// `errc::name_not_found` if resolution succeeded but yielded no candidates.
+// Iterates over the resolved candidates and calls @p attempt on each. Returns the
+// first success. If every candidate failed, returns the last attempt error. If
+// resolution succeeded but yielded no candidates, returns `errc::name_not_found`.
 template<typename Service, typename Attempt>
 result<stream_socket> connect_to_impl(
     std::string_view host,

@@ -19,11 +19,12 @@ const char* TAG = "idfxx::httpd_ssl";
 namespace idfxx::http {
 
 result<ssl_server> ssl_server::make(config cfg) {
-    // HTTPD_SSL_CONFIG_DEFAULT() does not initialize every member of httpd_ssl_config: after
-    // v6.0.2 the deprecated use_secure_element member was kept in the struct but dropped from the
-    // macro. Members the macro omits are value-initialized, which is what we want — the deprecated
-    // ones are non-functional and make httpd_ssl_start() fail if set. C ignores the gap, but C++
-    // warns, and -Werror turns that warning into a build failure.
+    // HTTPD_SSL_CONFIG_DEFAULT() does not initialize every member of httpd_ssl_config. After
+    // v6.0.2, the deprecated use_secure_element member was kept in the struct but dropped from the
+    // macro. Members that the macro omits are value-initialized, which is what we want. The
+    // deprecated members are non-functional and make httpd_ssl_start() fail if set. A C compiler
+    // accepts the missing initializers, but a C++ compiler warns, and -Werror turns that warning
+    // into a build failure.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     httpd_ssl_config_t ssl_cfg = HTTPD_SSL_CONFIG_DEFAULT();
@@ -54,7 +55,7 @@ result<ssl_server> ssl_server::make(config cfg) {
     }
 #endif
 
-    // Move cert strings out of config — they only need to live until httpd_ssl_start() returns,
+    // Move cert strings out of config. They only need to exist until httpd_ssl_start() returns,
     // since ESP-IDF copies all certificate data internally.
     auto server_cert = std::move(cfg.server_cert);
     auto private_key = std::move(cfg.private_key);
@@ -112,8 +113,8 @@ ssl_server::ssl_server(
 esp_err_t ssl_server::_ssl_session_open_trampoline(httpd_handle_t hd, int sockfd) {
     esp_err_t err = _session_open_trampoline(hd, sockfd);
     if (err != ESP_OK) {
-        // esp_https_server ignores the result of the open function and keeps the session, so shut
-        // the socket down instead: nothing more can be read from it, and the server closes the
+        // esp_https_server ignores the result of the open function and keeps the session. So shut
+        // the socket down instead. Nothing more can be read from it, and the server closes the
         // session when it next polls the socket.
         ::shutdown(sockfd, SHUT_RDWR);
     }

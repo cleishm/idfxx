@@ -239,7 +239,7 @@ initialize_touch(stmpe610);
 **Lifetime:**
 - Non-copyable and move-only
 - Destructor automatically cleans up touch resources
-- Takes `panel_io` by reference; the caller must ensure the panel I/O outlives the touch controller
+- Takes `panel_io` by reference. The caller must ensure the panel I/O outlives the touch controller
 
 **Specifications:**
 - Type: Resistive touch

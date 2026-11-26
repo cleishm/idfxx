@@ -33,11 +33,11 @@ auto measure(Fn&& fn) {
 
 // Whether `fn` ever completes without the tick count advancing.
 //
-// A tick interrupt can land inside the measurement window whatever `fn` does, so a single
-// zero-tick measurement is not guaranteed even for a call that never blocks. This is common
-// under QEMU, where guest timers follow the host clock and a stalled host shows up in the
-// guest as elapsed ticks. Retry rather than tolerate a tick: a call that returns immediately
-// sees a zero-tick window within a few attempts, while one that blocks never does.
+// A tick interrupt can occur inside the measurement window whatever `fn` does. So a single
+// zero-tick measurement is not guaranteed, even for a call that never blocks. This is common
+// under QEMU, where guest timers follow the host clock, and a stalled host appears in the
+// guest as elapsed ticks. Retry rather than tolerate a tick. A call that returns immediately
+// gets a zero-tick window within a few attempts. A call that blocks never does.
 template<typename Fn>
 bool returns_without_blocking(Fn&& fn) {
     for (int attempt = 0; attempt < 10; ++attempt) {
@@ -63,7 +63,8 @@ TEST_CASE("delay() with negative duration returns immediately", "[idfxx][sched]"
 }
 
 TEST_CASE("delay() busy-waits sub-tick durations", "[idfxx][sched][hw]") {
-    // Half a tick cannot be scheduled, so it spins: accurate, and never as long as a full tick
+    // Half a tick cannot be scheduled, so it spins. The delay is accurate and never as long as a
+    // full tick
     // Note: Requires precise hardware timing - QEMU timing is not accurate enough
     auto [elapsed, ticks] = measure([] { idfxx::delay(tick / 2); });
     TEST_ASSERT_GREATER_OR_EQUAL(tick.count() / 2, std::chrono::ceil<std::chrono::microseconds>(elapsed).count());
@@ -80,7 +81,7 @@ TEST_CASE("delay() works with microseconds", "[idfxx][sched][hw]") {
 
 TEST_CASE("delay() of one tick blocks for at least one tick", "[idfxx][sched]") {
     // Exactly one tick is the shortest scheduled (non-spinning) delay. vTaskDelay(1) alone can
-    // return almost immediately; delay() must top it up so the full tick period elapses.
+    // return almost immediately. delay() must delay again so that the full tick period elapses.
     auto [elapsed, ticks] = measure([] { idfxx::delay(tick); });
     TEST_ASSERT_GREATER_OR_EQUAL(tick.count(), std::chrono::ceil<std::chrono::microseconds>(elapsed).count());
     TEST_ASSERT_GREATER_OR_EQUAL(1, ticks);
@@ -105,9 +106,9 @@ TEST_CASE("delay() overshoots by at most one tick", "[idfxx][sched][hw]") {
 TEST_CASE("delay() uses the scheduler for longer delays", "[idfxx][sched]") {
     auto [elapsed, ticks] = measure([] { idfxx::delay(50ms); });
 
-    // Should take about pdMS_TO_TICKS(50) ticks; allow the one-tick overshoot plus some
-    // scheduling variance, which rules out a busy-wait only in the sense that the tick
-    // count advanced as expected while we were blocked
+    // Should take about pdMS_TO_TICKS(50) ticks. Allow the one-tick overshoot plus some
+    // scheduling variance. This rules out a busy-wait only in the sense that the tick
+    // count advanced as expected while the task was blocked
     TickType_t expected = pdMS_TO_TICKS(50);
     TEST_ASSERT_GREATER_OR_EQUAL(expected, ticks);
     TEST_ASSERT_LESS_OR_EQUAL(expected + 5, ticks);
@@ -148,7 +149,7 @@ TEST_CASE("delay_until() with past time point returns immediately", "[idfxx][sch
 }
 
 TEST_CASE("delay_until() with future time point delays", "[idfxx][sched]") {
-    // Count ticks from before the target is computed: a tick landing between the two would
+    // Count ticks from before the target is computed: a tick that occurs between the two would
     // otherwise shorten the measured delay by one.
     const auto start_ticks = xTaskGetTickCount();
     auto target = idfxx::chrono::tick_clock::now() + std::chrono::milliseconds(50);
@@ -201,8 +202,8 @@ void helper_task(void* arg) {
 TEST_CASE("delay(next_tick) lets lower-priority tasks run where yield() does not", "[idfxx][sched]") {
     helper_state state;
 
-    // Run above a helper that is itself above idle, pinned to this core so the helper can only
-    // run when this task gives up the CPU
+    // Run at a higher priority than a helper task, which itself runs above idle. The helper is
+    // pinned to this core, so it can only run when this task gives up the CPU
     const auto prio = uxTaskPriorityGet(nullptr);
     vTaskPrioritySet(nullptr, prio + 2);
     const auto created = xTaskCreatePinnedToCore(helper_task, "sched_helper", 2048, &state, prio + 1, nullptr,
@@ -215,7 +216,7 @@ TEST_CASE("delay(next_tick) lets lower-priority tasks run where yield() does not
     const bool ran_after_delay_tick = state.ran;
 
     vTaskPrioritySet(nullptr, prio);
-    idfxx::delay(idfxx::next_tick); // let idle reclaim the helper's resources before asserting
+    idfxx::delay(idfxx::next_tick); // let the idle task clean up the helper before asserting
 
     TEST_ASSERT_EQUAL(pdPASS, created);
     TEST_ASSERT_FALSE(ran_after_yield);

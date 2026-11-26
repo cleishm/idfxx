@@ -21,7 +21,7 @@
 
 using namespace idfxx::i2c;
 
-// SDA/SCL pins used by the bus-creation tests. Any two free pins work; the
+// SDA/SCL pins used by the bus-creation tests. Any two free pins work. The
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
 #ifdef CONFIG_IDF_TARGET_ESP32C2
 inline constexpr auto TEST_SDA = idfxx::gpio_4;
@@ -32,7 +32,7 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // master_device is not default constructible
@@ -94,7 +94,8 @@ concept try_read_register_forms = requires(D& d, uint8_t* p, std::span<uint8_t> 
 };
 static_assert(try_read_register_forms<master_device>);
 
-// A size is not a buffer: there is no allocating read, and a zero-byte fixed-size read doesn't compile
+// There is no allocating read, so a size in place of a buffer doesn't compile. A zero-byte fixed-size read doesn't
+// compile either
 template<typename D>
 concept try_read_register_sized = requires(D& d) { d.try_read_register(0x10, 3); };
 template<typename D>
@@ -110,7 +111,7 @@ static_assert(!try_read_register_sized_timeout<master_device>);
 static_assert(!try_read_register_zero<master_device>);
 static_assert(!try_receive_sized<master_device>);
 
-// Byte buffers are passed as views, so pointer-and-length arguments don't resolve; {ptr, len} does
+// Byte buffers are passed as views, so pointer-and-length arguments don't resolve. {ptr, len} does
 template<typename D>
 concept try_transmit_pointer_length = requires(D& d, const uint8_t* p) { d.try_transmit(p, size_t{2}); };
 template<typename D>
@@ -401,7 +402,7 @@ static_assert(!read_bool_value<master_device>);
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // Unity asserts longjmp out of the test, so every assertion runs after the bus
-// and device have gone out of scope; otherwise a failure would leave i2c0
+// and device have gone out of scope. Otherwise a failure would leave i2c0
 // allocated.
 // =============================================================================
 
@@ -423,7 +424,7 @@ TEST_CASE("master_device::make with valid bus succeeds", "[idfxx][i2c][master_de
         auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
         if (bus_result.has_value()) {
             bus_created = true;
-            // Create a device (0x50 is common EEPROM address, may not be present)
+            // Create a device at 0x50, a common EEPROM address. The device may not be present
             auto device_result = master_device::make(*bus_result, 0x50);
             if (device_result.has_value()) {
                 device_created = true;
@@ -466,7 +467,7 @@ TEST_CASE("master_device::make with config default scl_speed uses bus frequency"
         auto bus_result = master_bus::make(port::i2c0, TEST_SDA, TEST_SCL, quanta::frequency::kilohertz(100));
         if (bus_result.has_value()) {
             bus_created = true;
-            // scl_speed left unset means use bus frequency
+            // With scl_speed unset, the device uses the bus frequency
             auto device_result = master_device::make(*bus_result, 0x50, {});
             if (device_result.has_value()) {
                 device_created = true;
@@ -770,8 +771,8 @@ TEST_CASE("master_device read_register with an empty buffer fails with invalid_a
 }
 
 TEST_CASE("master_device fixed-size, read-into and literal forms reach the bus", "[idfxx][i2c][master_device]") {
-    // No device is present at 0x50, so each form that gets as far as the bus is NACKed (or times out on the bus) and
-    // reports invalid_response, rather than being rejected before anything is sent.
+    // No device is present at 0x50. Each form starts a transfer on the bus, which is NACKed (or times out on the bus)
+    // and reports invalid_response. No form is rejected before anything is sent.
     bool device_created = false;
     std::error_code transmit_literal_ec, transmit_multi_ec, receive_into_ec, receive_fixed_ec, read_into_ec,
         read_fixed_ec, write_literal_ec, multi_literal_ec;
@@ -808,7 +809,7 @@ TEST_CASE("master_device fixed-size, read-into and literal forms reach the bus",
 }
 
 TEST_CASE("master_device transfer the device doesn't acknowledge fails with invalid_response", "[idfxx][i2c][master_device]") {
-    // No device is present at 0x50, so the transfer is either NACKed or times out on the bus; the driver reports
+    // No device is present at 0x50, so the transfer is either NACKed or times out on the bus. The driver reports
     // both the same way.
     bool device_created = false;
     std::error_code ec;
@@ -856,8 +857,8 @@ TEST_CASE("master_device transfer fails with timeout while another task holds th
 }
 
 TEST_CASE("master_device change_address rejects an address that doesn't fit the addressing mode", "[idfxx][i2c][master_device]") {
-    // The address is checked before the driver sees it, so the bus stays usable: a later transfer reports the
-    // missing device rather than timing out.
+    // The address is checked before it is passed to the driver, so the bus stays usable. A later transfer reports the
+    // missing device instead of timing out.
     bool device_created = false;
     std::error_code change_ec, transmit_ec;
     uint16_t address = 0;

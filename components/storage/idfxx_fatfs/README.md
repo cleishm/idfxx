@@ -17,9 +17,9 @@ FAT filesystems on SD cards and flash partitions, used through standard file I/O
 - Capacity (`size()`) and free space (`free_size()`)
 - Safe file replacement: `replace_file()` writes new contents (bytes or text in memory, an
   `idfxx::byte_source` or a callback writing to a `FILE*`) so that a reset leaves either the old
-  contents or the new, and `recover_file()` finishes or discards at startup a replace that a reset
+  contents or the new. At startup, `recover_file()` finishes or discards a replace that a reset
   interrupted
-- Explicit `unmount()` that reports errors (such as a failure to save the wear-leveling state); the
+- Explicit `unmount()` that reports errors (such as a failure to save the wear-leveling state). The
   destructor unmounts otherwise
 - Arguments checked up front: an invalid mount path, label or partition type fails before anything
   is mounted
@@ -67,7 +67,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled:
 #include <fstream>
 
 try {
-    // The `storage` partition, mounted at /data; formatted if it holds no filesystem
+    // The `storage` partition, mounted at /data. It is formatted if it holds no filesystem
     idfxx::fatfs::volume vol("storage", "/data", {
         .format_if_missing = true,
     });
@@ -78,14 +78,15 @@ try {
     }
     idfxx::log::info("FS", "{} of {} bytes free", vol.free_size(), vol.size());
 
-    // Replace a file so that a reset leaves the old contents or the new; at startup, recover_file() first
+    // Replace a file so that a reset leaves the old contents or the new.
+    // At startup, call recover_file() first.
     vol.recover_file("/data/config.txt");
     vol.replace_file("/data/config.txt", [](FILE* f) -> idfxx::result<void> {
         std::fputs("brightness=7\n", f);
         return {};
     });
 
-    vol.unmount(); // all files closed first
+    vol.unmount(); // all files must be closed first
 } catch (const std::system_error& e) {
     idfxx::log::error("FS", "Filesystem error: {}", e.what());
 }
@@ -134,7 +135,7 @@ if (auto free = vol.try_free_size()) {
     idfxx::log::info("FS", "{} bytes free", *free);
 }
 
-// At startup, before reading the file; then replace it
+// At startup, recover the file before reading it. Then replace it
 if (auto r = vol.try_recover_file("/data/config.txt"); !r) {
     idfxx::log::error("FS", "Recovery failed: {}", r.error().message());
 }
@@ -172,8 +173,8 @@ if (auto r = vol.try_unmount(); !r) {
 - `free_size()` / `try_free_size()` - Free space in bytes
 
 **Operations:**
-- `format(opts)` / `try_format(opts)` - Erase the volume and create an empty filesystem; stays
-  mounted
+- `format(opts)` / `try_format(opts)` - Erase the volume and create an empty filesystem. The volume
+  stays mounted
 - `unmount()` / `try_unmount()` - Unmount now, reporting errors
 
 **Replacing files** (paths are full paths under the mount path, such as "/sdcard/config.json"):
@@ -184,17 +185,18 @@ if (auto r = vol.try_unmount(); !r) {
   `std::string_view`
 - `replace_file(path, source)` / `try_replace_file(path, source)` - The same, reading an
   `idfxx::byte_source` to its end through a 4 KiB buffer
-- `replace_file(path, writer)` / `try_replace_file(path, writer)` - The same, with what `writer`
-  (invocable as `idfxx::result<void>(FILE*)`) writes; an error it returns abandons the replace
+- `replace_file(path, writer)` / `try_replace_file(path, writer)` - The same, with the contents that
+  `writer` (invocable as `idfxx::result<void>(FILE*)`) writes. If `writer` returns an error, the
+  replace is abandoned
 - `recover_file(path)` / `try_recover_file(path)` - Finish or discard a replace that a reset
-  interrupted; call at startup, before reading the file
+  interrupted. Call it at startup, before reading the file
 
 **Lifetime:**
-- Non-copyable and move-only; the destructor unmounts if still mounted
+- Non-copyable and move-only. The destructor unmounts if still mounted
 
 ### `image`
 
-**Creation** (read-only; mount paths as for `volume`):
+**Creation** (read-only, with the same mount path rules as for `volume`):
 - `make(card, mount_path)` / `make(card, mount_path, card_config)` / `image(card, ...)` - On an SD
   card
 - `make(partition, mount_path)` / `make(partition, mount_path, flash_config)` /
@@ -213,7 +215,7 @@ if (auto r = vol.try_unmount(); !r) {
 - `unmount()` / `try_unmount()`
 
 **Lifetime:**
-- Non-copyable and move-only; the destructor unmounts if still mounted
+- Non-copyable and move-only. The destructor unmounts if still mounted
 
 ### Errors
 
@@ -225,9 +227,12 @@ if (auto r = vol.try_unmount(); !r) {
 
 Errors from FatFs itself are `idfxx::fatfs::errc` values. The disk drivers report every card and
 wear-leveling error to FatFs as a plain I/O failure, so a medium error while mounting or using files
-shows up as `fatfs::errc::disk_err`. Only argument errors, the checks made on a card before
-mounting, mounting and unmounting the wear-leveling layer and registering with the virtual
-filesystem give `idfxx::errc` values.
+is reported as `fatfs::errc::disk_err`. Only these report `idfxx::errc` values:
+
+- Argument errors
+- The checks made on a card before mounting
+- Mounting and unmounting the wear-leveling layer
+- Registering with the virtual filesystem
 
 | Error | Meaning |
 |-------|---------|
@@ -235,7 +240,7 @@ filesystem give `idfxx::errc` values.
 | `idfxx::errc::not_found` | No partition with the given label |
 | `idfxx::errc::invalid_state` | (For a volume) the card is write-protected, the card or partition already has a volume or image mounted on it, a volume or image is already mounted at the path, or a table is full: FatFs's drives (`CONFIG_FATFS_VOLUME_COUNT`, 2 by default), the virtual filesystem's entries (`CONFIG_VFS_MAX_COUNT`, 8 by default) or the wear-leveling layer's handles (8, flash volumes only) |
 | `fatfs::errc::no_filesystem` | No recognizable FAT filesystem on the medium (including exFAT and a damaged boot sector), and (for a volume) `format_if_missing` not set |
-| `fatfs::errc::disk_err` | An I/O error on the medium; also an image partition with no valid FAT boot sector (for example, an erased one) |
+| `fatfs::errc::disk_err` | An I/O error on the medium. Also an image partition with no valid FAT boot sector (for example, an erased one) |
 | `fatfs::errc::not_ready` | The card did not respond (for example, it was removed) |
 | `fatfs::errc::not_enabled` | From `try_free_size()`, after a `format()` whose remount failed |
 | `fatfs::errc::mkfs_aborted` | Formatting failed: the medium doesn't suit FAT with the given allocation unit size |
@@ -243,67 +248,72 @@ filesystem give `idfxx::errc` values.
 | `fatfs::errc::denied` | From `replace_file()`: the path names a directory or a read-only file |
 
 `replace_file()` also reports the `errno` from creating, writing or closing its temporary file, in
-`std::generic_category()` (for example `ENOSPC` when the volume is full), and passes on unchanged an
-error that a byte source or a writer callback returns.
+`std::generic_category()` (for example `ENOSPC` when the volume is full). It also returns,
+unchanged, an error that a byte source or a writer callback returns.
 
-FatFs codes with a POSIX equivalent compare equal to it
-(`fatfs::errc::no_file == std::errc::no_such_file_or_directory`, `exist == file_exists`,
-`denied == permission_denied`, `write_protected == read_only_file_system`, and so on; the full table
-is in the API documentation). File operations through the C and POSIX APIs report `errno` instead.
+FatFs codes with a POSIX equivalent compare equal to it (for example
+`fatfs::errc::no_file == std::errc::no_such_file_or_directory`, `exist == file_exists`,
+`denied == permission_denied` and `write_protected == read_only_file_system`). The full table is in
+the API documentation. File operations through the C and POSIX APIs report `errno` instead.
 
 ## Important Notes
 
 - **Volume count.** FatFs has `CONFIG_FATFS_VOLUME_COUNT` drives (2 by default), shared by every
   volume and image (and any other FatFs user). Mounting one more fails with
-  `idfxx::errc::invalid_state`; raise the setting to mount more at once. Each mount also takes one
+  `idfxx::errc::invalid_state`. Raise the setting to mount more at once. Each mount also takes one
   of the virtual filesystem's `CONFIG_VFS_MAX_COUNT` entries (8 by default, shared with the console,
-  sockets and other filesystems), and each flash volume one of the wear-leveling layer's 8 handles;
-  when either runs out, mounting fails with `idfxx::errc::invalid_state` too.
+  sockets and other filesystems). Each flash volume also takes one of the wear-leveling layer's 8
+  handles. When either runs out, mounting fails with `idfxx::errc::invalid_state` too.
 - **Mount paths** must start with '/', must not end with '/', and are limited to 13 characters, two
-  fewer than the virtual filesystem's `ESP_VFS_PATH_MAX`: ESP-IDF's FAT layer stores the path in a
-  buffer that truncates longer paths, after which they can't be unmounted.
+  fewer than the virtual filesystem's `ESP_VFS_PATH_MAX`. ESP-IDF's FAT layer stores the path in a
+  buffer that truncates longer paths, and a filesystem mounted at a truncated path can't be
+  unmounted.
 - **Long file names** are off by default before ESP-IDF 6.0 (8.3 names only: up to eight characters,
   a dot and up to three more, so `config.txt.tmp` is not valid). Enable them with
-  `CONFIG_FATFS_LFN_HEAP=y` (or `CONFIG_FATFS_LFN_STACK`); ESP-IDF 6.0 and later enable them by
+  `CONFIG_FATFS_LFN_HEAP=y` (or `CONFIG_FATFS_LFN_STACK`). ESP-IDF 6.0 and later enable them by
   default. The setting also controls whether `fatfs_create_rawflash_image()` keeps long names.
 - **No exFAT.** ESP-IDF's FatFs is built without exFAT, so an exFAT card (most SDXC cards, 64 GB and
   up, come formatted that way) fails to mount with `fatfs::errc::no_filesystem`. With
-  `format_if_missing` set, such a card is reformatted as FAT32, erasing it. That holds for a card
-  with a partition table, the usual layout. On a card without one, FatFs takes part of the exFAT
-  boot sector for partition entries, and depending on its contents the mount can fail with
-  `fatfs::errc::disk_err` instead, leaving the card as it is; clearing the card's first sector (with
-  `sdcard::card::write_sectors()`, before mounting) then lets `format_if_missing` reformat it.
+  `format_if_missing` set, such a card is reformatted as FAT32, erasing it. This applies to a card
+  with a partition table, which is the usual layout. On a card without one, FatFs reads part of the
+  exFAT boot sector as partition entries. Depending on its contents, the mount can then fail with
+  `fatfs::errc::disk_err` instead, and the card is left as it is. To reformat such a card with
+  `format_if_missing`, first clear the card's first sector (with `sdcard::card::write_sectors()`,
+  before mounting).
 - **Format allocation units.** By default (`format_options::allocation_unit_size` left as
   `std::nullopt`) FatFs chooses the cluster size from the volume's size. An explicit size must be a
   power of two from one sector to 128 sectors (512 bytes to 64 KiB on an SD card,
-  `CONFIG_WL_SECTOR_SIZE` to 128 times that on flash); anything else fails with
-  `idfxx::errc::invalid_arg` before the medium is touched, both in `format()` and when mounting a
-  volume, whose configuration's `format` is checked whether or not `format_if_missing` is set. A
-  very small size on a large card can exceed FAT32's cluster limit, and a large one on a small
-  volume can leave too few clusters; either fails the format with `mkfs_aborted`.
+  `CONFIG_WL_SECTOR_SIZE` to 128 times that on flash). Any other size fails with
+  `idfxx::errc::invalid_arg` before the medium is accessed. This applies both to `format()` and to
+  mounting a volume. When a volume is mounted, its configuration's `format` is checked whether or
+  not `format_if_missing` is set. A very small size on a large card can exceed FAT32's cluster
+  limit, and a large one on a small volume can leave too few clusters. In both cases, the format
+  fails with `mkfs_aborted`.
 - **Formatting when mounting.** With `format_if_missing` set, a mount that finds no recognizable FAT
   filesystem (including a damaged boot sector) formats the medium with the configuration's `format`
-  settings, losing its contents. A medium that can't be read is never formatted: the mount is first
-  tried again, and fails with `fatfs::errc::disk_err` if a read of the medium fails. (When the
-  second try finds the filesystem, it is mounted.) Damage beyond the boot sector (in the FAT or a
-  directory) isn't detected when mounting: the mount succeeds, and the file operations that meet it
-  fail.
+  settings, and the medium's contents are lost. A medium that can't be read is never formatted: the
+  mount is first tried again, and fails with `fatfs::errc::disk_err` if a read of the medium fails.
+  (When the second try finds the filesystem, it is mounted.) Damage beyond the boot sector (in the
+  FAT or a directory) isn't detected when mounting. The mount succeeds, and the file operations
+  that access the damaged area fail.
 - **The card must outlive the volume or image.** A volume or image on a card uses the card but
-  doesn't own it. The card object can be moved while mounted (its state stays put), but its
-  `probe()`, raw sector and erase operations must not be used while it is mounted, as they bypass
-  the filesystem; its accessors, `is_present()` and `is_write_protected()` are fine.
-- **Write-protected cards** are rejected by `volume` with `idfxx::errc::invalid_state`: FatFs isn't
+  doesn't own it. The card object can be moved while mounted, because its state stays at a fixed
+  address. Its `probe()`, raw sector and erase operations must not be used while it is mounted,
+  because they bypass the filesystem. Its accessors, `is_present()` and `is_write_protected()` can
+  be used.
+- **Write-protected cards** are rejected by `volume` with `idfxx::errc::invalid_state`. FatFs isn't
   told about the card's write-protect switch, so a write-protected card can't be mounted as a
   writable volume. Mount it read-only with `image` instead.
 - **Card removal.** Without `card_config::disk_status_check` (in `volume::card_config` and
   `image::card_config`), file operations on a removed card fail with `EIO`. With it, calls that take
   a path (`fopen()`, `stat()`, `opendir()`, ...) fail with `ENODEV`, and operations on files that
-  were already open with `EBADF`. Either way the card must be set up again: unmount the volume or
-  image, destroy the `card` object, create a new one once a card is present, then mount again.
+  were already open fail with `EBADF`. In both cases, the card must be set up again. Unmount the
+  volume or image and destroy the `card` object. Create a new one when a card is present, then
+  mount again.
 - **Close files first.** Close every file and directory on a volume or image before formatting or
   unmounting it (or letting it be destroyed). While `format()` runs, no other task may use the
-  volume's files; `free_size()` waits for the format to finish, while `size()` returns at once, with
-  the size from before the format until the new filesystem is mounted.
+  volume's files. `free_size()` waits for the format to finish. `size()` returns at once, with the
+  size from before the format until the new filesystem is mounted.
 - **Memory per open file.** Each of a volume's `max_files` slots is allocated when it is mounted,
   whether or not a file is open in it. With `CONFIG_FATFS_PER_FILE_CACHE` (the default), each open
   file also has a sector buffer:
@@ -311,8 +321,9 @@ is in the API documentation). File operations through the C and POSIX APIs repor
     the file is opened and freed when it is closed, and is one sector of the volume: 512 bytes on an
     SD card, `CONFIG_WL_SECTOR_SIZE` on flash.
   - Without it (the default in ESP-IDF 5.5), every slot holds a buffer of `FF_MAX_SS` bytes from the
-    mount on: the larger of 512 and `CONFIG_WL_SECTOR_SIZE`, so 4096 by default, even on an SD card.
-    The default `max_files` of 5 then costs about 20 KiB per volume.
+    time the volume is mounted. `FF_MAX_SS` is the larger of 512 and `CONFIG_WL_SECTOR_SIZE`, so it
+    is 4096 by default, even on an SD card. The default `max_files` of 5 then uses about 20 KiB per
+    volume.
 
   Lower `max_files` to what the program needs.
 - **Large sequential files.** C `FILE*` streams on a FAT volume are buffered 128 bytes at a time by
@@ -322,36 +333,41 @@ is in the API documentation). File operations through the C and POSIX APIs repor
 - **Replacing a file safely.** FatFs's rename fails with `EEXIST` when the destination exists, so a
   file can't be replaced by renaming another over it. `volume::replace_file()` replaces it in steps,
   so that a reset at any point leaves either the old contents or the new once `recover_file()` has
-  run: it writes the new contents to a temporary file and closes it (which writes it to the medium),
-  renames that to a second name, which marks it complete, removes the old file, then renames the
-  complete file into its place. Call `recover_file()` at startup, before reading the file, for each
-  file you replace this way: it finishes a replace whose new contents were complete, and discards an
-  incomplete one. Each `replace_file()` also runs it first, so leftovers never get in the way. The
-  directory must already exist, and the file must not be open while it is replaced. Replacing the
-  same path from two tasks at once is not supported. No lock is held while the contents are written,
-  so a writer callback may use the volume (calling `free_size()`, for example).
-- **Names of a replace in progress.** The temporary file is `<HASH>.~RT` and the complete one
-  `<HASH>.~RN`, in the same directory as the file, where `<HASH>` is the FNV-1a 32-bit hash of the
-  file's name (its last path component, with ASCII letters folded to uppercase first) as 8 uppercase
-  hex digits: `config.json` gives `189A8B29.~RT` and `189A8B29.~RN`. Both are 8.3 names, valid with
-  or without long file names. Seen on a PC, such files are what a reset left of a replace: a `.~RN`
-  file holds complete new contents, and a `.~RT` file may be incomplete. Two files in one directory
-  whose names hash alike (a one-in-four-billion chance for any pair) would share these names, and
-  recovering one could then put the other's new contents in its place.
+  run:
+  1. It writes the new contents to a temporary file and closes it (which writes it to the medium).
+  2. It renames the temporary file to a second name, which marks it complete.
+  3. It removes the old file.
+  4. It renames the complete file into its place.
+
+  Call `recover_file()` at startup, before reading the file, for each file you replace this way. It
+  finishes a replace whose new contents were complete, and discards an incomplete one. Each
+  `replace_file()` also runs it first, so files left by an earlier interrupted replace do not affect
+  it. The directory must already exist, and the file must not be open while it is replaced.
+  Replacing the same path from two tasks at once is not supported. No lock is held while the
+  contents are written, so a writer callback may use the volume (calling `free_size()`, for
+  example).
+- **Names of a replace in progress.** The temporary file is `<HASH>.~RT` and the complete file is
+  `<HASH>.~RN`, in the same directory as the file. `<HASH>` is the FNV-1a 32-bit hash of the file's
+  name (its last path component, with ASCII letters folded to uppercase first) as 8 uppercase hex
+  digits. For example, `config.json` gives `189A8B29.~RT` and `189A8B29.~RN`. Both are 8.3 names,
+  valid with or without long file names. If you see such files on a PC, a reset interrupted a
+  replace. A `.~RN` file holds complete new contents, and a `.~RT` file may be incomplete. Two files
+  in one directory whose names have the same hash (a one-in-four-billion chance for any pair) would
+  share these names. Recovering one of them could then put the other's new contents in its place.
 - **A reset during a rename isn't covered.** A reset in the middle of one of the renames can corrupt
-  the file when FatFs places the new directory entry in a different sector from the old one: it
-  writes the new entry and then removes the old one, so a reset between the two writes leaves both
-  names on the same data, and removing either one (as recovery does) frees data the other still
-  uses. FAT can't detect or repair this short of a filesystem check.
+  the file when FatFs places the new directory entry in a different sector from the old one. FatFs
+  writes the new entry and then removes the old one. A reset between the two writes leaves both
+  names on the same data. Removing either name (as recovery does) then frees data that the other
+  name still uses. FAT can't detect or repair this without a filesystem check.
 - **Images are read-only.** Opening a file on an image for writing (`fopen()` with "w", "a" or
-  "r+"), and creating, removing or renaming files and directories, fail with `EACCES`; `fopen()`
+  "r+"), and creating, removing or renaming files and directories, fail with `EACCES`. `fopen()`
   returns NULL rather than failing at the first write. On an SD card, nothing is written to the
-  card, and it is never formatted. An image on a flash partition must have a sector size FatFs
-  supports, between 512 bytes and `CONFIG_WL_SECTOR_SIZE` (4096 by default);
+  card, and it is never formatted. An image on a flash partition must have a sector size that FatFs
+  supports, between 512 bytes and `CONFIG_WL_SECTOR_SIZE` (4096 by default).
   `fatfs_create_rawflash_image()` uses `CONFIG_FATFS_SECTOR_SIZE`, which matches by default.
 - **Wear-leveled vs raw partitions.** A `volume` on a flash partition goes through wear leveling,
-  whose state occupies a few sectors of the partition; an `image` is read directly. A partition
-  written by `fatfs_create_rawflash_image()` is for `image`; `fatfs_create_spiflash_image()` makes
+  whose state occupies a few sectors of the partition. An `image` is read directly. A partition
+  written by `fatfs_create_rawflash_image()` is for `image`. `fatfs_create_spiflash_image()` makes
   one for `volume`.
 - **One mount per card or partition.** A card or partition with a volume or image mounted on it
   can't be mounted again (as either) until that one is unmounted: the second mount fails with
@@ -360,7 +376,7 @@ is in the API documentation). File operations through the C and POSIX APIs repor
   power or entering deep sleep. On a flash volume, unmounting saves the wear-leveling state.
 - **The SD card component is always linked.** `<idfxx/fatfs>` includes `<idfxx/sdcard>`, so
   idfxx_sdcard (and its dependencies) is part of every build, even one that only uses flash
-  partitions; the linker drops what isn't used.
+  partitions. The linker removes the code that isn't used.
 
 ## License
 

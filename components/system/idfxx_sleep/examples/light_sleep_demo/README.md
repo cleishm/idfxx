@@ -9,9 +9,9 @@ Light-sleeps in a loop, waking on a 10-second timer or a button press, and repor
   (`idfxx::sleep::timer_wake`) and a low level on a pin (`idfxx::sleep::gpio_wake`)
 - Using the wake-up cause that `light_sleep()` returns
 - Waiting for the button to be released with `get_level()` and `idfxx::delay()`, because a held
-  button would wake the next sleep straight away
+  button would wake the next sleep immediately
 
-Execution carries on after each wake, with all state kept.
+Execution continues after each wake, and all state is kept.
 
 The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 `sdkconfig.defaults`).
@@ -20,10 +20,10 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 - Any ESP32-series development board
 
-The example uses the board's BOOT button: GPIO 9 on the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0
-on the others, so no extra parts are needed. To use a different button, connect it between a pin and
-GND and change `WAKE_PIN` in `main/main.cpp`. The example enables the internal pull-up, so no
-external resistor is needed. To change the timer, change `SLEEP_INTERVAL`.
+The example uses the board's BOOT button, so no extra parts are needed. The BOOT button is GPIO 9 on
+the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0 on the others. To use a different button, connect it
+between a pin and GND and change `WAKE_PIN` in `main/main.cpp`. The example enables the internal
+pull-up, so no external resistor is needed. To change the timer, change `SLEEP_INTERVAL`.
 
 ## How to use
 

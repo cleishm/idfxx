@@ -279,7 +279,7 @@ public:
         /**
          * @brief Returns the minimum free stack space (in bytes) since the task started.
          *
-         * This is useful for tuning stack sizes — a value approaching zero indicates
+         * This is useful for tuning stack sizes. A value approaching zero indicates
          * potential stack overflow.
          *
          * @return The minimum free stack space in bytes since the task started running.
@@ -318,12 +318,12 @@ public:
     struct config {
         /// Task name (max 16 chars)
         std::string_view name = "task";
-        /// Stack size in bytes; at least `configMINIMAL_STACK_SIZE`, which grows with
+        /// Stack size in bytes. Must be at least `configMINIMAL_STACK_SIZE`, which grows with
         /// CONFIG_FREERTOS_IDLE_TASK_STACKSIZE
         size_t stack_size = 4096;
         /// Task priority, from 0 (lowest) to `configMAX_PRIORITIES - 1`
         task_priority priority = 5;
-        /// Core pin (nullopt = any core); `core_1` is invalid when CONFIG_FREERTOS_UNICORE is set
+        /// Core pin (nullopt = any core). `core_1` is invalid when CONFIG_FREERTOS_UNICORE is set
         std::optional<core_id> core_affinity = std::nullopt;
         /// Stack memory capabilities
         flags<memory::capabilities> stack_mem = memory::capabilities::dram;
@@ -448,7 +448,7 @@ public:
     /**
      * @brief Returns the minimum free stack space (in bytes) since the task started.
      *
-     * This is useful for tuning stack sizes — a value approaching zero indicates
+     * This is useful for tuning stack sizes. A value approaching zero indicates
      * potential stack overflow.
      *
      * @return The minimum free stack space in bytes, or 0 if the task has been
@@ -476,7 +476,7 @@ public:
      * @brief Requests the task to stop.
      *
      * Requests the task to stop cooperatively. The task function can observe this
-     * via self::stop_requested(). Also requested automatically by the destructor
+     * via self::stop_requested(). The destructor also requests a stop automatically
      * before joining.
      *
      * @return true if the stop was newly requested (flag was previously false),
@@ -553,7 +553,7 @@ public:
      *
      * Increments the task's notification value, waking the task if it is
      * blocked in wait() or take(). Can be called multiple times before
-     * the task receives — each call increments the notification count.
+     * the task receives the notifications. Each call increments the notification count.
      *
      * Uses notification index 0, which is reserved for this purpose.
      *
@@ -568,7 +568,7 @@ public:
      *
      * Increments the task's notification value, waking the task if it is
      * blocked in wait() or take(). Can be called multiple times before
-     * the task receives — each call increments the notification count.
+     * the task receives the notifications. Each call increments the notification count.
      *
      * Uses notification index 0, which is reserved for this purpose.
      *
@@ -658,8 +658,8 @@ public:
      *
      * Immediately terminates the task. After killing, the task becomes non-joinable.
      *
-     * @warning This is a dangerous operation that should only be used as a last resort.
-     * The task is terminated abruptly at whatever point it is executing:
+     * @warning This is a dangerous operation. Use it only when the task cannot be stopped in any
+     * other way. The task is terminated abruptly at whatever point it is executing:
      * - C++ destructors for stack-allocated objects will **not** run
      * - Mutexes and locks held by the task will **not** be released
      * - Dynamic memory allocated by the task will **not** be freed
@@ -684,8 +684,8 @@ public:
      *
      * Immediately terminates the task. After killing, the task becomes non-joinable.
      *
-     * @warning This is a dangerous operation that should only be used as a last resort.
-     * The task is terminated abruptly at whatever point it is executing:
+     * @warning This is a dangerous operation. Use it only when the task cannot be stopped in any
+     * other way. The task is terminated abruptly at whatever point it is executing:
      * - C++ destructors for stack-allocated objects will **not** run
      * - Mutexes and locks held by the task will **not** be released
      * - Dynamic memory allocated by the task will **not** be freed

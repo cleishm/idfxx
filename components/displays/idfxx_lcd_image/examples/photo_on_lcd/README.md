@@ -10,7 +10,7 @@ with a caption drawn over it.
   `idfxx::lcd::write_image()`
 - Fitting the whole photo in a rectangle with `placement::target` and `image::layout::fit`
 - Drawing a caption over each band with the overlay callback and `idfxx::gfx::canvas`
-- Writing the picture a band of rows at a time, with no frame buffer, and sizing the SPI bus's
+- Writing the picture a band of rows at a time, with no framebuffer, and sizing the SPI bus's
   `max_transfer_sz` from `write_options::band_rows`
 - Setting up the SPI bus, panel I/O and `idfxx::lcd::ili9341` panel as in the `idfxx_lcd_ili9341`
   `color_bars` example
@@ -61,10 +61,10 @@ idf.py -p PORT flash monitor
 Replace `esp32s3` with your target and `PORT` with your board's serial port. Press `Ctrl-]` to exit
 the monitor.
 
-The display first shows the photo filling the screen, and after 5 seconds the whole photo fitted in
-a rectangle, with the word "idfxx" drawn over its bottom edge. To show your own photo, replace
-`main/photo.jpg`. A photo stored on its side, with an EXIF orientation saying to turn it, still
-appears upright, but needs memory for a whole frame while it is converted.
+The display first shows the photo filling the screen. After 5 seconds, it shows the whole photo
+fitted in a rectangle, with the word "idfxx" drawn over its bottom edge. To show your own photo,
+replace `main/photo.jpg`. A photo stored on its side, with an EXIF orientation saying to turn it,
+still appears upright, but needs memory for a whole frame while it is converted.
 
 The photo is `kodim23` from the [Kodak Lossless True Color Image
 Suite](https://r0k.us/graphics/kodak/), photographed by Steve Kelly. That page states its

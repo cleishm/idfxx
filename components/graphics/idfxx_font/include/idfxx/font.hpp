@@ -11,14 +11,14 @@
  * @defgroup idfxx_font Font Component
  * @brief Bitmap font models, text metrics and line breaking.
  *
- * Provides two compact font representations — fixed-cell (@ref idfxx::font::mono_font)
- * and proportional (@ref idfxx::font::proportional_font) — plus text measurement
+ * Provides two compact font representations, fixed-cell (@ref idfxx::font::mono_font)
+ * and proportional (@ref idfxx::font::proportional_font), plus text measurement
  * and line breaking (@ref idfxx::font::break_lines).
- * Rendering lives in the @ref idfxx_gfx component; bundled fonts are
+ * Rendering is in the @ref idfxx_gfx component. Bundled fonts are
  * published as separate data packages (`idfxx_font_spleen` for fixed-cell
- * fonts, `idfxx_font_inter` for proportional ones), each font in its own
- * translation unit so fonts an application never references are dropped at
- * link time. Generators for adding more fonts are included under
+ * fonts, `idfxx_font_inter` for proportional ones). Each font is in its own
+ * translation unit, so that fonts that an application never references are
+ * dropped at link time. Generators for adding more fonts are included under
  * `scripts/`: `bdf_to_c.py` (monospace BDF to @ref idfxx::font::mono_font) and
  * `ttf_to_c.py` (TrueType/OpenType to @ref idfxx::font::proportional_font).
  * @{
@@ -96,7 +96,7 @@ struct mono_font {
     }
 
     /**
-     * @brief Returns the horizontal distance the cursor moves after @p c.
+     * @brief Returns the horizontal distance that the cursor moves after @p c.
      *
      * In a fixed-cell font every character advances one cell width,
      * including characters outside the glyph range (rendered blank).
@@ -110,9 +110,10 @@ struct mono_font {
 /**
  * @brief Returns the width in pixels of @p text rendered in @p font.
  *
- * Sums the advance of every character in @p text; characters outside the
+ * Sums the advance of every character in @p text. Characters outside the
  * font's glyph range advance like any other (rendered blank).
- * @ref text_ink_bounds gives the extent of the pixels the text inks instead.
+ * @ref text_ink_bounds gives the extent of the pixels that the text inks
+ * instead.
  *
  * @param font  The font.
  * @param text  The text to measure.
@@ -135,9 +136,9 @@ text_width(const mono_font& font, std::string_view text, unsigned scale = 1) noe
  * @headerfile <idfxx/font>
  * @brief Placement and bitmap location of one glyph in a @ref proportional_font.
  *
- * The glyph's bitmap covers only its inked bounding box, positioned
- * relative to the pen: with the pen at column `pen_x` on the baseline row
- * `baseline_y`, the bitmap's top-left pixel lands at
+ * The glyph's bitmap covers only its inked bounding box, and is positioned
+ * relative to the pen. With the pen at column `pen_x` on the baseline row
+ * `baseline_y`, the bitmap's top-left pixel is at
  * (`pen_x + x_offset`, `baseline_y + y_offset`). After drawing, the pen
  * moves right by `advance`.
  *
@@ -152,7 +153,7 @@ struct glyph_metrics {
     uint16_t width;
     /// Bitmap height in pixels.
     uint16_t height;
-    /// Distance the pen moves right after this glyph, in pixels.
+    /// Distance that the pen moves right after this glyph, in pixels.
     uint16_t advance;
     /// Columns from the pen position to the bitmap's left edge (negative = left of the pen).
     int16_t x_offset;
@@ -183,29 +184,30 @@ struct glyph_range {
  * Each glyph has its own advance and a bitmap trimmed to its inked bounding
  * box, so text sets naturally ("il" narrower than "mw") and large sizes
  * stay compact. Glyphs are rendered at one fixed size: a font is produced
- * at the pixel size it will be drawn at, typically by rasterizing an
+ * at the pixel size that it will be drawn at, typically by rasterizing an
  * outline font (TrueType/OpenType) with the `ttf_to_c.py` generator under
  * `scripts/`. Coverage is any set of Unicode code points, described by
  * @ref ranges.
  *
- * Text is laid out on lines: a line's top edge sits @ref ascent rows above
- * its baseline and its bottom edge @ref descent rows below; consecutive
- * lines are @ref line_height rows apart. Ink may reach outside this line
- * box — accents on capitals above its top edge, a `j` left of the pen — so
- * the font also bounds its ink: with the pen at column `pen_x` on baseline
- * row `baseline_y`, every glyph's ink lies within rows
- * [`baseline_y - ink_ascent`, `baseline_y + ink_descent`) and columns
- * [`pen_x + min_left_bearing`, `pen_x + advance - min_right_bearing`).
+ * Text is laid out on lines. A line's top edge is @ref ascent rows above
+ * its baseline, and its bottom edge is @ref descent rows below it.
+ * Consecutive lines are @ref line_height rows apart. Ink may extend outside
+ * this line box: accents on capitals can rise above its top edge, and a `j`
+ * can extend left of the pen. The font therefore also bounds its ink. With
+ * the pen at column `pen_x` on baseline row `baseline_y`, every glyph's ink
+ * lies within rows [`baseline_y - ink_ascent`, `baseline_y + ink_descent`)
+ * and columns [`pen_x + min_left_bearing`, `pen_x + advance - min_right_bearing`).
  * Reserve `ink_ascent - ascent` rows above a line (when positive) to keep
  * every glyph's ink inside the area being drawn, and likewise for the
  * other edges. The bounds cover every glyph, including the
- * @ref replacement; they need not be tight but are never too small, so
- * renderers may skip text whose ink box misses the area being drawn.
+ * @ref replacement. They need not be tight but are never too small, so
+ * renderers may skip text whose ink box does not overlap the area being
+ * drawn.
  *
- * Code points the font has no glyph for are drawn and measured as the
- * @ref replacement glyph, when the font has one; otherwise they are
- * skipped entirely. In text — @ref text_width, @ref break_lines and
- * `idfxx::gfx::draw_text` — U+00AD SOFT HYPHEN is always invisible and
+ * Code points that the font has no glyph for are drawn and measured as the
+ * @ref replacement glyph, when the font has one. Otherwise, they are
+ * skipped entirely. In text (@ref text_width, @ref break_lines and
+ * `idfxx::gfx::draw_text`), U+00AD SOFT HYPHEN is always invisible and
  * zero-width, whatever glyph @ref find, @ref resolve and @ref advance
  * report for it.
  */
@@ -216,9 +218,10 @@ struct proportional_font {
     uint16_t descent;
     /// Rows from one line's baseline to the next (ascent + descent + line gap).
     uint16_t line_height;
-    /// Most rows any glyph's ink reaches above the baseline.
+    /// Most rows that any glyph's ink reaches above the baseline.
     uint16_t ink_ascent;
-    /// Most rows any glyph's ink reaches below the baseline (the baseline row counts as below).
+    /// Most rows that any glyph's ink reaches below the baseline (the baseline row counts as
+    /// below).
     uint16_t ink_descent;
     /// Smallest columns from the pen to any glyph's ink (negative = ink left of the pen).
     int16_t min_left_bearing;
@@ -263,7 +266,7 @@ struct proportional_font {
     }
 
     /**
-     * @brief Returns the horizontal distance the pen moves after @p cp.
+     * @brief Returns the horizontal distance that the pen moves after @p cp.
      * @param cp The code point.
      * @return The advance of the glyph drawn for @p cp (see @ref resolve),
      *         or 0 if it is skipped. Text measurement ignores this for
@@ -323,13 +326,13 @@ text_glyph(const proportional_font& font, char32_t cp) noexcept {
  * @brief Returns the width in pixels of @p text rendered in @p font.
  *
  * Decodes @p text as UTF-8 (see @ref idfxx::utf8_view) and sums the advance of
- * every code point (see @ref proportional_font::advance), except that U+00AD
- * SOFT HYPHEN is always invisible and takes no space, even when the font
- * has a glyph or a replacement for it (it only marks where @ref break_lines
- * may hyphenate a word). This is the distance the pen travels, the width to
- * use when centering, aligning or wrapping text; a glyph's ink may overhang
- * it slightly at either end. @ref text_ink_bounds gives the extent of the
- * ink itself.
+ * every code point (see @ref proportional_font::advance). The exception is
+ * U+00AD SOFT HYPHEN, which is always invisible and takes no space, even when
+ * the font has a glyph or a replacement for it. It only marks where
+ * @ref break_lines may hyphenate a word. The result is the distance that the
+ * pen travels. Use this width when centering, aligning or wrapping text. A
+ * glyph's ink may extend slightly past it at either end. @ref text_ink_bounds
+ * gives the extent of the ink itself.
  *
  * @param font The font.
  * @param text The UTF-8 text to measure.
@@ -351,8 +354,8 @@ text_width(const proportional_font& font, std::string_view text) noexcept {
  * A line is a slice of the text passed to @ref break_lines, ready to draw
  * with `idfxx::gfx::draw_text` at the line's position. When @ref hyphenated
  * is set, a `'-'` must be drawn immediately after @ref text (at
- * `text_width(font, text)` from the line's left edge); `idfxx::gfx::draw_text_box`
- * does this automatically.
+ * `text_width(font, text)` from the line's left edge).
+ * `idfxx::gfx::draw_text_box` does this automatically.
  */
 struct text_line {
     /// The line's text: a slice of the input, excluding the spaces at a wrap
@@ -370,12 +373,13 @@ struct text_line {
 
 /**
  * @headerfile <idfxx/font>
- * @brief The bounding box of the pixels a line of text inks, from @ref text_ink_bounds.
+ * @brief The bounding box of the pixels that a line of text inks, from @ref text_ink_bounds.
  *
- * The box is relative to the origin `idfxx::gfx::draw_text` takes: @ref left
- * counts columns from the starting pen position (the `x` drawn at) and
- * @ref top rows from the line's top edge (the `y` drawn at), so text drawn at
- * (`x - left`, `y - top`) has its ink's top-left pixel at (`x`, `y`).
+ * The box is relative to the origin that `idfxx::gfx::draw_text` takes.
+ * @ref left counts columns from the starting pen position (the `x` drawn at).
+ * @ref top counts rows from the line's top edge (the `y` drawn at). Text
+ * drawn at (`x - left`, `y - top`) therefore has its ink's top-left pixel at
+ * (`x`, `y`).
  */
 struct ink_bounds {
     /// Column of the leftmost inked pixel, relative to the starting pen position (negative = left
@@ -396,7 +400,7 @@ struct ink_bounds {
 namespace detail {
 
 // The bounding box [left, right) x [top, bottom) of the ink seen so far, in
-// 64 bits so long text never overflows; empty while right <= left.
+// 64 bits so long text never overflows. The box is empty while right <= left.
 struct ink_box {
     int64_t left = 0;
     int64_t top = 0;
@@ -473,17 +477,17 @@ constexpr void add_ink(const mono_font& font, std::string_view text, ink_box& bo
 /** @endcond */
 
 /**
- * @brief Returns the bounding box of the pixels a line of proportional text inks.
+ * @brief Returns the bounding box of the pixels that a line of proportional text inks.
  *
  * Measures where `idfxx::gfx::draw_text` puts ink for @p text, glyph by
- * glyph as it draws: code points the font lacks count as its replacement
- * glyph (or are skipped if it has none), and U+00AD SOFT HYPHEN inks
+ * glyph, as it draws. Code points that the font lacks count as its
+ * replacement glyph (or are skipped if it has none). U+00AD SOFT HYPHEN inks
  * nothing. Each glyph counts with its whole bitmap box, which the font
  * format trims to the glyph's ink (as the generators do). The box is
- * relative to the draw origin (see @ref ink_bounds), so
- * it places text by its ink rather than by its advance and line box — to
- * center a label on its ink, for instance, or to set it flush against an
- * edge despite side bearings and accents:
+ * relative to the draw origin (see @ref ink_bounds). Use it to place text by
+ * its ink rather than by its advance and line box. For example, center a
+ * label on its ink, or set it flush against an edge despite side bearings
+ * and accents:
  *
  * @code
  * const int box_x = 16, box_y = 40, box_w = 96, box_h = 32; // the box to center the label in
@@ -494,8 +498,9 @@ constexpr void add_ink(const mono_font& font, std::string_view text, ink_box& bo
  * }
  * @endcode
  *
- * This complements @ref text_width, the distance the pen travels (what to
- * align and wrap by), and the font-wide @ref proportional_font::ink_ascent,
+ * This complements @ref text_width, which is the distance that the pen
+ * travels (the width to align and wrap by). It also complements the
+ * font-wide @ref proportional_font::ink_ascent,
  * @ref proportional_font::ink_descent and bearings, which bound every
  * glyph's ink rather than this text's.
  *
@@ -513,15 +518,16 @@ text_ink_bounds(const proportional_font& font, std::string_view text) noexcept {
 }
 
 /**
- * @brief Returns the bounding box of the pixels a broken line of proportional text inks.
+ * @brief Returns the bounding box of the pixels that a broken line of proportional text inks.
  *
  * Measures the ink of @p line as `idfxx::gfx::draw_text_box` draws it,
- * relative to the line's own origin (its left edge and top): its text, as
- * by @ref text_ink_bounds(const proportional_font&, std::string_view), and,
- * when the line is hyphenated, the `'-'` drawn after it, whose pen starts
- * at `line.width - font.advance(U'-')`.
+ * relative to the line's own origin (its left edge and top). The ink
+ * includes the line's text, measured as by
+ * @ref text_ink_bounds(const proportional_font&, std::string_view). When the
+ * line is hyphenated, the ink also includes the `'-'` drawn after the text.
+ * The pen for the `'-'` starts at `line.width - font.advance(U'-')`.
  *
- * @param font The font the line was broken in.
+ * @param font The font that the line was broken in.
  * @param line A line from @ref break_lines.
  * @return The bounding box of the ink, or `std::nullopt` if the line inks nothing.
  */
@@ -541,10 +547,10 @@ text_ink_bounds(const proportional_font& font, const text_line& line) noexcept {
 }
 
 /**
- * @brief Returns the bounding box of the pixels a line of fixed-cell text inks.
+ * @brief Returns the bounding box of the pixels that a line of fixed-cell text inks.
  *
  * Measures where `idfxx::gfx::draw_text` puts ink for @p text, scanning
- * each glyph's pixels; characters outside the font's range ink nothing but
+ * each glyph's pixels. Characters outside the font's range ink nothing but
  * still advance. The box is relative to the draw origin (see
  * @ref ink_bounds) and unscaled: for text drawn with a `scale`, multiply
  * each of its fields by the scale. See
@@ -565,16 +571,16 @@ text_ink_bounds(const mono_font& font, std::string_view text) noexcept {
 }
 
 /**
- * @brief Returns the bounding box of the pixels a broken line of fixed-cell text inks.
+ * @brief Returns the bounding box of the pixels that a broken line of fixed-cell text inks.
  *
  * Measures the ink of @p line as `idfxx::gfx::draw_text_box` draws it,
- * relative to the line's own origin: its text, as by
- * @ref text_ink_bounds(const mono_font&, std::string_view). The line's
+ * relative to the line's own origin. This is the ink of its text, measured
+ * as by @ref text_ink_bounds(const mono_font&, std::string_view). The line's
  * `hyphenated` flag is ignored, as `draw_text_box` ignores it for
  * fixed-cell fonts (@ref break_lines never sets it for them). The box is unscaled:
  * for lines drawn with a `scale`, multiply each of its fields by the scale.
  *
- * @param font The font the line was broken in.
+ * @param font The font that the line was broken in.
  * @param line A line from @ref break_lines.
  * @return The bounding box of the ink, or `std::nullopt` if the line inks nothing.
  */
@@ -587,20 +593,21 @@ text_ink_bounds(const mono_font& font, const text_line& line) noexcept {
  * @headerfile <idfxx/font>
  * @brief A lazy view of text broken into lines that fit a given width.
  *
- * Returned by @ref break_lines; iterating it yields one @ref text_line per
+ * Returned by @ref break_lines. Iterating it yields one @ref text_line per
  * line, computed on demand without allocating. Lines are filled greedily:
  * each takes as many words as fit within the maximum width, breaking at the
  * last opportunity that fits.
  *
- * - **Hard breaks:** a `'\n'` always ends a line; a `'\r'` immediately
- *   before it belongs to the break. Consecutive breaks yield empty lines;
- *   a break at the very end of the text ends the last line without
+ * - **Hard breaks:** a `'\n'` always ends a line. A `'\r'` immediately
+ *   before it belongs to the break. Consecutive breaks yield empty lines.
+ *   A break at the very end of the text ends the last line without
  *   starting another. Empty text yields no lines.
  * - **Break opportunities:** after a run of spaces (U+0020), after a `'-'`
  *   that follows a non-space character on the same line (the `'-'` stays on
- *   the first line), and — in proportional fonts — at a U+00AD SOFT HYPHEN,
- *   when the text before it plus the font's `'-'` still fits; the line is then marked
- *   @ref text_line::hyphenated and its width includes the `'-'`.
+ *   the first line), and, in proportional fonts, at a U+00AD SOFT HYPHEN
+ *   when the text before it plus the font's `'-'` still fits. A line broken
+ *   at a soft hyphen is marked @ref text_line::hyphenated, and its width
+ *   includes the `'-'`.
  * - **Spaces:** the spaces at a wrap point are dropped from both lines, and
  *   spaces before a hard break or at the end of the text are dropped from
  *   the line. Leading spaces at the start of the text and after a `'\n'`
@@ -610,10 +617,10 @@ text_ink_bounds(const mono_font& font, const text_line& line) noexcept {
  * - **Long words:** a word that does not fit on a line by itself is split
  *   after the last character that fits, without a hyphen. Every line that
  *   does not end at a hard break takes at least one character, so
- *   iteration always advances; with a maximum width of 0, each character
+ *   iteration always advances. With a maximum width of 0, each character
  *   gets its own line.
  *
- * The view does not own the font or the text; the caller must keep both
+ * The view does not own the font or the text. The caller must keep both
  * alive while the view or any of its iterators is in use. Iterators refer
  * to the text and font directly, not to the view, so they remain valid
  * after the view is destroyed (the view is a borrowed range).
@@ -722,7 +729,7 @@ public:
             size_t spaces_width = 0;        // their width, counted once a character follows
             std::optional<break_point> brk; // the latest break opportunity
 
-            // Proportional text is decoded as UTF-8 in one pass; offsets are relative to _start.
+            // Proportional text is decoded as UTF-8 in one pass. Offsets are relative to _start.
             [[maybe_unused]] auto chars = utf8_view(text.substr(_start)).begin();
             for (size_t pos = _start, next; pos < text.size(); pos = next) {
                 char32_t cp;
@@ -744,7 +751,7 @@ public:
                     continue;
                 }
                 if (_proportional && cp == detail::soft_hyphen) {
-                    // Invisible and zero-width; a break opportunity when the hyphen fits.
+                    // Invisible and zero-width. It is a break opportunity when the hyphen fits.
                     if (placed && !spaces && width + hyphen_width <= max_width) {
                         brk = break_point{pos, width + hyphen_width, next, true};
                     }
@@ -754,7 +761,7 @@ public:
                 const bool follows_space = spaces || !placed; // then a '-' is no break
                 if (!placed) {
                     // The first character is placed whatever its width, so every line
-                    // advances; indentation is kept only if it fits alongside it.
+                    // advances. Indentation is kept only if it fits alongside it.
                     if (spaces && paragraph && spaces_width + advance <= max_width) {
                         width = spaces_width;
                     } else {
@@ -825,14 +832,14 @@ private:
 /**
  * @brief Breaks UTF-8 text into lines that fit @p max_width in a proportional font.
  *
- * Returns a lazy view yielding one @ref text_line per line; see
+ * Returns a lazy view yielding one @ref text_line per line. See
  * @ref line_break_view for the line-breaking rules. Widths are measured as
  * by @ref text_width. Each line's text is a slice of @p text, drawn at its
- * line's position (followed by a `'-'` when hyphenated);
+ * line's position (followed by a `'-'` when hyphenated).
  * `idfxx::gfx::draw_text_box` lays out and draws a whole block this way.
  *
  * Write U+00AD SOFT HYPHEN (`"\u00AD"`) inside long words to mark where
- * they may be hyphenated; it is never drawn otherwise.
+ * they may be hyphenated. It is never drawn otherwise.
  *
  * @code
  * using namespace idfxx::font;
@@ -860,10 +867,10 @@ break_lines(const proportional_font& font, std::string_view text, size_t max_wid
 /**
  * @brief Breaks text into lines that fit @p max_width in a fixed-cell font.
  *
- * Returns a lazy view yielding one @ref text_line per line; see
+ * Returns a lazy view yielding one @ref text_line per line. See
  * @ref line_break_view for the line-breaking rules. Text is treated as one
  * character per byte, every character advancing one (scaled) cell, as by
- * @ref text_width; soft hyphens are not interpreted. Each line's text is a
+ * @ref text_width. Soft hyphens are not interpreted. Each line's text is a
  * slice of @p text.
  *
  * @code
@@ -878,8 +885,8 @@ break_lines(const proportional_font& font, std::string_view text, size_t max_wid
  * @param font      The font. Must outlive the returned view.
  * @param text      The text to break. Must outlive the returned view.
  * @param max_width Maximum line width in pixels.
- * @param scale     Integer magnification the text is drawn at (>= 1; 0 is
- *                  treated as 1); widths are multiplied by it.
+ * @param scale     Integer magnification that the text is drawn at (>= 1; 0
+ *                  is treated as 1). Widths are multiplied by it.
  * @return A view of the lines.
  */
 [[nodiscard]] constexpr line_break_view<mono_font> break_lines(

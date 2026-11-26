@@ -126,7 +126,7 @@ size_t master_bus::max_transaction_length() const {
         return 0;
     }
     // spi_bus_get_max_transaction_len() fails while the bus has no devices, so
-    // apply the limit it computes to the bus attributes directly.
+    // the limit that it computes is applied to the bus attributes directly.
     const spi_bus_attr_t* attr = spi_bus_get_attr(static_cast<spi_host_device_t>(_host));
     if (attr == nullptr) {
         return 0;

@@ -56,7 +56,7 @@ Replace `esp32` with your target and `PORT` with your board's serial port. Press
 the monitor.
 
 To check the result, compute the digest of the same file on your computer and compare it with the
-one the example logs:
+one that the example logs:
 
 ```bash
 curl -s https://httpbin.org/image/png | shasum -a 256

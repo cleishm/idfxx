@@ -11,9 +11,9 @@
  * @defgroup idfxx_sleep Sleep Component
  * @brief Power-saving sleep modes for ESP32.
  *
- * Enter light sleep — which suspends the CPU and resumes execution in place —
- * or deep sleep, which powers down most of the chip and restarts the
- * application on wake. Wake-up sources (timer, GPIO level, EXT0/EXT1 pins)
+ * Light sleep suspends the CPU and resumes execution in place. Deep sleep
+ * powers down most of the chip and restarts the application on wake. Wake-up
+ * sources (timer, GPIO level, EXT0/EXT1 pins)
  * are passed directly to the sleep call:
  *
  * @code
@@ -104,7 +104,7 @@ struct timer_wake {
  * already at the level when sleep is entered, the chip wakes immediately.
  * Reported as @ref wakeup_source::gpio.
  *
- * @note Light sleep only; use @ref ext0_wake, @ref ext1_wake, or
+ * @note Light sleep only. Use @ref ext0_wake, @ref ext1_wake, or
  *       @ref deep_sleep_gpio_wake (chip-dependent) to wake from deep sleep.
  */
 struct gpio_wake {
@@ -117,13 +117,13 @@ struct gpio_wake {
  * @headerfile <idfxx/sleep>
  * @brief Wakes the chip when a single RTC-capable pin is at a level (EXT0).
  *
- * Works in both light and deep sleep; the RTC peripherals are kept powered
+ * Works in both light and deep sleep. The RTC peripherals are kept powered
  * while sleeping. Reported as @ref wakeup_source::ext0.
  *
  * @note Only available on chips with EXT0 wake-up support (`SOC_PM_SUPPORT_EXT0_WAKEUP`).
  */
 struct ext0_wake {
-    idfxx::gpio pin;          ///< The pin to wake on; must be RTC-capable.
+    idfxx::gpio pin;          ///< The pin to wake on. It must be RTC-capable.
     idfxx::gpio::level level; ///< The level that triggers the wake.
 };
 #endif // SOC_PM_SUPPORT_EXT0_WAKEUP
@@ -152,12 +152,12 @@ constexpr uint64_t pin_mask_of(std::initializer_list<idfxx::gpio> pins) noexcept
  * @headerfile <idfxx/sleep>
  * @brief EXT1 wake-up trigger mode.
  *
- * The low trigger is chip-specific, and only the enumerator matching the
- * hardware is defined for a given target: the original ESP32 wakes only when
- * **all** selected pins are low (`ext1_mode::all_low`), whereas every other
+ * The low trigger is chip-specific. Only the enumerator that matches the
+ * hardware is defined for a given target. The original ESP32 wakes only when
+ * **all** selected pins are low (`ext1_mode::all_low`). Every other
  * EXT1-capable chip wakes when **any** selected pin is low
  * (@ref ext1_mode::any_low). Selecting the wrong one for the target is a
- * compile error rather than a silent change in behavior; portable code picks
+ * compile error rather than a silent change in behavior. Portable code picks
  * the enumerator under `#if CONFIG_IDF_TARGET_ESP32`. For a single wake pin
  * the two are equivalent.
  */
@@ -174,8 +174,8 @@ enum class ext1_mode : int {
  * @headerfile <idfxx/sleep>
  * @brief Wakes the chip on levels of one or more RTC-capable pins (EXT1).
  *
- * Works in both light and deep sleep. Reported as @ref wakeup_source::ext1;
- * the triggering pins are available from @ref ext1_wakeup_status.
+ * Works in both light and deep sleep. Reported as @ref wakeup_source::ext1.
+ * The triggering pins are available from @ref ext1_wakeup_status.
  *
  * @note Floating pins need a pull resistor (external, or an RTC pull held
  *       across sleep) to avoid spurious wakes.
@@ -186,7 +186,7 @@ public:
     /**
      * @brief Specifies an EXT1 wake on a set of pins.
      *
-     * @param pins The pins to wake on; each must be RTC-capable and
+     * @param pins The pins to wake on. Each must be RTC-capable and
      *             connected, or arming the specification fails.
      * @param mode Whether high or low levels trigger the wake.
      */
@@ -198,7 +198,7 @@ public:
      * @brief Specifies an EXT1 wake on a mask of pins.
      *
      * @param pin_mask Bit mask of GPIO numbers to wake on (bit n selects
-     *                 GPIO n); every selected pin must be RTC-capable.
+     *                 GPIO n). Every selected pin must be RTC-capable.
      * @param mode     Whether high or low levels trigger the wake.
      */
     constexpr ext1_wake(uint64_t pin_mask, enum ext1_mode mode) noexcept
@@ -227,8 +227,9 @@ private:
  * defined on chips whose RTC GPIOs can latch an edge while sleeping (e.g.
  * ESP32-C5, ESP32-C6, ESP32-P4), and only with ESP-IDF 6.1 or later.
  *
- * A level must be held, and an edge pulse must last, for at least 3 RTC
- * slow-clock cycles to be reliably detected. The cycle length depends on the
+ * A level must be held for at least 3 RTC slow-clock cycles to be reliably
+ * detected. An edge pulse must also last for at least 3 RTC slow-clock
+ * cycles. The cycle length depends on the
  * RTC clock source (`CONFIG_RTC_CLK_SRC`): about 7.4 us with the internal
  * ~136 kHz RC oscillator, or about 30.5 us with a 32.768 kHz crystal.
  *
@@ -270,11 +271,11 @@ enum class deep_sleep_gpio_mode : int {
  * @brief Wakes the chip from deep sleep on the level or edge of one or more
  *        pins.
  *
- * The only pin-based deep-sleep wake-up source on chips without EXT0/EXT1
- * support (e.g. ESP32-C3); with ESP-IDF 6.1 or later it is also available on
- * the ESP32, ESP32-S2 and ESP32-S3. Only deep-sleep-capable pins may be
- * selected (RTC-capable GPIOs; see the chip datasheet). Reported as
- * @ref wakeup_source::gpio; the triggering pins are available from
+ * This is the only pin-based deep-sleep wake-up source on chips without
+ * EXT0/EXT1 support (e.g. ESP32-C3). With ESP-IDF 6.1 or later, it is also
+ * available on the ESP32, ESP32-S2 and ESP32-S3. Only deep-sleep-capable pins
+ * may be selected (RTC-capable GPIOs; see the chip datasheet). Reported as
+ * @ref wakeup_source::gpio. The triggering pins are available from
  * @ref deep_sleep_gpio_wakeup_status.
  *
  * Edges that occur before sleep is entered are discarded, so an edge-triggered
@@ -288,7 +289,7 @@ public:
     /**
      * @brief Specifies a deep-sleep GPIO wake on a set of pins.
      *
-     * @param pins The pins to wake on; each must be deep-sleep wake capable
+     * @param pins The pins to wake on. Each must be deep-sleep wake capable
      *             and connected, or arming the specification fails.
      * @param mode The level or edge that triggers the wake.
      */
@@ -367,7 +368,7 @@ void disarm_all(const Sources&... sources) noexcept {
  * @brief A wake-up source specification accepted by the sleep functions.
  *
  * Satisfied by @ref idfxx::sleep::timer_wake "timer_wake",
- * @ref idfxx::sleep::gpio_wake "gpio_wake", and — on chips that support them —
+ * @ref idfxx::sleep::gpio_wake "gpio_wake", and, on chips that support them,
  * @ref idfxx::sleep::ext0_wake "ext0_wake", @ref idfxx::sleep::ext1_wake "ext1_wake", and
  * @ref idfxx::sleep::deep_sleep_gpio_wake "deep_sleep_gpio_wake".
  */
@@ -390,14 +391,15 @@ template<wake_spec... Sources>
  *
  * Arms each source, sleeps, then disarms them again before returning. The
  * CPU is suspended and execution resumes here on wake. Peripheral and memory
- * state is retained, but digital interrupts (including GPIO edge interrupts)
- * are not delivered while sleeping — re-check any interrupt-driven state
- * after waking.
+ * state is retained. Digital interrupts (including GPIO edge interrupts) are
+ * not delivered while sleeping. Re-check any interrupt-driven state after
+ * waking.
  *
  * With no arguments, sleeps on the wake-up sources previously armed with the
- * `enable_*` functions. Such sources stay armed afterward, unless a source
- * of the same kind (or the same pin, for pin-level sources) is passed here,
- * in which case it is replaced for this sleep and disarmed on return.
+ * `enable_*` functions. Such sources stay armed afterward, except when a
+ * source of the same kind (or the same pin, for pin-level sources) is passed
+ * here. In that case, the passed source replaces the armed one for this
+ * sleep, and neither is armed after the call returns.
  *
  * @tparam Sources Wake-up source specification types (see @ref wake_spec).
  * @param sources The sources that may wake the chip.
@@ -405,7 +407,7 @@ template<wake_spec... Sources>
  *
  * @note At least one wake-up source must be armed, or sleep is rejected.
  * @note With ESP-IDF 6.1 or later, sleep is also rejected when the calling
- *       task's stack is in PSRAM; call from a task whose stack is in internal
+ *       task's stack is in PSRAM. Call from a task whose stack is in internal
  *       RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error if a source is invalid or sleep is rejected
@@ -431,14 +433,15 @@ template<wake_spec... Sources>
  *
  * Arms each source, sleeps, then disarms them again before returning. The
  * CPU is suspended and execution resumes here on wake. Peripheral and memory
- * state is retained, but digital interrupts (including GPIO edge interrupts)
- * are not delivered while sleeping — re-check any interrupt-driven state
- * after waking.
+ * state is retained. Digital interrupts (including GPIO edge interrupts) are
+ * not delivered while sleeping. Re-check any interrupt-driven state after
+ * waking.
  *
  * With no arguments, sleeps on the wake-up sources previously armed with the
- * `try_enable_*` functions. Such sources stay armed afterward, unless a
+ * `try_enable_*` functions. Such sources stay armed afterward, except when a
  * source of the same kind (or the same pin, for pin-level sources) is passed
- * here, in which case it is replaced for this sleep and disarmed on return.
+ * here. In that case, the passed source replaces the armed one for this
+ * sleep, and neither is armed after the call returns.
  *
  * @tparam Sources Wake-up source specification types (see @ref wake_spec).
  * @param sources The sources that may wake the chip.
@@ -453,7 +456,7 @@ template<wake_spec... Sources>
  *
  * @note At least one wake-up source must be armed, or sleep is rejected.
  * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
- *       stack is in PSRAM; call from a task whose stack is in internal RAM.
+ *       stack is in PSRAM. Call from a task whose stack is in internal RAM.
  */
 template<wake_spec... Sources>
 [[nodiscard]] result<wakeup_source> try_light_sleep(const Sources&... sources) {
@@ -470,7 +473,7 @@ template<wake_spec... Sources>
 /**
  * @brief Enters light sleep for a fixed duration.
  *
- * Equivalent to `light_sleep(timer_wake{duration})` — a low-power
+ * Equivalent to `light_sleep(timer_wake{duration})`. This is a low-power
  * counterpart to `std::this_thread::sleep_for`. Wake-up sources previously
  * armed with the `enable_*` functions may wake the chip sooner.
  *
@@ -479,7 +482,7 @@ template<wake_spec... Sources>
  *         @ref wakeup_source::timer).
  *
  * @note With ESP-IDF 6.1 or later, sleep is also rejected when the calling
- *       task's stack is in PSRAM; call from a task whose stack is in internal
+ *       task's stack is in PSRAM. Call from a task whose stack is in internal
  *       RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error if the duration is invalid or sleep is rejected.
@@ -490,7 +493,7 @@ template<wake_spec... Sources>
 /**
  * @brief Enters light sleep for a fixed duration.
  *
- * Equivalent to `try_light_sleep(timer_wake{duration})` — a low-power
+ * Equivalent to `try_light_sleep(timer_wake{duration})`. This is a low-power
  * counterpart to `std::this_thread::sleep_for`. Wake-up sources previously
  * armed with the `try_enable_*` functions may wake the chip sooner.
  *
@@ -505,7 +508,7 @@ template<wake_spec... Sources>
  *         (ESP-IDF 6.1 or later).
  *
  * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
- *       stack is in PSRAM; call from a task whose stack is in internal RAM.
+ *       stack is in PSRAM. Call from a task whose stack is in internal RAM.
  */
 [[nodiscard]] result<wakeup_source> try_light_sleep_for(std::chrono::microseconds duration);
 
@@ -517,7 +520,7 @@ template<wake_spec First, wake_spec... Rest>
  * @brief Enters deep sleep until one of the given wake-up sources triggers.
  *
  * Arms each source, then powers down the CPU and most peripherals. Waking
- * restarts the application from the beginning; use @ref wakeup_cause to
+ * restarts the application from the beginning. Use @ref wakeup_cause to
  * detect the wake and its source after the restart.
  *
  * @tparam First First wake-up source specification type (see @ref wake_spec).
@@ -526,10 +529,10 @@ template<wake_spec First, wake_spec... Rest>
  * @param rest  Additional sources that may wake the chip.
  *
  * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
- *       stack is in PSRAM; call from a task whose stack is in internal RAM.
+ *       stack is in PSRAM. Call from a task whose stack is in internal RAM.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error if a source is invalid or sleep is not allowed
- *         from the calling task; otherwise does not return.
+ *         from the calling task. Otherwise, the call does not return.
  *
  * @code
  * idfxx::sleep::deep_sleep(
@@ -549,10 +552,10 @@ template<wake_spec First, wake_spec... Rest>
  * @brief Enters deep sleep until one of the given wake-up sources triggers.
  *
  * Arms each source, then powers down the CPU and most peripherals. Waking
- * restarts the application from the beginning; use @ref wakeup_cause to
+ * restarts the application from the beginning. Use @ref wakeup_cause to
  * detect the wake and its source after the restart.
  *
- * **Returns only on failure** — on success the chip is powered down and the
+ * **Returns only on failure.** On success, the chip is powered down and the
  * call never returns.
  *
  * @tparam First First wake-up source specification type (see @ref wake_spec).
@@ -567,7 +570,7 @@ template<wake_spec First, wake_spec... Rest>
  *         (ESP-IDF 6.1 or later).
  *
  * @note With ESP-IDF 6.1 or later, sleep is rejected when the calling task's
- *       stack is in PSRAM; call from a task whose stack is in internal RAM.
+ *       stack is in PSRAM. Call from a task whose stack is in internal RAM.
  */
 template<wake_spec First, wake_spec... Rest>
 [[nodiscard]] result<void> try_deep_sleep(const First& first, const Rest&... rest) {
@@ -586,10 +589,10 @@ template<wake_spec First, wake_spec... Rest>
  *
  * Powers down the CPU and most peripherals, waking on the sources armed with
  * the `enable_*` functions. Waking restarts the application from the
- * beginning; use @ref wakeup_cause to detect the wake and its source after
+ * beginning. Use @ref wakeup_cause to detect the wake and its source after
  * the restart.
  *
- * Does not return: with no armed (or no functioning) wake-up source the chip
+ * Does not return. With no armed (or no functioning) wake-up source, the chip
  * simply sleeps until reset.
  */
 [[noreturn]] void deep_sleep() noexcept;
@@ -602,7 +605,7 @@ template<wake_spec First, wake_spec... Rest>
  * active and may wake the chip sooner.
  *
  * Powers down the CPU and most peripherals. Waking restarts the application
- * from the beginning; use @ref wakeup_cause to detect the wake and its source
+ * from the beginning. Use @ref wakeup_cause to detect the wake and its source
  * after the restart.
  *
  * @param duration Time to sleep before waking. Negative values are treated as

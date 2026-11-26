@@ -26,7 +26,7 @@ static_assert(std::to_underlying(attenuation::db_2_5) == ADC_ATTEN_DB_2_5);
 static_assert(std::to_underlying(attenuation::db_6) == ADC_ATTEN_DB_6);
 static_assert(std::to_underlying(attenuation::db_12) == ADC_ATTEN_DB_12);
 
-// The sampler's parse loop strides the DMA buffer by result size; the header's
+// The sampler's parse loop strides the DMA buffer by result size. The header's
 // blocking try_read passes the maximum uint32_t value as "wait forever".
 static_assert(sizeof(adc_digi_output_data_t) == SOC_ADC_DIGI_RESULT_BYTES);
 static_assert(ADC_MAX_DELAY == std::numeric_limits<uint32_t>::max());
@@ -39,7 +39,7 @@ adc_atten_t to_idf(attenuation a) {
 }
 
 // Creates a best-effort factory-calibration handle for a channel, or returns nullptr when the chip
-// provides no usable calibration scheme. `channel` is only used by curve fitting; line fitting
+// provides no usable calibration scheme. `channel` is only used by curve fitting. Line fitting
 // calibrates per-unit and ignores it.
 adc_cali_handle_t create_calibration(
     adc_unit_t unit,
@@ -65,7 +65,7 @@ adc_cali_handle_t create_calibration(
     return cali;
 }
 
-// Releases a handle from create_calibration(); no-ops on nullptr.
+// Releases a handle from create_calibration(). Does nothing for nullptr.
 void delete_calibration([[maybe_unused]] adc_cali_handle_t cali) {
     if (!cali) {
         return;
@@ -132,7 +132,7 @@ result<input> input::make(config cfg) {
         return error(e.error());
     }
 
-    // Factory calibration: best effort — reads still work uncalibrated.
+    // Factory calibration is best effort. Reads still work without calibration.
     s->cali = create_calibration(unit, s->channel, chan_cfg.atten, ADC_BITWIDTH_DEFAULT);
 
     return input{std::move(s)};
@@ -205,21 +205,22 @@ struct sampler::state {
     size_t overruns = 0;
     // Reverse map used when parsing: channel number -> configured pin (nc = unconfigured).
     std::array<idfxx::gpio, SOC_ADC_MAX_CHANNEL_NUM> chan_pin{};
-    // Calibration handle per configured pin, in cfg.pins order. With curve fitting
-    // each pin owns its own handle; with line fitting every pin aliases one
+    // Calibration handle per configured pin, in cfg.pins order. With curve fitting,
+    // each pin owns its own handle. With line fitting, every pin shares one
     // per-unit handle.
     std::vector<adc_cali_handle_t> calis{};
     // Staging buffer for driver reads, parsed into caller-provided samples.
     std::vector<uint8_t> staging{};
-    // Reused scratch for the fused voltage read: holds raw samples between read and conversion.
+    // Reused scratch buffer for the voltage read, which reads and converts in one call. It holds
+    // the raw samples between the read and the conversion.
     std::vector<sample> read_scratch{};
 
     ~state() {
         if (handle && running) {
             (void)adc_continuous_stop(handle);
         }
-        // Delete each distinct handle once — covers both the per-pin (curve
-        // fitting) and aliased per-unit (line fitting) ownership models.
+        // Delete each distinct handle once. This covers both the per-pin handles (curve
+        // fitting) and the shared per-unit handle (line fitting).
         for (auto it = calis.begin(); it != calis.end(); ++it) {
             if (*it && std::find(calis.begin(), it, *it) == it) {
                 delete_calibration(*it);
@@ -276,7 +277,7 @@ result<sampler> sampler::make(config cfg) {
         s->chan_pin[channel] = pin;
     }
 
-    // The driver requires the frame size to be a multiple of one conversion unit; round up.
+    // The driver requires the frame size to be a multiple of one conversion unit. Round up.
     constexpr size_t conv = SOC_ADC_DIGI_DATA_BYTES_PER_CONV;
     size_t frame_bytes =
         (s->cfg.frame_samples * SOC_ADC_DIGI_RESULT_BYTES + conv - 1) / conv * conv;
@@ -307,7 +308,7 @@ result<sampler> sampler::make(config cfg) {
         return error(e.error());
     }
 
-    // Factory calibration: best effort — reads still work uncalibrated.
+    // Factory calibration is best effort. Reads still work without calibration.
     [[maybe_unused]] const auto atten = to_idf(s->cfg.attenuation);
     [[maybe_unused]] const auto bitwidth = static_cast<adc_bitwidth_t>(SOC_ADC_DIGI_MAX_BITWIDTH);
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
@@ -316,7 +317,7 @@ result<sampler> sampler::make(config cfg) {
         s->calis.push_back(create_calibration(ADC_UNIT_1, channel, atten, bitwidth));
     }
 #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
-    // Line fitting calibrates per unit: create one handle and alias it across pins.
+    // Line fitting calibrates per unit: create one handle and share it across pins.
     s->calis.assign(
         channels.size(), create_calibration(ADC_UNIT_1, channels.front(), atten, bitwidth)
     );
@@ -391,8 +392,8 @@ sampler::_try_read(std::span<sample> out, std::optional<std::chrono::millisecond
         return error(errc::invalid_arg);
     }
 
-    // The deadline only serves the retry loop below; skip the clock read on the
-    // wait-forever path (the common no-timeout read).
+    // Only the retry loop below uses the deadline. Skip the clock read when the
+    // read waits forever (the common no-timeout read).
     std::chrono::steady_clock::time_point deadline{};
     if (timeout) {
         deadline = std::chrono::steady_clock::now() + *timeout;
@@ -407,8 +408,9 @@ sampler::_try_read(std::span<sample> out, std::optional<std::chrono::millisecond
         return static_cast<uint32_t>(ms < 0 ? 0 : (ms > max_ms ? max_ms : ms));
     };
 
-    // A driver read can return only arbiter garbage (entries for channels we never
-    // configured), so loop against the deadline until at least one valid sample lands.
+    // A driver read can return only arbiter garbage (entries for channels that were never
+    // configured), so repeat the read until at least one valid sample arrives or the deadline
+    // passes.
     size_t count = 0;
     uint32_t remaining_ms = timeout ? clamp_ms(timeout->count()) : ADC_MAX_DELAY;
     while (count == 0) {
@@ -420,7 +422,7 @@ sampler::_try_read(std::span<sample> out, std::optional<std::chrono::millisecond
             return error(errc::timeout);
         }
         if (err == ESP_ERR_INVALID_STATE) {
-            // The internal pool overflowed and samples were dropped; the bytes
+            // The internal pool overflowed and samples were dropped. The bytes
             // returned by this read are still valid.
             ++_state->overruns;
         } else if (err != ESP_OK) {
@@ -485,10 +487,10 @@ result<void> sampler::try_to_voltage(
         return error(errc::invalid_arg);
     }
 
-    // Resolve each sample's calibration handle by its pin, caching the last
-    // resolution: samples from a single-pin sampler are all one run, so the
-    // cache hits; alternating multi-pin data falls back to a search over the
-    // (small, ≤ SOC_ADC_PATT_LEN_MAX) pin list per sample.
+    // Resolve each sample's calibration handle by its pin, and cache the last
+    // result. All samples from a single-pin sampler have the same pin, so the
+    // cache always hits. For alternating multi-pin data, each sample needs a
+    // search of the pin list, which is small (≤ SOC_ADC_PATT_LEN_MAX).
     idfxx::gpio cached_pin = gpio::nc();
     adc_cali_handle_t cached_cali = nullptr;
     for (size_t i = 0; i < in.size(); ++i) {

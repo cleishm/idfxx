@@ -4,10 +4,10 @@ Abstract LoRa radio transceiver interface and shared types.
 
 ## Features
 
-- Abstract `idfxx::radio::lora_transceiver` base class — drivers for any LoRa chip (SX126x, SX127x,
-  LR1110, ...) implement this single interface so application code can target any of them.
+- Abstract `idfxx::radio::lora_transceiver` base class. Drivers for any LoRa chip (such as SX126x,
+  SX127x and LR1110) implement this single interface, so application code can target any of them.
 - Modulation-agnostic core: frequency, output power, sync word, transmit, receive, and RSSI are set
-  through the base class; LoRa modulation and packet framing arrive via `set_modulation` and
+  through the base class. LoRa modulation and packet framing are set through `set_modulation` and
   `set_packet_params`.
 - Semantic LoRa types (spreading factor, bandwidth, coding rate, ramp time, packet parameters) that
   map to each chip's own register encoding.
@@ -16,15 +16,15 @@ Abstract LoRa radio transceiver interface and shared types.
 - Three coordinated API styles for every concrete driver: blocking calls, future-based one-shot
   operations, and event-loop dispatch for packet streams.
 - One-shot async operations (`start_transmit`, single-shot `start_receive(buffer)`,
-  `start_channel_scan`) return an `idfxx::future` — completion is awaitable without configuring an
-  event loop.
+  `start_channel_scan`) return an `idfxx::future`. Code can wait for completion without configuring
+  an event loop.
 - Low-power operation: duty-cycled listening (`start_listening(rx, sleep)`) and channel-activity
   detection (`scan_channel` / `start_channel_scan`) for listen-before-talk.
 - `constexpr` `time_on_air` helper (`<idfxx/radio/airtime>`) for sizing timeouts and scheduling
-  without touching hardware.
+  without accessing hardware.
 - `constexpr` `rx_duty_cycle_for` helper (`<idfxx/radio/duty_cycle>`) that computes listen/sleep
-  windows guaranteed to catch packets for a given modulation and sender preamble length, with
-  automatic fallback to continuous receive.
+  windows that are guaranteed to detect packets for a given modulation and sender preamble length,
+  with automatic fallback to continuous receive.
 
 ## Requirements
 
@@ -47,13 +47,13 @@ dependencies:
 
 Or add `idfxx_radio` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
-This component is rarely used on its own — depend on a concrete driver such as `idfxx_radio_sx126x`,
-which pulls in `idfxx_radio` automatically.
+This component is rarely used on its own. Depend on a concrete driver such as `idfxx_radio_sx126x`
+instead. The driver depends on `idfxx_radio`, so `idfxx_radio` is added automatically.
 
 ## Usage
 
-`idfxx_radio` defines no concrete radio; it's an interface. Application code that talks to *any*
-LoRa radio receives an `idfxx::radio::lora_transceiver&`:
+`idfxx_radio` defines no concrete radio. It is an interface. Application code that communicates with
+*any* LoRa radio receives an `idfxx::radio::lora_transceiver&`:
 
 ```cpp
 #include <idfxx/radio/lora_transceiver>
@@ -67,7 +67,7 @@ void send_one(idfxx::radio::lora_transceiver& radio) {
     });
 
     std::array<uint8_t, 4> payload = {'p', 'i', 'n', 'g'};
-    radio.transmit(payload);  // timeout self-sized from the packet's air-time
+    radio.transmit(payload);  // timeout computed from the packet's air-time
 }
 ```
 
@@ -76,8 +76,8 @@ expected. See `idfxx_radio_sx126x` for a working example.
 
 ### Future-based async operations
 
-One-shot operations return an `idfxx::future` that completes with the operation's result — no event
-loop required:
+One-shot operations return an `idfxx::future` that completes with the operation's result. No event
+loop is required:
 
 ```cpp
 auto tx = radio.start_transmit(payload);
@@ -90,8 +90,8 @@ auto info = rx.wait();                 // rx_info once it arrives
 ```
 
 The buffer passed to single-shot `start_receive` must stay valid until the future completes (or the
-operation is canceled with `standby()`/`sleep()`). Dropping a future without waiting is safe — the
-operation continues and its completion event still posts when an event loop is configured.
+operation is canceled with `standby()`/`sleep()`). Dropping a future without waiting is safe. The
+operation continues, and its completion event is still posted when an event loop is configured.
 
 ### Event-driven receive
 
@@ -112,9 +112,9 @@ radio.start_listening();
 ### Low-power duty-cycled receive
 
 Instead of listening continuously, the radio can alternate between short listen windows and sleep.
-`rx_duty_cycle_for` computes windows that cannot miss a packet for the configured link; when the
-link's parameters make duty-cycling infeasible it returns `std::nullopt`, which `start_listening`
-accepts as "listen continuously":
+`rx_duty_cycle_for` computes windows that cannot miss a packet for the configured link. When the
+link's parameters make duty-cycling infeasible, it returns `std::nullopt`. `start_listening` accepts
+`std::nullopt` as "listen continuously":
 
 ```cpp
 radio.set_modulation({.sf = idfxx::radio::spreading_factor::sf9});
@@ -133,11 +133,11 @@ configuration.
 **Mode control:** `standby`, `sleep`, `current_mode`.
 
 **Configuration:** `configure(lora_link)` applies the frequency, output power, modulation, packet
-framing, and network in one call; `set_frequency`, `set_output_power`, `set_modulation`,
+framing, and network in one call. `set_frequency`, `set_output_power`, `set_modulation`,
 `set_packet_params`, and `set_sync_word` change them individually. `modulation()` /
 `packet_params()` read back the configured link parameters.
 
-**Data path (blocking):** `transmit(data)` (timeout self-sized from the packet's air-time),
+**Data path (blocking):** `transmit(data)` (timeout computed from the packet's air-time),
 `transmit(data, timeout)`, `receive(buffer, timeout)`, `scan_channel()`, `channel_busy()`.
 
 **Data path (async, future-based):** `start_transmit(data)` → `idfxx::future<void>`,
@@ -149,24 +149,24 @@ framing, and network in one call; `set_frequency`, `set_output_power`, `set_modu
 continuous fallback), paired with `read_received(buffer)`.
 
 Payloads (`data`) are `idfxx::byte_view` and receive buffers are `idfxx::byte_span`, so any
-contiguous `std::byte` or `uint8_t` buffer works; pass text as `std::as_bytes(std::span{text})`. The
+contiguous `std::byte` or `uint8_t` buffer works. Pass text as `std::as_bytes(std::span{text})`. The
 returned `rx_info::length` is the number of bytes written to the start of the buffer.
 
 **Status:** `probe` (confirms the chip is present and answering), `last_packet_status`,
 `current_rssi`.
 
-**Air-time:** `radio.time_on_air(payload_length)` — the packet's on-air duration under the
-configured link parameters — or the `constexpr` free function
-`time_on_air(mod, pkt, payload_length)` in `<idfxx/radio/airtime>` for compile-time use.
+**Air-time:** `radio.time_on_air(payload_length)` returns the packet's on-air duration under the
+configured link parameters. For compile-time use, call the `constexpr` free function
+`time_on_air(mod, pkt, payload_length)` in `<idfxx/radio/airtime>`.
 
-**Duty-cycle windows:** `radio.rx_duty_cycle_for()` — listen/sleep windows for the configured link
-parameters, with the driver's per-wake oscillator cost (e.g. TCXO start-up) folded into the minimum
-worthwhile sleep — or the `constexpr` free function
-`rx_duty_cycle_for(mod, sender_preamble, min_symbols, min_sleep)` in `<idfxx/radio/duty_cycle>` for
-compile-time use. Both return `std::optional<rx_duty_cycle>`, `std::nullopt` when continuous receive
-is required.
+**Duty-cycle windows:** `radio.rx_duty_cycle_for()` returns listen/sleep windows for the configured
+link parameters. The driver adds its oscillator start-up time on each wake (e.g. TCXO start-up) to
+the minimum worthwhile sleep. For compile-time use, call the `constexpr` free function
+`rx_duty_cycle_for(mod, sender_preamble, min_symbols, min_sleep)` in `<idfxx/radio/duty_cycle>`.
+Both return `std::optional<rx_duty_cycle>`. They return `std::nullopt` when continuous receive is
+required.
 
-Every method has a result-returning `try_*` form; the exception-throwing forms above are inline
+Every method has a result-returning `try_*` form. The exception-throwing forms above are inline
 wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 
 ### Types
@@ -194,29 +194,30 @@ Defined in `<idfxx/radio/events>`:
 
 ## Error Handling
 
-The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`. CRC errors surface as
-`errc::invalid_crc`; a received packet larger than the buffer supplied to
+The interface uses `idfxx::result<T>` and `idfxx::errc` from `idfxx_core`. CRC errors are reported
+as `errc::invalid_crc`. A received packet larger than the buffer supplied to
 `receive`/`start_receive`/`read_received` is discarded, never truncated, and reported as
-`errc::invalid_size`; timed-out blocking operations return `errc::timeout`. Out-of-range parameters
+`errc::invalid_size`. Timed-out blocking operations return `errc::timeout`. Out-of-range parameters
 (e.g. an unsupported output power for a particular chip variant) return `errc::invalid_arg`. A
 future whose operation is canceled by a mode change (`standby`/`sleep`) before completing reports
-`errc::not_finished`. `probe` reports `errc::not_found` when no chip answers, as does
-`read_received` when no packet is queued. Using a moved-from driver object is undefined behavior.
+`errc::not_finished`. `probe` reports `errc::not_found` when no chip answers. `read_received` also
+reports `errc::not_found` when no packet is queued. Using a moved-from driver object is undefined
+behavior.
 
 ## Important Notes
 
 - `idfxx_radio` itself ships no register-level details: enum values are semantic, not chip-register
   encodings. Each driver translates internally.
 - Single-shot `start_receive(buffer)`: the buffer must remain valid until the returned future
-  completes or the operation is canceled (`standby`/`sleep`); the radio returns to standby after the
+  completes or the operation is canceled (`standby`/`sleep`). The radio returns to standby after the
   packet. Transmit buffers are staged before `start_transmit` returns and need not outlive the call.
-- Dropping a future mid-flight is safe: the operation continues, and its completion is still
-  observable through events when an event loop is configured.
+- Dropping a future before its operation completes is safe: the operation continues, and its
+  completion is still observable through events when an event loop is configured.
 - The base interface intentionally omits chip-specific concerns such as TCXO configuration,
-  IRQ-register bitfields, and CAD detection thresholds. Those live on concrete drivers like
-  `idfxx::radio::sx126x`.
+  IRQ-register bitfields, and CAD detection thresholds. Concrete drivers such as
+  `idfxx::radio::sx126x` provide them.
 - The sync word is selected semantically (`lora_network::public_network` /
-  `lora_network::private_network`); each driver maps the selection to its chip's native encoding.
+  `lora_network::private_network`). Each driver maps the selection to its chip's native encoding.
   Raw chip-specific values are available through driver-specific overloads (e.g.
   `sx126x::set_sync_word(uint16_t)`).
 

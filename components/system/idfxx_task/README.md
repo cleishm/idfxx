@@ -63,7 +63,7 @@ idfxx::task my_task(
 ### Result-based API
 
 `task::make()` and `task::try_spawn()` report an invalid configuration as an error instead of
-throwing; allocation failure still aborts when exceptions are disabled. Use `try_*` methods for
+throwing. Allocation failure still aborts when exceptions are disabled. Use `try_*` methods for
 operations that can fail at runtime:
 
 ```cpp
@@ -170,7 +170,7 @@ if (!worker) {
 // Wait up to 500ms
 if (auto r = worker->try_join(500ms); !r) {
     if (r.error() == idfxx::errc::timeout) {
-        // Task didn't finish in time — still joinable
+        // Task didn't finish in time. It is still joinable
         worker->try_detach();  // or try again later
     }
 }
@@ -201,7 +201,7 @@ idfxx::task worker(
 worker.request_stop();
 worker.join(1s);
 
-// Or just let the destructor handle it — it calls request_stop() + join()
+// Or let the destructor stop the task. It calls request_stop() + join()
 ```
 
 Result-based API:
@@ -278,8 +278,8 @@ void IRAM_ATTR my_isr() {
 ### Task Notifications
 
 Task notifications provide a lightweight signaling mechanism using FreeRTOS direct-to-task
-notifications (index 0). Unlike `suspend()`/`resume()`, notifications latch — a notification sent
-before the task waits is not lost.
+notifications (index 0). Unlike `suspend()`/`resume()`, notifications latch. A notification that is
+sent before the task waits is not lost.
 
 **Binary semaphore pattern** — simple "wake up and do work":
 
@@ -449,11 +449,11 @@ std::string_view name = idfxx::task::current_name();
 ### Configuration Types
 
 - `task::config` - Task configuration (name, stack_size, priority, core_affinity, stack_mem).
-  `priority` must be less than `configMAX_PRIORITIES`, `stack_size` at least
-  `configMINIMAL_STACK_SIZE` bytes (which grows with `CONFIG_FREERTOS_IDLE_TASK_STACKSIZE`), and
-  `core_affinity` a core FreeRTOS runs on
-- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in
-  `<idfxx/memory>`
+  `priority` must be less than `configMAX_PRIORITIES`. `stack_size` must be at least
+  `configMINIMAL_STACK_SIZE` bytes (which grows with `CONFIG_FREERTOS_IDLE_TASK_STACKSIZE`).
+  `core_affinity` must be a core that FreeRTOS runs on
+- `idfxx::memory::capabilities` - Memory capability flags (such as `dram` and `spiram`). These are
+  defined in `<idfxx/memory>`
 
 ### Query Methods
 
@@ -475,8 +475,9 @@ Task operations use error codes from `idfxx::errc`:
 
 - `invalid_arg` - Task creation (`make()`, `try_spawn()`, the constructor, `spawn()`) was given a
   priority of `configMAX_PRIORITIES` or more, a stack smaller than `configMINIMAL_STACK_SIZE`, or a
-  core FreeRTOS does not run on (`core_1` when `CONFIG_FREERTOS_UNICORE` is set); or
-  `set_priority()` / `try_set_priority()` was given a priority of `configMAX_PRIORITIES` or more
+  core that FreeRTOS does not run on (`core_1` when `CONFIG_FREERTOS_UNICORE` is set). It is also
+  returned when `set_priority()` / `try_set_priority()` is given a priority of
+  `configMAX_PRIORITIES` or more
 - `invalid_state` - Task has been detached, already joined, or operation invalid for current state
 - `timeout` - Join did not complete within the specified duration
 
@@ -491,14 +492,13 @@ when exceptions are disabled) from every creation method.
   function completes, similar to `std::jthread`. Tasks that check `stop_requested()` in their loops
   will exit cleanly. For tasks that ignore the stop request and may not return promptly, call
   `join()` with a timeout or `detach()` before the task goes out of scope.
-- **Cooperative stop**: `request_stop()` only sets a flag — the task must poll
+- **Cooperative stop**: `request_stop()` only sets a flag. The task must poll
   `self.stop_requested()` to observe it. It does not forcibly terminate the task.
 - **Force kill**: `kill()` / `try_kill()` immediately terminates the task. This is dangerous: C++
   destructors will not run, held mutexes will not be released, and allocated memory will not be
-  freed. Only use as a last resort when a task cannot be stopped cooperatively.
+  freed. Use it only when a task cannot be stopped cooperatively.
 - **Single-join semantics**: A task can only be joined once. After a successful join, the task
-  becomes non-joinable. A timed-out join does not consume the join — the task remains joinable for a
-  subsequent attempt.
+  becomes non-joinable. If a join times out, the task remains joinable and can be joined again.
 - **Prefer timeouts**: Use `join(duration)` or `try_join(duration)` over the no-argument versions to
   avoid blocking indefinitely on tasks that may not return.
 - **Completed tasks**: Operations on a completed task (suspend, resume, set_priority) return
@@ -506,7 +506,7 @@ when exceptions are disabled) from every creation method.
 - **Detached/spawned tasks**: Detached and spawned tasks clean up automatically when their function
   returns.
 - **Exceptions in task functions**: With exceptions enabled, an exception thrown by the task
-  function is logged and the task finishes as if the function had returned: `join()` returns
+  function is logged and the task finishes as if the function had returned. `join()` returns
   normally, and detached or spawned tasks still clean up
 - **Non-copyable/move-only**: Task is non-copyable and move-only.
 - **Notification index 0 reserved**: `wait()`/`take()`/`notify()` use FreeRTOS notification index 0.

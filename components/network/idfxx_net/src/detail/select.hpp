@@ -29,8 +29,8 @@ inline constexpr bool idfxx::enable_flags_operators<idfxx::net::detail::wait_for
 namespace idfxx::net::detail {
 
 /// Wait for any of the given events on @p fd. Returns:
-///   - {} on the event firing
-///   - errc::timed_out if the timeout fires
+///   - {} when an event occurs
+///   - errc::timed_out if the timeout expires
 ///   - some other error otherwise
 [[nodiscard]] idfxx::result<void>
 wait(int fd, idfxx::flags<wait_for> what, std::chrono::milliseconds timeout) noexcept;

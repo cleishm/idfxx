@@ -27,14 +27,14 @@ using namespace idfxx::radio;
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// The lora_transceiver base is abstract — no concrete chip details leak in.
+// The lora_transceiver base is abstract. It contains no concrete chip details.
 static_assert(std::is_abstract_v<lora_transceiver>);
 
 // The base is non-copyable so concrete drivers inherit that property.
 static_assert(!std::is_copy_constructible_v<lora_transceiver>);
 static_assert(!std::is_copy_assignable_v<lora_transceiver>);
 
-// LoRa-spec semantics for spreading factor — drivers map to chip-specific
+// Spreading factor uses LoRa-spec values. Drivers map them to chip-specific
 // register encodings internally, but the public values are the LoRa spec
 // SF numbers themselves.
 static_assert(std::to_underlying(spreading_factor::sf5) == 5);
@@ -57,7 +57,7 @@ static_assert(!std::is_default_constructible_v<lora_link>);
 static_assert(lora_link{.frequency = quanta::frequency::hertz{915'000'000}}.frequency->count() == 915'000'000);
 static_assert(lora_link{.frequency = quanta::frequency::hertz{915'000'000}}.output_power.count() == 14);
 
-// Trivially copyable so they can flow through the event loop.
+// Trivially copyable so they can be passed through the event loop.
 static_assert(std::is_trivially_copyable_v<rx_info>);
 static_assert(std::is_trivially_copyable_v<cad_info>);
 static_assert(std::is_trivially_copyable_v<packet_status>);
@@ -65,7 +65,7 @@ static_assert(std::is_trivially_copyable_v<packet_status>);
 // Bandwidth enum has all the LoRa spec values.
 static_assert(static_cast<int>(bandwidth::bw_500) > static_cast<int>(bandwidth::bw_125));
 
-// One-shot async data-path operations return futures; packet streams
+// One-shot async data-path operations return futures. Packet streams
 // (continuous / duty-cycled receive) stay event-based and return void.
 static_assert(std::is_same_v<
               decltype(std::declval<lora_transceiver&>().try_start_transmit(std::declval<idfxx::byte_view>())),
@@ -92,7 +92,7 @@ static_assert(std::is_same_v<
               idfxx::result<rx_info>>);
 static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_scan_channel()), idfxx::result<cad_info>>);
 
-// Payloads are byte views: any contiguous range of std::byte or uint8_t is accepted, char ranges
+// Payloads are byte views: any contiguous range of std::byte or uint8_t is accepted. Char ranges
 // (text) are not. Receive buffers must be writable lvalues, so received bytes cannot be lost in
 // a temporary.
 template<typename T>
@@ -115,8 +115,8 @@ static_assert(std::is_same_v<decltype(std::declval<lora_transceiver&>().try_prob
 // =============================================================================
 // Time-on-air (airtime.hpp)
 //
-// Reference air-times in microseconds from the classic Semtech LoRa equation;
-// these are exact for SF7–SF12 and match RadioLib's getTimeOnAir. Each uses an
+// Reference air-times in microseconds from the classic Semtech LoRa equation.
+// These are exact for SF7–SF12 and match RadioLib's getTimeOnAir. Each uses an
 // 8-symbol preamble, coding rate 4/5, explicit header and CRC on (the type
 // defaults) unless noted. The result is exact integer math, so it is checked at
 // compile time.
@@ -138,7 +138,7 @@ static_assert(
 // SF9 / BW125, 11-byte payload — the ping_pong example's configuration.
 static_assert(time_on_air({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, {}, 11).count() == 144384);
 
-// SF12 / BW125 climbs to nearly a second even for a 1-byte payload.
+// SF12 / BW125 takes nearly a second even for a 1-byte payload.
 static_assert(time_on_air({.sf = spreading_factor::sf12, .bw = bandwidth::bw_125}, {}, 1).count() == 827392);
 
 // Implicit (fixed) header drops 20 from the symbol-count numerator, shortening
@@ -167,7 +167,8 @@ static_assert(
 static_assert(std::is_trivially_copyable_v<rx_duty_cycle>);
 
 // SF9/BW125 (Tsym = 4096 µs), 100-symbol preamble, default min_symbols = 8:
-// sleep = 84 symbols; the detection floor Tsym·9 wins for the listen window.
+// sleep = 84 symbols. The detection floor Tsym·9 is the larger term and sets the
+// listen window.
 static_assert(
     rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, 100)->sleep_period.count() == 344064
 );
@@ -175,7 +176,8 @@ static_assert(
     rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, 100)->rx_period.count() == 36864
 );
 
-// SF7/BW250 (Tsym = 512 µs < 1 ms margin): the worst-case term wins instead.
+// SF7/BW250 (Tsym = 512 µs < 1 ms margin): the worst-case term is the larger term
+// instead.
 static_assert(
     rx_duty_cycle_for({.sf = spreading_factor::sf7, .bw = bandwidth::bw_250}, 100)->sleep_period.count() == 43008
 );
@@ -189,9 +191,9 @@ static_assert(!rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::
 // min_symbols must be at least 1.
 static_assert(!rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, 100, 0).has_value());
 
-// Sleep window below min_sleep → continuous. SF7/BW500: Tsym = 256 µs, a
-// 20-symbol preamble leaves a 4-symbol (1024 µs) sleep — just above the
-// default 1016 µs floor, below a TCXO-padded one.
+// Sleep window below min_sleep → continuous. SF7/BW500: Tsym = 256 µs. A
+// 20-symbol preamble leaves a 4-symbol (1024 µs) sleep. This is just above the
+// default 1016 µs floor, but below a floor that includes a TCXO delay.
 static_assert(rx_duty_cycle_for({.sf = spreading_factor::sf7, .bw = bandwidth::bw_500}, 20).has_value());
 static_assert(!rx_duty_cycle_for({.sf = spreading_factor::sf7, .bw = bandwidth::bw_500}, 19).has_value());
 static_assert(
@@ -200,7 +202,7 @@ static_assert(
 );
 
 // min_sleep takes any duration unit, rounded up to whole microseconds: the
-// same link's 1024 µs sleep window clears a 1024000 ns floor but not 1024001.
+// same link's 1024 µs sleep window meets a 1024000 ns floor but not 1024001.
 constexpr lora_modulation sf7_bw500{.sf = spreading_factor::sf7, .bw = bandwidth::bw_500};
 static_assert(rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::nanoseconds{1'024'000}).has_value());
 static_assert(!rx_duty_cycle_for(sf7_bw500, 20, 8, std::chrono::nanoseconds{1'024'001}).has_value());
@@ -228,7 +230,7 @@ TEST_CASE("lora_packet_params defaults", "[idfxx][radio]") {
 }
 
 TEST_CASE("time_on_air matches Semtech reference air-times", "[idfxx][radio]") {
-    // Modulation temporaries are passed inline; the static_asserts above verify
+    // Modulation temporaries are passed inline. The static_asserts above verify
     // the same references at compile time. (CR4-5, explicit header, CRC on.)
     // Compared as 32-bit values: every reference air-time is far below
     // INT32_MAX µs, and Unity's 64-bit support is not enabled in every test
@@ -270,8 +272,8 @@ TEST_CASE("rx_duty_cycle_for matches RadioLib reference windows", "[idfxx][radio
     TEST_ASSERT_EQUAL_INT32(344064, static_cast<int32_t>(cycle->sleep_period.count()));
     TEST_ASSERT_EQUAL_INT32(36864, static_cast<int32_t>(cycle->rx_period.count()));
 
-    // Short preambles cannot be duty-cycled — the caller falls back to
-    // continuous receive.
+    // Short preambles cannot be duty-cycled. The caller then uses continuous
+    // receive.
     TEST_ASSERT_FALSE(rx_duty_cycle_for({.sf = spreading_factor::sf9, .bw = bandwidth::bw_125}, 16).has_value());
 }
 

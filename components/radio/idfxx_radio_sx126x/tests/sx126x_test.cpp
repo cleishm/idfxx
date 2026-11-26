@@ -27,10 +27,10 @@ namespace codec = idfxx::radio::sx126x_internal;
 // Compile-time tests (static_assert)
 // =============================================================================
 
-// sx126x is a concrete subclass of the abstract lora_transceiver base. This doubles as a
-// regression guard: every pure-virtual do_* hook on lora_transceiver — including the
+// sx126x is a concrete subclass of the abstract lora_transceiver base. This is also a
+// regression guard. Every pure-virtual do_* hook on lora_transceiver, including the
 // future-returning do_start_transmit, do_start_receive, and
-// do_start_channel_scan — must be overridden with a matching signature, or
+// do_start_channel_scan, must be overridden with a matching signature. Otherwise
 // sx126x would remain abstract and this would fail.
 static_assert(std::is_base_of_v<lora_transceiver, sx126x>);
 static_assert(!std::is_abstract_v<sx126x>);
@@ -57,8 +57,8 @@ static_assert(std::is_same_v<decltype(&sx126x::try_adopt_pending), idfxx::result
 // Chip-presence verification is inherited from the chip-agnostic interface.
 static_assert(std::is_same_v<decltype(std::declval<sx126x&>().try_probe()), idfxx::result<void>>);
 
-// The opcode escape hatch takes byte views, plus literal-byte overloads for command and register
-// writes; reads fill a caller's writable buffer.
+// The low-level opcode methods take byte views, plus literal-byte overloads for command and
+// register writes. Reads fill a caller's writable buffer.
 static_assert(std::is_same_v<
               decltype(std::declval<sx126x&>().try_write_command(uint8_t{0x8F}, {0x00, 0x00})),
               idfxx::result<void>>);
@@ -79,9 +79,9 @@ static_assert(command_readable<std::array<uint8_t, 3>&>);
 static_assert(!command_readable<std::array<uint8_t, 3>>);
 static_assert(!command_readable<const std::array<uint8_t, 3>&>);
 
-// Single-register forms sit beside the multi-byte ones without ambiguity: a scalar picks the
-// single-byte write, a braced list (even of one element) the literal-bytes write, and reads are
-// told apart by arity and template arguments.
+// Single-register forms and the multi-byte forms do not conflict: a scalar selects the
+// single-byte write, a braced list (even of one element) selects the literal-bytes write, and
+// reads are distinguished by arity and template arguments.
 static_assert(requires(sx126x& r) { r.try_write_register(uint16_t{0x08AC}, uint8_t{0x96}); });
 static_assert(requires(sx126x& r) { r.try_write_register(0x08AC, 0x96); });
 static_assert(requires(sx126x& r) { r.try_write_register(0x08AC, {0x96}); });
@@ -242,7 +242,7 @@ static_assert(codec::power_limits_for(sx126x::chip_variant::sx1262).max_dbm == 2
 static_assert(codec::power_limits_for(sx126x::chip_variant::sx1268).max_dbm == 22);
 
 // SX1261 +15 dBm needs the high-duty-cycle PA row and a +14 SetTxParams byte
-// (SetTxParams only accepts -17..+14 on the SX1261); +14 and below use the
+// (SetTxParams only accepts -17..+14 on the SX1261). +14 and below use the
 // standard row and pass the dBm through.
 static_assert(codec::tx_power_config_for(sx126x::chip_variant::sx1261, 15).pa.pa_duty_cycle == 0x06);
 static_assert(codec::tx_power_config_for(sx126x::chip_variant::sx1261, 15).power_byte == 14);
@@ -312,9 +312,10 @@ TEST_CASE("pack_rx_duty_cycle lays out rx then sleep, MSB first", "[idfxx][radio
 // Hardware-dependent tests: chip presence with nothing attached
 //
 // Use the pins the SPI hardware tests already treat as unpopulated. BUSY is
-// pulled low to model the absent-chip case where the line reads "ready" and
-// bring-up would otherwise succeed blind; the driver only sets the pin's
-// direction, so the pull persists. GPIO 4/5 are free inputs on the test board.
+// pulled low to model the absent-chip case in which the line reads "ready" and
+// bring-up would otherwise succeed without any check. The driver only sets the
+// pin's direction, so the pull persists. GPIO 4/5 are free inputs on the test
+// board.
 // =============================================================================
 
 namespace {
@@ -364,7 +365,7 @@ TEST_CASE("sx126x::try_probe with no chip attached reports not_found", "[idfxx][
     isr_service_guard isr;
     auto bus = make_unpopulated_bus();
     // A warm start issues no SPI traffic, so construction succeeds without a
-    // chip; the explicit probe is what finds it missing.
+    // chip. The explicit probe then reports that the chip is missing.
     auto cfg = no_chip_config();
     cfg.warm_start = true;
     auto radio = sx126x::make(bus, cfg);

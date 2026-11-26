@@ -24,9 +24,9 @@ namespace lcd = idfxx::lcd;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// The picture is written to the panel in bands of 16 rows. That is the default, and no frame buffer
-// is needed either way, but it is named here because it bounds the bus's largest transfer, which
-// the board setup below sizes for.
+// The picture is written to the panel in bands of 16 rows. That is the default, and no framebuffer
+// is needed either way. It is named here because it sets the size of the bus's largest transfer,
+// and the board setup below sizes the bus for that transfer.
 static constexpr lcd::write_options WRITE_OPTIONS{.band_rows = 16};
 
 // The photo, embedded by main/CMakeLists.txt.
@@ -61,7 +61,7 @@ static void show_in_rectangle(lcd::panel& panel, std::span<const uint8_t> jpeg) 
         .background = {0, 0, 0},
     };
 
-    // The overlay is called with each band just before it is written. It draws in screen
+    // The overlay is called with each band just before the band is written. It draws in screen
     // coordinates, and the canvas clips to the band, so the caption appears in whichever band it
     // falls in.
     lcd::write_image(

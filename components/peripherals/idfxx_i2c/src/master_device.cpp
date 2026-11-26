@@ -44,7 +44,7 @@ static size_t encode_register(register_address_size size, uint16_t reg, uint8_t*
     return 1;
 }
 
-// The SCL speed a device is configured with: config::scl_speed, or else the bus frequency.
+// The SCL speed that a device is configured with: config::scl_speed, or else the bus frequency.
 static quanta::frequency::hertz
 resolve_scl_speed(const master_bus& bus, const master_device::config& cfg) {
     return cfg.scl_speed.value_or(bus.frequency());
@@ -184,10 +184,10 @@ void master_device::_delete() noexcept {
 // Maps a transfer result to idfxx errors. Driver errors pass through, except that
 // ESP_ERR_INVALID_STATE is reported as errc::invalid_response. A transfer that fails on the bus (a
 // NACK, a bus timeout, or not finishing within the caller's timeout) is reported as
-// ESP_ERR_INVALID_RESPONSE by ESP-IDF 6.0+ and as ESP_ERR_INVALID_STATE by earlier versions, and a
-// failed bus clear reports ESP_ERR_INVALID_STATE on every version. The transfer queue that would
-// make ESP_ERR_INVALID_STATE mean "queue full" is never enabled, since buses are always created
-// with a zero trans_queue_depth.
+// ESP_ERR_INVALID_RESPONSE by ESP-IDF 6.0+ and as ESP_ERR_INVALID_STATE by earlier versions. Every
+// version reports a failed bus clear as ESP_ERR_INVALID_STATE. With a transfer queue,
+// ESP_ERR_INVALID_STATE can also mean "queue full". The queue is never enabled, because buses are
+// always created with a zero trans_queue_depth.
 result<void> master_device::_map_xfer_error(esp_err_t err, const char* op) const {
     if (err == ESP_OK) {
         return {};
@@ -286,8 +286,8 @@ master_device::_try_change_address(uint16_t new_address, std::chrono::millisecon
     if (_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // The driver checks this too, but returns without releasing its own bus lock, which stalls
-    // every later transfer on the bus, so it's checked here first.
+    // The driver checks this too, but it returns without releasing its own bus lock. That blocks
+    // every later transfer on the bus, so the address is checked here first.
     if (_addr_10bit ? new_address <= 0x7F : new_address > 0x7F) {
         ESP_LOGD(
             TAG,
@@ -393,7 +393,7 @@ result<void> master_device::_try_write_registers(
         })) {
         return error(errc::invalid_arg);
     }
-    // Held across every register so the writes go out back to back
+    // Held across every register so that no other transfer runs between the writes
     auto lock = _lock_bus(timeout);
     if (!lock.owns_lock()) {
         return error(errc::timeout);

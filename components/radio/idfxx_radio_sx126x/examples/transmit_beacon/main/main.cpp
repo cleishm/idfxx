@@ -21,7 +21,7 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"beacon"};
 
-// Pin assignments — change to match your board (these match the Heltec
+// Pin assignments. Change them to match your board (these match the Heltec
 // WiFi LoRa 32 V3).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
@@ -31,8 +31,8 @@ static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
 
-// Carrier frequency — use one your region allows and your antenna is built for
-// (for example 868_MHz in Europe).
+// Carrier frequency. Use one that your region allows and that your antenna is
+// built for (for example 868_MHz in Europe).
 static constexpr auto FREQUENCY = 915_MHz;
 
 extern "C" void app_main() {
@@ -55,8 +55,8 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // The Heltec V3 drives a TCXO from DIO3 — required for the
-                // chip to lock. Verify the voltage for your board.
+                // The Heltec V3 drives a TCXO from DIO3. The chip needs it
+                // to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );

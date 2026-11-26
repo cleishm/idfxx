@@ -36,18 +36,18 @@ namespace idfxx::net::netconn {
  *
  * The default (no flags set) copies the data into the stack's buffers, so the
  * caller may reuse or destroy its buffer as soon as the call returns. Set
- * `no_copy` to reference the caller's buffer instead — see the lifetime
- * warning on that flag.
+ * `no_copy` to reference the caller's buffer instead. See the lifetime warning
+ * on that flag.
  */
 enum class write_flag : uint8_t {
     /// Zero-copy: reference the caller's buffer rather than copying it.
     /// @warning The referenced memory must remain valid not just until the
     /// call returns, but until the data has been transmitted *and
-    /// acknowledged* by the peer — `try_send` returns once the data is
-    /// enqueued, while the stack continues to hold the reference for
-    /// retransmission. Use only for storage that outlives the connection
-    /// (e.g. `static` or flash-resident data); never for stack or
-    /// soon-freed buffers.
+    /// acknowledged* by the peer. `try_send` returns once the data is
+    /// enqueued, but the stack continues to hold the reference for
+    /// retransmission. Use this flag only for storage that outlives the
+    /// connection (e.g. `static` or flash-resident data). Never use it for
+    /// stack or soon-freed buffers.
     no_copy = 0x01,
     more = 0x02,       ///< Suppress the TCP PSH flag (allow more data to be coalesced).
     dont_block = 0x04, ///< Return immediately rather than waiting for buffer space.
@@ -68,15 +68,15 @@ class listener;
  * @headerfile <idfxx/net/netconn/stream_channel>
  * @brief A TCP netconn channel.
  *
- * Use `idfxx::net::netconn::listener` to accept inbound connections; this
+ * Use `idfxx::net::netconn::listener` to accept inbound connections. This
  * class is for outbound client connections and for the per-connection channel
  * returned by the listener.
  *
  * Ownership is exclusive: the channel is non-copyable and move-only. A
  * moved-from channel may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `nullptr`); calling any other
- * method on it is undefined behavior. The destructor releases the channel if
- * open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns
+ * `nullptr`). Calling any other method on it is undefined behavior. The
+ * destructor releases the channel if open.
  */
 class [[nodiscard]] stream_channel : public detail::base_channel {
 public:
@@ -179,10 +179,11 @@ public:
     /**
      * @brief Shuts down one direction on the netconn (half-close).
      *
-     * The two directions are independent: after `shutdown(direction::send)` the
-     * peer sees end-of-stream but `recv` keeps returning data the peer sends
-     * until it closes; after `shutdown(direction::receive)` further reads return
-     * the empty-buffer close signal while sends still succeed.
+     * The two directions are independent:
+     * - After `shutdown(direction::send)`, the peer sees end-of-stream. `recv`
+     *   continues to return data that the peer sends until the peer closes.
+     * - After `shutdown(direction::receive)`, further reads return the empty
+     *   buffer that indicates a close. Sends still succeed.
      *
      * @param dir Direction to shut down.
      *
@@ -195,10 +196,11 @@ public:
     /**
      * @brief Shuts down one direction on the netconn (half-close).
      *
-     * The two directions are independent: after `shutdown(direction::send)` the
-     * peer sees end-of-stream but `recv` keeps returning data the peer sends
-     * until it closes; after `shutdown(direction::receive)` further reads return
-     * the empty-buffer close signal while sends still succeed.
+     * The two directions are independent:
+     * - After `shutdown(direction::send)`, the peer sees end-of-stream. `recv`
+     *   continues to return data that the peer sends until the peer closes.
+     * - After `shutdown(direction::receive)`, further reads return the empty
+     *   buffer that indicates a close. Sends still succeed.
      *
      * @param dir Direction to shut down.
      * @return Success, or an error.
@@ -215,14 +217,14 @@ public:
      * reused or destroyed as soon as this call returns. Pass `write_flag::no_copy`
      * to reference the caller's buffer instead.
      *
-     * In the default blocking mode the full buffer is sent or an error is
-     * thrown. The returned byte count is informational and only diverges
-     * from `data.size()` when `write_flag::dont_block` is set; for that
-     * partial-write accounting use `try_send`.
+     * In the default blocking mode, the full buffer is sent or an error is
+     * thrown. The returned byte count is informational. It differs from
+     * `data.size()` only when `write_flag::dont_block` is set. To track partial
+     * writes in that case, use `try_send`.
      *
      * @warning With `write_flag::no_copy` set, @p data must remain valid and
      *          unmodified until the data has been transmitted *and acknowledged*
-     *          by the peer — not merely until this call returns. Use only for
+     *          by the peer, not merely until this call returns. Use only for
      *          storage that outlives the connection (e.g. `static` or
      *          flash-resident data).
      *
@@ -248,7 +250,7 @@ public:
      *
      * @warning With `write_flag::no_copy` set, @p data must remain valid and
      *          unmodified until the data has been transmitted *and acknowledged*
-     *          by the peer — not merely until this call returns. Use only for
+     *          by the peer, not merely until this call returns. Use only for
      *          storage that outlives the connection (e.g. `static` or
      *          flash-resident data).
      *
@@ -266,14 +268,14 @@ public:
      * reused or destroyed as soon as this call returns. Pass `write_flag::no_copy`
      * to reference the caller's buffer instead.
      *
-     * In the default blocking mode the full buffer is sent or an error is
-     * thrown. The returned byte count is informational and only diverges
-     * from `data.size()` when `write_flag::dont_block` is set; for that
-     * partial-write accounting use `try_send`.
+     * In the default blocking mode, the full buffer is sent or an error is
+     * thrown. The returned byte count is informational. It differs from
+     * `data.size()` only when `write_flag::dont_block` is set. To track partial
+     * writes in that case, use `try_send`.
      *
      * @warning With `write_flag::no_copy` set, @p data must remain valid and
      *          unmodified until the data has been transmitted *and acknowledged*
-     *          by the peer — not merely until this call returns.
+     *          by the peer, not merely until this call returns.
      *
      * @param data  Data to send.
      * @param flags Flags controlling copy behavior and PSH suppression.
@@ -297,7 +299,7 @@ public:
      *
      * @warning With `write_flag::no_copy` set, @p data must remain valid and
      *          unmodified until the data has been transmitted *and acknowledged*
-     *          by the peer — not merely until this call returns.
+     *          by the peer, not merely until this call returns.
      *
      * @param data  Data to send.
      * @param flags Flags controlling copy behavior and PSH suppression.
@@ -310,9 +312,9 @@ public:
     /**
      * @brief Receives the next buffer from the connection.
      *
-     * On graceful peer close the returned buffer is non-owning
-     * (`is_open() == false`); this is the loop termination signal and is not
-     * an error.
+     * When the peer closes the connection gracefully, the returned buffer is
+     * non-owning (`is_open() == false`). This marks the end of the stream and is
+     * not an error.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure.
@@ -333,8 +335,8 @@ public:
     /**
      * @brief Receives data into a caller-provided buffer.
      *
-     * On graceful peer close the returned view is empty; this is the loop
-     * termination signal and is not an error.
+     * When the peer closes the connection gracefully, the returned view is empty.
+     * This marks the end of the stream and is not an error.
      *
      * @param buf Destination buffer.
      *
@@ -362,10 +364,10 @@ public:
      *
      * Receives up to `buf.size()` bytes, as @ref recv(byte_span)
      * does, and returns how many were received. A return of 0 for a non-empty
-     * @p buf means the peer has closed the connection; an empty @p buf returns
-     * 0 without waiting for data. Fewer bytes than requested may be returned
-     * before the end of the stream. Together with @ref try_read, this lets the
-     * channel be used as an `idfxx::byte_source`.
+     * @p buf means the peer has closed the connection. For an empty @p buf, the
+     * call returns 0 without waiting for data. Fewer bytes than requested may be
+     * returned before the end of the stream. This method and @ref try_read make
+     * the channel usable as an `idfxx::byte_source`.
      *
      * @param buf Buffer to read into.
      *
@@ -382,14 +384,14 @@ public:
      *
      * Receives up to `buf.size()` bytes, as @ref try_recv(byte_span)
      * does, and returns how many were received. A return of 0 for a non-empty
-     * @p buf means the peer has closed the connection; an empty @p buf returns
-     * 0 without waiting for data. Fewer bytes than requested may be returned
-     * before the end of the stream. Lets the channel be used as an
-     * `idfxx::byte_source`.
+     * @p buf means the peer has closed the connection. For an empty @p buf, the
+     * call returns 0 without waiting for data. Fewer bytes than requested may be
+     * returned before the end of the stream. This method makes the channel
+     * usable as an `idfxx::byte_source`.
      *
      * @param buf Buffer to read into.
      * @return Number of bytes received (0 if the peer has closed the
-     *         connection), or an error — the same errors as
+     *         connection), or an error. The errors are the same as those of
      *         @ref try_recv(byte_span), including a receive timeout.
      */
     [[nodiscard]] result<size_t> try_read(byte_span buf);
@@ -398,7 +400,7 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Returns the remote endpoint the channel is connected to.
+     * @brief Returns the remote endpoint that the channel is connected to.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error on failure (e.g. the channel is not connected).
@@ -409,7 +411,7 @@ public:
 #endif
 
     /**
-     * @brief Returns the remote endpoint the channel is connected to.
+     * @brief Returns the remote endpoint that the channel is connected to.
      *
      * @return The peer's endpoint, or an error.
      */
@@ -422,17 +424,17 @@ private:
         : base_channel(conn, fam) {}
 
     // Once the peer closes the receive direction (ERR_CLSD), lwIP only
-    // signals that condition on the first `netconn_recv`; subsequent calls
-    // return ERR_CONN. Track the close locally so `try_recv` keeps reporting
-    // the BSD-style empty-buffer EOF instead of surfacing the stale error.
+    // signals that condition on the first `netconn_recv`. Subsequent calls
+    // return ERR_CONN. Track the close locally so that `try_recv` continues to
+    // report the BSD-style empty-buffer EOF instead of returning the stale error.
     bool _eof = false;
 
-    // Leftover from a previous `try_recv(byte_span)` whose caller buffer was
-    // smaller than the segment lwIP delivered. The netbuf-returning
-    // `try_recv` has no partial-consume hook on the lwIP side, so when the
-    // copy overshoots we keep the netbuf alive here and drain the remainder
-    // on subsequent buffer-recv calls. Cleared on close/shutdown and moved
-    // along with the channel.
+    // Data left over from a previous `try_recv(byte_span)` whose caller buffer
+    // was smaller than the segment that lwIP delivered. lwIP has no way to
+    // consume only part of the netbuf that the netbuf-returning `try_recv`
+    // receives. So when the segment does not fit, we keep the netbuf alive here
+    // and copy the remainder out on subsequent buffer-recv calls. Cleared on
+    // close/shutdown and moved along with the channel.
     buffer _pending;
     size_t _pending_offset = 0;
 };

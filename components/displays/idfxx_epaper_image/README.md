@@ -8,8 +8,8 @@ oriented on the screen.
 ## Features
 
 - `write_image()` takes the image from a decoder (such as `idfxx::jpeg::decoder`) and shows it on an
-  `idfxx::epaper::panel`: turned, cropped, resampled and clipped as an `idfxx::image::placement`
-  describes, filling the screen by default
+  `idfxx::epaper::panel`. It turns, crops, resamples and clips the image as an
+  `idfxx::image::placement` describes. By default, the image fills the screen
 - Converts the picture to the panel's inks using a `calibration` of what those inks really look
   like, with error diffusion, in six colors, four grays or black and white
 - Built-in calibrations for the EL133UF1 (reTerminal E1004) and the GDEY075T7 (XIAO EE05), and a
@@ -23,8 +23,8 @@ oriented on the screen.
   `idfxx::gfx::rotated` or `idfxx::gfx::canvas` view of one
 - `write_options::memory_limit` bounds the working memory, so a placement that needs too much fails
   with `image::errc::too_large` instead of exhausting the heap
-- A calibration's `id()` and `renderer::version::current()` tell whether the conversion a stored
-  frame was made with is unchanged
+- A calibration's `id()` and `renderer::version::current()` tell whether the conversion that a
+  stored frame was made with is unchanged
 - Every call comes as a throwing form and a `try_` form returning `idfxx::result<void>`
 
 ## Requirements
@@ -154,7 +154,7 @@ The decoder is anything that models `idfxx::image::decoder`. The placement (`tar
 | Error | Meaning |
 | ----- | ------- |
 | `idfxx::errc::invalid_arg` | The panel's size isn't the calibration's; a surface's pixel type or an overlay's band doesn't match the calibration's color mode; `band_rows` is zero; the rendering intent is out of range; or the placement isn't aligned. |
-| `idfxx::errc::not_found` | `preset` or `try_preset` was given a name the panel has no preset for. |
+| `idfxx::errc::not_found` | `preset` or `try_preset` was given a name that the panel has no preset for. |
 | `idfxx::image::errc::too_large` | `memory_limit` is too small for the band, the conversion and the rendering. Reported before anything is allocated. |
 | `idfxx::errc::invalid_size` | The image is too large to render, or the surface is over 65535 pixels a side. |
 | `idfxx::errc::invalid_state` | The panel's color mode isn't the calibration's, or the panel is asleep. Reported before anything is decoded. |
@@ -166,33 +166,35 @@ be spared.
 
 ## Important Notes
 
-- **The caller refreshes.** `write_image` only uploads to the panel, in the color mode the panel is
-  already in; nothing changes on the glass until `refresh()`. Set the color mode first: a panel in
-  another one is `invalid_state`.
-- **A calibration holds for the waveform it was measured with, which can't be detected.** A panel
-  showing other colors than its calibration says will look wrong, without any error.
-  `gdey075t7_gray4` holds only at `uc8179`'s default `gray4_frame_rate` and `gray4_source_voltage`.
-- **Alignment.** A panel writes whole bytes, so on a panel the left edge of what is written must be
-  a multiple of 2 columns in `color6`, or 8 in `mono` and `gray4`, and so must its right edge unless
-  it reaches the right edge of the screen. Otherwise `write_image` returns `invalid_arg`, before
-  decoding, unless `placement::fill_to_alignment` is set: the picture then lands exactly where it
-  was placed, and the write extends to the alignment with `background`. A framebuffer or other
+- **The caller refreshes.** `write_image` only uploads to the panel, in the color mode that the
+  panel is already in. Nothing changes on the glass until `refresh()`. Set the color mode first: a
+  panel in another color mode is `invalid_state`.
+- **A calibration is valid only for the waveform that it was measured with, and the waveform can't
+  be detected.** A panel that shows other colors than its calibration describes looks wrong, without
+  any error. `gdey075t7_gray4` is valid only at `uc8179`'s default `gray4_frame_rate` and
+  `gray4_source_voltage`.
+- **Alignment.** A panel writes whole bytes. So on a panel, the left edge of what is written must be
+  a multiple of 2 columns in `color6`, or of 8 columns in `mono` and `gray4`. The right edge must
+  also be such a multiple, unless it reaches the right edge of the screen. Otherwise `write_image`
+  returns `invalid_arg`, before decoding, unless `placement::fill_to_alignment` is set. With it set,
+  the picture stays exactly where it was placed, and the write extends to the alignment with
+  `background`. A framebuffer or other
   surface has no such rule, whether or not it is written to a panel afterward at an aligned
   position.
 - **Time.** A full EL133UF1 frame takes 70 to 90 s to convert when built with `-O2` at 240 MHz, as
-  measured on the E1004, over twice that with ESP-IDF's default `-Og` at 160 MHz, and about 30 s to
-  refresh. During the conversion the task gives way for one tick about every half second, so that
-  other tasks and the idle task the watchdog looks after can run.
+  measured on the E1004. It takes over twice that with ESP-IDF's default `-Og` at 160 MHz. The
+  refresh takes about 30 s. During the conversion, the task yields for one tick about every half
+  second, so that other tasks and the idle task can run. The task watchdog monitors the idle task.
 - **Memory for the conversion.** About 193 KB for a picture 1200 wide, and about 88 KB for one 800
   wide, plus the band: the picture's width times `band_rows` at 2 pixels a byte in `color6`, 8 a
   byte in `mono` and 4 a byte in `gray4`. `memory_limit` counts both at the full screen width.
-- **Memory for turned pictures.** Only a picture displayed upright or flipped horizontally streams.
-  Any other orientation (a quarter turn, a half turn or a vertical flip), whether from the photo's
-  EXIF orientation or from `placement::orientation`, is held as one frame of the output size, in
-  RGB888, until the last source row has been read: 5.76 MB for a full EL133UF1 screen and about 1.15
-  MB for a full GDEY075T7 one. `memory_limit` counts it.
+- **Memory for turned pictures.** Only a picture displayed upright or flipped horizontally is
+  streamed. A picture in any other orientation (a quarter turn, a half turn or a vertical flip),
+  whether from the photo's EXIF orientation or from `placement::orientation`, is held as one frame
+  of the output size, in RGB888, until the last source row has been read. This is 5.76 MB for a full
+  EL133UF1 screen and about 1.15 MB for a full GDEY075T7 one. `memory_limit` counts it.
 - **Progressive JPEGs** hold about 3 bytes per source pixel in the decoder at any output scale,
-  beyond all of the above: a 12-megapixel one needs about 36 MB. Set the decoder's `memory_limit` to
+  beyond all of the above. A 12-megapixel one needs about 36 MB. Set the decoder's `memory_limit` to
   have it fail with `image::errc::too_large`.
 - **No `swap_xy` on e-paper.** Placement coordinates are always the panel's native ones. To show a
   photo upright on a display mounted a quarter turn from the panel's native layout, use

@@ -9,26 +9,26 @@
 //
 // Separable convolution of 8-bit RGB, one axis at a time:
 //
-//   Coefficients  resampler_axis: scale = (double)(float)(x1 - x0) / out; the
-//                 filter's support is scaled by max(1, scale); output i is
-//                 centerd at x0 + (i + 0.5) * scale and its window is
+//   Coefficients  resampler_axis: scale = (double)(float)(x1 - x0) / out. The
+//                 filter's support is scaled by max(1, scale). Output i is
+//                 centered at x0 + (i + 0.5) * scale and its window is
 //                 [trunc(center - support + 0.5), trunc(center + support + 0.5))
 //                 clamped to the image. Weights are normalized by their sum in
 //                 double, then rounded to 22-bit fixed point.
 //   Passes        h_pass / v_pass: int32 accumulation from 2^21 (round half up),
 //                 then (sum >> 22) clamped to 0..255. The horizontal pass runs
 //                 first and is clamped to 8 bits before the vertical pass reads
-//                 it; it runs only on the rows the vertical pass reads.
-//   Copies        an axis at scale 1 from offset 0 is copied, not convolved; so
-//                 are both axes of a crop at integer offsets whose size is the
-//                 output's.
+//                 it. It runs only on the rows that the vertical pass reads.
+//   Copies        an axis at scale 1 from offset 0 is copied, not convolved.
+//                 Both axes of a crop at integer offsets whose size is the
+//                 output's are also copied.
 //   Tall sources  when src_height > 100 * src_width and the height shrinks, the
-//                 vertical pass runs first and the horizontal pass second; the
+//                 vertical pass runs first and the horizontal pass second. The
 //                 ring then holds source rows.
 //
 // Determinism: the per-pixel loops are integer-only. Coefficients are computed
 // in double with + - * / and the sine below, never libm. No expression may be
-// fused: a fused center can move its last bit, and on a box filter with an
+// fused: a fused center can change its last bit, and on a box filter with an
 // integer rectangle that bit decides whether an edge pixel is in the window.
 // The component compiles with -ffp-contract=off for this.
 
@@ -75,7 +75,7 @@ uint32_t hi_word(double d) {
     return static_cast<uint32_t>(std::bit_cast<uint64_t>(d) >> 32);
 }
 
-// sin(x + y) for |x| <= pi/4, |y| <= ulp(x)/2; iy = 0 means y is 0.
+// sin(x + y) for |x| <= pi/4, |y| <= ulp(x)/2. iy = 0 means y is 0.
 double k_sin(double x, double y, int iy) {
     if ((hi_word(x) & 0x7FFFFFFFu) < 0x3E400000u) { // |x| < 2^-27
         return x;
@@ -99,7 +99,7 @@ double k_cos(double x, double y) {
     return w + (((1.0 - w) - hz) + (z * r - x * y));
 }
 
-// x - n * pi/2 = y0 + y1 for pi/4 < |x| <= 2^19 * pi/2; returns n. All products
+// x - n * pi/2 = y0 + y1 for pi/4 < |x| <= 2^19 * pi/2. Returns n. All products
 // fn * pio2_k are exact (fn < 2^20, constants of 33 bits).
 int32_t rem_pio2(double x, double& y0, double& y1) {
     uint32_t hx = hi_word(x);
@@ -259,7 +259,7 @@ resampler_axis axis_conv(uint32_t in_size, float x0, float x1, uint32_t out, dou
     return a;
 }
 
-// Source window [lo, lo + n) of output index i; returns the center.
+// Source window [lo, lo + n) of output index i. Returns the center.
 double axis_bounds(const resampler_axis& a, uint32_t i, uint32_t& lo, uint32_t& n) {
     if (!a.conv) {
         lo = static_cast<uint32_t>(a.off) + i;
@@ -292,8 +292,8 @@ int32_t to_fixed(double p) {
 }
 
 // Fixed-point weights k[0..n) of output index i (conv axes only). Each tap is
-// evaluated once, into the scratch w[0..n), summing in tap order; the
-// normalization then reads w, so it is the same value the sum saw.
+// evaluated once, into the scratch w[0..n), and summed in tap order. The
+// normalization then reads w, so it uses the same values that the sum used.
 void axis_coeffs(
     const resampler_axis& a,
     filter_fn f,
@@ -338,7 +338,7 @@ uint32_t round_pos_f(float v) {
     return (v - static_cast<float>(t) >= 0.5f) ? t + 1u : t;
 }
 
-// A source side cropped to extent len (at most the side), centerd.
+// A source side cropped to extent len (at most the side), centered.
 void crop_axis(float side, float len, float& pos, float& size) {
     size = len > side ? side : len;
     pos = (side - size) * 0.5f;
@@ -378,7 +378,7 @@ resampler_plan resampler::plan(const resampler_config& cfg) {
 
     p.h = copy_x ? axis_copy(static_cast<int32_t>(x0)) : axis_conv(sw, x0, x1, dw, sup);
     p.v = copy_y ? axis_copy(static_cast<int32_t>(y0)) : axis_conv(sh, y0, y1, dh, sup);
-    // With either pass a copy the order does not matter.
+    // If either pass is a copy, the order does not matter.
     p.vh = tall && !copy_x && !copy_y;
 
     uint32_t lo = 0;
@@ -436,8 +436,8 @@ resampler::resampler(const resampler_plan& plan)
     , _tmp(_p.vh ? _p.ring_w : 0u)
     , _wk(std::max(_p.h_taps, _p.v_taps)) {
     // Every computed column gets bounds, even when all windows are empty
-    // (h_taps = 0: a box collapsed to x0 = x1 gives black, the rounding offset
-    // alone).
+    // (h_taps = 0: a box collapsed to x0 = x1 gives black, because each sum is
+    // only the rounding offset).
     if (_p.h.conv) {
         const filter_fn f = filter_function(_p.kernel);
         int32_t* k = _hk.data();
@@ -520,7 +520,7 @@ void resampler::push(const rgb888* src_row) {
     const uint32_t s = _pushed;
     if (_done < _p.vis_h && s >= _next_lo && s < _p.ybox_last) {
         // A row more than a window past the next pending row would overwrite a
-        // ring row that row still needs.
+        // ring row that the pending row still needs.
         assert(s - _next_lo < _p.v_taps);
         rgb888* dst = _ring_row(s);
         if (_p.vh) {
@@ -568,7 +568,7 @@ picture_layout layout_cover(float src_w, float src_h, uint32_t area_w, uint32_t 
     const float sx = dw / src_w;
     const float sy = dh / src_h;
     picture_layout l{};
-    if (sx >= sy) { // width fills: the whole source width, centerd rows
+    if (sx >= sy) { // width fills: the whole source width, centered rows
         l.source.x = 0.0f;
         l.source.w = src_w;
         crop_axis(src_h, dh / sx, l.source.y, l.source.h);

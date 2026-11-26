@@ -9,39 +9,40 @@ Usage:
         [--render mono|threshold] [--threshold 1-255] [--hinting native|auto]
         [--preview OUT.png [--preview-text TEXT] [--preview-scale N]]
 
-FONT is any outline font FreeType reads (.ttf, .otf, .ttc). PX is the em size in pixels
+FONT is any outline font that FreeType reads (.ttf, .otf, .ttc). PX is the em size in pixels
 (FT_Set_Pixel_Sizes(face, 0, PX)), so glyph heights depend on the font's design: capitals are
 typically around 0.7 PX tall.
 
 The glyph set is the union of the --charset (default cp1252: printable ASCII, Latin-1, and the
-printable characters Windows-1252 places in 0x80-0x9F), the code points in --chars, the --ranges
-(a comma-separated list of code points and inclusive ranges, e.g. "0x100-0x17F,0x2190"), and the
-replacement glyph. Requested code points the face lacks are omitted with a warning. U+00AD SOFT
-HYPHEN is never emitted: idfxx text measurement and drawing ignore it whatever the font, and
-idfxx::font::break_lines and idfxx::gfx::draw_text_box hyphenate there by drawing the font's '-'.
+printable characters that Windows-1252 places in 0x80-0x9F), the code points in --chars, the
+--ranges (a comma-separated list of code points and inclusive ranges, e.g. "0x100-0x17F,0x2190"),
+and the replacement glyph. Requested code points that the face lacks are omitted with a warning.
+U+00AD SOFT HYPHEN is never emitted. idfxx text measurement and drawing ignore it whatever the font.
+idfxx::font::break_lines and idfxx::gfx::draw_text_box hyphenate at it by drawing the font's '-'.
 
-The replacement glyph (drawn for code points the font does not cover) defaults to U+FFFD when the
-face has it, else '?'. Pass a single character, U+XXXX or 0xXXXX to choose another, or "none" to
-skip uncovered code points instead.
+The replacement glyph (drawn for code points that the font does not cover) defaults to U+FFFD when
+the face has it, else '?'. Pass a single character, U+XXXX or 0xXXXX to choose another, or "none"
+to skip uncovered code points instead.
 
 Rendering:
     mono       (default) Full hinting for monochrome output, rendered 1-bit by FreeType, whose
                dropout control keeps thin strokes and hairlines intact.
-    threshold  8-bit coverage; a pixel is inked when its coverage is at least --threshold
+    threshold  8-bit coverage. A pixel is inked when its coverage is at least --threshold
                (default 128). Lower thresholds embolden a face, higher ones lighten it, but thin
                strokes may break up or vanish.
 
 Hinting:
     native     (default) The font's own hinting instructions, as FreeType applies them by
-               default; light (vertical-only) hinting in threshold mode.
+               default. Light (vertical-only) hinting in threshold mode.
     auto       FreeType's auto-hinter at full strength in either render mode, in place of the
                font's instructions. Use it for faces whose instructions leave stem widths
-               unfitted (e.g. those hinted only vertically, or not at all), where native hinting
-               rounds each stem on its own and a glyph's stems can come out unequal.
+               unfitted (e.g. those hinted only vertically, or not at all). For such faces,
+               native hinting rounds each stem on its own, and a glyph's stems can differ in
+               width.
 
 The generated file defines IDENTIFIER in namespace NS (default "fonts"; may be nested, e.g.
-"idfxx::font"). Without --header it includes <idfxx/font.hpp> and declares IDENTIFIER extern itself;
-with --header H it includes "H" instead, which must declare
+"idfxx::font"). Without --header, it includes <idfxx/font.hpp> and declares IDENTIFIER extern
+itself. With --header H, it includes "H" instead, which must declare
 `extern const idfxx::font::proportional_font IDENTIFIER;` in NS.
 
 --preview writes a 1-bit PNG of --preview-text (lines separated by newlines or a literal "\\n")
@@ -424,7 +425,7 @@ class Font:
         self.index = {g.cp: i for i, g in enumerate(glyphs)}
         self.replacement = None if replacement_cp is None else self.index[replacement_cp]
 
-        # Ink extents over every inked glyph (the replacement is one of the glyphs); all 0 when no
+        # Ink extents over every inked glyph (the replacement is one of the glyphs). All 0 when no
         # glyph has ink.
         inked = [g for g in glyphs if g.width and g.height]
         self.ink_ascent = max([0] + [-g.y_offset for g in inked])
@@ -639,7 +640,7 @@ def regenerate_args(args, extra_cps, replacement_cp):
 
 
 def render_preview(font, text, scale, path):
-    # Each margin also holds the ink the font's extents allow past that edge of the text.
+    # Each margin also holds the ink that the font's extents allow past that edge of the text.
     margin = 4
     left = margin + max(0, -font.min_left_bearing)
     right = margin + max(0, -font.min_right_bearing)

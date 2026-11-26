@@ -5,8 +5,8 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 //
 // Frames are packed by the cleishm/epaper-image library's epi_pack_row, a
-// test-only dependency, and what should reach a destination is drawn pixel by
-// pixel into a framebuffer, which is independent of the code under test.
+// test-only dependency. The expected content of a destination is drawn pixel
+// by pixel into a framebuffer, independently of the code under test.
 
 #include "idfxx/byte_source"
 #include "idfxx/epaper/color"
@@ -72,7 +72,7 @@ public:
         return n;
     }
 
-    size_t chunk = SIZE_MAX;       // the most a read delivers
+    size_t chunk = SIZE_MAX;       // the most that a read delivers
     size_t fail_at = SIZE_MAX;     // the offset that fails with errc::timeout
     size_t frame_bytes = SIZE_MAX; // a read at or after this offset is counted
     size_t pos = 0;
@@ -179,7 +179,7 @@ private:
     }
 };
 
-// What each framebuffer type means for a frame: the library's codes, and how they draw.
+// What each framebuffer type means for a frame: the library's codes, and how they are drawn.
 template<typename Framebuffer>
 struct ink_format;
 
@@ -496,7 +496,7 @@ template<typename Framebuffer>
 void check_exact_read(size_t chunk) {
     const auto f = make_frame<Framebuffer>(24, 10);
     auto bytes = f.packed;
-    // A byte that's invalid in any mode that has invalid values: it mustn't be looked at.
+    // A byte that's invalid in any mode that has invalid values: it must not be read.
     bytes.push_back(0xFF);
 
     capture_panel display(24, 10, ink_format<Framebuffer>::mode);
@@ -533,7 +533,7 @@ void check_short_stream(size_t available, size_t expected_bands) {
 
     auto expected = Framebuffer::make(24, 8).value();
     draw(expected, f, 0, 0, expected_rows);
-    // Only the rows of whole bands reach the panel.
+    // Only the rows of whole bands are written to the panel.
     const auto all = bytes_of(expected);
     const size_t written = expected.stride_bytes() * expected_rows;
     std::vector<uint8_t> wanted(all.begin(), all.begin() + written);
@@ -733,7 +733,7 @@ void check_throwing_forms() {
 }
 #endif
 
-// The wrapper the documentation shows, for verifying a frame.
+// The wrapper that the documentation shows, for verifying a frame.
 template<idfxx::byte_source Source>
 class crc_source {
 public:
@@ -759,7 +759,7 @@ private:
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 static_assert(ink_options{}.x == 0);
@@ -787,8 +787,8 @@ static_assert(std::same_as<
 // =============================================================================
 
 TEST_CASE("epaper write_inks matches the library's packing on a panel", "[idfxx][epaper]") {
-    // Multiples of the alignment and not, the latter at the panel's right edge; and more
-    // rows than a band of the default size holds.
+    // Widths that are multiples of the alignment and widths that are not, the latter at the
+    // panel's right edge. Also more rows than a band of the default size holds.
     for (size_t width : {size_t{40}, size_t{41}, size_t{42}, size_t{43}, size_t{47}}) {
         check_panel_bytes<mono_framebuffer>(width, 40);
         check_panel_bytes<gray4_framebuffer>(width, 40);
@@ -830,7 +830,7 @@ TEST_CASE("epaper write_inks splits gray4 codes into the two planes", "[idfxx][e
 }
 
 TEST_CASE("epaper write_inks keeps gray4 padding white", "[idfxx][epaper]") {
-    // 3 pixels, codes 0, 1, 2, then padding that claims to be the darkest or the lightest.
+    // 3 pixels, codes 0, 1, 2, then padding whose value is the darkest or the lightest.
     for (uint8_t padding : {uint8_t{0b00}, uint8_t{0b11}}) {
         const std::array<uint8_t, 1> bytes{static_cast<uint8_t>(0b00'01'10'00 | padding)};
         const std::array<uint8_t, 1> plane0{0b1010'0000};
@@ -874,7 +874,7 @@ TEST_CASE("epaper write_inks reads color6 high nibble first", "[idfxx][epaper]")
 
 TEST_CASE("epaper write_inks keeps mono and color6 padding white", "[idfxx][epaper]") {
     {
-        // 3 pixels on 2 rows, the padding claiming to be black.
+        // 3 pixels on 2 rows, with padding whose value is black.
         const std::array<uint8_t, 2> bytes{0b1010'0000, 0b0100'0000};
         const std::array<uint8_t, 2> expected{0b1011'1111, 0b0101'1111};
         auto fb = mono_framebuffer::make(3, 2).value();
@@ -888,7 +888,7 @@ TEST_CASE("epaper write_inks keeps mono and color6 padding white", "[idfxx][epap
         assert_bytes_equal(expected, display.bytes());
     }
     {
-        // 1 pixel on 2 rows, the padding claiming to be black.
+        // 1 pixel on 2 rows, with padding whose value is black.
         const std::array<uint8_t, 2> bytes{0x20, 0x30};
         const std::array<uint8_t, 2> expected{0x21, 0x31};
         auto fb = color6_framebuffer::make(1, 2).value();
@@ -1000,7 +1000,7 @@ TEST_CASE("epaper write_inks reports a stream that ends early", "[idfxx][epaper]
 
 TEST_CASE("epaper write_inks accepts every color6 value in every position", "[idfxx][epaper]") {
     for (uint8_t value : {uint8_t{0}, uint8_t{1}, uint8_t{2}, uint8_t{3}, uint8_t{5}, uint8_t{6}}) {
-        // High, low, and the padding nibble of an odd width, which comes out white.
+        // High, low, and the padding nibble of an odd width, which stays white.
         const std::array<uint8_t, 2> high{static_cast<uint8_t>((value << 4) | 1), 0x11};
         const std::array<uint8_t, 2> low{static_cast<uint8_t>(0x10 | value), 0x11};
         const std::array<uint8_t, 2> padding{0x11, static_cast<uint8_t>(0x10 | value)};
@@ -1155,7 +1155,7 @@ TEST_CASE("epaper write_inks can be verified by a CRC as bytes pass", "[idfxx][e
         assert_bytes_equal(std::span<const uint8_t>(bytes).last(4), trailer);
     }
 
-    // A flipped bit is a valid frame, as far as the frame can tell, but the CRC differs.
+    // A frame with a flipped bit is still a valid frame, but the CRC differs.
     auto corrupt = f.packed;
     corrupt[7] ^= 0x10;
     capture_panel display(24, 10, color_mode::mono);

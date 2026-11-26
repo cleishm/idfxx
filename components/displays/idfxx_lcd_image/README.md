@@ -12,8 +12,8 @@ Decoded images on RGB565 LCD panels and surfaces, placed, sized and oriented on 
 - Streams to the panel a band of rows at a time, so no whole frame is held in memory and an image
   far larger than the screen can be shown
 - Pixels outside the target are left as they are
-- An optional overlay callback draws over each band just before it is written, such as a caption
-  drawn with `idfxx::gfx::canvas`
+- An optional overlay callback draws over each band just before the band is written. For example,
+  it can draw a caption with `idfxx::gfx::canvas`
 - The same call renders into any RGB565 surface: an `idfxx::lcd::rgb565_framebuffer`, or an
   `idfxx::gfx::rotated` or `idfxx::gfx::canvas` view of one
 - `write_options::memory_limit` bounds the memory for rendering and the band together, so a
@@ -125,7 +125,7 @@ The decoder is anything that models `idfxx::image::decoder`. The placement (`tar
 | `idfxx::errc::invalid_size` | The image is too large to render. |
 | Decoder, placement or panel error | Returned unchanged: the decoder's error (such as `jpeg::errc::truncated`), the placement's (such as `invalid_arg` for a crop outside the image), or the panel's. |
 
-Running out of memory is not an error code: as everywhere in idfxx, `std::bad_alloc` is thrown when
+Running out of memory is not an error code. As everywhere in idfxx, `std::bad_alloc` is thrown when
 exceptions are enabled, and the program aborts otherwise. Set `memory_limit` to the memory that can
 be spared.
 
@@ -135,20 +135,20 @@ be spared.
   `panel::display_width()` and `display_height()`, which exchange the panel's native width and
   height after `swap_xy(true)`. Placement coordinates are those of the screen as it is addressed, so
   call `swap_xy` before `write_image`.
-- **A turned picture** is set with `placement::orientation`, applied on top of the photo's own EXIF
-  orientation. To show a photo upright on a display mounted a quarter turn from the panel's native
-  layout, use `orientation::rotate_90` or `rotate_270` rather than `swap_xy`, or use `swap_xy` and
-  write in the swapped coordinates.
+- **A turned picture** is set with `placement::orientation`. It is applied on top of the photo's
+  own EXIF orientation. To show a photo upright on a display mounted a quarter turn from the
+  panel's native layout, use `orientation::rotate_90` or `rotate_270` rather than `swap_xy`, or use
+  `swap_xy` and write in the swapped coordinates.
 - **Memory for turned pictures.** Only a picture displayed upright or flipped horizontally streams.
   Any other orientation (a quarter turn, a half turn or a vertical flip) is held as one frame of the
   output size, in RGB888 (3 bytes per pixel), until the last source row has been read.
   `memory_limit` counts it.
 - **The band** is the output width times `band_rows`, at 2 bytes per pixel, in addition to the
-  renderer's memory; `memory_limit` counts it at the full display width. Larger bands make fewer,
+  renderer's memory. `memory_limit` counts it at the full display width. Larger bands make fewer,
   larger transfers.
 - **SPI panels.** The band is an ordinary `rgb565_framebuffer`, so its memory is not necessarily
-  DMA-capable. The SPI driver copies such a buffer through an internal DMA-capable one, so this
-  works, at the cost of that copy and its memory. The SPI bus's `max_transfer_sz` must be at least
+  DMA-capable. The SPI driver copies such a buffer through an internal DMA-capable one. This works,
+  but it costs the copy and the memory for it. The SPI bus's `max_transfer_sz` must be at least
   the band's size: `display_width * band_rows * 2` bytes.
 - **The overlay runs once per band, not once per image,** and may be called with a band that only
   partly belongs to the picture. It must draw the same thing each time: draw in screen coordinates

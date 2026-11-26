@@ -33,7 +33,7 @@ constexpr uint8_t cmd_master_activate = 0x20; // Execute the staged update seque
 constexpr uint8_t cmd_update_ctrl1 = 0x21;    // Display update control (RAM content options)
 constexpr uint8_t cmd_update_ctrl2 = 0x22;    // Display update sequence selection
 constexpr uint8_t cmd_write_ram = 0x24;       // Write RAM (new image plane)
-constexpr uint8_t cmd_write_ram_old = 0x26;   // Write RAM (previous image plane)
+constexpr uint8_t cmd_write_ram_old = 0x26;   // Write RAM (old image plane)
 constexpr uint8_t cmd_write_vcom = 0x2C;      // VCOM voltage
 constexpr uint8_t cmd_write_lut = 0x32;       // Write LUT register (waveform)
 constexpr uint8_t cmd_border = 0x3C;          // Border waveform control
@@ -52,22 +52,23 @@ constexpr uint8_t seq_partial = 0xFF;  // load temp + LUT, display (mode 2, diff
 constexpr uint8_t seq_load_lut = 0x91; // load LUT for the written temperature, no display
 constexpr uint8_t seq_display = 0xC7;  // display with the currently loaded LUT
 
-// Border waveform values: follow-LUT for normal refreshes; during partial
-// refreshes the border is tied to VCOM (0x3C bits 7:6 = 10; HiZ would be
-// 0xC0), so no field crosses it and the panel edge does not flicker.
+// Border waveform values. Normal refreshes use follow-LUT. During partial
+// refreshes, the border is tied to VCOM (0x3C bits 7:6 = 10; HiZ would be
+// 0xC0). No field then crosses the border, and the panel edge does not
+// flicker.
 constexpr uint8_t border_normal = 0x05;
 constexpr uint8_t border_vcom = 0x80;
 
-// Temperature-register value selecting an alternate OTP waveform bank
-// (Seeed's recipe; per-panel-batch tunable): a shortened "fast" full
-// waveform.
+// Temperature-register value that selects an alternate OTP waveform bank,
+// which holds a shortened "fast" full waveform. The value follows Seeed's
+// recipe and can be tuned for each panel batch.
 constexpr uint8_t temp_fast = 0x64;
 
 // 4-level grayscale waveform for GDEY0213B74-class SSD1680 panels: the
 // Good Display reference recipe, as published in Adafruit_EPD (MIT) and
 // GxEPD2_4G. Each pixel's LUT row is selected by its two RAM bits as
 // (0x26-plane << 1) | 0x24-plane: L0 white, L1 light gray, L2 dark gray,
-// L3 black. Loaded with cmd_write_lut; the voltage registers below
+// L3 black. Loaded with cmd_write_lut. The voltage registers below
 // (_init_gray) belong to the same recipe.
 // clang-format off
 constexpr std::array<uint8_t, 153> lut_gray4 = {
@@ -167,9 +168,10 @@ ssd1680& ssd1680::operator=(ssd1680&& other) noexcept {
 }
 
 ssd1680::~ssd1680() {
-    // Leaving the controller active degrades the glass; park it in deep
-    // sleep unless the caller already did. A refresh still driving finishes
-    // first — deep sleep mid-waveform also stresses the glass.
+    // Leaving the controller active degrades the glass. Put it into deep
+    // sleep unless the caller already did. A refresh that is still running
+    // finishes first, because deep sleep during a waveform also stresses the
+    // glass.
     if (_io_handle != nullptr && !asleep()) {
         (void)_settle();
         (void)_cmd(cmd_deep_sleep, {0x01});
@@ -196,12 +198,12 @@ result<void> ssd1680::do_write(
         return r;
     }
     // The RAM window auto-wraps the x address at its end, so the whole band
-    // streams in one transfer (esp_lcd chunks it to the SPI limit).
+    // is sent in one transfer (esp_lcd splits it at the SPI transfer limit).
     if (auto r = _stream(cmd_write_ram, fb.data().subspan(row_start * stride, rows * stride)); !r) {
         return r;
     }
-    // Mirror the bytes into the shadow frame so the old-image plane can be
-    // brought up to date after the next refresh.
+    // Copy the bytes into the shadow frame, so that the old-image plane can
+    // be updated after the next refresh.
     for (size_t row = row_start; row < row_end; ++row) {
         std::memcpy(_shadow.data() + (y + row) * _stride() + x / 8, fb.row(row).data(), stride);
     }
@@ -220,9 +222,9 @@ result<void> ssd1680::do_write(
     }
     const size_t stride = fb.stride_bytes();
     const size_t rows = row_end - row_start;
-    // The two gray planes stream to the controller's two RAM banks: bit 0 of
-    // each pixel's level to the new-image plane (0x24), bit 1 to the
-    // previous-image plane (0x26). lut_gray4 selects each pixel's row as
+    // The two gray planes are sent to the controller's two RAM planes. Bit 0
+    // of each pixel's level goes to the new-image plane (0x24). Bit 1 goes to
+    // the old-image plane (0x26). lut_gray4 selects each pixel's row as
     // (0x26 << 1) | 0x24, which then equals the gray level.
     return _write_planes(
         {x, y + row_start, fb.width(), rows},
@@ -236,15 +238,15 @@ result<void> ssd1680::do_clear() {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
-        // Gray level 0 (white) has both plane bits clear. Borrow the shadow
-        // frame as an all-zero source (it is unused in gray4 mode), then
-        // restore its all-white mono invariant.
+        // Gray level 0 (white) has both plane bits clear. Use the shadow
+        // frame as an all-zero source, because it is unused in gray4 mode.
+        // Then restore it to all white, which mono mode requires.
         std::ranges::fill(_shadow, 0x00);
         auto r = _write_planes({0, 0, width(), height()}, _shadow, _shadow);
         std::ranges::fill(_shadow, 0xFF);
         return r;
     }
-    // White into both planes, and into the shadow frame so later
+    // Write white into both planes and into the shadow frame, so that later
     // non-partial refreshes re-send the blank image.
     std::ranges::fill(_shadow, 0xFF);
     return _write_planes({0, 0, width(), height()}, _shadow, _shadow);
@@ -254,14 +256,14 @@ result<void> ssd1680::do_restore_baseline(const mono_framebuffer& fb) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // The frame on the glass becomes the shadow frame, then goes into both
-    // RAM planes: a partial refresh diffs the new-image plane against the
-    // previous-image plane, and identical planes also sidestep the plane
-    // ping-pong described in do_refresh. _settle keeps the previous-image
-    // plane current from the shadow afterward. The shadow is updated
-    // first and doubles as the (DRAM) transfer source, so a later full
-    // refresh re-sends the intended frame even if this upload fails. The
-    // framebuffer is panel-sized, so its stride matches _stride().
+    // The frame on the glass becomes the shadow frame. It is then written to
+    // both RAM planes. A partial refresh diffs the new-image plane against
+    // the old-image plane. Identical planes also avoid the plane swap
+    // described in do_refresh. Afterward, _settle keeps the old-image plane
+    // current from the shadow frame. The shadow frame is updated first and
+    // is also the (DRAM) transfer source. A later full refresh therefore
+    // re-sends the intended frame even if this upload fails. The framebuffer
+    // is panel-sized, so its stride matches _stride().
     std::ranges::copy(fb.data(), _shadow.begin());
     return _write_planes({0, 0, width(), height()}, _shadow, _shadow);
 }
@@ -271,7 +273,7 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         return error(errc::invalid_state);
     }
     if (color_mode() == color_mode::gray4) {
-        // The grayscale LUT was loaded by _init_gray; display without
+        // The grayscale LUT was loaded by _init_gray. Display without
         // reloading it.
         if (auto r = _cmd(cmd_update_ctrl2, {seq_display}); !r) {
             return r;
@@ -283,12 +285,12 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         return {};
     }
 
-    // Differential (mode-2) updates ping-pong the controller's two RAM
-    // planes: each one swaps which physical plane the write commands address
-    // and which a mode-1 update displays, so a full or fast refresh issued
-    // after partial refreshes would display a stale frame. Re-send the
-    // shadow frame to both planes first, so the update sequence displays
-    // the current image regardless of which plane it reads.
+    // Each differential (mode-2) update swaps the controller's two RAM
+    // planes. It swaps which physical plane the write commands address and
+    // which plane a mode-1 update displays. A full or fast refresh issued
+    // after partial refreshes would then display a stale frame. Re-send the
+    // shadow frame to both planes first, so that the update sequence
+    // displays the current image regardless of which plane it reads.
     if (mode != refresh_mode::partial) {
         if (auto r = _write_planes({0, 0, width(), height()}, _shadow, _shadow); !r) {
             return r;
@@ -305,10 +307,10 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
         }
         break;
     case refresh_mode::fast:
-        // Temperature-forcing recipe (tunable, validate on hardware): load
-        // the LUT for a forced high temperature — a shortened waveform —
-        // then display with it. The next full refresh reloads the sensor
-        // temperature, undoing the override.
+        // Load the LUT for a forced high temperature, which is a shortened
+        // waveform, then display with it. The forced value can be tuned.
+        // Validate it on hardware. The next full refresh reloads the sensor
+        // temperature, which undoes the override.
         if (auto r = _cmd(cmd_border, {border_normal}); !r) {
             return r;
         }
@@ -342,8 +344,9 @@ result<void> ssd1680::do_refresh(refresh_mode mode) {
     if (auto r = _cmd(cmd_master_activate); !r) {
         return r;
     }
-    // Return with the glass still driving: the wait plus old-plane re-arm
-    // happen in _settle (via do_wait) before the next controller command.
+    // Return while the glass is still updating. _settle (called through
+    // do_wait) waits for BUSY and re-arms the old-image plane before the next
+    // controller command.
     _pending = pending::wait_sync;
     return {};
 }
@@ -362,9 +365,9 @@ result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
         return error(errc::invalid_state);
     }
     if (mode == color_mode::gray4) {
-        // Hardware-reset first (when possible) so the grayscale init starts
-        // from a clean controller state, free of any forced-temperature or
-        // partial-mode residue from earlier refreshes.
+        // Hardware-reset first (when possible), so that the grayscale init
+        // starts from a clean controller state. Earlier refreshes can leave a
+        // forced temperature or partial-mode settings in the controller.
         if (reset_gpio().is_connected()) {
             if (auto r = hardware_reset(); !r) {
                 return r;
@@ -372,9 +375,9 @@ result<void> ssd1680::do_set_color_mode(enum color_mode mode) {
         }
         return _init_gray();
     }
-    // Back to monochrome: re-run the full initialization so the next full
-    // refresh reloads the normal waveform, and reset the shadow to match
-    // the all-white state a fresh frame is composed against.
+    // Back to monochrome. Re-run the full initialization, so that the next
+    // full refresh reloads the normal waveform. Reset the shadow frame to
+    // the all-white state that a new frame is composed against.
     if (auto r = _init(); !r) {
         return r;
     }
@@ -389,7 +392,7 @@ result<void> ssd1680::do_sleep() {
     if (auto r = _cmd(cmd_deep_sleep, {0x01}); !r) {
         return r;
     }
-    // BUSY is not meaningful while entering deep sleep; give the controller
+    // BUSY is not meaningful while entering deep sleep. Give the controller
     // time to power down.
     idfxx::delay(100ms);
     return {};
@@ -404,7 +407,7 @@ result<void> ssd1680::do_wake() {
         // work still applies.
         return r;
     }
-    // The reset discarded any update do_refresh left running.
+    // The reset discarded any update that do_refresh left running.
     _pending = pending::none;
     if (color_mode() == color_mode::gray4) {
         return _init_gray();
@@ -456,10 +459,10 @@ result<void> ssd1680::_drain() {
 }
 
 result<void> ssd1680::_init_scan() {
-    // Shared scan configuration for both init paths: software reset, gate
-    // MUX for the panel height, and the address increment direction —
-    // mirrors flip to decrement on the respective axis, paired with the
-    // reflected windows _set_ram_window programs.
+    // Scan configuration shared by both init paths: software reset, gate
+    // MUX for the panel height, and the address increment direction.
+    // Mirroring an axis changes its direction to decrement. _set_ram_window
+    // programs a reflected window to match.
     if (auto r = _cmd(cmd_sw_reset); !r) {
         return r;
     }
@@ -501,9 +504,9 @@ result<void> ssd1680::_init() {
 }
 
 result<void> ssd1680::_init_gray() {
-    // Grayscale needs an explicitly written waveform (the OTP banks only
-    // hold black/white waveforms): full re-init with the reference analog
-    // settings, then load lut_gray4. The subsequent refresh displays with
+    // Grayscale needs an explicitly written waveform, because the OTP banks
+    // only hold black/white waveforms. Run a full re-init with the reference
+    // analog settings, then load lut_gray4. The next refresh displays with
     // the loaded LUT (seq_display) instead of reloading from OTP.
     if (auto r = _init_scan(); !r) {
         return r;
@@ -535,10 +538,10 @@ result<void> ssd1680::_init_gray() {
     if (auto r = _cmd(cmd_write_lut, lut_gray4); !r) {
         return r;
     }
-    // Both RAM planes to a known all-white state, so pixels outside any
-    // subsequently written region refresh cleanly. The shadow frame is
-    // unused in gray mode (and refilled on the switch back to mono), so it
-    // doubles as the blank buffer instead of a fresh allocation.
+    // Set both RAM planes to a known all-white state, so that pixels outside
+    // any later written region refresh cleanly. The shadow frame is unused
+    // in gray mode and is refilled on the switch back to mono. It is used as
+    // the blank buffer, so no new allocation is needed.
     std::ranges::fill(_shadow, 0x00);
     return _write_planes({0, 0, width(), height()}, _shadow, _shadow);
 }
@@ -603,7 +606,7 @@ result<void> ssd1680::_write_planes(
 }
 
 result<void> ssd1680::_sync_old_plane() {
-    // Re-send the frame just displayed to the previous-image plane, so the
+    // Re-send the frame just displayed to the old-image plane, so that the
     // next partial refresh diffs against what is actually on the glass.
     if (auto r = _set_ram_window({0, 0, width(), height()}); !r) {
         return r;
@@ -615,13 +618,14 @@ result<void> ssd1680::_sync_old_plane() {
 }
 
 result<void> ssd1680::_settle(std::optional<std::chrono::milliseconds> timeout) {
-    // Completes the update do_refresh left running: wait out BUSY, then (for
-    // differential modes) re-arm the old-image plane. The base class calls
-    // this (via do_wait) before every controller hook, so a running refresh
-    // delays the *next* operation rather than blocking refresh's caller; the
-    // destructor and move-assignment call it directly. On failure the work
-    // stays pending for the next attempt — after a timeout the wait repeats,
-    // and after a failed re-arm only the (now idle) re-arm repeats.
+    // Completes the update that do_refresh left running. It waits for BUSY to
+    // release, then (for differential modes) re-arms the old-image plane.
+    // The base class calls this (through do_wait) before every controller
+    // hook. A running refresh therefore delays the *next* operation instead
+    // of blocking the caller of refresh. The destructor and move-assignment
+    // call it directly. On failure, the work stays pending for the next
+    // attempt. After a timeout, the wait repeats. After a failed re-arm, the
+    // controller is idle, so only the re-arm does any work on the next attempt.
     if (_pending == pending::none) {
         return {};
     }

@@ -48,7 +48,8 @@ std::optional<endpoint> from_sockaddr(const sockaddr* sa, socklen_t len) noexcep
             return std::nullopt;
         }
         const auto& sin = *reinterpret_cast<const sockaddr_in*>(sa);
-        // sin_addr.s_addr is in network byte order — same convention as ipv4_addr::addr().
+        // sin_addr.s_addr is in network byte order. This is the same convention as
+        // ipv4_addr::addr().
         ipv4_addr addr(sin.sin_addr.s_addr);
         port_number port = lwip_ntohs(sin.sin_port);
         return endpoint(addr, port);
@@ -61,8 +62,8 @@ std::optional<endpoint> from_sockaddr(const sockaddr* sa, socklen_t len) noexcep
         const auto& sin6 = *reinterpret_cast<const sockaddr_in6*>(sa);
         std::array<uint32_t, 4> words;
         std::memcpy(words.data(), sin6.sin6_addr.s6_addr, 16);
-        // sin6_scope_id is a 32-bit interface index in lwIP; ipv6_addr stores
-        // an 8-bit zone, so truncate.
+        // sin6_scope_id is a 32-bit interface index in lwIP. ipv6_addr stores
+        // an 8-bit zone, so truncate it.
         ipv6_addr addr(words, static_cast<uint8_t>(sin6.sin6_scope_id));
         port_number port = lwip_ntohs(sin6.sin6_port);
         return endpoint(addr, port);

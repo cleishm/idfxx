@@ -42,7 +42,7 @@ extern "C" void app_main() {
     logger.info("Interrupt type set to negedge (triggers on button press)");
 
     // --- Register ISR handler ---
-    // Lambda captures nothing — uses file-scope atomic for ISR safety
+    // The lambda captures nothing. It uses a file-scope atomic for ISR safety.
     gpio::unique_isr_handle isr_handle{button.isr_handler_add([]() {
         press_count.fetch_add(1, std::memory_order_relaxed);
     })};

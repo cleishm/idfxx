@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Cleanup that runs after every test, from Unity's tearDown() (see main.cpp). A failed
-// Unity assertion longjmps out of the test, skipping destructors; tearDown() still runs.
+// Unity assertion longjmps out of the test, and destructors do not run. tearDown() still runs.
 
 #pragma once
 
@@ -22,8 +22,9 @@ inline std::vector<cleanup_fn>& cleanups() {
 } // namespace detail
 
 /// Registers fn to run after every test from now on, whether the test passed or failed. Registering
-/// the same function again makes it the most recently registered, without running it twice, so that
-/// registering cleanup as each thing is created has it undone in the reverse order. fn must do
+/// the same function again makes it the most recently registered function, and it still runs only
+/// once. Cleanup runs in reverse order of registration. So if a test registers a cleanup as it
+/// creates each thing, the things are cleaned up in the reverse order of creation. fn must do
 /// nothing when there is nothing to clean up.
 inline void run_after_each_test(cleanup_fn fn) {
     auto& fns = detail::cleanups();

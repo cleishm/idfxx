@@ -17,7 +17,7 @@ allocators, and chrono utilities for modern C++ ESP-IDF development.
 - **Application metadata** — version, project name, build timestamps, ELF hash
 - **Random number generation** — hardware RNG with `UniformRandomBitGenerator` support
 - **Byte views** — `byte_view` and `byte_span`, non-owning views that accept any `std::byte`
-  or `uint8_t` buffer, so one API serves callers holding either
+  or `uint8_t` buffer, so that one API accepts both kinds of buffer
 - **Hex formatting** — `hex(bytes, options)` renders any byte buffer as hexadecimal text, with an
   optional separator and letter case, for `std::format` and `to_string`
 - **Byte sources** — the `byte_source` concept for code that consumes a stream of bytes, with
@@ -88,9 +88,9 @@ xQueueReceive(queue, &item, timeout);
 
 ### RTC Clock
 
-`rtc_clock` counts from the last power-on reset and keeps running through deep sleep and every other
-kind of reset, so time points survive where `std::chrono::steady_clock` (which restarts at every
-boot) does not:
+`std::chrono::steady_clock` restarts at every boot. `rtc_clock` counts from the last power-on reset
+and keeps running through deep sleep and every other kind of reset. Its time points remain
+comparable across these events:
 
 ```cpp
 #include <idfxx/chrono>
@@ -102,7 +102,7 @@ using idfxx::chrono::rtc_clock;
 // Time since power-on, including time spent in deep sleep
 auto uptime = rtc_clock::now().time_since_epoch();
 
-// Rate-limit an action across deep-sleep cycles: the time point lives in RTC memory
+// Rate-limit an action across deep-sleep cycles: the time point is stored in RTC memory
 RTC_DATA_ATTR static rtc_clock::time_point last_report;
 if (rtc_clock::now() - last_report >= 1h) {
     send_report();
@@ -135,7 +135,7 @@ using namespace std::chrono_literals;
 idfxx::delay(100ms);   // block for at least 100ms (other tasks run)
 idfxx::delay(500us);   // shorter than a tick: busy-waits with microsecond precision
 
-// Polling back-off: block until the next tick so every other task gets to run
+// Polling back-off: block until the next tick so that every other task can run
 while (busy_pin.get_level() == idfxx::gpio::level::high) {
     idfxx::delay(idfxx::next_tick);
 }
@@ -245,17 +245,18 @@ size_t n = receive(buf);
 send(idfxx::byte_view{buf}.first(n));
 ```
 
-A view does not extend the lifetime of what it refers to: the buffer must outlive every use of the
-view. Views are not built from braced lists of values, whose storage would end with the statement;
-APIs where callers commonly pass literal bytes offer an `std::initializer_list<uint8_t>` overload
-instead. A `byte_span` rejects const buffers and temporary containers.
+A view does not extend the lifetime of what it refers to. The buffer must outlive every use of the
+view. Views are not built from braced lists of values, because the storage of the list ends with
+the statement. APIs where callers commonly pass literal bytes offer an
+`std::initializer_list<uint8_t>` overload instead. A `byte_span` rejects const buffers and
+temporary containers.
 
 ### Byte Sources
 
-`idfxx::byte_source` is satisfied by anything with a `result<size_t> try_read(...)` that accepts an
-`idfxx::byte_span` (a `std::span<uint8_t>` or `std::span<std::byte>` parameter qualifies),
-so a consumer written against it accepts in-memory data, files, partitions
-(`idfxx::partition_source`), network streams, and HTTP response bodies alike:
+Any type with a `result<size_t> try_read(...)` that accepts an `idfxx::byte_span` satisfies
+`idfxx::byte_source`. A `std::span<uint8_t>` or `std::span<std::byte>` parameter also qualifies.
+Code written against the concept accepts in-memory data, files, partitions
+(`idfxx::partition_source`), network streams, and HTTP response bodies:
 
 ```cpp
 #include <idfxx/byte_source>
@@ -301,7 +302,7 @@ idfxx::result<size_t> count_bytes(idfxx::byte_source auto& src) {
 ### UTF-8 Decoding
 
 `idfxx::utf8_view` iterates UTF-8 text as `char32_t` code points. Malformed input never stops the
-iteration: each maximal ill-formed subsequence yields one U+FFFD, and each iterator reports the byte
+iteration. Each maximal ill-formed subsequence yields one U+FFFD. Each iterator reports the byte
 offset of its code point:
 
 ```cpp
@@ -334,10 +335,10 @@ bool two_ms = cfg.settle_time == 2ms;
 sensor_config bad{.retries = 5}; // compile error: settle_time is required
 ```
 
-A braced list does not initialize a `required<T>` directly; name the type instead, as in
+A braced list does not initialize a `required<T>` directly. Name the type instead, as in
 `.pins = std::vector<idfxx::gpio>{...}`. The value is read with `get()`, `*`, `->`, or the implicit
-conversion to `const T&`; `get()` and `*` return a mutable reference on a non-const `required<T>`
-and an rvalue reference on an rvalue, so a move-only value such as a `std::move_only_function` can
+conversion to `const T&`. `get()` and `*` return a mutable reference on a non-const `required<T>`
+and an rvalue reference on an rvalue. So a move-only value such as a `std::move_only_function` can
 be moved out with `std::move(cfg.callback).get()`.
 
 ## API Overview
@@ -364,16 +365,17 @@ be moved out with `std::move(cfg.callback).get()`.
 
 ### Scheduling (`<idfxx/sched>`)
 
-- `delay(duration)` - Delay for at least `duration`; sub-tick durations busy-wait, longer ones block
+- `delay(duration)` - Delay for at least `duration`. Sub-tick durations busy-wait, and longer ones
+  block
 - `delay_until(time_point)` - Delay until a time point (drift-free periodic loops)
-- `delay(next_tick)` - Block until the next scheduler tick; the back-off for polling loops
+- `delay(next_tick)` - Block until the next scheduler tick. Use it as the back-off in polling loops
 - `yield()` - Hand the CPU to ready tasks of equal priority without blocking
 - `yield_from_isr(woken)` - Request a context switch at the end of an ISR
 
 ### Memory (`<idfxx/memory>`)
 
-- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`,
-  `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (such as `internal`,
+  `spiram`, `dma` and `dram`)
 - `dram_allocator<T>` - Allocates from internal DRAM (ISR-safe)
 - `spiram_allocator<T>` - Allocates from external PSRAM (requires `CONFIG_SPIRAM`)
 - `dma_allocator<T>` - Allocates DMA-capable memory
@@ -386,8 +388,8 @@ be moved out with `std::move(cfg.callback).get()`.
 - `free(ptr)` - Free memory allocated by allocation functions
 - `aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
 - `aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
-- `memory::capabilities` - Composable flags enum for memory capability flags (`internal`, `spiram`,
-  `dma`, `dram`, etc.)
+- `memory::capabilities` - Composable flags enum for memory capability flags (such as `internal`,
+  `spiram`, `dma` and `dram`)
 - `memory::info` - Struct containing heap region statistics
 - `memory::total_size(caps)` - Total size of heap regions matching capabilities
 - `memory::free_size(caps)` - Current free size of matching heap regions
@@ -426,48 +428,49 @@ be moved out with `std::move(cfg.callback).get()`.
 ### Hex Formatting (`<idfxx/hex>`)
 
 - `hex(bytes, options)` - Non-owning hexadecimal presentation of a `byte_view`-compatible buffer,
-  two digits per byte in buffer order; the bytes and separator must outlive its use
+  two digits per byte in buffer order. The bytes and separator must outlive its use
 - `hex_options` - `separator` (text between bytes, empty by default) and `letter_case`
 - `hex_case` - `lower` (default) or `upper` for the digits `a`-`f`
-- `to_string(hex)` - The text as a `std::string`; also usable with `std::format`, where the
-  standard fill, alignment and width spec applies to the whole text; precision and `?` are rejected
-  (requires `CONFIG_IDFXX_STD_FORMAT`)
+- `to_string(hex)` - The text as a `std::string`. A `hex` also works with `std::format` (requires
+  `CONFIG_IDFXX_STD_FORMAT`). There, the standard fill, alignment and width spec applies to the
+  whole text, and precision and `?` are rejected
 
 ### Byte Views (`<idfxx/byte_view>`)
 
-- `byte_view` - Read-only view of contiguous bytes; built from any contiguous range of `std::byte`
-  or `uint8_t`, or a pointer and length; converts to
-  `std::span<const std::byte>` and `std::span<const uint8_t>`
-- `byte_span` - Writable view; built from lvalue ranges of non-const bytes or a pointer and
-  length; converts to `byte_view` and to spans of `std::byte` or `uint8_t`, const or not
+- `byte_view` - Read-only view of contiguous bytes. Built from any contiguous range of `std::byte`
+  or `uint8_t`, or a pointer and length. Converts to `std::span<const std::byte>` and
+  `std::span<const uint8_t>`
+- `byte_span` - Writable view. Built from lvalue ranges of non-const bytes or a pointer and
+  length. Converts to `byte_view` and to spans of `std::byte` or `uint8_t`, const or not
 - `data()` / `size()` / `first(n)` / `last(n)` / `subspan(offset, count)` - Span-style access and
   slicing
 
 ### Byte Sources (`<idfxx/byte_source>`)
 
-- `byte_source` - Concept for types with a `try_read` accepting a `byte_span` and returning
-  `result<size_t>`; returns the bytes read, with 0 (for a non-empty buffer) meaning end of stream,
-  after which callers stop reading
-- `memory_source` - Reads caller-owned bytes given as a `byte_view`; `remaining()` reports the bytes
-  left
+- `byte_source` - Concept for types with a `try_read` that accepts a `byte_span` and returns
+  `result<size_t>`. `try_read` returns the number of bytes read. A return of 0 for a non-empty
+  buffer means the end of the stream, and callers then stop reading
+- `memory_source` - Reads caller-owned bytes given as a `byte_view`. `remaining()` reports the
+  bytes left
 - `file_source` - Reads an open `FILE*` (not owned) from its current position
-- `read(buf)` / `try_read(buf)` - Read the next bytes; short reads are allowed before end of stream
+- `read(buf)` / `try_read(buf)` - Read the next bytes. Short reads are allowed before the end of
+  the stream
 
 ### UTF-8 Decoding (`<idfxx/utf8>`)
 
-- `utf8_view(text)` - Forward range of the `char32_t` code points in UTF-8 text (non-owning);
-  malformed input yields `utf8_view::replacement_character` (U+FFFD)
+- `utf8_view(text)` - Forward range of the `char32_t` code points in UTF-8 text (non-owning).
+  Malformed input yields `utf8_view::replacement_character` (U+FFFD)
 - `iterator::offset()` - Byte offset of the current code point in the text
 
 ### Required Fields (`<idfxx/required>`)
 
-- `required<T>` - Holds a `T` with no default constructor; initialized from any value implicitly
+- `required<T>` - Holds a `T` with no default constructor. Initialized from any value implicitly
   convertible to `T` without narrowing (an integer constant that fits in an integral `T` is
   accepted)
 - `get()` / `*` / `->` - Access the stored value (const, mutable, or rvalue to match the
   `required<T>`)
 - Implicit conversion to `const T&`
-- `==` / `!=` - Compare with another `required<T>` or with any value `T` compares equal to
+- `==` / `!=` - Compare with another `required<T>` or with any value that `T` compares equal to
 
 ## Error Codes
 
@@ -488,14 +491,15 @@ API reference.
 - `result<T>` is the standard return type for fallible operations across idfxx
 - Memory allocators are stateless and can be used with standard containers
 - Chrono conversions handle overflow by clamping to `portMAX_DELAY`
-- **`rtc_clock` accuracy follows the RTC slow clock source**: the default internal RC oscillator
-  drifts with temperature, so long intervals measured across sleep drift with it. Select an external
-  32 kHz crystal in the project configuration when timing across sleep needs to be accurate
+- **`rtc_clock` accuracy depends on the RTC slow clock source**: the default internal RC oscillator
+  drifts with temperature. As a result, long intervals measured across sleep also drift. Select an
+  external 32 kHz crystal in the project configuration when timing across sleep needs to be
+  accurate
 - **`delay()` busy-waits below one tick**: durations shorter than the scheduler tick
   (`1 / CONFIG_FREERTOS_HZ`, 10 ms by default) spin the CPU for precision instead of blocking. Never
-  use a short `delay()` as the back-off in a polling loop — use `delay(next_tick)`, which always
-  blocks until the next tick. Longer delays block and never return early, but may overshoot by up to
-  one tick
+  use a short `delay()` as the back-off in a polling loop. Use `delay(next_tick)` instead, which
+  always blocks until the next tick. Longer delays block and never return early, but may overshoot
+  by up to one tick
 - **Heap exhaustion is always fatal**: any allocation failure (C++, ESP-IDF, or FreeRTOS) throws
   `std::bad_alloc` when exceptions are enabled, or calls `abort()` otherwise. It is never returned
   as a recoverable error in `result<T>`. An `ESP_ERR_NO_MEM` that means a fixed-size resource is
@@ -507,9 +511,9 @@ API reference.
   throw
 - **Byte sources do not own what they read**: the buffer behind a `memory_source` must stay valid
   and unchanged, and the `FILE*` behind a `file_source` must stay open, for as long as the source is
-  read from. A short read does not mean the end of the stream — only a return of 0 for a non-empty
-  buffer does. Once a source has returned that 0, stop reading: the result of further reads is
-  unspecified (some sources keep returning 0, others return an error)
+  read from. A short read does not mean the end of the stream. Only a return of 0 for a non-empty
+  buffer means the end of the stream. After a source returns that 0, stop reading. The result of
+  further reads is unspecified (some sources keep returning 0, others return an error)
 
 ## License
 

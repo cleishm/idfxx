@@ -18,11 +18,11 @@ using idfxx_lcd_test::recording_panel;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // rgb565 is a two-byte trivially copyable value type, so the bytes of arrays
-// of it can be handed to draw_bitmap directly.
+// of it can be passed to draw_bitmap directly.
 static_assert(sizeof(rgb565) == 2);
 static_assert(std::is_trivially_copyable_v<rgb565>);
 
@@ -32,7 +32,7 @@ static_assert(rgb565(255, 255, 255).value() == 0xFFFF);
 static_assert(rgb565(255, 0, 0).value() == 0xF800);
 static_assert(rgb565(0, 255, 0).value() == 0x07E0);
 static_assert(rgb565(0, 0, 255).value() == 0x001F);
-static_assert(rgb565(0x08, 0x04, 0x08).value() == 0x0821); // lowest surviving bits
+static_assert(rgb565(0x08, 0x04, 0x08).value() == 0x0821); // lowest kept bits
 
 // from_value round-trips and equality compares colors.
 static_assert(rgb565::from_value(0x1234).value() == 0x1234);
@@ -201,7 +201,7 @@ TEST_CASE("panel write_rows sends one rgb565 transfer", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL_PTR(fb->data().data() + 26 * width, display.draws[0].data);
     TEST_ASSERT_EQUAL(4 * width * 2, display.draws[0].size);
 
-    // With a destination offset, framebuffer row r lands at display row y + r.
+    // With a destination offset, framebuffer row r is drawn at display row y + r.
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_rows(*fb, 26, 30, 5, 100).has_value());
     TEST_ASSERT_EQUAL(1, display.draws.size());
@@ -243,7 +243,7 @@ TEST_CASE("panel write_region sends one rgb565 transfer per row", "[idfxx][lcd]"
         TEST_ASSERT_EQUAL(2 * 2, display.draws[i].size);
     }
 
-    // With a destination offset, framebuffer pixel (c, r) lands at (x + c, y + r).
+    // With a destination offset, framebuffer pixel (c, r) is drawn at (x + c, y + r).
     display.draws.clear();
     TEST_ASSERT_TRUE(display.try_write_region(*fb, 3, 10, 5, 13, 7, 20).has_value());
     TEST_ASSERT_EQUAL(3, display.draws.size());
@@ -293,7 +293,7 @@ TEST_CASE("panel display dimensions follow swap_xy", "[idfxx][lcd]") {
     TEST_ASSERT_EQUAL(240, display.display_width());
     TEST_ASSERT_EQUAL(320, display.display_height());
 
-    // Swapping exchanges the addressed dimensions; the native ones stay put.
+    // Swapping exchanges the addressed dimensions. The native ones do not change.
     TEST_ASSERT_TRUE(display.try_swap_xy(true).has_value());
     TEST_ASSERT_EQUAL(240, display.width());
     TEST_ASSERT_EQUAL(320, display.height());

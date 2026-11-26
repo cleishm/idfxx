@@ -58,7 +58,7 @@ private:
 // These verify correctness at compile time - if this file compiles, they pass.
 // =============================================================================
 
-// The clock base is abstract — no concrete chip details leak in.
+// The clock base is abstract. It contains no details of a concrete chip.
 static_assert(std::is_abstract_v<rtc_clock_base>);
 static_assert(std::has_virtual_destructor_v<rtc_clock_base>);
 
@@ -72,7 +72,7 @@ static_assert(!std::is_move_assignable_v<rtc_clock_base>);
 static_assert(std::is_move_constructible_v<fake_clock>);
 static_assert(!std::is_copy_constructible_v<fake_clock>);
 
-// The public interface speaks UTC seconds
+// The public interface uses UTC seconds
 static_assert(std::is_same_v<
               decltype(std::declval<rtc_clock_base&>().try_now()),
               idfxx::result<std::optional<std::chrono::sys_seconds>>>);

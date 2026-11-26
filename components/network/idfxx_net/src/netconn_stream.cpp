@@ -68,7 +68,7 @@ result<size_t> stream_channel::try_send(byte_view data, idfxx::flags<write_flag>
     if (_conn == nullptr) {
         return error(errc::invalid_state);
     }
-    // Copy by default; reference the caller's buffer only when no_copy is set.
+    // Copy by default. Reference the caller's buffer only when no_copy is set.
     uint8_t apiflags = flags.contains(write_flag::no_copy) ? NETCONN_NOCOPY : NETCONN_COPY;
     if (flags.contains(write_flag::more)) {
         apiflags |= NETCONN_MORE;
@@ -117,8 +117,8 @@ result<byte_span> stream_channel::try_recv(byte_span buf) {
         return buf;
     }
 
-    // Drain leftover from a previous oversized receive first so the byte
-    // stream is preserved across the segment boundary.
+    // First return the data left over from a previous oversized receive, so that
+    // the byte stream is preserved across the segment boundary.
     if (_pending.is_open()) {
         const size_t total = _pending.len();
         const size_t remaining = total - _pending_offset;
@@ -144,8 +144,9 @@ result<byte_span> stream_channel::try_recv(byte_span buf) {
         return buf.first(nb->copy_into(buf));
     }
 
-    // Caller buffer is smaller than the segment lwIP delivered: copy what fits
-    // and stash the netbuf so the leftover can be returned on later calls.
+    // The caller's buffer is smaller than the segment that lwIP delivered. Copy
+    // what fits and keep the netbuf, so that the rest can be returned on later
+    // calls.
     const auto copied =
         ::netbuf_copy_partial(nb->idf_handle(), buf.data(), static_cast<uint16_t>(buf.size()), 0);
     _pending = std::move(*nb);

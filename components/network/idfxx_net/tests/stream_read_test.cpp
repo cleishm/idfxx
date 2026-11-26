@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Loopback tests for read / try_read on stream sockets and channels, the
-// members that let them be used as idfxx::byte_source.
+// members that make them usable as idfxx::byte_source.
 
 #include <idfxx/byte_source>
 #include <idfxx/byte_view>
@@ -59,7 +59,7 @@ TEST_CASE("tcp loopback: try_read reads the stream until the peer closes", "[net
 
     TEST_ASSERT_TRUE(client->try_send_all(payload).has_value());
 
-    // An empty buffer returns 0 straight away, whether or not data is pending
+    // A read into an empty buffer returns 0 immediately, whether or not data is pending
     auto none = server_side->try_read(idfxx::byte_span{});
     TEST_ASSERT_TRUE(none.has_value());
     TEST_ASSERT_EQUAL_size_t(0, *none);
@@ -114,14 +114,14 @@ TEST_CASE("netconn: tcp try_read reads the stream until the peer closes", "[net]
 
     TEST_ASSERT_TRUE(server_side->try_send_all(payload).has_value());
 
-    // An empty buffer returns 0 straight away, whether or not data is pending
+    // A read into an empty buffer returns 0 immediately, whether or not data is pending
     auto none = client->try_read(idfxx::byte_span{});
     TEST_ASSERT_TRUE(none.has_value());
     TEST_ASSERT_EQUAL_size_t(0, *none);
 
     server_side->close();
 
-    // Odd-sized chunks smaller than the segment lwIP delivers
+    // Odd-sized chunks smaller than the segment that lwIP delivers
     auto out = drain(*client, 3);
     TEST_ASSERT_EQUAL_size_t(payload.size(), out.size());
     TEST_ASSERT_EQUAL_MEMORY(payload.data(), out.data(), payload.size());

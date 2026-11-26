@@ -13,11 +13,11 @@
  * @defgroup idfxx_core_future Future
  * @brief Lightweight, copyable async completion tokens.
  *
- * Provides `idfxx::future<T>` — a `std::shared_future`-like handle for
- * awaiting the result of an asynchronous operation. Components producing
- * async results can expose them through a uniform interface regardless of
- * the underlying completion mechanism (polling queues, condition variables,
- * event groups, ...), and callers get a single, recognizable async API.
+ * Provides `idfxx::future<T>`, a `std::shared_future`-like handle for
+ * awaiting the result of an asynchronous operation. A component that produces
+ * async results can expose them through one interface, whatever completion
+ * mechanism it uses (such as polling queues, condition variables or event
+ * groups). Callers then use one recognizable async API for all of them.
  * @{
  */
 
@@ -43,8 +43,8 @@ namespace idfxx {
  * wait with a timeout (`wait_for()` / `try_wait_for()`), or poll for
  * completion non-blockingly (`done()`).
  *
- * A `future` is a lightweight, copyable handle: copies and moves are cheap,
- * and it can be freely stored in containers. All copies share the same
+ * A `future` is a lightweight, copyable handle. Copies and moves are cheap,
+ * and a future can be freely stored in containers. All copies share the same
  * underlying operation, so a completion observed on one copy is visible on
  * every other copy. Any resources held by the producer on behalf of the
  * async operation are released automatically when the last copy is
@@ -77,7 +77,7 @@ public:
      * - `std::chrono::milliseconds{0}` — non-blocking check, returning
      *   immediately.
      *
-     * The waiter returns `result<T>` — either the completed value or an
+     * The waiter returns `result<T>`: either the completed value or an
      * error (typically `idfxx::errc::timeout` when the deadline expires).
      *
      * With this constructor, `done()` is serviced by calling the waiter with
@@ -101,8 +101,8 @@ public:
      *
      * Intended for producers that have a cheap, non-consuming way to check
      * completion (e.g. an atomic flag). When supplied, `done_check` is
-     * called to service `done()` instead of the waiter, avoiding a spurious
-     * wait round-trip.
+     * called to service `done()` instead of the waiter. This avoids a call to
+     * the waiter with a zero timeout.
      *
      * @tparam W           Waiter callable type.
      * @tparam D           Done-check callable type (must be noexcept).
@@ -128,7 +128,7 @@ public:
     /**
      * @brief Non-blocking check for whether the operation has completed.
      *
-     * @return `true` if the operation is complete; also `true` for an
+     * @return `true` if the operation is complete. Also `true` for an
      * invalid future. `false` if the operation is still in progress.
      */
     [[nodiscard]] bool done() const noexcept;

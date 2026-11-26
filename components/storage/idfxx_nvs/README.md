@@ -84,7 +84,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 
 // Initialize NVS flash (call once at startup)
 // If initialization fails due to no_free_pages or new_version_found, the flash is erased
-// and the initialization re-attempted.
+// and initialization is tried again.
 auto init_result = idfxx::nvs::flash::try_init(); // idfxx::result<void>
 if (!init_result) {
     if (init_result.error() == idfxx::nvs::errc::no_free_pages ||
@@ -218,7 +218,7 @@ nvs.commit();
 #include <idfxx/nvs>
 #include <idfxx/partition>
 
-// Find the NVS keys partition
+// Find the NVS key partition
 auto key_part = idfxx::partition::find(
     idfxx::partition::type::data,
     idfxx::partition::subtype::data_nvs_keys);
@@ -340,15 +340,15 @@ The `idfxx::nvs::errc` enum provides NVS-specific error codes:
 - Partition-based APIs accept `idfxx::partition` objects from `idfxx_partition`
 - Supported integer types: `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`,
   `uint64_t`, `int64_t`
-- With ESP-IDF 6.1 or later, `float` and `double` are also supported; storing NaN fails with
+- With ESP-IDF 6.1 or later, `float` and `double` are also supported. Storing NaN fails with
   `idfxx::errc::invalid_arg`. On earlier versions these overloads do not exist
 - Reading a blob into a buffer smaller than the stored blob fails with `idfxx::errc::invalid_size`,
   and leaves the buffer contents unspecified
 - `set_blob(key, value)` stores an object's exact bytes, including padding. `get_blob<T>()` fails
-  with `idfxx::errc::invalid_size` unless the stored length is `sizeof(T)`, and changing the type's
-  layout makes earlier blobs unreadable or misread. Arrays, spans, vectors and other ranges are
-  stored as their elements' bytes instead; ranges of other element types (e.g. `uint32_t`) are
-  passed as `std::as_bytes(std::span{values})`
+  with `idfxx::errc::invalid_size` unless the stored length is `sizeof(T)`. If the type's layout
+  changes, earlier blobs become unreadable or are misread. Arrays, spans, vectors and other ranges
+  are stored as their elements' bytes instead. Pass ranges of other element types (e.g.
+  `uint32_t`) as `std::as_bytes(std::span{values})`
 - `secure_config` keys (`eky`, `tky`) are `std::array<std::byte, 32>`
 
 ## License

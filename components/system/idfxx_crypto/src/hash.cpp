@@ -133,7 +133,8 @@ result<void> operation::try_update(byte_view data) {
 
 result<byte_span> operation::try_finish(byte_span digest) {
     const std::size_t size = digest_size();
-    // Checked before PSA sees the buffer: PSA would end the operation, discarding the message.
+    // Checked before the buffer is passed to PSA, because PSA would end the operation and discard
+    // the message.
     if (digest.size() < size) {
         return error(errc::buffer_too_small);
     }
@@ -172,10 +173,10 @@ void operation::reset() noexcept {
 result<byte_span> operation::try_compute(hash::algorithm alg, byte_view data, byte_span digest) {
     const std::size_t size = hash::digest_size(alg);
     if (size == 0 || digest.size() < size) {
-        // Report an unusable algorithm, as PSA does on setup, in preference to the buffer size.
-        // PSA can't be relied on to rank them: ESP-IDF 6.1's MD5 driver (esp_md5_hash_compute)
-        // rejects a null output buffer with PSA_ERROR_INVALID_ARGUMENT before checking the
-        // algorithm, which ends the search for a driver that supports it.
+        // Report an unusable algorithm, as PSA does on setup, before a buffer that is too small.
+        // PSA can't be relied on to choose between the two errors. ESP-IDF 6.1's MD5 driver
+        // (esp_md5_hash_compute) rejects a null output buffer with PSA_ERROR_INVALID_ARGUMENT
+        // before it checks the algorithm, and that ends PSA's search for a driver that supports it.
         if (auto r = state::probe(alg); !r) {
             return error(r.error());
         }

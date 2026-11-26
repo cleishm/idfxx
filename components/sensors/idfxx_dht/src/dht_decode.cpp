@@ -7,12 +7,13 @@ namespace idfxx::dht::internal {
 
 namespace {
 
-// The capture's phase depends on the line level at the instant RMT RX starts:
-// symbols arrive as (low, high) pairs when it started high, but as (high, low)
-// pairs when it caught the tail of the host's start pulse (seen on the XIAO
-// ESP32-S3). Decode from the flattened half-symbol sequence instead of
-// assuming either pairing. A duration of 0 means the line held that level to
-// the idle threshold (only ever the capture's final half).
+// The capture's phase depends on the line level at the instant RMT RX starts.
+// If the line was high, symbols arrive as (low, high) pairs. If RX started
+// during the tail of the host's start pulse (seen on the XIAO ESP32-S3),
+// symbols arrive as (high, low) pairs. So the decoder reads the symbols as one
+// flat sequence of halves and does not assume either pairing. A duration of 0
+// means the line held that level until the idle threshold. This happens only
+// in the capture's final half.
 
 struct half {
     uint8_t level;
@@ -42,8 +43,8 @@ constexpr bool is_bit(const half& lo, const half& hi) {
 result<std::array<uint8_t, 5>> decode_frame(std::span<const rmt_symbol_word_t> symbols) {
     const size_t halves = symbols.size() * 2;
 
-    // Find the response preamble at any phase, skipping anything the capture
-    // picked up from the host's own start pulse.
+    // Find the response preamble at any phase, skipping anything that the
+    // capture recorded from the host's own start pulse.
     size_t start = 0;
     while (start + 1 < halves &&
            !is_preamble(half_at(symbols, start), half_at(symbols, start + 1))) {

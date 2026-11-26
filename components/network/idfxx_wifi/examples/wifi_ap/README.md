@@ -43,5 +43,5 @@ the monitor.
 
 Connect your phone or computer to the network `idfxx_ap` with the password `password123`. The
 example logs each connection and disconnection, and every 10 seconds lists the connected stations.
-The access point uses WPA2-PSK on channel 6 and accepts up to 4 stations; to change these settings,
+The access point uses WPA2-PSK on channel 6 and accepts up to 4 stations. To change these settings,
 edit the `set_ap_config()` call in `main/main.cpp`.

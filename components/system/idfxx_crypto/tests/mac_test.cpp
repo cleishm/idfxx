@@ -142,7 +142,7 @@ std::vector<kat> truncated(std::vector<kat> kats, size_t tag_size) {
     return kats;
 }
 
-// The algorithm keys for an authenticator are permitted: its MAC algorithm, truncated to its tag
+// The algorithm that keys for an authenticator permit: its MAC algorithm, truncated to its tag
 // size.
 template<typename M>
 constexpr crypto::key_algorithm key_algorithm_of = crypto::key_algorithm{M::algorithm, M::tag_size};
@@ -158,10 +158,11 @@ std::vector<std::byte> copy_of(std::span<const std::byte> data) {
     return {data.begin(), data.end()};
 }
 
-// What mac::operation takes from a key: the algorithm, the key type and the tag length. The helpers
-// that test mac::operation take these at runtime, so that one copy serves every algorithm and tag
-// length. The helpers that test an authenticator's own API are templates: the full set runs only on
-// a few representative authenticators, and the others are checked against their known answers.
+// What mac::operation takes from a key: the algorithm, the key type and the tag size. The helpers
+// that test mac::operation take these at runtime, so that one copy of each helper works for every
+// algorithm and tag size. The helpers that test an authenticator's own API are templates. The
+// full set runs only on a few representative authenticators. The others are checked against their
+// known answers.
 struct mac_params {
     crypto::mac::algorithm algorithm;
     crypto::key_type key_type;
@@ -173,7 +174,7 @@ constexpr mac_params params_of{
     M::algorithm, crypto::detail::mac_key_type(M::algorithm), M::tag_size
 };
 
-// A key for p's algorithm and tag length, permitted the given usage.
+// A key for p's algorithm and tag size that permits the given usage.
 crypto::key import_key(
     const mac_params& p, const std::vector<uint8_t>& material,
     flags<crypto::key_usage> usage = sign_verify
@@ -358,7 +359,7 @@ void check_compare_and_verify(const std::vector<kat>& kats) {
     TEST_ASSERT_FALSE(ok(M::try_compare(k, v.data, std::span<const uint8_t>{})));
     TEST_ASSERT_FALSE(ok(M::try_compare(k, other, good)));
 
-    // Incremental; verify leaves the authenticator ready for a new message whatever the outcome
+    // Incremental: verify leaves the authenticator ready for a new message, whatever the outcome
     auto empty_tag = to_hex(ok(M::try_compute(k, std::string_view{})));
     auto m = ok(M::make(k));
     TEST_ASSERT_TRUE(ok(m.try_verify(from_hex(empty_tag))));
@@ -551,7 +552,7 @@ void check_operation_independence(const mac_params& p, const std::vector<kat>& k
     }
 }
 
-// Generated keys: an HMAC key is as long as the hash's output, whatever the authenticator's tag
+// Generated keys: an HMAC key is as long as the hash's digest, whatever the authenticator's tag
 // size.
 template<typename M>
 void check_generated_keys() {
@@ -588,9 +589,10 @@ void check_generated_keys() {
 #endif
 }
 
-// Every combination of the usages an authenticator uses, with each operation. A key that permits
-// computing tags gives an authenticator that computes them (and can't verify unless the key also
-// permits that); a key that permits only checking tags gives an authenticator that can only verify.
+// Every combination of the usages that an authenticator uses, with each operation. A key that
+// permits computing tags gives an authenticator that computes them (and can't verify unless the key
+// also permits that). A key that permits only checking tags gives an authenticator that can only
+// verify.
 template<typename M>
 void check_policy(const std::vector<uint8_t>& material) {
     auto make = [&](flags<crypto::key_usage> usage) {
@@ -677,7 +679,7 @@ void check_policy(const std::vector<uint8_t>& material) {
     }
 }
 
-// The same as check_policy, through mac::operation with keys for p's algorithm and tag length.
+// The same as check_policy, through mac::operation with keys for p's algorithm and tag size.
 void check_operation_policy(const mac_params& p, const std::vector<uint8_t>& material) {
     using crypto::mac::operation;
     auto both = import_key(p, material);
@@ -723,7 +725,7 @@ void check_operation_policy(const mac_params& p, const std::vector<uint8_t>& mat
     }
     {
         fails_with(crypto::errc::not_permitted, operation::try_compute(verify_only, msg, buf));
-        // A key that can't compute tags is reported in preference to the buffer size
+        // A key that can't compute tags is reported before a buffer that is too small
         fails_with(
             crypto::errc::not_permitted, operation::try_compute(verify_only, msg, small)
         );
@@ -825,7 +827,7 @@ void check_throwing_api(const std::vector<kat>& kats) {
     TEST_ASSERT_TRUE(threw);
 }
 
-// The exception-based API of mac::operation, with keys for p's algorithm and tag length.
+// The exception-based API of mac::operation, with keys for p's algorithm and tag size.
 void check_throwing_operation(const mac_params& p, const std::vector<kat>& kats) {
     using crypto::mac::operation;
     const kat& v = kats[1];
@@ -882,7 +884,7 @@ void check_throwing_operation(const mac_params& p, const std::vector<kat>& kats)
         TEST_ASSERT_TRUE(e.code() == crypto::errc::buffer_too_small);
     }
     TEST_ASSERT_TRUE(threw);
-    // The message survived the failed finish
+    // The message is unchanged after the failed finish
     TEST_ASSERT_TAG(v.tag, op.finish(buf));
 
     auto verify_only = key_for(crypto::key_usage::verify_message);
@@ -931,7 +933,7 @@ void check_full_length_tags(const std::vector<kat>& full) {
     }
 }
 
-// Checks that the tag length is part of a key's policy: the truncated authenticator M refuses a
+// Checks that the tag size is part of a key's policy: the truncated authenticator M refuses a
 // full-length key and a key for another truncated length, and the authenticators for those lengths
 // refuse M's keys. Each key works with its own authenticator, and the tags agree.
 template<typename M>
@@ -949,7 +951,7 @@ void check_tag_length_policy(const std::vector<uint8_t>& material) {
     TEST_ASSERT_TRUE(other_key.algorithm() == key_algorithm_of<other_mac>);
     TEST_ASSERT_TRUE(truncated_key.algorithm() != full_key.algorithm());
 
-    // Expected tags of the right length, so that compare() reaches the key's policy
+    // Expected tags of the right length, so that compare() checks the key's policy
     typename M::tag_type tag{};
     typename full_mac::tag_type full_tag{};
     typename other_mac::tag_type other_tag{};
@@ -965,7 +967,7 @@ void check_tag_length_policy(const std::vector<uint8_t>& material) {
     fails_with(crypto::errc::not_permitted, other_mac::try_compare(truncated_key, msg, other_tag));
     rejects_key<other_mac>(crypto::errc::not_permitted, truncated_key);
 
-    // A key imported with the truncated algorithm suits M
+    // A key imported with the truncated algorithm works with M
     auto imported = ok(crypto::key::try_import(
         {.type = crypto::detail::mac_key_type(M::algorithm),
          .usage = sign_verify,
@@ -984,7 +986,7 @@ void check_tag_length_policy(const std::vector<uint8_t>& material) {
     TEST_ASSERT_TRUE(ok(M::try_compare(imported, msg, truncated_tag)));
 }
 
-// mac::operation with keys for p's algorithm and tag length: the known tags, written into a
+// mac::operation with keys for p's algorithm and tag size: the known tags, written into a
 // caller-supplied buffer.
 void check_operation(const mac_params& p, const std::vector<kat>& kats) {
     using crypto::mac::operation;
@@ -1037,7 +1039,7 @@ void check_operation(const mac_params& p, const std::vector<kat>& kats) {
     too_long.push_back(0);
     auto empty_tag = to_hex(ok(operation::try_compute(k, std::string_view{}, buf)));
 
-    // A tag of the wrong length never matches; a buffer too small for the tag is an error
+    // A tag of the wrong length never matches. A buffer too small for the tag is an error
     TEST_ASSERT_FALSE(ok(operation::try_compare(k, v.data, too_short)));
     TEST_ASSERT_FALSE(ok(operation::try_compare(k, v.data, too_long)));
     TEST_ASSERT_FALSE(ok(operation::try_compare(k, v.data, byte_view{})));
@@ -1150,7 +1152,7 @@ void check_chunked_input(const std::vector<uint8_t>& material, std::string_view 
 }
 
 // The same as check_chunked_input, through mac::operation with keys for p's algorithm and tag
-// length.
+// size.
 void check_chunked_operation(
     const mac_params& p, const std::vector<uint8_t>& material, std::string_view full_tag
 ) {
@@ -1205,7 +1207,7 @@ constexpr bool has_authenticator_traits() {
            std::is_same_v<typename M::tag_type, std::array<std::byte, M::tag_size>>;
 }
 
-// An authenticator's tag size is the crypto library's tag length for its (truncated) algorithm
+// An authenticator's tag size is the crypto library's tag size for its (truncated) algorithm
 template<typename M>
 constexpr bool tag_size_matches_psa() {
     constexpr auto type = crypto::detail::mac_key_type(M::algorithm);
@@ -1231,8 +1233,8 @@ constexpr bool tag_size_matches_psa() {
 #error "test app must enable hmac"
 #endif
 
-// mac::tag_size: the full tag length, in constant expressions, 0 for a value that is not a MAC
-// algorithm. A truncated algorithm's full length is that of the algorithm it truncates.
+// mac::tag_size: the full tag size, in constant expressions, 0 for a value that is not a MAC
+// algorithm. A truncated algorithm's full size is that of the algorithm that it truncates.
 static_assert(crypto::mac::tag_size(static_cast<crypto::mac::algorithm>(PSA_ALG_NONE)) == 0);
 static_assert(crypto::mac::tag_size(static_cast<crypto::mac::algorithm>(PSA_ALG_SHA_256)) == 0);
 static_assert(
@@ -1405,8 +1407,8 @@ static_assert(has_authenticator_traits<crypto::mac::cmac>());
 static_assert(tag_size_matches_psa<crypto::mac::cmac>());
 #endif
 
-// Truncated tags: the tag size is part of the type, and the full length is the same type as the
-// alias. A shorter tag is the PSA truncated algorithm; the full length is the plain algorithm.
+// Truncated tags: the tag size is part of the type, and the full size is the same type as the
+// alias. A shorter tag is the PSA truncated algorithm. The full size is the plain algorithm.
 namespace {
 #ifdef PSA_WANT_ALG_SHA_256
 using hmac_sha256_128 = crypto::mac::authenticator<crypto::mac::algorithm::hmac_sha256, 16>;
@@ -1463,7 +1465,7 @@ static_assert(
 #endif
 
 #ifdef PSA_WANT_ALG_SHA_512
-// The longest truncation: PSA encodes a truncated length in 6 bits
+// The longest truncation: PSA encodes a truncated size in 6 bits
 static_assert(crypto::mac::authenticator<crypto::mac::algorithm::hmac_sha512, 63>::tag_size == 63);
 static_assert(
     tag_size_matches_psa<crypto::mac::authenticator<crypto::mac::algorithm::hmac_sha512, 63>>()
@@ -2072,7 +2074,7 @@ TEST_CASE("crypto cmac rejects keys of the wrong size", "[idfxx][crypto]") {
 }
 
 // AES-192 keys import on every target, but only the esp32 and esp32s2 AES engines take 192-bit
-// keys. Elsewhere, with hardware AES, ESP-IDF 5.x fails with not_supported; on ESP-IDF 6.x the
+// keys. Elsewhere, with hardware AES, ESP-IDF 5.x fails with not_supported. On ESP-IDF 6.x, the
 // outcome is not established, so either an authenticator that computes correct tags or
 // not_supported is accepted. The authenticator is created either way: the crypto library reports
 // the key size only when a message starts.
@@ -2160,7 +2162,7 @@ TEST_CASE("crypto authenticator refuses a key permitted for another algorithm", 
     fails_with(crypto::errc::not_permitted, crypto::mac::hmac_sha1::try_compare(k, msg, tag));
     rejects_key<crypto::mac::hmac_sha1>(crypto::errc::not_permitted, k);
 
-    // A key permitted no algorithm
+    // A key that permits no algorithm
     auto none = ok(crypto::key::try_import(
         {.type = crypto::key_type::hmac, .usage = sign_verify}, material
     ));
@@ -2178,11 +2180,11 @@ TEST_CASE("crypto authenticator refuses a key permitted for another algorithm", 
 #if defined(PSA_WANT_ALG_SHA_256) && defined(PSA_WANT_KEY_TYPE_AES)
 
 // A key of the wrong type for a MAC algorithm can't be created, so no authenticator or
-// mac::operation ever sees one.
+// mac::operation is ever given one.
 TEST_CASE("crypto mac keys of the wrong type can't be created", "[idfxx][crypto]") {
     auto material = repeat(0x2b, 16);
 
-    // An AES key permitted HMAC-SHA-256, at full length and truncated
+    // An AES key that permits HMAC-SHA-256, at full size and truncated
     for (crypto::key_algorithm alg :
          {crypto::key_algorithm{crypto::mac::algorithm::hmac_sha256},
           key_algorithm_of<hmac_sha256_128>}) {
@@ -2201,7 +2203,7 @@ TEST_CASE("crypto mac keys of the wrong type can't be created", "[idfxx][crypto]
     }
 
 #ifdef PSA_WANT_ALG_CMAC
-    // An HMAC key permitted AES-CMAC, at full length and truncated
+    // An HMAC key that permits AES-CMAC, at full size and truncated
     for (crypto::key_algorithm alg :
          {crypto::key_algorithm{crypto::mac::algorithm::cmac}, key_algorithm_of<cmac_32>}) {
         fails_with(
@@ -2221,7 +2223,7 @@ TEST_CASE("crypto mac keys of the wrong type can't be created", "[idfxx][crypto]
 }
 
 // mac::operation takes its algorithm from the key: an unusable key is an error from every
-// operation, never a mismatch, and is reported in preference to a buffer that is too small.
+// operation, never a mismatch. It is reported before a buffer that is too small.
 TEST_CASE("crypto mac::operation refuses keys it cannot use", "[idfxx][crypto]") {
     using crypto::mac::operation;
     std::string_view msg = "message";
@@ -2238,13 +2240,14 @@ TEST_CASE("crypto mac::operation refuses keys it cannot use", "[idfxx][crypto]")
         rejects_key<operation>(expected, k);
     };
 
-    // A key permitted no algorithm
+    // A key that permits no algorithm
     auto none = ok(crypto::key::try_import(
         {.type = crypto::key_type::hmac, .usage = sign_verify}, material
     ));
     check(crypto::errc::not_permitted, none, 32);
 
-    // A key permitted HMAC with a hash the crypto library doesn't know, so of no known tag length
+    // A key that permits HMAC with a hash that the crypto library doesn't know, so with no known
+    // tag size
     const auto unknown_hmac = static_cast<crypto::mac::algorithm>(PSA_ALG_HMAC(0x020000fe));
     TEST_ASSERT_EQUAL(0, crypto::mac::tag_size(unknown_hmac));
     auto unknown = ok(crypto::key::try_import(
@@ -2253,7 +2256,7 @@ TEST_CASE("crypto mac::operation refuses keys it cannot use", "[idfxx][crypto]")
     ));
     check(crypto::errc::not_permitted, unknown, 32);
 
-    // A key permitted HMAC-SHA-256 that permits neither computing nor checking tags
+    // A key for HMAC-SHA-256 that permits neither computing nor checking tags
     auto neither = ok(crypto::key::try_import(
         {.type = crypto::key_type::hmac,
          .usage = crypto::key_usage::export_key,
@@ -2262,7 +2265,7 @@ TEST_CASE("crypto mac::operation refuses keys it cannot use", "[idfxx][crypto]")
     ));
     check(crypto::errc::not_permitted, neither, 32);
 
-    // A key that suits its algorithm works
+    // A key that matches its algorithm works
     auto good = ok(crypto::mac::hmac_sha256::try_import_key(material));
     auto tag = ok(operation::try_compute(good, msg, buf));
     TEST_ASSERT_TRUE(ok(operation::try_compare(good, msg, tag)));
@@ -2275,9 +2278,9 @@ TEST_CASE("crypto mac::operation refuses keys it cannot use", "[idfxx][crypto]")
 
 #ifndef PSA_WANT_ALG_RIPEMD160
 
-// HMAC with a hash the crypto library knows but doesn't have enabled: a key for it can be created,
-// and so can an operation (which sets nothing up), but each message that starts reports it. A tag
-// of the wrong length doesn't match, without starting a message.
+// HMAC with a hash that the crypto library knows but doesn't have enabled. A key for it can be
+// created, and so can an operation (which sets nothing up). But each message that starts reports
+// the error. A tag of the wrong length doesn't match, without starting a message.
 TEST_CASE("crypto mac::operation reports an unsupported hash on first use", "[idfxx][crypto]") {
     using crypto::mac::operation;
     const auto alg = static_cast<crypto::mac::algorithm>(PSA_ALG_HMAC(PSA_ALG_RIPEMD160));

@@ -4,9 +4,10 @@
 // Unit tests for idfxx fatfs
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 //
-// The flash tests use the test app's `storage` partition (data/fat, mounted with wear leveling) and `fatimg`
-// partition (data/fat, holding the raw image built from tests/fatimg). On QEMU `storage` starts erased; on hardware
-// it holds whatever the previous run left, so every test that needs a known state formats or erases it.
+// The flash tests use the test app's `storage` partition (data/fat, mounted with wear leveling) and
+// `fatimg` partition (data/fat, holding the raw image built from tests/fatimg). On QEMU `storage`
+// starts erased. On hardware it holds whatever the previous run left, so every test that needs a
+// known state formats or erases it.
 
 #include "idfxx/fatfs"
 #include "sd_test_rig.hpp"
@@ -48,7 +49,7 @@ using namespace idfxx::fatfs;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // volume and image are not default constructible (must use make() or a constructor)
@@ -262,8 +263,8 @@ void write_storage_sectors(size_t count, Fill fill) {
 
 // Fills `bs`, a zeroed sector, with a damaged FAT16 or FAT32 boot sector (`fat_bits` is 16 or 32): it has the jump
 // code, the type string and the signature, but its BPB is left zeroed (no bytes per sector, sectors per cluster or
-// FATs). FatFs takes a FAT32 one for a volume boot record, so it looks for no partition table in it, then rejects its
-// BPB.
+// FATs). FatFs treats a FAT32 one as a volume boot record, so it does not look for a partition
+// table in it, and then rejects its BPB.
 void fill_damaged_boot_sector(uint8_t* bs, int fat_bits) {
     const bool fat32 = fat_bits == 32;
     bs[0] = 0xEB; // jump code, past the BPB
@@ -302,9 +303,10 @@ void write_table_with_damaged_first_partition(bool second_past_end) {
     });
 }
 
-// The mounts a test makes, and the card it moves. They are held in static storage rather than in the test's stack
-// frame: a failed Unity assertion longjmps out of the test, skipping destructors, which would leave them mounted and
-// fail the tests after it. A test holding two volumes or two images at once uses slots 0 and 1.
+// The mounts that a test makes, and the card that it moves. They are held in static storage rather
+// than in the test's stack frame: a failed Unity assertion longjmps out of the test, skipping
+// destructors, which would leave them mounted and fail the tests after it. A test holding two
+// volumes or two images at once uses slots 0 and 1.
 std::optional<volume>& held_volume(size_t slot = 0) {
     static std::array<std::optional<volume>, 2> vols;
     return vols[slot];
@@ -345,10 +347,10 @@ volume::flash_config format_if_needed() {
     return {.format_if_missing = true};
 }
 
-// Checks that `storage`, holding no filesystem FatFs recognizes, fails to mount with fatfs::errc::no_filesystem
-// without format_if_missing, and that with it the mount formats the partition, without a partition table, and
-// the new filesystem can be used. The results are checked once nothing is mounted, so that a failure leaves no volume
-// behind.
+// Checks that `storage`, holding no filesystem that FatFs recognizes, fails to mount with
+// fatfs::errc::no_filesystem without format_if_missing. Also checks that with format_if_missing,
+// the mount formats the partition, without a partition table, and the new filesystem can be used.
+// The results are checked once nothing is mounted, so that a failure leaves no volume behind.
 void assert_storage_formats_on_mount() {
     std::error_code unformatted;
     if (auto r = volume::make(STORAGE, "/fat"); !r) {
@@ -477,7 +479,7 @@ void assert_error(const result<T>& r, std::error_code expected) {
     TEST_ASSERT_TRUE(&r.error().category() == &expected.category());
 }
 
-// A disk driver whose medium never initializes, standing in for one that has stopped responding.
+// A disk driver whose medium never initializes, which simulates one that has stopped responding.
 DSTATUS failing_disk_status(unsigned char) {
     return STA_NOINIT;
 }
@@ -610,8 +612,8 @@ TEST_CASE("fatfs volume on an erased partition fails with no_filesystem without 
 }
 
 TEST_CASE("fatfs volume formats a partition whose partition table lists no FAT filesystem", "[idfxx][fatfs]") {
-    // Before formatting, a mount is tried again with its reads watched, so that a read error is never taken for a
-    // missing filesystem. Here every read succeeds, and the format goes ahead.
+    // Before formatting, a mount is tried again with its reads watched, so that a read error is
+    // never reported as a missing filesystem. Here every read succeeds, and the format goes ahead.
     erase_storage();
     write_storage_sectors(1, [](std::vector<uint8_t>& mbr, size_t, size_t) {
         // A partition table listing two partitions, at sectors 1 and 2, which hold no boot sector
@@ -623,7 +625,8 @@ TEST_CASE("fatfs volume formats a partition whose partition table lists no FAT f
 }
 
 TEST_CASE("fatfs volume formats a partition whose partition table lists a partition past its end", "[idfxx][fatfs]") {
-    // A stale or foreign partition table: a partition it lists beyond the end of the medium doesn't stop the format.
+    // A stale or foreign partition table: a partition that it lists beyond the end of the medium
+    // doesn't stop the format.
     erase_storage();
     write_storage_sectors(1, [](std::vector<uint8_t>& mbr, size_t, size_t sector_count) {
         fill_partition_table(mbr.data(), {sector_count}); // just past the end
@@ -632,8 +635,8 @@ TEST_CASE("fatfs volume formats a partition whose partition table lists a partit
 }
 
 TEST_CASE("fatfs volume formats a partition whose first listed partition has a damaged boot sector", "[idfxx][fatfs]") {
-    // FatFs takes the first partition's boot sector for a FAT32 volume boot record, so it reads no other partition
-    // before rejecting its BPB.
+    // FatFs treats the first partition's boot sector as a FAT32 volume boot record, so it reads no
+    // other partition before rejecting its BPB.
     erase_storage();
     write_table_with_damaged_first_partition(false);
     assert_storage_formats_on_mount();
@@ -653,8 +656,9 @@ TEST_CASE("fatfs volume formats a partition with a damaged FAT32 boot sector", "
 }
 
 TEST_CASE("fatfs volume formats a partition with a damaged FAT16 boot sector", "[idfxx][fatfs]") {
-    // Without a proper BPB, FatFs doesn't recognize a FAT12 or FAT16 volume boot record by its type string, and looks
-    // for a partition table in it; the boot code where that would be is zeroed here, so it lists none.
+    // Without a proper BPB, FatFs doesn't recognize a FAT12 or FAT16 volume boot record by its type
+    // string, and looks for a partition table in it. The boot code area where that table would be
+    // is zeroed here, so the table lists no partitions.
     erase_storage();
     write_storage_sectors(1, [](std::vector<uint8_t>& bs, size_t, size_t) { fill_damaged_boot_sector(bs.data(), 16); });
     assert_storage_formats_on_mount();
@@ -980,7 +984,7 @@ TEST_CASE("fatfs volume format whose remount fails leaves the volume unusable un
         TEST_ASSERT_TRUE(size_after == size);
         TEST_ASSERT_TRUE(unmounted.has_value());
     }
-    // Nothing reached the partition
+    // Nothing was written to the partition
     auto r = volume::make(STORAGE, "/fat");
     TEST_ASSERT_OK(r);
     held_volume().emplace(std::move(*r));
@@ -1117,8 +1121,9 @@ TEST_CASE("fatfs volume exception-based API", "[idfxx][fatfs]") {
 
 namespace {
 
-// The path of one of the names replace_file() uses for `dir`/`name`, worked out here from the documented scheme: the
-// FNV-1a 32-bit hash of `name` with its ASCII letters in uppercase, as 8 uppercase hex digits, then `extension`.
+// The path of one of the names that replace_file() uses for `dir`/`name`, computed here from the
+// documented scheme: the FNV-1a 32-bit hash of `name` with its ASCII letters in uppercase, as 8
+// uppercase hex digits, then `extension`.
 std::string replace_name(const char* dir, const char* name, const char* extension) {
     uint32_t hash = 0x811c9dc5;
     for (const char* c = name; *c != '\0'; ++c) {
@@ -1204,11 +1209,12 @@ void assert_no_leftovers(const char* dir, const char* name) {
 
 TEST_CASE("fatfs replace_file uses the documented names", "[idfxx][fatfs]") {
     mounts_fixture mounts;
-    // The hash of "CONFIG.JSON", worked out independently of both the test helper and the implementation
+    // The hash of "CONFIG.JSON", computed independently of both the test helper and the
+    // implementation
     TEST_ASSERT_EQUAL_STRING("/fat/189A8B29.~RT", temp_name("/fat", "config.json").c_str());
     TEST_ASSERT_EQUAL_STRING("/fat/189A8B29.~RN", complete_name("/fat", "Config.Json").c_str());
 
-    // The names replace_file() leaves when the writer stops it are those
+    // The names that replace_file() leaves when the writer stops it are those
     auto& vol = mount_empty_storage();
     bool temp_seen = false;
     auto r = vol.try_replace_file("/fat/Config.Json", [&](FILE* f) -> result<void> {
@@ -1403,7 +1409,8 @@ TEST_CASE("fatfs replace_file that fills the volume keeps the old file", "[idfxx
     auto before = vol.try_free_size();
     TEST_ASSERT_TRUE(before.has_value());
 
-    // The writer ignores the failed writes; the stream's error indicator still abandons the replace
+    // The writer ignores the failed writes. The replace is still abandoned because of the stream's
+    // error indicator
     std::vector<char> chunk(4096, 'x');
     auto r = vol.try_replace_file("/fat/cfg.txt", [&](FILE* f) -> result<void> {
         for (uint64_t written = 0; written <= *before; written += chunk.size()) {
@@ -1585,7 +1592,7 @@ TEST_CASE("fatfs the same mount path twice is invalid_state", "[idfxx][fatfs]") 
 
     assert_error(image::make(FATIMG, "/fat"), idfxx::errc::invalid_state);
 
-    // The failed mount left the volume's registration alone
+    // The failed mount did not change the volume's registration
     TEST_ASSERT_EQUAL_STRING("volume", read_file("/fat/mine.txt").c_str());
     write_file("/fat/still.txt", "writable");
     TEST_ASSERT_TRUE(vol.try_free_size().has_value());
@@ -1669,7 +1676,7 @@ TEST_CASE("fatfs a volume and an image on the same partition is invalid_state", 
         held_volume().reset();
     }
     {
-        // Refused before the wear-leveling layer touches the image's partition
+        // Refused before the wear-leveling layer accesses the image's partition
         mount_fatimg("/img");
         assert_error(volume::make(FATIMG, "/fat", format_if_needed()), idfxx::errc::invalid_state);
         assert_error(image::make(FATIMG, "/img2"), idfxx::errc::invalid_state);
@@ -1845,7 +1852,7 @@ namespace {
 
 namespace rig = idfxx::sdcard::test;
 
-// A file of the tests' own, so that the card's other contents are left alone.
+// A file that only the tests use, so that the card's other contents are not changed.
 constexpr const char* SD_TEST_FILE = "/sdcard/idfxx_fatfs_test.txt";
 
 constexpr const char* SD_TEST_TEXT = "written by the idfxx_fatfs tests";
@@ -1923,7 +1930,7 @@ TEST_CASE("fatfs volume on an SD card replaces a file", "[idfxx][fatfs][hw]") {
 namespace {
 
 // Writes SD_TEST_FILE through a volume, which is unmounted again, and returns the volume's size. Returns
-// std::nullopt, having written nothing, if the card holds no FAT filesystem; never formats.
+// std::nullopt, having written nothing, if the card holds no FAT filesystem. Never formats.
 std::optional<uint64_t> write_sd_test_file(sdcard::card& card) {
     auto r = volume::make(card, "/sdcard");
     if (!r && r.error() == fatfs::errc::no_filesystem) {
@@ -2053,7 +2060,7 @@ TEST_CASE("fatfs a second mount on an SD card with an image is invalid_state", "
     }
     TEST_ASSERT_OK(first_r);
     auto& first = held_image().emplace(std::move(*first_r));
-    // At another path, so that the card's claim is what refuses them
+    // At another path, so that they are refused because of the card's claim
     assert_error(image::make(card, "/sd2"), idfxx::errc::invalid_state);
     assert_error(volume::make(card, "/sd2"), idfxx::errc::invalid_state);
     TEST_ASSERT_FALSE(exists("/sd2"));

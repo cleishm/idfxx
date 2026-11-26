@@ -27,9 +27,10 @@ static const std::map<std::string, std::string, std::less<>> items{
 };
 
 static void register_error_handlers(idfxx::http::server& srv) {
-    // A handler registered with on_error() renders the response for that status, both for errors
-    // the server raises itself (an unknown URI) and for ones the app raises with handle_error().
-    // Returning success keeps the connection open; returning an error would close it.
+    // A handler registered with on_error() sends the response for that status. It is called both
+    // for errors that the server detects itself (an unknown URI) and for errors that the app
+    // reports with handle_error(). Returning success keeps the connection open. Returning an error
+    // would close it.
     srv.on_error(
         idfxx::http::status_code::not_found,
         [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {
@@ -42,8 +43,8 @@ static void register_error_handlers(idfxx::http::server& srv) {
         }
     );
 
-    // httpd itself detects this one (a registered URI requested with the wrong method), so
-    // on_error() also customizes errors the server raises on its own.
+    // httpd itself detects this error (a registered URI requested with the wrong method). So
+    // on_error() also customizes errors that the server detects itself.
     srv.on_error(
         idfxx::http::status_code::method_not_allowed,
         [](idfxx::http::request& req, idfxx::http::status_code) -> idfxx::result<void> {
@@ -75,7 +76,8 @@ static void register_routes(idfxx::http::server& srv) {
         auto name = path.substr(std::string_view{"/items/"}.size());
         auto it = items.find(name);
         if (it == items.end()) {
-            // Dispatches to the on_error(not_found) handler, so this miss renders the same page
+            // Calls the on_error(not_found) handler, so an unknown item gets the same page as an
+            // unknown URI
             req.handle_error(idfxx::http::status_code::not_found);
             return {};
         }
@@ -122,7 +124,7 @@ extern "C" void app_main() {
 
         logger.info("Connecting to {}...", WIFI_SSID);
 
-        // --- Start HTTP server (listens on all interfaces once up) ---
+        // --- Start HTTP server (listens on all interfaces once they are up) ---
         idfxx::http::server srv({.server_port = 80, .wildcard_uri_match = true});
         register_error_handlers(srv);
         register_routes(srv);

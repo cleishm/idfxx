@@ -43,7 +43,7 @@ using namespace std::chrono_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // card is not default constructible (must use make() or a constructor)
@@ -170,8 +170,8 @@ TEST_CASE("sdcard formatters", "[idfxx][sdcard]") {
 
 // =============================================================================
 // SPI configuration validation
-// These fail before the card is contacted, or fail for lack of a card, so they
-// run without a card (and, unless tagged [hw], in QEMU), on an SPI2 bus with
+// These fail before the card is contacted, or fail because there is no card. So
+// they run without a card (and, unless tagged [hw], in QEMU), on an SPI2 bus with
 // no pins.
 // =============================================================================
 
@@ -179,9 +179,10 @@ namespace {
 
 namespace rig = idfxx::sdcard::test;
 
-// Pins for configurations that are rejected or that fail without a card. Most configurations are rejected before any
-// pin is configured; those that pass the pin checks make spare_pin_a the card's chip select. None of them is a flash,
-// PSRAM, USB, UART0 console, JTAG or strapping pin on its target.
+// Pins for configurations that are rejected or that fail without a card. Most configurations are
+// rejected before any pin is configured. Those that pass the pin checks use spare_pin_a as the
+// card's chip select. None of them is a flash, PSRAM, USB, UART0 console, JTAG or strapping pin on
+// its target.
 #if CONFIG_IDF_TARGET_ESP32
 constexpr gpio spare_pin_a = gpio_21;
 constexpr gpio spare_pin_b = gpio_22;
@@ -232,10 +233,12 @@ TEST_CASE("sdcard make over SPI rejects a miso_wait_timeout out of range", "[idf
 
 TEST_CASE("sdcard make over SPI rejects a bus without DMA", "[idfxx][sdcard]") {
     rig::unwired_bus_fixture bus(spi::dma_chan::disabled);
-    // Without DMA, a transaction is limited to the SPI peripheral's own buffer, shorter than a data block
+    // Without DMA, a transaction is limited to the SPI peripheral's own buffer, which is shorter
+    // than a data block
     TEST_ASSERT_LESS_THAN_UINT32(512, bus.get().max_transaction_length());
-    // The check is made once the card's device is on the bus, and the device is removed again: were it left behind,
-    // the bus would run out of device slots (six) and make() fail with invalid_state instead
+    // The check is made after the card's device is added to the bus, and the device is removed
+    // again. If the device were left on the bus, the bus would run out of device slots (six), and
+    // make() would fail with invalid_state instead
     for (int i = 0; i < 8; ++i) {
         assert_invalid_arg(card::make(bus.get(), {.cs = spare_pin_a}));
     }
@@ -245,8 +248,9 @@ TEST_CASE("sdcard make over SPI rejects a bus without DMA", "[idfxx][sdcard]") {
 // card initialization's SPI transfers on a DMA bus.
 TEST_CASE("sdcard make over SPI accepts a bus with DMA", "[idfxx][sdcard][hw]") {
     rig::unwired_bus_fixture bus;
-    // The configuration is accepted, so make() goes on to initialize the card, which fails: there is none. (The
-    // card-detect pin, unconnected and pulled up, normally reports an empty slot before any bus traffic.)
+    // The configuration is accepted, so make() continues and initializes the card. This fails
+    // because there is no card. (The card-detect pin is unconnected and pulled up, so it normally
+    // reports an empty slot before any bus traffic.)
     bool accepted = false;
     {
         auto r = card::make(bus.get(), {.cs = spare_pin_a, .card_detect = spare_pin_b});
@@ -271,8 +275,8 @@ TEST_CASE("sdcard constructor over SPI throws on an invalid config", "[idfxx][sd
 
 // =============================================================================
 // SPI clock choice
-// The clock a card on an SPI bus is configured with: the search against
-// synthetic buses, and on this target's SPI bus.
+// The clock that a card on an SPI bus is configured with. Tests the search
+// against synthetic buses, and on this target's SPI bus.
 // =============================================================================
 
 namespace {
@@ -281,8 +285,9 @@ namespace clk = idfxx::sdcard::internal;
 
 constexpr uint32_t mhz = 1'000'000;
 
-// The clock a bus generates for a request when it rounds to the nearest of source_hz divided by a whole number (the
-// lower one on a tie), as the SPI peripheral does, or 0 if it rejects the request.
+// The clock that a bus generates for a request when it rounds to the nearest of source_hz divided
+// by a whole number (the lower one on a tie), as the SPI peripheral does, or 0 if it rejects the
+// request.
 uint32_t nearest_clock(uint32_t source_hz, uint32_t request_hz) {
     if (request_hz == 0 || request_hz > source_hz) {
         return 0;
@@ -293,7 +298,7 @@ uint32_t nearest_clock(uint32_t source_hz, uint32_t request_hz) {
     return above - request_hz < request_hz - below ? above : below;
 }
 
-// The clock a bus reports, in whole kHz, for a generated clock (0 if it rejects the request).
+// The clock that a bus reports, in whole kHz, for a generated clock (0 if it rejects the request).
 std::optional<uint32_t> reported(uint32_t hz) {
     return hz == 0 ? std::nullopt : std::optional<uint32_t>{hz / 1000};
 }
@@ -309,8 +314,9 @@ std::optional<uint32_t> limited_80mhz_bus(uint32_t khz) {
     return reported(hz > 80 * mhz / 3 ? 0 : hz);
 }
 
-// A bus on a 480 MHz source that the driver divides first by an even divider, at least 6, that divides the source's
-// ratio to the request, falling back to 6 (as ESP-IDF 6.1 does on esp32p4), and then rounds as nearest_clock() does.
+// A bus on a 480 MHz source. The driver first divides the source by an even divider of at least 6
+// that divides the source's ratio to the request. If there is no such divider, it uses 6 (as
+// ESP-IDF 6.1 does on esp32p4). It then rounds as nearest_clock() does.
 std::optional<uint32_t> pre_divided_480mhz_bus(uint32_t khz) {
     const uint32_t source_hz = 480 * mhz;
     const uint32_t request_hz = khz * 1000;
@@ -346,7 +352,8 @@ TEST_CASE("sdcard SPI clock is recovered from the clock reported in kHz", "[idfx
     TEST_ASSERT_EQUAL_UINT32(40'000'000, clk::spi_clock_hz(80 * mhz, 40'000));
     TEST_ASSERT_EQUAL_UINT32(26'666'666, clk::spi_clock_hz(80 * mhz, 26'666));
     TEST_ASSERT_EQUAL_UINT32(400'000, clk::spi_clock_hz(80 * mhz, 400));
-    // Otherwise the highest clock the reading allows: 480 MHz divided by 1198 to 1200 all read as 400 kHz
+    // Otherwise the highest clock that the reading allows: 480 MHz divided by 1198 to 1200 all read
+    // as 400 kHz
     TEST_ASSERT_EQUAL_UINT32(400'999, clk::spi_clock_hz(480 * mhz, 400));
     TEST_ASSERT_EQUAL_UINT32(999, clk::spi_clock_hz(80 * mhz, 0));
 }
@@ -359,7 +366,7 @@ TEST_CASE("sdcard SPI clock is the highest the bus runs at within the limit", "[
     check_choice(80 * mhz, 26 * mhz, nearest_80mhz_bus, 20'000, 20 * mhz);
     check_choice(80 * mhz, 26'666'666, nearest_80mhz_bus, 26'666, 26'666'666);
     check_choice(80 * mhz, 30 * mhz, nearest_80mhz_bus, 26'666, 26'666'666);
-    // A limit the bus runs at exactly
+    // A limit that the bus runs at exactly
     check_choice(80 * mhz, 40 * mhz, nearest_80mhz_bus, 40'000, 40 * mhz);
     check_choice(80 * mhz, 50 * mhz, nearest_80mhz_bus, 40'000, 40 * mhz);
     TEST_ASSERT_FALSE(clk::choose_spi_clock(80 * mhz, 399'999, nearest_80mhz_bus).has_value());
@@ -444,14 +451,14 @@ namespace {
 
 namespace dma = idfxx::sdcard::internal;
 
-// In flash, which DMA can't reach. Initialized so that it is kept in .rodata.
+// In flash, which DMA can't access. Initialized so that it is kept in .rodata.
 const uint8_t rodata_sector[512] = {1, 2, 3, 4};
 
-// In RTC memory, which DMA can't reach.
+// In RTC memory, which DMA can't access.
 RTC_DATA_ATTR uint8_t rtc_buffer[64];
 
 #if SOC_DIRAM_IRAM_LOW != SOC_DIRAM_DRAM_LOW
-// In IRAM, which DMA can't reach where IRAM has addresses of its own.
+// In IRAM, which DMA can't access on targets where IRAM has addresses of its own.
 IRAM_ATTR void iram_function() {}
 #endif
 
@@ -688,7 +695,8 @@ TEST_CASE("sdcard constructor over SDMMC throws on an invalid config", "[idfxx][
 
 #else // !SOC_SDMMC_USE_GPIO_MATRIX
 
-// Only slot 1 is used: should a configuration ever get past validation, slot 0's pins are the SPI flash pins.
+// Only slot 1 is used. If a configuration ever got past validation, a test on slot 0 would use the
+// SPI flash pins.
 TEST_CASE("sdcard make over SDMMC rejects the slot's pins as card-detect or write-protect", "[idfxx][sdcard]") {
     // Slot 1: CLK 14, CMD 15, D0 2, D1 4, D2 12, D3 13
     assert_invalid_arg(card::make({.card_detect = gpio_14}));
@@ -716,8 +724,8 @@ size_t scratch_sector(const card& c) {
     return c.sector_count() - 64;
 }
 
-// Checks that the sectors from first, as many as original holds, read back erased (all zeros or all ones), then writes
-// original back to them.
+// Checks that the sectors starting at first read back erased (all zeros or all ones), then writes
+// original back to them. The number of sectors is the number that original holds.
 void check_erased_and_restore(card& c, size_t first, const std::vector<uint8_t>& original) {
     std::vector<uint8_t> erased(original.size());
     TEST_ASSERT_TRUE(c.try_read_sectors(first, erased).has_value());
@@ -767,7 +775,8 @@ TEST_CASE("sdcard reports identity and geometry", "[idfxx][sdcard][hw]") {
 TEST_CASE("sdcard over SPI runs at or below max_frequency", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
     rig::card_fixture f;
-    // 27 MHz is above 20 MHz on most buses (26.7 MHz from an 80 MHz source), so it switches a card to high speed
+    // 27 MHz is above 20 MHz on most buses (26.7 MHz from an 80 MHz source), so a card is switched
+    // to high speed
     const quanta::frequency::hertz caps[] = {27_MHz, 26_MHz, 10_MHz, 400_kHz};
     for (auto cap : caps) {
         auto& c = f.reopen(cap);
@@ -855,7 +864,7 @@ TEST_CASE("sdcard raw I/O rejects partial sectors and out-of-range sectors", "[i
     r = c.try_write_sectors(0, {buf.data(), 100});
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);
 
-    // The last sector is readable; one past it is not
+    // The last sector is readable. The sector after it is not
     TEST_ASSERT_TRUE(c.try_read_sectors(c.sector_count() - 1, {buf.data(), c.sector_size()}).has_value());
     r = c.try_read_sectors(c.sector_count() - 1, buf);
     TEST_ASSERT_TRUE(!r && r.error() == errc::invalid_size);

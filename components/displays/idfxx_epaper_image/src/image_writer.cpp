@@ -151,7 +151,7 @@ struct image_stream::state {
     std::vector<uint8_t> workspace{};
     epi_converter_t* converter = nullptr;
     const epi_panel_t* panel = nullptr;
-    std::vector<uint8_t> codes{};             // the row popped
+    std::vector<uint8_t> codes{};             // the row that was popped
     std::optional<band_type> band{};          // for a panel
     uint8_t* packed = nullptr;                // the band's bytes, when rows are packed into them
     epi_pack_format_t format = EPI_PACK_4BPP; // of a row in those bytes

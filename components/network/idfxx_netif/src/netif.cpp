@@ -63,7 +63,7 @@ interface& interface::operator=(interface&& other) noexcept {
         _handle = std::exchange(other._handle, nullptr);
         _destroy = std::exchange(other._destroy, nullptr);
 #ifdef CONFIG_LWIP_DHCPS
-        // Freed only now that the handle that pointed at it is destroyed
+        // The old URI is freed here, after _release() destroyed the handle that pointed at it
         _captive_portal_uri = std::move(other._captive_portal_uri);
 #endif
     }
@@ -427,10 +427,11 @@ bool interface::is_dhcp_client_running() const {
 
 namespace {
 
-// Space the DHCP server leaves for the captive-portal URI. It writes every offered option into a
-// 312-byte field without bounds checks, and the options other than the URI take up to 63 bytes
-// (magic cookie 4, message type 3, subnet mask 6, lease time 6, server ID 6, router 6, DNS 10,
-// broadcast 6, MTU 4, router discovery 3, vendor info 8, end 1), plus 2 for the URI's own header.
+// The space that the DHCP server leaves for the captive-portal URI. The server writes every offered
+// option into a 312-byte field without bounds checks. The options other than the URI take up to 63
+// bytes (magic cookie 4, message type 3, subnet mask 6, lease time 6, server ID 6, router 6,
+// DNS 10, broadcast 6, MTU 4, router discovery 3, vendor info 8, end 1). The URI's own header
+// takes 2 more bytes.
 constexpr size_t max_captive_portal_uri_size = 312 - 63 - 2;
 
 // The lease time in the driver's units of CONFIG_LWIP_DHCPS_LEASE_UNIT seconds, rounded up, or
@@ -491,8 +492,8 @@ result<void> interface::try_dhcp_server_start(const dhcp_server_config& cfg) {
             value.find('\0') != std::string::npos) {
             return error(idfxx::errc::invalid_arg);
         }
-        // The driver keeps the pointer for the life of the handle, which a non-owning interface
-        // can't guarantee
+        // The driver keeps the pointer until the handle is destroyed. A non-owning interface can't
+        // guarantee that the URI stays valid until then
         if (_destroy == nullptr) {
             return error(idfxx::errc::invalid_state);
         }
@@ -504,7 +505,7 @@ result<void> interface::try_dhcp_server_start(const dhcp_server_config& cfg) {
         return error(errc::dhcp_already_started);
     }
 
-    // The lease range goes first, as it is the only option the driver validates
+    // The lease range is set first, because it is the only option that the driver validates
     if (cfg.leases) {
         dhcps_lease_t range{};
         range.enable = true;

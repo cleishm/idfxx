@@ -1,7 +1,7 @@
 # Common tasks for idfxx. Requires ESP-IDF 5.5+ and `just`.
 #
-# Recipes activate ESP-IDF automatically when idf.py is not already on PATH,
-# searching $IDF_EXPORT, $IDF_PATH, the ESP-IDF Installation Manager (eim), and
+# Recipes activate ESP-IDF automatically when idf.py is not already on PATH.
+# They search $IDF_EXPORT, $IDF_PATH, the ESP-IDF Installation Manager (eim), and
 # then the usual checkout locations. See scripts/idf-env.sh for the full order
 # and for how to point the recipes at a specific installation.
 
@@ -14,8 +14,9 @@ port := env("ESPPORT", "/dev/ttyUSB0")
 default:
     @just --list
 
-# The test suite is split into groups, one Unity app each, listed in tests/groups.cmake. Recipes
-# that build test apps take group names (default: every group) and, where noted, a target.
+# The test suite is split into groups, with one Unity app for each group. tests/groups.cmake lists
+# the groups. Recipes that build test apps take group names (default: every group) and, where noted,
+# a target.
 groups := `sed -n 's/^set(IDFXX_TEST_GROUPS \(.*\))$/\1/p' tests/groups.cmake`
 
 # Build test apps with the default config into build-<group>/ (`just build [group...] [target]`)
@@ -48,7 +49,7 @@ format-check: configure
 docs: configure
     {{env_setup}} cmake --build build --target docs
 
-# No-exceptions builds into build-noexc-<group>/: the only config exercising the try_*-only API
+# No-exceptions builds into build-noexc-<group>/: the only config that exercises the try_*-only API
 build-noexc *args:
     @just build-config build-noexc \
         "config/sdkconfig.defaults;config/sdkconfig.no-exceptions" {{args}}
@@ -57,8 +58,9 @@ build-noexc *args:
 build-noipv6 *args:
     @just build-config build-noipv6 "config/sdkconfig.defaults;config/sdkconfig.no-ipv6" {{args}}
 
-# Build test apps from sdkconfig defaults into <prefix>-<group>/. A build dir is configured for the
-# target named in args (esp32s3 when none is) the first time, and again when a different one is.
+# Build test apps from sdkconfig defaults into <prefix>-<group>/. The first time, a build dir is
+# configured for the target named in args (esp32s3 if args name no target). It is configured again
+# when args name a different target.
 [private]
 build-config prefix defaults *args:
     #!/usr/bin/env bash
@@ -105,7 +107,7 @@ qemu-build *groups_:
             -o "$PWD/$dir/qemu_flash.bin"
     done
 
-# Logs go to qemu_output_<group>.log; the timeout is per app, in seconds (default 300).
+# Logs go to qemu_output_<group>.log. The timeout is per app, in seconds (default 300).
 # Build and run the Unity suite in QEMU per group (`just qemu-test [group...] [timeout]`)
 qemu-test *args:
     #!/usr/bin/env bash
@@ -161,7 +163,8 @@ test +components:
     done
     mkdir -p build-test
     # config/sdkconfig.qemu supplies the values for options that are new to the
-    # filtered set; regenerate the config when it changes.
+    # filtered set of components. Regenerate the config when config/sdkconfig.qemu
+    # changes.
     if [ -f build-test/sdkconfig ] && [ config/sdkconfig.qemu -nt build-test/sdkconfig ]; then
         rm build-test/sdkconfig
     fi
@@ -170,7 +173,7 @@ test +components:
     idf.py "${args[@]}" merge-bin --format raw --fill-flash-size 4MB -o "$PWD/build-test/qemu_flash.bin"
     just qemu-run build-test 120
 
-# Uses config/sdkconfig.defaults in an isolated build-test-hw/; `just monitor test-hw` reattaches.
+# Uses config/sdkconfig.defaults in an isolated build-test-hw/. `just monitor test-hw` reattaches.
 # Flash and monitor only some components' tests (`just flash-test dht gpio [target] [port]`)
 flash-test +args:
     #!/usr/bin/env bash
@@ -195,8 +198,9 @@ flash-test +args:
     dir=build-test-hw
     args=(-B "$dir" -D SDKCONFIG="$PWD/$dir/sdkconfig" -D SDKCONFIG_DEFAULTS=config/sdkconfig.defaults
         -D IDFXX_TESTS="$tests")
-    # Configure for the named target (esp32s3 when none is) the first time and when it changes, and
-    # regenerate the config, keeping its target, when config/sdkconfig.defaults changes.
+    # Configure for the named target (esp32s3 if no target is named) the first time and when the
+    # target changes. When config/sdkconfig.defaults changes, regenerate the config and keep its
+    # target.
     configured=$(sed -n 's/^CONFIG_IDF_TARGET="\(.*\)"$/\1/p' "$dir/sdkconfig" 2>/dev/null || true)
     if [ -z "$configured" ] || { [ -n "$target" ] && [ "$target" != "$configured" ]; } \
         || [ config/sdkconfig.defaults -nt "$dir/sdkconfig" ]; then

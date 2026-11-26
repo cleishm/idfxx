@@ -1,4 +1,4 @@
-# The driver requires PSRAM, and its header refuses to compile without
+# The driver requires PSRAM, and its header fails to compile without
 # CONFIG_SPIRAM. Build the driver (and register its tests) only when PSRAM is
 # enabled, so that merely depending on this component doesn't break a build
 # that never uses the panel.

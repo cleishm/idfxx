@@ -251,8 +251,8 @@ TEST_CASE("http client get_response_header is empty before any response", "[idfx
 
 // -- Streaming error reporting (loopback) --------------------------------------
 //
-// A plain TCP listener on loopback stands in for the HTTP server, so each test
-// scripts exactly which bytes the client receives (or withholds).
+// A plain TCP listener on loopback acts as the HTTP server, so each test sets
+// exactly which bytes the client receives and which bytes are not sent.
 
 namespace {
 
@@ -261,7 +261,8 @@ constexpr auto short_timeout = std::chrono::milliseconds(200);
 net::listener make_loopback_server() {
     auto srv = net::listener::make({net::ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
     TEST_ASSERT_TRUE(srv.has_value());
-    // Bound the accept so a client that never connects fails the test instead of hanging it.
+    // Limit the wait in accept so that a client that never connects fails the test instead of
+    // hanging it.
     srv->set_recv_timeout(std::chrono::seconds(2));
     return std::move(*srv);
 }
@@ -287,7 +288,7 @@ TEST_CASE("http client try_read reports body timeout as eagain and early close a
     TEST_ASSERT_TRUE(length.has_value());
     TEST_ASSERT_EQUAL_INT32(10, static_cast<int32_t>(*length));
 
-    // The bytes that did arrive are returned once the timeout ends the wait for more.
+    // The bytes that did arrive are returned when the timeout expires.
     std::array<char, 16> buf{};
     auto partial = c->try_read(buf);
     TEST_ASSERT_TRUE(partial.has_value());
@@ -298,7 +299,7 @@ TEST_CASE("http client try_read reports body timeout as eagain and early close a
     TEST_ASSERT_FALSE(timed_out.has_value());
     TEST_ASSERT_TRUE(timed_out.error() == client::errc::eagain);
 
-    // The server ends the connection 7 bytes short of the promised length.
+    // The server ends the connection after sending 7 bytes fewer than the promised length.
     TEST_ASSERT_TRUE(conn->try_shutdown(net::direction::send).has_value());
     auto closed = c->try_read(buf);
     TEST_ASSERT_FALSE(closed.has_value());
@@ -695,8 +696,8 @@ TEST_CASE("http client refuses an abandoned chunked request and starts the next 
     TEST_ASSERT_TRUE(first.has_value());
     first->set_recv_timeout(std::chrono::seconds(5));
 
-    // The abandoned request is refused rather than waiting on a response the
-    // server will never send (which would block until the 5 s timeout)
+    // The abandoned request is refused rather than waiting on a response that
+    // the server will never send (which would block until the 5 s timeout)
     auto headers = c->try_fetch_headers();
     TEST_ASSERT_FALSE(headers.has_value());
     TEST_ASSERT_TRUE(headers.error() == idfxx::errc::invalid_state);

@@ -24,7 +24,7 @@ struct encoder_context {
 
     rotary_encoder::config cfg;
 
-    // Resources — destruction order matters (reverse of declaration)
+    // Resources. Destruction order matters (reverse of declaration).
     std::optional<timer> tmr;
 
     // Gray code decoder state

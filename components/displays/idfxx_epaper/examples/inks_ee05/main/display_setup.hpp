@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Only sets up this board's display; you don't need to read this to follow the example.
+// Only sets up this board's display. You don't need to read this to follow the example.
 
 #pragma once
 
@@ -25,8 +25,8 @@ inline constexpr auto PIN_RST = idfxx::gpio_38;
 inline constexpr auto PIN_BUSY = idfxx::gpio_4;
 inline constexpr auto PIN_POWER = idfxx::gpio_43; // display power enable, active high
 
-// Everything the display needs to stay alive. The members are declared parents first, so they are
-// destroyed children first.
+// Everything that the display needs while it runs. The members are declared parents first, so they
+// are destroyed children first.
 struct board {
     board()
         : power(_power_on())

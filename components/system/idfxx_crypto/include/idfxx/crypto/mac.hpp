@@ -14,16 +14,17 @@
  *        algorithm) and AES-CMAC.
  *
  * Each algorithm has an `authenticator` alias (`idfxx::crypto::mac::hmac_sha256`,
- * `idfxx::crypto::mac::cmac`, ...) whose static `import_key()` and `generate_key()` create a key
- * for it, whose static `compute()` and `compare()` authenticate a complete message in one call, and
- * whose instances authenticate a message supplied in pieces with `update()`. The aliases produce
- * full-length tags; naming the `authenticator` template with a tag size gives truncated tags
+ * `idfxx::crypto::mac::cmac`, ...). Its static `import_key()` and `generate_key()` create a key for
+ * it. Its static `compute()` and `compare()` authenticate a complete message in one call. Its
+ * instances authenticate a message supplied in pieces with `update()`. The aliases produce
+ * full-length tags. For truncated tags, name the `authenticator` template with a tag size
  * (`mac::authenticator<mac::algorithm::cmac, 4>`). Use these when the algorithm is known at compile
  * time.
  *
- * `idfxx::crypto::mac::operation` offers the same operations with the algorithm and tag length of a
- * key's policy, chosen at runtime, writing tags into a caller-supplied buffer. `mac::tag_size()`
- * gives an algorithm's full tag length, in constant expressions too.
+ * `idfxx::crypto::mac::operation` offers the same operations with an algorithm chosen at runtime.
+ * It takes the algorithm and tag size from a key's policy, and writes tags into a
+ * caller-supplied buffer. `mac::tag_size()` gives an algorithm's full tag size, and is also
+ * usable in constant expressions.
  *
  * An algorithm (its `mac::algorithm` enumerator and its alias) is available only when it is
  * enabled in the mbedTLS configuration (`Component config` → `mbedTLS` in menuconfig). HMAC is
@@ -102,19 +103,19 @@ enum class algorithm : psa_algorithm_t {
 
 /**
  * @headerfile <idfxx/crypto/mac>
- * @brief Returns the full tag length of a MAC algorithm.
+ * @brief Returns the full tag size of a MAC algorithm.
  *
- * Usable in constant expressions, for example to size a buffer for tags. The length is known for
+ * Usable in constant expressions, for example to size a buffer for tags. The size is known for
  * AES-CMAC and for HMAC with every hash algorithm of the PSA Certified Crypto API, whether or not
- * the algorithm is enabled in the mbedTLS configuration. A key permitted truncated tags
- * (`key_algorithm{alg, tag_size}`) gives shorter tags: see `mac::operation::tag_size()`.
+ * the algorithm is enabled in the mbedTLS configuration. A key that permits truncated tags
+ * (`key_algorithm{alg, tag_size}`) gives shorter tags. See `mac::operation::tag_size()`.
  *
  * @code
  * static_assert(idfxx::crypto::mac::tag_size(idfxx::crypto::mac::algorithm::hmac_sha256) == 32);
  * @endcode
  *
  * @param alg The MAC algorithm.
- * @return The length of an untruncated tag, in bytes, or 0 if `alg` is not a MAC algorithm.
+ * @return The size of an untruncated tag, in bytes, or 0 if `alg` is not a MAC algorithm.
  */
 [[nodiscard]] constexpr std::size_t tag_size(algorithm alg) noexcept {
     const auto a = static_cast<psa_algorithm_t>(alg);
@@ -126,7 +127,7 @@ enum class algorithm : psa_algorithm_t {
 /** @cond INTERNAL */
 namespace idfxx::crypto::detail {
 
-// The type of key a MAC algorithm takes.
+// The type of key that a MAC algorithm takes.
 [[nodiscard]] constexpr key_type mac_key_type(mac::algorithm alg) noexcept {
     return static_cast<key_type>(mac_key_type_of(std::to_underlying(alg)));
 }
@@ -138,10 +139,10 @@ namespace idfxx::crypto::mac {
 
 /**
  * @headerfile <idfxx/crypto/mac>
- * @brief Computes message authentication codes (MACs) with the MAC algorithm a key permits.
+ * @brief Computes message authentication codes (MACs) with the MAC algorithm that a key permits.
  *
- * Use `mac::operation` when the algorithm is only known at runtime: it uses the algorithm and tag
- * length of the key's policy (`key::algorithm()`), for example of a key whose algorithm comes from
+ * Use `mac::operation` when the algorithm is only known at runtime. It uses the algorithm and tag
+ * size of the key's policy (`key::algorithm()`), for example of a key whose algorithm comes from
  * configuration. When the algorithm is known at compile time, use its `authenticator` alias
  * (`hmac_sha256`, `cmac`, ...) instead: it checks that a key is for that algorithm, and its tags
  * are fixed-size arrays.
@@ -149,19 +150,20 @@ namespace idfxx::crypto::mac {
  * The static `compute()` and `compare()` authenticate a complete message in one call. An instance
  * authenticates a message supplied in pieces: `update()` adds data, and `finish()` (or `verify()`)
  * completes the message. After `finish()` or `verify()`, the operation is ready for a new message.
- * A failed `update()`, `finish()` or `verify()` discards the partially authenticated message,
- * leaving the operation ready for a new message, except that `finish()` failing with
- * `errc::buffer_too_small` leaves the message unchanged.
+ * A failed `update()`, `finish()` or `verify()` discards the partially authenticated message, and
+ * the operation is ready for a new message. The exception is `finish()` failing with
+ * `errc::buffer_too_small`, which leaves the message unchanged.
  *
- * What a key permits decides what can be done with it: `compute()` and `finish()` need
- * `key_usage::sign_message`, and `compare()` and `verify()` need `key_usage::verify_message`;
- * otherwise they fail with `errc::not_permitted`. A key permitted no MAC algorithm is refused with
- * `errc::not_permitted` by `compute()` and `compare()` and when an operation is created, and an
- * operation also can't be created with a key that permits neither usage. A key's type always suits
- * its algorithm (key creation refuses one that doesn't), but whether the crypto library can use
- * its size is known only once it sets up a message: a size it can't use (such as a 192-bit AES key
- * on a chip whose AES engine lacks them) fails with `errc::not_supported` from `compute()` and
- * `compare()`, or from an operation's first `update()`, `finish()` or `verify()` of a message.
+ * `compute()` and `finish()` need `key_usage::sign_message`, and `compare()` and `verify()` need
+ * `key_usage::verify_message`. Without that usage, they fail with `errc::not_permitted`.
+ * `compute()` and `compare()` refuse a key that permits no MAC algorithm with
+ * `errc::not_permitted`, and creating an operation with such a key fails in the same way. An
+ * operation also can't be created with a key that permits neither usage. A key's type always
+ * matches its algorithm, because key creation refuses a type that doesn't. But the crypto library
+ * knows whether it can use the key's size only when it sets up a message. A size that it can't use
+ * (such as a 192-bit AES key on a chip whose AES engine doesn't support that size) fails with
+ * `errc::not_supported` from `compute()` and `compare()`, or from an operation's first `update()`,
+ * `finish()` or `verify()` of a message.
  *
  * This type is non-copyable and move-only. A moved-from object must not be used: any operation
  * other than destruction or assignment is undefined behavior. Instances cannot be cloned.
@@ -196,9 +198,9 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::sign_message`.
      * @param data The message.
-     * @param tag The buffer to write the tag to, at least the tag length the key permits:
+     * @param tag The buffer to write the tag to, at least the tag size that the key permits:
      *            `mac::tag_size()` of its algorithm, or less for truncated tags.
-     * @return The filled prefix of `tag`: its first tag-length bytes.
+     * @return The filled prefix of `tag`: its first tag-size bytes.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with `errc::not_permitted` if the key permits no MAC algorithm or
@@ -215,9 +217,9 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::sign_message`.
      * @param data The message, as its bytes.
-     * @param tag The buffer to write the tag to, at least the tag length the key permits:
+     * @param tag The buffer to write the tag to, at least the tag size that the key permits:
      *            `mac::tag_size()` of its algorithm, or less for truncated tags.
-     * @return The filled prefix of `tag`: its first tag-length bytes.
+     * @return The filled prefix of `tag`: its first tag-size bytes.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with `errc::not_permitted` if the key permits no MAC algorithm or
@@ -235,13 +237,13 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::sign_message`.
      * @param data The message.
-     * @param tag The buffer to write the tag to, at least the tag length the key permits:
+     * @param tag The buffer to write the tag to, at least the tag size that the key permits:
      *            `mac::tag_size()` of its algorithm, or less for truncated tags.
-     * @return The filled prefix of `tag` (its first tag-length bytes), or an error.
+     * @return The filled prefix of `tag` (its first tag-size bytes), or an error.
      * @retval errc::not_permitted The key permits no MAC algorithm, or does not permit computing
      *         tags.
      * @retval errc::not_supported The key's size is not supported for its algorithm.
-     * @retval errc::buffer_too_small `tag` is smaller than the key's tag length.
+     * @retval errc::buffer_too_small `tag` is smaller than the key's tag size.
      * @retval errc::hardware_failure The hardware failed (or another code for another failure).
      */
     [[nodiscard]] static result<byte_span> try_compute(const key& k, byte_view data, byte_span tag);
@@ -251,13 +253,13 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::sign_message`.
      * @param data The message, as its bytes.
-     * @param tag The buffer to write the tag to, at least the tag length the key permits:
+     * @param tag The buffer to write the tag to, at least the tag size that the key permits:
      *            `mac::tag_size()` of its algorithm, or less for truncated tags.
-     * @return The filled prefix of `tag` (its first tag-length bytes), or an error.
+     * @return The filled prefix of `tag` (its first tag-size bytes), or an error.
      * @retval errc::not_permitted The key permits no MAC algorithm, or does not permit computing
      *         tags.
      * @retval errc::not_supported The key's size is not supported for its algorithm.
-     * @retval errc::buffer_too_small `tag` is smaller than the key's tag length.
+     * @retval errc::buffer_too_small `tag` is smaller than the key's tag size.
      * @retval errc::hardware_failure The hardware failed (or another code for another failure).
      */
     [[nodiscard]] static result<byte_span>
@@ -314,8 +316,8 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::verify_message`.
      * @param data The message.
-     * @param expected The expected tag. A tag of the wrong length never matches, but a key that
-     *                 can't check tags is reported as an error whatever the expected tag.
+     * @param expected The expected tag. A tag of the wrong length never matches. A key that can't
+     *                 check tags is reported as an error, whatever the expected tag.
      * @return True if the message's tag equals `expected`, false if it does not, or an error.
      * @retval errc::not_permitted The key permits no MAC algorithm, or does not permit checking
      *         tags.
@@ -332,8 +334,8 @@ public:
      *
      * @param k The key. Its usage must include `key_usage::verify_message`.
      * @param data The message, as its bytes.
-     * @param expected The expected tag. A tag of the wrong length never matches, but a key that
-     *                 can't check tags is reported as an error whatever the expected tag.
+     * @param expected The expected tag. A tag of the wrong length never matches. A key that can't
+     *                 check tags is reported as an error, whatever the expected tag.
      * @return True if the message's tag equals `expected`, false if it does not, or an error.
      * @retval errc::not_permitted The key permits no MAC algorithm, or does not permit checking
      *         tags.
@@ -350,17 +352,17 @@ public:
     /**
      * @brief Creates an operation ready for a new message, authenticated with a key.
      *
-     * Checks that the key permits a MAC algorithm and computing or checking tags, without setting
-     * anything up in the crypto library: a failure only the crypto library can detect, such as
-     * `errc::not_supported` for a key size it can't use, is reported by the first `update()`,
+     * Checks that the key permits a MAC algorithm and computing or checking tags. It sets nothing
+     * up in the crypto library. So a failure that only the crypto library can detect, such as
+     * `errc::not_supported` for a key size that it can't use, is reported by the first `update()`,
      * `finish()` or `verify()` of a message. Allocation failure is treated as fatal
      * (`std::bad_alloc`).
      *
-     * @param k The key, whose policy gives the MAC algorithm and tag length. Its usage must
+     * @param k The key, whose policy gives the MAC algorithm and tag size. Its usage must
      *          include `key_usage::sign_message` (to complete messages with `finish()`),
      *          `key_usage::verify_message` (to check them with `verify()`), or both. Must outlive
-     *          the operation: it may be moved, but not destroyed or assigned over, while the
-     *          operation uses it.
+     *          the operation. While the operation uses the key, the key may be moved, but not
+     *          destroyed or assigned over.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with `errc::not_permitted` if the key permits no MAC algorithm or
@@ -374,17 +376,17 @@ public:
     /**
      * @brief Creates an operation ready for a new message, authenticated with a key.
      *
-     * Checks that the key permits a MAC algorithm and computing or checking tags, without setting
-     * anything up in the crypto library: a failure only the crypto library can detect, such as
-     * `errc::not_supported` for a key size it can't use, is reported by the first `try_update()`,
-     * `try_finish()` or `try_verify()` of a message. Allocation failure is treated as fatal
-     * (`std::bad_alloc`, or abort when exceptions are disabled).
+     * Checks that the key permits a MAC algorithm and computing or checking tags. It sets nothing
+     * up in the crypto library. So a failure that only the crypto library can detect, such as
+     * `errc::not_supported` for a key size that it can't use, is reported by the first
+     * `try_update()`, `try_finish()` or `try_verify()` of a message. Allocation failure is treated
+     * as fatal (`std::bad_alloc`, or abort when exceptions are disabled).
      *
-     * @param k The key, whose policy gives the MAC algorithm and tag length. Its usage must
+     * @param k The key, whose policy gives the MAC algorithm and tag size. Its usage must
      *          include `key_usage::sign_message` (to complete messages with `try_finish()`),
      *          `key_usage::verify_message` (to check them with `try_verify()`), or both. Must
-     *          outlive the operation: it may be moved, but not destroyed or assigned over, while
-     *          the operation uses it.
+     *          outlive the operation. While the operation uses the key, the key may be moved, but
+     *          not destroyed or assigned over.
      * @return The operation, or an error.
      * @retval errc::not_permitted The key permits no MAC algorithm, or its usage includes neither
      *         `key_usage::sign_message` nor `key_usage::verify_message`.
@@ -418,16 +420,16 @@ public:
     /**
      * @brief Returns the MAC algorithm.
      *
-     * @return The MAC algorithm the key permits, at its full tag length; a truncated tag length is
-     *         given by `tag_size()`.
+     * @return The MAC algorithm that the key permits, at its full tag size. `tag_size()` gives a
+     *         truncated tag size.
      */
     [[nodiscard]] mac::algorithm algorithm() const noexcept;
 
     /**
      * @brief Returns the size of a tag.
      *
-     * @return The length of a tag, in bytes: the truncated length the key permits, or
-     *         `mac::tag_size(algorithm())` for a key permitted full-length tags.
+     * @return The size of a tag, in bytes: the truncated size that the key permits, or
+     *         `mac::tag_size(algorithm())` for a key that permits full-length tags.
      */
     [[nodiscard]] std::size_t tag_size() const noexcept;
 
@@ -499,7 +501,7 @@ public:
      *
      * Without any preceding `update()`, writes the tag of the empty message. Afterward, the
      * operation is ready for a new message. A failure with `errc::buffer_too_small` leaves the
-     * message unchanged, so it can be finished again with a larger buffer; any other failure
+     * message unchanged, so it can be finished again with a larger buffer. Any other failure
      * (including `errc::not_permitted`, which is reported first) discards it.
      *
      * @param tag The buffer to write the tag to, at least `tag_size()` bytes.
@@ -519,7 +521,7 @@ public:
      *
      * Without any preceding `try_update()`, writes the tag of the empty message. Afterward, the
      * operation is ready for a new message. A failure with `errc::buffer_too_small` leaves the
-     * message unchanged, so it can be finished again with a larger buffer; any other failure
+     * message unchanged, so it can be finished again with a larger buffer. Any other failure
      * (including `errc::not_permitted`, which is reported first) discards it.
      *
      * @param tag The buffer to write the tag to, at least `tag_size()` bytes.
@@ -580,8 +582,9 @@ private:
 
     explicit operation(std::unique_ptr<state> s) noexcept;
 
-    // An authenticator's operations, out of line: as make(), try_compute() and try_compare(), but
-    // refusing with errc::not_permitted a key permitted any algorithm other than `alg`.
+    // An authenticator's operations, defined out of line. They are the same as make(),
+    // try_compute() and try_compare(), but refuse with errc::not_permitted a key that permits any
+    // algorithm other than `alg`.
     [[nodiscard]] static result<operation> _make_as(key_algorithm alg, const key& k);
     [[nodiscard]] static result<byte_span>
     _try_compute_as(key_algorithm alg, const key& k, byte_view data, byte_span tag);
@@ -595,37 +598,40 @@ private:
  * @headerfile <idfxx/crypto/mac>
  * @brief Computes message authentication codes (MACs) with a fixed MAC algorithm.
  *
- * A MAC (or tag) authenticates a message: only holders of the key can compute it, so a message
- * whose tag checks out came from one of them, unaltered. The static `import_key()` and
- * `generate_key()` create a key for the algorithm, permitted to both compute and check tags.
+ * A MAC (or tag) authenticates a message. Only holders of the key can compute it, so a message
+ * whose tag is correct came unaltered from one of them. The static `import_key()` and
+ * `generate_key()` create a key for the algorithm. The key permits both computing and checking
+ * tags.
  *
  * The static `compute()` and `compare()` authenticate a complete message in one call. An instance
  * authenticates a message supplied in pieces: `update()` adds data, and `finish()` (or `verify()`)
  * completes the message. After `finish()` or `verify()`, and after a failed `update()`, `finish()`
- * or `verify()`, the authenticator is ready for a new message: a failure discards the partially
+ * or `verify()`, the authenticator is ready for a new message. A failure discards the partially
  * authenticated message.
  *
  * For full-length tags, use one of the algorithm aliases (`hmac_sha256`, `cmac`, ...) rather than
  * naming the template directly. When the algorithm is only known at runtime, use `mac::operation`
  * instead.
  *
- * A protocol that sends shortened tags names the template with a `TagSize` shorter than the
- * algorithm's full tag length. A truncated tag is the leftmost `TagSize` bytes of the full tag;
- * the shorter the tag, the easier it is to forge by guessing.
+ * For a protocol that sends truncated tags, name the template with a `TagSize` shorter than the
+ * algorithm's full tag size. A truncated tag is the leftmost `TagSize` bytes of the full tag. The
+ * shorter the tag, the easier it is to forge by guessing.
  *
- * What a key permits decides what can be done with it: `compute()` and `finish()` need
- * `key_usage::sign_message`, and `compare()` and `verify()` need `key_usage::verify_message`;
- * otherwise they fail with `errc::not_permitted`. A key whose permitted algorithm is not this one
- * is refused with `errc::not_permitted` by `compute()` and `compare()` and when an authenticator
- * is created, and an authenticator also can't be created with a key that permits neither usage. A
- * key's type always suits its algorithm (key creation refuses one that doesn't), but whether the
- * crypto library can use its size is known only once it sets up a message: a size it can't use
- * (such as a 192-bit AES key on a chip whose AES engine lacks them) fails with
+ * `compute()` and `finish()` need `key_usage::sign_message`, and `compare()` and `verify()` need
+ * `key_usage::verify_message`. Without that usage, they fail with `errc::not_permitted`.
+ * `compute()` and `compare()` refuse a key whose permitted algorithm is not this one with
+ * `errc::not_permitted`, and creating an authenticator with such a key fails in the same way. An
+ * authenticator also can't be created with a key that permits neither usage. A key's type always
+ * matches its algorithm, because key creation refuses a type that doesn't. But the crypto library
+ * knows whether it can use the key's size only when it sets up a message. A size that it can't use
+ * (such as a 192-bit AES key on a chip whose AES engine doesn't support that size) fails with
  * `errc::not_supported` from `compute()` and `compare()`, or from an authenticator's first
- * `update()`, `finish()` or `verify()` of a message. The tag length is part of the algorithm a key
- * permits: a key made for one tag length (by this type's `import_key()` or `generate_key()`, or
- * with `key_algorithm{alg, tag_size}`) is refused with `errc::not_permitted` by an authenticator of
- * any other, including the full length.
+ * `update()`, `finish()` or `verify()` of a message.
+ *
+ * The tag size is part of the algorithm that a key permits. A key made for one tag size (by
+ * this type's `import_key()` or `generate_key()`, or with `key_algorithm{alg, tag_size}`) is
+ * refused with `errc::not_permitted` by an authenticator of any other tag size, including the
+ * full size.
  *
  * This type is non-copyable and move-only. A moved-from object must not be used: any operation
  * other than destruction or assignment is undefined behavior. Instances cannot be cloned.
@@ -655,8 +661,8 @@ private:
  * @endcode
  *
  * @tparam Alg The MAC algorithm.
- * @tparam TagSize The tag length, in bytes: at least 4, and at most the algorithm's full tag
- *                 length (the default). A shorter length truncates each tag to its leftmost
+ * @tparam TagSize The tag size, in bytes: at least 4, and at most the algorithm's full tag
+ *                 size (the default). A shorter size truncates each tag to its leftmost
  *                 `TagSize` bytes.
  */
 template<algorithm Alg, std::size_t TagSize = tag_size(Alg)>
@@ -686,11 +692,12 @@ public:
      * @brief Creates a key for this algorithm from key material.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only.
+     * `key_usage::verify_message`) with this algorithm and tag size only.
      *
-     * @param material The key material. Must not be empty. For HMAC, any length (a key longer than
-     *                 the hash's block size is hashed first, as HMAC specifies; at least the
-     *                 hash's output size is recommended). For AES-CMAC, 16, 24 or 32 bytes.
+     * @param material The key material. Must not be empty. For HMAC, any length. A key longer than
+     *                 the hash's block size is hashed first, as HMAC specifies. A length of at
+     *                 least the hash's digest size is recommended. For AES-CMAC, 16, 24 or 32
+     *                 bytes.
      * @return The key.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -706,11 +713,12 @@ public:
      * @brief Creates a key for this algorithm from key material.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only.
+     * `key_usage::verify_message`) with this algorithm and tag size only.
      *
-     * @param material The key material. Must not be empty. For HMAC, any length (a key longer than
-     *                 the hash's block size is hashed first, as HMAC specifies; at least the
-     *                 hash's output size is recommended). For AES-CMAC, 16, 24 or 32 bytes.
+     * @param material The key material. Must not be empty. For HMAC, any length. A key longer than
+     *                 the hash's block size is hashed first, as HMAC specifies. A length of at
+     *                 least the hash's digest size is recommended. For AES-CMAC, 16, 24 or 32
+     *                 bytes.
      * @return The key, or an error.
      * @retval errc::invalid_argument `material` is empty or not a valid size for the key type.
      */
@@ -723,9 +731,9 @@ public:
      * @brief Creates a random key for this algorithm.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only. An HMAC key is as long
-     * as the hash's output (the full tag length, whatever `tag_size`), the length RFC 2104
-     * recommends; an AES-CMAC key is 128 bits.
+     * `key_usage::verify_message`) with this algorithm and tag size only. An HMAC key is as long
+     * as the hash's digest (the full tag size, whatever `tag_size`). This is the length that
+     * RFC 2104 recommends. An AES-CMAC key is 128 bits.
      *
      * @return The key.
      *
@@ -738,10 +746,10 @@ public:
      * @brief Creates a random key of a given size for this algorithm.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only.
+     * `key_usage::verify_message`) with this algorithm and tag size only.
      *
      * @param bits The key size, in bits: a multiple of 8 for HMAC (RFC 2104 recommends at least
-     *             the hash's output size), or 128, 192 or 256 for AES-CMAC.
+     *             the hash's digest size), or 128, 192 or 256 for AES-CMAC.
      * @return The key.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -758,9 +766,9 @@ public:
      * @brief Creates a random key for this algorithm.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only. An HMAC key is as long
-     * as the hash's output (the full tag length, whatever `tag_size`), the length RFC 2104
-     * recommends; an AES-CMAC key is 128 bits.
+     * `key_usage::verify_message`) with this algorithm and tag size only. An HMAC key is as long
+     * as the hash's digest (the full tag size, whatever `tag_size`). This is the length that
+     * RFC 2104 recommends. An AES-CMAC key is 128 bits.
      *
      * @return The key, or an error (for example `errc::insufficient_entropy`).
      */
@@ -774,10 +782,10 @@ public:
      * @brief Creates a random key of a given size for this algorithm.
      *
      * The key is permitted to compute and check tags (`key_usage::sign_message` and
-     * `key_usage::verify_message`) with this algorithm and tag length only.
+     * `key_usage::verify_message`) with this algorithm and tag size only.
      *
      * @param bits The key size, in bits: a multiple of 8 for HMAC (RFC 2104 recommends at least
-     *             the hash's output size), or 128, 192 or 256 for AES-CMAC.
+     *             the hash's digest size), or 128, 192 or 256 for AES-CMAC.
      * @return The key, or an error.
      * @retval errc::invalid_argument `bits` is not a valid size for the key type.
      * @retval errc::not_supported The key size is not supported.
@@ -931,16 +939,16 @@ public:
     /**
      * @brief Creates an authenticator ready for a new message, authenticated with a key.
      *
-     * Checks that the key permits this algorithm and computing or checking tags, without setting
-     * anything up in the crypto library: a failure only the crypto library can detect, such as
-     * `errc::not_supported` for a key size it can't use, is reported by the first `update()`,
+     * Checks that the key permits this algorithm and computing or checking tags. It sets nothing up
+     * in the crypto library. So a failure that only the crypto library can detect, such as
+     * `errc::not_supported` for a key size that it can't use, is reported by the first `update()`,
      * `finish()` or `verify()` of a message. Allocation failure is treated as fatal
      * (`std::bad_alloc`).
      *
      * @param k The key. Its usage must include `key_usage::sign_message` (to complete messages
      *          with `finish()`), `key_usage::verify_message` (to check them with `verify()`), or
-     *          both. Must outlive the authenticator: it may be moved, but not destroyed or assigned
-     *          over, while the authenticator uses it.
+     *          both. Must outlive the authenticator. While the authenticator uses the key, the key
+     *          may be moved, but not destroyed or assigned over.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure: `errc::not_permitted` if the key does not permit this
@@ -954,16 +962,16 @@ public:
     /**
      * @brief Creates an authenticator ready for a new message, authenticated with a key.
      *
-     * Checks that the key permits this algorithm and computing or checking tags, without setting
-     * anything up in the crypto library: a failure only the crypto library can detect, such as
-     * `errc::not_supported` for a key size it can't use, is reported by the first `try_update()`,
-     * `try_finish()` or `try_verify()` of a message. Allocation failure is treated as fatal
-     * (`std::bad_alloc`, or abort when exceptions are disabled).
+     * Checks that the key permits this algorithm and computing or checking tags. It sets nothing up
+     * in the crypto library. So a failure that only the crypto library can detect, such as
+     * `errc::not_supported` for a key size that it can't use, is reported by the first
+     * `try_update()`, `try_finish()` or `try_verify()` of a message. Allocation failure is treated
+     * as fatal (`std::bad_alloc`, or abort when exceptions are disabled).
      *
      * @param k The key. Its usage must include `key_usage::sign_message` (to complete messages
      *          with `try_finish()`), `key_usage::verify_message` (to check them with
-     *          `try_verify()`), or both. Must outlive the authenticator: it may be moved, but not
-     *          destroyed or assigned over, while the authenticator uses it.
+     *          `try_verify()`), or both. Must outlive the authenticator. While the authenticator
+     *          uses the key, the key may be moved, but not destroyed or assigned over.
      * @return The authenticator, or an error.
      * @retval errc::not_permitted The key does not permit this algorithm, or its usage includes
      *         neither `key_usage::sign_message` nor `key_usage::verify_message`.
@@ -1140,7 +1148,7 @@ private:
     explicit authenticator(operation op) noexcept
         : _op(std::move(op)) {}
 
-    // The algorithm of this authenticator's keys: its own algorithm and tag length
+    // The algorithm of this authenticator's keys: its own algorithm and tag size
     static constexpr key_algorithm _key_algorithm{Alg, TagSize};
 
     static key::config _key_config() noexcept {
@@ -1246,9 +1254,9 @@ using hmac_sha3_512 = authenticator<algorithm::hmac_sha3_512>;
  *        128-, 192- or 256-bit AES key.
  *
  * @note On ESP-IDF 5.x with `CONFIG_MBEDTLS_HARDWARE_AES`, a 192-bit key fails with
- *       `errc::not_supported` on targets whose AES engine lacks 192-bit keys (all but the esp32
- *       and esp32s2). Don't rely on 192-bit keys on those targets with ESP-IDF 6.x either; use
- *       128- or 256-bit keys.
+ *       `errc::not_supported` on targets whose AES engine doesn't support 192-bit keys (all but
+ *       the esp32 and esp32s2). Don't rely on 192-bit keys on those targets with ESP-IDF 6.x
+ *       either. Use 128- or 256-bit keys.
  */
 using cmac = authenticator<algorithm::cmac>;
 #endif

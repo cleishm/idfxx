@@ -43,19 +43,19 @@ namespace idfxx::epaper {
  * sleep, wake, and partial-refresh baseline restore.
  *
  * The driver owns the panel's BUSY input (active low on this controller)
- * and (optional) reset output lines, and communicates through an
- * `idfxx::panel_io` configured with @ref spi_io_config. Unlike
- * controllers that need the previous frame re-sent by the host, the UC8179
+ * and the optional reset output line. It communicates through an
+ * `idfxx::panel_io` configured with @ref spi_io_config. Some controllers
+ * need the host to send the previous frame again. The UC8179 instead
  * copies the new-image RAM to the previous-image RAM when a refresh
- * completes, so the driver keeps no shadow frame — full-frame writes stream
- * the framebuffer's 48 KB (at 800x480) straight to the controller.
+ * completes, so the driver keeps no shadow frame. Full-frame writes stream
+ * the framebuffer's 48 KB (at 800x480) directly to the controller.
  *
- * The border (see @ref idfxx::epaper::border) is selectable: driven white
- * or black alongside each full or fast refresh, or held. In
- * @ref color_mode::gray4 white is not drivable (the grayscale waveform bank
- * has no white border drive), so a white setting holds the border there,
- * while black is still driven. Partial refreshes and deep sleep always
- * float the border, whatever the setting.
+ * The border (see @ref idfxx::epaper::border) is selectable. It can be
+ * driven white or black with each full or fast refresh, or held. In
+ * @ref color_mode::gray4, the border cannot be driven white, because the
+ * grayscale waveform bank has no white border drive. In that mode, a
+ * white setting holds the border, but black is still driven. Partial
+ * refreshes and deep sleep always float the border, whatever the setting.
  *
  * This type is non-copyable and move-only. A moved-from object must not be
  * used: any operation other than destruction or assignment is undefined
@@ -83,7 +83,7 @@ public:
      * @brief Configuration structure for UC8179 panels.
      */
     struct config {
-        /// Panel width in pixels (sources). Must be a multiple of 8; the
+        /// Panel width in pixels (sources). Must be a multiple of 8. The
         /// controller drives up to 800. Defaults match the 7.5" 800x480
         /// GDEY075T7 glass.
         size_t width = 800;
@@ -91,9 +91,9 @@ public:
         size_t height = 480;
         /// GPIO wired to the panel's reset line, or `gpio::nc()` if not
         /// wired. Required for @ref wake, and strongly recommended in
-        /// general: the driver hardware-resets the controller when switching
-        /// between refresh waveforms so each mode starts from a known
-        /// register state.
+        /// general. The driver hardware-resets the controller when it
+        /// switches between refresh waveforms, so that each mode starts from
+        /// a known register state.
         gpio reset_gpio = gpio::nc();
         /// GPIO wired to the panel's BUSY output. The UC8179 drives BUSY
         /// low while an operation is in progress.
@@ -102,49 +102,51 @@ public:
         /// of large panels take several seconds on some glasses and
         /// temperatures.
         std::chrono::milliseconds busy_timeout{30'000};
-        /// How the strip around the active area is driven on full and fast
-        /// refreshes. @ref idfxx::epaper::border::white flashes with each
-        /// refresh, like a black-to-white pixel;
-        /// @ref idfxx::epaper::border::black drives it black;
-        /// @ref idfxx::epaper::border::hold keeps its color and never
-        /// flickers. May be changed later with @ref set_border.
+        /// How the border (the strip around the active area) is driven on
+        /// full and fast refreshes. With @ref idfxx::epaper::border::white,
+        /// the border flashes with each refresh, like a black-to-white
+        /// pixel. With @ref idfxx::epaper::border::black, it is driven
+        /// black. With @ref idfxx::epaper::border::hold, it keeps its color
+        /// and never flickers. May be changed later with @ref set_border.
         enum border border = border::white;
-        /// Frame rate of the 4-level grayscale waveform
-        /// (@ref color_mode::gray4 only; the monochrome waveforms are
-        /// unaffected). One of 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90,
-        /// 100, 110, 130, 150 or 200 Hz; any other value makes construction
-        /// fail with `errc::invalid_arg`. The waveform has a fixed number of
-        /// frames, so lower rates lengthen the refresh (3.6 s at 50 Hz, 6 s
-        /// at 30 Hz, 9 s at 20 Hz), but they lighten the load on the drive
-        /// supplies, which deepens black and widens the spacing between the
-        /// gray levels.
+        /// Frame rate of the 4-level grayscale waveform. Applies to
+        /// @ref color_mode::gray4 only, and does not affect the monochrome
+        /// waveforms. Must be one of 5, 10, 15, 20, 30, 40, 50, 60, 70, 80,
+        /// 90, 100, 110, 130, 150 or 200 Hz. Construction fails with
+        /// `errc::invalid_arg` for any other value. The waveform has a fixed
+        /// number of frames, so lower rates lengthen the refresh (3.6 s at
+        /// 50 Hz, 6 s at 30 Hz, 9 s at 20 Hz). But lower rates also reduce
+        /// the load on the drive supplies. This gives a deeper black and
+        /// wider spacing between the gray levels.
         ///
         /// The gray levels themselves shift with this setting and with
         /// @ref gray4_source_voltage, so anything calibrated against the
         /// panel's gray response must be recalibrated after changing either.
-        /// The default, 20 Hz at +/-15 V, gives the deepest black and the
-        /// widest gray spacing, stable whatever the image content, at ~9 s
-        /// per refresh. 50 Hz at +/-10 V keeps the vendor's 3.6 s refresh
-        /// with content-stable levels, but its black is lighter and both
-        /// grays sit in the dark end of the range. The vendor's own operating
-        /// point, 50 Hz at +/-15 V, gives a deep black at 3.6 s, but its gray
-        /// levels drop by up to ~15 % on content with dense horizontal
-        /// detail.
+        /// Operating points:
+        /// - 20 Hz at +/-15 V (the default): the deepest black and the
+        ///   widest gray spacing. The levels are stable whatever the image
+        ///   content. A refresh takes ~9 s.
+        /// - 50 Hz at +/-10 V: keeps the vendor's 3.6 s refresh, and the
+        ///   levels do not depend on the content. But the black is lighter,
+        ///   and both grays are in the dark end of the range.
+        /// - 50 Hz at +/-15 V (the vendor's own operating point): a deep
+        ///   black at 3.6 s. But the gray levels drop by up to ~15 % on
+        ///   content with dense horizontal detail.
         quanta::frequency::hertz gray4_frame_rate{20};
         /// Magnitude of the positive and negative source drive voltages for
         /// the 4-level grayscale waveform (@ref color_mode::gray4 only).
-        /// 2.4 V to 15 V in 0.2 V steps; any other value makes construction
-        /// fail with `errc::invalid_arg`. Higher voltages drive the ink
-        /// harder but load the drive supplies more. The gray levels shift
-        /// with this setting; see @ref gray4_frame_rate for the trade-offs
-        /// and recommended operating points.
+        /// Must be 2.4 V to 15 V in 0.2 V steps. Construction fails with
+        /// `errc::invalid_arg` for any other value. Higher voltages drive the
+        /// ink harder but load the drive supplies more. The gray levels shift
+        /// with this setting. See @ref gray4_frame_rate for the trade-offs
+        /// and the recommended operating points.
         quanta::electro::millivolts gray4_source_voltage{15'000};
     };
 
     /**
      * @brief Returns a panel I/O configuration for communicating with a UC8179 over SPI.
      *
-     * Fills in the SPI framing the UC8179 controller requires (mode 0,
+     * Fills in the SPI framing that the UC8179 controller requires (mode 0,
      * 8-bit commands and parameters, a dedicated D/C line), so only the
      * wiring-specific values are parameters.
      *
@@ -172,7 +174,7 @@ public:
      *
      * Configures the BUSY and reset GPIOs, hardware-resets the controller,
      * runs the full initialization sequence, and clears both image planes
-     * to white, leaving the panel awake in @ref color_mode::mono and ready
+     * to white. The panel is then awake in @ref color_mode::mono and ready
      * for writes.
      *
      * Does not take ownership of @p panel_io. It is the caller's
@@ -195,7 +197,7 @@ public:
      *
      * Configures the BUSY and reset GPIOs, hardware-resets the controller,
      * runs the full initialization sequence, and clears both image planes
-     * to white, leaving the panel awake in @ref color_mode::mono and ready
+     * to white. The panel is then awake in @ref color_mode::mono and ready
      * for writes.
      *
      * Does not take ownership of @p panel_io. It is the caller's
@@ -206,10 +208,12 @@ public:
      * @param cfg   Panel configuration.
      *
      * @return The new uc8179, or an error.
-     * @retval idfxx::errc::invalid_arg if `busy_gpio` is not connected, the
-     *         width is zero, not a multiple of 8, or over 800, the height is
-     *         zero or over 600, or `gray4_frame_rate` or
-     *         `gray4_source_voltage` is not a supported value.
+     * @retval idfxx::errc::invalid_arg if one of these is true:
+     *         - `busy_gpio` is not connected.
+     *         - The width is zero, not a multiple of 8, or over 800.
+     *         - The height is zero or over 600.
+     *         - `gray4_frame_rate` or `gray4_source_voltage` is not a
+     *           supported value.
      * @retval idfxx::errc::timeout if the controller's BUSY line does not
      *         release during initialization.
      */
@@ -238,8 +242,8 @@ private:
         size_t height;
     };
 
-    // Tag distinguishing the non-initializing constructor make() uses from
-    // the public throwing constructor with the same argument list.
+    // Tag distinguishing the non-initializing constructor that make() uses
+    // from the public throwing constructor with the same argument list.
     struct raw_tag {};
 
     explicit uc8179(raw_tag, idfxx::panel_io& panel_io, config cfg)

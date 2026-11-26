@@ -18,9 +18,9 @@
 namespace idfxx::crypto::detail {
 
 // Translates a PSA status to an idfxx::crypto error code. PSA_SUCCESS maps to an empty
-// error_code, statuses without a matching errc to errc::generic_error.
-// PSA_ERROR_INSUFFICIENT_MEMORY is never returned: it raises (bad_alloc or abort), per the idfxx
-// out-of-memory policy.
+// error_code. A status without a matching errc maps to errc::generic_error.
+// PSA_ERROR_INSUFFICIENT_MEMORY is never returned: it throws bad_alloc or aborts, following the
+// idfxx out-of-memory policy.
 [[nodiscard]] std::error_code psa_error_code(psa_status_t status);
 
 // Converts a PSA status to a result: success for PSA_SUCCESS, otherwise its error code.
@@ -52,10 +52,10 @@ namespace idfxx::crypto::detail {
     return reinterpret_cast<uint8_t*>(p);
 }
 
-// Passes data to `update`, a callable taking (const uint8_t*, size_t) and returning a psa_status_t,
-// as PSA multi-part operations take input: in one call where PSA uses the caller's buffer directly,
-// and otherwise in chunks of 4096 bytes (none for empty data). Stops at the first failure and
-// returns its status.
+// Passes data to `update` in the way that PSA multi-part operations take input. `update` is a
+// callable that takes (const uint8_t*, size_t) and returns a psa_status_t. Where PSA uses the
+// caller's buffer directly, the data is passed in one call. Otherwise, it is passed in chunks of
+// 4096 bytes (no chunks for empty data). Stops at the first failure and returns its status.
 template<typename Update>
 [[nodiscard]] psa_status_t feed_in_chunks(byte_view data, Update&& update) {
 #ifdef MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS

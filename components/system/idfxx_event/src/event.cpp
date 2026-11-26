@@ -102,7 +102,7 @@ result<void> event_loop::unregister_listener(
         err = esp_event_handler_instance_unregister_with(loop, base, id, instance);
     }
 
-    // Step 2: Clean up storage (safe now - ESP-IDF won't call trampoline)
+    // Step 2: Clean up storage (safe now, because ESP-IDF no longer calls the trampoline)
     cleanup_handler_context(instance);
 
     return wrap(err);

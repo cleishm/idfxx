@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Plots a live scrolling line chart on an SSD1306 OLED: a simulated
-// temperature reading joined into a polyline with draw_line, inside a
-// framed chart area with a dotted midline, plus a text readout that
-// updates each frame. The whole frame is cleared and redrawn each tick —
-// the simplest animation pattern.
+// Plots a live scrolling line chart on an SSD1306 OLED. The simulated
+// temperature readings are joined into a polyline with draw_line, inside a
+// framed chart area with a dotted midline. A text readout updates each
+// frame. The whole frame is cleared and redrawn each tick, which is the
+// simplest animation pattern.
 
 #include <idfxx/font/spleen>
 #include <idfxx/gfx>
@@ -25,7 +25,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_SDA = idfxx::gpio_8;
 static constexpr auto PIN_SCL = idfxx::gpio_9;
 

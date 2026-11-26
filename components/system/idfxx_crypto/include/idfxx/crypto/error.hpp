@@ -12,10 +12,10 @@
  * @brief Type-safe cryptographic primitives.
  *
  * Provides message digests (@ref idfxx_crypto_hash) and message authentication codes
- * (@ref idfxx_crypto_mac) in one-shot and incremental forms, with the algorithm chosen at compile
- * time or at runtime, and the keys MACs use (@ref idfxx_crypto_key). Every operation is available
- * both as a `result<T>`-returning `try_*` function and, when exceptions are enabled, as a throwing
- * function.
+ * (@ref idfxx_crypto_mac) in one-shot and incremental forms. The algorithm is chosen at compile
+ * time or at runtime. Also provides the keys that MACs use (@ref idfxx_crypto_key). Every operation
+ * is available both as a `result<T>`-returning `try_*` function and, when exceptions are enabled,
+ * as a throwing function.
  *
  * Depends on @ref idfxx_core for error handling.
  *
@@ -118,10 +118,9 @@ public:
      * @brief Maps an `errc` value to its canonical portable condition.
      *
      * Maps each code with a standard POSIX synonym, as listed on
-     * @ref idfxx::crypto::errc "crypto::errc", to that `std::errc`; every other code maps to a
-     * condition in this category. Because `==`/`!=` comparisons
-     * between an `std::error_code` and an `std::error_condition` go through this mapping, callers
-     * may compare against either form:
+     * @ref idfxx::crypto::errc "crypto::errc", to that `std::errc`. Every other code maps to a
+     * condition in this category. Because `==`/`!=` comparisons between an `std::error_code` and an
+     * `std::error_condition` use this mapping, callers may compare against either form:
      * @code
      * ec == idfxx::crypto::errc::not_permitted
      * ec == std::errc::operation_not_permitted

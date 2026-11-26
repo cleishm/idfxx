@@ -13,7 +13,7 @@
 using idfxx::panel_io;
 using namespace quanta::frequency_literals;
 
-// SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work; the
+// SDA/SCL pins used by the I2C bus-creation tests. Any two free pins work. The
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
 #ifdef CONFIG_IDF_TARGET_ESP32C2
 inline constexpr auto TEST_SDA = idfxx::gpio_4;

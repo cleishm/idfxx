@@ -3,20 +3,22 @@
 
 #pragma once
 
-// Narrow internal base class shared by every public socket type — `listener`,
-// `stream_socket`, `datagram_socket`, `raw_socket`. Holds the file descriptor,
+// Narrow internal base class shared by every public socket type (`listener`,
+// `stream_socket`, `datagram_socket`, `raw_socket`). Holds the file descriptor,
 // address family, lifecycle (move, close), `bind` / `local_endpoint`,
 // `wait_readable`, and the family-generic socket options that are meaningful
 // even on a listening (accept-only) socket.
 //
 // Members that imply peer-oriented I/O (`connect`, `recv`, `peer_endpoint`,
 // `set_send_buffer`, `set_send_timeout`, `wait_writable`, `get_send_buffer`)
-// live on `ip_io_socket_base`, which sits between this class and the
-// connectable socket types — keeping them off `listener` at compile time.
+// are in `ip_io_socket_base`. That class is between this class and the
+// connectable socket types in the hierarchy, so `listener` does not have these
+// members and the compiler rejects calls to them on a `listener`.
 //
-// Public inheritance with no virtual functions: there is no polymorphism,
-// derived destructors run first, and the base destructor calls `close()` to
-// guarantee the descriptor is released even if a derived class forgets.
+// The inheritance is public, with no virtual functions. There is no
+// polymorphism. Derived destructors run first. The base destructor then calls
+// `close()`, so the descriptor is always released, even if a derived class does
+// not close it.
 
 #include "sdkconfig.h"
 
@@ -46,13 +48,13 @@ public:
     /**
      * @brief Returns the underlying socket descriptor, or `-1` if moved-from / closed.
      *
-     * For observation and interop only: do not `close()`, free, or change the
-     * blocking mode of the returned descriptor — doing so desynchronizes this
-     * wrapper's invariants.
+     * For observation and interop only. Do not `close()`, free, or change the
+     * blocking mode of the returned descriptor. Doing so makes the state of this
+     * object inconsistent with the descriptor.
      */
     [[nodiscard]] int idf_handle() const noexcept { return _fd; }
 
-    /** @brief Returns the address family this socket was created with. */
+    /** @brief Returns the address family that this socket was created with. */
     [[nodiscard]] address_family family() const noexcept { return _family; }
 
     /** @brief Returns true if the socket is open (false after `close()` or move-from). */
@@ -73,7 +75,7 @@ public:
     /**
      * @brief Binds the socket to a local endpoint.
      *
-     * The address family of @p addr must match the family the socket was
+     * The address family of @p addr must match the family that the socket was
      * created with.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
@@ -85,7 +87,7 @@ public:
     /**
      * @brief Binds the socket to a local endpoint.
      *
-     * The address family of @p addr must match the family the socket was
+     * The address family of @p addr must match the family that the socket was
      * created with.
      *
      * @return Success, or an error.
@@ -93,8 +95,8 @@ public:
     [[nodiscard]] result<void> try_bind(const endpoint& addr);
 
     /**
-     * @brief Toggles non-blocking mode — when on, I/O calls fail immediately with
-     *        `errc::operation_would_block` when no data, buffer space, or pending
+     * @brief Toggles non-blocking mode. When @p on is true, I/O calls fail immediately
+     *        with `errc::operation_would_block` when no data, buffer space, or pending
      *        connection is available, rather than blocking the calling task.
      *        Equivalent to the POSIX `O_NONBLOCK` flag.
      *
@@ -115,8 +117,8 @@ public:
      * @brief Sets the kernel receive buffer size in bytes. Equivalent to the POSIX
      *        `SO_RCVBUF` socket option.
      *
-     * @param bytes Buffer size in bytes. Effectively capped at `INT_MAX`; larger values
-     *              are clamped — the buffer will be allocated up to that cap.
+     * @param bytes Buffer size in bytes. Values larger than `INT_MAX` are clamped to
+     *              `INT_MAX`. The buffer is allocated up to that limit.
      */
     void set_recv_buffer(size_t bytes) noexcept;
 
@@ -138,17 +140,17 @@ public:
 
     /**
      * @brief Sets the Differentiated Services Code Point for outgoing packets.
-     *        Equivalent to writing the top 6 bits of the POSIX `IP_TOS` byte; the
+     *        Equivalent to writing the top 6 bits of the POSIX `IP_TOS` byte. The
      *        bottom 2 bits (ECN) are managed by the stack and are not preserved.
      *
      * @param value DSCP code point (top 6 bits of the traffic-class byte). Custom
-     *              values can be passed as `static_cast<dscp>(n)`; only the low 6
+     *              values can be passed as `static_cast<dscp>(n)`. Only the low 6
      *              bits of @p value are used.
      */
     void set_dscp(dscp value) noexcept;
 
     /**
-     * @brief Sets the maximum time `recv` will block waiting for data; on expiry the
+     * @brief Sets the maximum time `recv` will block waiting for data. On expiry, the
      *        call fails with `errc::timed_out`. Equivalent to the POSIX `SO_RCVTIMEO`
      *        socket option. Sub-millisecond resolutions are rounded up.
      *
@@ -167,10 +169,10 @@ public:
 
 #ifdef CONFIG_LWIP_IPV6
     /**
-     * @brief Toggles IPv6-only operation — when on, an IPv6 socket cannot accept or
-     *        send IPv4-mapped traffic. Equivalent to the POSIX `IPV6_V6ONLY` option.
-     *        The option has no effect on IPv4 sockets, and is typically set before
-     *        `bind()`.
+     * @brief Toggles IPv6-only operation. When @p on is true, an IPv6 socket cannot
+     *        accept or send IPv4-mapped traffic. Equivalent to the POSIX `IPV6_V6ONLY`
+     *        option. The option has no effect on IPv4 sockets. It is typically set
+     *        before `bind()`.
      *
      * @param on Whether to enable IPv6-only operation.
      *
@@ -208,12 +210,12 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Waits until the socket is readable or the timeout fires.
+     * @brief Waits until the socket is readable or the timeout expires.
      *
      * @param timeout Maximum time to wait. Sub-millisecond resolutions are rounded up.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error if the timeout fires or on other failure.
+     * @throws std::system_error if the timeout expires or on other failure.
      */
     template<typename Rep, typename Period>
     void wait_readable(const std::chrono::duration<Rep, Period>& timeout) {
@@ -222,7 +224,7 @@ public:
 #endif
 
     /**
-     * @brief Waits until the socket is readable or the timeout fires.
+     * @brief Waits until the socket is readable or the timeout expires.
      *
      * @param timeout Maximum time to wait. Sub-millisecond resolutions are rounded up.
      * @return Success when readable, `errc::timed_out` when not.
@@ -254,7 +256,7 @@ public:
      *        `errno` value. Reads back the POSIX `SO_ERROR` option.
      *
      *        Prefer `get_last_error()`, which maps the value into the type-safe
-     *        `idfxx::net` error model; this accessor is for callers that need the
+     *        `idfxx::net` error model. This accessor is for callers that need the
      *        unmapped integer (e.g. to forward it to platform APIs).
      *
      * @return The pending `errno` value, or `0` when there is none.

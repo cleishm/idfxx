@@ -54,8 +54,9 @@ def published_versions(namespace: str, name: str, timeout: int) -> list[str] | N
     except urllib.error.HTTPError as e:
         return [] if e.code == 404 else None
     except (OSError, json.JSONDecodeError):
-        # OSError covers URLError and the bare socket errors urllib lets through
-        # (e.g. http.client.RemoteDisconnected on a dropped keep-alive).
+        # OSError covers URLError and the bare socket errors that urllib raises
+        # without wrapping them (e.g. http.client.RemoteDisconnected on a dropped
+        # keep-alive).
         return None
     return [v['version'] for v in data.get('versions', []) if 'version' in v]
 

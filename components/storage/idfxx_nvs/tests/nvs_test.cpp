@@ -22,7 +22,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // nvs is not default constructible (must use make() factory)
@@ -69,7 +69,7 @@ struct no_default_ctor {
     int value;
 };
 
-// Overload routing probes
+// Concepts that check which blob overloads accept an argument type
 template<typename N, typename A>
 concept can_set_blob = requires(N& n, A a) { n.try_set_blob("k", a); };
 template<typename N, typename A>
@@ -83,7 +83,7 @@ static_assert(nvs_blob_value<blob_cfg>);
 static_assert(nvs_blob_value<no_default_ctor>);
 static_assert(nvs_blob_value<uint32_t>);
 
-// nvs_blob_value rejects pointers, arrays and ranges (byte buffers go through byte_view)
+// nvs_blob_value rejects pointers, arrays and ranges (byte buffers use the byte_view overload)
 static_assert(!nvs_blob_value<std::array<uint8_t, 4>>);
 static_assert(!nvs_blob_value<std::span<const uint8_t>>);
 static_assert(!nvs_blob_value<std::vector<uint8_t>>);
@@ -95,7 +95,7 @@ static_assert(!nvs_blob_value<const char*>);
 static_assert(!nvs_blob_value<void*>);
 static_assert(!nvs_blob_value<std::nullptr_t>);
 
-// Objects take the typed overload; byte buffers can't
+// Objects take the typed overload. Byte buffers can't take it
 static_assert(can_set_blob<nvs, blob_cfg>);
 static_assert(can_set_typed_blob<nvs, blob_cfg>);
 static_assert(!can_set_typed_blob<nvs, std::array<uint8_t, 4>>);
@@ -114,7 +114,7 @@ static_assert(!can_set_blob<nvs, std::string_view>);
 static_assert(!can_set_blob<nvs, const char*>);
 static_assert(!can_set_blob<nvs, std::array<uint32_t, 2>>);
 
-// Read-into takes writable byte buffers only
+// The overload that reads into a buffer takes writable byte buffers only
 static_assert(can_get_blob_into<nvs, std::array<uint8_t, 4>>);
 static_assert(can_get_blob_into<nvs, std::vector<std::byte>>);
 static_assert(!can_get_blob_into<nvs, const std::array<uint8_t, 4>>);
@@ -345,7 +345,7 @@ TEST_CASE("nvs get_blob into buffer", "[idfxx][nvs]") {
     TEST_ASSERT_EQUAL(4, *exact_result);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(data.data(), exact.data(), 4);
 
-    // Larger buffer: blob goes to the front, the rest is untouched
+    // Larger buffer: the blob is written to the front, and the rest is not changed
     std::array<uint8_t, 8> larger{};
     larger.fill(0xEE);
     auto larger_result = nvs.try_get_blob("blob", larger);

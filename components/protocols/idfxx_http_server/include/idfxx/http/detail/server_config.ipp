@@ -52,7 +52,7 @@ idfxx::result<void> idfxx::http::server::_populate_httpd_config(
     httpd_cfg.enable_so_linger = cfg.enable_so_linger;
     httpd_cfg.linger_timeout = static_cast<int>(cfg.linger_timeout.count());
     httpd_cfg.keep_alive_enable = cfg.keep_alive_enable;
-    // Zero lets httpd choose its own keep-alive defaults.
+    // For a value of zero, httpd uses its own keep-alive defaults.
     httpd_cfg.keep_alive_idle = cfg.keep_alive_idle ? static_cast<int>(cfg.keep_alive_idle->count()) : 0;
     httpd_cfg.keep_alive_interval = cfg.keep_alive_interval ? static_cast<int>(cfg.keep_alive_interval->count()) : 0;
     httpd_cfg.keep_alive_count = cfg.keep_alive_count.value_or(0);

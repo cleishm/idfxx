@@ -23,10 +23,10 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 
 - Any ESP32-series development board
 
-The example uses the board's BOOT button: GPIO 9 on the ESP32-C3, ESP32-C6 and ESP32-H2, and GPIO 0
-on the others, so no extra parts are needed. To use a different button, connect it between a pin and
-GND and change `button_pin` in `main/main.cpp`. The example enables the internal pull-up, so no
-external resistor is needed.
+The example uses the board's BOOT button. This is GPIO 9 on the ESP32-C3, ESP32-C6 and ESP32-H2,
+and GPIO 0 on the others. No extra parts are needed. To use a different button, connect it between
+a pin and GND and change `button_pin` in `main/main.cpp`. The example enables the internal pull-up,
+so no external resistor is needed.
 
 The example doesn't debounce the button, so a single press can be counted more than once.
 
@@ -47,5 +47,5 @@ idf.py -p PORT flash monitor
 ```
 
 Replace `esp32` with your target and `PORT` with your board's serial port. Press the button during
-the 30 seconds after startup; the example logs the running count, then cleans up and stops. Press
+the 30 seconds after startup. The example logs the running count, then cleans up and stops. Press
 `Ctrl-]` to exit the monitor.

@@ -39,7 +39,7 @@ static_assert(std::is_same_v<
 // Connect overloads
 // =============================================================================
 
-// connect() initiates only; connect(timeout) waits for and returns the address
+// connect() only initiates the connection. connect(timeout) waits for the address and returns it
 static_assert(std::is_same_v<decltype(try_connect()), idfxx::result<void>>);
 static_assert(std::is_same_v<decltype(try_connect(std::chrono::seconds{30})), idfxx::result<idfxx::net::ipv4_info>>);
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
@@ -375,7 +375,7 @@ TEST_CASE("wifi get and set max tx power", "[idfxx][wifi][hw]") {
 
     auto get_result = try_get_max_tx_power();
     TEST_ASSERT_TRUE(get_result.has_value());
-    // TX power may be clamped by hardware, just check it's non-zero
+    // The hardware may clamp the TX power, so just check that it's non-zero
     TEST_ASSERT_TRUE(*get_result > quanta::electro::dbm{0});
 
     auto stop_result = try_stop();

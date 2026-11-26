@@ -13,12 +13,13 @@
  * @brief Shows decoded images on e-paper panels and surfaces, in a panel's measured colors.
  *
  * @ref idfxx::epaper::write_image places the image from a decoder on an e-paper
- * panel: turned, cropped, resampled to its target rectangle and clipped to the
- * screen, as described by an @ref idfxx::image::placement, then converted to
- * the panel's inks using a @ref idfxx::epaper::calibration of what those inks
- * look like. A panel is written a band of rows at a time, so no whole frame is
- * held in memory. An overlay callback can draw over each band before it is
- * written, and the same function renders into a surface such as a framebuffer.
+ * panel, as an @ref idfxx::image::placement describes. It turns the image,
+ * crops it, resamples it to its target rectangle and clips it to the screen.
+ * Then it converts the picture to the panel's inks, using a
+ * @ref idfxx::epaper::calibration of what those inks look like. A panel is
+ * written a band of rows at a time, so no whole frame is held in memory. An
+ * overlay callback can draw over each band before it is written, and the same
+ * function renders into a surface such as a framebuffer.
  *
  * Depends on @ref idfxx_image for placement and @ref idfxx_epaper for panels.
  *
@@ -105,7 +106,7 @@ struct rendering_intent {
  */
 struct preset {
     const char* name;        ///< The preset's name, such as "Default".
-    rendering_intent intent; ///< The rendering intent it stands for.
+    rendering_intent intent; ///< The rendering intent that it stands for.
 };
 
 /**
@@ -126,7 +127,7 @@ struct ink {
      */
     uint8_t value;
     image::rgb888 nominal;  ///< The ink's ideal color.
-    image::rgb888 measured; ///< The color the ink has on the panel, as measured.
+    image::rgb888 measured; ///< The color that the ink has on the panel, as measured.
 };
 
 /**
@@ -150,7 +151,7 @@ struct version {
     /**
      * @brief Returns the version of the conversion in this firmware.
      *
-     * It is the version of the `cleishm/epaper-image` library linked. A frame
+     * It is the version of the `cleishm/epaper-image` library that is linked. A frame
      * converted for a calibration is converted the same way while this version
      * and the calibration's @ref calibration::id are both unchanged, so storing
      * the pair with a frame tells whether the frame is still current. The
@@ -177,11 +178,11 @@ struct version {
  * @headerfile <idfxx/epaper/image_writer>
  * @brief What a panel's inks look like, and how to render pictures for it.
  *
- * A picture is converted using the colors its panel's inks were measured to
- * have, so a calibration belongs to a glass, a color mode and a waveform. It
- * holds only for the waveform it was measured with, which cannot be detected:
- * a different frame rate, voltage or driver shows different colors, and the
- * picture is then converted for colors the panel isn't showing.
+ * A picture is converted using the measured colors of its panel's inks. So a
+ * calibration belongs to a glass, a color mode and a waveform. It is valid
+ * only for the waveform that it was measured with, and the waveform cannot be
+ * detected. A different frame rate, voltage or driver shows different colors,
+ * and the picture is then converted for colors that the panel isn't showing.
  *
  * This type is copyable and cheap to copy. An object made from a library panel
  * with @ref make refers to that panel, which must outlive it.
@@ -198,7 +199,7 @@ public:
     /**
      * @brief The GDEY075T7: a 7.5" 800x480 panel, in black and white.
      *
-     * Holds only for the controller's built-in full-refresh waveform.
+     * Valid only for the controller's built-in full-refresh waveform.
      *
      * @return The calibration, in @ref color_mode::mono.
      */
@@ -207,8 +208,8 @@ public:
     /**
      * @brief The GDEY075T7: a 7.5" 800x480 panel, in four gray levels.
      *
-     * Holds only at `uc8179`'s default `gray4_frame_rate` and
-     * `gray4_source_voltage`: its gray levels were measured with those.
+     * Valid only at `uc8179`'s default `gray4_frame_rate` and
+     * `gray4_source_voltage`. Its gray levels were measured with those settings.
      *
      * @return The calibration, in @ref color_mode::gray4.
      */
@@ -218,8 +219,9 @@ public:
     /**
      * @brief Creates a calibration from a panel of the `cleishm/epaper-image` library.
      *
-     * For a panel that has no calibration here, such as one measured and built
-     * with `epi_grey_panel_init()` or `epi_colour_panel_init()`. See @ref make.
+     * For a panel that has no built-in calibration, such as one that was measured
+     * and built with `epi_grey_panel_init()` or `epi_colour_panel_init()`. See
+     * @ref make.
      *
      * @param panel The library's panel, which must outlive this object.
      *
@@ -233,13 +235,13 @@ public:
     /**
      * @brief Creates a calibration from a panel of the `cleishm/epaper-image` library.
      *
-     * For a panel that has no calibration here, such as one measured and built
-     * with `epi_grey_panel_init()` or `epi_colour_panel_init()`. The color mode
-     * comes from the number of inks: 6 is @ref color_mode::color6, 4 is
-     * @ref color_mode::gray4 and 2 is @ref color_mode::mono. The ink codes must be
-     * able to reach a framebuffer:
-     * each a `color6` value on a panel of 6, or 0, 1, 2, 3 and 0, 1 from darkest
-     * to lightest on a panel of 4 and 2.
+     * For a panel that has no built-in calibration, such as one that was measured
+     * and built with `epi_grey_panel_init()` or `epi_colour_panel_init()`. The
+     * color mode comes from the number of inks: 6 is @ref color_mode::color6, 4 is
+     * @ref color_mode::gray4 and 2 is @ref color_mode::mono. The ink codes must map
+     * to framebuffer values. On a panel of 6 inks, each code must be a `color6`
+     * value. On panels of 4 and 2 inks, the codes must be 0, 1, 2, 3 and 0, 1,
+     * from darkest to lightest.
      *
      * @param panel The library's panel, which must outlive the calibration.
      *
@@ -257,30 +259,30 @@ public:
     [[nodiscard]] const char* name() const noexcept;
 
     /**
-     * @brief Returns the width of the panel the calibration is for.
+     * @brief Returns the width of the panel that the calibration is for.
      *
      * @return The native width in pixels.
      */
     [[nodiscard]] size_t width() const noexcept;
 
     /**
-     * @brief Returns the height of the panel the calibration is for.
+     * @brief Returns the height of the panel that the calibration is for.
      *
      * @return The native height in pixels.
      */
     [[nodiscard]] size_t height() const noexcept;
 
     /**
-     * @brief Returns the color mode the calibration is for.
+     * @brief Returns the color mode that the calibration is for.
      *
-     * @return The color mode a panel must be in to be written with this calibration.
+     * @return The color mode that a panel must be in to be written with this calibration.
      */
     [[nodiscard]] enum color_mode color_mode() const noexcept { return _mode; }
 
     /**
      * @brief Returns the rendering intents offered for this panel.
      *
-     * @return The presets; the first one is the panel's default.
+     * @return The presets. The first one is the panel's default.
      */
     [[nodiscard]] std::vector<epaper::preset> presets() const;
 
@@ -335,12 +337,12 @@ public:
      * @brief Returns what identifies this calibration in the conversion of pictures.
      *
      * Under one @ref renderer::version::current, two calibrations with the same ID
-     * convert a picture to the same frame. It covers what changes the frame:
-     * whether the panel is gray or color, its size, each ink's code and measured
-     * color, and the panel's detail blur and neutral-cast correction. The name,
-     * the nominal colors and the presets are not part of
-     * it, so a measured panel built with the built-in one's inputs under
-     * another name has the built-in one's ID. The bytes are opaque: compare
+     * convert a picture to the same frame. The ID covers everything that changes
+     * the frame: whether the panel is gray or color, its size, each ink's code and
+     * measured color, and the panel's detail blur and neutral-cast correction. The
+     * name, the nominal colors and the presets are not part of it. So a measured
+     * panel built with the built-in one's inputs under another name has the
+     * built-in one's ID. The bytes are opaque: compare
      * them, but don't rely on how they are computed.
      *
      * Paired with @ref renderer::version::current, it tells whether a stored
@@ -380,7 +382,7 @@ private:
  */
 struct write_options {
     /**
-     * @brief The rendering intent; `std::nullopt` is the calibration's first preset.
+     * @brief The rendering intent. `std::nullopt` is the calibration's first preset.
      */
     std::optional<rendering_intent> intent = std::nullopt;
     /**
@@ -455,7 +457,7 @@ concept image_framebuffer = std::same_as<F, mono_framebuffer> ||
 struct destination {
     panel* display = nullptr; // the panel, or nullptr for a surface
 
-    // The color mode the caller's own types assume: the surface's, or the overlay's band.
+    // The color mode that the caller's own types assume: the surface's, or the overlay's band.
     std::optional<enum color_mode> pixels = std::nullopt;
 
     // Draws over a band, of the framebuffer type for pixels.
@@ -592,11 +594,11 @@ template<image::decoder Decoder>
  * Pixels outside the target are left as they are. A picture entirely off the
  * screen succeeds without decoding.
  *
- * The panel writes whole bytes, so the left edge of what is written must be a
- * multiple of 2 columns in @ref color_mode::color6, or 8 in the others, and so
- * must its right edge unless it reaches the right edge of the screen. A
- * placement that doesn't meet this is an error, unless
- * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
+ * The panel writes whole bytes. So the left edge of what is written must be a
+ * multiple of 2 columns in @ref color_mode::color6, or of 8 columns in the
+ * others. The right edge must also be such a multiple, unless it reaches the
+ * right edge of the screen. A placement that doesn't meet this is an error,
+ * unless @ref idfxx::image::placement::fill_to_alignment is set to fill the gap.
  *
  * @code
  * idfxx::memory_source src{jpeg_bytes};
@@ -622,7 +624,7 @@ template<image::decoder Decoder>
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the
+ * @param where   Where and how the picture is placed. By default, it fills the
  *                screen.
  * @param options Rendering intent, band size and memory limit.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -655,8 +657,8 @@ void write_image(
  * changes on the glass until the caller calls @ref panel::refresh. The caller names the type of
  * the band, which must match the calibration's color mode.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates, through a canvas that is the size of the screen.
+ * The canvas places the band at its position on the screen:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -672,7 +674,7 @@ void write_image(
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -707,14 +709,14 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
  * A picture entirely off the screen succeeds without decoding. The caller names the
  * type of the band, which must match the calibration's color mode.
  *
- * The panel writes whole bytes, so the left edge of what is written must be a
- * multiple of 2 columns in @ref color_mode::color6, or 8 in the others, and so
- * must its right edge unless it reaches the right edge of the screen. A
- * placement that doesn't meet this is an error, unless
- * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
+ * The panel writes whole bytes. So the left edge of what is written must be a
+ * multiple of 2 columns in @ref color_mode::color6, or of 8 columns in the
+ * others. The right edge must also be such a multiple, unless it reaches the
+ * right edge of the screen. A placement that doesn't meet this is an error,
+ * unless @ref idfxx::image::placement::fill_to_alignment is set to fill the gap.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates, through a canvas that is the size of the screen.
+ * The canvas places the band at its position on the screen:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -731,7 +733,7 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -776,14 +778,14 @@ void write_image(
  * A picture entirely off the screen succeeds without decoding. The caller names the
  * type of the band, which must match the calibration's color mode.
  *
- * The panel writes whole bytes, so the left edge of what is written must be a
- * multiple of 2 columns in @ref color_mode::color6, or 8 in the others, and so
- * must its right edge unless it reaches the right edge of the screen. A
- * placement that doesn't meet this is an error, unless
- * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
+ * The panel writes whole bytes. So the left edge of what is written must be a
+ * multiple of 2 columns in @ref color_mode::color6, or of 8 columns in the
+ * others. The right edge must also be such a multiple, unless it reaches the
+ * right edge of the screen. A placement that doesn't meet this is an error,
+ * unless @ref idfxx::image::placement::fill_to_alignment is set to fill the gap.
  *
- * The band is drawn in screen coordinates through a canvas sized to the screen, which places the
- * band at its position on it:
+ * Draw on the band in screen coordinates, through a canvas that is the size of the screen.
+ * The canvas places the band at its position on the screen:
  *
  * @code
  * idfxx::epaper::write_image<idfxx::epaper::gray4_framebuffer>(
@@ -801,7 +803,7 @@ void write_image(
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -860,13 +862,14 @@ void write_image(
  * @endcode
  *
  * @tparam Surface A surface.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @param surface The surface to render into.
- * @param cal     The calibration for the panel the surface is meant for.
+ * @param cal     The calibration for the panel that the surface is meant for.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the surface.
- * @param options `band_rows` must still be non-zero; otherwise only the rendering intent
- *                and `memory_limit` apply.
+ * @param where   Where and how the picture is placed. By default, it fills the
+ *                surface.
+ * @param options `band_rows` must still be non-zero. Otherwise, only the rendering
+ *                intent and `memory_limit` apply.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on error, including `errc::invalid_arg` when the
  *         surface's pixel type doesn't match the calibration's color mode or `band_rows`
@@ -900,7 +903,7 @@ void write_image(
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the
+ * @param where   Where and how the picture is placed. By default, it fills the
  *                screen.
  * @param options Rendering intent, band size and memory limit.
  * @return Success, or an error.
@@ -936,7 +939,7 @@ template<image::decoder Decoder>
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -973,15 +976,15 @@ try_write_image(panel& display, const calibration& cal, Decoder& decoder, Overla
  * A picture entirely off the screen succeeds without decoding. The caller names the
  * type of the band, which must match the calibration's color mode.
  *
- * The panel writes whole bytes, so the left edge of what is written must be a
- * multiple of 2 columns in @ref color_mode::color6, or 8 in the others, and so
- * must its right edge unless it reaches the right edge of the screen. A
- * placement that doesn't meet this is an error, unless
- * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
+ * The panel writes whole bytes. So the left edge of what is written must be a
+ * multiple of 2 columns in @ref color_mode::color6, or of 8 columns in the
+ * others. The right edge must also be such a multiple, unless it reaches the
+ * right edge of the screen. A placement that doesn't meet this is an error,
+ * unless @ref idfxx::image::placement::fill_to_alignment is set to fill the gap.
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -1025,15 +1028,15 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * A picture entirely off the screen succeeds without decoding. The caller names the
  * type of the band, which must match the calibration's color mode.
  *
- * The panel writes whole bytes, so the left edge of what is written must be a
- * multiple of 2 columns in @ref color_mode::color6, or 8 in the others, and so
- * must its right edge unless it reaches the right edge of the screen. A
- * placement that doesn't meet this is an error, unless
- * @ref idfxx::image::placement::fill_to_alignment asks for the gap to be filled.
+ * The panel writes whole bytes. So the left edge of what is written must be a
+ * multiple of 2 columns in @ref color_mode::color6, or of 8 columns in the
+ * others. The right edge must also be such a multiple, unless it reaches the
+ * right edge of the screen. A placement that doesn't meet this is an error,
+ * unless @ref idfxx::image::placement::fill_to_alignment is set to fill the gap.
  *
  * @tparam Framebuffer The band's type: `mono_framebuffer`, `gray4_framebuffer` or
  *         `color6_framebuffer`.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @tparam Overlay A callable taking `(Framebuffer& band, size_t x, size_t y)`.
  * @param display The panel to write to, already in the calibration's color mode.
  * @param cal     The calibration for the panel.
@@ -1041,7 +1044,7 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * @param where   Where and how the picture is placed.
  * @param options Rendering intent, band size and memory limit.
  * @param draw    Called once for each band with the band and the screen position of
- *                its top-left pixel; it must draw the same thing each time.
+ *                its top-left pixel. It must draw the same thing each time.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg The panel's size isn't the calibration's,
  *         @p Framebuffer doesn't match the calibration's color mode, `band_rows` is
@@ -1073,17 +1076,18 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * @brief Shows an image in a surface.
  *
  * Renders the decoder's image as @p where places it on the surface, converts it
- * to inks with @p cal and sets each pixel of the picture; see the throwing
+ * to inks with @p cal and sets each pixel of the picture. See the throwing
  * @ref write_image overload for a surface.
  *
  * @tparam Surface A surface.
- * @tparam Decoder The decoder type; see @ref idfxx::image::decoder.
+ * @tparam Decoder The decoder type. See @ref idfxx::image::decoder.
  * @param surface The surface to render into.
- * @param cal     The calibration for the panel the surface is meant for.
+ * @param cal     The calibration for the panel that the surface is meant for.
  * @param decoder The decoder of the image. It decodes once.
- * @param where   Where and how the picture is placed; by default it fills the surface.
- * @param options `band_rows` must still be non-zero; otherwise only the rendering intent
- *                and `memory_limit` apply.
+ * @param where   Where and how the picture is placed. By default, it fills the
+ *                surface.
+ * @param options `band_rows` must still be non-zero. Otherwise, only the rendering
+ *                intent and `memory_limit` apply.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg The surface's pixel type doesn't match the
  *         calibration's color mode, `band_rows` is zero, or the rendering intent is

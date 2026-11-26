@@ -42,7 +42,7 @@ class key; // defined only with CONFIG_MBEDTLS_THREADING_C
 namespace {
 
 // Writes the test message of n bytes, XORed with `flip`. The message is the output of a 32-bit
-// linear congruential generator; in Python:
+// linear congruential generator. In Python:
 //     x = 1
 //     for _ in range(n):
 //         x = (x * 1103515245 + 12345) & 0xffffffff

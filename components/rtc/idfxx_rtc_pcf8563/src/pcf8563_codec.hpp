@@ -44,7 +44,7 @@ inline constexpr uint8_t control1_stop = 0x20;
 inline constexpr uint8_t control1_testc = 0x08;
 
 // Control_status_2 bits. All others are unused and are written as 0. Writing
-// 0 to AF or TF clears the flag; writing 1 leaves it unchanged.
+// 0 to AF or TF clears the flag. Writing 1 leaves it unchanged.
 inline constexpr uint8_t control2_ti_tp = 0x10;
 inline constexpr uint8_t control2_af = 0x08;
 inline constexpr uint8_t control2_tf = 0x04;
@@ -86,7 +86,7 @@ inline constexpr size_t alarm_size = 4;
 // Maximum I2C clock (datasheet fSCL).
 inline constexpr quanta::frequency::hertz max_scl_speed{400'000};
 
-// The range of times the chip holds (century bit always 0).
+// The range of times that the chip holds (century bit always 0).
 inline constexpr std::chrono::sys_seconds min_time{
     std::chrono::sys_days{std::chrono::year{2000} / 1 / 1}
 };
@@ -138,8 +138,9 @@ struct timer_setting {
     return static_cast<uint8_t>((current & control1_testc) | (stop ? control1_stop : 0));
 }
 
-// Control_status_2 with the given interrupt bits (TI_TP, AIE, TIE): AF and TF
-// are written as 1 (unchanged) unless cleared, and the unused bits as 0.
+// Control_status_2 with the given interrupt bits (TI_TP, AIE, TIE). AF and TF
+// are written as 1 (unchanged) unless they are cleared. The unused bits are
+// written as 0.
 [[nodiscard]] constexpr uint8_t
 make_control2(uint8_t interrupt_bits, control2_clear clear) noexcept {
     return static_cast<uint8_t>(
@@ -221,8 +222,8 @@ decode_clkout(uint8_t clkout_control) noexcept {
 [[nodiscard]] std::optional<std::chrono::sys_seconds>
 decode_time(std::span<const uint8_t, time_size> regs);
 
-// Decodes the control and time registers: std::nullopt if STOP is set, or
-// for any reason decode_time() gives.
+// Decodes the control and time registers: std::nullopt if STOP is set, or if
+// decode_time() returns std::nullopt.
 [[nodiscard]] std::optional<std::chrono::sys_seconds> decode_clock(const clock_registers& regs);
 
 // Encodes alarm settings into the alarm registers. invalid_arg if a field is
@@ -234,8 +235,9 @@ decode_time(std::span<const uint8_t, time_size> regs);
 [[nodiscard]] result<pcf8563::alarm_config>
 decode_alarm(const alarm_registers& regs, uint8_t control2);
 
-// The fastest source that produces a period, given as an exact number of
-// 1/4096 s ticks, as a count of 1–255 source ticks. invalid_arg if there is none.
+// Selects the fastest source that produces a period as a count of 1–255 source
+// ticks. The period is given as an exact number of 1/4096 s ticks. invalid_arg if
+// no source produces it.
 [[nodiscard]] result<timer_setting> select_timer_source(pcf8563::timer_duration period);
 
 } // namespace idfxx::rtc::pcf8563_internal

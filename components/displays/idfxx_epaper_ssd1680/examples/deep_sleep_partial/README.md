@@ -11,9 +11,9 @@ XIAO ePaper Display Board EE05.
 - Creating an `idfxx::epaper::ssd1680` driver with reset and BUSY pins
 - Drawing into an `idfxx::epaper::mono_framebuffer` through an `idfxx::gfx::canvas`, and showing it
   with `write()` and `refresh()`
-- Saving the frame on the glass in RTC memory (`RTC_DATA_ATTR`) before deep sleep, and handing it
-  back to the driver with `restore_baseline()` after the wake, so the next update can still be a
-  partial refresh
+- Saving the frame on the glass in RTC memory (`RTC_DATA_ATTR`) before deep sleep, and passing it
+  back to the driver with `restore_baseline()` after the wake, so that the next update can still be
+  a partial refresh
 - A full refresh every 10 wakes to clear ghosting
 - Putting the panel to sleep with `sleep()`, then deep-sleeping on a timer with
   `idfxx::sleep::deep_sleep()`
@@ -46,12 +46,12 @@ the EE05's display wiring:
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
 The panel's frame is about 4 KB, small enough for RTC memory. Frames for larger panels (a 7.5-inch
-800x480 panel needs 48 KB) don't fit there, and need saving to flash or an SD card instead; see the
+800x480 panel needs 48 KB) don't fit there. Save them to flash or an SD card instead. See the
 comment at the top of `main/main.cpp`.
 
 > [!NOTE]
-> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for
-> the display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
+> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example uses for the
+> display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
 > enabled as a secondary console by default.
 
 ## How to use
@@ -74,5 +74,5 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 
 The board wakes every 30 seconds. Each wake updates a wake counter and a progress bar toward the
 next full refresh, then goes back to deep sleep. The USB Serial/JTAG port disconnects while the
-board sleeps, so the monitor loses the connection and picks it up again on the next wake. A power-on
+board sleeps, so the monitor loses the connection and reconnects on the next wake. A power-on
 or reset starts the counter from zero with a full refresh.

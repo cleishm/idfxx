@@ -2,7 +2,7 @@
 
 // Makes a new kind of image source work with the renderer, and with anything else that takes an
 // image::decoder, such as the LCD and e-paper image writers. A real decoder would read a file
-// format; this one draws a disc.
+// format. This one draws a disc.
 
 #include <idfxx/error>
 #include <idfxx/image>
@@ -99,7 +99,7 @@ extern "C" void app_main() {
     }
 
     // A sink can also stop the decode early, for example because the user moved to another screen.
-    // The error it returns comes back from the render.
+    // The render returns the error that the sink returns.
     size_t rows_wanted = 3;
     auto first_rows_only = [&](image::point, image::view<const rgb888>) -> idfxx::result<void> {
         if (rows_wanted == 0) {

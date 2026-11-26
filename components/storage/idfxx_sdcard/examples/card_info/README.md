@@ -33,17 +33,17 @@ Wire the card to the board as follows, plus power and ground:
 | MISO        | GPIO 13    |
 | CS          | GPIO 10    |
 
-To use different pins, change the `PIN_*` constants at the top of `main/main.cpp`; keep the card on
-an SPI bus with DMA. If your slot has a card-detect switch that pulls low when a card is in, wire it
-to a free GPIO and set `PIN_DETECT` to it.
+To use different pins, change the `PIN_*` constants at the top of `main/main.cpp`. Keep the card on
+an SPI bus with DMA. If your slot has a card-detect switch that pulls low when a card is inserted,
+wire it to a free GPIO and set `PIN_DETECT` to it.
 
 > [!NOTE]
 > The default pins are the ESP32-S3's SPI2 IOMUX pins, and also suit the ESP32-S2 and ESP32-H2. On
 > other targets, change them first:
 > - ESP32: GPIO 10 and 11 are connected to the module's SPI flash, and GPIO 12 is a strapping pin.
 > - ESP32-C3: GPIO 12 and 13 are usually connected to the SPI flash.
-> - ESP32-C6: GPIO 12 and 13 are used by USB-JTAG, and GPIO 10 and 11 aren't led out on chips with
->   in-package flash.
+> - ESP32-C6: GPIO 12 and 13 are used by USB-JTAG, and GPIO 10 and 11 aren't available as pins on
+>   chips with in-package flash.
 
 ## How to use
 

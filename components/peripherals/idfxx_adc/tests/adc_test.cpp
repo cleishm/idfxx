@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_adc
-// Reads need real analog hardware; these cover the API surface and the
+// Reads need real analog hardware. These tests cover the API surface and the
 // no-hardware error paths. esp_adc's boot-time calibration hangs under QEMU, so
 // idfxx_adc is kept out of the QEMU test image (see tests/CMakeLists.txt) and
 // these run on hardware.
@@ -69,7 +69,7 @@ TEST_CASE("adc make rejects an unconnected pin", "[idfxx][adc]") {
 
 TEST_CASE("adc make rejects a non-ADC pin", "[idfxx][adc]") {
     // A pin that exists but carries no ADC channel on the target under test.
-    // Most targets place ADC on the low GPIOs, leaving GPIO 21 free; the
+    // Most targets place ADC on the low GPIOs, so GPIO 21 is free. The
     // ESP32-P4 maps ADC1 onto GPIO 16-23, so pick a pin outside that range.
 #if CONFIG_IDF_TARGET_ESP32P4
     constexpr auto non_adc_pin = idfxx::gpio_24;

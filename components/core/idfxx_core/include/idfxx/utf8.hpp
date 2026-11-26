@@ -31,10 +31,10 @@ namespace idfxx {
  * @brief A view of UTF-8 text as a sequence of Unicode code points.
  *
  * Iterating yields one `char32_t` per encoded character. Malformed input
- * never stops the iteration: each maximal ill-formed subsequence (a stray
+ * never stops the iteration. Each maximal ill-formed subsequence (a stray
  * continuation byte, a truncated sequence, an overlong or surrogate
  * encoding, or a value above U+10FFFF) yields one U+FFFD REPLACEMENT
- * CHARACTER, following the Unicode recommended practice, and decoding
+ * CHARACTER, as the Unicode recommended practice describes. Decoding then
  * resumes at the next byte that could start a character.
  *
  * @code
@@ -44,7 +44,7 @@ namespace idfxx {
  * }
  * @endcode
  *
- * The view does not own the text; the caller must keep it alive while
+ * The view does not own the text. The caller must keep the text alive while
  * iterating. Iterators refer to the text directly, not to the view, so
  * they remain valid after the view is destroyed (the view is a borrowed
  * range).
@@ -177,7 +177,7 @@ public:
 
     /**
      * @brief Creates a view decoding @p text.
-     * @param text UTF-8 encoded text; must outlive the view and its iterators.
+     * @param text UTF-8 encoded text. Must outlive the view and its iterators.
      */
     constexpr explicit utf8_view(std::string_view text) noexcept
         : _text(text) {}

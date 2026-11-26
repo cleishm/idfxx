@@ -169,7 +169,7 @@ const esp_netif_ip_info_t dhcps_ip_info = {
 
 // An Ethernet-stack interface running a DHCP server on 192.168.4.1/24. Without the autoup flag the
 // interface never comes up, so its server stays in the initial state, where options can be both
-// set and read back; with it, starting the interface starts the server.
+// set and read back. With the flag, starting the interface starts the server.
 idfxx::netif::interface make_dhcps_netif(const char* key, bool autoup = false) {
     esp_netif_inherent_config_t base = ESP_NETIF_INHERENT_DEFAULT_ETH();
     base.flags = static_cast<esp_netif_flags_t>(ESP_NETIF_DHCP_SERVER | (autoup ? ESP_NETIF_FLAG_AUTOUP : 0));
@@ -227,7 +227,7 @@ TEST_CASE("dhcp server config applies options before starting", "[netif]") {
         .captive_portal_uri = "http://192.168.4.1/portal",
     });
     TEST_ASSERT_TRUE(r.has_value());
-    // The interface is down, so the server is armed but not running
+    // The interface is down, so the start succeeds but the server is not running
     TEST_ASSERT_FALSE(netif.is_dhcp_server_running());
 
     // Rounded up to whole lease units (2 at the default unit of 60 s)
@@ -249,8 +249,8 @@ TEST_CASE("dhcp server config applies options before starting", "[netif]") {
 }
 
 TEST_CASE("dhcp server config applies options after a stop", "[netif]") {
-    // As on a WiFi AP interface before WiFi starts: stopping the armed server, then starting it
-    // with a configuration
+    // This matches a WiFi AP interface before WiFi starts. The test stops the server before it
+    // runs, then starts it with a configuration
     auto netif = make_dhcps_netif("DHCPS_STOPPED");
     TEST_ASSERT_TRUE(netif.try_dhcp_server_stop().has_value());
 
@@ -319,7 +319,7 @@ TEST_CASE("dhcp server config rejects an invalid lease range", "[netif]") {
     TEST_ASSERT_TRUE(r.error() == idfxx::netif::errc::invalid_params);
     TEST_ASSERT_FALSE(netif.is_dhcp_server_running());
 
-    // The range is applied first, so nothing else was
+    // The range is applied first, so no other option was applied
     TEST_ASSERT_FALSE(get_lease_range(netif).enable);
     TEST_ASSERT_EQUAL_UINT32(default_units, get_lease_units(netif));
 
@@ -348,7 +348,7 @@ TEST_CASE("dhcp server config rejects invalid captive-portal URIs", "[netif]") {
     }
     TEST_ASSERT_EQUAL_UINT32(default_units, get_lease_units(netif));
 
-    // The longest URI the server has room for
+    // The longest URI that the server has room for
     TEST_ASSERT_TRUE(netif.try_dhcp_server_start({.captive_portal_uri = std::string(247, 'u')}).has_value());
 }
 
@@ -381,7 +381,7 @@ TEST_CASE("dhcp server config URI is handed over on move", "[netif]") {
 
     auto other = make_dhcps_netif("DHCPS_MOVE_B");
     TEST_ASSERT_TRUE(other.try_dhcp_server_start({.captive_portal_uri = "http://192.168.4.1/c"}).has_value());
-    // Destroys the first interface, then takes over the second along with its URI
+    // Destroys the first interface, then takes ownership of the second interface and its URI
     moved = std::move(other);
     TEST_ASSERT_TRUE(moved.try_dhcp_server_start({.lease_time = std::chrono::seconds(61)}).has_value());
     TEST_ASSERT_EQUAL_UINT32(expected_units(61), get_lease_units(moved));

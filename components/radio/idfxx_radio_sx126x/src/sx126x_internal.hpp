@@ -3,9 +3,9 @@
 
 #pragma once
 
-// Private SX126x driver internals — opcodes, register addresses, per-variant
+// Private SX126x driver internals: opcodes, register addresses, per-variant
 // PA-config tables, and the out-of-line driver state. Not part of the public
-// API and not installed. Pure register encoders live in sx126x_codec.hpp.
+// API and not installed. Pure register encoders are in sx126x_codec.hpp.
 
 #include "sx126x_codec.hpp"
 
@@ -119,9 +119,9 @@ struct pa_config_row {
     uint8_t pa_lut;     // reserved, always 0x01
 };
 
-/// Output-power limits for a chip variant (DS §13.4.4 SetTxParams; the
+/// Output-power limits for a chip variant (DS §13.4.4 SetTxParams). The
 /// SX1261's +15 dBm is reached via the table 13-21 PA row, not a SetTxParams
-/// byte — see tx_power_config_for).
+/// byte (see tx_power_config_for).
 struct power_limits {
     int8_t min_dbm;
     int8_t max_dbm;
@@ -134,7 +134,7 @@ struct power_limits {
     return {.min_dbm = -9, .max_dbm = 22}; // SX1262 / SX1268
 }
 
-/// PA config plus the SetTxParams power byte realizing a requested output
+/// PA config plus the SetTxParams power byte that produces a requested output
 /// power. The dBm must already be validated against power_limits_for().
 struct tx_power_config {
     pa_config_row pa;
@@ -177,13 +177,13 @@ tx_power_config_for(sx126x::chip_variant v, int8_t dbm) noexcept {
 // Driver state
 // =============================================================================
 
-/// Largest SPI frame the driver stages: 4-byte register header + 256-byte
-/// payload. Sizes every transfer buffer so reads/writes are never silently
-/// truncated.
+/// Largest SPI frame that the driver stages: 4-byte register header + 256-byte
+/// payload. Every transfer buffer has this size, so reads/writes are never
+/// silently truncated.
 inline constexpr size_t max_frame = 260;
 
-/// Size of the chip's data buffer; the most a single WriteBuffer/ReadBuffer
-/// may transfer.
+/// Size of the chip's data buffer. This is the most that a single
+/// WriteBuffer/ReadBuffer may transfer.
 inline constexpr size_t data_buffer_size = 256;
 
 /// High-level driver activity, distinct from the chip's hardware mode.
@@ -192,7 +192,7 @@ enum class driver_activity : uint8_t {
     tx_in_flight,
     rx_single,
     rx_continuous,
-    cad_scan, ///< Blocking channel scan; the worker completes a waiter on cad_done.
+    cad_scan, ///< Blocking channel scan. The worker completes a waiter on cad_done.
 };
 
 /// Single-bit event group used to signal async-operation completion from the
@@ -210,23 +210,23 @@ inline constexpr bool idfxx::enable_flags_operators<idfxx::radio::sx126x_interna
 namespace idfxx::radio::sx126x_internal {
 
 /// Completion latch for one async data-path operation (transmit, single-shot
-/// receive, or channel scan). Heap-allocated per operation and shared between
-/// the driver state (which holds it while the operation is in flight) and any
-/// futures handed to the caller, so a future outliving the operation — or the
-/// driver itself — still observes the result. The event group broadcasts the
-/// wake-up to every future copy; `done` gives futures a cheap non-consuming
-/// completion check.
+/// receive, or channel scan). It is heap-allocated per operation. The driver
+/// state holds it while the operation is in flight, and every future given to
+/// the caller shares it. A future that outlives the operation, or the driver
+/// itself, therefore still observes the result. The event group wakes every
+/// future copy. `done` is a cheap completion check for futures that does not
+/// consume the event.
 struct op_latch {
     idfxx::event_group<completion_bit> eg;
     std::atomic<bool> done{false};
     std::atomic<int32_t> error{0}; ///< errc value; 0 = success.
     rx_info rx{};                  ///< Receive result (written before `done`, read after).
     bool cad_detected = false;     ///< Channel-scan result (written before `done`, read after).
-    byte_span rx_target{}; ///< Caller's buffer (single-shot receive only); cleared on cancel.
+    byte_span rx_target{}; ///< Caller's buffer (single-shot receive only). Cleared on cancel.
 
     /// Publishes the operation result and wakes every waiter. The result
-    /// fields (`rx`, `cad_detected`) must be written before this is called;
-    /// callers serialize completion under the driver state's mutex.
+    /// fields (`rx`, `cad_detected`) must be written before this is called.
+    /// Callers serialize completion under the driver state's mutex.
     void complete(int32_t err_code) noexcept {
         error.store(err_code, std::memory_order_relaxed);
         done.store(true, std::memory_order_release);
@@ -238,9 +238,9 @@ struct op_latch {
 
 namespace idfxx::radio {
 
-/// Out-of-line driver state. One per sx126x instance; lives on the heap so the
-/// public type stays cheap to move while the worker task and DIO1 ISR see a
-/// stable address.
+/// Out-of-line driver state. One per sx126x instance. It is allocated on the
+/// heap, so the public type stays cheap to move and the worker task and DIO1
+/// ISR see a stable address.
 struct sx126x::state {
     sx126x::config cfg;
     spi::master_device device;
@@ -253,25 +253,26 @@ struct sx126x::state {
     std::mutex mu;
 
     // Serializes raw chip SPI access (the BUSY wait + transfer sequence in
-    // transfer()/transmit()) between API callers and the worker task. A
-    // dedicated leaf-level mutex: `mu` cannot serve — the worker's drain path
-    // holds it across read_buffer(). spi_device_acquire_bus() cannot serve
-    // either — it is not mutual exclusion between threads sharing one device
-    // handle (it errors out, and a polling transaction in flight on the same
-    // device makes it fail outright).
+    // transfer()/transmit()) between API callers and the worker task. It is a
+    // dedicated leaf-level mutex. `mu` cannot be used, because the worker's
+    // drain path holds it across read_buffer(). spi_device_acquire_bus() cannot
+    // be used either. It does not provide mutual exclusion between threads that
+    // share one device handle: it returns an error, and a polling transaction
+    // in flight on the same device makes it fail.
     std::mutex spi_mu;
 
-    // Read lock-free by current_mode(); written under `mu` alongside driver_state.
+    // Read lock-free by current_mode(). Written under `mu` with driver_state.
     std::atomic<chip_mode> mode{chip_mode::stdby};
     sx126x_internal::driver_activity driver_state = sx126x_internal::driver_activity::idle;
 
-    // Sleep window of the duty-cycled receive this driver armed, in us; 0 when
-    // none is armed. Written under `mu`; read lock-free by wait_busy_waking().
+    // Sleep window of the duty-cycled receive that this driver armed, in us. It
+    // is 0 when none is armed. Written under `mu`. Read lock-free by
+    // wait_busy_waking().
     std::atomic<uint32_t> duty_sleep_us{0};
 
-    // Most-recent packet params written via set_packet_params; transmit
-    // re-issues these with an updated payload length so it never clobbers the
-    // caller's header/CRC/IQ choices.
+    // Most-recent packet params written via set_packet_params. Transmit
+    // re-issues these with an updated payload length, so it never overwrites
+    // the caller's header/CRC/IQ choices.
     lora_packet_params last_packet_params{};
 
     // Band of the most recent CalibrateImage, so retuning within the same band
@@ -279,18 +280,18 @@ struct sx126x::state {
     // cold sleep, which loses the chip's calibration.
     std::optional<sx126x_internal::image_cal_band> cal_band;
 
-    // Received-packet FIFO populated by the worker on rx_done and drained by
-    // read_received, oldest first. It holds only packets that arrive while
-    // listening (or that the chip caught on its own — adopt_pending): a
+    // Received-packet FIFO. The worker fills it on rx_done, and read_received
+    // drains it, oldest first. It holds only packets that arrive while
+    // listening, or that the chip received on its own (adopt_pending). A
     // single-shot receive delivers straight into the caller's buffer and never
-    // queues, and CRC-failed packets are discarded. A small ring rather than a
-    // single cache: the consumer runs on the event loop, and a slow handler
-    // elsewhere on that loop must delay delivery, not lose packets. Arrivals
-    // are bounded by LoRa airtime, so a few slots absorb a consumer stall of
-    // several packet times. On overflow the oldest packet is dropped (the
-    // newest is the one still worth acting on). Only the worker writes the
-    // ring; pops advance the head only, so the tail slot is stable until the
-    // worker commits it.
+    // queues. CRC-failed packets are discarded. The FIFO is a small ring rather
+    // than a single cache, because the consumer runs on the event loop. A slow
+    // handler elsewhere on that loop must delay delivery, not lose packets.
+    // LoRa airtime limits the arrival rate, so a few slots can hold the packets
+    // that arrive during a consumer stall of several packet times. On overflow,
+    // the oldest packet is dropped, because the newest is the one still worth
+    // acting on. Only the worker writes the ring. Pops advance the head only,
+    // so the tail slot is stable until the worker commits it.
     struct rx_slot {
         rx_info info{};
         std::array<std::byte, 256> buf{};
@@ -301,11 +302,12 @@ struct sx126x::state {
     size_t rx_ring_count = 0; ///< Filled slots.
 
     // Latch for the in-flight async data-path operation (transmit, single-shot
-    // receive, or channel scan); null when none is in flight. Guarded by `mu`
-    // alongside driver_state: the starter installs it, and exactly one of the
+    // receive, or channel scan). It is null when none is in flight. `mu`
+    // guards it together with driver_state. The code that starts the operation
+    // installs the latch. Exactly one of these detaches and completes it: the
     // worker (on the completion IRQ) or a cancellation path (standby, sleep,
-    // teardown) detaches and completes it. Futures keep the latch alive via
-    // their own shared_ptr copies.
+    // teardown). Futures keep the latch alive through their own shared_ptr
+    // copies.
     std::shared_ptr<sx126x_internal::op_latch> active_op;
 
     explicit state(spi::master_device dev, sx126x::config c)
@@ -318,27 +320,28 @@ struct sx126x::state {
     state& operator=(const state&) = delete;
 
     // =========================================================================
-    // SPI I/O — the single home for the BUSY-wait + transfer sequence. Shared
-    // by the public API (sx126x.cpp) and the worker (sx126x_isr.cpp). Each
-    // method takes `spi_mu` first, then waits BUSY low, then transfers, so
-    // the BUSY check and the transaction are atomic with respect to the lock.
+    // SPI I/O. These methods are the only implementation of the BUSY-wait +
+    // transfer sequence. They are shared by the public API (sx126x.cpp) and the
+    // worker (sx126x_isr.cpp). Each method takes `spi_mu` first, then waits
+    // BUSY low, then transfers, so the BUSY check and the transaction are
+    // atomic with respect to the lock.
     // =========================================================================
 
     /// Waits for BUSY to go low (no-op if BUSY is not wired). Must be called
-    /// with `spi_mu` held by the transfer primitives; safe standalone after
-    /// reset, where no transfer immediately follows.
+    /// with `spi_mu` held by the transfer primitives. Safe to call on its own
+    /// after reset, where no transfer immediately follows.
     [[nodiscard]] result<void> wait_busy();
 
-    /// wait_busy(), waking the chip first if it turns out to be asleep: in
-    /// SLEEP mode — including the sleep phases of a duty-cycled receive —
-    /// BUSY idles high and only an NSS falling edge wakes the chip, so a
-    /// bare BUSY wait can never succeed. BUSY still high after the longest
-    /// processing time (Calibrate plus any TCXO start-up, plus the sleep
-    /// window of a duty cycle this driver armed; capped at `busy_timeout`) is
-    /// taken as "asleep", silently: a GetStatus frame is
-    /// clocked to provide the NSS edge (its content is ignored by a sleeping
-    /// chip), then wait_busy() runs with the full timeout and logs only if
-    /// that fails. Requires `spi_mu` held.
+    /// wait_busy(), but first wakes the chip if it is asleep. In SLEEP mode,
+    /// including the sleep phases of a duty-cycled receive, BUSY idles high
+    /// and only an NSS falling edge wakes the chip. A bare BUSY wait can
+    /// therefore never succeed. If BUSY is still high after the longest
+    /// processing time, the chip is taken as "asleep", without a warning. The
+    /// longest processing time is Calibrate plus any TCXO start-up, plus the
+    /// sleep window of a duty cycle that this driver armed, capped at
+    /// `busy_timeout`. A GetStatus frame is then clocked to provide the NSS
+    /// edge (a sleeping chip ignores its content). Then wait_busy() runs with
+    /// the full timeout and logs only if that fails. Requires `spi_mu` held.
     [[nodiscard]] result<void> wait_busy_waking();
 
     /// Full-duplex transfer of equal-length tx/rx buffers.
@@ -372,8 +375,8 @@ struct sx126x::state {
 // External-linkage helper shared by the public API (sx126x.cpp) and the worker
 // (sx126x_isr.cpp), following the sx126x_worker_fn/sx126x_dio1_isr_thunk
 // precedent. Drives the external RF-switch GPIOs (config rxen/txen) to match the
-// requested chip mode: tx asserts txen, rx/cad assert rxen, everything else
-// parks both low. Defined once in sx126x.cpp. No-op on unconnected pins.
+// requested chip mode: tx asserts txen, rx/cad assert rxen, and every other
+// mode drives both low. Defined once in sx126x.cpp. No-op on unconnected pins.
 void sx126x_set_rf_switch(sx126x::state& s, chip_mode mode) noexcept;
 
 } // namespace idfxx::radio

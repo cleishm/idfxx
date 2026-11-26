@@ -28,7 +28,7 @@ using namespace idfxx::image;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // rgb888 is three packed bytes.
@@ -81,7 +81,7 @@ static_assert(std::is_convertible_v<buffer<>&, view<rgb888>>);
 static_assert(std::is_convertible_v<buffer<>&, view<const rgb888>>);
 static_assert(std::is_convertible_v<const buffer<>&, view<const rgb888>>);
 static_assert(!std::is_convertible_v<const buffer<>&, view<rgb888>>);
-// A temporary buffer can lend a read-only view, but not a mutable one.
+// A temporary buffer converts to a read-only view, but not to a mutable one.
 static_assert(!std::is_convertible_v<buffer<>&&, view<rgb888>>);
 static_assert(std::is_convertible_v<buffer<>&&, view<const rgb888>>);
 
@@ -105,7 +105,7 @@ static_assert(oriented_size(orientation::rotate_90, 3, 4) == size{4, 3});
 static_assert(oriented_size(orientation::transverse, 3, 4) == size{4, 3});
 static_assert(oriented_size(orientation::rotate_270, 3, 4) == size{4, 3});
 
-// Buffers and views of mutable pixels are gfx drawing targets; read-only views are not.
+// Buffers and views of mutable pixels are gfx drawing targets. Read-only views are not.
 static_assert(idfxx::gfx::pixel_surface<view<rgb888>>);
 static_assert(idfxx::gfx::pixel_surface<buffer<>>);
 static_assert(!idfxx::gfx::pixel_surface<view<const rgb888>>);
@@ -431,7 +431,7 @@ TEST_CASE("image view subview addresses a region", "[idfxx][image]") {
     TEST_ASSERT_EQUAL(22, (subsub[0, 0]));
     TEST_ASSERT_EQUAL(23, (subsub[1, 0]));
 
-    // Writes through a subview reach the full image.
+    // Writes through a subview change the full image.
     subsub[1, 0] = -1;
     TEST_ASSERT_EQUAL(-1, (v[3, 2]));
 
@@ -785,14 +785,14 @@ TEST_CASE("image buffer uses the supplied allocator", "[idfxx][image]") {
         TEST_ASSERT_EQUAL(2, counts.allocations);
         TEST_ASSERT_TRUE((f[1, 1] == rgb888{1, 2, 3}));
 
-        // Copies allocate through the same allocator; moves do not allocate.
+        // Copies allocate through the same allocator. Moves do not allocate.
         counted_buffer copy(b);
         TEST_ASSERT_EQUAL(3, counts.allocations);
         TEST_ASSERT_TRUE(copy.get_allocator().counts == &counts);
         counted_buffer moved(std::move(copy));
         TEST_ASSERT_EQUAL(3, counts.allocations);
 
-        // oriented allocates its result through the allocator it is given.
+        // oriented allocates its result through the allocator that it is given.
         auto rotated = oriented(b, orientation::rotate_90, counting_allocator<rgb888>(&counts));
         static_assert(std::same_as<decltype(rotated), counted_buffer>);
         TEST_ASSERT_EQUAL(4, counts.allocations);
@@ -832,7 +832,7 @@ TEST_CASE("image oriented defaults to the source buffer's allocator", "[idfxx][i
     static_assert(std::same_as<decltype(sr), buffer<>>);
     TEST_ASSERT_EQUAL(3, counts.allocations);
 
-    // An explicit allocator wins over the default.
+    // An explicit allocator overrides the default.
     auto er = oriented(src, orientation::rotate_90, counting_allocator<rgb888>(&other));
     static_assert(std::same_as<decltype(er), counted_buffer>);
     TEST_ASSERT_EQUAL(3, counts.allocations);

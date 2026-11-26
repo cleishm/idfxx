@@ -20,7 +20,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 ## Hardware required
 
 - A Heltec WiFi LoRa 32 V3 (ESP32-S3 with an SX1262), or an ESP32-S3 board wired to an SX1262 module
-- An antenna for the radio's frequency band, attached before you run the example; transmitting
+- An antenna for the radio's frequency band, attached before you run the example. Transmitting
   without one can damage the radio
 
 The pins in `main/main.cpp` match the Heltec WiFi LoRa 32 V3. For another board, wire the module as
@@ -38,13 +38,18 @@ follows, or change the `PIN_*` constants at the top of `main/main.cpp`:
 
 The example also expects the module to use DIO2 to switch its antenna between transmit and receive,
 and to run from a TCXO powered by DIO3 at 1.8 V, as on the Heltec board. If your module uses a
-crystal, remove the `.tcxo` setting; if its TCXO needs another voltage, change `1800_mV`. For an
+crystal, remove the `.tcxo` setting. If its TCXO needs another voltage, change `1800_mV`. For an
 SX1261 or SX1268, change `chip_variant::sx1262`.
 
 > [!NOTE]
-> These pins don't suit other chips. On the ESP32, GPIO 9–11 are connected to the SPI flash; on the
-> ESP32-C3, GPIO 12–14 are; on the ESP32-C6, GPIO 12 and 13 are USB-JTAG pins; and GPIO 8 and 9 are
-> strapping pins on the ESP32-C3, ESP32-C6 and ESP32-H2. Choose other pins on these chips.
+> These pins don't suit other chips:
+>
+> - On the ESP32, GPIO 9–11 are connected to the SPI flash.
+> - On the ESP32-C3, GPIO 12–14 are connected to the SPI flash.
+> - On the ESP32-C6, GPIO 12 and 13 are USB-JTAG pins.
+> - GPIO 8 and 9 are strapping pins on the ESP32-C3, ESP32-C6 and ESP32-H2.
+>
+> Choose other pins on these chips.
 
 ## Configuration
 
@@ -76,5 +81,6 @@ idf.py -p PORT flash monitor
 
 Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor.
 
-The board sends `beacon 0000`, `beacon 0001` and so on every two seconds. To see the beacons arrive,
-run the [receive_log](../receive_log/README.md) example on a second board with the same frequency.
+The board sends a numbered beacon, such as `beacon 0000` and `beacon 0001`, every two seconds. To
+see the beacons arrive, run the [receive_log](../receive_log/README.md) example on a second board
+with the same frequency.

@@ -33,7 +33,8 @@ struct rectangle {
     size_t height;
 };
 
-// The rectangle the options describe on a destination, once it's known to fit and to be aligned.
+// The rectangle that the options describe on a destination, once it is known to fit and to be
+// aligned.
 [[nodiscard]] result<rectangle>
 place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_options& options) {
     if (options.band_rows == 0 || options.x >= dest_width || options.y >= dest_height) {
@@ -52,8 +53,8 @@ place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_optio
     return rectangle{.x = options.x, .y = options.y, .width = width, .height = height};
 }
 
-// Fills the buffer from the source. Reads nothing past it, and doesn't look for the end of the
-// stream.
+// Fills the buffer from the source. Reads nothing past the buffer's end, and doesn't wait for the
+// end of the stream.
 [[nodiscard]] result<void> read_exactly(const ink_source& source, std::span<uint8_t> into) {
     while (!into.empty()) {
         auto n = source.read(source.source, into);
@@ -151,7 +152,7 @@ place(size_t dest_width, size_t dest_height, size_t x_alignment, const ink_optio
 }
 
 // Reads the rectangle's rows a band at a time, passing each band to write_band with the
-// number of rows it holds and the destination row of the first.
+// number of rows that it holds and the destination row of the first.
 template<typename Framebuffer, typename WriteBand>
 [[nodiscard]] result<void> write_bands(
     const ink_source& source,
@@ -196,9 +197,9 @@ write_to_panel(panel& display, const ink_source& source, const ink_options& opti
     );
 }
 
-// Copies the rows of a band's bytes to a destination's. The left edge is on a byte boundary. So is
-// the right edge, or else it's the destination's own, where both have the same padding: the band's
-// stride never reaches past what the rectangle owns.
+// Copies the rows of a band's bytes to a destination's. The left edge is on a byte boundary. The
+// right edge is also on a byte boundary, or else it is the destination's right edge, where both
+// have the same padding. So the band's stride never extends past the rectangle's bytes.
 void copy_rows(
     std::span<const uint8_t> band,
     size_t band_stride,

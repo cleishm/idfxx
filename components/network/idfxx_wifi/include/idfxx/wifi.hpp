@@ -887,8 +887,8 @@ struct init_config {
     /**
      * @brief Interval at which the random MAC address is rotated while not connected.
      *
-     * Must be between 1 and 24 hours inclusive; @c try_init() returns
-     * @c errc::invalid_arg otherwise.
+     * Must be between 1 and 24 hours inclusive. Otherwise, @c try_init()
+     * returns @c errc::invalid_arg.
      *
      * @note Only available when building with ESP-IDF 6.1 or later.
      */
@@ -1082,11 +1082,11 @@ struct ftm_initiator_config {
  * @headerfile <idfxx/wifi>
  * @brief CSI (Channel State Information) configuration.
  *
- * The fields of this struct differ by target, mirroring ESP-IDF's
+ * The fields of this struct differ by target, as in ESP-IDF's
  * `wifi_csi_config_t`:
  * - On Wi-Fi 4/5 targets (esp32, esp32s2, esp32s3, esp32c3), it exposes the
  *   legacy LTF/channel-filter toggles.
- * - On Wi-Fi 6 (HE) targets, it mirrors `wifi_csi_acquire_config_t`, which
+ * - On Wi-Fi 6 (HE) targets, it matches `wifi_csi_acquire_config_t`, which
  *   itself has two variants selected by `SOC_WIFI_MAC_VERSION_NUM`. Users
  *   writing HE-target CSI code should consult the ESP-IDF API reference for
  *   the meaning of each `acquire_csi_*` field.
@@ -1583,7 +1583,7 @@ void deinit();
 /**
  * @brief Starts the WiFi subsystem.
  *
- * After starting, configured interfaces become active. A mode must be
+ * After starting, configured interfaces become active. The roles must be
  * set before starting.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -1631,7 +1631,7 @@ result<void> try_deinit();
 /**
  * @brief Starts the WiFi subsystem.
  *
- * After starting, configured interfaces become active. A mode must be
+ * After starting, configured interfaces become active. The roles must be
  * set before starting.
  *
  * @return Success, or an error.
@@ -1855,8 +1855,8 @@ void connect();
  * enabled, and a station netif (make_sta_netif()) and the system event loop
  * (event_loop::create_system()) must exist.
  *
- * Use this to finish a bring-up you sequence yourself, such as running an access point alongside
- * the station:
+ * Use this as the last step of a start-up sequence that you perform yourself, for example to run
+ * an access point alongside the station:
  *
  * @code
  * idfxx::wifi::set_roles(idfxx::wifi::role::sta | idfxx::wifi::role::ap);
@@ -1880,13 +1880,13 @@ template<typename Rep, typename Period>
 /**
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
- * Composes the common station bring-up: sets the station as the only role, applies @p cfg,
- * starts WiFi, initiates the connection, and blocks until the station acquires an IPv4 address or
- * @p timeout elapses.
+ * Performs the common station start-up sequence: sets the station as the only role, applies
+ * @p cfg, starts WiFi, initiates the connection, and blocks until the station acquires an IPv4
+ * address or @p timeout elapses.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
- * sequence the bring-up yourself (set_roles, set_ap_config, set_sta_config, start) and finish it
- * with connect(std::chrono::duration<Rep, Period>).
+ * perform the start-up sequence yourself (set_roles, set_ap_config, set_sta_config, start) and
+ * finish it with connect(std::chrono::duration<Rep, Period>).
  *
  * Requires the system event loop (event_loop::create_system()), a station
  * netif (make_sta_netif()), and an initialized WiFi subsystem
@@ -1967,8 +1967,8 @@ void clear_fast_connect();
  * enabled, and a station netif (try_make_sta_netif()) and the system event loop
  * (event_loop::try_create_system()) must exist.
  *
- * Use this to finish a bring-up you sequence yourself, such as running an access point alongside
- * the station.
+ * Use this as the last step of a start-up sequence that you perform yourself, for example to run
+ * an access point alongside the station.
  *
  * @param timeout Maximum time to wait for an IPv4 address.
  * @return The acquired IPv4 address information, or an error. Fails with
@@ -1988,12 +1988,12 @@ template<typename Rep, typename Period>
 /**
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
- * Composes the common station bring-up: sets the station as the only role, applies @p cfg,
- * starts WiFi, initiates the connection, and blocks until the station acquires an IPv4 address or
- * @p timeout elapses.
+ * Performs the common station start-up sequence: sets the station as the only role, applies
+ * @p cfg, starts WiFi, initiates the connection, and blocks until the station acquires an IPv4
+ * address or @p timeout elapses.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
- * sequence the bring-up yourself (try_set_roles, try_set_ap_config, try_set_sta_config,
+ * perform the start-up sequence yourself (try_set_roles, try_set_ap_config, try_set_sta_config,
  * try_start) and finish it with try_connect(std::chrono::milliseconds).
  *
  * Requires the system event loop (event_loop::try_create_system()), a station
@@ -2528,7 +2528,7 @@ void set_country_code(std::string_view cc, bool ieee80211d_enabled);
  * @brief Sets the maximum transmit power.
  *
  * @param power Maximum TX power (range: 2–20 dBm). The hardware applies the
- *              power in 0.25 dBm steps; the value is rounded to the nearest step.
+ *              power in 0.25 dBm steps. The value is rounded to the nearest step.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -2550,7 +2550,7 @@ void set_max_tx_power(quanta::electro::centi_dbm power);
  * @brief Sets the maximum transmit power.
  *
  * @param power Maximum TX power (range: 2–20 dBm). The hardware applies the
- *              power in 0.25 dBm steps; the value is rounded to the nearest step.
+ *              power in 0.25 dBm steps. The value is rounded to the nearest step.
  * @return Success, or an error.
  */
 [[nodiscard]] result<void> try_set_max_tx_power(quanta::electro::centi_dbm power);
@@ -2925,10 +2925,10 @@ result<void> try_force_wakeup_release();
 /**
  * @brief Callback invoked for each packet received in promiscuous mode.
  *
- * @p pkt points to the received frame and its radio metadata; @p type
- * identifies the packet category. For management and data packets the frame
- * payload is present; for other categories it may be absent (see the
- * ESP-IDF promiscuous-mode documentation).
+ * @p pkt points to the received frame and its radio metadata. @p type is the
+ * packet type. For management and data packets the frame payload is present.
+ * For other packet types it may be absent (see the ESP-IDF promiscuous-mode
+ * documentation).
  *
  * When exceptions are enabled, an exception thrown by the callback is logged
  * and otherwise ignored.
@@ -2960,7 +2960,7 @@ void set_promiscuous(bool en);
  * @brief Sets the promiscuous mode receive callback.
  *
  * For management and data packets, @p pkt points to the received frame with
- * metadata. For other packet types the payload may be absent; see the
+ * metadata. For other packet types the payload may be absent. See the
  * ESP-IDF promiscuous-mode documentation for details.
  *
  * @param cb Callback function pointer, or nullptr to clear.
@@ -3030,7 +3030,7 @@ void set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
  * @brief Sets the promiscuous mode receive callback.
  *
  * For management and data packets, @p pkt points to the received frame with
- * metadata. For other packet types the payload may be absent; see the
+ * metadata. For other packet types the payload may be absent. See the
  * ESP-IDF promiscuous-mode documentation for details.
  *
  * @param cb Callback function pointer, or nullptr to clear.
@@ -3138,9 +3138,9 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
  * Receives the registered user context, the frame type carrying the IE, the
  * sender's MAC address, the vendor IE, and the frame's RSSI.
  *
- * The IE is the complete element as received, in the layout set_vendor_ie() takes: element ID
- * `0xDD`, length (the number of bytes that follow it), 3-byte OUI, OUI type, then the payload.
- * The view is valid only until the callback returns; copy any bytes needed afterward.
+ * The IE is the complete element as received, in the layout that set_vendor_ie() takes: element
+ * ID `0xDD`, length (the number of bytes that follow it), 3-byte OUI, OUI type, then the payload.
+ * The view is valid only until the callback returns. Copy any bytes that you need afterward.
  *
  * When exceptions are enabled, an exception thrown by the callback is logged
  * and otherwise ignored.
@@ -3160,7 +3160,7 @@ using vendor_ie_cb = void (*)(
  * Adds the element to, or removes it from, the frames of the given type. Each frame type holds up
  * to two vendor elements, selected by @p id.
  *
- * The element is copied: @p vnd_ie need not remain valid after the call returns. An element
+ * The element is copied, so @p vnd_ie need not remain valid after the call returns. An element
  * already set at @p type / @p id must be removed before a new one is set there.
  *
  * @param enable True to add the element, false to remove the element set at @p type / @p id.
@@ -3213,7 +3213,7 @@ void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx);
  * Adds the element to, or removes it from, the frames of the given type. Each frame type holds up
  * to two vendor elements, selected by @p id.
  *
- * The element is copied: @p vnd_ie need not remain valid after the call returns. An element
+ * The element is copied, so @p vnd_ie need not remain valid after the call returns. An element
  * already set at @p type / @p id must be removed before a new one is set there.
  *
  * @param enable True to add the element, false to remove the element set at @p type / @p id.
@@ -3249,8 +3249,8 @@ void set_vendor_ie_cb(vendor_ie_cb cb, void* ctx);
 /**
  * @brief Callback invoked for each received CSI (Channel State Information) record.
  *
- * Receives the registered user context and the CSI record, valid only for
- * the duration of the call.
+ * Receives the registered user context and the CSI record. The record is
+ * valid only for the duration of the call.
  *
  * When exceptions are enabled, an exception thrown by the callback is logged
  * and otherwise ignored.
@@ -3356,10 +3356,10 @@ void ftm_initiate_session(const ftm_initiator_config& cfg);
 void ftm_end_session();
 
 /**
- * @brief Sets the distance offset this device applies when responding to FTM.
+ * @brief Sets the distance offset that this device applies when responding to FTM.
  *
  * The light travel time over @p offset is added to the T1 timestamp of the FTM
- * frames this device sends (see ftm_report_entry::t1). Set it in AP mode,
+ * frames that this device sends (see ftm_report_entry::t1). Set it in AP mode,
  * before acting as an FTM responder.
  *
  * @param offset Distance offset (range: ±32767 cm).
@@ -3397,10 +3397,10 @@ void ftm_resp_set_offset(quanta::spatial::centimeters offset);
 result<void> try_ftm_end_session();
 
 /**
- * @brief Sets the distance offset this device applies when responding to FTM.
+ * @brief Sets the distance offset that this device applies when responding to FTM.
  *
  * The light travel time over @p offset is added to the T1 timestamp of the FTM
- * frames this device sends (see ftm_report_entry::t1). Set it in AP mode,
+ * frames that this device sends (see ftm_report_entry::t1). Set it in AP mode,
  * before acting as an FTM responder.
  *
  * @param offset Distance offset (range: ±32767 cm).
@@ -3423,7 +3423,7 @@ result<void> try_ftm_end_session();
 /**
  * @brief Gets the TSF (Timing Synchronization Function) time for the specified interface.
  *
- * This function does not return an error; it always returns a timestamp.
+ * This function does not return an error. It always returns a timestamp.
  *
  * @param iface The WiFi interface.
  * @return The TSF time in microseconds.
@@ -3951,8 +3951,8 @@ namespace idfxx {
  * @brief Creates an unexpected error from an ESP-IDF error code, mapping to WiFi error codes where
  * possible.
  *
- * Converts the ESP-IDF error code to a WiFi-specific error code if a mapping exists,
- * otherwise falls back to the default IDFXX error category.
+ * Converts the ESP-IDF error code to a WiFi-specific error code if a mapping exists. Otherwise,
+ * the error code uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

@@ -3,7 +3,7 @@
 
 // Private C interface to libjpeg-turbo.
 //
-// libjpeg reports fatal errors through a callback that must not return; the
+// libjpeg reports fatal errors through a callback that must not return. The
 // shim catches them with setjmp/longjmp and turns them into status codes.
 // Every libjpeg call is made from jpeg_shim.c, so a longjmp only ever unwinds
 // C frames.
@@ -22,8 +22,8 @@ extern "C" {
 typedef enum {
     IDFXX_JPEG_OK = 0,
     IDFXX_JPEG_INVALID_DATA,  ///< Not a JPEG, or corrupt (including any corrupt-data warning).
-    IDFXX_JPEG_TRUNCATED,     ///< The source ended before libjpeg had the data it needed.
-    IDFXX_JPEG_NOT_SUPPORTED, ///< The image uses a feature this decoder does not support.
+    IDFXX_JPEG_TRUNCATED,     ///< The source ended before libjpeg had the data that it needed.
+    IDFXX_JPEG_NOT_SUPPORTED, ///< The image uses a feature that this decoder does not support.
     IDFXX_JPEG_TOO_LARGE,     ///< Decoding would take the working memory past the memory limit.
     IDFXX_JPEG_NO_MEM,        ///< An allocation failed.
     IDFXX_JPEG_SOURCE_FAILED, ///< The fill callback reported a failure.
@@ -49,11 +49,11 @@ typedef struct idfxx_jpeg_ctx idfxx_jpeg_ctx;
 
 /// Allocates a context and creates the libjpeg decompressor. If @p limited,
 /// the decoder's working memory (the context and what libjpeg allocates,
-/// approximately) is limited to @p memory_limit bytes. It is counted from
-/// creation, and the limit is enforced from idfxx_jpeg_start() on: that call
-/// fails with IDFXX_JPEG_TOO_LARGE if the count is already over the limit,
-/// and any later call fails with it instead of allocating past the limit.
-/// Sets @p *out to the context, or to NULL if it could not be allocated; a
+/// approximately) is limited to @p memory_limit bytes. The memory is counted
+/// from creation. The limit is enforced from idfxx_jpeg_start() on. That call
+/// fails with IDFXX_JPEG_TOO_LARGE if the count is already over the limit.
+/// Any later call fails with it instead of allocating past the limit.
+/// Sets @p *out to the context, or to NULL if it could not be allocated. A
 /// non-NULL context must be released with idfxx_jpeg_destroy() even when an
 /// error is returned.
 idfxx_jpeg_status idfxx_jpeg_create(

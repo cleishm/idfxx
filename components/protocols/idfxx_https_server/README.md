@@ -119,7 +119,7 @@ void setup_routes(idfxx::http::server& srv) {
 }
 
 idfxx::http::ssl_server srv({...});
-setup_routes(srv);  // works — ssl_server is a server
+setup_routes(srv);  // works because ssl_server is a server
 
 // Require HTTPS specifically
 void setup_secure_routes(idfxx::http::ssl_server& srv) { /* ... */ }
@@ -131,7 +131,7 @@ setup_secure_routes(srv);
 ### `ssl_server`
 
 Inherits from `server`. All handler registration, WebSocket, session management, and error code APIs
-are provided by the base class — see the
+are provided by the base class. See the
 [idfxx_http_server](../../protocols/idfxx_http_server/README.md) documentation.
 
 **Construction:**
@@ -146,13 +146,13 @@ TLS-specific configuration fields:
 - `client_ca_cert` - CA certificate for client verification (mutual TLS)
 - `use_ecdsa_peripheral` - Use ECDSA peripheral for key operations
 - `session_tickets` - Enable TLS session tickets
-- `handshake_timeout` - TLS handshake timeout (`std::nullopt` to let the driver choose; zero or less
-  is rejected with `invalid_arg`)
+- `handshake_timeout` - TLS handshake timeout (`std::nullopt` to let the driver choose). A value of
+  zero or less is rejected with `invalid_arg`
 
 Plus `bind_to_device` (ESP-IDF 6.1+), which accepts connections on one network interface only, as
 for `server::config`.
 
-Plus all standard HTTP server fields (task priority, ports, limits, timeouts, etc.) with
+Plus all standard HTTP server fields, such as task priority, ports, limits and timeouts, with
 HTTPS-appropriate defaults (10KB stack, port 443, LRU purge enabled, 4 max sockets).
 
 ### Request and Response
@@ -163,29 +163,29 @@ request/response API.
 ## Error Handling
 
 - **Error codes**: Uses `server::errc` error codes (from `idfxx::http::server`)
-- **Dual API Pattern**: `ssl_server::make` returns `idfxx::result<ssl_server>`, `ssl_server(cfg)`
+- **Dual API Pattern**: `ssl_server::make` returns `idfxx::result<ssl_server>`. `ssl_server(cfg)`
   throws `std::system_error`
 
 ## Important Notes
 
-- **Type distinction**: `ssl_server` inherits from `server` — functions taking `server&` accept
+- **Type distinction**: `ssl_server` inherits from `server`. Functions taking `server&` accept
   both, while `ssl_server&` enforces HTTPS at the type level
 - **Certificate lifetime**: Certificate and key PEM strings are copied by ESP-IDF during server
-  startup; they do not need to outlive the creation call
+  startup. They do not need to outlive the creation call
 - **Handler lifetime**: Handlers are stored internally and must not reference stack-local data that
   goes out of scope
 - **Stopping the server**: Destroying a server, or move-assigning over one that is running, stops
-  it and waits for in-flight handlers and session callbacks to return. Never do either from within
+  it and waits for running handlers and session callbacks to return. Never do either from within
   one of that server's own handlers or callbacks: the server cannot stop until they return, so it
   deadlocks. If the server cannot be stopped (for example while the network stack is out of
   buffers), it retries briefly and then aborts, since releasing what the server is still using
   would be unsafe
-- **Request lifetime**: The `request` object is only valid during the handler invocation; do not
+- **Request lifetime**: The `request` object is only valid during the handler invocation. Do not
   store references to it
-- **Thread safety**: Handler registration is not thread-safe; register all handlers before the
+- **Thread safety**: Handler registration is not thread-safe. Register all handlers before the
   server begins accepting connections
-- **Default differences from HTTP**: Stack size is 10KB (vs 4KB), max sockets is 4 (vs 7), LRU purge
-  is enabled by default, default port is 443
+- **Default differences from HTTP**: Stack size is 10KB (vs 4KB). Max sockets is 4 (vs 7). LRU purge
+  is enabled by default. The default port is 443
 
 ## License
 

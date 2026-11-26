@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Only sets up this board's display; you don't need to read this to follow the example.
+// Only sets up this board's display. You don't need to read this to follow the example.
 
 #pragma once
 
@@ -16,7 +16,7 @@ namespace display_setup {
 
 using namespace quanta::frequency_literals;
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 inline constexpr auto PIN_MOSI = idfxx::gpio_11;
 inline constexpr auto PIN_SCLK = idfxx::gpio_12;
 inline constexpr auto PIN_CS = idfxx::gpio_10;
@@ -27,10 +27,10 @@ inline constexpr auto PIN_BL = idfxx::gpio_15;
 // The panel's native portrait layout is swapped to landscape by the example.
 inline constexpr size_t DISPLAY_W = 320;
 
-// Everything the display needs to stay alive. The members are declared parents first, so they are
-// destroyed children first.
+// Everything that the display needs while it is in use. The members are declared parents first, so
+// they are destroyed children first.
 struct board {
-    // band_rows is the number of rows the example writes to the panel at a time.
+    // band_rows is the number of rows that the example writes to the panel at a time.
     explicit board(size_t band_rows)
         : backlight(_backlight_on())
         , bus(idfxx::spi::host_device::spi2, idfxx::spi::dma_chan::ch_auto, _bus_config(band_rows))

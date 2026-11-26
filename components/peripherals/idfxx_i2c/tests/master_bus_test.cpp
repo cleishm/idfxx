@@ -18,7 +18,7 @@
 using namespace idfxx::i2c;
 using namespace quanta::frequency_literals;
 
-// SDA/SCL pins used by the bus-creation tests. Any two free pins work; the
+// SDA/SCL pins used by the bus-creation tests. Any two free pins work. The
 // ESP32-C2 only has GPIO 0-20, so it uses a lower SDA pin than the default 21.
 #ifdef CONFIG_IDF_TARGET_ESP32C2
 inline constexpr auto TEST_SDA = idfxx::gpio_4;
@@ -29,7 +29,7 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // master_bus is not default constructible
@@ -43,7 +43,7 @@ static_assert(!std::is_copy_assignable_v<master_bus>);
 static_assert(std::is_move_constructible_v<master_bus>);
 static_assert(std::is_move_assignable_v<master_bus>);
 
-// master_bus::config is an aggregate; sda, scl and frequency have no defaults
+// master_bus::config is an aggregate. sda, scl and frequency have no defaults
 static_assert(std::is_aggregate_v<master_bus::config>);
 static_assert(!std::is_default_constructible_v<master_bus::config>);
 
@@ -88,13 +88,13 @@ static_assert(!has_wait_all_done<master_bus>);
 // =============================================================================
 // Runtime tests (Unity TEST_CASE)
 // Unity asserts longjmp out of the test, so every assertion runs after the bus
-// has gone out of scope; otherwise a failure would leave i2c0 allocated.
+// has gone out of scope. Otherwise a failure would leave i2c0 allocated.
 // =============================================================================
 
 namespace {
 
-// Returns the error of a result, or an empty error_code on success. Taking the result by value lets a bus that was
-// unexpectedly created go out of scope before anything is asserted.
+// Returns the error of a result, or an empty error_code on success. The result is taken by value, so a bus that was
+// unexpectedly created goes out of scope before anything is asserted.
 template<typename R>
 std::error_code error_of(R result) {
     return result.has_value() ? std::error_code{} : result.error();

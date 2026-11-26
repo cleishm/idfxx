@@ -50,7 +50,7 @@ namespace idfxx::http {
  * Functions taking @c server& accept both HTTP and HTTPS servers, while
  * functions requiring @c ssl_server& enforce that only HTTPS servers are used.
  *
- * Certificate data (PEM strings) is consumed during server creation — ESP-IDF
+ * Certificate data (PEM strings) is read during server creation. ESP-IDF
  * copies all certificate buffers internally, so the strings do not need to
  * outlive the call.
  */
@@ -91,7 +91,7 @@ public:
          * `esp_netif_get_netif_impl_name()`). Equivalent to the POSIX
          * `SO_BINDTODEVICE` option on the listening socket: only connections
          * arriving through that interface are accepted. The interface must exist
-         * when the server starts, otherwise starting fails. An empty name has the
+         * when the server starts. Otherwise, starting fails. An empty name has the
          * same effect as std::nullopt. Names of `IFNAMSIZ` (6) or more characters
          * are rejected with idfxx::errc::invalid_arg.
          *
@@ -177,8 +177,8 @@ public:
          * @brief Called when a session is closed.
          *
          * Also called for a session rejected by on_session_open, and for a session whose TLS
-         * handshake failed, for which on_session_open was never called.
-         * The server closes the session's socket after this callback returns; the callback must not
+         * handshake failed. In the second case, on_session_open was never called.
+         * The server closes the session's socket after this callback returns. The callback must not
          * close it. An exception thrown from this callback is logged and otherwise ignored.
          */
         std::move_only_function<void(int) const> on_session_close = {};
@@ -241,7 +241,7 @@ public:
     /**
      * @brief Stops the server and releases all resources.
      *
-     * Waits for in-flight URI handlers, error handlers and session callbacks to return before
+     * Waits for running URI handlers, error handlers and session callbacks to return before
      * releasing them, so they never run against a destroyed server.
      *
      * @warning Must not be called from within one of this server's handlers or callbacks: the
@@ -261,8 +261,8 @@ public:
      * @brief Move assignment. Transfers server ownership.
      *
      * If this object holds a running server, that server is stopped first, exactly as by the
-     * destructor: in-flight handlers and session callbacks are waited for, and the program aborts
-     * if it cannot be stopped.
+     * destructor. Running handlers and session callbacks are waited for. The program aborts if
+     * the server cannot be stopped.
      *
      * @warning Must not be called on a server from within one of that server's own handlers or
      *   callbacks: the server cannot stop while that call is in progress, so it deadlocks.

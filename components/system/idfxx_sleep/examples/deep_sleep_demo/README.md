@@ -29,7 +29,7 @@ button can wake the chip from deep sleep: GPIO 0 on the ESP32, ESP32-S2 and ESP3
 the ESP32-H2. These BOOT buttons have an external pull-up, so no extra parts are needed.
 
 On the ESP32-C3 and ESP32-C6, the BOOT button is on GPIO 9, which can't wake these chips from deep
-sleep. Connect a push button between GPIO 0 and GND instead; the example keeps the pin's internal
+sleep. Connect a push button between GPIO 0 and GND instead. The example keeps the pin's internal
 pull-up on while the chip sleeps.
 
 To use a different pin, change `WAKE_PIN` in `main/main.cpp`. To change the timer, change

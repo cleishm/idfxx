@@ -194,7 +194,8 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 
 - `crc8(data)` - Compute 8-bit CRC of a byte buffer
 - `crc16(data, iv)` - Compute 16-bit CRC of a byte buffer
-- `check_crc16(data, crc, iv)` - Verify 16-bit CRC; `crc` is a byte view that must be exactly 2 bytes
+- `check_crc16(data, crc, iv)` - Verify 16-bit CRC. `crc` is a byte view that must be exactly 2
+  bytes
 
 ## Error Handling
 
@@ -208,9 +209,9 @@ idfxx::onewire::bus bus(idfxx::gpio_4);
 - **Wiring**: 1-Wire devices require a 4.7k pull-up resistor on the data line
 - **Reset first**: Always call `reset()` before issuing ROM commands
 - **Single-device buses**: Use `address::any()` or `skip_rom()` to skip ROM matching
-- **Parasitic power**: Call `power()` after write commands when devices need extra power; `reset()`
-  automatically depowers
-- **Thread safety**: All bus operations acquire the internal mutex; use `std::lock_guard` for
+- **Parasitic power**: Call `power()` after write commands when devices need extra power. `reset()`
+  automatically depowers the bus
+- **Thread safety**: All bus operations acquire the internal mutex. Use `std::lock_guard` for
   multi-operation sequences
 
 ## License

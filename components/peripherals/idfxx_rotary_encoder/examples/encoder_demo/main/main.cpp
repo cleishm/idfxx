@@ -13,7 +13,7 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// GPIO pins — customize these for your hardware
+// GPIO pins. Change these to match your hardware.
 static constexpr auto pin_a = idfxx::gpio_4;
 static constexpr auto pin_b = idfxx::gpio_5;
 

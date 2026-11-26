@@ -115,7 +115,7 @@ result<void> try_decode_limited(std::span<const uint8_t> data, size_t limit, boo
 }
 
 // Returns the smallest memory limit under which an image decodes. Every limit below it must fail with too_large,
-// wherever the decoder is when it reaches the limit; that is checked every 256 bytes on the way up.
+// wherever the decoder is when it reaches the limit. This is checked every 256 bytes on the way up.
 size_t smallest_limit(std::span<const uint8_t> data, bool to_sink = false) {
     constexpr size_t step = 256;
     size_t limit = 0;
@@ -131,7 +131,7 @@ size_t smallest_limit(std::span<const uint8_t> data, bool to_sink = false) {
     if (limit == 0) {
         return 0;
     }
-    // Decoding fails at limit - step and succeeds at limit; narrow it down in between.
+    // Decoding fails at limit - step and succeeds at limit. Search between the two for the exact limit.
     size_t fails = limit - step;
     size_t decodes = limit;
     while (decodes - fails > 1) {
@@ -188,8 +188,8 @@ private:
     size_t _chunk;
 };
 
-// A source that delivers a few bytes per read. Once stalled, it takes too long over the
-// next read without giving up the CPU, and then notes what a counter has reached at each read.
+// A source that delivers a few bytes per read. When `stall` is set, its next read busy-waits past the yield
+// interval without yielding the CPU. After that, each read records the current value of a counter.
 class stalling_source {
 public:
     stalling_source(std::span<const uint8_t> data, const yield_test::background_counter& counter)
@@ -514,7 +514,7 @@ TEST_CASE("jpeg scale_to_cover picks the smallest covering scale", "[idfxx][jpeg
     TEST_ASSERT_TRUE(dec.has_value());
     const auto& s = img::scaled_outputs;
 
-    // Exactly the 3/8 size is covered by 3/8; one more pixel in either
+    // Exactly the 3/8 size is covered by 3/8. One more pixel in either
     // direction needs 4/8.
     dec->scale_to_cover(s[2].width, s[2].height);
     TEST_ASSERT_EQUAL_UINT32(s[2].width, dec->output_width());
@@ -541,7 +541,7 @@ TEST_CASE("jpeg scale_to_cover picks the smallest covering scale", "[idfxx][jpeg
     dec->scale_to_cover(s[7].width + 1, 1);
     TEST_ASSERT_EQUAL_UINT32(s[7].width, dec->output_width());
 
-    // The last call decides.
+    // The last call sets the scale.
     dec->scale_to_cover(s[4].width, s[4].height);
     image::buffer<> out(dec->output_width(), dec->output_height());
     TEST_ASSERT_TRUE(dec->try_decode(out).has_value());
@@ -690,7 +690,7 @@ TEST_CASE("jpeg returns the error a sink returns", "[idfxx][jpeg]") {
     TEST_ASSERT_TRUE(r.error() == stop);
     TEST_ASSERT_EQUAL_UINT32(6, calls);
 
-    // The decoder is spent after a stopped decode.
+    // After a stopped decode, the decoder cannot decode again.
     image::buffer<> out(dec->output_width(), dec->output_height());
     r = dec->try_decode(out);
     TEST_ASSERT_FALSE(r.has_value());
@@ -740,8 +740,8 @@ TEST_CASE("jpeg lets lower-priority tasks run while it absorbs a progressive ima
         stalling_source src{bytes(img::progressive), counter};
         auto dec = jpeg::decoder::make(src);
         if (dec) {
-            // A progressive image's data is all read before its first row is decoded, so these
-            // reads are all within that: the only code that can have given way is the decoder.
+            // A progressive image's data is all read before its first row is decoded, so all these
+            // reads happen in that phase. Only the decoder can have yielded the CPU.
             src.stall = true;
             decoded = dec->try_decode(out).has_value();
             reads_after_stall = src.reads_after_stall;
@@ -817,7 +817,7 @@ TEST_CASE("jpeg accepts a JFIF version other than 1.x", "[idfxx][jpeg]") {
 
 TEST_CASE("jpeg accepts an unrecognized Adobe color transform", "[idfxx][jpeg]") {
     std::span<const uint8_t> data = bytes(img::baseline_420);
-    // Without a JFIF segment, the Adobe transform decides the color space; an
+    // Without a JFIF segment, the Adobe transform selects the color space. An
     // unknown transform is taken to be YCbCr.
     std::vector<uint8_t> adobe(data.begin(), data.begin() + 2);
     const std::vector<uint8_t> app14 = {
@@ -900,7 +900,7 @@ TEST_CASE("jpeg memory_limit fails cleanly wherever decoding reaches it", "[idfx
         {bytes(img::progressive_tall), img::progressive_tall_hash},
     };
     for (const limited_case& c : cases) {
-        // Every smaller limit fails with too_large; this one is enough to decode the image.
+        // Every smaller limit fails with too_large. This one is enough to decode the image.
         const size_t needed = smallest_limit(c.data);
         memory_source src{c.data};
         auto dec = jpeg::decoder::make(src, {.memory_limit = needed});
@@ -912,8 +912,8 @@ TEST_CASE("jpeg memory_limit fails cleanly wherever decoding reaches it", "[idfx
 }
 
 TEST_CASE("jpeg memory_limit counts the coefficients of a short progressive image", "[idfxx][jpeg]") {
-    // progressive is the same 37x23 4:2:0 image as baseline_420, only two MCU rows high. A limit that just admits the
-    // baseline decode leaves no room for the progressive image's coefficient buffer.
+    // progressive is the same 37x23 4:2:0 image as baseline_420, only two MCU rows high. A limit that is just enough
+    // for the baseline decode leaves no room for the progressive image's coefficient buffer.
     const size_t baseline_needed = smallest_limit(bytes(img::baseline_420));
     auto r = try_decode_all(bytes(img::progressive), {.memory_limit = baseline_needed});
     TEST_ASSERT_FALSE(r.has_value());
@@ -1007,7 +1007,7 @@ TEST_CASE("jpeg EXIF orientation skips a preceding XMP segment", "[idfxx][jpeg]"
     data = with_segments({app1({'E', 'x'}), app1(exif_payload({.value = 6}))});
     TEST_ASSERT_TRUE(orientation_of(data) == orientation::rotate_90);
 
-    // An APP1 length too small to count itself, which only the length is read of.
+    // An APP1 length too small to count its own two bytes. Only the length is read.
     data = with_segments({{0xFF, 0xE1, 0x00, 0x01}, app1(exif_payload({.value = 6}))});
     TEST_ASSERT_TRUE(orientation_of(data) == orientation::rotate_90);
 }
@@ -1026,8 +1026,8 @@ TEST_CASE("jpeg EXIF orientation comes from the first Exif segment", "[idfxx][jp
 TEST_CASE("jpeg APP1 segments don't count toward memory_limit", "[idfxx][jpeg]") {
     const size_t needed = smallest_limit(with_segments({}));
 
-    // An Exif segment padded out to 60 KB, as a thumbnail would. APP1 segments are read past rather than kept. The
-    // padding goes straight into the image: the test heap can't spare room for copies of it.
+    // An Exif segment padded out to 60 KB, as a thumbnail would. APP1 segments are skipped rather than kept. The
+    // padding is written directly into the image, because the test heap has no room for copies of it.
     constexpr size_t big_length = 60000;
     std::vector<uint8_t> data = with_segments({app1(exif_payload({.value = 6}))});
     const size_t at = marker_offset(data, 0xE1);

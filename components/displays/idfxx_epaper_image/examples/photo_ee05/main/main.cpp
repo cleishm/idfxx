@@ -46,7 +46,8 @@ static void show_full_screen(epaper::panel& panel, std::span<const uint8_t> jpeg
     idfxx::memory_source source{jpeg};
     idfxx::jpeg::decoder decoder(source);
 
-    // By default the picture covers the screen, upright according to any EXIF orientation it has.
+    // By default the picture covers the screen, upright according to any EXIF orientation that it
+    // has.
     epaper::write_image(panel, epaper::calibration::gdey075t7_gray4(), decoder);
 }
 

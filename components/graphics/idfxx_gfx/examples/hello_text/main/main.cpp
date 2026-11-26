@@ -19,7 +19,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_SDA = idfxx::gpio_8;
 static constexpr auto PIN_SCL = idfxx::gpio_9;
 

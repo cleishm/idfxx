@@ -44,9 +44,9 @@ at the top of `main/display_setup.hpp`.
 | Power enable (active high) | GPIO 43       |
 
 > [!NOTE]
-> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for
-> the display. `sdkconfig.defaults` puts the console on the USB Serial/JTAG port, so log output
-> reaches the monitor there.
+> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example uses for the
+> display. `sdkconfig.defaults` puts the console on the USB Serial/JTAG port, so log output appears
+> in the monitor on that port.
 
 ## How to use
 
@@ -71,8 +71,8 @@ The panel then refreshes, showing the photo filling the screen, and on its right
 a rectangle, with the word "idfxx" across the rectangle's bottom edge.
 
 To show your own photo, replace `main/photo.jpg`. A photo stored on its side, with an EXIF
-orientation saying to turn it, still appears upright, but needs memory for a whole frame while it is
-converted: about 1.15 MB, which means PSRAM on this board.
+orientation that says to turn it, still appears upright. But it needs memory for a whole frame while
+it is converted: about 1.15 MB. On this board, that needs PSRAM.
 
 The photo is `kodim23` from the [Kodak Lossless True Color Image
 Suite](https://r0k.us/graphics/kodak/), photographed by Steve Kelly. That page states its

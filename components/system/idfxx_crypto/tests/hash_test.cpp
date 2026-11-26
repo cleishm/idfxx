@@ -51,10 +51,10 @@ std::span<const uint8_t> u8_of(std::string_view s) {
 }
 
 // The known digests through the hasher's own API: compute, compare, and update and finish or verify
-// incrementally. The helpers that test a hasher's own API are templates: the full set runs only on
-// SHA-256, SHA-512 and SHA3-256 (SHA-2 with 64- and 128-byte blocks, and SHA-3), and the others
-// get this check. The helpers that test hash::operation take the algorithm at runtime and run for
-// every algorithm.
+// incrementally. The helpers that test a hasher's own API are templates. The full set runs only on
+// SHA-256, SHA-512 and SHA3-256 (SHA-2 with 64- and 128-byte blocks, and SHA-3). The other
+// algorithms get only this check. The helpers that test hash::operation take the algorithm at
+// runtime and run for every algorithm.
 template<typename H>
 void check_digests(const vectors& v) {
     auto msg = patterned_message(1000); // several blocks of every algorithm
@@ -168,7 +168,7 @@ void check_compare_and_verify(const vectors& v) {
     TEST_ASSERT_FALSE(ok(H::try_compare(msg_abc, std::span<const std::byte>{})));
     TEST_ASSERT_FALSE(ok(H::try_compare(msg_448, good)));
 
-    // Incremental; verify leaves the hasher ready for a new message whatever the outcome
+    // Incremental: verify leaves the hasher ready for a new message, whatever the outcome
     H h;
     TEST_ASSERT_TRUE(ok(h.try_verify(empty)));
     ok(h.try_update(msg_abc));

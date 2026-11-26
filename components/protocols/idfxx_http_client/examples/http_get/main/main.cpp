@@ -80,7 +80,7 @@ extern "C" void app_main() {
             .url = REQUEST_URL,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .on_event = [&](const idfxx::http::event_data& evt) {
-                // Redirects and auth retries send a new request; keep only the final response.
+                // Redirects and auth retries send a new request. Keep only the final response.
                 if (evt.id == idfxx::http::event_id::headers_sent) {
                     content_type.clear();
                     body.clear();

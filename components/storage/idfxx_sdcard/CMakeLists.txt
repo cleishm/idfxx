@@ -1,4 +1,4 @@
-# The SDMMC pin definitions live in esp_hal_sd from ESP-IDF 6.0, and in soc before that.
+# The SDMMC pin definitions are in esp_hal_sd from ESP-IDF 6.0, and in soc before that.
 set(_priv_requires esp_driver_sdspi esp_driver_sdmmc)
 if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
     list(APPEND _priv_requires esp_hal_sd)

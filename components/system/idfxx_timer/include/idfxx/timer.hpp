@@ -39,7 +39,7 @@ namespace idfxx {
  * from a dedicated timer task or directly from ISR context.
  *
  * When exceptions are enabled, an exception thrown by a std::move_only_function
- * callback is logged and otherwise ignored, and the timer keeps running. Raw
+ * callback is logged and otherwise ignored. The timer keeps running. Raw
  * function pointer callbacks are called directly and must not throw.
  *
  * This type is non-copyable and move-only. A moved-from
@@ -892,7 +892,7 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state Timer is already running.
-     * @retval invalid_arg @p first kept slipping into the past before the timer could be started.
+     * @retval invalid_arg @p first had passed before the timer could be started, on every attempt.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_start_periodic(
@@ -1025,7 +1025,7 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state The timer could not be started.
-     * @retval invalid_arg @p next kept slipping into the past before the timer could be rearmed.
+     * @retval invalid_arg @p next had passed before the timer could be rearmed, on every attempt.
      */
     [[nodiscard]] result<void> try_restart(clock::time_point next);
 
@@ -1045,7 +1045,7 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state The timer could not be started.
-     * @retval invalid_arg @p next kept slipping into the past before the timer could be rearmed.
+     * @retval invalid_arg @p next had passed before the timer could be rearmed, on every attempt.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>
@@ -1087,14 +1087,14 @@ public:
      *
      * Once this returns, the callback is not running and will not run again
      * until the timer is restarted. The timer is disarmed so that no further
-     * callbacks are dispatched, then, if the callback is currently executing,
-     * this waits for it to return, for as long as that takes.
+     * callbacks are dispatched. Then, if the callback is currently executing,
+     * this waits for it to return, with no time limit.
      *
      * Unlike stop(), stopping a timer that is not running succeeds.
      *
      * When called from within this timer's own callback, the timer is disarmed
-     * and the call returns immediately without waiting; the callback finishes
-     * after it returns.
+     * and the call returns immediately without waiting. The callback finishes
+     * after the call returns.
      *
      * @code
      * // Make sure the callback is no longer touching shared state
@@ -1114,14 +1114,14 @@ public:
      *
      * Once this returns without throwing, the callback is not running and will
      * not run again until the timer is restarted. The timer is disarmed so
-     * that no further callbacks are dispatched, then, if the callback is
+     * that no further callbacks are dispatched. Then, if the callback is
      * currently executing, this waits up to @p timeout for it to return.
      *
      * Unlike stop(), stopping a timer that is not running succeeds.
      *
      * When called from within this timer's own callback, the timer is disarmed
-     * and the call returns immediately without waiting; the callback finishes
-     * after it returns.
+     * and the call returns immediately without waiting. The callback finishes
+     * after the call returns.
      *
      * @code
      * using namespace std::chrono_literals;
@@ -1166,14 +1166,14 @@ public:
      *
      * On success, the callback is not running and will not run again until
      * the timer is restarted. The timer is disarmed so that no further
-     * callbacks are dispatched, then, if the callback is currently executing,
-     * this waits for it to return, for as long as that takes.
+     * callbacks are dispatched. Then, if the callback is currently executing,
+     * this waits for it to return, with no time limit.
      *
      * Unlike try_stop(), stopping a timer that is not running succeeds.
      *
      * When called from within this timer's own callback, the timer is disarmed
-     * and the call returns success immediately without waiting; the callback
-     * finishes after it returns.
+     * and the call returns success immediately without waiting. The callback
+     * finishes after the call returns.
      *
      * Whatever the result, the timer is disarmed when this returns. After a
      * not_finished error, poll is_active() until it returns false to learn
@@ -1181,9 +1181,9 @@ public:
      *
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
-     * @retval not_finished The callback may still be running and could not be waited for:
-     *         the call was made from ISR context, or from a task-dispatched timer callback while
-     *         this timer's ISR-dispatched callback was running.
+     * @retval not_finished The callback may still be running and could not be waited for.
+     *         This happens if the call was made from ISR context, or from a task-dispatched timer
+     *         callback while this timer's ISR-dispatched callback was running.
      * @retval invalid_state The timer service is not initialized.
      */
     [[nodiscard]] result<void> try_stop_and_wait() {
@@ -1198,14 +1198,14 @@ public:
      *
      * On success, the callback is not running and will not run again until
      * the timer is restarted. The timer is disarmed so that no further
-     * callbacks are dispatched, then, if the callback is currently executing,
+     * callbacks are dispatched. Then, if the callback is currently executing,
      * this waits up to @p timeout for it to return.
      *
      * Unlike try_stop(), stopping a timer that is not running succeeds.
      *
      * When called from within this timer's own callback, the timer is disarmed
-     * and the call returns success immediately without waiting; the callback
-     * finishes after it returns.
+     * and the call returns success immediately without waiting. The callback
+     * finishes after the call returns.
      *
      * Whatever the result, the timer is disarmed when this returns. After a
      * timeout or not_finished error, poll is_active() until it returns false to
@@ -1218,9 +1218,9 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval timeout The callback was still running when the timeout expired.
-     * @retval not_finished The callback may still be running and could not be waited for:
-     *         the call was made from ISR context, or from a task-dispatched timer callback while
-     *         this timer's ISR-dispatched callback was running.
+     * @retval not_finished The callback may still be running and could not be waited for.
+     *         This happens if the call was made from ISR context, or from a task-dispatched timer
+     *         callback while this timer's ISR-dispatched callback was running.
      * @retval invalid_state The timer service is not initialized.
      */
     template<typename Rep, typename Period>
@@ -1249,9 +1249,9 @@ public:
      * @brief Checks if the timer is currently running.
      *
      * @note On ESP-IDF 6.1 and later, a timer is also active while its callback
-     *       is executing, even once the timer is no longer armed: after stop(),
-     *       or after a one-shot timer has fired. On earlier versions, only an
-     *       armed timer is active.
+     *       is executing, even when the timer is no longer armed. This happens
+     *       after stop(), or after a one-shot timer has fired. On earlier
+     *       versions, only an armed timer is active.
      *
      * @return true if the timer is active, false otherwise.
      */

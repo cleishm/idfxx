@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_font
-// Pure font-model arithmetic — runs everywhere, including QEMU.
+// Pure font-model arithmetic. Runs everywhere, including QEMU.
 
 #include "idfxx/font"
 #include "unity.h"
@@ -147,12 +147,12 @@ static_assert(prop_font.find(U'\U0010FFFF') == nullptr);
 static_assert(prop_font.contains(U'A') && !prop_font.contains(U'?'));
 static_assert(proportional_font{}.find(U'A') == nullptr); // no ranges at all
 
-// resolve falls back to the replacement glyph; contains does not.
+// resolve falls back to the replacement glyph. contains does not.
 static_assert(prop_font.resolve(U'?') == nullptr);
 static_assert(prop_font_with_replacement.resolve(U'?') == &prop_glyphs[1]);
 static_assert(!prop_font_with_replacement.contains(U'?'));
 
-// Advances come from the drawn glyph; skipped code points take no space.
+// Advances come from the drawn glyph. Skipped code points take no space.
 static_assert(prop_font.advance(U'A') == 4);
 static_assert(prop_font.advance(U'?') == 0);
 static_assert(prop_font_with_replacement.advance(U'?') == 2);
@@ -197,7 +197,7 @@ static_assert(text_ink_bounds(prop_font, "AB") == ink_bounds{0, 0, 5, 3});
 static_assert(text_ink_bounds(prop_font, " A") == ink_bounds{1, 1, 3, 2});
 static_assert(text_ink_bounds(prop_font, "A\xE2\x80\x99") == ink_bounds{0, 0, 7, 3}); // offset
 
-// Soft hyphens ink nothing and take no space; missing code points draw the
+// Soft hyphens ink nothing and take no space. Missing code points draw the
 // replacement glyph, or nothing without one.
 static_assert(text_ink_bounds(prop_font, "A\xC2\xAD" "B") == ink_bounds{0, 0, 5, 3});
 static_assert(text_ink_bounds(prop_font_with_replacement, "?") == ink_bounds{0, 0, 1, 3});
@@ -284,7 +284,7 @@ constexpr size_t line_offset(std::string_view text, size_t max_width, size_t n) 
 
 } // namespace
 
-// Empty text yields no lines; text that fits is one line.
+// Empty text yields no lines. Text that fits is one line.
 static_assert(break_lines(prop_font, "", 10).empty());
 static_assert(breaks_into(prop_font, "AB AB", 20, {{"AB AB", 13, false}}));
 
@@ -311,14 +311,14 @@ static_assert(breaks_into(prop_font, "    A", 6, {{"A", 4, false}}));
 static_assert(breaks_into(prop_font, "   ", 10, {{"", 0, false}}));
 static_assert(breaks_into(prop_font, "  \nA", 10, {{"", 0, false}, {"A", 4, false}}));
 
-// Hard breaks: '\n' and "\r\n" end a line; trailing spaces before them are dropped.
+// Hard breaks: '\n' and "\r\n" end a line. Trailing spaces before them are dropped.
 static_assert(breaks_into(prop_font, "AB\nB", 20, {{"AB", 6, false}, {"B", 2, false}}));
 static_assert(breaks_into(prop_font, "AB\r\nB", 20, {{"AB", 6, false}, {"B", 2, false}}));
 static_assert(breaks_into(prop_font, "AB  \nB", 20, {{"AB", 6, false}, {"B", 2, false}}));
 static_assert(breaks_into(prop_font, "AB   \nAB", 6, {{"AB", 6, false}, {"AB", 6, false}}));
 static_assert(breaks_into(prop_font, "A\rB", 20, {{"A\rB", 6, false}})); // a lone '\r' is not a break
 
-// A trailing '\n' ends the last line; consecutive ones yield empty lines.
+// A trailing '\n' ends the last line. Consecutive ones yield empty lines.
 static_assert(breaks_into(prop_font, "AB\n", 20, {{"AB", 6, false}}));
 static_assert(breaks_into(prop_font, "\n", 20, {{"", 0, false}}));
 static_assert(breaks_into(prop_font, "A\n\nB", 20, {{"A", 4, false}, {"", 0, false}, {"B", 2, false}}));
@@ -365,7 +365,7 @@ static_assert(breaks_into(
 static_assert(breaks_into(prop_font, "A\xE2\x80\x99", 0, {{"A", 4, false}, {"\xE2\x80\x99", 3, false}}));
 static_assert(line_offset("\xE2\x80\x99\xE2\x80\x99\xE2\x80\x99", 7, 1) == 6);
 
-// Mono fonts break bytes in scaled cells; soft hyphens are ordinary bytes.
+// Mono fonts break bytes in scaled cells. Soft hyphens are ordinary bytes.
 static_assert(breaks_into(test_font, "AB AB", 20, {{"AB", 20, false}, {"AB", 20, false}}, 2));
 static_assert(breaks_into(test_font, "AB AB", 25, {{"AB AB", 25, false}}, 0)); // scale 0 is treated as 1
 static_assert(breaks_into(test_font, "AB-AB", 15, {{"AB-", 15, false}, {"AB", 10, false}}));

@@ -24,36 +24,38 @@ namespace {
 using namespace std::chrono_literals;
 
 // The capture is armed while the host still holds the line low, so the frame
-// begins with the release edge; 64 symbols comfortably fits release + the
-// sensor preamble + 40 bits + the closing edge.
+// begins with the release edge. 64 symbols is more than enough for the release
+// edge, the sensor preamble, 40 bits and the closing edge.
 constexpr size_t rx_buffer_symbols = 64;
 
-// End of frame: nothing on the wire is quieter than ~200 us mid-frame, and
-// the line idles high afterward.
+// End of frame: in the middle of a frame, no level on the wire lasts longer
+// than ~200 us. The line idles high after the frame.
 constexpr uint32_t signal_range_min_ns = 1'000;     // glitch filter
-constexpr uint32_t signal_range_max_ns = 1'000'000; // 1 ms idle terminates
+constexpr uint32_t signal_range_max_ns = 1'000'000; // 1 ms idle ends the capture
 
 // Per-model timing. The two models have different start-signal specs and
-// refresh rates, so each knob is model-specific; keep them together so adding
-// a model means editing one place.
+// refresh rates, so each value is model-specific. Keep the values together so
+// that adding a model means editing one place.
 //
-// Start pulse — how long the host holds the line low to request a reading:
-//   - DHT11 wants >=18 ms. idfxx::delay never returns early, so 20 ms clears
-//     the floor at any FreeRTOS tick rate; the DHT11 has no tight upper bound,
-//     so the up-to-one-tick overshoot of a task delay is harmless.
-//   - DHT22 wants ~1 ms and specifies a 20 ms ceiling. 2 ms is below a tick at
-//     the default 100 Hz, so idfxx::delay busy-waits it precisely; at faster
-//     tick rates it blocks for 2 ms plus at most one (short) tick, still well
-//     clear of the ceiling.
+// Start pulse: how long the host holds the line low to request a reading.
+//   - DHT11 needs >=18 ms. idfxx::delay never returns early, so 20 ms is above
+//     the minimum at any FreeRTOS tick rate. The DHT11 has no tight upper
+//     bound, so it is harmless if the task delay lasts up to one tick longer
+//     than requested.
+//   - DHT22 needs ~1 ms and specifies a 20 ms maximum. 2 ms is less than one
+//     tick at the default 100 Hz, so idfxx::delay busy-waits for exactly that
+//     time. At faster tick rates it blocks for 2 ms plus at most one (short)
+//     tick. This is still well below the 20 ms maximum.
 constexpr auto dht11_start_pulse = 20ms;
 constexpr auto dht22_start_pulse = 2ms;
 
-// Minimum interval between reads — the sensor won't refresh any faster.
+// Minimum interval between reads. The sensor does not refresh any faster.
 constexpr auto dht11_min_interval = 1000ms;
 constexpr auto dht22_min_interval = 2000ms;
 
-// Full reply (release + preamble + 40 bits) is under 6 ms; allow generous
-// scheduling slack on top of the 1 ms idle-termination window.
+// The full reply (release + preamble + 40 bits) takes under 6 ms, and the
+// capture ends after 1 ms of idle. The timeout adds generous scheduling slack
+// to both.
 constexpr TickType_t reply_timeout_ticks = pdMS_TO_TICKS(100);
 
 } // namespace
@@ -66,7 +68,7 @@ struct sensor::state {
     rmt_channel_handle_t channel = nullptr;
     QueueHandle_t done_queue = nullptr;
     std::array<rmt_symbol_word_t, rx_buffer_symbols> buffer{};
-    int64_t last_read_us = 0; // esp_timer time of last completed start pulse; 0 = never
+    int64_t last_read_us = 0; // esp_timer time of last completed start pulse, or 0 if none
 
     ~state() {
         if (channel) {
@@ -111,9 +113,9 @@ result<sensor> sensor::make(config cfg) {
         return error(errc::fail);
     }
 
-    // The RMT channel taps the pad's input path through the GPIO matrix; the
-    // pad itself is then configured as an open-drain output so the same line
-    // can carry the host's start pulse.
+    // The RMT channel reads the pad's input path through the GPIO matrix. The
+    // pad itself is then configured as an open-drain output, so that the same
+    // line can carry the host's start pulse.
     rmt_rx_channel_config_t rx_cfg{};
     rx_cfg.gpio_num = cfg.pin->idf_num();
     rx_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
@@ -180,17 +182,19 @@ result<reading> sensor::try_read() {
     auto pin = s.cfg.pin.get();
     xQueueReset(s.done_queue);
 
-    // Start pulse: hold the line low, then arm the capture while still low —
-    // the first captured edge is our own release, so the sensor's reply
-    // (which starts 20–40 us later) can never race the arm.
+    // Start pulse: hold the line low, then arm the capture while the line is
+    // still low. The first captured edge is then the host's own release. The
+    // sensor's reply starts 20–40 us after the release, so the capture is
+    // always armed before the reply starts.
     pin.set_level(gpio::level::low);
     if (s.cfg.model == model::dht11) {
         delay(dht11_start_pulse);
     } else {
         delay(dht22_start_pulse);
     }
-    // The start pulse has already perturbed the sensor, so record it now: the
-    // sampling-interval guard must hold even if arming the capture below fails.
+    // The start pulse has already disturbed the sensor, so record its time
+    // now. The minimum read interval must apply even if arming the capture
+    // below fails.
     s.last_read_us = esp_timer_get_time();
 
     rmt_receive_config_t rx_cfg{};

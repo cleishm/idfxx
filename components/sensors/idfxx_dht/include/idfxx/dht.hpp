@@ -12,10 +12,10 @@
  * @brief Type-safe DHT11/DHT22 (AM2302) sensor driver for ESP32.
  *
  * Reads temperature and relative humidity over the sensor's single-wire
- * protocol. The host issues a start pulse on the data line and the sensor
- * replies with a 40-bit frame, which is captured with the RMT peripheral
- * (no interrupt-latency-sensitive bit-banging) and decoded with checksum
- * verification.
+ * protocol. The host issues a start pulse on the data line, and the sensor
+ * replies with a 40-bit frame. The driver captures the frame with the RMT
+ * peripheral, so it does not bit-bang the line or depend on interrupt
+ * latency. It then decodes the frame and verifies its checksum.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin
  * configuration.
@@ -46,11 +46,11 @@ namespace idfxx::dht {
  * @brief Supported sensor models.
  *
  * Selects the start-pulse timing and the 40-bit frame encoding. The AM2301
- * (DHT21) and AM2302 modules speak the DHT22 protocol.
+ * (DHT21) and AM2302 modules use the DHT22 protocol.
  */
 enum class model : uint8_t {
-    dht11, ///< DHT11: 1 °C / 1 %RH resolution, 1 s minimum sampling period.
-    dht22, ///< DHT22 / AM2301 / AM2302: 0.1 °C / 0.1 %RH resolution, 2 s period.
+    dht11, ///< DHT11: 1 °C / 1 %RH resolution, 1 s minimum read interval.
+    dht22, ///< DHT22 / AM2301 / AM2302: 0.1 °C / 0.1 %RH resolution, 2 s minimum read interval.
 };
 
 /**
@@ -83,8 +83,8 @@ public:
     struct config {
         idfxx::required<idfxx::gpio> pin; ///< Data line GPIO.
         enum model model = model::dht22;  ///< Sensor model on the line.
-        /// Enable the internal pull-up on the data line. The bus idles high;
-        /// disable only if the board has an external pull-up resistor.
+        /// Enable the internal pull-up on the data line. The bus idles high.
+        /// Disable it only if the board has an external pull-up resistor.
         bool internal_pullup = true;
     };
 
@@ -133,7 +133,7 @@ public:
      * 1 s for the DHT11, 2 s for the DHT22. @ref try_read fails with
      * `idfxx::errc::invalid_state` when called again sooner.
      *
-     * @return The model's minimum sampling period.
+     * @return The model's minimum read interval.
      */
     [[nodiscard]] std::chrono::milliseconds min_read_interval() const noexcept;
 
@@ -143,12 +143,12 @@ public:
      *
      * Issues the start pulse, captures the sensor's 40-bit reply, verifies
      * its checksum, and converts it. Blocks for the start pulse plus the
-     * reply: roughly 25 ms for the DHT11 (its ~20 ms start pulse dominates)
-     * and under 10 ms for the DHT22.
+     * reply. This is roughly 25 ms for the DHT11 (most of it is the ~20 ms
+     * start pulse) and under 10 ms for the DHT22.
      *
      * @return The measurement.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error on failure; see @ref try_read for the error
+     * @throws std::system_error on failure. See @ref try_read for the error
      *         conditions.
      */
     [[nodiscard]] reading read() { return unwrap(try_read()); }
@@ -159,19 +159,19 @@ public:
      *
      * Issues the start pulse, captures the sensor's 40-bit reply, verifies
      * its checksum, and converts it. Blocks for the start pulse plus the
-     * reply: roughly 25 ms for the DHT11 (its ~20 ms start pulse dominates)
-     * and under 10 ms for the DHT22.
+     * reply. This is roughly 25 ms for the DHT11 (most of it is the ~20 ms
+     * start pulse) and under 10 ms for the DHT22.
      *
      * @return The measurement, or an error.
      * @retval idfxx::errc::invalid_state Called again within
      *         @ref min_read_interval of the previous read (the sensor needs
-     *         the gap to refresh its measurement).
+     *         this interval to refresh its measurement).
      * @retval idfxx::errc::timeout The sensor did not answer the start pulse:
-     *         no response preamble was captured. Typically no sensor on the
-     *         line, or a wiring, power, or pull-up fault.
-     * @retval idfxx::errc::invalid_response A reply began but the 40-bit frame
-     *         was incomplete or malformed — line noise, a marginal pull-up, or
-     *         the wrong model selected.
+     *         no response preamble was captured. The usual cause is no sensor
+     *         on the line, or a wiring, power, or pull-up fault.
+     * @retval idfxx::errc::invalid_response A reply began, but the 40-bit frame
+     *         was incomplete or malformed. Possible causes are line noise, a
+     *         marginal pull-up, or the wrong model selected.
      * @retval idfxx::errc::invalid_crc The reply failed its checksum.
      */
     [[nodiscard]] result<reading> try_read();

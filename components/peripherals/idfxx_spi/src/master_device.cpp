@@ -30,11 +30,14 @@ struct pool_slot {
 
 } // namespace
 
-// Per-device shared state: owns the fixed-size pool of transaction slots, the
-// free-list that feeds queue_trans, the mutex/cv coordination for both the
-// pool and the cooperative-drain wait path, and the device lock. Kept behind a
-// unique_ptr so the synchronization primitives have a stable address while the
-// device itself stays cheap to move.
+// Per-device shared state. It owns:
+// - the fixed-size pool of transaction slots
+// - the free list of slots that queue_trans takes from
+// - the mutexes and condition variable that coordinate the pool and the waits
+//   that drain completed transactions
+// - the device lock
+// It is kept behind a unique_ptr so that the synchronization primitives have a
+// stable address and the device itself stays cheap to move.
 struct master_device::async_state {
     size_t queue_size;
     std::unique_ptr<pool_slot[]> slots;
@@ -45,9 +48,9 @@ struct master_device::async_state {
     // Serializes polling transactions and lock()/unlock() between threads.
     // Recursive so polling calls made while holding lock() don't self-deadlock.
     std::recursive_mutex device_mtx;
-    // lock() nesting depth; guarded by device_mtx. The bus is acquired on the
+    // lock() nesting depth. Guarded by device_mtx. The bus is acquired on the
     // 0->1 transition and released on 1->0 only: ESP-IDF's acquire deadlocks
-    // if a device re-acquires a bus it already holds.
+    // if a device re-acquires a bus that it already holds.
     int lock_depth = 0;
     // Device configured with device_flags::halfduplex.
     bool half_duplex;
@@ -150,7 +153,7 @@ master_device::~master_device() {
 void master_device::_delete() noexcept {
     if (_handle != nullptr) {
         // ESP-IDF rejects spi_bus_remove_device with ESP_ERR_INVALID_STATE if any
-        // transaction is still in its internal queue — drain them first.
+        // transaction is still in its internal queue. Drain them first.
         if (_async) {
             size_t pending;
             {
@@ -218,7 +221,7 @@ size_t master_device::_rx_bits(const transaction& trans) const {
     if (trans.rx_length) {
         return *trans.rx_length;
     }
-    // A half-duplex MISO phase is sized by rx_length alone; in full duplex, 0 selects the driver
+    // A half-duplex MISO phase is sized by rx_length alone. In full duplex, 0 selects the driver
     // default (the data length)
     return _async->half_duplex ? trans.rx_buffer.size() * 8 : 0;
 }
@@ -476,10 +479,10 @@ result<void> master_device::_try_wait_for(
         return {};
     }
 
-    // Only one task may sit in spi_device_get_trans_result at a time: ESP-IDF's
-    // return queue delivers each completion to exactly one waiter, so concurrent
-    // callers could otherwise receive each other's completions and the one left
-    // holding an empty queue would block forever.
+    // Only one task at a time may wait in spi_device_get_trans_result. ESP-IDF's
+    // return queue delivers each completion to exactly one waiter. Without this
+    // lock, concurrent callers could receive each other's completions, and a
+    // caller that then finds the queue empty would block forever.
     std::unique_lock lk(_async->wait_mtx, std::defer_lock);
     if (!deadline) {
         lk.lock();
@@ -530,7 +533,7 @@ void master_device::lock() const {
         if (err != ESP_OK) {
             // Unreachable unless a polling transaction was started through the
             // raw idf_handle(), bypassing device_mtx. Proceeding unlocked would
-            // corrupt driver state, so fail loudly instead.
+            // corrupt driver state, so throw or abort instead.
             _async->device_mtx.unlock();
             ESP_LOGE(TAG, "Failed to acquire SPI bus: %s", esp_err_to_name(err));
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS

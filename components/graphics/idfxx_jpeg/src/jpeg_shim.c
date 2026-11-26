@@ -24,7 +24,8 @@
 
 #define IDFXX_JPEG_INPUT_BUFFER_SIZE 4096
 
-// Often enough for the idle task to satisfy the task watchdog, rarely enough to cost little time.
+// Yield often enough that the idle task can satisfy the task watchdog, but rarely enough that
+// yielding costs little time.
 #define IDFXX_JPEG_YIELD_INTERVAL pdMS_TO_TICKS(500)
 
 static const char* TAG = "idfxx::jpeg";
@@ -49,7 +50,7 @@ struct idfxx_jpeg_ctx {
     bool enforcing; ///< The limit applies to new allocations.
     bool over_limit;
     bool exif_done;      ///< Later APP1 segments are skipped whole.
-    uint8_t orientation; ///< From the first Exif segment; 0 for none.
+    uint8_t orientation; ///< From the first Exif segment, or 0 for none.
     bool source_failed;
     bool end_of_stream;
     bool corrupt;
@@ -67,7 +68,7 @@ static void log_message(j_common_ptr cinfo) {
 }
 
 static idfxx_jpeg_status classify(const idfxx_jpeg_ctx* ctx, int code) {
-    // The source's own outcome explains any error it caused, so it comes first.
+    // The source's own outcome explains any error that it caused, so it comes first.
     if (ctx->source_failed) {
         return IDFXX_JPEG_SOURCE_FAILED;
     }
@@ -116,14 +117,15 @@ static void log_warning(j_common_ptr cinfo) {
 }
 
 // A negative level is a warning about corrupt data, which libjpeg would
-// otherwise work around; the decode fails instead. Other levels are trace
+// otherwise work around. The decode fails instead. Other levels are trace
 // messages, which are discarded.
 //
 // Three warnings are the exception: stray bytes skipped before a marker, a
 // JFIF version other than 1.x and an unrecognized Adobe color transform.
-// Real-world files commonly have them (e.g. padding before the EOI marker)
-// and decode correctly with libjpeg's workaround, which is what other
-// decoders do, so they are logged and the decode continues. Stray bytes can
+// Real-world files commonly have them (e.g. padding before the EOI marker).
+// These files decode correctly with libjpeg's workaround, which other
+// decoders also use. The warnings are logged, and the decode continues. Stray
+// bytes can
 // also follow damaged scan data, but most such damage is undetectable anyway.
 static void emit_message(j_common_ptr cinfo, int msg_level) {
     if (msg_level >= 0) {
@@ -186,8 +188,9 @@ static void term_source(j_decompress_ptr cinfo) {
     (void)cinfo;
 }
 
-// Called between the input rows of each scan of a multi-scan image, which are all
-// absorbed before the first output row, and before each output row.
+// Called before each output row, and between the input rows of each scan of a
+// multi-scan image. All scans of a multi-scan image are absorbed before the first
+// output row.
 static void progress_monitor(j_common_ptr cinfo) {
     idfxx_jpeg_ctx* ctx = ctx_of(cinfo);
     if (xTaskGetTickCount() - ctx->last_yield < IDFXX_JPEG_YIELD_INTERVAL) {
@@ -200,9 +203,10 @@ static void progress_monitor(j_common_ptr cinfo) {
 // --- Working memory ----------------------------------------------------------
 //
 // The decoder's working memory is counted through the method pointers of
-// cinfo->mem, which libjpeg calls for each allocation it makes outside the
+// cinfo->mem, which libjpeg calls for each allocation that it makes outside the
 // memory manager. The count starts with the context and adds what each request
-// asks for, ignoring the memory manager's pool slop and alignment padding.
+// asks for. It ignores the memory manager's unused pool space and alignment
+// padding.
 // jmemmgr's own nested allocations (an array's rows and row pointers, a virtual
 // array's control block and storage) call its static functions directly, so
 // nothing is counted twice. A virtual array is counted in full when it is
@@ -226,7 +230,7 @@ static size_t array_size(size_t row_size, JDIMENSION numrows, size_t pointer_siz
     return add_size(mul_size(row_size, numrows), mul_size(numrows, pointer_size));
 }
 
-// The size of one sample, as jmemmgr works it out.
+// The size of one sample, as jmemmgr computes it.
 static size_t sample_size(j_common_ptr cinfo) {
     const int precision = ((j_decompress_ptr)cinfo)->data_precision;
     return precision > 12 ? sizeof(J16SAMPLE)
@@ -248,7 +252,7 @@ static void check_limit(j_common_ptr cinfo, size_t size) {
         ctx->memory_limit
     );
     ctx->over_limit = true;
-    // classify() reports the flag; this is libjpeg's own error for exceeding
+    // classify() reports the flag. This is libjpeg's own error for exceeding
     // max_memory_to_use.
     ERREXIT(cinfo, JERR_NO_BACKING_STORE);
 }
@@ -334,8 +338,8 @@ static jvirt_barray_ptr counted_request_virt_barray(
     return array;
 }
 
-// libjpeg allocates the requested virtual arrays here, through functions the
-// hooks don't see. Each array is allocated in full: libjpeg would otherwise
+// libjpeg allocates the requested virtual arrays here, through functions that
+// the hooks don't see. Each array is allocated in full: libjpeg would otherwise
 // need a backing store, which this build doesn't have.
 static void counted_realize_virt_arrays(j_common_ptr cinfo) {
     idfxx_jpeg_ctx* ctx = ctx_of(cinfo);
@@ -359,10 +363,10 @@ static void install_memory_hooks(idfxx_jpeg_ctx* ctx) {
 
 // --- EXIF orientation --------------------------------------------------------
 //
-// APP1 segments are read by a marker processor rather than saved: only the
+// APP1 segments are read by a marker processor rather than saved. Only the
 // Orientation tag of the first Exif segment is needed, and other APP1 segments
 // (XMP, extended XMP, EXIF thumbnails) can be up to 64 KB each. The processor
-// streams the TIFF structure through the data source, which never suspends:
+// reads the TIFF structure through the data source, which never suspends.
 // fill_input_buffer() delivers at least one byte or exits with an error.
 
 #define TIFF_HEADER_SIZE 8
@@ -503,7 +507,7 @@ static boolean process_app1(j_decompress_ptr cinfo) {
     const unsigned high = next_byte(cinfo);
     const unsigned length = (high << 8) | next_byte(cinfo);
     // The length counts its own two bytes. Like libjpeg, read nothing more if
-    // it is too small to.
+    // the length is less than 2.
     if (length < 2) {
         return TRUE;
     }
@@ -643,8 +647,8 @@ idfxx_jpeg_status idfxx_jpeg_alloc_row(idfxx_jpeg_ctx* ctx, uint8_t** row) {
     }
     struct jpeg_decompress_struct* cinfo = &ctx->cinfo;
     const size_t size = (size_t)cinfo->output_width * (size_t)cinfo->output_components;
-    // Through the counting hook, in the pool that finishing or abandoning the
-    // decompression frees.
+    // Allocate through the counting hook, in the pool that is freed when the
+    // decompression finishes or is abandoned.
     *row = (*cinfo->mem->alloc_large)((j_common_ptr)cinfo, JPOOL_IMAGE, size);
     return IDFXX_JPEG_OK;
 }

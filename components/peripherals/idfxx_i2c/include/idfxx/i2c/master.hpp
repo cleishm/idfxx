@@ -120,8 +120,8 @@ enum class operation_command : int {
  * @brief ACK value sent after a read operation.
  */
 enum class ack_value : uint8_t {
-    ack = 0,  ///< Acknowledge — request more data.
-    nack = 1, ///< Not-acknowledge — signal end of read.
+    ack = 0,  ///< Acknowledge, to request more data.
+    nack = 1, ///< Not-acknowledge, to signal the end of the read.
 };
 
 /**
@@ -133,8 +133,8 @@ enum class ack_value : uint8_t {
  *
  * For write operations, set command to operation_command::write and
  * populate write_data. For read operations, set command to
- * operation_command::read, populate read_data, and set ack_type
- * (must be ack_value::nack if the next operation is a STOP).
+ * operation_command::read, populate read_data, and set ack_type.
+ * ack_type must be ack_value::nack if the next operation is a STOP.
  */
 struct operation {
     operation_command command;           ///< The operation to perform.
@@ -151,8 +151,8 @@ struct operation {
  * Represents an I2C bus operating in master mode. Every transfer finishes
  * before the call that starts it returns. Satisfies the TimedLockable named
  * requirement for use with std::lock_guard, std::unique_lock and
- * std::scoped_lock. Transfers and probes take the same lock, waiting at most
- * their timeout for it.
+ * std::scoped_lock. Transfers and probes take the same lock. Each one waits
+ * for the lock for at most its timeout.
  *
  * This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
@@ -254,9 +254,9 @@ public:
      * @retval idfxx::errc::invalid_arg @p cfg has an unconnected SDA or SCL pin or a zero
      * frequency, or the driver rejected the pins or the interrupt level.
      * @retval idfxx::errc::invalid_state @p port is already in use.
-     * @retval idfxx::errc::not_supported @p cfg asks for a setting the target or port doesn't
+     * @retval idfxx::errc::not_supported @p cfg has a setting that the target or port doesn't
      * support, such as config::allow_pd on a target that can't keep the bus powered down during
-     * light sleep, or a clock source the LP I2C port can't use.
+     * light sleep, or a clock source that the LP I2C port can't use.
      * @retval idfxx::errc::not_found No free interrupt was available.
      *
      * @code
@@ -472,7 +472,7 @@ private:
 
     void _delete() noexcept;
 
-    // Takes the bus lock, waiting at most timeout (a negative timeout waits indefinitely). The
+    // Takes the bus lock, waiting at most timeout. A negative timeout waits indefinitely. The
     // returned lock doesn't own the mutex if it wasn't acquired in time.
     [[nodiscard]] std::unique_lock<std::recursive_timed_mutex>
     _lock_for(std::chrono::milliseconds timeout) const;
@@ -553,8 +553,8 @@ decode_register_value(std::span<const uint8_t, sizeof(T)> in, std::endian order)
  * - `idfxx::errc::invalid_response`: the device didn't acknowledge, the
  *   transfer timed out on the bus (including clock stretching beyond
  *   config::scl_wait_us), or it didn't finish within the caller's timeout.
- *   The driver can't tell these apart, and they are reported the same way on
- *   every supported ESP-IDF version, so raise the timeout for long transfers.
+ *   The driver can't tell these apart. They are reported the same way on
+ *   every supported ESP-IDF version. For long transfers, raise the timeout.
  * - `idfxx::errc::timeout`: the bus could not be acquired within the timeout.
  * - Other driver errors are passed through.
  *
@@ -589,7 +589,7 @@ public:
 #endif
         bool disable_ack_check = false; ///< Disable ACK checking for this device.
         /// Size of the register address sent before register reads and writes. Most devices use one
-        /// byte; 16-bit-addressed devices such as larger EEPROMs use two_bytes.
+        /// byte. Devices with 16-bit register addresses, such as larger EEPROMs, use two_bytes.
         register_address_size register_address = register_address_size::one_byte;
     };
 
@@ -704,7 +704,7 @@ public:
     }
 
     /**
-     * @brief Returns the SCL speed the device was configured with.
+     * @brief Returns the SCL speed that the device was configured with.
      *
      * This is the configured speed, not a measurement of the clock generated on the bus.
      *
@@ -1117,7 +1117,7 @@ public:
      * @param ops Operations to execute.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -1149,7 +1149,7 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -1178,7 +1178,7 @@ public:
      * @return Success, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_execute_operations(std::span<const operation> ops) {
@@ -1197,7 +1197,7 @@ public:
      * @return Success, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
@@ -1217,7 +1217,7 @@ public:
      * @param buf Buffer for received data.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
@@ -1241,7 +1241,7 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
@@ -1259,8 +1259,8 @@ public:
      * @return The bytes received.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      *
@@ -1286,8 +1286,8 @@ public:
      * @return The bytes received.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error.
      */
@@ -1309,7 +1309,7 @@ public:
      * @return Success, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_receive(byte_span buf) {
@@ -1330,7 +1330,7 @@ public:
      * @return Success, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
@@ -1347,8 +1347,8 @@ public:
      * @return The bytes received, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<size_t N>
         requires(N > 0)
@@ -1368,8 +1368,8 @@ public:
      * @return The bytes received, or an error.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<size_t N, typename Rep, typename Period>
         requires(N > 0)
@@ -1500,8 +1500,8 @@ public:
      *
      * @param reg   Register address, sent in the size set by config::register_address.
      * @param value Value to write.
-     * @param order Byte order the device expects: std::endian::big (most significant byte first)
-     *              or std::endian::little.
+     * @param order Byte order that the device expects: std::endian::big (most significant byte
+     *              first) or std::endian::little.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
@@ -1530,8 +1530,8 @@ public:
      *
      * @param reg     Register address, sent in the size set by config::register_address.
      * @param value   Value to write.
-     * @param order   Byte order the device expects: std::endian::big (most significant byte first)
-     *                or std::endian::little.
+     * @param order   Byte order that the device expects: std::endian::big (most significant byte
+     *                first) or std::endian::little.
      * @param timeout Maximum time to wait for completion.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
@@ -1558,7 +1558,7 @@ public:
     // A value wider than a byte without a byte order would otherwise convert to the uint8_t
     // overload and write only its low byte. Pass the byte order, or a uint8_t for a single byte.
     // The check is by type, so wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected
-    // too; use uint8_t register constants.
+    // too. Use uint8_t register constants.
     template<detail::register_value T>
         requires(sizeof(T) > 1)
     void write_register(uint16_t, T) = delete;
@@ -1576,7 +1576,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     [[nodiscard]] result<void> try_write_register(uint16_t reg, byte_view buf) {
         return try_write_register(reg, buf, DEFAULT_TIMEOUT);
@@ -1594,7 +1594,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
@@ -1613,7 +1613,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     [[nodiscard]] result<void>
     try_write_register(uint16_t reg, std::initializer_list<uint8_t> data) {
@@ -1632,7 +1632,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
@@ -1651,7 +1651,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     [[nodiscard]] result<void> try_write_register(uint16_t reg, uint8_t value) {
         return try_write_register(reg, value, DEFAULT_TIMEOUT);
@@ -1669,7 +1669,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
@@ -1692,12 +1692,12 @@ public:
      *
      * @param reg   Register address, sent in the size set by config::register_address.
      * @param value Value to write.
-     * @param order Byte order the device expects: std::endian::big (most significant byte first)
-     *              or std::endian::little.
+     * @param order Byte order that the device expects: std::endian::big (most significant byte
+     *              first) or std::endian::little.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     template<detail::register_value T>
     [[nodiscard]] result<void> try_write_register(uint16_t reg, T value, std::endian order) {
@@ -1716,13 +1716,13 @@ public:
      *
      * @param reg     Register address, sent in the size set by config::register_address.
      * @param value   Value to write.
-     * @param order   Byte order the device expects: std::endian::big (most significant byte first)
-     *                or std::endian::little.
+     * @param order   Byte order that the device expects: std::endian::big (most significant byte
+     *                first) or std::endian::little.
      * @param timeout Maximum time to wait for completion.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      */
     template<detail::register_value T, typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_register(
@@ -1740,7 +1740,7 @@ public:
     // A value wider than a byte without a byte order would otherwise convert to the uint8_t
     // overload and write only its low byte. Pass the byte order, or a uint8_t for a single byte.
     // The check is by type, so wide unsigned masks such as 0x80u or ESP-IDF's BIT(n) are rejected
-    // too; use uint8_t register constants.
+    // too. Use uint8_t register constants.
     template<detail::register_value T>
         requires(sizeof(T) > 1)
     void try_write_register(uint16_t, T) = delete;
@@ -1753,9 +1753,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param buf       Data to write to each register.
@@ -1777,9 +1777,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -1804,9 +1804,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param data      Bytes to write to each register, written as a braced list.
@@ -1822,9 +1822,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -1852,9 +1852,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param buf       Data to write to each register.
@@ -1870,9 +1870,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -1897,9 +1897,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param data      Bytes to write to each register, written as a braced list.
@@ -1922,9 +1922,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -1950,16 +1950,16 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param buf       Data to write to each register.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     [[nodiscard]] result<void>
     try_write_registers(std::span<const uint16_t> registers, byte_view buf) {
@@ -1969,9 +1969,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -1982,7 +1982,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
@@ -1998,16 +1998,16 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param data      Bytes to write to each register, written as a braced list.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     [[nodiscard]] result<void>
     try_write_registers(std::span<const uint16_t> registers, std::initializer_list<uint8_t> data) {
@@ -2017,9 +2017,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2030,7 +2030,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
@@ -2047,16 +2047,16 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param buf       Data to write to each register.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     [[nodiscard]] result<void>
     try_write_registers(std::initializer_list<uint16_t> registers, byte_view buf) {
@@ -2066,9 +2066,9 @@ public:
     /**
      * @brief Writes data to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2079,7 +2079,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
@@ -2095,16 +2095,16 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @param registers Register addresses, each sent in the size set by config::register_address.
      * @param data      Bytes to write to each register, written as a braced list.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     [[nodiscard]] result<void> try_write_registers(
         std::initializer_list<uint16_t> registers,
@@ -2116,9 +2116,9 @@ public:
     /**
      * @brief Writes literal bytes to multiple registers.
      *
-     * Each register is written as a separate transaction, back to back. Devices that need a
-     * write-cycle wait between writes (e.g. EEPROMs) should call write_register() once per
-     * register.
+     * Each register is written as a separate transaction, one immediately after the other. For
+     * devices that need a write-cycle wait between writes (e.g. EEPROMs), call write_register()
+     * once per register.
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2129,7 +2129,7 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg A register in @p registers exceeds 0xFF on a device using
-     *         one-byte register addresses; nothing is sent.
+     *         one-byte register addresses. Nothing is sent.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_write_registers(
@@ -2149,14 +2149,14 @@ public:
      * @brief Reads data from a register, filling a buffer.
      *
      * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
      * @param buf Buffer for received data.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
@@ -2174,8 +2174,8 @@ public:
      * @brief Reads data from a register, filling a buffer.
      *
      * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2185,7 +2185,7 @@ public:
      * @param timeout Maximum time to wait for completion.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
@@ -2202,17 +2202,17 @@ public:
      * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
-     * @tparam N Number of bytes to read; must be at least 1.
+     * @tparam N Number of bytes to read. Must be at least 1.
      *
      * @param reg Register address, sent in the size set by config::register_address.
      *
      * @return The bytes read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2232,9 +2232,9 @@ public:
      * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
-     * @tparam N Number of bytes to read; must be at least 1.
+     * @tparam N Number of bytes to read. Must be at least 1.
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
@@ -2244,8 +2244,8 @@ public:
      * @return The bytes read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2261,15 +2261,15 @@ public:
      * @brief Reads a single byte from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
      *
      * @return The byte read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2280,7 +2280,7 @@ public:
      * @brief Reads a single byte from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2291,8 +2291,8 @@ public:
      * @return The byte read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2307,21 +2307,21 @@ public:
      * @brief Reads a multi-byte integer value from a register.
      *
      * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
      *           character types are not accepted.
      *
      * @param reg   Register address, sent in the size set by config::register_address.
-     * @param order Byte order the device sends: std::endian::big (most significant byte first)
-     *              or std::endian::little.
+     * @param order Byte order that the device sends: std::endian::big (most significant byte
+     *              first) or std::endian::little.
      *
      * @return The value read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2340,8 +2340,8 @@ public:
      * @brief Reads a multi-byte integer value from a register.
      *
      * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
      *           character types are not accepted.
@@ -2349,15 +2349,15 @@ public:
      * @tparam Period Duration period type.
      *
      * @param reg     Register address, sent in the size set by config::register_address.
-     * @param order   Byte order the device sends: std::endian::big (most significant byte first)
-     *                or std::endian::little.
+     * @param order   Byte order that the device sends: std::endian::big (most significant byte
+     *                first) or std::endian::little.
      * @param timeout Maximum time to wait for completion.
      *
      * @return The value read.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_arg if @p reg exceeds 0xFF on a device
      *         using one-byte register addresses (nothing is sent), or on error.
@@ -2382,18 +2382,18 @@ public:
      * @brief Reads data from a register, filling a buffer.
      *
      * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
      * @param buf Buffer for received data.
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is empty; nothing is sent.
+     *         addresses, or @p buf is empty. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<void> try_read_register(uint16_t reg, byte_span buf) {
@@ -2404,8 +2404,8 @@ public:
      * @brief Reads data from a register, filling a buffer.
      *
      * Always reads exactly `buf.size()` bytes, filling the whole buffer. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2416,10 +2416,10 @@ public:
      *
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses, or @p buf is empty; nothing is sent.
+     *         addresses, or @p buf is empty. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, receive buffers
-     *       must reside in internal RAM (not PSRAM); otherwise the call fails with
+     *       must reside in internal RAM (not PSRAM). Otherwise the call fails with
      *       `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
@@ -2435,19 +2435,19 @@ public:
      * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
-     * @tparam N Number of bytes to read; must be at least 1.
+     * @tparam N Number of bytes to read. Must be at least 1.
      *
      * @param reg Register address, sent in the size set by config::register_address.
      *
      * @return The bytes read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<size_t N>
         requires(N > 0)
@@ -2459,9 +2459,9 @@ public:
      * @brief Reads a fixed number of bytes from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
-     * @tparam N Number of bytes to read; must be at least 1.
+     * @tparam N Number of bytes to read. Must be at least 1.
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
      *
@@ -2470,11 +2470,11 @@ public:
      *
      * @return The bytes read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the bytes are received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     *       PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<size_t N, typename Rep, typename Period>
         requires(N > 0)
@@ -2489,17 +2489,17 @@ public:
      * @brief Reads a single byte from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
      * @param reg Register address, sent in the size set by config::register_address.
      *
      * @return The byte read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     [[nodiscard]] result<uint8_t> try_read_register(uint16_t reg) {
         return try_read_register(reg, DEFAULT_TIMEOUT);
@@ -2509,7 +2509,7 @@ public:
      * @brief Reads a single byte from a register.
      *
      * The register address and the read are sent as one transaction with a repeated START.
-     * Devices that need a gap between them can use transmit() then receive().
+     * For devices that need a gap between them, use transmit() then receive().
      *
      * @tparam Rep Duration arithmetic type.
      * @tparam Period Duration period type.
@@ -2519,11 +2519,11 @@ public:
      *
      * @return The byte read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<uint8_t>
@@ -2535,23 +2535,23 @@ public:
      * @brief Reads a multi-byte integer value from a register.
      *
      * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
      *           character types are not accepted.
      *
      * @param reg   Register address, sent in the size set by config::register_address.
-     * @param order Byte order the device sends: std::endian::big (most significant byte first)
-     *              or std::endian::little.
+     * @param order Byte order that the device sends: std::endian::big (most significant byte
+     *              first) or std::endian::little.
      *
      * @return The value read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<detail::register_value T>
     [[nodiscard]] result<T> try_read_register(uint16_t reg, std::endian order) {
@@ -2562,8 +2562,8 @@ public:
      * @brief Reads a multi-byte integer value from a register.
      *
      * Reads sizeof(T) bytes and assembles them in the given byte order. The register address and
-     * the read are sent as one transaction with a repeated START. Devices that need a gap between
-     * them can use transmit() then receive().
+     * the read are sent as one transaction with a repeated START. For devices that need a gap
+     * between them, use transmit() then receive().
      *
      * @tparam T Unsigned integer type of the value, such as uint16_t or uint32_t. bool and the
      *           character types are not accepted.
@@ -2571,17 +2571,17 @@ public:
      * @tparam Period Duration period type.
      *
      * @param reg     Register address, sent in the size set by config::register_address.
-     * @param order   Byte order the device sends: std::endian::big (most significant byte first)
-     *                or std::endian::little.
+     * @param order   Byte order that the device sends: std::endian::big (most significant byte
+     *                first) or std::endian::little.
      * @param timeout Maximum time to wait for completion.
      *
      * @return The value read, or an error.
      * @retval idfxx::errc::invalid_arg @p reg exceeds 0xFF on a device using one-byte register
-     *         addresses; nothing is sent.
+     *         addresses. Nothing is sent.
      *
      * @note With ESP-IDF 6.1 or later and CONFIG_I2C_ISR_IRAM_SAFE enabled, the value is received
-     *       into a buffer on the calling task's stack, which must reside in internal RAM (not
-     * PSRAM); otherwise the call fails with `idfxx::errc::invalid_arg`.
+     *       into a buffer on the calling task's stack. The stack must reside in internal RAM (not
+     *       PSRAM). Otherwise the call fails with `idfxx::errc::invalid_arg`.
      */
     template<detail::register_value T, typename Rep, typename Period>
     [[nodiscard]] result<T> try_read_register(

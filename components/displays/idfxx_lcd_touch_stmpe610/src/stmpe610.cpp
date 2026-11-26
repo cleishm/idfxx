@@ -30,7 +30,8 @@ void stmpe610::process_coordinates(
                 state->process_coordinates(x, y, strength, point_num, max_point_num);
             });
             if (!res) {
-                // An exception (already logged) drops this sample: report no touch
+                // The exception is already logged. Discard this sample and report no
+                // touch.
                 *point_num = 0;
             }
         }

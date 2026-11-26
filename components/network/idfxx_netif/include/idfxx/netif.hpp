@@ -203,8 +203,8 @@ namespace idfxx {
  * @brief Creates an unexpected error from an ESP-IDF error code, mapping to netif error codes where
  * possible.
  *
- * Converts the ESP-IDF error code to a netif-specific error code if a mapping exists,
- * otherwise falls back to the default IDFXX error category.
+ * Converts the ESP-IDF error code to a netif-specific error code if a mapping exists.
+ * Otherwise, uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.
@@ -352,8 +352,9 @@ struct dns_info {
  * @brief Options for the DHCP server, applied by interface::dhcp_server_start(const
  * dhcp_server_config&).
  *
- * Each field left as `std::nullopt` keeps the server's current setting for that option: the
- * driver's default, unless an earlier configured start changed it.
+ * Each field left as `std::nullopt` keeps the server's current setting for that option. That
+ * setting is the driver's default, unless an earlier call to
+ * interface::dhcp_server_start(const dhcp_server_config&) changed it.
  *
  * @code
  * idfxx::netif::dhcp_server_config cfg{
@@ -371,7 +372,7 @@ struct dns_info {
 struct dhcp_server_config {
     /**
      * @headerfile <idfxx/netif>
-     * @brief An inclusive range of IPv4 addresses handed out to clients.
+     * @brief An inclusive range of IPv4 addresses that the server leases to clients.
      */
     struct lease_range {
         /// First address in the range.
@@ -382,12 +383,13 @@ struct dhcp_server_config {
 
     /// Lease time offered to clients. Must be positive.
     /// The driver counts leases in units of `CONFIG_LWIP_DHCPS_LEASE_UNIT` seconds, so the time is
-    /// rounded up to a whole number of units, and the rounded time must fit in 32 bits of seconds.
+    /// rounded up to a whole number of units. The rounded time must fit in 32 bits of seconds.
     std::optional<std::chrono::seconds> lease_time = std::nullopt;
 
-    /// Addresses handed out to clients. The range must hold between 2 and 100 addresses, lie
-    /// within the interface's subnet (excluding its network and broadcast addresses) and not
-    /// include the interface's own address, which must itself be neither of those two.
+    /// Addresses that the server leases to clients. The range must hold between 2 and 100
+    /// addresses. It must lie within the interface's subnet and must not include the subnet's
+    /// network or broadcast address. It must not include the interface's own address. The
+    /// interface's own address must not be the network or broadcast address.
     std::optional<lease_range> leases = std::nullopt;
 
     /// Whether clients are offered the interface's gateway as their router.
@@ -400,8 +402,8 @@ struct dhcp_server_config {
 
     /// Captive-portal URI offered to clients (DHCP option 114, RFC 8910). Must not be empty, must
     /// not contain a null character and may be at most 247 bytes long. A URI can be replaced but
-    /// never withdrawn: once offered, the interface keeps offering it until it is destroyed. Only
-    /// an owning interface can set it.
+    /// never withdrawn. Once a URI is offered, the interface keeps offering it until the interface
+    /// is destroyed. Only an owning interface can set it.
     std::optional<std::string> captive_portal_uri = std::nullopt;
 };
 #endif
@@ -421,8 +423,8 @@ struct dhcp_server_config {
  * from idfxx::wifi::make_sta_netif()) stop any running DHCP
  * client/server and release the underlying resource on destruction.
  * Non-owning interfaces (e.g. from get_default() or find_by_key())
- * provide the same API but do not manage the lifetime — the caller
- * must ensure the underlying interface outlives the wrapper. Only an
+ * provide the same API but do not manage the lifetime. The caller
+ * must ensure that the underlying interface outlives the wrapper. Only an
  * owning interface can set a DHCP server captive-portal URI.
  *
  * @code
@@ -455,8 +457,8 @@ public:
     /**
      * @brief Constructs an owning interface from an `esp_netif_t` handle, with a custom destroy.
      *
-     * Takes ownership of the handle and, on destruction, stops its DHCP client and server and then
-     * calls @p destroy on it in place of `esp_netif_destroy`. Use this for handles whose creator
+     * Takes ownership of the handle. On destruction, stops its DHCP client and server, then calls
+     * @p destroy on it in place of `esp_netif_destroy`. Use this for handles whose creator
      * requires a matching destroy function, so that state registered alongside the handle is
      * released with it.
      *
@@ -756,13 +758,13 @@ public:
     /**
      * @brief Adds a static IPv6 neighbor cache entry.
      *
-     * Maps an IPv6 address to a fixed link-layer address, bypassing Neighbor
-     * Discovery: no Neighbor Solicitation or Advertisement is exchanged for the
+     * Maps an IPv6 address to a fixed link-layer address and bypasses Neighbor
+     * Discovery. No Neighbor Solicitation or Advertisement is exchanged for the
      * address. The entry never ages out and is never overwritten by incoming
      * advertisements. Adding an address that already has an entry updates its
      * MAC address.
      *
-     * Static entries do not survive the interface going down; add them again
+     * Static entries are lost when the interface goes down. Add them again
      * after the interface is brought back up.
      *
      * @code
@@ -802,13 +804,13 @@ public:
     /**
      * @brief Adds a static IPv6 neighbor cache entry.
      *
-     * Maps an IPv6 address to a fixed link-layer address, bypassing Neighbor
-     * Discovery: no Neighbor Solicitation or Advertisement is exchanged for the
+     * Maps an IPv6 address to a fixed link-layer address and bypasses Neighbor
+     * Discovery. No Neighbor Solicitation or Advertisement is exchanged for the
      * address. The entry never ages out and is never overwritten by incoming
      * advertisements. Adding an address that already has an entry updates its
      * MAC address.
      *
-     * Static entries do not survive the interface going down; add them again
+     * Static entries are lost when the interface goes down. Add them again
      * after the interface is brought back up.
      *
      * @param addr The neighbor's IPv6 address.
@@ -921,7 +923,7 @@ public:
      * @brief Configures and starts the DHCP server on this interface.
      *
      * Applies the options set in @p cfg, then starts the server. Options can only be changed while
-     * the server is stopped, so a server that is running is left untouched and this fails. On a
+     * the server is stopped. If the server is running, this call fails and changes nothing. On a
      * WiFi access point interface the server starts automatically, so stop it first.
      *
      * The whole configuration is checked before any option is applied. If applying an option or
@@ -941,8 +943,8 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS and CONFIG_LWIP_DHCPS are enabled.
      * @note The lease time is rounded up to a whole number of `CONFIG_LWIP_DHCPS_LEASE_UNIT`
      *       seconds.
-     * @note A captive-portal URI can be replaced but not withdrawn: once offered, the interface
-     *       keeps offering it until it is destroyed.
+     * @note A captive-portal URI can be replaced but not withdrawn. Once a URI is offered, the
+     *       interface keeps offering it until the interface is destroyed.
      * @throws std::system_error with `idfxx::errc::invalid_state` if this interface was created
      *         without the dhcp_server flag, or @p cfg sets a captive-portal URI on a non-owning
      *         interface.
@@ -975,7 +977,7 @@ public:
      * @brief Configures and starts the DHCP server on this interface.
      *
      * Applies the options set in @p cfg, then starts the server. Options can only be changed while
-     * the server is stopped, so a server that is running is left untouched and this fails. On a
+     * the server is stopped. If the server is running, this call fails and changes nothing. On a
      * WiFi access point interface the server starts automatically, so stop it first.
      *
      * The whole configuration is checked before any option is applied. If applying an option or
@@ -989,7 +991,7 @@ public:
      * @retval idfxx::errc::invalid_arg The lease time is not positive or exceeds 32 bits of
      *         seconds once rounded, or the captive-portal URI is empty, too long or contains a
      *         null character.
-     * @retval errc::dhcp_already_started The DHCP server is running; nothing was changed.
+     * @retval errc::dhcp_already_started The DHCP server is running. Nothing was changed.
      * @retval errc::invalid_params The lease range is not valid for the interface's address and
      *         netmask.
      * @retval errc::dhcps_start_failed The DHCP server failed to start.
@@ -997,8 +999,8 @@ public:
      * @note Only available when CONFIG_LWIP_DHCPS is enabled.
      * @note The lease time is rounded up to a whole number of `CONFIG_LWIP_DHCPS_LEASE_UNIT`
      *       seconds.
-     * @note A captive-portal URI can be replaced but not withdrawn: once offered, the interface
-     *       keeps offering it until it is destroyed.
+     * @note A captive-portal URI can be replaced but not withdrawn. Once a URI is offered, the
+     *       interface keeps offering it until the interface is destroyed.
      */
     [[nodiscard]] result<void> try_dhcp_server_start(const dhcp_server_config& cfg);
 
@@ -1079,8 +1081,9 @@ private:
     esp_netif_t* _handle = nullptr;
     destroy_fn _destroy = nullptr;
 #ifdef CONFIG_LWIP_DHCPS
-    // The DHCP server keeps a pointer to the captive-portal URI until the handle is destroyed, so
-    // the URI lives on the heap (its address survives moves) and is freed only after _release().
+    // The DHCP server keeps a pointer to the captive-portal URI until the handle is destroyed. The
+    // URI is therefore stored on the heap, so that its address does not change when the interface
+    // is moved. It is freed only after _release().
     std::unique_ptr<char[]> _captive_portal_uri;
 #endif
 };

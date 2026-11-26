@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_font_inter
-// Pure font-data checks — runs everywhere, including QEMU.
+// Pure font-data checks. They run everywhere, including QEMU.
 
 #include "idfxx/font/inter"
 #include "unity.h"
@@ -117,7 +117,7 @@ TEST_CASE("inter fonts cover accents and typographic punctuation", "[idfxx][font
             TEST_ASSERT_NOT_NULL_MESSAGE(g, "Windows-1252 glyph missing");
             TEST_ASSERT_TRUE(has_ink(*font, *g));
         }
-        // The soft hyphen has no glyph; text measurement ignores it.
+        // The soft hyphen has no glyph. Text measurement ignores it.
         TEST_ASSERT_FALSE(font->contains(U'\u00AD'));
         TEST_ASSERT_EQUAL(text_width(*font, "inter"), text_width(*font, "in\xC2\xAD" "ter"));
     }
@@ -156,7 +156,7 @@ TEST_CASE("inter fonts' ink extents bound every glyph exactly", "[idfxx][font]")
             left = std::min(left, left_bearing);
             right = std::min(right, right_bearing);
         }
-        // The replacement is drawn for every uncovered code point; it must be bounded too.
+        // The replacement is drawn for every uncovered code point. It must be bounded too.
         const glyph_metrics& r = *font->replacement;
         TEST_ASSERT_LESS_OR_EQUAL(font->ink_ascent, -r.y_offset);
         TEST_ASSERT_LESS_OR_EQUAL(font->ink_descent, r.y_offset + r.height);

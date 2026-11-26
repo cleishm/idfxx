@@ -19,7 +19,7 @@ The example uses the exception-based API (`CONFIG_COMPILER_CXX_EXCEPTIONS=y` in
 - A quadrature rotary encoder
 
 Connect the encoder's A output (often labeled CLK) to GPIO 4, its B output (often labeled DT) to
-GPIO 5, and its common pin to GND. The example enables the internal pull-ups on both pins; external
+GPIO 5, and its common pin to GND. The example enables the internal pull-ups on both pins. External
 pull-up resistors to 3.3 V give more reliable readings. If the encoder turns the wrong way, swap the
 two pins. To use different pins, change `pin_a` and `pin_b` in `main/main.cpp`.
 

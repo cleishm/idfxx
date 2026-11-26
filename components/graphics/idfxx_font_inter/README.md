@@ -12,10 +12,11 @@ font data.
 - `inter_medium_16`, `inter_medium_24`, `inter_medium_32`, `inter_medium_48` — Inter 4.1 Medium at
   the same sizes, a heavier weight for small text
 - Covers Windows-1252: printable ASCII, Latin-1 accented letters and symbols, and typographic
-  punctuation (curly quotes, en and em dashes, ellipsis, bullet, `€`, `™`); other code points are
+  punctuation (curly quotes, en and em dashes, ellipsis, bullet, `€`, `™`). Other code points are
   drawn as `?`
 - UTF-8 text, measured with `idfxx::font::text_width` and drawn with `idfxx::gfx::draw_text`
-- One translation unit per font, so sizes an application never references are dropped at link time
+- One translation unit per font, so sizes that an application never references are dropped at link
+  time
 
 ## Requirements
 
@@ -64,24 +65,24 @@ canvas.draw_text(body, 8, y, "Today — 18 °C", white);
 | `idfxx::font::inter_medium_32` | 32 px | 39 px | 14.3 KB | Medium headings. |
 | `idfxx::font::inter_medium_48` | 48 px | 59 px | 26.3 KB | Medium large headings and readouts. |
 
-Sizes are em sizes; capitals are roughly three quarters of the size tall.
+Sizes are em sizes. Capitals are roughly three quarters of the size tall.
 
 ## Important Notes
 
 - At 16 px, Regular's stems are 1 px wide, which can look faint on low-resolution or ePaper
-  displays; `inter_medium_16` has 2 px stems.
-- Text is drawn with the line's top-left corner at the given position; the baseline sits `ascent`
+  displays. `inter_medium_16` has 2 px stems.
+- Text is drawn with the line's top-left corner at the given position. The baseline is `ascent`
   rows below it. Step lines by `line_height`.
-- Some ink reaches past the line: accents on capitals rise above its top edge at the larger sizes,
-  and a few glyphs extend up to three columns left of the pen or past their advance. Each font's
-  `ink_ascent`, `ink_descent`, `min_left_bearing` and `min_right_bearing` give the room to leave
-  around text that must show in full (see `idfxx_font`).
+- Some ink extends past the line. At the larger sizes, accents on capitals rise above its top edge.
+  A few glyphs extend up to three columns left of the pen or past their advance. Each font's
+  `ink_ascent`, `ink_descent`, `min_left_bearing` and `min_right_bearing` give the space to leave
+  around text that must be fully visible (see `idfxx_font`).
 - The fonts are generated from `fonts/Inter-Regular.ttf` and `fonts/Inter-Medium.ttf` with
-  `idfxx_font`'s `scripts/ttf_to_c.py`, using FreeType's auto-hinter (`--hinting auto`) so each
-  glyph's stems come out the same width. The TTFs are kept in the idfxx repository, not in the
-  published package; there, `just gen-font-inter` regenerates them (set `IDFXX_FONT_PYTHON` to a
-  Python with `freetype-py`). For other sizes, weights or character sets, generate your own with
-  `idfxx_font_generate()` (see `idfxx_font`).
+  `idfxx_font`'s `scripts/ttf_to_c.py`, using FreeType's auto-hinter (`--hinting auto`) so that
+  each glyph's stems are the same width. The TTFs are kept in the idfxx repository, not in the
+  published package. In the repository, `just gen-font-inter` regenerates the fonts (set
+  `IDFXX_FONT_PYTHON` to a Python with `freetype-py`). For other sizes, weights or character
+  sets, generate your own with `idfxx_font_generate()` (see `idfxx_font`).
 - Inter is Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter).
 
 ## License

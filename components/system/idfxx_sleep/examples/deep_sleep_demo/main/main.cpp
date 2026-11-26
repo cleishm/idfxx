@@ -4,8 +4,8 @@
 //
 // Each boot reports why the chip woke, then deep-sleeps for up to 30 seconds
 // with a button armed as a wake-up pin. Waking from deep sleep restarts the
-// application from the beginning — only RTC memory survives, demonstrated here
-// with a boot counter.
+// application from the beginning. Only RTC memory survives. The boot counter
+// shows this.
 
 #include <idfxx/gpio>
 #include <idfxx/log>
@@ -18,11 +18,12 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"deepsleep"};
 
-// Button pulled low while pressed. On the ESP32-H2, the BOOT button's GPIO 9
-// is among the pins that can wake it from deep sleep (GPIO 7-14), but GPIO 0
-// isn't. Elsewhere, GPIO 0 can wake the chip: it is the BOOT button on the
-// ESP32, ESP32-S2 and ESP32-S3, while the ESP32-C3 and ESP32-C6 need a button
-// wired to it because their BOOT button (GPIO 9) can't wake them.
+// Button pulled low while pressed. On the ESP32-H2, the pins that can wake the
+// chip from deep sleep are GPIO 7-14. The BOOT button's GPIO 9 is one of them,
+// but GPIO 0 is not. On the other chips, GPIO 0 can wake the chip. It is the
+// BOOT button on the ESP32, ESP32-S2 and ESP32-S3. The ESP32-C3 and ESP32-C6
+// need a button wired to GPIO 0, because their BOOT button (GPIO 9) can't wake
+// them.
 #if CONFIG_IDF_TARGET_ESP32H2
 static constexpr auto WAKE_PIN = idfxx::gpio_9;
 #else
@@ -32,7 +33,7 @@ static constexpr auto WAKE_PIN = idfxx::gpio_0;
 // Maximum time to stay in deep sleep before the timer wakes the chip.
 static constexpr auto SLEEP_INTERVAL = 30s;
 
-// Survives deep sleep in RTC memory; lost on any other reset.
+// Kept in RTC memory, which survives deep sleep. Lost on any other reset.
 RTC_DATA_ATTR static int boot_count = 0;
 
 extern "C" void app_main() {
@@ -78,7 +79,7 @@ extern "C" void app_main() {
 #elif SOC_PM_SUPPORT_EXT1_WAKEUP
     // The BOOT button has an external pull-up, so the pin idles high and a
     // press pulls it low. The original ESP32 only offers an all-pins-low
-    // trigger; every other EXT1 chip offers any-pin-low. With a single wake pin
+    // trigger. Every other EXT1 chip offers any-pin-low. With a single wake pin
     // the two are equivalent.
 #if CONFIG_IDF_TARGET_ESP32
     constexpr auto ext1_low = idfxx::sleep::ext1_mode::all_low;

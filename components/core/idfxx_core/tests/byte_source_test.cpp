@@ -52,11 +52,11 @@ struct span_byte_source {
 static_assert(byte_source<memory_source>);
 static_assert(byte_source<file_source>);
 
-// So do user-defined sources taking either span flavor
+// User-defined sources that take either span type also model byte_source
 static_assert(byte_source<span_u8_source>);
 static_assert(byte_source<span_byte_source>);
 
-// Types without a matching try_read do not
+// Types without a matching try_read do not model byte_source
 static_assert(!byte_source<int>);
 static_assert(!byte_source<wrong_return_source>);
 static_assert(!byte_source<wrong_buffer_source>);
@@ -140,8 +140,8 @@ FILE* open_test_file() {
     return f;
 }
 
-// Bytes a failing stream delivers before its reads start failing, and the
-// errno those failing reads set (0 sets none).
+// Bytes that a failing stream delivers before its reads start failing, and the
+// errno that those failing reads set (0 sets no errno).
 struct failing_stream {
     std::span<const uint8_t> good;
     int error = EIO;
@@ -264,7 +264,7 @@ TEST_CASE("memory_source copies read independently", "[idfxx][byte_source]") {
     TEST_ASSERT_EQUAL(7, a.remaining());
     TEST_ASSERT_EQUAL(4, b.remaining());
 
-    // a resumes from where it was copied, not from where b got to
+    // a resumes from the position where it was copied, not from b's position
     auto n = a.try_read(buf);
     TEST_ASSERT_TRUE(n.has_value());
     TEST_ASSERT_EQUAL(3, *n);
@@ -396,7 +396,7 @@ TEST_CASE("file_source returns bytes read before an error, then the error", "[id
     FILE* f = open_failing_file(s);
     file_source src{f};
 
-    // The error cuts the read short; the bytes before it are returned
+    // The error makes the read short. The bytes before it are returned
     std::array<uint8_t, 8> buf{};
     auto n = src.try_read(buf);
     TEST_ASSERT_TRUE(n.has_value());

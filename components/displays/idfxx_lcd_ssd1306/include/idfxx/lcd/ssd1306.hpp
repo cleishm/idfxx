@@ -29,21 +29,21 @@ namespace idfxx::lcd {
  * @brief SSD1306 monochrome OLED display controller driver.
  *
  * Driver for SSD1306-based OLED displays (128x64 or 128x32, 1 bit per pixel).
- * The display starts off; call display_on(true) after construction to make
+ * The display starts off. Call display_on(true) after construction to make
  * output visible.
  *
  * Pixel data for draw_bitmap must be page-packed: each byte holds 8
  * vertically adjacent pixels (bit 0 topmost), and pages (rows of 8 pixels)
  * are laid out top-to-bottom. Row coordinates passed to draw_bitmap must be
- * page-aligned (multiples of 8), and the data holds one byte per column per
- * page: `(x_end - x_start) * (y_end - y_start) / 8` bytes.
+ * page-aligned (multiples of 8). The data holds one byte per column per page:
+ * `(x_end - x_start) * (y_end - y_start) / 8` bytes.
  * `idfxx::lcd::mono_framebuffer` produces this layout directly.
  *
- * While the axes are swapped by swap_xy, the pages run along x instead: the
- * column coordinates passed to draw_bitmap must then be page-aligned, and the
+ * While the axes are swapped by swap_xy, the pages run along x instead. The
+ * column coordinates passed to draw_bitmap must then be page-aligned. The
  * data size is unchanged. draw_bitmap fails with `idfxx::errc::invalid_arg`
  * when the coordinates along the page axis are not multiples of 8. Writing a
- * `mono_framebuffer` needs the axes unswapped; while they are swapped, the
+ * `mono_framebuffer` needs the axes unswapped. While they are swapped, the
  * write fails with `idfxx::errc::invalid_state`.
  */
 class ssd1306 : public panel {
@@ -71,12 +71,12 @@ public:
     /**
      * @brief Returns a panel I/O configuration for communicating with an SSD1306 over I2C.
      *
-     * Fills in the I2C framing the SSD1306 controller requires (a one-byte control
+     * Fills in the I2C framing that the SSD1306 controller requires (a one-byte control
      * phase with the D/C selection in bit 6, and 8-bit commands and parameters), so
      * only the wiring-specific values are parameters.
      *
-     * @param device_address The panel's 7-bit I2C address. Most modules use 0x3C;
-     *                       some are strapped to 0x3D.
+     * @param device_address The panel's 7-bit I2C address. Most modules use 0x3C.
+     *                       Some are strapped to 0x3D.
      * @param scl_speed      The I2C SCL frequency. The SSD1306 supports up to 400 kHz.
      *
      * @return A panel_io::i2c_config ready to construct a panel_io.
@@ -125,8 +125,8 @@ public:
     /**
      * @brief Sets the display contrast (SSD1306 "Set Contrast Control", command 0x81).
      *
-     * The controller powers on with contrast 0x7F. Lower values dim the panel;
-     * dimming also slows OLED burn-in on mostly-static content.
+     * The controller powers on with contrast 0x7F. Lower values dim the panel.
+     * Dimming also slows OLED burn-in on mostly-static content.
      *
      * @param level Contrast level, 0x00 (dimmest) to 0xFF (brightest).
      *
@@ -139,8 +139,8 @@ public:
     /**
      * @brief Sets the display contrast (SSD1306 "Set Contrast Control", command 0x81).
      *
-     * The controller powers on with contrast 0x7F. Lower values dim the panel;
-     * dimming also slows OLED burn-in on mostly-static content.
+     * The controller powers on with contrast 0x7F. Lower values dim the panel.
+     * Dimming also slows OLED burn-in on mostly-static content.
      *
      * @param level Contrast level, 0x00 (dimmest) to 0xFF (brightest).
      *

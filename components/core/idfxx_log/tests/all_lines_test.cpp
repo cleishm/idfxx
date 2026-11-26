@@ -119,7 +119,7 @@ void remove_order_sinks() {
 }
 
 // A task that runs `step` once, then waits until it is told to end, so that its handle isn't reused
-// in the meantime.
+// before then.
 struct held_task {
     TaskHandle_t handle = nullptr;
     TaskHandle_t waiter = nullptr;
@@ -523,7 +523,7 @@ TEST_CASE("log all-lines sink takes a v2 line's format as its message", "[idfxx]
         "sk_v2m",
         "sk dropped binary"
     );
-    // The next legacy line is handled as a new line.
+    // The next esp_log_write call starts a new line.
     esp_log_write(ESP_LOG_WARN, "sk_v1n", "W (%d) %s: %s\n", 3, "sk_v1n", "next");
 
     TEST_ASSERT_TRUE(s_all.has(level::error, "sk_v2m", "W (1) sk_v2m: x"));
@@ -538,7 +538,8 @@ TEST_CASE("log all-lines sink cuts a line's first call through its tag", "[idfxx
     esp_log_write(ESP_LOG_WARN, "sk_first", "W (%d) %s: %s\n", 1, "sk_first", "sk_first: again");
     // A first call without "<tag>:" is kept in full.
     esp_log_write(ESP_LOG_ERROR, "sk_raw", "sk raw text %d\n", 2);
-    // A line without a prefix, whose message contains "<tag>:", loses the text before the tag.
+    // In a line without a prefix, whose message contains "<tag>:", the text before the tag is
+    // removed.
     esp_log_write(ESP_LOG_ERROR, "sk_lose", "sk lost sk_lose: sk rest\n");
     // Nothing is removed from a call in the middle of a line.
     esp_log_write(ESP_LOG_WARN, "sk_mid", "%c (%d) %s:", 'W', 3, "sk_mid");
@@ -588,7 +589,7 @@ TEST_CASE("log all-lines sink: a v2 line replaces a line left partway", "[idfxx]
         "sk v2 whole %d",
         1
     );
-    // The next legacy line is handled as a new line.
+    // The next esp_log_write call starts a new line.
     esp_log_write(ESP_LOG_WARN, "sk_part", "W (%d) %s: sk after\n", 2, "sk_part");
 
     TEST_ASSERT_FALSE(s_all.containing("sk never ended"));
@@ -655,8 +656,8 @@ TEST_CASE("log all-lines sink: an idfxx::log line leaves a line partway as it is
 
 TEST_CASE("log all-lines sink is given a line without a tag", "[idfxx][log]") {
     add_all_lines(s_untagged);
-    // For a line without a tag, the text up to and including "(null):" is removed, because its
-    // prefix prints a missing tag as "(null)". A line without "(null):" is kept in full.
+    // For a line without a tag, the text up to and including "(null):" is removed, because a
+    // missing tag is printed as "(null)" in its prefix. A line without "(null):" is kept in full.
     esp_log_write(ESP_LOG_WARN, nullptr, "W (%d) x: sk null write %d\n", 1, 2);
     esp_log_write(ESP_LOG_WARN, nullptr, "W (%d) %s: sk null prefix %d\n", 5, "(null)", 6);
     // With an empty tag, no prefix is found, so the sink receives the line with its prefix.
@@ -817,7 +818,7 @@ TEST_CASE("log all-lines sink is given a message's own newlines", "[idfxx][log]"
 }
 
 // =============================================================================
-// The console and the lines it skips
+// The console and the lines that it skips
 // =============================================================================
 
 TEST_CASE("log all-lines sink takes lines whatever vprintf is installed", "[idfxx][log]") {

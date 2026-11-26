@@ -43,7 +43,8 @@ extern "C" void app_main() {
         idfxx::net::listener srv(ECHO_PORT);
         logger.info("Echo server on {}:{} -- try: nc {} {}", my_ip, ECHO_PORT, my_ip, ECHO_PORT);
 
-        // Single client at a time; spawn a task per accept for concurrency.
+        // This serves a single client at a time. To serve clients concurrently, spawn a
+        // task per accept.
         while (true) {
             auto [client, peer] = srv.accept_with_peer();
             logger.info("Accepted {}", peer);
@@ -69,9 +70,9 @@ extern "C" void app_main() {
 
 namespace {
 
-// Brings up the WiFi STA, blocks until DHCP assigns an IPv4 address, and
-// registers an auto-reconnect listener for the rest of the program's lifetime.
-// Returns the assigned address. Call once.
+// Starts the Wi-Fi station (STA) and blocks until DHCP assigns an IPv4 address.
+// Also registers a listener that reconnects automatically for the rest of the
+// program's lifetime. Returns the assigned address. Call once.
 idfxx::net::ipv4_addr connect_to_wifi() {
     idfxx::event_loop::create_system();
     idfxx::netif::init();
@@ -90,8 +91,8 @@ idfxx::net::ipv4_addr connect_to_wifi() {
     loop.listener_add(
         idfxx::wifi::sta_disconnected, [](const idfxx::wifi::disconnected_event_data& info) {
             logger.warn("Disconnected (reason: {}), reconnecting...", info.reason);
-            // Listener runs in the event-loop trampoline (C frame); exceptions
-            // must not escape, so suppress at this boundary.
+            // The listener runs in the event-loop trampoline (a C frame).
+            // Exceptions must not escape it, so catch them at this boundary.
             try {
                 idfxx::wifi::connect();
             } catch (const std::system_error& e) {

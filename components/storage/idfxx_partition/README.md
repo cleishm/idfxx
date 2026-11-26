@@ -119,8 +119,8 @@ for (unsigned i = 0; i < 16; ++i) {
 
 ### Sequential Reading
 
-`partition_source` reads a partition — or a byte range of it — from start to end, and works with any
-code written against `idfxx::byte_source`:
+`partition_source` reads a whole partition, or a byte range of it, from start to end. It works with
+any code that is written for `idfxx::byte_source`:
 
 ```cpp
 #include <idfxx/partition>
@@ -207,12 +207,12 @@ The component provides two API styles:
 Models `idfxx::byte_source`.
 
 - `partition_source(part)` - Read the whole partition
-- `partition_source(part, offset, length)` - Read a byte range (exception-based; throws on an
-  out-of-range window)
+- `partition_source(part, offset, length)` - Read a byte range (exception-based). Throws if the
+  range extends past the end of the partition
 - `partition_source::make(part, offset, length)` → `result<partition_source>` - Read a byte range
 - `remaining()` → `size_t` - Bytes left in the range
 - `read(byte_span)` → `size_t` / `try_read(byte_span)` → `result<size_t>` - Read
-  the next bytes, with decryption; 0 at the end of the range
+  the next bytes, with decryption. Returns 0 at the end of the range
 
 ## Error Handling
 
@@ -220,8 +220,8 @@ Uses standard `idfxx::errc` error codes:
 
 - `not_found` - No partition matches the search criteria
 - `invalid_state` - Operation on a null partition
-- `invalid_arg` - Invalid offset, size, or alignment; a `partition_source` range that extends past
-  the end of the partition
+- `invalid_arg` - Invalid offset, size, or alignment, or a `partition_source` range that extends
+  past the end of the partition
 - `invalid_size` - Size exceeds partition bounds
 - `not_allowed` - Write to a read-only partition
 

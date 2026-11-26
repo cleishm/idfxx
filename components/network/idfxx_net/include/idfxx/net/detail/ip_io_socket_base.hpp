@@ -8,7 +8,7 @@
 // datagram, raw). Adds `connect`, `peer_endpoint`, `recv`, the send-side
 // timeout/buffer options, and `wait_writable` on top of `ip_socket_base`.
 //
-// `listener` inherits `ip_socket_base` directly and so does not pick up any of
+// `listener` inherits `ip_socket_base` directly and so does not have any of
 // these members.
 
 #include "sdkconfig.h"
@@ -28,7 +28,7 @@ class ip_io_socket_base : public ip_socket_base {
 public:
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Returns the remote endpoint this socket is connected to.
+     * @brief Returns the remote endpoint that this socket is connected to.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
      * @throws std::system_error if the socket is not connected or on other failure.
@@ -69,9 +69,9 @@ public:
      * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
      * the call returns immediately when no data is available.
      *
-     * An empty @p buf returns an empty view at once without receiving
-     * anything, so it cannot detect peer close; pass a non-empty buffer for
-     * that.
+     * For an empty @p buf, the call returns an empty view at once without
+     * receiving anything. Such a call cannot detect that the peer closed the
+     * connection. Pass a non-empty buffer to detect it.
      *
      * @param buf Buffer to receive into.
      *
@@ -94,14 +94,14 @@ public:
      * receive timeout set by `set_recv_timeout` expires. In non-blocking mode
      * the call returns immediately when no data is available.
      *
-     * An empty @p buf returns an empty view at once without receiving
-     * anything, so it cannot detect peer close; pass a non-empty buffer for
-     * that.
+     * For an empty @p buf, the call returns an empty view at once without
+     * receiving anything. Such a call cannot detect that the peer closed the
+     * connection. Pass a non-empty buffer to detect it.
      *
      * @param buf Buffer to receive into.
-     * @return View of the bytes received, at the start of @p buf (for a
-     *         non-empty @p buf, an empty view indicates the peer closed the
-     *         connection), or an error.
+     * @return View of the bytes received, at the start of @p buf, or an error.
+     *         For a non-empty @p buf, an empty view indicates the peer closed the
+     *         connection.
      * @retval errc::timed_out The receive timeout expired before any data arrived.
      * @retval errc::operation_would_block The socket is non-blocking and no data
      *         is available.
@@ -112,13 +112,13 @@ public:
      * @brief Sets the kernel send buffer size in bytes. Equivalent to the POSIX
      *        `SO_SNDBUF` socket option.
      *
-     * @param bytes Buffer size in bytes. Effectively capped at `INT_MAX`; larger values
-     *              are clamped — the buffer will be allocated up to that cap.
+     * @param bytes Buffer size in bytes. Values larger than `INT_MAX` are clamped to
+     *              `INT_MAX`. The buffer is allocated up to that limit.
      */
     void set_send_buffer(size_t bytes) noexcept;
 
     /**
-     * @brief Sets the maximum time `send` will block waiting for buffer space; on expiry
+     * @brief Sets the maximum time `send` will block waiting for buffer space. On expiry,
      *        the call fails with `errc::timed_out`. Equivalent to the POSIX `SO_SNDTIMEO`
      *        socket option. Sub-millisecond resolutions are rounded up. Has no effect
      *        in non-blocking mode, where `send` fails immediately with
@@ -133,12 +133,12 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Waits until the socket is writable or the timeout fires.
+     * @brief Waits until the socket is writable or the timeout expires.
      *
      * @param timeout Maximum time to wait. Sub-millisecond resolutions are rounded up.
      *
      * @note Only available when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
-     * @throws std::system_error if the timeout fires or on other failure.
+     * @throws std::system_error if the timeout expires or on other failure.
      */
     template<typename Rep, typename Period>
     void wait_writable(const std::chrono::duration<Rep, Period>& timeout) {
@@ -147,7 +147,7 @@ public:
 #endif
 
     /**
-     * @brief Waits until the socket is writable or the timeout fires.
+     * @brief Waits until the socket is writable or the timeout expires.
      *
      * @param timeout Maximum time to wait. Sub-millisecond resolutions are rounded up.
      * @return Success when writable, `errc::timed_out` when not.

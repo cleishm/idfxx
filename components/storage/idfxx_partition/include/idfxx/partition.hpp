@@ -131,9 +131,9 @@ public:
          * @brief Block flash erase and program operations until the mapping is released.
          *
          * While the mapping is held, flash writes and erases wait instead of disabling the
-         * cache. Suited to read-only mappings that are short-lived and where no flash erase
-         * or program happens before the mapping is released; otherwise those operations
-         * stall until then.
+         * cache. Use it for read-only mappings that are short-lived, where no flash erase or
+         * program operation happens before the mapping is released. Otherwise, those operations
+         * wait until the mapping is released.
          *
          * @note Only available on ESP-IDF 6.1 and later.
          */
@@ -282,7 +282,7 @@ public:
      * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Buffer to read into; its size is the number of bytes read.
+     * @param dst    Buffer to read into. Its size is the number of bytes read.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -306,7 +306,7 @@ public:
      * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Buffer to read into; its size is the number of bytes read.
+     * @param dst    Buffer to read into. Its size is the number of bytes read.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -408,7 +408,7 @@ public:
      * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Buffer to read into; its size is the number of bytes read.
+     * @param dst    Buffer to read into. Its size is the number of bytes read.
      *
      * @return Success, or an error.
      */
@@ -430,7 +430,7 @@ public:
      * Fills the whole of @p dst.
      *
      * @param offset Byte offset within the partition.
-     * @param dst    Buffer to read into; its size is the number of bytes read.
+     * @param dst    Buffer to read into. Its size is the number of bytes read.
      *
      * @return Success, or an error.
      */
@@ -573,7 +573,8 @@ public:
     /**
      * @brief Returns the mapped memory region as a read-only byte view.
      *
-     * @return A view covering the whole mapped region; empty if this handle has no mapping.
+     * @return A view that covers the whole mapped region. The view is empty if this handle has
+     *         no mapping.
      */
     [[nodiscard]] idfxx::byte_view bytes() const noexcept { return idfxx::byte_view{_ptr, _size}; }
 
@@ -631,12 +632,11 @@ partition::mmap(size_t offset, size_t size, enum mmap_memory memory) const {
  * @headerfile <idfxx/partition>
  * @brief A byte source that reads a partition's contents sequentially.
  *
- * Reads a range of a partition — the whole partition, or a byte range within
- * it — from start to end, decrypting if the partition is encrypted. Models
- * `idfxx::byte_source`, so it can be passed to any code that consumes a byte
- * stream.
+ * Reads the whole partition, or a byte range within it, from start to end. The
+ * data is decrypted if the partition is encrypted. Models `idfxx::byte_source`,
+ * so it can be passed to any code that consumes a byte stream.
  *
- * Sources are copyable; a copy reads independently from the same position.
+ * Sources are copyable. A copy reads independently from the same position.
  *
  * @code
  * auto part = idfxx::partition::find("storage");
@@ -700,14 +700,14 @@ public:
     /**
      * @brief Reads the next bytes into a buffer.
      *
-     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf,
-     * decrypting if the partition is encrypted, and advances past them. If
-     * the read fails, the position is unchanged.
+     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf and
+     * advances the position past them. The data is decrypted if the partition
+     * is encrypted. If the read fails, the position is unchanged.
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf once the end
-     *         of the range has been reached.
+     * @return The number of bytes read. This is 0 for a non-empty @p buf once
+     *         the end of the range has been reached.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if the flash read fails.
@@ -718,21 +718,21 @@ public:
     /**
      * @brief Reads the next bytes into a buffer.
      *
-     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf,
-     * decrypting if the partition is encrypted, and advances past them. If
-     * the read fails, the position is unchanged.
+     * Reads `min(buf.size(), remaining())` bytes into the front of @p buf and
+     * advances the position past them. The data is decrypted if the partition
+     * is encrypted. If the read fails, the position is unchanged.
      *
      * @param buf Buffer to read into.
      *
-     * @return The number of bytes read; 0 for a non-empty @p buf once the end
-     *         of the range has been reached. If the flash read fails, its
-     *         error, as returned by partition::try_read.
+     * @return The number of bytes read. This is 0 for a non-empty @p buf once
+     *         the end of the range has been reached. If the flash read fails,
+     *         the error that partition::try_read returns.
      */
     [[nodiscard]] result<size_t> try_read(byte_span buf);
 
 private:
-    // Takes the range first so it cannot be confused with the public
-    // (part, offset, length) constructor: begin and end are absolute offsets.
+    // Takes the range first so that it cannot be confused with the public
+    // (part, offset, length) constructor. Here, begin and end are absolute offsets.
     partition_source(size_t begin, size_t end, const partition& part) noexcept
         : _part(part)
         , _pos(begin)

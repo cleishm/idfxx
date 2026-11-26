@@ -5,9 +5,10 @@
 // Uses ESP-IDF Unity test framework with compile-time static_asserts
 //
 // The expected output is computed independently: the source goes through the
-// library's own resampler and converter directly, and a recording panel keeps the
-// bytes that reach it. Targets are small, as QEMU has no PSRAM, but the panels
-// have the calibrations' full sizes: they hold what they are given, not a frame.
+// library's own resampler and converter directly. A recording panel keeps the
+// bytes that are written to it. Targets are small, because QEMU has no PSRAM, but
+// the panels have the calibrations' full sizes. They store only what they are
+// given, not a whole frame.
 
 #include "../../../graphics/idfxx_jpeg/tests/jpeg_test_images.hpp"
 
@@ -261,7 +262,7 @@ panel_kind gray4_panel() {
     return all_panels()[2];
 }
 
-// The panel a built-in calibration is for.
+// The panel that a built-in calibration is for.
 capture_panel full_size_panel(const panel_kind& kind) {
     return capture_panel(kind.cal->width(), kind.cal->height(), kind.mode);
 }
@@ -510,7 +511,7 @@ static_assert(!std::is_default_constructible_v<epaper::rendering_intent>);
 static_assert(std::is_copy_constructible_v<epaper::calibration>);
 static_assert(std::is_copy_assignable_v<epaper::calibration>);
 
-// Framebuffers and views of them are surfaces; panels are not.
+// Framebuffers and views of them are surfaces. Panels are not.
 static_assert(epaper::detail::image_surface<epaper::mono_framebuffer>);
 static_assert(epaper::detail::image_surface<epaper::gray4_framebuffer>);
 static_assert(epaper::detail::image_surface<epaper::color6_framebuffer>);
@@ -676,7 +677,8 @@ TEST_CASE("calibration::try_preset finds the panel's presets by name", "[epaper_
         TEST_ASSERT_TRUE(kind.cal->try_preset("").error() == errc::not_found);
     }
 
-    // Presets are the panel's own: Bright is a color panel's. Names ignore ASCII case, but not a trailing NUL.
+    // Presets are the panel's own: Bright is a color panel's. Name matching ignores ASCII case,
+    // but not a trailing NUL.
     const auto& color = epaper::calibration::el133uf1();
     const auto bright = color.try_preset("Bright");
     TEST_ASSERT_TRUE(bright.has_value());
@@ -852,7 +854,8 @@ TEST_CASE("calibration::id is the library panel's", "[epaper_image]") {
     TEST_ASSERT_TRUE(epaper::calibration::gdey075t7_mono().id() != epaper::calibration::gdey075t7_gray4().id());
     TEST_ASSERT_TRUE(epaper::calibration::gdey075t7_mono().id() != epaper::calibration::el133uf1().id());
 
-    // A panel the library builds has one, which changes with the measured levels but not the name.
+    // A panel that the library builds has one. It changes with the measured levels but not with
+    // the name.
     const auto four = make_gray_panel(four_levels, 16, 16);
     TEST_ASSERT_EQUAL_INT(EPI_OK, four.status);
     const auto four_id = epaper::calibration::make(*four.panel)->id();
@@ -1062,7 +1065,7 @@ TEST_CASE("epaper write_image maps gray4 ink codes to levels and planes", "[epap
         }
     }
 
-    // A black picture and a white one come out with the extreme levels.
+    // A black picture and a white one produce the extreme levels.
     auto levels = [&](image::rgb888 color, epaper::gray4 level) {
         auto out = make_framebuffer<epaper::gray4_framebuffer>(w, h);
         fake_decoder decoder(flat(w, h, color));
@@ -1154,7 +1157,7 @@ void check_framebuffer_matches_stream() {
         TEST_ASSERT_TRUE(epaper::try_write_image(fb, *kind.cal, decoder, base).has_value());
         assert_bytes_equal(display.bytes(), framebuffer_bytes(fb));
 
-        // And it reaches a panel as the panel's own write sends it.
+        // And the panel receives the same bytes that the panel's own write sends for it.
         capture_panel again(w, h, kind.mode);
         TEST_ASSERT_TRUE(again.try_write(fb).has_value());
         assert_bytes_equal(display.bytes(), again.bytes());
@@ -1193,7 +1196,7 @@ void check_canvas_window() {
     fake_decoder plain(source());
     TEST_ASSERT_TRUE(epaper::try_write_image(expected, *kind.cal, plain).has_value());
 
-    // A window into a larger framebuffer, which is left alone around it.
+    // A window into a larger framebuffer, which is left unchanged around it.
     auto fb = make_framebuffer<Framebuffer>(w + 20, h + 12);
     fb.fill(mark<Framebuffer>());
     gfx::canvas whole(fb);
@@ -1635,7 +1638,7 @@ TEST_CASE("epaper write_image memory_limit bounds the renderer, the converter an
     const image::placement where{.target = image::rect{.x = 0, .y = 0, .width = 32, .height = 16}};
     const auto kind = color6_panel();
 
-    // The smallest limit, to the nearest 64 bytes, that lets a band of this height through.
+    // The smallest limit, to the nearest 64 bytes, at which a band of this height is accepted.
     const auto smallest_limit = [&](size_t band_rows) {
         for (size_t limit = 0; limit < 1024 * 1024; limit += 64) {
             auto display = full_size_panel(kind);
@@ -1699,7 +1702,7 @@ TEST_CASE("epaper write_image memory_limit bounds the renderer, the converter an
     TEST_ASSERT_EQUAL_UINT32(smallest_surface_limit(1), smallest_surface_limit(16));
     TEST_ASSERT_LESS_THAN_UINT32(one_row, smallest_surface_limit(16));
 
-    // A turned picture holds a frame, counted by the renderer.
+    // A turned picture needs a frame, which the renderer counts.
     fake_decoder turned(source(), image::orientation::rotate_90);
     TEST_ASSERT_TRUE(
         epaper::try_write_image(

@@ -13,8 +13,8 @@
  *
  * Provides PWM output management with lightweight timer identifiers and
  * RAII-managed output bindings. Timers are fixed hardware resources configured
- * via methods; outputs bind a timer, channel, and GPIO pin into an active
- * PWM signal with automatic cleanup on destruction.
+ * via methods. An output binds a timer, channel, and GPIO pin into an active
+ * PWM signal, with automatic cleanup on destruction.
  *
  * Depends on @ref idfxx_core for error handling, @ref idfxx_gpio for pin
  * identifiers, and @ref idfxx_hw_support for interrupt allocation types.
@@ -84,8 +84,8 @@ enum class channel : int {
  * @headerfile <idfxx/pwm>
  * @brief PWM timer clock source.
  *
- * Selects the clock source for the timer. The default `auto_select` lets
- * the driver choose the best source for the requested frequency.
+ * Selects the clock source for the timer. With the default, `auto_select`,
+ * the driver chooses the best source for the requested frequency.
  */
 enum class clk_source : int {
     auto_select = 0, ///< Automatic clock source selection
@@ -108,7 +108,7 @@ enum class clk_source : int {
  * @brief Fade operation blocking mode.
  */
 enum class fade_mode : int {
-    no_wait = 0, ///< Return immediately, fade runs in background
+    no_wait = 0, ///< Return immediately while the fade runs in the background
     wait_done,   ///< Block until the fade completes
 };
 
@@ -265,8 +265,8 @@ public:
     /**
      * @brief Returns true if the timer has been configured.
      *
-     * This reflects global state — any copy of the same timer identifier
-     * will see the same configured status.
+     * This reflects global state. Every copy of the same timer identifier
+     * sees the same configured status.
      *
      * @return True if configure() has been called for this timer.
      */

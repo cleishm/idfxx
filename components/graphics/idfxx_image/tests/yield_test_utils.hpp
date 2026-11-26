@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
-// What the tests of giving way to other tasks have in common: a task that runs only
-// when the test's task gives up the CPU, and a wait that doesn't give it up.
+// Helpers shared by the tests of yielding to other tasks: a task that runs only when
+// the test's task yields the CPU, and a wait that doesn't yield it.
 
 #pragma once
 
@@ -25,9 +25,10 @@ inline void busy_wait(std::chrono::milliseconds duration) {
     }
 }
 
-// Counts while it runs: on this core, below this task and above the idle task, which a
-// counter would otherwise share a one-tick yield with. It lasts only while a test acts,
-// so that the test's assertions, which don't return, come after the destructor.
+// Counts while it runs. It runs on this core, at a priority below this task and above
+// the idle task. At the idle task's priority, the counter would share a one-tick yield
+// with the idle task. It exists only while a test acts, so that the test's assertions,
+// which don't return, come after the destructor.
 class background_counter {
 public:
     background_counter()

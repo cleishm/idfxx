@@ -35,9 +35,9 @@ namespace idfxx::net::netconn {
  *
  * Ownership is exclusive: the channel is non-copyable and move-only. A
  * moved-from channel may only be destroyed, move-assigned, or queried via
- * `is_open()` (→ `false`) and `idf_handle()` (→ `nullptr`); calling any other
- * method on it is undefined behavior. The destructor releases the channel if
- * open.
+ * `is_open()` (which returns `false`) and `idf_handle()` (which returns
+ * `nullptr`). Calling any other method on it is undefined behavior. The
+ * destructor releases the channel if open.
  */
 class [[nodiscard]] raw_channel : public detail::connectionless_channel {
 public:

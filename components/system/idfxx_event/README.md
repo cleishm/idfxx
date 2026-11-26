@@ -161,9 +161,10 @@ sys.post(started);
 
 - Pairs an event ID with its data type for type-safe listener registration and posting. The event
   base is looked up automatically from the enum type via ADL
-- `DataType` must satisfy `receivable_event_data` (trivially copyable types work automatically;
-  types needing custom reconstruction provide `from_opaque`). Posting requires `event_data` (type
-  must be trivially copyable). Defaults to `void` (no data provided with the event)
+- `DataType` must satisfy `receivable_event_data`. Trivially copyable types satisfy it
+  automatically. Types that need custom reconstruction provide `from_opaque`. Posting requires
+  `event_data` (the type must be trivially copyable). `DataType` defaults to `void` (no data
+  provided with the event)
 
 ### event_loop
 
@@ -213,9 +214,9 @@ when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw
+- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`. Unprefixed methods throw
   exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
-- **Type-safe listeners**: Use `event` constants for specific events; wildcard listeners still use
+- **Type-safe listeners**: Use `event` constants for specific events. Wildcard listeners still use
   untyped callbacks
 - Create the system event loop with `event_loop::create_system()` before registering system event
   listeners
@@ -223,7 +224,7 @@ when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a listener is logged
   and otherwise ignored. Other listeners for the event still run, and the event loop keeps
   dispatching later events
-- Use `unique_listener_handle` for automatic cleanup; `listener_handle` requires manual removal
+- Use `unique_listener_handle` for automatic cleanup. `listener_handle` requires manual removal
 
 ## License
 

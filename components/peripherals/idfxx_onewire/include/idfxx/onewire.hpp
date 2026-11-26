@@ -66,10 +66,10 @@ public:
     /**
      * @brief Constructs an address from its 8 ROM bytes.
      *
-     * The inverse of bytes(): family code first, then the 48-bit serial number (least significant
-     * byte first), then the CRC.
+     * This is the inverse of bytes(). The byte order is the family code first, then the 48-bit
+     * serial number (least significant byte first), then the CRC.
      *
-     * @param bytes The 8-byte ROM code, in the order it is transmitted on the bus.
+     * @param bytes The 8-byte ROM code, in the order in which it is transmitted on the bus.
      */
     constexpr explicit address(std::array<uint8_t, 8> bytes) noexcept {
         for (std::size_t i = 0; i < bytes.size(); ++i) {
@@ -90,7 +90,7 @@ public:
     /**
      * @brief Returns an invalid sentinel address indicating no device.
      *
-     * This address will never occur in a real device (CRC mismatch) and
+     * No real device has this address, because its CRC does not match. It
      * can be used as a "no-such-device" indicator.
      *
      * @return The sentinel address (all bits set).
@@ -116,9 +116,9 @@ public:
     /**
      * @brief Returns the 8 ROM bytes of the address.
      *
-     * The bytes are in the order the ROM code is transmitted on the bus: the family code first,
-     * then the 48-bit serial number (least significant byte first), then the CRC. The CRC can be
-     * checked with crc8():
+     * The bytes are in the order in which the ROM code is transmitted on the bus: the family code
+     * first, then the 48-bit serial number (least significant byte first), then the CRC. The CRC
+     * can be checked with crc8():
      *
      * @code
      * auto rom = addr.bytes();
@@ -170,8 +170,8 @@ class bus;
  * @param crc_iv The CRC starting value (default: 0).
  * @return The computed 16-bit CRC.
  *
- * @note The CRC computed here is not what you'll get directly from the
- *       1-Wire network, as it is transmitted bitwise inverted.
+ * @note The 1-Wire network transmits the CRC bitwise inverted. The value
+ *       received from the network is therefore not the value computed here.
  */
 [[nodiscard]] uint16_t crc16(byte_view data, uint16_t crc_iv = 0);
 

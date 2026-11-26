@@ -12,11 +12,11 @@
  * @brief Interactive console with REPL and command registration.
  *
  * Provides an interactive command-line console for ESP32 devices, supporting
- * UART, USB CDC, and USB Serial JTAG backends. Commands can be registered
+ * UART, USB CDC, and USB Serial JTAG transports. Commands can be registered
  * with C++ callbacks (including lambdas with captures) or raw function pointers.
  *
- * The console uses a global command registry -- commands registered via the
- * free functions in this namespace are available across all backends.
+ * The console uses a global command registry. Commands registered via the
+ * free functions in this namespace are available across all transports.
  *
  * Depends on @ref idfxx_core for error handling.
  * @{
@@ -277,15 +277,15 @@ result<void> try_deinit();
  * @brief Interactive REPL (Read-Eval-Print Loop) console.
  *
  * Provides an interactive command-line interface over UART, USB CDC,
- * USB Serial JTAG, or (with ESP-IDF 6.1 or later) the active stdio backend.
+ * USB Serial JTAG, or (with ESP-IDF 6.1 or later) the active stdio transport.
  * The REPL runs in a background FreeRTOS task and processes commands from
  * the global command registry.
  *
- * The second constructor / make() argument selects the transport: a
- * @ref uart_config for UART (so `{}` selects UART with default settings),
- * or one of the tags @ref usb_cdc, @ref usb_serial_jtag or @ref stdio.
- * Which transports are available depends on the ESP-IDF console
- * configuration.
+ * The second argument of the constructor or make() selects the transport.
+ * Pass a @ref uart_config for UART, or one of the tags @ref usb_cdc,
+ * @ref usb_serial_jtag or @ref stdio. An empty `{}` is a @ref uart_config,
+ * so it selects UART with default settings. Which transports are available
+ * depends on the ESP-IDF console configuration.
  *
  * This type is non-copyable and move-only. A moved-from
  * object must not be used: any operation other than destruction or
@@ -301,7 +301,7 @@ result<void> try_deinit();
  * // Create UART REPL (starts accepting input immediately)
  * idfxx::console::repl console({}, {});
  *
- * // Or, with ESP-IDF 6.1 or later, a REPL on the active stdio backend
+ * // Or, with ESP-IDF 6.1 or later, a REPL on the active stdio transport
  * // idfxx::console::repl console({}, idfxx::console::repl::stdio);
  * @endcode
  */
@@ -328,16 +328,16 @@ public:
         task_priority priority = 2;
         /// Core affinity (nullopt = any core)
         std::optional<core_id> core_affinity = std::nullopt;
-        /// Prompt string, or std::nullopt to let the driver choose. An explicit empty string gives
-        /// a blank prompt.
+        /// Prompt string. If std::nullopt, the driver chooses the prompt. An explicit empty string
+        /// gives a blank prompt.
         std::optional<std::string_view> prompt = std::nullopt;
-        /// Maximum command line length, in bytes, or std::nullopt to let the driver choose. An
-        /// explicit value of 0 is rejected with `errc::invalid_arg` when the REPL is created.
+        /// Maximum command line length, in bytes. If std::nullopt, the driver chooses the length.
+        /// An explicit value of 0 is rejected with `errc::invalid_arg` when the REPL is created.
         std::optional<size_t> max_cmdline_length = std::nullopt;
     };
 
     // =========================================================================
-    // UART backend
+    // UART transport
     // =========================================================================
 
 #if CONFIG_ESP_CONSOLE_UART_DEFAULT || CONFIG_ESP_CONSOLE_UART_CUSTOM || defined(__DOXYGEN__)
@@ -391,7 +391,7 @@ public:
 #endif // UART
 
     // =========================================================================
-    // USB CDC backend
+    // USB CDC transport
     // =========================================================================
 
 #if CONFIG_ESP_CONSOLE_USB_CDC || (defined(__DOXYGEN__) && SOC_USB_OTG_SUPPORTED)
@@ -399,8 +399,8 @@ public:
      * @brief Tag type selecting the USB CDC transport.
      *
      * Use the @ref usb_cdc tag object rather than constructing this type directly.
-     * It cannot be constructed from `{}`, so it never competes with @ref uart_config
-     * for an empty-brace argument.
+     * It cannot be constructed from `{}`, so an empty-brace argument never selects
+     * this type and is not ambiguous with @ref uart_config.
      *
      * @note Only available when CONFIG_ESP_CONSOLE_USB_CDC is enabled.
      */
@@ -454,7 +454,7 @@ public:
 #endif // USB CDC
 
     // =========================================================================
-    // USB Serial JTAG backend
+    // USB Serial JTAG transport
     // =========================================================================
 
 #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG || (defined(__DOXYGEN__) && SOC_USB_SERIAL_JTAG_SUPPORTED)
@@ -462,8 +462,8 @@ public:
      * @brief Tag type selecting the USB Serial JTAG transport.
      *
      * Use the @ref usb_serial_jtag tag object rather than constructing this type
-     * directly. It cannot be constructed from `{}`, so it never competes with
-     * @ref uart_config for an empty-brace argument.
+     * directly. It cannot be constructed from `{}`, so an empty-brace argument never
+     * selects this type and is not ambiguous with @ref uart_config.
      *
      * @note Only available when CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is enabled.
      */
@@ -517,7 +517,7 @@ public:
 #endif // USB Serial JTAG
 
     // =========================================================================
-    // Stdio backend
+    // Stdio transport
     // =========================================================================
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
@@ -525,8 +525,8 @@ public:
      * @brief Tag type selecting the active stdio transport.
      *
      * Use the @ref stdio tag object rather than constructing this type directly.
-     * It cannot be constructed from `{}`, so it never competes with @ref uart_config
-     * for an empty-brace argument.
+     * It cannot be constructed from `{}`, so an empty-brace argument never selects
+     * this type and is not ambiguous with @ref uart_config.
      *
      * @note Only available when building with ESP-IDF 6.1 or later.
      */
@@ -549,11 +549,11 @@ public:
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
     /**
-     * @brief Creates and starts a REPL over the active stdio backend.
+     * @brief Creates and starts a REPL over the active stdio transport.
      *
-     * The REPL reads and writes through whichever stdio driver is currently active
-     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
-     * accepting input immediately upon construction.
+     * The REPL reads and writes through the stdio driver that is currently active,
+     * such as UART or USB. It does not require transport-specific setup. The REPL
+     * starts accepting input immediately upon construction.
      *
      * @code
      * idfxx::console::repl console({}, idfxx::console::repl::stdio);
@@ -569,11 +569,11 @@ public:
 #endif
 
     /**
-     * @brief Creates and starts a REPL over the active stdio backend.
+     * @brief Creates and starts a REPL over the active stdio transport.
      *
-     * The REPL reads and writes through whichever stdio driver is currently active
-     * (UART, USB, etc.), without requiring backend-specific setup. The REPL starts
-     * accepting input immediately.
+     * The REPL reads and writes through the stdio driver that is currently active,
+     * such as UART or USB. It does not require transport-specific setup. The REPL
+     * starts accepting input immediately.
      *
      * @param cfg REPL configuration.
      * @param transport The @ref stdio tag.

@@ -9,7 +9,7 @@ Fades an LED up and down in a breathing pattern using hardware PWM fades.
 - Installing the fade service with `idfxx::pwm::output::install_fade_service()`
 - Fading to a duty cycle over a set time with `fade_to()`, waiting for each fade to finish with
   `idfxx::pwm::fade_mode::wait_done`
-- Starting a fade that runs in the background while the program carries on
+- Starting a fade that runs in the background while the program continues
 - Reading the current duty cycle with `duty()`
 - Uninstalling the fade service with `uninstall_fade_service()`, and stopping the output when the
   output object goes out of scope

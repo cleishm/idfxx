@@ -43,11 +43,11 @@ namespace idfxx::sdcard {
 
 namespace {
 
-// The largest SDHC card is (0xFF5F + 1) * 512 KiB, just under 32 GiB; SDXC cards start at 32 GiB.
+// The largest SDHC card is (0xFF5F + 1) * 512 KiB, just under 32 GiB. SDXC cards start at 32 GiB.
 constexpr uint64_t sdxc_min_size = uint64_t{32} << 30;
 
-// The longest single SPI transaction the SD SPI driver issues: a 512-byte data block read together
-// with its CRC and the start of the next block's response.
+// The longest single SPI transaction that the SD SPI driver issues: a 512-byte data block read
+// together with its CRC and the start of the next block's response.
 constexpr size_t sdspi_max_transaction_length = 512 + 4;
 
 gpio_num_t pin_or_nc(idfxx::gpio g) {
@@ -71,7 +71,7 @@ bool distinct(const std::array<idfxx::gpio, N>& pins) {
 }
 
 // The card's sector count. ESP-IDF stores it in an int, so a card of 2^31 sectors (1 TiB) or more
-// reads as negative there; it is unsigned 32-bit on the bus.
+// reads as negative there. On the bus, it is an unsigned 32-bit value.
 uint32_t capacity_of(const sdmmc_card_t& c) {
     return static_cast<uint32_t>(c.csd.capacity);
 }
@@ -123,8 +123,8 @@ bool valid_width(bus_width w) {
 
 #if !SOC_SDMMC_USE_GPIO_MATRIX
 #if CONFIG_IDF_TARGET_ESP32
-// Each slot's pins are fixed, in the order CLK, CMD, D0-D7: slot 0 has eight data lines, slot 1
-// four.
+// Each slot's pins are fixed, in the order CLK, CMD, D0-D7. Slot 0 has eight data lines, and slot 1
+// has four.
 constexpr std::array<std::array<idfxx::gpio, 10>, SOC_SDMMC_NUM_SLOTS> sdmmc_slot_pins{{
     {
         gpio_constant<SDMMC_SLOT0_IOMUX_PIN_NUM_CLK>::value,
@@ -178,7 +178,7 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
         return error(errc::invalid_arg);
     }
 
-    // The signal pins, CLK, CMD and D0-D7, and the widest bus they allow.
+    // The signal pins, CLK, CMD and D0-D7, and the widest bus that they allow.
 #if SOC_SDMMC_USE_GPIO_MATRIX
     const std::array<idfxx::gpio, 10> signals{
         cfg.clk,
@@ -237,8 +237,8 @@ result<bus_width> resolve_sdmmc_width(const card::sdmmc_config& cfg) {
     }
     const bus_width width = cfg.width.value_or(available);
 #if !SOC_SDMMC_USE_GPIO_MATRIX
-    // Only the slot's pins that the bus uses: the driver leaves the data lines above the bus width
-    // untouched, so they are free for card detect or write protect.
+    // Only the slot's pins that the bus uses. The driver does not change the data lines above the
+    // bus width, so they are free for card detect or write protect.
     std::fill(signals.begin() + 2 + std::to_underlying(width), signals.end(), idfxx::gpio::nc());
 #endif
 
@@ -260,8 +260,8 @@ struct sdmmc_speed_settings {
 };
 
 #if SOC_SDMMC_UHS_I_SUPPORTED
-// A UHS-I mode is selected by its exact clock, which the mode's timing tuning also needs, so no
-// limit can be applied. The switch to 1.8 V goes through the power control.
+// A UHS-I mode is selected by its exact clock. The mode's timing tuning also needs this clock, so
+// no limit can be applied. The switch to 1.8 V is done through the power control.
 result<sdmmc_speed_settings> uhs1_speed(const card::sdmmc_config& cfg, int freq_khz, bool ddr) {
     if (cfg.max_frequency) {
         return error(errc::invalid_arg);
@@ -276,11 +276,13 @@ result<sdmmc_speed_settings> uhs1_speed(const card::sdmmc_config& cfg, int freq_
 #endif
 
 // Validates the configured speed mode and clock limit, and returns the settings that select them.
-// ESP-IDF reads sdmmc_host_t::max_freq_khz as a mode selector, not a limit: at or below
-// SDMMC_FREQ_DEFAULT the card stays in default speed; above it an SD card is switched to high speed
-// and clocked at max_freq_khz, whatever its own maximum; SDMMC_FREQ_SDR50 and SDMMC_FREQ_SDR104
-// select those UHS-I modes; and with SDMMC_HOST_FLAG_DDR, a UHS-I SD card is switched to DDR50 at
-// any clock, and an MMC device that supports it to dual data rate on a 4-bit bus at 26 MHz or more.
+// ESP-IDF reads sdmmc_host_t::max_freq_khz as a mode selector, not a limit:
+// - At or below SDMMC_FREQ_DEFAULT, the card stays in default speed.
+// - Above SDMMC_FREQ_DEFAULT, an SD card is switched to high speed and clocked at max_freq_khz,
+//   whatever its own maximum.
+// - SDMMC_FREQ_SDR50 and SDMMC_FREQ_SDR104 select those UHS-I modes.
+// - With SDMMC_HOST_FLAG_DDR, a UHS-I SD card is switched to DDR50 at any clock. An MMC device that
+//   supports it is switched to dual data rate on a 4-bit bus at 26 MHz or more.
 result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) {
     switch (cfg.speed) {
     case bus_speed::default_speed:
@@ -295,9 +297,10 @@ result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) 
             }
             freq_khz = std::min(freq_khz, *limit);
         }
-        // Without a UHS-I slot an SD card is never switched to DDR50, so the flag only lets an MMC
-        // device use dual data rate in high speed. ESP-IDF enables that at 26 MHz but high-speed
-        // timing only above it, so the flag is left clear at or below 26 MHz.
+        // Without a UHS-I slot an SD card is never switched to DDR50, so the flag only affects MMC
+        // devices. With the flag set, an MMC device can use dual data rate in high speed. ESP-IDF
+        // enables dual data rate at 26 MHz, but enables high-speed timing only above 26 MHz, so the
+        // flag is left clear at or below 26 MHz.
         return sdmmc_speed_settings{freq_khz, high_speed && freq_khz > SDMMC_FREQ_26M, false};
     }
 #if SOC_SDMMC_UHS_I_SUPPORTED
@@ -315,13 +318,14 @@ result<sdmmc_speed_settings> resolve_sdmmc_speed(const card::sdmmc_config& cfg) 
     }
 }
 
-// The card's sdmmc_host_t::check_buffer_alignment. ESP-IDF's sector reads and writes copy a buffer
-// through a DMA-capable one when this returns false, but its default only checks the alignment, and
-// hands a buffer that the DMA can't reach (in flash, IRAM or RTC memory, for example) to the DMA as
-// it is. PSRAM is left to ESP-IDF's own check, which copies it where the DMA can't reach it.
-// Installed in the card's sdmmc_card_t, this also covers ESP-IDF code given idf_handle(), such as a
-// FAT filesystem. (ESP-IDF's SDIO functions fail with ESP_ERR_INVALID_ARG instead of copying, where
-// they would otherwise give the DMA a buffer it can't reach.)
+// The card's sdmmc_host_t::check_buffer_alignment. When this returns false, ESP-IDF's sector reads
+// and writes copy a buffer through a DMA-capable buffer. ESP-IDF's default check only checks the
+// alignment. It passes a buffer that the DMA can't access (in flash, IRAM or RTC memory, for
+// example) to the DMA unchanged. PSRAM buffers are left to ESP-IDF's own check, which copies a
+// PSRAM buffer on targets where the DMA can't access PSRAM. This function is installed in the
+// card's sdmmc_card_t, so it also applies to ESP-IDF code that is given idf_handle(), such as a FAT
+// filesystem. (Where ESP-IDF's SDIO functions would otherwise give the DMA a buffer that it can't
+// access, they fail with ESP_ERR_INVALID_ARG instead of copying.)
 bool sdmmc_check_buffer(int slot, const void* buf, size_t size) {
     return sdmmc_host_check_buffer_alignment(slot, buf, size) &&
         (size == 0 || !internal::sdmmc_needs_dma_copy(buf, size));
@@ -335,8 +339,8 @@ result<internal::spi_clock_choice> internal::choose_sdspi_clock(
     [[maybe_unused]] spi_host_device_t host,
     quanta::frequency::hertz cap
 ) {
-    // The SD SPI driver leaves the device's clock source at the default, whose frequency the SPI
-    // master driver reads as this.
+    // The SD SPI driver leaves the device's clock source at the default. The SPI master driver
+    // reads the frequency of that source in the same way as the code below.
     uint32_t source_hz = 0;
     if (auto err = esp_clk_tree_src_get_freq_hz(
             static_cast<soc_module_clk_t>(SPI_CLK_SRC_DEFAULT),
@@ -349,15 +353,17 @@ result<internal::spi_clock_choice> internal::choose_sdspi_clock(
     auto limit_hz =
         static_cast<uint32_t>(std::clamp<int64_t>(cap.count(), 0, sd_high_speed_max_hz));
 #if CONFIG_IDF_TARGET_ESP32
-    // The ESP32's SPI master driver rejects a full-duplex device whose reads the bus's pins can't
-    // keep up with (over the GPIO matrix, above 26.7 MHz), and a device it rejects that way leaves
-    // one of the bus's device slots taken until the bus is freed, which then fails an assertion. So
-    // no clock above that limit is tried. The SD SPI driver sets no input delay.
+    // The ESP32's SPI master driver rejects a full-duplex device if the bus's pins are too slow
+    // for its reads (over the GPIO matrix, above 26.7 MHz). A device that is rejected this way
+    // keeps one of the bus's device slots taken until the bus is freed, and freeing the bus then
+    // fails an assertion. So no clock above that limit is tried. The SD SPI driver sets no input
+    // delay.
     const spi_bus_attr_t* attr = spi_bus_get_attr(host);
     const bool gpio_matrix = attr == nullptr || (attr->flags & SPICOMMON_BUSFLAG_IOMUX_PINS) == 0;
     limit_hz = std::min(limit_hz, static_cast<uint32_t>(spi_get_freq_limit(gpio_matrix, 0)));
 #endif
-    // A rejected clock leaves the device removed from the bus; the next clock set adds it again.
+    // If a clock is rejected, the device is removed from the bus. The next clock that is set adds
+    // it again.
     const auto choice =
         choose_spi_clock(source_hz, limit_hz, [handle](uint32_t khz) -> std::optional<uint32_t> {
             int reported_khz = 0;
@@ -367,7 +373,7 @@ result<internal::spi_clock_choice> internal::choose_sdspi_clock(
             }
             return static_cast<uint32_t>(reported_khz);
         });
-    // Card initialization starts at the clock the device was added with, without setting it.
+    // Card initialization starts at the clock that the device was added with, without setting it.
     if (auto err = sdspi_host_set_card_clk(handle, SDMMC_FREQ_PROBING); err != ESP_OK) {
         return error(err);
     }
@@ -443,16 +449,16 @@ struct card::state {
 
     ~state() {
         if (spi_device) {
-            // Releases the chip select first. sdspi_host_remove_device() leaves the pin reserved as
-            // an output while making it an input, which logs a GPIO conflict, and logs another when
+            // Releases the chip select first. sdspi_host_remove_device() makes the pin an input but
+            // leaves it reserved as an output. This logs a GPIO conflict, and logs another one when
             // a card next uses the pin.
             spi_cs.reset();
             if (auto err = sdspi_host_remove_device(*spi_device); err != ESP_OK) {
                 ESP_LOGW(TAG, "Failed to remove SD SPI device: %s", esp_err_to_name(err));
             }
-            // The removal leaves the chip select an input without a pull-up, floating on a bus that
-            // may still be in use. Resetting it again enables its pull-up, which keeps the card
-            // deselected.
+            // After the removal, the chip select is an input without a pull-up, so it floats on a
+            // bus that may still be in use. Resetting it again enables its pull-up, which keeps the
+            // card deselected.
             spi_cs.reset();
         }
 #if SOC_SDMMC_HOST_SUPPORTED
@@ -468,7 +474,7 @@ struct card::state {
 #endif
         if (sdmmc_slot) {
             std::lock_guard lock(sdmmc_mutex);
-            // Releases the slot only; the host is deinitialized with its last slot.
+            // Releases the slot only. The host is deinitialized with its last slot.
             if (auto err = sdmmc_host_deinit_slot(*sdmmc_slot); err != ESP_OK) {
                 ESP_LOGW(
                     TAG, "Failed to release SDMMC slot %d: %s", *sdmmc_slot, esp_err_to_name(err)
@@ -595,7 +601,7 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
         ESP_LOGE(TAG, "Failed to add SD SPI device: %s", esp_err_to_name(err));
         if (err == ESP_ERR_NOT_FOUND) {
             // From spi_bus_add_device(): the bus has no free device slot. Reported as
-            // invalid_state, so that not_found keeps meaning that there is no card.
+            // invalid_state, so that not_found only means that there is no card.
             return error(errc::invalid_state);
         }
         return error(err);
@@ -603,15 +609,17 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     s->spi_device = handle;
     s->spi_cs = cs;
 
-    // A bus without DMA would fail the card's data transfers. (With DMA, transactions can be at
-    // least 4092 bytes long, whatever the bus's max_transfer_sz.) Checked once the card's device is
-    // on the bus, since ESP-IDF reports the length only for a bus with a device, and before the
-    // card is contacted. On failure, destroying the state removes the device again.
+    // On a bus without DMA, the card's data transfers would fail. (With DMA, transactions can be
+    // at least 4092 bytes long, whatever the bus's max_transfer_sz.) This is checked after the
+    // card's device is added to the bus, because ESP-IDF reports the length only for a bus with a
+    // device. It is also checked before the card is contacted. On failure, destroying the state
+    // removes the device again.
     if (bus.max_transaction_length() < sdspi_max_transaction_length) {
         return error(errc::invalid_arg);
     }
     // Found by setting clocks on the card's device, before the card is contacted. Done after the
-    // check above, which would fail while a rejected clock has the device removed from the bus.
+    // check above, because that check would fail while the device is removed from the bus after a
+    // rejected clock.
     auto clock = internal::choose_sdspi_clock(handle, dev_cfg.host_id, cfg.max_frequency);
     if (!clock) {
         return error(clock.error());
@@ -653,8 +661,8 @@ result<card> card::make(const sdmmc_config& cfg) {
 
     sdmmc_slot_config_t slot_cfg{};
 #if SOC_SDMMC_USE_GPIO_MATRIX
-    // Never all zero (CLK, CMD and D0 are distinct and connected), which the driver would take to
-    // mean IO MUX.
+    // Never all zero, because CLK, CMD and D0 are distinct and connected. The driver would read an
+    // all-zero value as IO MUX.
     slot_cfg.clk = cfg.clk->idf_num();
     slot_cfg.cmd = cfg.cmd->idf_num();
     slot_cfg.d0 = cfg.d0->idf_num();
@@ -666,7 +674,7 @@ result<card> card::make(const sdmmc_config& cfg) {
     slot_cfg.d6 = pin_or_nc(cfg.d6);
     slot_cfg.d7 = pin_or_nc(cfg.d7);
 #else
-    // The slot's dedicated pins are used; these fields are ignored.
+    // The slot's dedicated pins are used. These fields are ignored.
     slot_cfg.clk = slot_cfg.cmd = slot_cfg.d0 = slot_cfg.d1 = slot_cfg.d2 = slot_cfg.d3 =
         GPIO_NUM_NC;
     slot_cfg.d4 = slot_cfg.d5 = slot_cfg.d6 = slot_cfg.d7 = GPIO_NUM_NC;
@@ -698,17 +706,18 @@ result<card> card::make(const sdmmc_config& cfg) {
         sdmmc_host_state_t host_state{};
         (void)sdmmc_host_get_state(&host_state);
         // The host is shared between slots, and may already be initialized by other code. ESP-IDF
-        // then returns ESP_OK; ESP_ERR_INVALID_STATE is tolerated too.
+        // then returns ESP_OK. ESP_ERR_INVALID_STATE is also accepted.
         if (auto err = sdmmc_host_init(); err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
             ESP_LOGE(TAG, "Failed to initialize SDMMC host: %s", esp_err_to_name(err));
             return error(err);
         }
         if (auto err = sdmmc_host_init_slot(slot_num, &slot_cfg); err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize SDMMC slot %d: %s", slot_num, esp_err_to_name(err));
-            // Releasing a slot deinitializes the host along with its last slot, so a host left with
-            // no slots only arises here, and a host that was not yet initialized has no slot in use
-            // by another card. Undo the host initialization if this call did it; a host that was
-            // already up belongs to someone else (or to another card), and stays.
+            // Releasing a slot deinitializes the host along with its last slot. So a host with no
+            // slots can only exist here, and a host that was not yet initialized has no slot that
+            // another card uses. Undo the host initialization if this call did it. A host that was
+            // already initialized belongs to other code (or to another card), and stays
+            // initialized.
             if (!host_state.host_initialized) {
                 if (auto deinit_err = sdmmc_host_deinit(); deinit_err != ESP_OK) {
                     ESP_LOGW(

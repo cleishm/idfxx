@@ -35,16 +35,16 @@ extern "C" void app_main()
     // Print sentinel for CI to detect test completion and exit QEMU early
     idfxx::log::info("test", "### TESTS COMPLETE ###");
 
-    // Halt after tests complete - CI will kill QEMU when it sees the sentinel
+    // Halt after the tests complete. CI kills QEMU when it finds the sentinel in the output.
     while (true) {
         vTaskDelay(portMAX_DELAY);
     }
 #else
-    // Light sleep during the suite drops USB-Serial-JTAG consoles (the chip
-    // disconnects from the USB bus while asleep), losing everything printed
-    // after that point - including the summary above. Re-print the result
-    // periodically so a monitor reconnecting after the drop still shows the
-    // outcome.
+    // When a test puts the chip in light sleep, the chip disconnects from the
+    // USB bus. A USB-Serial-JTAG console then loses its connection, and
+    // everything printed after that point is lost, including the summary above.
+    // Re-print the result periodically, so that a monitor that reconnects later
+    // still shows the outcome.
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(5000));
         idfxx::log::info(

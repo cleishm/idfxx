@@ -87,7 +87,7 @@ struct event_data {
  * and a streaming open()/write()/read()/close() API, including chunked request
  * bodies via open_chunked().
  *
- * Not thread-safe — callers must manage their own synchronization.
+ * This class is not thread-safe. Callers must manage their own synchronization.
  */
 class client {
 public:
@@ -164,7 +164,7 @@ public:
         std::string password = {};                  ///< Password for authentication
         enum auth_type auth_type = auth_type::none; ///< Authentication type
 
-        // TLS (client stores owned copies to keep data alive for the handle)
+        // TLS (the client stores its own copies, so the data stays valid while the handle exists)
         std::string cert_pem = {};        ///< Server CA certificate (PEM)
         std::string client_cert_pem = {}; ///< Client certificate (PEM)
         std::string client_key_pem = {};  ///< Client private key (PEM)
@@ -178,8 +178,8 @@ public:
         bool disable_auto_redirect = false; ///< Disable automatic redirect following
         /// Maximum number of redirects to follow, or std::nullopt to let the driver choose. An
         /// explicit value of 0 or less is rejected with `errc::invalid_arg` when the client is
-        /// created; to stop following redirects, set `disable_auto_redirect`, which returns the 3xx
-        /// response to the caller instead.
+        /// created. To stop following redirects, set `disable_auto_redirect`. The client then
+        /// returns the 3xx response to the caller instead.
         std::optional<int> max_redirection_count = std::nullopt;
         /// Maximum number of authorization retries, or std::nullopt to let the driver choose. An
         /// explicit value of 0 disables retries. A negative value is rejected with
@@ -334,8 +334,8 @@ public:
     /**
      * @brief Sets the POST request body to text.
      *
-     * The client takes ownership of a copy of the text, keeping it alive
-     * for the duration of the request. Throws std::bad_alloc (or aborts)
+     * The client takes ownership of a copy of the text and keeps it for the
+     * duration of the request. Throws std::bad_alloc (or aborts)
      * on allocation failure.
      *
      * The request is sent with `Content-Type: application/x-www-form-urlencoded`
@@ -348,12 +348,12 @@ public:
     /**
      * @brief Sets the POST request body to binary data.
      *
-     * The client takes ownership of a copy of the data, keeping it alive
-     * for the duration of the request. Throws std::bad_alloc (or aborts)
+     * The client takes ownership of a copy of the data and keeps it for the
+     * duration of the request. Throws std::bad_alloc (or aborts)
      * on allocation failure.
      *
      * The request is sent with `Content-Type: application/x-www-form-urlencoded`
-     * unless a Content-Type has been set with set_header(); set one that
+     * unless a Content-Type has been set with set_header(). Set one that
      * describes the data, such as `application/octet-stream`.
      *
      * @param data POST body content.
@@ -404,11 +404,11 @@ public:
      * Sends the request and reads the complete response. Use event callbacks
      * or the streaming API to process response data.
      *
-     * If the response body ends early — the timeout expires or the server closes
-     * the connection before the full Content-Length or the final chunk has been
-     * received — the request fails with `client::errc::incomplete_data`. The two
-     * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
-     * succeeds with the truncated body.
+     * If the response body ends early, the request fails with
+     * `client::errc::incomplete_data`. The body ends early if the timeout expires
+     * or the server closes the connection before the full Content-Length or the
+     * final chunk has been received. The two causes are not distinguished.
+     * Before ESP-IDF 5.5.2 the request instead succeeds with the truncated body.
      *
      * If a chunked request was abandoned by discarding its chunk_writer before
      * finish(), the connection is closed first and a warning is logged.
@@ -432,11 +432,11 @@ public:
      * Sends the request and reads the complete response. Use event callbacks
      * or the streaming API to process response data.
      *
-     * If the response body ends early — the timeout expires or the server closes
-     * the connection before the full Content-Length or the final chunk has been
-     * received — the request fails with `client::errc::incomplete_data`. The two
-     * causes are not distinguished. Before ESP-IDF 5.5.2 the request instead
-     * succeeds with the truncated body.
+     * If the response body ends early, the request fails with
+     * `client::errc::incomplete_data`. The body ends early if the timeout expires
+     * or the server closes the connection before the full Content-Length or the
+     * final chunk has been received. The two causes are not distinguished.
+     * Before ESP-IDF 5.5.2 the request instead succeeds with the truncated body.
      *
      * If a chunked request was abandoned by discarding its chunk_writer before
      * try_finish(), the connection is closed first and a warning is logged.
@@ -466,25 +466,26 @@ public:
      * `Transfer-Encoding: chunked` request header. Each write() sends its data
      * as exactly one chunk, so the body can be streamed without knowing its
      * total length in advance. finish() sends the terminating zero-length
-     * chunk, completing the request body; call it before
+     * chunk, which completes the request body. Call it before
      * client::fetch_headers().
      *
      * The writer refers to the client that created it. The client must outlive
      * the writer and must not be moved while the writer is in use.
      *
-     * If sending fails, the request body cannot be completed: the writer sends
-     * nothing further, and later write() and finish() calls fail with
+     * If sending fails, the request body cannot be completed. The writer sends
+     * nothing further. Later write() and finish() calls fail with
      * idfxx::errc::invalid_state.
      *
      * Destroying a writer before finish() has completed, including after a
      * failure, abandons the request. Nothing is sent, so the request body is
-     * left unterminated on the connection. A warning is logged and the client
-     * refuses to continue that request: client::fetch_headers(), client::read(),
-     * client::flush_response() and client::write() fail with
+     * left unterminated on the connection. A warning is logged. The client then
+     * rejects further calls for that request: client::fetch_headers(),
+     * client::read(), client::flush_response() and client::write() fail with
      * idfxx::errc::invalid_state. The next request started with client::open(),
-     * client::open_chunked() or client::perform() closes the connection first
-     * (logging a warning) and runs on a fresh connection. client::close() or
-     * client::cancel_request() also ends the abandoned request.
+     * client::open_chunked() or client::perform() first closes the connection
+     * and logs a warning. That request then uses a new connection.
+     * client::close() or client::cancel_request() also ends the abandoned
+     * request.
      *
      * This type is non-copyable and move-only. A moved-from object must not be
      * used: any operation other than destruction or assignment is undefined
@@ -504,8 +505,8 @@ public:
          * @brief Destroys the writer.
          *
          * Sends nothing. If finish() has not completed, the request is
-         * abandoned: its body is left unterminated, a warning is logged, and
-         * the client refuses to continue the request (see the class
+         * abandoned. Its body is left unterminated, and a warning is logged.
+         * The client then rejects further calls for the request (see the class
          * description).
          */
         ~chunk_writer();
@@ -572,9 +573,9 @@ public:
          * @param data Binary data to send.
          * @return Success, or an error.
          * @retval client::errc::eagain if the timeout expired before the chunk was sent. Part
-         *         of the chunk may have been sent; no further data is sent after this.
+         *         of the chunk may have been sent. No further data is sent after this.
          * @retval client::errc::write_data if sending failed. Part of the chunk may have been
-         *         sent; no further data is sent after this.
+         *         sent. No further data is sent after this.
          * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.
          * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
@@ -591,9 +592,9 @@ public:
          * @param data String data to send.
          * @return Success, or an error.
          * @retval client::errc::eagain if the timeout expired before the chunk was sent. Part
-         *         of the chunk may have been sent; no further data is sent after this.
+         *         of the chunk may have been sent. No further data is sent after this.
          * @retval client::errc::write_data if sending failed. Part of the chunk may have been
-         *         sent; no further data is sent after this.
+         *         sent. No further data is sent after this.
          * @retval idfxx::errc::invalid_state if finish() has already completed or an earlier
          *         write or finish failed.
          * @retval idfxx::errc::invalid_arg if the data exceeds INT_MAX bytes.
@@ -640,7 +641,7 @@ public:
 
         enum class stage : uint8_t {
             open,     ///< Accepting chunks
-            failed,   ///< A send failed; the body cannot be completed
+            failed,   ///< A send failed, so the body cannot be completed
             finished, ///< The terminating chunk has been sent
         };
 
@@ -680,8 +681,8 @@ public:
      * Opens the HTTP connection and sends request headers with
      * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
      * body of unknown length can be sent. Send the body through the returned
-     * chunk_writer and call chunk_writer::finish() before fetch_headers();
-     * fetching headers while the writer is still in use and unfinished is a
+     * chunk_writer and call chunk_writer::finish() before fetch_headers().
+     * Fetching headers while the writer is still in use and unfinished is a
      * usage error. Discarding the writer unfinished abandons the request (see
      * chunk_writer).
      *
@@ -750,8 +751,8 @@ public:
      *
      * @return The response's Content-Length when it is greater than zero, or 0
      *         when the length is zero or not known in advance (a chunked response
-     *         or one without a Content-Length header); content_length() returns
-     *         -1 for the latter.
+     *         or one without a Content-Length header). When the length is not
+     *         known, content_length() returns -1.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure, including `client::errc::eagain` when
      *         the timeout expires before the headers are received and
@@ -764,7 +765,7 @@ public:
      * @brief Reads response body data.
      *
      * Blocks until @p buf is full, the response body is complete, the
-     * connection closes, or the timeout expires; data received before a close
+     * connection closes, or the timeout expires. Data received before a close
      * or timeout is returned first.
      *
      * @param buf Buffer to read into.
@@ -782,7 +783,7 @@ public:
      * @brief Reads response body data into a character buffer.
      *
      * Blocks until @p buf is full, the response body is complete, the
-     * connection closes, or the timeout expires; data received before a close
+     * connection closes, or the timeout expires. Data received before a close
      * or timeout is returned first.
      *
      * @param buf Buffer to read into.
@@ -845,7 +846,7 @@ public:
      * `Transfer-Encoding: chunked` in place of a Content-Length, so that a
      * body of unknown length can be sent. Send the body through the returned
      * chunk_writer and call chunk_writer::try_finish() before
-     * try_fetch_headers(); fetching headers while the writer is still in use
+     * try_fetch_headers(). Fetching headers while the writer is still in use
      * and unfinished is a usage error. Discarding the writer unfinished
      * abandons the request (see chunk_writer).
      *
@@ -901,8 +902,8 @@ public:
      *
      * @return The response's Content-Length when it is greater than zero, 0 when
      *         the length is zero or not known in advance (a chunked response or
-     *         one without a Content-Length header; content_length() returns -1
-     *         for the latter), or an error.
+     *         one without a Content-Length header), or an error. When the length
+     *         is not known, content_length() returns -1.
      * @retval client::errc::eagain The timeout expired before the headers were
      *         received.
      * @retval client::errc::fetch_header Reading the headers failed, or the
@@ -918,13 +919,13 @@ public:
      * @brief Reads response body data.
      *
      * Blocks until @p buf is full, the response body is complete, the
-     * connection closes, or the timeout expires; data received before a close
+     * connection closes, or the timeout expires. Data received before a close
      * or timeout is returned first.
      *
      * @param buf Buffer to read into.
      * @return Number of bytes read (0 at end of response), or an error.
      * @retval client::errc::eagain The timeout expired before any data was read.
-     *         Nothing was consumed; the read may be retried.
+     *         Nothing was consumed. The read may be retried.
      * @retval client::errc::connection_closed The connection closed or failed
      *         before the response body was complete, and no data was read.
      * @retval idfxx::errc::invalid_state A chunked request was abandoned by
@@ -936,13 +937,13 @@ public:
      * @brief Reads response body data into a character buffer.
      *
      * Blocks until @p buf is full, the response body is complete, the
-     * connection closes, or the timeout expires; data received before a close
+     * connection closes, or the timeout expires. Data received before a close
      * or timeout is returned first.
      *
      * @param buf Buffer to read into.
      * @return Number of bytes read (0 at end of response), or an error.
      * @retval client::errc::eagain The timeout expired before any data was read.
-     *         Nothing was consumed; the read may be retried.
+     *         Nothing was consumed. The read may be retried.
      * @retval client::errc::connection_closed The connection closed or failed
      *         before the response body was complete, and no data was read.
      * @retval idfxx::errc::invalid_state A chunked request was abandoned by
@@ -1029,9 +1030,9 @@ public:
      * CONFIG_ESP_HTTP_CLIENT_MAX_SAVED_RESPONSE_HEADERS headers of a response are
      * saved, with a repeated header counting toward that limit each time it
      * appears. Headers larger than CONFIG_ESP_HTTP_CLIENT_MAX_RESPONSE_HEADER_SIZE
-     * bytes are discarded, and a header that appears multiple times (such as
-     * Set-Cookie) keeps only its last value. To observe every header regardless of these
-     * limits, handle event_id::on_header in config::on_event instead.
+     * bytes are discarded. For a header that appears multiple times (such as
+     * Set-Cookie), only the last value is saved. To observe every header regardless of
+     * these limits, handle event_id::on_header in config::on_event instead.
      *
      * @note Only available when CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS is
      *       enabled (ESP-IDF 6.0+).
@@ -1220,7 +1221,7 @@ static_assert(idfxx::byte_source<idfxx::http::client>);
  *        error codes where possible.
  *
  * Converts the ESP-IDF error code to an HTTP client-specific error code if a mapping
- * exists, otherwise falls back to the default IDFXX error category.
+ * exists. Otherwise, falls back to the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

@@ -131,7 +131,7 @@ struct info {
  * @headerfile <idfxx/memory>
  * @brief Returns the minimum free size since boot for heap regions matching the given capabilities.
  *
- * This is the high-water mark of heap usage — the lowest amount of free memory
+ * This is the high-water mark of heap usage: the lowest amount of free memory
  * recorded since the system booted.
  *
  * @param c Capability flags to filter heap regions.
@@ -477,7 +477,7 @@ using dram_allocator = allocator<T, memory::capabilities::dram>;
  * @brief STL-compatible allocator for external PSRAM (SPI RAM).
  *
  * Allocates memory from external PSRAM. Can be used with standard containers
- * to place large data structures in PSRAM, freeing internal DRAM for
+ * to place large data structures in PSRAM. This leaves internal DRAM free for
  * performance-critical or DMA-capable allocations.
  *
  * @tparam T The type of object to allocate.

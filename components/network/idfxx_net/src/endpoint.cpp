@@ -52,7 +52,7 @@ std::optional<endpoint> endpoint::parse(std::string_view s) noexcept {
         return endpoint(*addr, *port);
     }
 
-    // v4:port form — find the LAST ':' so that we don't split an unbracketed v6.
+    // v4:port form. Find the LAST ':' so that we don't split an unbracketed v6.
     auto colon = s.rfind(':');
     if (colon == std::string_view::npos) {
         return std::nullopt;
@@ -85,7 +85,7 @@ std::string to_string(const net::endpoint& ep) {
         out.append(port_buf, port_len);
         return out;
     }
-    // An endpoint always holds a v4 or v6 address; the v4 case returned above.
+    // An endpoint always holds a v4 or v6 address. The v4 case returned above.
     auto v6 = ep.address<net::ipv6_addr>();
     auto inner = to_string(*v6);
     std::string out;

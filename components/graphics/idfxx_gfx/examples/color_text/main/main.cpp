@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Draws on an ILI9341 color LCD: a header with scaled text, labeled
-// color swatches, and a right-aligned footer. The whole 240x320 frame is
-// authored once in screen coordinates in draw_frame(); render_banded runs
-// it once per 240x40 band and writes each slice, so the framebuffer
-// stays small (19 KB) instead of a full 150 KB frame.
+// color swatches, and a right-aligned footer. draw_frame() draws the whole
+// 240x320 frame once in screen coordinates. render_banded runs draw_frame()
+// once for each 240x40 band and writes each slice, so the framebuffer stays
+// small (19 KB) instead of a full 150 KB frame.
 //
-// The layout is deliberately independent of the band height: the header
-// and every swatch straddle a 40-pixel band boundary, so each is
-// assembled from two render passes.
+// The layout is deliberately independent of the band height. The header
+// and every swatch cross a 40-pixel band boundary, so each is assembled
+// from two render passes.
 
 #include <idfxx/font/spleen>
 #include <idfxx/gfx>
@@ -29,7 +29,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_CS = idfxx::gpio_10;
@@ -41,8 +41,8 @@ static constexpr size_t DISPLAY_W = 240;
 static constexpr size_t DISPLAY_H = 320;
 static constexpr size_t BAND_H = 40;
 
-// Layout — nothing here is a multiple of BAND_H: the 48-pixel header and
-// the 42-pixel swatch pitch put every element across a band boundary.
+// Layout. Nothing here is a multiple of BAND_H. The 48-pixel header and the
+// 42-pixel swatch pitch put every element across a band boundary.
 static constexpr size_t HEADER_H = 48;
 static constexpr size_t SWATCH_TOP = 56;
 static constexpr size_t SWATCH_PITCH = 42;
@@ -63,8 +63,8 @@ static constexpr std::array<swatch, 6> SWATCHES{{
     {"violet", {148, 0, 211}},
 }};
 
-// Draws the whole frame in 240x320 screen coordinates; render_banded
-// invokes this once per band and clips everything outside the band.
+// Draws the whole frame in 240x320 screen coordinates. render_banded calls
+// this once for each band and clips everything outside the band.
 static void draw_frame(band_canvas& canvas) {
     constexpr rgb565 white(255, 255, 255);
 
@@ -74,7 +74,7 @@ static void draw_frame(band_canvas& canvas) {
     canvas.draw_text(idfxx::font::spleen_8x16, 8, 10, "idfxx gfx", white, 2);
 
     // Framed color blocks plus labels. The 42-pixel pitch means every
-    // swatch straddles a band boundary.
+    // swatch crosses a band boundary.
     for (size_t i = 0; i < SWATCHES.size(); ++i) {
         const size_t top = SWATCH_TOP + i * SWATCH_PITCH;
         canvas.fill_rect(8, top, 60, 28, SWATCHES[i].color);

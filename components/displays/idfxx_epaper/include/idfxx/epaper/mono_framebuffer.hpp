@@ -31,18 +31,18 @@ namespace idfxx::epaper {
  * @headerfile <idfxx/epaper/mono_framebuffer>
  * @brief In-memory framebuffer for monochrome (1 bit per pixel) ePaper displays.
  *
- * Pixels are stored row-major with byte-padded rows, the native format of
- * SSD1680- and UC8179-style ePaper controllers: each byte holds 8
- * horizontally adjacent pixels (bit 7 is the leftmost), rows are laid out
+ * Pixels are stored row-major with byte-padded rows. This is the native format
+ * of SSD1680- and UC8179-style ePaper controllers. Each byte holds 8
+ * horizontally adjacent pixels (bit 7 is the leftmost). Rows are laid out
  * top-to-bottom, and each row is padded to a whole number of bytes
  * (@ref stride_bytes). The byte for pixel (x, y) is at index
  * `y * stride_bytes() + x / 8`, bit `7 - x % 8`. Following the controllers'
  * RAM convention, a **set bit is white paper** and a cleared bit is black
- * ink; a new framebuffer starts all-white, and `set_pixel(x, y, true)`
+ * ink. A new framebuffer starts all-white, and `set_pixel(x, y, true)`
  * inks a pixel black.
  *
- * Draw into the framebuffer with @ref set_pixel and friends, then upload it
- * to a panel's RAM with @ref panel::write (full frame) or
+ * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
+ * Then upload it to a panel's RAM with @ref panel::write (full frame) or
  * @ref panel::write_rows (a horizontal band), and make it visible with
  * @ref panel::refresh. This is a plain value type: copyable, movable, and
  * independent of any panel.
@@ -56,12 +56,12 @@ namespace idfxx::epaper {
  */
 class mono_framebuffer {
 public:
-    /** @brief The value type written by @ref set_pixel — true is black ink. */
+    /** @brief The value type written by @ref set_pixel. `true` is black ink. */
     using pixel_type = bool;
 
     /**
      * @brief Destination-column alignment required by @ref panel::write.
-     * Eight pixels share a byte, so a framebuffer must land on a byte
+     * Eight pixels share a byte, so a framebuffer must start on a byte
      * boundary.
      */
     static constexpr size_t x_alignment = 8;
@@ -70,8 +70,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on error (e.g. invalid dimensions).
@@ -83,8 +83,8 @@ public:
     /**
      * @brief Creates a framebuffer of the given dimensions, with all pixels white.
      *
-     * @param width  Width in pixels; must be non-zero.
-     * @param height Height in pixels; must be non-zero.
+     * @param width  Width in pixels. Must be non-zero.
+     * @param height Height in pixels. Must be non-zero.
      *
      * @return The new mono_framebuffer, or an error.
      * @retval idfxx::errc::invalid_arg if @p width or @p height is zero.
@@ -142,7 +142,7 @@ public:
      *
      * @param x Column, in `[0, width())`.
      * @param y Row, in `[0, height())`.
-     * @return true if the pixel is black ink; false if it is white or the
+     * @return true if the pixel is black ink, or false if it is white or the
      *         coordinates are out of range.
      */
     [[nodiscard]] bool get_pixel(size_t x, size_t y) const noexcept {
@@ -186,12 +186,12 @@ public:
      * @brief Returns the raw row-major pixel data for modification.
      *
      * The same `stride_bytes() * height()` bytes as the read-only overload,
-     * in the same layout, for filling the whole framebuffer in one copy —
-     * for example, loading a previously saved frame.
+     * in the same layout, for filling the whole framebuffer in one copy, for
+     * example to load a previously saved frame.
      *
      * Bytes written this way are not checked. The pixel accessors keep the
-     * padding bits past the right edge white; raw writes should too, since
-     * padding is uploaded to the panel along with its row.
+     * padding bits past the right edge white. Raw writes should keep them
+     * white too, because padding is uploaded to the panel along with its row.
      *
      * @return A mutable view of the pixel data.
      */

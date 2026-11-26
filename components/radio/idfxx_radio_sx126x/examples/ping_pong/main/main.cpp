@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// LoRa ping-pong — two boards flash identical firmware and bounce a counter
-// back and forth. Whichever board sees its election listen window time out
-// first becomes the initiator and sends seq=0.
+// LoRa ping-pong. Two boards run identical firmware and send a counter back
+// and forth. The board whose election listen window times out first becomes
+// the initiator and sends seq=0.
 //
 // On every received packet:
 //   * parse the counter,
@@ -30,7 +30,7 @@ using namespace std::chrono_literals;
 
 static constexpr idfxx::log::logger logger{"pingpong"};
 
-// Pin assignments — change to match your board (Heltec WiFi LoRa 32 V3
+// Pin assignments. Change them to match your board (Heltec WiFi LoRa 32 V3
 // layout).
 static constexpr auto PIN_MOSI = idfxx::gpio_10;
 static constexpr auto PIN_MISO = idfxx::gpio_11;
@@ -40,8 +40,8 @@ static constexpr auto PIN_BUSY = idfxx::gpio_13;
 static constexpr auto PIN_DIO1 = idfxx::gpio_14;
 static constexpr auto PIN_NRESET = idfxx::gpio_12;
 
-// Carrier frequency — use one your region allows and your antenna is built for
-// (for example 868_MHz in Europe).
+// Carrier frequency. Use one that your region allows and that your antenna is
+// built for (for example 868_MHz in Europe).
 static constexpr auto FREQUENCY = 915_MHz;
 
 // How long to wait for a peer packet before electing ourselves the initiator.
@@ -51,8 +51,8 @@ static constexpr auto FREQUENCY = 915_MHz;
 static constexpr auto LISTEN_TIMEOUT = 5s;
 static constexpr auto ELECTION_JITTER = 2s;
 
-// Maximum acceptable round-trip latency. If we send a packet and don't see a
-// reply by then, restart the election.
+// Maximum acceptable round-trip latency. If we send a packet and don't receive
+// a reply by then, restart the election.
 static constexpr auto REPLY_TIMEOUT = 3s;
 
 // LoRa configuration, identical on both ends of the link.
@@ -63,7 +63,7 @@ static constexpr idfxx::radio::lora_modulation MODULATION{
 };
 static constexpr idfxx::radio::lora_packet_params PACKET_PARAMS{};
 
-// Try to parse "PING NNNN" or "PONG NNNN"; return the counter or -1.
+// Try to parse "PING NNNN" or "PONG NNNN". Returns the counter or -1.
 static int32_t parse_counter(std::string_view sv) {
     if (sv.size() < 5) {
         return -1;
@@ -114,8 +114,8 @@ extern "C" void app_main() {
                 .busy = PIN_BUSY,
                 .dio1 = PIN_DIO1,
                 .nreset = PIN_NRESET,
-                // The Heltec V3 drives a TCXO from DIO3 — required for the
-                // chip to lock. Verify the voltage for your board.
+                // The Heltec V3 drives a TCXO from DIO3. The chip needs it
+                // to lock. Verify the voltage for your board.
                 .tcxo = idfxx::radio::sx126x::tcxo_config{.voltage = 1800_mV, .startup = 5ms},
             }
         );
@@ -135,7 +135,7 @@ extern "C" void app_main() {
         bool initiator = false;
         uint32_t counter = 0;
 
-        // ---- Election: listen briefly; whoever times out first sends seq=0.
+        // ---- Election: listen briefly. The board that times out first sends seq=0.
         const auto election_listen = election_listen_time();
         logger.info(
             "listening {}ms for a peer before electing as initiator", election_listen.count()
@@ -165,7 +165,7 @@ extern "C" void app_main() {
             return;
         }
 
-        // ---- Main bounce loop: TX, then RX, then TX, ...
+        // ---- Main loop: TX, then RX, then TX, ...
         while (true) {
             const char* tag = initiator ? "PING" : "PONG";
             size_t n = format_packet(tx_buf, tag, counter);

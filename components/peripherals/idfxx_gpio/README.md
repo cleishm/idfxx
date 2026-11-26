@@ -72,7 +72,7 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 // Using predefined constants
 auto led = idfxx::gpio_2;
 
-// Configure as output - result will be of type idfxx::result<void>
+// Configure as output. The result is of type idfxx::result<void>
 if (auto result = led.try_set_direction(idfxx::gpio::mode::output); !result) {
     idfxx::log::error("GPIO", "Failed to set direction: {}", result.error().message());
     return;
@@ -93,7 +93,7 @@ if (auto result = button.try_set_pull_mode(idfxx::gpio::pull_mode::pullup); !res
     return;
 }
 
-// Read input level - will return gpio::level::low if the button GPIO is invalid.
+// Read input level. This returns gpio::level::low if the button GPIO is invalid.
 auto state = button.get_level();
 idfxx::log::info("GPIO", "Button level: {}", state);
 ```
@@ -188,14 +188,14 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`; unprefixed methods throw
+- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`. Unprefixed methods throw
   exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
 - Call `idfxx::gpio::install_isr_service()` once before using interrupts
-- ISR handlers run in interrupt context - keep them short and use IRAM-safe functions
+- ISR handlers run in interrupt context. Keep them short and use IRAM-safe functions
 - **Exceptions in ISR handlers**: ISR handlers must not throw, as throwing is not permitted in
   interrupt context
-- Multiple handlers per pin are stored in DRAM - ensure sufficient heap space
-- GPIO pins used by other peripherals (SPI, I2C, etc.) should not be reconfigured
+- Multiple handlers per pin are stored in DRAM. Ensure sufficient heap space
+- GPIO pins used by other peripherals (such as SPI and I2C) should not be reconfigured
 
 ## License
 

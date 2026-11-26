@@ -21,9 +21,9 @@ namespace idfxx::epaper {
 
 namespace {
 
-// UC8179 command set (UltraChip UC8179 datasheet; sequences validated on the
-// GDEY075T7 glass; see the notice above the waveform tables below for the
-// vendor-derived parts).
+// UC8179 command set, from the UltraChip UC8179 datasheet. The sequences are
+// validated on the GDEY075T7 glass. See the notice above the waveform tables
+// below for the parts that come from the vendor driver.
 constexpr uint8_t cmd_panel_setting = 0x00;  // Panel setting (LUT source, scan direction)
 constexpr uint8_t cmd_power_setting = 0x01;  // Power setting (gate/source voltages)
 constexpr uint8_t cmd_power_off = 0x02;      // Power off the drive rails
@@ -52,17 +52,17 @@ constexpr uint8_t cmd_cascade = 0xE0;        // Cascade setting (external temper
 constexpr uint8_t cmd_power_saving = 0xE3;   // Power saving (PWS)
 constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform bank selection)
 
-// VCOM and data interval values (cmd_vcom_interval parameters). The first
-// parameter's low bits matter beyond the border behavior: DDX (bits 1:0)
-// selects the image-data polarity (01 = bit 1 is white, matching the
-// framebuffer encoding) and N2OCP (bit 3) makes the controller copy the
-// new-image RAM into the previous-image RAM when a refresh completes, which
-// keeps the differential (partial) waveform's old-image plane current
+// VCOM and data interval values (cmd_vcom_interval parameters). The low bits
+// of the first parameter matter in addition to the border behavior. DDX
+// (bits 1:0) selects the image-data polarity (01 = bit 1 is white, matching
+// the framebuffer encoding). N2OCP (bit 3) makes the controller copy the
+// new-image RAM into the previous-image RAM when a refresh completes. This
+// keeps the old-image plane of the differential (partial) waveform current
 // without any bookkeeping writes. Every value used around a refresh must
 // keep DDX = 01 and N2OCP set.
 constexpr uint8_t cdi_ddx_n2ocp = 0x09; // DDX = 01, N2OCP set
 // The high bits select the border drive: BDZ (bit 7) floats the border
-// electrode (Hi-Z); otherwise BDV (bits 5:4) picks the LUT that drives it.
+// electrode (Hi-Z). Otherwise, BDV (bits 5:4) selects the LUT that drives it.
 constexpr uint8_t cdi_bdz = 0x80;    // Border Hi-Z (BDV is then ignored)
 constexpr uint8_t cdi_bdv_kk = 0x00; // Border follows LUTKK
 constexpr uint8_t cdi_bdv_wk = 0x10; // Border follows LUTWK
@@ -70,15 +70,15 @@ constexpr uint8_t cdi_bdv_kw = 0x20; // Border follows LUTKW
 // The second parameter: the VCOM and data interval (CDI).
 constexpr uint8_t cdi_interval = 0x07;
 
-// Returns the cmd_vcom_interval parameters driving the border as `b` on a
-// refresh using the monochrome (`gray` false) or grayscale (`gray` true)
-// waveform bank, or floating it whatever the setting when `held` (partial
-// refreshes and active partial windows, so the edge does not flicker).
-// In the monochrome banks the border follows LUTKW (black-to-white, so a
-// white border flashes with the refresh) for white and LUTWK
-// (white-to-black) for black. White is not a border option in the
-// grayscale bank, whose LUTKW and LUTWK carry gray levels, so a white
-// setting holds the border there; LUTKK drives it black.
+// Returns the cmd_vcom_interval parameters that drive the border as `b` on a
+// refresh. `gray` selects the waveform bank: monochrome (false) or grayscale
+// (true). When `held` is true, the parameters float the border whatever the
+// setting. This is for partial refreshes and active partial windows, so that
+// the edge does not flicker. In the monochrome banks, a white border follows
+// LUTKW (black-to-white, so a white border flashes with the refresh). A
+// black border follows LUTWK (white-to-black). In the grayscale bank, LUTKW
+// and LUTWK carry gray levels, so white is not a border option there. A white
+// setting holds the border instead. LUTKK drives it black.
 constexpr std::array<uint8_t, 2> border_params(enum border b, bool gray, bool held) noexcept {
     auto drive = static_cast<uint8_t>(cdi_bdz | cdi_bdv_kw); // Hi-Z, as in the vendor hold value
     if (!held) {
@@ -109,11 +109,11 @@ static_assert(border_params(border::black, false, true) == std::array<uint8_t, 2
 
 // Border held (Hi-Z) while a partial window is active.
 constexpr auto border_held = border_params(border::hold, false, true);
-// Border driven white, as the vendor initialization sequences program it;
+// Border driven white, as the vendor initialization sequences program it.
 // do_refresh programs the configured drive before every update.
 constexpr auto border_init = border_params(border::white, false, false);
-// Border floating for deep sleep (the vendor sequence's value; powering off
-// floats the border anyway).
+// Border floating for deep sleep. This is the vendor sequence's value.
+// Powering off floats the border anyway.
 constexpr std::initializer_list<uint8_t> border_float{0xF7};
 
 // The fast and grayscale waveform tables below, and the initialization
@@ -263,8 +263,8 @@ result<uc8179> uc8179::make(idfxx::panel_io& panel_io, uc8179::config cfg) {
     uc8179 display(raw_tag{}, panel_io, cfg);
     display._gray_frame_rate_code = *gray_frame_rate_code;
     display._gray_source_code = *gray_source_code;
-    // Store the configured border drive before any controller I/O; it is
-    // applied by do_refresh.
+    // Store the configured border drive before any controller I/O.
+    // do_refresh applies it.
     if (auto r = display.try_set_border(cfg.border); !r) {
         return error(r.error());
     }
@@ -312,10 +312,10 @@ uc8179& uc8179::operator=(uc8179&& other) noexcept {
 }
 
 uc8179::~uc8179() {
-    // Leaving the controller powered degrades the glass; power off and park
-    // it in deep sleep unless the caller already did. A refresh still
-    // driving finishes first — powering off mid-waveform also stresses the
-    // glass.
+    // Leaving the controller powered degrades the glass, so power it off and
+    // put it in deep sleep, unless the caller already did. A refresh that is
+    // still running finishes first, because powering off during a waveform
+    // also stresses the glass.
     if (_io_handle != nullptr && !asleep()) {
         (void)wait_busy();
         (void)_enter_deep_sleep();
@@ -334,7 +334,7 @@ uc8179::do_write(const mono_framebuffer& fb, size_t row_start, size_t row_end, s
     const size_t stride = fb.stride_bytes();
     const size_t rows = row_end - row_start;
     // The framebuffer's encoding (bit 1 = white) matches the controller's
-    // new-image plane directly; the band streams as one transfer into a
+    // new-image plane directly. The band streams as one transfer into a
     // partial window covering it (esp_lcd chunks it to the SPI limit).
     // Exiting the window waits for the queued transfer, so the caller may
     // mutate the framebuffer immediately.
@@ -355,12 +355,12 @@ result<void> uc8179::do_write(
     }
     const size_t stride = fb.stride_bytes();
     // The controller's gray planes use the opposite bit sense from the
-    // canonical framebuffer encoding, so plane bytes are inverted through a
-    // bounded staging buffer on their way out: plane 0 to the 0x10 RAM
-    // bank, plane 1 to the 0x13 RAM bank. Each sub-band gets its own
-    // partial window; exiting the window drains the queued transfer, so the
-    // staging buffer can be refilled for the next sub-band (and a full
-    // 800x480 frame never needs a frame-sized staging allocation).
+    // canonical framebuffer encoding, so the plane bytes are inverted through
+    // a bounded staging buffer before they are sent: plane 0 to the 0x10 RAM
+    // bank, and plane 1 to the 0x13 RAM bank. Each sub-band gets its own
+    // partial window. Exiting the window drains the queued transfer, so the
+    // staging buffer can be refilled for the next sub-band. This way, a full
+    // 800x480 frame never needs a frame-sized staging allocation.
     constexpr size_t staging_bytes_max = 4096;
     const size_t band_rows = std::max<size_t>(1, staging_bytes_max / stride);
     std::vector<uint8_t, dram_allocator<uint8_t>> staging(band_rows * stride);
@@ -390,13 +390,13 @@ result<void> uc8179::do_clear() {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // The all-ones fill is white in both color modes: set bits are white in
+    // The all-ones fill is white in both color modes. Set bits are white in
     // the mono planes, and RAM (1, 1) is the gray-plane encoding of
-    // gray4::white (the planes carry the inverted level bits). In mono mode
-    // only the new-image plane is cleared: the previous-image plane keeps
-    // the image on the glass, so the next refresh applies the deep
-    // black-to-white erase waveform to previously-black pixels rather than
-    // the gentler white-to-white one. In gray4 mode both planes carry the
+    // gray4::white (the planes carry the inverted level bits). In mono mode,
+    // only the new-image plane is cleared. The previous-image plane keeps
+    // the image that is on the glass, so the next refresh applies the deep
+    // black-to-white erase waveform to previously-black pixels, instead of
+    // the gentler white-to-white one. In gray4 mode, both planes carry the
     // image and must be written.
     return _clear_ram(color_mode() == color_mode::gray4);
 }
@@ -406,10 +406,10 @@ result<void> uc8179::do_restore_baseline(const mono_framebuffer& fb) {
         return error(errc::invalid_state);
     }
     // A partial refresh drives each pixel from its previous-image (0x10)
-    // value to its new-image (0x13) value, so the frame on the glass goes
-    // into both planes: a later region-only write then leaves every other
-    // pixel unchanged. The planes share the framebuffer's encoding (the
-    // controller copies one into the other after a refresh), and both
+    // value to its new-image (0x13) value, so the frame on the glass is
+    // written into both planes. A later region-only write then leaves every
+    // other pixel unchanged. The planes share the framebuffer's encoding (the
+    // controller copies one into the other after a refresh). Both planes
     // stream into one full-panel window, as in _clear_ram. Exiting the
     // window waits for the queued transfers, so the caller may mutate the
     // framebuffer immediately.
@@ -429,7 +429,7 @@ result<void> uc8179::do_refresh(refresh_mode mode) {
             return r;
         }
         // White is not a border option in the grayscale waveform bank, so a
-        // white setting holds the border; LUTKK drives it black.
+        // white setting holds the border. LUTKK drives it black.
         if (auto r = _cmd(cmd_vcom_interval, border_params(border(), true, false)); !r) {
             return r;
         }
@@ -636,8 +636,8 @@ result<void> uc8179::_init_fast() {
 
 result<void> uc8179::_init_partial() {
     // Partial (differential) refreshes use an OTP waveform bank selected by
-    // a forced temperature. Runs against post-reset register defaults for
-    // everything it does not set (per the vendor sequence).
+    // a forced temperature. It relies on the post-reset register defaults
+    // for everything that it does not set (as the vendor sequence does).
     if (auto r = _cmd(cmd_panel_setting, {0x1F}); !r) {
         return r;
     }
@@ -660,10 +660,11 @@ result<void> uc8179::_init_partial() {
 
 result<void> uc8179::_init_gray() {
     // Register-LUT initialization for 4-level grayscale. The tables are the
-    // glass's factory grayscale waveform, loaded through registers so the
-    // frame rate and source voltage are programmable: the factory bank fixes
-    // them at 50 Hz and +/-15 V, where the drive supplies sag under
-    // source-switching load and the gray levels follow the image content.
+    // glass's factory grayscale waveform, loaded through registers so that
+    // the frame rate and source voltage are programmable. The factory bank
+    // fixes them at 50 Hz and +/-15 V. At those values, the drive supplies
+    // sag under source-switching load, and the gray levels change with the
+    // image content.
     const uint8_t src = _gray_source_code;
     if (auto r = _cmd(cmd_power_setting, {0x07, 0x17, src, src, 0x07}); !r) {
         return r;
@@ -710,11 +711,12 @@ result<void> uc8179::_ensure_waveform(waveform target) {
         return {};
     }
     // Each waveform configuration leaves different sticky registers behind
-    // (PLL, VCOM DC, temperature overrides). With a reset line every mode
-    // starts from reset defaults — the image RAM survives the reset. Without
-    // one the drive rails are powered down first, because the power and
-    // clock registers must not be written while the rails are up, and
-    // registers the target sequence does not set keep their previous values.
+    // (PLL, VCOM DC, temperature overrides). With a reset line, every mode
+    // starts from reset defaults. The image RAM is kept across the reset.
+    // Without one, the drive rails are powered down first, because the power
+    // and clock registers must not be written while the rails are up.
+    // Registers that the target sequence does not set keep their previous
+    // values.
     if (reset_gpio().is_connected()) {
         if (auto r = hardware_reset(); !r) {
             return r;
@@ -741,7 +743,7 @@ result<void> uc8179::_ensure_waveform(waveform target) {
 }
 
 result<void> uc8179::_window_begin(region r) {
-    // Hold the border while the window is active; do_refresh programs the
+    // Hold the border while the window is active. do_refresh programs the
     // configured drive before each update.
     if (auto e = _cmd(cmd_vcom_interval, border_held); !e) {
         return e;
@@ -749,7 +751,7 @@ result<void> uc8179::_window_begin(region r) {
     if (auto e = _cmd(cmd_partial_in); !e) {
         return e;
     }
-    // Horizontal bounds cover whole bytes; end coordinates are inclusive
+    // Horizontal bounds cover whole bytes. End coordinates are inclusive
     // (the vendor sequences program these from exclusive ends as end - 1).
     const size_t x_start = r.x;
     const size_t x_end = r.x + (r.width + 7) / 8 * 8 - 1;
@@ -771,7 +773,7 @@ result<void> uc8179::_window_begin(region r) {
 
 result<void> uc8179::_window_end() {
     // tx_param waits for all queued color transfers to finish, so exiting
-    // the window doubles as a DMA drain for the streamed data.
+    // the window also waits for the DMA of the streamed data.
     return _cmd(cmd_partial_out);
 }
 
@@ -781,10 +783,10 @@ result<void> uc8179::_in_window(region r, Write&& write) {
     if (res) {
         res = write();
     }
-    // Exit the window even after a failure: a failed stream may leave
-    // earlier transfers still reading their data, and the controller would
-    // otherwise stay in partial mode, where a refresh covers only the
-    // window.
+    // Exit the window even after a failure. A failed stream may leave
+    // earlier transfers still reading their data. Also, without the exit,
+    // the controller would stay in partial mode, where a refresh covers
+    // only the window.
     auto end = _window_end();
     return res ? end : res;
 }
@@ -792,8 +794,9 @@ result<void> uc8179::_in_window(region r, Write&& write) {
 result<void> uc8179::_clear_ram(bool include_old_plane) {
     // Set the image planes to white. The constant fill streams through a
     // small buffer with command-less continuation transfers, so no
-    // frame-sized allocation is needed (48 KB at 800x480); the buffer's
-    // content never changes, so reuse across queued transfers is safe.
+    // frame-sized allocation is needed (48 KB at 800x480). The buffer's
+    // content never changes, so it is safe to reuse it across queued
+    // transfers.
     std::array<uint8_t, 1024> white;
     white.fill(0xFF);
     const size_t plane_bytes = (width() + 7) / 8 * height();
@@ -817,12 +820,12 @@ result<void> uc8179::_update() {
     if (auto r = _cmd(cmd_refresh); !r) {
         return r;
     }
-    // Give the controller time to assert BUSY before anyone polls it, then
-    // return with the glass still driving: the base class waits for BUSY
-    // (default do_wait) before the next controller command. No old-plane
-    // bookkeeping to defer: the N2OCP bit set in the VCOM/data-interval
-    // register makes the controller copy the new-image RAM to the
-    // previous-image RAM when the refresh completes.
+    // Give the controller time to assert BUSY before anything polls it.
+    // Then return while the glass is still updating. The base class waits
+    // for BUSY (default do_wait) before the next controller command. There
+    // is no old-plane bookkeeping to defer. The N2OCP bit in the
+    // VCOM/data-interval register makes the controller copy the new-image
+    // RAM to the previous-image RAM when the refresh completes.
     idfxx::delay(10ms);
     return {};
 }
@@ -840,7 +843,7 @@ result<void> uc8179::_enter_deep_sleep() {
     if (auto r = _cmd(cmd_deep_sleep, {0xA5}); !r) {
         return r;
     }
-    // BUSY is not meaningful while entering deep sleep; give the controller
+    // BUSY is not meaningful while entering deep sleep. Give the controller
     // time to power down.
     idfxx::delay(100ms);
     return {};

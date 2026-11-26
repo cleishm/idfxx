@@ -218,7 +218,8 @@ std::string to_string(net::ipv6_addr addr) {
         groups[i] = (uint16_t(bytes[i * 2]) << 8) | bytes[i * 2 + 1];
     }
 
-    // Find the longest run of consecutive zero groups (RFC 5952: >= 2, first wins ties)
+    // Find the longest run of consecutive zero groups (RFC 5952: at least 2 groups, and the
+    // first run is used if two runs have the same length)
     int zstart = -1, zlen = 0;
     for (int i = 0, cs = -1, cl = 0; i < 8; ++i) {
         if (groups[i] == 0) {

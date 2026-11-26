@@ -196,7 +196,7 @@ TEST_CASE("log sink can't be added twice", "[idfxx][log]") {
     add_checked(s_rec);
     TEST_ASSERT_TRUE(fails_with(lg::try_add_sink(s_rec), idfxx::errc::invalid_arg));
 #ifdef CONFIG_IDFXX_LOG_ALL_LINES
-    // A sink also can't be added in the other mode, in either order.
+    // A sink also can't be added both with and without all_lines, in either order.
     TEST_ASSERT_TRUE(fails_with(lg::try_add_sink(lg::all_lines, s_rec), idfxx::errc::invalid_arg));
     TEST_ASSERT_TRUE(lg::try_add_sink(lg::all_lines, s_all_rec).has_value());
     TEST_ASSERT_TRUE(
@@ -503,8 +503,7 @@ TEST_CASE("log sink removal doesn't wait for another sink's write", "[idfxx][log
     }
     TEST_ASSERT_TRUE(removed);
     TEST_ASSERT_TRUE(logged);
-    // s_other was removed before the blocking sink let the line continue, so it never received the
-    // line.
+    // s_other was removed before the blocking sink's write returned, so it never received the line.
     TEST_ASSERT_EQUAL(0, s_other.size());
 }
 

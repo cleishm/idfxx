@@ -10,7 +10,7 @@ Type-safe HTTP server for ESP32.
 - Wildcard and any-method URI matching
 - Server-wide error handlers for custom error responses (e.g. 404 pages), also callable from URI
   handlers
-- Request header, query string, and body parsing; the body is readable as an `idfxx::byte_source`
+- Request header, query string, and body parsing. The body is readable as an `idfxx::byte_source`
 - Chunked and complete response sending
 - Session open/close callbacks
 - WebSocket endpoint support (when `CONFIG_HTTPD_WS_SUPPORT` is enabled)
@@ -123,9 +123,9 @@ srv.on_get("/items", [&](idfxx::http::request& req) -> idfxx::result<void> {
 });
 ```
 
-Only the error statuses the server can raise itself are accepted (`error_status`); a constant
-`status_code` outside that set fails to compile, and a status code known only at run time is checked
-with `error_status::from()`.
+Only the status codes that the server can pass to an error handler are accepted (`error_status`). A
+constant `status_code` outside that set fails to compile. A status code known only at run time is
+checked with `error_status::from()`.
 
 ### Reading Large WebSocket Frames
 
@@ -148,7 +148,7 @@ srv.on_ws("/ws", [](idfxx::http::request& req) -> idfxx::result<void> {
 });
 ```
 
-The whole payload must be read, or discarded with `skip()`, before the handler returns — see
+The whole payload must be read, or discarded with `skip()`, before the handler returns. See
 [Important Notes](#important-notes).
 
 ### Binding to a Network Interface
@@ -168,8 +168,8 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `request::ws_frame_reader` - Reads one WebSocket frame's payload in parts (ESP-IDF 6.1+)
 - `server` - HTTP server with RAII lifecycle and handler registration
 - `status_code` - HTTP response status codes
-- `error_status` - A `status_code` the server can pass to an error handler (checked at compile time,
-  or at run time with `error_status::from()`)
+- `error_status` - A `status_code` that the server can pass to an error handler (checked at compile
+  time, or at run time with `error_status::from()`)
 
 ### `request`
 
@@ -185,11 +185,12 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - `query_param(key)` - Single query parameter (returns `std::optional`)
 
 **Body:**
-- `read(buf)` / `try_read(buf)` - Read the next part of the body into a byte or `char` buffer; 0 at
-  the end of the body (after `content_length()` bytes), `invalid_request` if the connection closes
-  before then. `try_read(idfxx::byte_span)` makes the request an `idfxx::byte_source`
-- `read_body()` / `try_read_body()` - Read the rest of the body as a string; `invalid_request` if
-  the connection closes before the whole body arrives
+- `read(buf)` / `try_read(buf)` - Read the next part of the body into a byte or `char` buffer.
+  Returns 0 at the end of the body (after `content_length()` bytes). Fails with `invalid_request` if
+  the connection closes before then. `try_read(idfxx::byte_span)` makes the request an
+  `idfxx::byte_source`
+- `read_body()` / `try_read_body()` - Read the rest of the body as a string. Fails with
+  `invalid_request` if the connection closes before the whole body arrives
 
 **Response:**
 - `set_status(code)` / `set_status(str)` / `try_set_status(str)` - Set response status
@@ -198,7 +199,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   `max_resp_headers`)
 - `send(body)` / `try_send(body)` - Send complete response (text or bytes)
 - `send_chunk(data)` / `try_send_chunk(data)` - Send one chunk of a chunked response (text or
-  bytes); empty data sends nothing
+  bytes). Empty data sends nothing
 - `end_chunked()` / `try_end_chunked()` - End chunked response
 - `send_error(code, msg)` / `try_send_error(code, msg)` - Send error response
 - `handle_error(status)` / `try_handle_error(status)` - Respond with the server's error handler for
@@ -257,7 +258,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   - `resp_send` - Error sending response
   - `alloc_mem` - Memory allocation failed
   - `task` - Failed to create server task
-- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`, throwing methods raise
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
   `std::system_error`
 
 ## Important Notes
@@ -265,53 +266,55 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
 - **Handler lifetime**: Handlers are stored internally and must not reference stack-local data that
   goes out of scope
 - **Exceptions in callbacks**: With exceptions enabled, handlers and session callbacks may throw. An
-  exception thrown by a handler closes the connection: a `std::system_error` is treated exactly like
-  returning its error code, and any other exception is also logged as an error. An exception thrown
-  by `on_session_open` rejects the session, and one thrown by `on_session_close` is logged and
-  ignored. The server keeps running either way
+  exception thrown by a handler closes the connection. A `std::system_error` is treated exactly like
+  returning its error code. Any other exception is also logged as an error. An exception thrown by
+  `on_session_open` rejects the session, and one thrown by `on_session_close` is logged and ignored.
+  The server keeps running either way
 - **Stopping the server**: Destroying a server, or move-assigning over one that is running, stops
-  it and waits for in-flight handlers and session callbacks to return. Never do either from within
+  it and waits for running handlers and session callbacks to return. Never do either from within
   one of that server's own handlers or callbacks: the server cannot stop until they return, so it
   deadlocks. If the server cannot be stopped (for example while the network stack is out of
   buffers), it retries briefly and then aborts, since releasing what the server is still using
   would be unsafe
-- **Request lifetime**: The `request` object is only valid during the handler invocation; do not
+- **Request lifetime**: The `request` object is only valid during the handler invocation. Do not
   store references to it
-- **Thread safety**: Handler registration is not thread-safe; register all handlers before the
+- **Thread safety**: Handler registration is not thread-safe. Register all handlers before the
   server begins accepting connections
 - **Response strings**: `set_status()`, `set_content_type()` and `set_header()` copy their strings
   and keep them until the response is sent. They reject text that would corrupt the response
   (`invalid_arg`): a carriage return, line feed or null character, or a header name that isn't an
   HTTP token. The string forms throw, so without exceptions use `try_set_status()`,
-  `try_set_content_type()` and `try_set_header()`; `set_status(int)` can't fail and is always
+  `try_set_content_type()` and `try_set_header()`. `set_status(int)` can't fail and is always
   available
 - **WebSocket**: WebSocket support requires `CONFIG_HTTPD_WS_SUPPORT` to be enabled in menuconfig
 - **WebSocket frame size**: `ws_recv()` needs the whole payload to fit in the buffer. A larger frame
-  fails with `invalid_size` and its payload is left unread; since the connection cannot continue
-  past unread payload, it is closed when the handler returns, even if the handler reports success.
-  The same applies when receiving the frame fails, since the position in the stream is then unknown.
-  From ESP-IDF 6.1, use `ws_recv_begin()` for frames that may not fit
+  fails with `invalid_size`, and its payload is left unread. The server cannot receive further
+  frames on a connection with unread payload, so the connection is closed when the handler returns,
+  even if the handler reports success. The same applies when receiving the frame fails, since the
+  position in the stream is then unknown. From ESP-IDF 6.1, use `ws_recv_begin()` for frames that
+  may not fit
 - **Consume the whole WebSocket frame**: When using `ws_recv_begin()`, read the whole payload or
-  discard the rest with `skip()` before the handler returns. Unread payload would otherwise be
-  parsed as the next frame, so if a `ws_frame_reader` is destroyed with payload left unread, or
-  receiving the frame fails, the connection is closed when the handler returns (even if the handler
-  reports success) and a warning is logged. `ws_recv_begin()` can be called at most once per handler
-  invocation, and not together with `ws_recv()`. The reader must not outlive the handler invocation
+  discard the rest with `skip()` before the handler returns. Otherwise the unread payload would be
+  parsed as the next frame. So if a `ws_frame_reader` is destroyed with payload left unread, or
+  receiving the frame fails, the connection is closed when the handler returns, even if the handler
+  reports success. A warning is also logged. `ws_recv_begin()` can be called at most once per
+  handler invocation, and not together with `ws_recv()`. The reader must not outlive the handler
+  invocation
 - **Error handlers and the connection**: An error handler that returns success keeps the connection
-  open, except for `internal_server_error`, which always closes it; one that returns an error closes
-  it. After `handle_error()`, the response is complete, so send nothing further; the connection is
-  closed once the URI handler returns if the error handler failed, the status is
-  `internal_server_error`, or no error handler is registered (the default error response is sent
-  then). For errors the server detects while receiving a request (e.g. `bad_request`,
-  `request_timeout`, `uri_too_long`, `request_header_fields_too_large`), the handler may see a
-  partially parsed request, so `uri()` and headers can be incomplete or empty
+  open, except for `internal_server_error`, which always closes it. An error handler that returns an
+  error closes it. After `handle_error()`, the response is complete, so send nothing further. The
+  connection is closed once the URI handler returns if the error handler failed, if the status is
+  `internal_server_error`, or if no error handler is registered (the default error response is sent
+  then). For errors that the server detects while receiving a request (e.g. `bad_request`,
+  `request_timeout`, `uri_too_long`, `request_header_fields_too_large`), the handler may be called
+  for a partially received request, so `uri()` and headers can be incomplete or empty
 - **Limits and keep-alive tuning**: `max_req_hdr_len` and `max_uri_len` default to the project's
-  `CONFIG_HTTPD_MAX_REQ_HDR_LEN` and `CONFIG_HTTPD_MAX_URI_LEN` settings; `keep_alive_idle`,
+  `CONFIG_HTTPD_MAX_REQ_HDR_LEN` and `CONFIG_HTTPD_MAX_URI_LEN` settings. `keep_alive_idle`,
   `keep_alive_interval` and `keep_alive_count` default to `std::nullopt` to let the driver choose.
   An explicit value of zero or less is rejected with `invalid_arg`
 - **Interface binding**: `bind_to_device` takes the lwIP interface name (e.g. `"st1"`, from
   `esp_netif_get_netif_impl_name()`), not the esp_netif key. The interface must exist when the
-  server starts, otherwise starting fails; names of 6 or more characters are rejected with
+  server starts. Otherwise, starting fails. Names of 6 or more characters are rejected with
   `invalid_arg`
 
 ## License

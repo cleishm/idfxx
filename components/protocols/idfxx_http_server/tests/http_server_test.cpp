@@ -82,7 +82,7 @@ static_assert(std::to_underlying(status_code::request_header_fields_too_large) =
 static_assert(std::to_underlying(status_code::internal_server_error) == 500);
 static_assert(std::to_underlying(status_code::network_authentication_required) == 511);
 
-// error_status accepts only the codes the server can pass to an error handler
+// error_status accepts only the codes that the server can pass to an error handler
 static_assert(error_status{status_code::not_found}.code() == status_code::not_found);
 static_assert(error_status::from(status_code::not_found)->code() == status_code::not_found);
 static_assert(error_status::from(status_code::http_version_not_supported).has_value());
@@ -131,7 +131,7 @@ static_assert(std::is_same_v<decltype(std::declval<request::ws_frame_reader&>().
 static_assert(std::is_same_v<decltype(server::config::bind_to_device), std::optional<std::string_view>>);
 #endif
 
-// Keep-alive tuning is optional: std::nullopt lets the driver choose
+// Keep-alive tuning is optional: with std::nullopt, the driver chooses
 static_assert(std::is_same_v<decltype(server::config::keep_alive_idle), std::optional<std::chrono::seconds>>);
 static_assert(std::is_same_v<decltype(server::config::keep_alive_interval), std::optional<std::chrono::seconds>>);
 static_assert(std::is_same_v<decltype(server::config::keep_alive_count), std::optional<int>>);
@@ -454,8 +454,8 @@ TEST_CASE("http server sends every response header set", "[idfxx][http]") {
     auto srv = server::make({.server_port = port, .ctrl_port = alloc_ctrl_port()});
     TEST_ASSERT_TRUE(srv.has_value());
 
-    // Short fields and values, held inline by std::string: storage that moved them as headers are
-    // added would leave earlier headers pointing at stale memory.
+    // Short fields and values, which std::string holds inline. If the storage moved them as
+    // headers are added, earlier headers would point at stale memory.
     static constexpr std::array<std::pair<const char*, const char*>, 6> headers{{
         {"X-A", "1"},
         {"X-B", "22"},
@@ -791,8 +791,8 @@ esp_err_t flaky_stop(httpd_handle_t handle) {
     return httpd_stop(handle);
 }
 
-// A server whose stop fails flaky_stop_failures times, leaving it running, before it stops: as
-// httpd_stop does when it cannot deliver the stop request to the server task.
+// A server whose stop fails flaky_stop_failures times before it stops. Each failed stop leaves the
+// server running, as httpd_stop does when it cannot deliver the stop request to the server task.
 class flaky_stop_server : public server {
 public:
     static flaky_stop_server start(uint16_t port, uint16_t ctrl_port) {
@@ -911,7 +911,7 @@ public:
         return true;
     }
 
-    /// Ends the sending side of the connection, so the server sees the end of the stream.
+    /// Ends the sending side of the connection, so the server receives the end of the stream.
     void shutdown_send() { TEST_ASSERT_EQUAL(0, shutdown(_fd, SHUT_WR)); }
 
     /// Sends a GET request without waiting for the response. Returns false if
@@ -984,8 +984,8 @@ struct body_read_outcome {
     std::error_code error;
 };
 
-/// Sends a POST to @p path whose body stops 90 bytes short of its Content-Length, then ends the
-/// stream, and checks that the handler's read failed and the server closed the connection.
+/// Sends a POST to @p path whose body is 90 bytes shorter than its Content-Length, then ends the
+/// stream. Checks that the handler's read failed and that the server closed the connection.
 void check_truncated_post(uint16_t port, std::string_view path, const body_read_outcome& outcome) {
     http_test_conn conn{port};
     TEST_ASSERT_TRUE(conn.send_raw("POST " + std::string(path) + " HTTP/1.1\r\n"
@@ -1114,7 +1114,7 @@ TEST_CASE("http server error handler returning success keeps the connection open
     TEST_ASSERT_EQUAL(404, first.status);
     TEST_ASSERT_EQUAL_STRING("gone", first.body.c_str());
 
-    // The same connection serves further requests
+    // The server handles further requests on the same connection
     auto second = conn.get("/missing");
     TEST_ASSERT_EQUAL(404, second.status);
     TEST_ASSERT_EQUAL_STRING("gone", second.body.c_str());
@@ -1372,7 +1372,7 @@ TEST_CASE("http server closes the connection when an error handler throws", "[id
     r = srv->try_on_get("/ok", [](request& req) -> result<void> { return req.try_send("ok"); });
     TEST_ASSERT_TRUE(r.has_value());
 
-    // Raised by the server, and dispatched by a handler
+    // One error detected by the server, and one reported by a handler with try_handle_error()
     assert_closed_without_response(port, "/missing");
     assert_closed_without_response(port, "/dispatch");
     TEST_ASSERT_EQUAL(2, calls->load());
@@ -1713,7 +1713,7 @@ TEST_CASE("ws_frame_reader reads a frame larger than its buffer in parts", "[idf
     TEST_ASSERT_EQUAL(big.size(), echo.payload.size());
     TEST_ASSERT_TRUE(echo.payload == big);
 
-    // An empty frame has nothing to read, and reading it does not touch the connection
+    // An empty frame has nothing to read, and reading it receives nothing from the connection
     ws.send_text("");
     TEST_ASSERT_EQUAL_STRING("t=1 f=1 n=0 p=0 ok=1", ws.recv_text().c_str());
     TEST_ASSERT_TRUE(ws.recv_frame(echo) == ws_test_client::recv_status::frame);
@@ -1792,7 +1792,7 @@ TEST_CASE("ws handler leaving frame payload unread closes the connection", "[idf
     ws_test_client ws{port};
 
     // The handler reads only the first 10 payload bytes. The rest is crafted so
-    // that, on the wire, it is a complete masked text frame: if the connection
+    // that, on the wire, it is a complete masked text frame. If the connection
     // were kept, httpd would parse it as the next frame and call the handler
     // again, and the connection would stay open.
     std::string_view smuggled = "smuggled";
@@ -1859,7 +1859,7 @@ TEST_CASE("ws_frame_reader read failure closes the connection", "[idfxx][http]")
 
     ws_test_client ws{port};
 
-    // Send the header and only part of the payload, then go quiet. The read
+    // Send the header and only part of the payload, then send nothing more. The read
     // times out on the server, leaving the position in the frame unknown. If
     // the connection were kept, the client would see no close before its own
     // receive timeout.
@@ -1880,7 +1880,7 @@ TEST_CASE("ws_recv_begin failure closes the connection", "[idfxx][http]") {
 
     ws_test_client ws{port};
 
-    // Send only the first header byte, then go quiet. Receiving the rest of
+    // Send only the first header byte, then send nothing more. Receiving the rest of
     // the header times out on the server.
     auto bytes = ws_test_client::encode_frame(0x2, make_pattern(300));
     ws.send_raw(std::span<const uint8_t>{bytes.data(), 1});

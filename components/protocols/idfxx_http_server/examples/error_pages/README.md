@@ -9,8 +9,8 @@ with its own pages.
   when the connection drops
 - Starting an `idfxx::http::server` on port 80 with `wildcard_uri_match` enabled
 - Registering custom error handlers with `on_error()` for `status_code::not_found` and
-  `status_code::method_not_allowed`, which also cover errors the server detects itself, such as an
-  unknown URL or the wrong method
+  `status_code::method_not_allowed`, which also cover errors that the server detects itself, such as
+  an unknown URL or the wrong method
 - Matching `/items/*` with a wildcard route, and reading the item name from `uri()`
 - Sending the custom 404 page for an unknown item with `handle_error()`
 

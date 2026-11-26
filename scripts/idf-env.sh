@@ -15,22 +15,23 @@
 #   4. Common checkout locations: ~/esp/esp-idf, ~/esp/*/esp-idf, ~/esp-idf,
 #      ~/.espressif/*/esp-idf, /opt/esp/idf
 #
-# idfxx requires ESP-IDF 5.5 or later. The version is not checked here; an
+# idfxx requires ESP-IDF 5.5 or later. The version is not checked here. An
 # older installation fails during the build instead.
 
 _idfxx_ready() {
     command -v idf.py >/dev/null 2>&1
 }
 
-# eim ships an activation script per install and an export.sh that does not
-# work standalone; a plain checkout has only export.sh. Tell them apart by the
-# environment block eim embeds, since the two are activated differently.
+# eim ships an activation script for each install, and an export.sh that does
+# not work on its own. A plain checkout has only export.sh. The two kinds are
+# activated differently. Tell them apart by the environment block that eim
+# embeds in its activation scripts.
 _idfxx_is_eim() {
     grep -q '^IDF_PYTHON_ENV_PATH:' "$1" 2>/dev/null
 }
 
-# Source an export.sh. These are not written to survive `set -e`/`set -u`, so
-# both are relaxed for the duration and restored afterward.
+# Source an export.sh. These scripts do not work under `set -e`/`set -u`, so
+# both options are turned off while the script runs and restored afterward.
 _idfxx_use_export() {
     [ -r "$1" ] || return 1
     _idfxx_opts=$-
@@ -43,8 +44,8 @@ _idfxx_use_export() {
 }
 
 # Apply an eim activation script. Sourcing one aborts the shell unless $0 names
-# a shell — false inside just's recipe scripts — so ask it to print its
-# environment (-e) and apply that instead.
+# a shell. Inside just's recipe scripts, $0 does not name a shell. So run the
+# script to print its environment (-e), and apply that environment instead.
 _idfxx_use_eim() {
     [ -r "$1" ] || return 1
     _idfxx_env=$(sh "$1" -e 2>/dev/null) || return 1
@@ -53,7 +54,8 @@ _idfxx_use_eim() {
         case $_idfxx_kv in
             # the toolchain directories, applied below
             PATH=*) _idfxx_tools_path=${_idfxx_kv#PATH=} ;;
-            # a snapshot of the installing shell's PATH; not ours to restore
+            # a copy of the PATH of the shell that ran the install. This script
+            # does not restore it.
             SYSTEM_PATH=*) ;;
             *=*) export "$_idfxx_kv" ;;
         esac
@@ -61,9 +63,10 @@ _idfxx_use_eim() {
 $_idfxx_env
 EOF
     [ -n "${IDF_PATH:-}" ] && [ -n "${IDF_PYTHON_ENV_PATH:-}" ] || return 1
-    # eim leaves idf.py to a shell function; put it on PATH instead so that it
-    # survives into child processes, ahead of the /usr/bin its PATH starts with
-    # so that the `#!/usr/bin/env python` shebang finds the ESP-IDF virtualenv.
+    # eim makes idf.py available through a shell function. Put it on PATH
+    # instead, so that child processes can also run it. Put it ahead of the
+    # /usr/bin that eim's PATH starts with, so that the `#!/usr/bin/env python`
+    # shebang finds the ESP-IDF virtualenv.
     PATH="$IDF_PYTHON_ENV_PATH/bin:$IDF_PATH/tools:${_idfxx_tools_path#/usr/bin:}:$PATH"
     export PATH
     _idfxx_ready
@@ -87,8 +90,9 @@ _idfxx_eim_scripts() {
 }
 
 _idfxx_setup() {
-    # zsh treats a pattern that matches nothing as an error; the searches below
-    # expect the shell to leave it alone (bash) or drop it (null_glob).
+    # zsh treats a pattern that matches nothing as an error. The searches below
+    # expect the shell to keep such a pattern unchanged (as bash does) or to
+    # remove it (null_glob).
     [ -n "${ZSH_VERSION:-}" ] && setopt local_options null_glob
 
     _idfxx_ready && return 0
@@ -100,9 +104,9 @@ _idfxx_setup() {
         return 1
     fi
 
-    # An IDF_PATH in the environment names the wanted installation, but says
-    # nothing about how to activate it: for eim that is the matching activation
-    # script, otherwise the checkout's own export.sh.
+    # An IDF_PATH in the environment names the wanted installation, but not how
+    # to activate it. For an eim install, use the matching activation script.
+    # Otherwise, use the checkout's own export.sh.
     if [ -n "${IDF_PATH:-}" ]; then
         _idfxx_script=$(_idfxx_eim_scripts |
             while IFS= read -r _idfxx_s; do
@@ -127,7 +131,8 @@ _idfxx_setup() {
     return 1
 }
 
-# BSD sort gained -V late; fall back to a plain reverse sort without it.
+# Older versions of BSD sort do not have -V. Without it, fall back to a plain
+# reverse sort.
 if printf '' | sort -V >/dev/null 2>&1; then
     _idfxx_sort_flags=-Vru
 else
@@ -136,12 +141,12 @@ fi
 
 if _idfxx_setup; then
     _idfxx_rc=0
-    # Which ESP-IDF a build used is not otherwise visible, and discovery can
+    # A build does not otherwise show which ESP-IDF it used, and the search can
     # pick a different one than expected.
     [ -n "${IDF_PATH:-}" ] && echo "esp-idf: $IDF_PATH" >&2
-    # Compile through ccache when it is installed and can write its cache
-    # (a sandboxed shell may not), unless IDF_CCACHE_ENABLE is already set
-    # either way.
+    # Compile through ccache when it is installed and can write its cache. A
+    # sandboxed shell may not be able to write the cache. Skip this when
+    # IDF_CCACHE_ENABLE is already set, to either value.
     if [ -z "${IDF_CCACHE_ENABLE+x}" ] && command -v ccache >/dev/null 2>&1; then
         _idfxx_ccache_dir=$(ccache -k cache_dir 2>/dev/null)
         _idfxx_probe="$_idfxx_ccache_dir/.idfxx-probe.$$"

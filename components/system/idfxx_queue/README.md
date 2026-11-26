@@ -5,7 +5,7 @@ Type-safe queue for inter-task communication on ESP32.
 ## Features
 
 - **Chrono-based timeouts and deadlines** with `std::chrono::duration` and `std::chrono::time_point`
-- **ISR-safe operations** with structured yield hints for context switches
+- **ISR-safe operations** that report whether a context switch is needed
 - **Send-to-front support** for priority message insertion
 - **Overwrite support** for "latest value" mailbox patterns
 - **Peek without removing** items from the queue
@@ -191,7 +191,7 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 - `queue(length, mem_type)` - Create a queue with the specified capacity (exception-based)
 - `queue::make(length, mem_type)` - Create a queue with the specified capacity (result-based)
-- `idfxx::memory::capabilities` - Memory capability flags (`dram`, `spiram`, etc.) — defined in
+- `idfxx::memory::capabilities` - Memory capability flags (such as `dram` and `spiram`), defined in
   `<idfxx/memory>`
 
 ### Send

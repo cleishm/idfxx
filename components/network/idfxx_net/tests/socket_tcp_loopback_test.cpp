@@ -65,8 +65,8 @@ TEST_CASE("tcp loopback: connect_for to unbound port returns connection_refused"
     TEST_ASSERT_TRUE(cli.has_value());
     auto r = cli->try_connect_for(local, std::chrono::seconds(2));
     TEST_ASSERT_FALSE(r.has_value());
-    // lwIP responds with RST when no listener is bound, which surfaces as
-    // ECONNRESET via SO_ERROR rather than ECONNREFUSED. Accept either, plus
+    // lwIP responds with RST when no listener is bound, which SO_ERROR reports
+    // as ECONNRESET rather than ECONNREFUSED. Accept either, plus
     // io_error as a fallback for unmapped errno values.
     TEST_ASSERT_TRUE(r.error() == idfxx::net::errc::connection_refused ||
                      r.error() == idfxx::net::errc::connection_reset ||
@@ -86,7 +86,7 @@ TEST_CASE("tcp loopback: connect_to (resolving, bare) resolves and connects", "[
     TEST_ASSERT_TRUE(srv.has_value());
     auto local = srv->local_endpoint().value();
 
-    // Bare overload — no cfg, no opts. The string_view host selects the
+    // Bare overload, with no cfg and no opts. The string_view host selects the
     // resolving overload. "127.0.0.1" is a numeric address so resolution
     // succeeds without DNS even with default (non-numeric_host) opts.
     auto client = stream_socket::connect_to("127.0.0.1", local.port());
@@ -106,7 +106,7 @@ TEST_CASE("tcp loopback: connect_to (resolving, bare) resolves and connects", "[
 }
 
 TEST_CASE("tcp loopback: connect_to (resolving) returns last connect error when all candidates fail", "[net]") {
-    // Bind, capture the port, then close — connect attempts will be refused (or RST).
+    // Bind, capture the port, then close. Connect attempts will then be refused (or reset).
     auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
     TEST_ASSERT_TRUE(srv.has_value());
     auto local = srv->local_endpoint().value();
@@ -114,8 +114,8 @@ TEST_CASE("tcp loopback: connect_to (resolving) returns last connect error when 
 
     auto r = stream_socket::connect_to("127.0.0.1", local.port());
     TEST_ASSERT_FALSE(r.has_value());
-    // The error is the last connect error, not a synthetic name_not_found —
-    // resolution succeeded and exactly one candidate was tried.
+    // The error is the last connect error, not a synthetic name_not_found.
+    // Resolution succeeded, and exactly one candidate was tried.
     TEST_ASSERT_TRUE(
         r.error() == idfxx::net::errc::connection_refused || r.error() == idfxx::net::errc::connection_reset ||
         r.error() == idfxx::net::errc::io_error

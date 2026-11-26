@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Bounces a spinning square around an ILI9341 color LCD: a rotating square
-// drifts across the whole 240x320 screen and reflects off each edge,
-// changing color on every bounce. The square is drawn as four lines between
-// its rotated corners, authored once in screen coordinates in draw_frame();
-// render_banded runs it once per 240x40 band and writes each slice, so the
-// framebuffer stays band-sized (19 KB) even though the square roams the
-// whole display.
+// Bounces a spinning square around an ILI9341 color LCD. A rotating square
+// moves across the whole 240x320 screen and reflects off each edge. It
+// changes color on every bounce. The square is drawn as four lines between
+// its rotated corners. draw_frame() draws it once in screen coordinates.
+// render_banded runs draw_frame() once for each 240x40 band and writes each
+// slice, so the framebuffer stays band-sized (19 KB) even though the square
+// moves over the whole display.
 //
-// Nothing here is band-aligned: the square sits at an arbitrary position
-// every frame and almost always straddles a band boundary, so it is
-// assembled from the two (or three) passes it happens to cross — exactly
-// what render_banded's four-side clipping is for.
+// Nothing here is band-aligned. The square is at an arbitrary position
+// every frame and almost always crosses a band boundary. So it is assembled
+// from the two (or three) passes whose bands it crosses. render_banded's
+// four-side clipping is made for this case.
 
 #include <idfxx/gfx>
 #include <idfxx/gpio>
@@ -32,7 +32,7 @@ using namespace quanta::frequency_literals;
 
 static constexpr idfxx::log::logger logger{"example"};
 
-// Pin assignments — change to match your board.
+// Pin assignments. Change them to match your board.
 static constexpr auto PIN_MOSI = idfxx::gpio_11;
 static constexpr auto PIN_SCLK = idfxx::gpio_12;
 static constexpr auto PIN_CS = idfxx::gpio_10;
@@ -69,8 +69,9 @@ struct point {
     int x, y;
 };
 
-// Everything the drawing pass needs, derived from the simulation each tick
-// so draw_frame stays a pure function invoked once per band.
+// Everything that the drawing pass needs. It is derived from the simulation
+// each tick, so that draw_frame stays a pure function that is called once
+// for each band.
 struct frame {
     std::array<point, 4> corners;
     rgb565 color;
@@ -140,13 +141,13 @@ static frame snapshot(const square& sq) {
     return f;
 }
 
-// Draws the whole frame in 240x320 screen coordinates; render_banded invokes
-// this once per band and clips everything outside the band.
+// Draws the whole frame in 240x320 screen coordinates. render_banded calls
+// this once for each band and clips everything outside the band.
 static void draw_frame(band_canvas& canvas, const frame& f) {
     constexpr rgb565 border(48, 48, 48);
     constexpr rgb565 lead(255, 255, 255);
 
-    // Dim frame marking the play area, straddling several band boundaries.
+    // Dim frame that marks the play area. It crosses several band boundaries.
     canvas.draw_rect(0, 0, DISPLAY_W, DISPLAY_H, border);
 
     // The square: one line per edge between successive corners. The leading
@@ -205,7 +206,7 @@ extern "C" void app_main() {
         square sq;
 
         while (true) {
-            // Advance the simulation, then render the frame it describes.
+            // Advance the simulation, then render the frame that it describes.
             advance(sq);
             const frame f = snapshot(sq);
 

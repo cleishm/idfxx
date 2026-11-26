@@ -22,8 +22,8 @@ bool valid_priority(task_priority priority) noexcept {
     return priority.value() < static_cast<unsigned int>(configMAX_PRIORITIES);
 }
 
-// FreeRTOS asserts on an out-of-range priority or core instead of reporting an error, and lays
-// out an undersized stack without checking it. On ESP-IDF, stack_size and
+// FreeRTOS asserts on an out-of-range priority or core instead of reporting an error. It also
+// sets up a stack that is too small without checking its size. On ESP-IDF, stack_size and
 // configMINIMAL_STACK_SIZE are both in bytes.
 bool valid_config(const task::config& cfg) noexcept {
     if (!valid_priority(cfg.priority)) {
@@ -103,7 +103,7 @@ void task::trampoline(void* arg) {
             std::memory_order_acquire
         )) {
         // Owned task completed. Signal joiner, then suspend.
-        // The owner (destructor/try_join/try_detach/try_kill) will vTaskDelete us.
+        // The owner (destructor/try_join/try_detach/try_kill) deletes this task with vTaskDelete.
         if (ctx->join_sem != nullptr) {
             xSemaphoreGive(ctx->join_sem);
         }
@@ -113,12 +113,12 @@ void task::trampoline(void* arg) {
     }
 
     if (expected == context::state_t::detached) {
-        // Detached: self-clean.
+        // Detached: the task cleans up after itself.
         delete ctx;
         vTaskDeleteWithCaps(nullptr);
     }
 
-    // Destroying: destructor will force-kill us. Suspend until killed.
+    // Destroying: the destructor kills this task. Suspend until it does.
     for (;;) {
         vTaskSuspend(nullptr);
     }
@@ -217,9 +217,10 @@ void task::_stop_and_delete() noexcept {
     if (_handle != nullptr) {
         _context->stop_flag.store(true, std::memory_order_release);
         // Resume the task repeatedly until it completes. Looping is necessary because vTaskResume
-        // is a no-op if the task isn't suspended, so a single call can miss the window between the
-        // task checking stop_flag and calling vTaskSuspend. Uses 1 tick (not pdMS_TO_TICKS(1))
-        // to guarantee a non-zero wait between retries regardless of configTICK_RATE_HZ.
+        // is a no-op if the task isn't suspended. A single call can run after the task checks
+        // stop_flag but before it calls vTaskSuspend, and then has no effect. Uses 1 tick (not
+        // pdMS_TO_TICKS(1)) to guarantee a non-zero wait between retries regardless of
+        // configTICK_RATE_HZ.
         do {
             vTaskResume(_handle);
             xTaskNotifyGive(_handle);

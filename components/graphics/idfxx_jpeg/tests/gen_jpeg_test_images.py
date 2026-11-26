@@ -9,17 +9,17 @@ Run from this directory with uv (needs network access to PyPI the first time):
     uv run gen_jpeg_test_images.py
 
 The images are encoded with Pillow, and each golden hash is the 32-bit FNV-1a
-hash of the RGB bytes Pillow decodes (libjpeg-turbo's defaults: islow IDCT and
+hash of the RGB bytes that Pillow decodes (libjpeg-turbo's defaults: islow IDCT and
 fancy upsampling). Pillow can only decode at scales 1/1, 1/2, 1/4 and 1/8, so
 the hashes for every M/8 output scale come from libjpeg-turbo's djpeg, which
 must be on PATH (e.g. Homebrew's jpeg-turbo). The script checks that djpeg and
 Pillow agree wherever both can decode, and fails if they do not.
 
 The arithmetic-coded image is the baseline 4:2:0 image transcoded losslessly by
-jpegtran, and the 12-bit and lossless images are encoded by cjpeg (libjpeg-turbo
-3.x, for -precision 12 and -lossless); all three tools must be on PATH.
+jpegtran. The 12-bit and lossless images are encoded by cjpeg (libjpeg-turbo
+3.x, for -precision 12 and -lossless). All three tools must be on PATH.
 
-The output is committed; the build does not run this script.
+The output is committed. The build does not run this script.
 """
 
 import io

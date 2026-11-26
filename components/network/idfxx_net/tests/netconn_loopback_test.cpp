@@ -63,8 +63,8 @@ TEST_CASE("netconn: buffer segments() reconstructs received payload", "[net]") {
     TEST_ASSERT_TRUE(rx.has_value());
     TEST_ASSERT_TRUE(rx->is_open());
 
-    // Walking segments() must reconstruct the full payload without disturbing
-    // the buffer's own len() bookkeeping.
+    // Iterating over segments() must reconstruct the full payload without
+    // changing the value of the buffer's own len().
     std::array<std::byte, 64> gathered{};
     size_t total = 0;
     for (auto seg : rx->segments()) {
@@ -114,7 +114,7 @@ TEST_CASE("netconn: tcp send copies by default and honors no_copy", "[net]") {
     TEST_ASSERT_EQUAL_size_t(5, got->size());
     TEST_ASSERT_EQUAL_MEMORY("hello", got->data(), 5);
 
-    // no_copy references the caller's buffer; a static-storage buffer satisfies
+    // no_copy references the caller's buffer. A static-storage buffer satisfies
     // the lifetime contract.
     static constexpr std::string_view persistent = "world";
     auto written2 = client->try_send(std::as_bytes(std::span(persistent)), netconn::write_flag::no_copy);
@@ -156,7 +156,7 @@ TEST_CASE("netconn: tcp recv returns empty buffer on graceful close", "[net]") {
     TEST_ASSERT_TRUE(sent.has_value());
     server_side->close();
 
-    // The first recv may return the payload or the close — drain until close.
+    // The first recv may return the payload or the close. Receive until the close.
     while (true) {
         auto rx = client->try_recv();
         TEST_ASSERT_TRUE(rx.has_value());
@@ -165,8 +165,9 @@ TEST_CASE("netconn: tcp recv returns empty buffer on graceful close", "[net]") {
         }
     }
 
-    // Subsequent recv on the closed connection must continue to report the
-    // empty-buffer close signal rather than throwing/erroring.
+    // Subsequent recv on the closed connection must continue to return the
+    // empty buffer that indicates a close, rather than throwing or returning an
+    // error.
     auto eof = client->try_recv();
     TEST_ASSERT_TRUE(eof.has_value());
     TEST_ASSERT_FALSE(eof->is_open());
@@ -179,10 +180,10 @@ TEST_CASE("netconn: tcp recv returns empty buffer on graceful close", "[net]") {
 }
 
 TEST_CASE("netconn: tcp recv(buf) preserves bytes across small reads", "[net]") {
-    // Regression test: when the caller buffer is smaller than the netbuf lwIP
-    // delivered, the overflow bytes used to be silently dropped because the
+    // Regression test: when the caller buffer is smaller than the netbuf that
+    // lwIP delivered, the overflow bytes used to be silently dropped because the
     // netbuf was destroyed at the end of the call. The fix keeps the netbuf
-    // alive in `_pending` and drains it on subsequent calls.
+    // alive in `_pending` and copies the rest out on subsequent calls.
     auto srv = listener::make({ipv4_addr(127, 0, 0, 1), 0}, {.reuse_address = true});
     TEST_ASSERT_TRUE(srv.has_value());
     auto local = srv->local_endpoint().value();
@@ -241,7 +242,7 @@ TEST_CASE("netconn: udp send_to(bytes) loopback to BSD socket", "[net]") {
 
 TEST_CASE("netconn: listener accept_with_peer reports the connecting endpoint", "[net]") {
     // The netconn listener can now report the peer, so it can serve as the
-    // server side directly rather than borrowing the BSD listener.
+    // server side directly rather than using the BSD listener.
     auto srv = netconn::listener::make();
     TEST_ASSERT_TRUE(srv.has_value());
     srv->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
@@ -261,7 +262,7 @@ TEST_CASE("netconn: listener accept_with_peer reports the connecting endpoint", 
     auto accepted = srv->try_accept_with_peer();
     TEST_ASSERT_TRUE(accepted.has_value());
 
-    // The peer the server reports is the client's local endpoint.
+    // The peer that the server reports is the client's local endpoint.
     auto client_local = client->local_endpoint();
     TEST_ASSERT_TRUE(client_local.has_value());
     TEST_ASSERT_TRUE(accepted->peer == *client_local);
@@ -286,7 +287,7 @@ TEST_CASE("netconn: datagram_channel local/peer endpoint accessors", "[net]") {
     TEST_ASSERT_FALSE(unconnected.has_value());
     TEST_ASSERT_TRUE(unconnected.error() == idfxx::net::errc::not_connected);
 
-    // Bind assigns a concrete local address; local_endpoint reflects it.
+    // Bind assigns a concrete local address. local_endpoint reflects it.
     ch->try_bind({ipv4_addr(127, 0, 0, 1), 0}).value();
     auto local = ch->local_endpoint();
     TEST_ASSERT_TRUE(local.has_value());

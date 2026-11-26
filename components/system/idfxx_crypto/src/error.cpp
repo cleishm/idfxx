@@ -149,8 +149,8 @@ result<void> psa_init() {
     // ESP-IDF 5.5 doesn't initialize PSA Crypto at startup (6.0 and later do, in
     // esp_psa_crypto_init.c), so it is initialized here on first use. psa_crypto_init() is
     // idempotent, but 5.5's is not thread-safe (MBEDTLS_THREADING_C is off by default), so calls
-    // are serialized until one succeeds. A failure is not cached, so the next call tries again;
-    // hence this is not std::call_once.
+    // are serialized until one succeeds. A failure is not cached, so the next call tries again.
+    // For this reason, this is not std::call_once.
     static std::atomic<bool> initialized{false};
     if (initialized.load(std::memory_order_acquire)) {
         return {};

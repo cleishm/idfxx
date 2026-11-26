@@ -7,9 +7,10 @@ The [Spleen](https://github.com/fcambus/spleen) bitmap fonts (5x8 and 8x16) as i
 ## Features
 
 - `spleen_5x8` — compact status text
-- `spleen_8x16` — headline text; scale 2 (via `idfxx::gfx::draw_text`) gives 16x32 digits
+- `spleen_8x16` — headline text. Scale 2 (via `idfxx::gfx::draw_text`) gives 16x32 digits
 - Covers printable ASCII (0x20–0x7E)
-- One translation unit per font, so fonts an application never references are dropped at link time
+- One translation unit per font, so fonts that an application never references are dropped at link
+  time
 
 ## Requirements
 

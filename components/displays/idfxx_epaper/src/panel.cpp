@@ -11,10 +11,10 @@
 
 namespace idfxx::epaper {
 
-// Shared body of the write family: the panel must be awake and in the
-// framebuffer's color mode, the destination column must satisfy the
+// Shared body of the write family. The panel must be awake and in the
+// framebuffer's color mode. The destination column must satisfy the
 // framebuffer's packing alignment (a RAM byte boundary for the 1-bpp
-// formats, an even column for the nibble-packed six-color one), the row
+// formats, an even column for the nibble-packed six-color one). The row
 // range must be a valid band of the framebuffer, and the placed band must
 // fit within the panel.
 template<typename FB>
@@ -107,7 +107,7 @@ result<void> panel::configure_control_lines(gpio busy_gpio, gpio reset_gpio) {
     if (!busy_gpio.is_connected()) {
         return error(errc::invalid_arg);
     }
-    // BUSY is driven by the panel (no pull needed); reset idles high.
+    // BUSY is driven by the panel (no pull needed). Reset idles high.
     if (auto r = busy_gpio.try_set_direction(gpio::mode::input); !r) {
         return error(r.error());
     }
@@ -122,7 +122,7 @@ result<void> panel::configure_control_lines(gpio busy_gpio, gpio reset_gpio) {
 
 namespace {
 
-// Polls `busy` until it leaves `busy_level`, reporting errc::timeout after
+// Polls `busy` until it leaves `busy_level`. Reports errc::timeout after
 // `timeout` (or `default_timeout` when unset). Succeeds immediately for an
 // unconnected line. Shared by wait_busy and the start_refresh future.
 result<void> poll_busy(

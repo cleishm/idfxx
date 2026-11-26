@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_gfx
-// Pure pixel rendering — runs everywhere, including QEMU.
+// Pure pixel rendering. Runs everywhere, including QEMU.
 
 #include "idfxx/epaper/color6_framebuffer"
 #include "idfxx/epaper/gray4_framebuffer"
@@ -165,8 +165,8 @@ bool band_matches(const mono_framebuffer& full, const mono_framebuffer& band, si
 }
 
 // mono_framebuffer's dimension constructor throws and is compiled out when
-// exceptions are disabled; build through make() so the drawing tests compile
-// in both configurations.
+// exceptions are disabled. Build through make() so that the drawing tests
+// compile in both configurations.
 mono_framebuffer make_fb(size_t width, size_t height) {
     return std::move(*mono_framebuffer::make(width, height));
 }
@@ -208,8 +208,8 @@ size_t count_set_rows(const mono_framebuffer& fb, size_t y0, size_t y1) {
 
 // Renders draw(canvas) onto an unclipped (32 + dx)x32 frame and again into
 // four 32x8 bands through canvas(band, dx, y, w, h), each covering frame columns
-// [dx, dx + 32); true when every band equals its part of the frame and the
-// frame has ink.
+// [dx, dx + 32). Returns true when every band equals its part of the frame
+// and the frame has ink.
 template<typename Draw>
 bool bands_match_frame(Draw draw, size_t dx = 0) {
     auto full = make_fb(32 + dx, 32);
@@ -763,8 +763,8 @@ TEST_CASE("gfx rotated view clips writes outside its swapped bounds", "[idfxx][g
 
 TEST_CASE("gfx rotated canvas renders the quarter-turned scene", "[idfxx][gfx]") {
     // Draw a glyph through a rotated canvas and check it against the same
-    // glyph drawn natively and rotated by hand — the two mappings must
-    // agree for every pixel of the frame.
+    // glyph drawn natively and rotated by hand. The two mappings must agree
+    // for every pixel of the frame.
     auto fb = make_fb(16, 32);
     rotated view(fb, rotation::cw90);
     canvas c(view);
@@ -793,7 +793,8 @@ TEST_CASE("gfx rotated fill and clear forward to the surface", "[idfxx][gfx]") {
     view.clear();
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
 
-    // Through a canvas too: full coverage takes the surface's native path.
+    // Through a canvas too: a canvas that covers the whole view uses the
+    // surface's native fill and clear.
     canvas c(view);
     c.fill(true);
     TEST_ASSERT_EQUAL(8 * 16, count_set_pixels(fb));
@@ -822,8 +823,8 @@ struct test_band {
     [[nodiscard]] size_t height() const noexcept { return 16; }
 };
 
-// A frame-sized pixel store that band writes assemble into, standing in
-// for a panel when testing try_render_banded end to end.
+// A frame-sized pixel store that the band writes are assembled into. It
+// stands in for a panel when testing try_render_banded end to end.
 struct band_target {
     std::array<std::array<bool, 32>, 32> pixels{};
     size_t writes = 0;
@@ -951,8 +952,8 @@ TEST_CASE("gfx draw_text with ink=false erases ink pixels", "[idfxx][gfx]") {
 TEST_CASE("gfx draw_text clips at framebuffer edges", "[idfxx][gfx]") {
     auto fb = make_fb(8, 8);
     draw_text(fb, spleen_8x16, 4, 4, "MMM"); // extends far past both edges
-    // Must not crash; pixels inside the fb may be set, nothing to assert
-    // beyond bounds-safety (get_pixel outside is false by contract).
+    // Must not crash. Pixels inside the fb can be set. There is nothing to
+    // assert beyond bounds-safety (get_pixel outside is false by contract).
     TEST_ASSERT_FALSE(fb.get_pixel(8, 8));
 }
 
@@ -992,12 +993,15 @@ using idfxx::font::glyph_metrics;
 using idfxx::font::glyph_range;
 using idfxx::font::proportional_font;
 
-// A tiny proportional font with ascent 3: 'A' is a 2x2 block on the
-// baseline, 'g' a 1x3 stroke descending two rows below it, 'j' a pixel
-// overhanging one column left of the pen, U+00E9 a pixel above the line
-// top, '?' (the replacement) a pixel on the baseline row, '-' a 1x1 dash
-// just above the baseline, and U+00AD an inked glyph that must never be drawn.
-// Its ink reaches 4 rows above the baseline (one past the line top), 2 below
+// A tiny proportional font with ascent 3:
+// - 'A' is a 2x2 block on the baseline.
+// - 'g' is a 1x3 stroke that descends two rows below the baseline.
+// - 'j' is a pixel that overhangs one column left of the pen.
+// - U+00E9 is a pixel above the line top.
+// - '?' (the replacement) is a pixel on the baseline row.
+// - '-' is a 1x1 dash just above the baseline.
+// - U+00AD is an inked glyph that must never be drawn.
+// Its ink extends 4 rows above the baseline (one past the line top), 2 below
 // it, and one column left of the pen.
 constexpr uint8_t prop_bitmap[] = {
     0xC0, 0xC0,       // 'A'
@@ -1222,8 +1226,8 @@ TEST_CASE("gfx clipping: proportional overhang crossing a band edge renders iden
 }
 
 TEST_CASE("gfx clipping: proportional accents reach a band above the line top", "[idfxx][gfx]") {
-    // The band holds rows 8-15 and the line top is row 16, its bottom edge;
-    // only the é rises into the band, one row above the line top (column 3, row 15).
+    // The band holds rows 8-15 and the line top is row 16, its bottom edge.
+    // Only the é rises into the band, one row above the line top (column 3, row 15).
     auto band = make_fb(16, 8);
     canvas(band, 0, 8, 16, 24).draw_text(prop_font, 0, 16, "Aé");
     TEST_ASSERT_TRUE(only_pixels(band, {{3, 7}}));
@@ -2007,10 +2011,10 @@ TEST_CASE("gfx positions at the int limits do not overflow", "[idfxx][gfx]") {
     far.fill(true);
     far.draw_line(0, 0, 15, 15, true);
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
-    // A window's local coordinates stop short of INT_MAX: one spanning
+    // A window's local coordinates end before INT_MAX. A window that spans
     // SIZE_MAX from INT_MIN would hold the canvas at local columns and rows
-    // from 2^31, so it holds none of it, and one from INT_MIN + 16 holds all
-    // but the last column and row.
+    // from 2^31, so it holds none of the canvas. A window from INT_MIN + 16
+    // holds all but the last column and row.
     c.window(INT_MIN, INT_MIN, SIZE_MAX, SIZE_MAX).fill(true);
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
     c.window(INT_MIN + 16, INT_MIN + 16, SIZE_MAX, SIZE_MAX).fill(true);
@@ -2023,8 +2027,8 @@ TEST_CASE("gfx positions at the int limits do not overflow", "[idfxx][gfx]") {
 TEST_CASE("gfx coordinate spaces reaching INT_MAX stop short of it", "[idfxx][gfx]") {
     auto fb = make_fb(12, 8);
 
-    // The surface's columns 0-1 sit at columns INT_MAX - 2 and INT_MAX - 1;
-    // the rest lie at INT_MAX and beyond, outside the space. A rectangle
+    // The surface's columns 0-1 are at columns INT_MAX - 2 and INT_MAX - 1.
+    // The rest are at INT_MAX and beyond, outside the space. A rectangle
     // whose right edge lies past INT_MAX draws only its top and bottom
     // edges' visible part, not a right edge clamped to column INT_MAX.
     canvas c(fb, INT_MAX - 2, 0, 0xffffffff, 4);
@@ -2040,8 +2044,8 @@ TEST_CASE("gfx coordinate spaces reaching INT_MAX stop short of it", "[idfxx][gf
     TEST_ASSERT_EQUAL(INT_MAX, w.width());
 
     // A right-aligned line of 'j' (ink one column left of the pen) whose pen
-    // lands at INT_MAX inks column INT_MAX - 1; one landing at INT_MAX + 1
-    // inks nothing.
+    // lands at INT_MAX inks column INT_MAX - 1. A line whose pen lands at
+    // INT_MAX + 1 inks nothing.
     fb.clear();
     c.draw_text_box(prop_font, INT_MAX - 6, 0, 8, "j", true, text_align::right);
     TEST_ASSERT_TRUE(only_pixels(fb, {{1, 2}}));
@@ -2051,7 +2055,7 @@ TEST_CASE("gfx coordinate spaces reaching INT_MAX stop short of it", "[idfxx][gf
 
     // Text box lines starting past INT_MAX draw nothing, rather than
     // overprinting at row INT_MAX. Line 1 shows its glyph rows 0-1 on
-    // surface rows 0-1 ('A' row 1 is inked at columns 1-2); line 2 starts at
+    // surface rows 0-1 ('A' row 1 is inked at columns 1-2). Line 2 starts at
     // INT_MAX + 6.
     fb.clear();
     canvas tc(fb, 0, INT_MAX - 2, 12, 0xffffffff);
@@ -2062,7 +2066,7 @@ TEST_CASE("gfx coordinate spaces reaching INT_MAX stop short of it", "[idfxx][gf
     TEST_ASSERT_EQUAL(INT_MAX, tc.height());
 
     // A line of U+00E9 (ink one row above the line top) starting at row
-    // INT_MAX inks row INT_MAX - 1; one starting at INT_MAX + 1 inks nothing.
+    // INT_MAX inks row INT_MAX - 1. A line starting at INT_MAX + 1 inks nothing.
     fb.clear();
     tc.draw_text_box(prop_font, 0, INT_MAX - 6, 8, "A\né", true);
     TEST_ASSERT_TRUE(only_pixels(fb, {{0, 1}}));
@@ -2442,7 +2446,7 @@ TEST_CASE("gfx round shapes at the int and size limits clip exactly", "[idfxx][g
     TEST_ASSERT_EQUAL(0, count_set_pixels(fb));
 
     // A circle of radius 2^30 + 3 centered 2^30 left of the surface reaches
-    // columns 0-3 of every visible row; its terms near 2^124 need the full
+    // columns 0-3 of every visible row. Its terms near 2^124 need the full
     // 128-bit test.
     fill_circle(fb, -(1 << 30), 4, (size_t{1} << 30) + 3, true);
     TEST_ASSERT_EQUAL(4 * 16, count_set_pixels(fb));
@@ -2467,7 +2471,7 @@ TEST_CASE("gfx round shapes at the int and size limits clip exactly", "[idfxx][g
 namespace {
 
 // True when the center of pixel (px, py) lies inside or on the triangle
-// with vertices (v[0], v[1]), (v[2], v[3]) and (v[4], v[5]); a degenerate
+// with vertices (v[0], v[1]), (v[2], v[3]) and (v[4], v[5]). A degenerate
 // triangle holds its segment.
 bool in_triangle(const int (&v)[6], long px, long py) {
     const auto edge = [&](int a, int b) {
@@ -2606,11 +2610,12 @@ TEST_CASE("gfx fill_triangle fills the pixels centered inside and those draw_tri
 TEST_CASE("gfx fill_triangle covers its outline, which bounds the fill", "[idfxx][gfx]") {
     // Every triangle with its vertices in a 5x5 grid (degenerate, collinear,
     // flat-topped and flat-bottomed ones included), drawn at least a pixel in
-    // from the surface's edges so no neighbor is clipped: each row of the
-    // fill is one run, the outline lies in the fill, and the fill's boundary
-    // is the outline. The outline is each edge drawn as a line from its upper
-    // endpoint (the grid points a <= b <= c are in that order), and every
-    // order of the same vertices fills and outlines exactly the same pixels.
+    // from the surface's edges so that no neighbor is clipped. Each row of
+    // the fill is one run, the outline lies in the fill, and the fill's
+    // boundary is the outline. The outline is each edge drawn as a line from
+    // its upper endpoint (the grid points a <= b <= c are in that order).
+    // Every order of the same vertices fills and outlines exactly the same
+    // pixels.
     auto fb = make_fb(8, 8);
     auto outline = make_fb(8, 8);
     auto lines = make_fb(8, 8);
@@ -2928,7 +2933,7 @@ TEST_CASE("gfx draw_bitmap is transparent, or opaque with a paper value", "[idfx
         fb.fill(true);
         draw_bitmap(fb, 3, 2, *b, true, false);
         TEST_ASSERT_TRUE(shows_image(fb, *b, 3, 2, true, &paper));
-        // Inverse: ink false punches the image out of a filled area.
+        // Inverse: ink false erases the image's set pixels from a filled area.
         fb.fill(true);
         draw_bitmap(fb, 3, 2, *b, false);
         for (size_t row = 0; row < b->height; ++row) {
@@ -3079,7 +3084,7 @@ TEST_CASE("gfx clipping: shapes write each visible pixel once and nothing outsid
         return n;
     };
 
-    // Shapes whose bounding boxes miss the band reach no set_pixel call.
+    // Shapes whose bounding boxes do not overlap the band make no set_pixel call.
     band.fill_ellipse(0, 0, 30, 15, true);
     band.draw_circle(10, 6, 5, true);
     band.fill_round_rect(0, 24, 8, 8, 2, true);
@@ -3088,7 +3093,7 @@ TEST_CASE("gfx clipping: shapes write each visible pixel once and nothing outsid
     band.draw_bitmap(8, 16, icon, true, false);
     TEST_ASSERT_EQUAL(0, surf.writes);
 
-    // Shapes crossing the band write each of its pixels they cover once.
+    // Shapes that cross the band write each band pixel that they cover once.
     band.fill_circle(4, 20, 6, true);
     TEST_ASSERT_TRUE(surf.writes > 0);
     TEST_ASSERT_EQUAL(set_pixels(), surf.writes);

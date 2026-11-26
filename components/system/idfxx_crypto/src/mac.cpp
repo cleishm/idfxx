@@ -24,8 +24,8 @@ using detail::as_psa;
 
 namespace {
 
-// The tag length of a PSA MAC algorithm, in bytes: its truncated length, or the full length of an
-// untruncated algorithm. 0 if the algorithm is not a MAC algorithm, or one of unknown length.
+// The tag size of a PSA MAC algorithm, in bytes: its truncated size, or the full size of an
+// untruncated algorithm. 0 if the algorithm is not a MAC algorithm, or one of unknown size.
 constexpr std::size_t mac_tag_size(psa_algorithm_t alg) noexcept {
     if (!PSA_ALG_IS_MAC(alg)) {
         return 0;
@@ -34,10 +34,11 @@ constexpr std::size_t mac_tag_size(psa_algorithm_t alg) noexcept {
     return truncated != 0 ? truncated : detail::mac_full_tag_size(alg);
 }
 
-// Whether a key permits a call: the call's tag length if it does, 0 (errc::not_permitted) if not.
-// `alg` and `usage` are the key's; the call needs any one of the usages in `needed`. Decided here
-// rather than relying on how the PSA implementation reports it, so that a key permitted no MAC
-// algorithm, or without the usage, is refused before the tag or buffer passed is looked at.
+// Whether a key permits a call: the call's tag size if it does, or 0 (errc::not_permitted) if
+// not. `alg` and `usage` are the key's. The call needs any one of the usages in `needed`. This is
+// decided here rather than relying on how the PSA implementation reports it. As a result, a key
+// that permits no MAC algorithm, or lacks the usage, is refused before the tag or buffer that was
+// passed is examined.
 std::size_t
 permitted_tag_size(psa_algorithm_t alg, flags<key_usage> usage, flags<key_usage> needed) noexcept {
     return usage.contains_any(needed) ? mac_tag_size(alg) : 0;
@@ -155,15 +156,15 @@ result<operation> operation::make(const key& k) {
         ) == 0) {
         return error(errc::not_permitted);
     }
-    // Key creation refused a key type the algorithm doesn't take. Anything else only the crypto
-    // library can decide (such as a key size the hardware lacks) is reported on first use, so
-    // that an idle operation holds no PSA resources. The operation computes a tag if the key
-    // permits that, and otherwise checks one.
+    // Key creation refused a key type that the algorithm doesn't take. Any other failure that only
+    // the crypto library can detect (such as a key size that the hardware doesn't support) is
+    // reported on first use, so that an idle operation holds no PSA resources. The operation
+    // computes a tag if the key permits that, and otherwise checks one.
     return operation{std::make_unique<state>(k, k.usage().contains(key_usage::sign_message))};
 }
 
-// mac::operation uses whatever MAC algorithm a key permits: an authenticator accepts only keys
-// permitted its own algorithm and tag length, as the crypto library's policy check would.
+// mac::operation uses whatever MAC algorithm a key permits. An authenticator accepts only keys that
+// permit its own algorithm and tag size, as the crypto library's policy check would.
 result<operation> operation::_make_as(key_algorithm alg, const key& k) {
     if (k.algorithm() != alg) {
         return error(errc::not_permitted);
@@ -206,7 +207,8 @@ result<byte_span> operation::try_finish(byte_span tag) {
         _state->discard();
         return error(errc::not_permitted);
     }
-    // Checked before PSA sees the buffer: PSA would end the operation, discarding the message.
+    // Checked before the buffer is passed to PSA, because PSA would end the operation and discard
+    // the message.
     if (tag.size() < size) {
         return error(errc::buffer_too_small);
     }

@@ -50,41 +50,44 @@ namespace idfxx::epaper {
  * @ref color_mode::color6 (the native format, six colors at 4 bits per
  * pixel) and @ref color_mode::mono (1-bpp framebuffers rendered as black
  * and white, so existing text and banded-rendering code works unchanged).
- * The glass supports full and fast refreshes. A full refresh takes on the
- * order of 25-30 seconds. A fast refresh runs the same waveform on a faster
- * frame clock, taking from about two-thirds of the full refresh's time down
- * to under half and trading image quality for speed; see @ref fast_quality
- * and @ref config::fast_refresh_quality. Both flash through the color
- * passes. `partial` refresh requests always report `errc::not_supported`
- * (even before a baseline exists), as does @ref color_mode::gray4.
+ * The glass supports full and fast refreshes. A full refresh takes about
+ * 25-30 seconds. A fast refresh runs the same waveform on a faster frame
+ * clock. It takes between about two-thirds and under half of the full
+ * refresh's time, and gives lower image quality. See @ref fast_quality and
+ * @ref config::fast_refresh_quality. During both refresh types, the glass
+ * flashes through the color passes. `partial` refresh requests always
+ * report `errc::not_supported`, even before a baseline exists.
+ * @ref color_mode::gray4 also reports `errc::not_supported`.
  *
- * The panel is driven by two cascaded controller ICs, each owning one
- * 600-column half of every row: the master (columns 0-599) and the slave
- * (columns 600-1199). They share the SPI clock and data lines, the
- * data/command line, and a single BUSY output (active low), and each has
- * its own chip-select line. The driver attaches its own device to an
- * `idfxx::spi::master_bus` and drives both chip selects and the
- * data/command line itself, so a command addressed to both controllers
- * reaches them in a single transfer with both selected. It also owns the
+ * Two cascaded controller ICs drive the panel. Each controls one 600-column
+ * half of every row: the master (columns 0-599) and the slave (columns
+ * 600-1199). They share the SPI clock and data lines, the data/command
+ * line, and a single BUSY output (active low). Each has its own
+ * chip-select line. The driver attaches its own device to an
+ * `idfxx::spi::master_bus`. It drives both chip selects and the
+ * data/command line itself, so a command addressed to both controllers is
+ * sent to them in a single transfer with both selected. It also owns the
  * BUSY input and reset output lines.
  *
  * The panel's data output is optional. When it is wired to the bus's MISO
- * line, setting @ref config::check_presence makes the driver confirm that
- * both controllers answer during construction and @ref wake, so a
- * disconnected or unpowered panel is reported instead of appearing idle.
+ * line, set @ref config::check_presence to make the driver confirm that
+ * both controllers answer during construction and @ref wake. A
+ * disconnected or unpowered panel is then reported instead of appearing
+ * idle.
  *
  * Because the controllers have no addressable window, every refresh
  * uploads the whole frame. The driver keeps a 960 KB shadow of the frame in
- * PSRAM: writes (at any row, and any even column in color6 or any multiple
- * of 8 in mono) update the shadow only, and @ref refresh streams it to the
- * two controllers before driving the update — so band-by-band rendering
- * through a small framebuffer works without a frame-sized application
- * buffer. **PSRAM is required:** this header fails to compile unless
+ * PSRAM. Writes update the shadow only. @ref refresh streams the shadow to
+ * the two controllers before it runs the update. Because of the shadow,
+ * band-by-band rendering through a small framebuffer works without a
+ * frame-sized application buffer. A write can start at any row, and at any
+ * even column in color6 or any column that is a multiple of 8 in mono.
+ * **PSRAM is required:** this header fails to compile unless
  * `CONFIG_SPIRAM` is enabled.
  *
  * Each command and each half-frame upload holds the SPI bus exclusively,
- * from chip-select assertion to release, so transactions to other devices
- * on the same bus wait until it finishes. The bus is free while the driver
+ * from chip-select assertion to release. Transactions to other devices on
+ * the same bus wait until it finishes. The bus is free while the driver
  * waits on BUSY.
  *
  * This type is non-copyable and move-only. A moved-from object must not be
@@ -121,15 +124,16 @@ public:
 
     /**
      * @headerfile <idfxx/epaper/el133uf1>
-     * @brief Image quality a @ref refresh_mode::fast refresh runs at.
+     * @brief Image quality that a @ref refresh_mode::fast refresh runs at.
      *
-     * Each level selects a faster frame clock: lower quality shortens the
-     * refresh further. On a black-and-white image, the white turns
+     * Each level selects a faster frame clock. A lower quality gives a
+     * shorter refresh. On a black-and-white image, the white turns
      * increasingly cream, and a faint ghost of the previous image may
      * remain. Black stays solid at every step. Colors other than black and
-     * white may shift. Times below are at room temperature (the full
-     * refresh takes about 26 s there) and grow when cold. A following full
-     * refresh clears what a fast one leaves.
+     * white may shift. The times below are at room temperature, where the
+     * full refresh takes about 26 s. They are longer when the panel is cold.
+     * A full refresh after a fast refresh removes any artifacts that the fast
+     * refresh left.
      */
     enum class fast_quality : uint8_t {
         /// High image quality, about 18 s: the cleanest fast refresh. The
@@ -161,13 +165,13 @@ public:
         /// controllers.
         required<gpio> dc_gpio;
         /// GPIO wired to the panel's reset line, or `gpio::nc()` if not
-        /// wired. Required for @ref wake; strongly recommended so the
+        /// wired. Required for @ref wake. Strongly recommended, so that the
         /// controllers start from a known register state. Without it,
-        /// construction waits for BUSY to release instead of resetting,
-        /// and only cycling the panel's power undoes @ref sleep (which the
-        /// destructor also performs): sleeping controllers ignore commands
+        /// construction waits for BUSY to release instead of resetting.
+        /// Also, only cycling the panel's power undoes @ref sleep, which the
+        /// destructor also performs. Sleeping controllers ignore commands
         /// until reset, so a driver created later fails with
-        /// `errc::not_found` when `check_presence` is set, and otherwise
+        /// `errc::not_found` when `check_presence` is set. Otherwise, it
         /// succeeds but leaves the glass unchanged.
         gpio reset_gpio = gpio::nc();
         /// GPIO wired to the panel's BUSY output. The controllers drive
@@ -186,9 +190,10 @@ public:
         /// Maximum time to wait for the BUSY line to release. A full
         /// six-color refresh takes 25-30 seconds, longer when cold.
         std::chrono::milliseconds busy_timeout{60'000};
-        /// Image quality @ref refresh_mode::fast refreshes run at, unless a
-        /// refresh is given its own (see @ref try_refresh(fast_quality));
-        /// full refreshes always run at the panel's reference frame clock.
+        /// Image quality that @ref refresh_mode::fast refreshes run at,
+        /// unless a refresh is given its own (see
+        /// @ref try_refresh(fast_quality)). Full refreshes always run at the
+        /// panel's reference frame clock.
         fast_quality fast_refresh_quality = fast_quality::high;
     };
 
@@ -196,19 +201,24 @@ public:
     /**
      * @brief Creates a new EL133UF1 panel driver on the given SPI bus.
      *
-     * Adds a device for the panel to @p bus, configures the chip-select,
-     * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (or, without a `cfg.reset_gpio`, waits for BUSY to release),
-     * confirms that both answer if `cfg.check_presence` is set, runs the
-     * full initialization sequence, and allocates the PSRAM shadow frame
-     * (blank white), leaving the panel awake in @ref color_mode::color6 and
-     * ready for writes.
+     * Performs these steps:
+     * - Adds a device for the panel to @p bus.
+     * - Configures the chip-select, data/command, BUSY and reset GPIOs.
+     * - Hardware-resets the controllers. Without a `cfg.reset_gpio`, it
+     *   waits for BUSY to release instead.
+     * - Confirms that both controllers answer, if `cfg.check_presence` is
+     *   set.
+     * - Runs the full initialization sequence.
+     * - Allocates the PSRAM shadow frame (blank white).
+     *
+     * The panel is then awake in @ref color_mode::color6 and ready for
+     * writes.
      *
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.
      *
      * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
-     *               always used; MISO is used only when
+     *               always used. MISO is used only when
      *               `cfg.check_presence` is set.
      * @param cfg Panel configuration.
      *
@@ -236,19 +246,24 @@ public:
     /**
      * @brief Creates a new EL133UF1 panel driver on the given SPI bus.
      *
-     * Adds a device for the panel to @p bus, configures the chip-select,
-     * data/command, BUSY and reset GPIOs, hardware-resets the controllers
-     * (or, without a `cfg.reset_gpio`, waits for BUSY to release),
-     * confirms that both answer if `cfg.check_presence` is set, runs the
-     * full initialization sequence, and allocates the PSRAM shadow frame
-     * (blank white), leaving the panel awake in @ref color_mode::color6 and
-     * ready for writes.
+     * Performs these steps:
+     * - Adds a device for the panel to @p bus.
+     * - Configures the chip-select, data/command, BUSY and reset GPIOs.
+     * - Hardware-resets the controllers. Without a `cfg.reset_gpio`, it
+     *   waits for BUSY to release instead.
+     * - Confirms that both controllers answer, if `cfg.check_presence` is
+     *   set.
+     * - Runs the full initialization sequence.
+     * - Allocates the PSRAM shadow frame (blank white).
+     *
+     * The panel is then awake in @ref color_mode::color6 and ready for
+     * writes.
      *
      * Does not take ownership of @p bus. The caller must ensure the bus
      * outlives this driver.
      *
      * @param bus    SPI master bus the panel is wired to. MOSI and SCLK are
-     *               always used; MISO is used only when
+     *               always used. MISO is used only when
      *               `cfg.check_presence` is set.
      * @param cfg Panel configuration.
      *
@@ -346,7 +361,7 @@ public:
      * @param quality Image quality to run the fast refresh at.
      * @return Success, or an error.
      * @retval timeout The BUSY line did not release in time. The update
-     *         keeps running; the next panel operation waits for it to
+     *         keeps running. The next panel operation waits for it to
      *         complete before proceeding.
      * @retval invalid_state The panel is asleep.
      */
@@ -374,8 +389,8 @@ private:
     // controllers together for a single transfer.
     enum class target : uint8_t { master, slave, both };
 
-    // Non-initializing constructor make() uses: takes ownership of the
-    // panel's SPI device.
+    // Non-initializing constructor that make() uses. It takes ownership of
+    // the panel's SPI device.
     explicit el133uf1(spi::master_device device, const config& cfg)
         : panel(
               native_width,
@@ -444,8 +459,9 @@ private:
     gpio _dc;
     // Whether to read the controllers' ID registers after each reset.
     bool _check_presence;
-    // Image quality fast refreshes run at: config::fast_refresh_quality,
-    // swapped for the duration of a refresh(fast_quality) call.
+    // Image quality that fast refreshes run at. It holds
+    // config::fast_refresh_quality, except during a refresh(fast_quality)
+    // call, which swaps in its own quality.
     fast_quality _fast_quality;
 
     // Internal DMA-capable staging buffer for outgoing bytes (at most 4 KB,
@@ -453,20 +469,21 @@ private:
     // are copied here out of PSRAM before each transmit.
     std::vector<uint8_t, dma_allocator<uint8_t>> _chunk;
 
-    /// Work do_refresh leaves running so it can return while the glass
-    /// updates; _settle (reached through do_wait) completes it before the
-    /// next controller command.
+    /// Work that do_refresh leaves running, so that it can return while the
+    /// glass updates. _settle (called through do_wait) completes it before
+    /// the next controller command.
     enum class pending : uint8_t {
-        /// Controllers idle; nothing deferred.
+        /// Controllers idle. Nothing deferred.
         none,
-        /// The drive rails are up (an update may be driving); wait for BUSY, then power them off.
+        /// The drive rails are up, and an update may be running. Wait for BUSY, then power the
+        /// rails off.
         power_off,
     };
     pending _pending = pending::none;
 
     // Host-side copy of the frame in the controllers' upload format: two
     // contiguous per-controller planes (plane 0 = master, plane 1 = slave),
-    // each native_height rows of 300 bytes. Writes land here; refresh
+    // each native_height rows of 300 bytes. Writes go here. Refresh
     // streams each plane to its controller.
     std::vector<uint8_t, spiram_allocator<uint8_t>> _shadow;
 };

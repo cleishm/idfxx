@@ -12,7 +12,7 @@
 #include <format>
 #endif
 
-// An endpoint always holds a v4 or v6 address; there is no empty state.
+// An endpoint always holds a v4 or v6 address. There is no empty state.
 static_assert(!std::is_default_constructible_v<idfxx::net::endpoint>);
 static_assert(std::is_copy_constructible_v<idfxx::net::endpoint>);
 static_assert(std::is_move_constructible_v<idfxx::net::endpoint>);
@@ -70,14 +70,14 @@ TEST_CASE("endpoint equality", "[net]") {
 
 #ifdef CONFIG_IDFXX_STD_FORMAT
 TEST_CASE("endpoint formatter honors fill/align/width", "[net]") {
-    // "192.168.1.1:8080" is 16 chars; "[fe80::1]:80" is 12 chars.
+    // "192.168.1.1:8080" is 16 chars. "[fe80::1]:80" is 12 chars.
     idfxx::net::endpoint v4(idfxx::net::ipv4_addr(192, 168, 1, 1), 8080);
     idfxx::net::endpoint v6(*idfxx::net::ipv6_addr::parse("fe80::1"), 80);
 
     // Plain spec unchanged.
     TEST_ASSERT_EQUAL_STRING("192.168.1.1:8080", std::format("{}", v4).c_str());
 
-    // Width alone pads with spaces; default string alignment is left.
+    // Width alone pads with spaces. The default string alignment is left.
     auto wide = std::format("{:20}", v4);
     TEST_ASSERT_EQUAL_size_t(20, wide.size());
     TEST_ASSERT_EQUAL_STRING("192.168.1.1:8080    ", wide.c_str());
@@ -92,7 +92,7 @@ TEST_CASE("endpoint formatter honors fill/align/width", "[net]") {
     TEST_ASSERT_EQUAL_size_t(20, center.size());
     TEST_ASSERT_EQUAL_STRING("**192.168.1.1:8080**", center.c_str());
 
-    // Same spec applies to v6 — fill works against the rendered "[host]:port" form.
+    // Same spec applies to v6. The fill applies to the rendered "[host]:port" form.
     auto v6right = std::format("{:>20}", v6);
     TEST_ASSERT_EQUAL_size_t(20, v6right.size());
     TEST_ASSERT_EQUAL_STRING("        [fe80::1]:80", v6right.c_str());

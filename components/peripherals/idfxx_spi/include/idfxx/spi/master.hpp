@@ -89,27 +89,34 @@ enum class bus_flags : uint32_t {
     master = SPICOMMON_BUSFLAG_MASTER,
     /// Bus uses IOMUX pins
     iomux_pins = SPICOMMON_BUSFLAG_IOMUX_PINS,
-    /// Check existing of SCLK pin. Or indicates CLK line initialized.
+    /// Check that the SCLK pin exists. After initialization, indicates that the CLK line is
+    /// initialized.
     sclk = SPICOMMON_BUSFLAG_SCLK,
-    /// Check existing of MISO pin. Or indicates MISO line initialized.
+    /// Check that the MISO pin exists. After initialization, indicates that the MISO line is
+    /// initialized.
     miso = SPICOMMON_BUSFLAG_MISO,
-    /// Check existing of MOSI pin. Or indicates MOSI line initialized.
+    /// Check that the MOSI pin exists. After initialization, indicates that the MOSI line is
+    /// initialized.
     mosi = SPICOMMON_BUSFLAG_MOSI,
-    /// Check MOSI and MISO pins can output. Or indicates bus able to work under DIO mode.
+    /// Check that the MOSI and MISO pins can output. After initialization, indicates that the bus
+    /// can work in DIO mode.
     dual = SPICOMMON_BUSFLAG_DUAL,
-    /// Check existing of WP and HD pins. Or indicates WP & HD pins initialized.
+    /// Check that the WP and HD pins exist. After initialization, indicates that the WP and HD
+    /// pins are initialized.
     wphd = SPICOMMON_BUSFLAG_WPHD,
-    /// Check existing of MOSI/MISO/WP/HD pins as output. Or indicates bus able to work under QIO
-    /// mode.
+    /// Check that the MOSI/MISO/WP/HD pins exist and can output. After initialization, indicates
+    /// that the bus can work in QIO mode.
     quad = SPICOMMON_BUSFLAG_QUAD,
-    /// Check existing of IO4~IO7 pins. Or indicates IO4~IO7 pins initialized.
+    /// Check that the IO4~IO7 pins exist. After initialization, indicates that the IO4~IO7 pins
+    /// are initialized.
     io4_io7 = SPICOMMON_BUSFLAG_IO4_IO7,
-    /// Check existing of MOSI/MISO/WP/HD/SPIIO4/SPIIO5/SPIIO6/SPIIO7 pins as output. Or indicates
-    /// bus able to work under octal mode.
+    /// Check that the MOSI/MISO/WP/HD/SPIIO4/SPIIO5/SPIIO6/SPIIO7 pins exist and can output. After
+    /// initialization, indicates that the bus can work in octal mode.
     octal = SPICOMMON_BUSFLAG_OCTAL,
     /// Bus uses native pins
     native_pins = SPICOMMON_BUSFLAG_NATIVE_PINS,
-    /// Allow to power down the peripheral during light sleep, and auto recover then.
+    /// Allow the peripheral to be powered down during light sleep and restored automatically
+    /// afterward.
     slp_allow_pd = SPICOMMON_BUSFLAG_SLP_ALLOW_PD,
 };
 
@@ -200,7 +207,7 @@ namespace idfxx::spi {
  * A @c transaction is a value type: it can be freely copied, moved, and
  * stored in containers (e.g. @c std::vector). When passed to the async
  * queue API, the @c transaction value itself may be dropped or reused
- * once queue_trans() returns — only the buffers referenced by
+ * once queue_trans() returns. Only the buffers referenced by
  * @c tx_buffer / @c rx_buffer must remain valid until the returned
  * @ref idfxx::future "future" signals completion.
  *
@@ -218,18 +225,19 @@ struct transaction {
     idfxx::byte_view tx_buffer = {};
     /// Receive buffer, or empty for no MISO phase.
     idfxx::byte_span rx_buffer = {};
-    /// Data length in bits, or std::nullopt to derive it from the buffers: 8 × `tx_buffer.size()`
-    /// bits, or with no @c tx_buffer, 8 × `rx_buffer.size()` bits on a full-duplex device (a
-    /// receive-only transfer) and 0 on a half-duplex one (no MOSI phase). On a half-duplex device
-    /// it is the length of the MOSI phase only. An explicit value must not exceed
-    /// 8 × `tx_buffer.size()` bits (when @c tx_buffer is set), and may be less, including lengths
-    /// that are not a whole number of bytes.
+    /// Data length in bits, or std::nullopt to derive it from the buffers. The derived length is
+    /// 8 × `tx_buffer.size()` bits. With no @c tx_buffer, it is 8 × `rx_buffer.size()` bits on a
+    /// full-duplex device (a receive-only transfer) and 0 on a half-duplex device (no MOSI phase).
+    /// On a half-duplex device the data length is the length of the MOSI phase only. An explicit
+    /// value must not exceed 8 × `tx_buffer.size()` bits (when @c tx_buffer is set). It may be
+    /// less, including lengths that are not a whole number of bytes.
     std::optional<size_t> length = std::nullopt;
-    /// Receive length in bits, or std::nullopt to derive it. On a full-duplex device it derives
-    /// to the data length, and an explicit 0 is rejected with `errc::invalid_arg`. On a
-    /// half-duplex device it is the length of the MISO phase, deriving to 8 × `rx_buffer.size()`
-    /// bits (0, no MISO phase, without an @c rx_buffer); an explicit 0 also means no MISO phase.
-    /// Must not exceed 8 × `rx_buffer.size()` bits (when @c rx_buffer is set).
+    /// Receive length in bits, or std::nullopt to derive it. On a full-duplex device, the derived
+    /// value is the data length, and an explicit 0 is rejected with `errc::invalid_arg`. On a
+    /// half-duplex device, the receive length is the length of the MISO phase. The derived value
+    /// is then 8 × `rx_buffer.size()` bits, or 0 (no MISO phase) without an @c rx_buffer. An
+    /// explicit 0 also means no MISO phase. Must not exceed 8 × `rx_buffer.size()` bits (when
+    /// @c rx_buffer is set).
     std::optional<size_t> rx_length = std::nullopt;
     /// Override clock speed for this transaction (0 = no override).
     quanta::frequency::hertz override_freq{0};
@@ -295,29 +303,29 @@ struct bus_config {
     gpio::level data_idle_level = gpio::level::low;
     /// Maximum transfer size, in bytes (DMA only), or std::nullopt to let the driver choose. Larger
     /// values allocate more DMA descriptors. An explicit value of 0, or one larger than `INT_MAX`,
-    /// is rejected with `errc::invalid_arg` when the bus is created. Ignored when DMA is disabled;
-    /// the effective limit is then `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
+    /// is rejected with `errc::invalid_arg` when the bus is created. Ignored when DMA is disabled.
+    /// The effective limit is then `SOC_SPI_MAXIMUM_BUFFER_SIZE`.
     std::optional<size_t> max_transfer_sz = std::nullopt;
 
-    /// Abilities of bus to be checked by the driver.
+    /// Bus capabilities for the driver to check.
     idfxx::flags<bus_flags> flags = {};
 
     /// Select cpu core to register SPI ISR.
     std::optional<idfxx::core_id> isr_cpu_id = std::nullopt;
 
     /// Interrupt priority levels to accept. Only the standard-priority levels (level 1, 2 and 3)
-    /// are allowed; level 4, 5, 6 and `nmi` are rejected by the driver with `errc::invalid_arg`.
+    /// are allowed. The driver rejects level 4, 5, 6 and `nmi` with `errc::invalid_arg`.
     idfxx::intr_levels intr_levels = {};
 
     /// Behavioral interrupt flags. `intr_flag::shared`, `intr_flag::edge` and `intr_flag::disabled`
     /// are not allowed and are rejected by the driver with `errc::invalid_arg`. `intr_flag::iram`
-    /// is only allowed when `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled (otherwise it is rejected
-    /// with `errc::invalid_arg`); when set, all callbacks must be placed in IRAM.
+    /// is only allowed when `CONFIG_SPI_MASTER_ISR_IN_IRAM` is enabled. Otherwise it is rejected
+    /// with `errc::invalid_arg`. When it is set, all callbacks must be placed in IRAM.
     idfxx::flags<idfxx::intr_flag> intr_flags = {};
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
     /// DMA burst size, in bytes, or std::nullopt to let the driver choose. When set, it must be one
-    /// of the burst sizes supported by the chip's DMA controller, otherwise bus creation fails with
+    /// of the burst sizes supported by the chip's DMA controller. Otherwise bus creation fails with
     /// `errc::invalid_arg`. Only used when DMA is enabled, and ignored on chips whose DMA burst
     /// size is not configurable.
     /// @note Only available with ESP-IDF 6.1 or later.
@@ -380,18 +388,19 @@ public:
     /** @brief Move assignment. Transfers bus ownership. */
     master_bus& operator=(master_bus&& other) noexcept;
 
-    /** @brief Returns the host device ID the bus is using. */
+    /** @brief Returns the host device ID that the bus is using. */
     [[nodiscard]] enum host_device host() const { return _host; }
 
     /**
      * @brief Returns the maximum transaction length for this bus.
      *
      * The value is fixed when the bus is created and does not depend on whether
-     * any devices are attached. With DMA, it is the transfer size the bus was
-     * created for (`bus_config::max_transfer_sz`, rounded up to whole DMA
-     * descriptors, or the driver default when unset), capped at the hardware's
-     * maximum transaction length. Without DMA, it is the size of the hardware
-     * FIFO (`SOC_SPI_MAXIMUM_BUFFER_SIZE`, 64 bytes on most chips).
+     * any devices are attached. With DMA, it is the transfer size that the bus
+     * was created for, capped at the hardware's maximum transaction length. That
+     * transfer size is `bus_config::max_transfer_sz` rounded up to whole DMA
+     * descriptors, or the driver default when it is unset. Without DMA, it is the
+     * size of the hardware FIFO (`SOC_SPI_MAXIMUM_BUFFER_SIZE`, 64 bytes on most
+     * chips).
      *
      * @return Maximum transaction length in bytes.
      */
@@ -414,15 +423,15 @@ private:
  * API for overlapping transfers with other work.
  *
  * All transaction APIs are thread-safe and may be called concurrently from
- * multiple tasks; individual polling calls are serialized against each other
+ * multiple tasks. Individual polling calls are serialized against each other
  * and against lock(). To keep a multi-transaction sequence atomic, hold the
  * device lock (e.g. via std::lock_guard) across the sequence.
  *
  * Satisfies the Lockable named requirement, so it can be used directly with
  * std::lock_guard and similar standard RAII wrappers. Locking provides mutual
- * exclusion between threads sharing this device and holds exclusive access to
- * the underlying bus for the duration. The lock is recursive: a thread may
- * re-lock a device it already holds.
+ * exclusion between threads sharing this device. While the lock is held, the
+ * device also has exclusive access to the underlying bus. The lock is
+ * recursive: a thread that already holds the lock may lock the device again.
  *
  * This type is non-copyable and move-only. The caller must ensure the parent
  * master_bus outlives this device. A moved-from
@@ -458,9 +467,9 @@ public:
         /// let the driver choose. An explicit value of 0 is rejected with `errc::invalid_arg` when
         /// the device is created.
         std::optional<uint16_t> duty_cycle_pos = std::nullopt;
-        /// SPI bit-cycles CS is active before transmission (half-duplex only).
+        /// Number of SPI bit-cycles that CS is active before transmission (half-duplex only).
         uint16_t cs_ena_pretrans = 0;
-        /// SPI bit-cycles CS stays active after transmission.
+        /// Number of SPI bit-cycles that CS stays active after transmission.
         uint8_t cs_ena_posttrans = 0;
         /// SPI clock speed in Hz.
         quanta::frequency::hertz clock_speed{0};
@@ -546,8 +555,8 @@ public:
      * @brief Returns the actual clock frequency in use.
      *
      * The requested @c config::clock_speed may not always be exactly
-     * achievable; this returns the closest frequency the hardware is
-     * running at.
+     * achievable. This returns the frequency that the hardware is running at,
+     * which is the closest achievable one.
      *
      * @return The actual frequency in Hz.
      */
@@ -983,20 +992,20 @@ public:
      *
      * Submits @p trans to the device and returns a future that signals
      * completion. Blocks indefinitely if the device's transaction queue is
-     * full; the queue depth is set by @c config::queue_size.
+     * full. The queue depth is set by @c config::queue_size.
      *
      * @param trans Transaction descriptor.
      *
      * @return A future tracking the queued transaction.
      *
      * @note The @ref transaction value itself may be dropped or reused once
-     * this call returns; the buffers it references must remain valid until
+     * this call returns. The buffers that it references must remain valid until
      * the returned future signals completion.
-     * @note The parent master_device must outlive every future it produces.
+     * @note The parent master_device must outlive every future that it produces.
      * @note Dropping an in-flight future (without waiting) is safe. The
      * transaction continues to occupy a queue slot until a later wait() call
-     * drains it or the device is destroyed, which may cause subsequent
-     * queue_trans() calls to block if the queue fills up.
+     * drains it or the device is destroyed. Until then, later queue_trans()
+     * calls may block if the queue fills up.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
      */
@@ -1030,16 +1039,16 @@ public:
      *
      * Submits @p trans to the device and returns a future that signals
      * completion. Blocks indefinitely if the device's transaction queue is
-     * full; the queue depth is set by @c config::queue_size.
+     * full. The queue depth is set by @c config::queue_size.
      *
      * @param trans Transaction descriptor.
      *
      * @return A future tracking the queued transaction, or an error.
      *
      * @note The @ref transaction value itself may be dropped or reused once
-     * this call returns; the buffers it references must remain valid until
+     * this call returns. The buffers that it references must remain valid until
      * the returned future signals completion.
-     * @note The parent master_device must outlive every future it produces.
+     * @note The parent master_device must outlive every future that it produces.
      */
     [[nodiscard]] result<idfxx::future<void>> try_queue_trans(const transaction& trans);
 
@@ -1071,16 +1080,17 @@ public:
      * transactions to all other devices on the same bus are also deferred.
      * Blocks indefinitely until the device and bus are available.
      *
-     * The lock is recursive: a thread may lock a device it already holds.
+     * The lock is recursive: a thread that already holds the lock may lock the
+     * device again.
      * Each lock() must be balanced by a matching unlock().
      *
-     * @throws std::system_error if the driver rejects bus acquisition (only
-     * possible when a polling transaction was started through the raw
-     * idf_handle(), bypassing this API). When
+     * @throws std::system_error if the driver rejects bus acquisition. This is
+     * only possible when a polling transaction was started through the raw
+     * idf_handle(), bypassing this API. When
      * CONFIG_COMPILER_CXX_EXCEPTIONS is disabled, this aborts instead.
      *
-     * Each transaction is its own CS cycle: CS is released when it completes unless it sets
-     * trans_flags::cs_keep_active, which requires holding the lock.
+     * Each transaction is its own CS cycle. CS is released when the transaction completes, unless
+     * the transaction sets trans_flags::cs_keep_active. That flag requires holding the lock.
      *
      * @code
      * std::array<uint8_t, 1> cmd = {0x9F};
@@ -1101,7 +1111,7 @@ public:
      * @brief Tries to acquire exclusive access without waiting for the device.
      *
      * Returns false immediately if another thread holds the device lock. On
-     * success, exclusive bus access is also acquired, which may briefly block
+     * success, exclusive bus access is also acquired. This may block briefly
      * while in-flight transactions of other devices on the bus complete.
      *
      * @return true if the device and bus were acquired, false otherwise.
@@ -1116,9 +1126,9 @@ public:
     void unlock() const;
 
 private:
-    // Opaque async state held in the .cpp. master_device keeps a single
-    // unique_ptr to it, so the class stays cheap to move while the mutexes,
-    // condition variable, and slot pool keep a stable address across the
+    // Opaque async state, defined in the .cpp. master_device keeps a single
+    // unique_ptr to it. The class is then cheap to move, and the mutexes,
+    // condition variable, and slot pool keep a stable address for the
     // device's lifetime.
     struct async_state;
 

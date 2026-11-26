@@ -87,7 +87,7 @@ TEST_CASE("udp loopback: connected recv(buf) reports oversize as message_too_lon
     TEST_ASSERT_TRUE(tx.has_value());
 
     // Send 16 bytes, receive into a 4-byte buffer. The connected-mode recv(buf)
-    // must surface the overrun as an error rather than silently truncating.
+    // must report the oversized datagram as an error rather than silently truncating.
     constexpr std::string_view payload = "0123456789ABCDEF";
     tx->try_send_to(std::as_bytes(std::span(payload)), local).value();
 
@@ -185,8 +185,8 @@ TEST_CASE("udp: broadcast off by default", "[net]") {
 TEST_CASE("udp: multicast helpers accept the call shape", "[net]") {
     auto sock = datagram_socket::make(address_family::ipv4);
     TEST_ASSERT_TRUE(sock.has_value());
-    // Sanity check: the multicast helpers should accept the call shape on a UDP
-    // socket. The actual LWIP_IGMP feature may or may not be compiled in; we
-    // just verify the API can be invoked.
+    // Sanity check: the multicast helpers can be called on a UDP socket. The
+    // actual LWIP_IGMP feature may or may not be compiled in. This test only
+    // verifies that the API can be invoked.
     sock->set_multicast_loopback(false);
 }

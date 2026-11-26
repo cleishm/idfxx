@@ -13,7 +13,7 @@
  *
  * Provides a chip-agnostic abstract base class (`idfxx::rtc::clock`) that drivers
  * for battery-backed real-time-clock chips, such as `idfxx::rtc::pcf8563`,
- * implement. Application code binds to this interface to read and set the
+ * implement. Application code uses this interface to read and set the
  * calendar time without depending on a specific chip.
  *
  * `idfxx::rtc` covers external real-time-clock chips only. It is unrelated to
@@ -54,25 +54,25 @@ namespace idfxx::rtc {
  * @endcode
  *
  * **Validity.** A clock's time is valid while the chip is keeping reliable
- * time: it has not lost track (for example after a supply or oscillator
- * failure), it is not stopped, and it holds a time the chip can represent.
- * A time that is not valid is an expected state, such as on first boot or
- * after a battery change, not an error: now() returns `std::nullopt` while
- * the time is not valid, and set_time() makes it valid again (set_time() also
- * restarts a stopped clock).
+ * time: it has not lost track of the time (for example after a supply or
+ * oscillator failure), it is not stopped, and it holds a time that the chip
+ * can represent. A time that is not valid is an expected state, not an error.
+ * It occurs, for example, on first boot or after a battery change. now()
+ * returns `std::nullopt` while the time is not valid. set_time() makes it
+ * valid again, and also restarts a stopped clock.
  *
  * **Errors.** An error from now() or set_time(), such as
  * `errc::invalid_response` or `errc::timeout`, means a transfer with the chip
- * failed: retry. set_time() also fails with `errc::invalid_arg` for a time the
+ * failed. Retry the call. set_time() also fails with `errc::invalid_arg` for a time the
  * chip can't hold.
  *
- * The public interface is non-virtual; concrete drivers customize behavior by
- * overriding the protected `do_*` hooks, mirroring the standard library's
- * non-virtual-interface pattern (cf. `std::pmr::memory_resource`). The range of
- * times a clock can hold is chip-specific, and each driver documents and checks
- * its own.
+ * The public interface is non-virtual. Concrete drivers customize behavior by
+ * overriding the protected `do_*` hooks. This is the non-virtual-interface
+ * pattern that the standard library also uses (for example,
+ * `std::pmr::memory_resource`). The range of times that a clock can hold is
+ * chip-specific. Each driver documents and checks its own range.
  *
- * The interface is not copyable; drivers are move-only.
+ * The interface is not copyable. Drivers are move-only.
  */
 class clock {
 public:
@@ -93,7 +93,8 @@ public:
      *         clock's time is not valid: the chip has lost track of the time (for
      *         example after a loss of backup power or an oscillator failure) and
      *         it hasn't been set since, the clock is stopped, or it holds a time
-     *         the chip can't represent. set_time() makes the time valid again.
+     *         that the chip can't represent. set_time() makes the time valid
+     *         again.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error if a transfer with the chip fails.
      *
@@ -108,16 +109,16 @@ public:
     /**
      * @brief Sets the clock's time.
      *
-     * Writes the time and leaves the clock running and its time valid: it
-     * clears the chip's record that it lost track of time, in the same
-     * operation that writes the time, and restarts a stopped clock (on chips
-     * that can be stopped). So now() returns the time afterward.
+     * Writes the time and leaves the clock running with a valid time. In the
+     * same operation that writes the time, it clears the chip's lost-time
+     * indication. It also restarts a stopped clock (on chips that can be
+     * stopped). So now() returns the time afterward.
      *
      * @param t The new time (UTC), to the second.
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
-     * @throws std::system_error with `errc::invalid_arg` if @p t is outside the range the chip
-     *         can hold (nothing is written), or with another code if a transfer with the chip
-     *         fails.
+     * @throws std::system_error with `errc::invalid_arg` if @p t is outside the range that the
+     *         chip can hold (nothing is written), or with another code if a transfer with the
+     *         chip fails.
      *
      * @code
      * rtc.set_time(std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
@@ -133,23 +134,23 @@ public:
      *         clock's time is not valid: the chip has lost track of the time (for
      *         example after a loss of backup power or an oscillator failure) and
      *         it hasn't been set since, the clock is stopped, or it holds a time
-     *         the chip can't represent. try_set_time() makes the time valid
-     *         again. An error if a transfer with the chip fails.
+     *         that the chip can't represent. try_set_time() makes the time
+     *         valid again. An error if a transfer with the chip fails.
      */
     [[nodiscard]] result<std::optional<std::chrono::sys_seconds>> try_now() { return do_now(); }
 
     /**
      * @brief Sets the clock's time.
      *
-     * Writes the time and leaves the clock running and its time valid: it
-     * clears the chip's record that it lost track of time, in the same
-     * operation that writes the time, and restarts a stopped clock (on chips
-     * that can be stopped). So try_now() returns the time afterward.
+     * Writes the time and leaves the clock running with a valid time. In the
+     * same operation that writes the time, it clears the chip's lost-time
+     * indication. It also restarts a stopped clock (on chips that can be
+     * stopped). So try_now() returns the time afterward.
      *
      * @param t The new time (UTC), to the second.
      * @return Success, or an error. Any other error means a transfer with the
      *         chip failed.
-     * @retval invalid_arg @p t is outside the range the chip can hold; nothing was written.
+     * @retval invalid_arg @p t is outside the range that the chip can hold. Nothing was written.
      */
     [[nodiscard]] result<void> try_set_time(std::chrono::sys_seconds t) { return do_set_time(t); }
 
@@ -163,20 +164,20 @@ protected:
     //
     // Concrete drivers override these (typically privately). Each hook
     // implements the correspondingly named public method. The public wrappers
-    // perform no validation: the range of times a chip can hold is
+    // perform no validation. The range of times that a chip can hold is
     // chip-specific, so drivers check it themselves.
     // =========================================================================
 
     /// Hook for @ref try_now. Must return `std::nullopt` exactly when the time
     /// is not valid (the chip has lost track of the time, is stopped, or holds
-    /// a time it can't represent), and report errors only for transfer
+    /// a time that it can't represent). Must report errors only for transfer
     /// failures.
     [[nodiscard]] virtual result<std::optional<std::chrono::sys_seconds>> do_now() = 0;
-    /// Hook for @ref try_set_time. Must report `errc::invalid_arg`, writing
-    /// nothing, for a time the chip cannot hold, and must clear the chip's
-    /// lost-time indication in the same operation that writes the time. It
-    /// must also restart a stopped clock, so that after it succeeds, the time
-    /// is valid: do_now() no longer returns `std::nullopt`.
+    /// Hook for @ref try_set_time. For a time that the chip cannot hold, must
+    /// report `errc::invalid_arg` and write nothing. Must clear the chip's
+    /// lost-time indication in the same operation that writes the time. Must
+    /// also restart a stopped clock. After it succeeds, the time is valid, and
+    /// do_now() no longer returns `std::nullopt`.
     [[nodiscard]] virtual result<void> do_set_time(std::chrono::sys_seconds t) = 0;
 };
 

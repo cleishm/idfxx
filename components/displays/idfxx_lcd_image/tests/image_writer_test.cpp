@@ -146,7 +146,7 @@ uint16_t to_565(image::rgb888 p) {
     return lcd::rgb565(p.r, p.g, p.b).value();
 }
 
-// The screen a picture should produce, by way of the renderer alone.
+// The screen that a picture should produce, by way of the renderer alone.
 std::vector<uint16_t> reference(
     const image::buffer<>& picture,
     image::orientation source,
@@ -202,7 +202,7 @@ constexpr size_t screen_h = 48;
 static_assert(lcd::write_options{}.band_rows == 16);
 static_assert(!lcd::write_options{}.memory_limit.has_value());
 
-// Color framebuffers and views of them are surfaces; monochrome ones and panels are not.
+// Color framebuffers and views of them are surfaces. Monochrome ones and panels are not.
 static_assert(lcd::detail::rgb565_surface<lcd::rgb565_framebuffer>);
 static_assert(lcd::detail::rgb565_surface<gfx::rotated<lcd::rgb565_framebuffer>>);
 static_assert(lcd::detail::rgb565_surface<gfx::canvas<lcd::rgb565_framebuffer>>);
@@ -219,7 +219,7 @@ concept can_write = requires(Args&&... args) { lcd::try_write_image(std::forward
 using overlay_fn = decltype([](lcd::rgb565_framebuffer&, size_t, size_t) {});
 using bad_overlay_fn = decltype([](int) {});
 
-// A panel and an RGB565 surface can be written; a monochrome framebuffer cannot.
+// A panel and an RGB565 surface can be written. A monochrome framebuffer cannot.
 static_assert(can_write<screen_panel&, fake_decoder&>);
 static_assert(can_write<lcd::rgb565_framebuffer&, fake_decoder&>);
 static_assert(!can_write<lcd::mono_framebuffer&, fake_decoder&>);
@@ -263,7 +263,7 @@ TEST_CASE("lcd write_image panel output matches the renderer across band sizes",
             assert_screens_equal(expected, display.pixels);
             TEST_ASSERT_FALSE(display.out_of_bounds);
 
-            // Each draw is a full band, but the last.
+            // Each draw is a full band, except the last.
             const size_t rows = std::min(band_rows, screen_h);
             TEST_ASSERT_EQUAL_UINT32((screen_h + rows - 1) / rows, display.draws.size());
             for (size_t i = 0; i < display.draws.size(); ++i) {
@@ -655,7 +655,7 @@ TEST_CASE("lcd write_image accepts a pointer to member function as the overlay",
 }
 
 TEST_CASE("lcd write_image memory_limit bounds the renderer and the band together", "[lcd_image]") {
-    // The smallest limit, to the nearest 16 bytes, that lets a band of this height through.
+    // The smallest limit, to the nearest 16 bytes, under which a band of this height is accepted.
     const auto smallest_limit = [](size_t band_rows) {
         for (size_t limit = 0; limit < 256 * 1024; limit += 16) {
             screen_panel display(screen_w, screen_h);
