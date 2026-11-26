@@ -214,8 +214,8 @@ when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`. Unprefixed methods throw
-  exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - **Type-safe listeners**: Use `event` constants for specific events. Wildcard listeners still use
   untyped callbacks
 - Create the system event loop with `event_loop::create_system()` before registering system event

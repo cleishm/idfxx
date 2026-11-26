@@ -46,7 +46,7 @@ namespace idfxx::epaper {
  * and the optional reset output line. It communicates through an
  * `idfxx::panel_io` configured with @ref spi_io_config. Some controllers
  * need the host to send the previous frame again. The UC8179 instead
- * copies the new-image RAM to the previous-image RAM when a refresh
+ * copies the new-image plane to the old-image plane when a refresh
  * completes, so the driver keeps no shadow frame. Full-frame writes stream
  * the framebuffer's 48 KB (at 800x480) directly to the controller.
  *

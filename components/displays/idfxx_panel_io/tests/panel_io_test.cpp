@@ -24,7 +24,7 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // spi_config is not default-constructible (cs_gpio, pclk_freq and the bit widths must be set)

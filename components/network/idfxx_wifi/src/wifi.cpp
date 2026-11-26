@@ -44,7 +44,7 @@ static result<void> check(esp_err_t err, const char* what) {
 // user callback matches the underlying semantics. An exception thrown by a
 // callback is logged and otherwise ignored.
 //
-// The trampolines run on the WiFi task. Another task may replace or clear the
+// The trampolines run on the Wi-Fi task. Another task may replace or clear the
 // callbacks at the same time. So each trampoline takes one snapshot of the
 // stored callback (and context), and skips the call if the callback has been
 // cleared. The stored context is passed to the callback in place of
@@ -1465,7 +1465,7 @@ netif::interface make_ap_netif() {
 }
 #endif
 
-// The default WiFi netifs register the WiFi driver and default event handlers for the handle.
+// The default Wi-Fi netifs register the Wi-Fi driver and default event handlers for the handle.
 // Only esp_netif_destroy_default_wifi releases them.
 static void destroy_default_wifi_netif(esp_netif_t* handle) {
     esp_netif_destroy_default_wifi(handle);

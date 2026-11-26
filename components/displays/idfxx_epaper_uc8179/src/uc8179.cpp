@@ -30,9 +30,9 @@ constexpr uint8_t cmd_power_off = 0x02;      // Power off the drive rails
 constexpr uint8_t cmd_power_on = 0x04;       // Power on the drive rails
 constexpr uint8_t cmd_booster = 0x06;        // Booster soft start
 constexpr uint8_t cmd_deep_sleep = 0x07;     // Deep sleep (parameter 0xA5)
-constexpr uint8_t cmd_data_old = 0x10;       // Write RAM (previous image plane / gray plane 0)
+constexpr uint8_t cmd_data_old = 0x10;       // Write RAM (old-image plane / gray plane 0)
 constexpr uint8_t cmd_refresh = 0x12;        // Display refresh
-constexpr uint8_t cmd_data_new = 0x13;       // Write RAM (new image plane / gray plane 1)
+constexpr uint8_t cmd_data_new = 0x13;       // Write RAM (new-image plane / gray plane 1)
 constexpr uint8_t cmd_dual_spi = 0x15;       // Dual SPI mode (off)
 constexpr uint8_t cmd_lut_vcom = 0x20;       // VCOM LUT
 constexpr uint8_t cmd_lut_ww = 0x21;         // White-to-white LUT
@@ -56,7 +56,7 @@ constexpr uint8_t cmd_forced_temp = 0xE5;    // Forced temperature (waveform ban
 // of the first parameter matter in addition to the border behavior. DDX
 // (bits 1:0) selects the image-data polarity (01 = bit 1 is white, matching
 // the framebuffer encoding). N2OCP (bit 3) makes the controller copy the
-// new-image RAM into the previous-image RAM when a refresh completes. This
+// new-image plane into the old-image plane when a refresh completes. This
 // keeps the old-image plane of the differential (partial) waveform current
 // without any bookkeeping writes. Every value used around a refresh must
 // keep DDX = 01 and N2OCP set.
@@ -393,7 +393,7 @@ result<void> uc8179::do_clear() {
     // The all-ones fill is white in both color modes. Set bits are white in
     // the mono planes, and RAM (1, 1) is the gray-plane encoding of
     // gray4::white (the planes carry the inverted level bits). In mono mode,
-    // only the new-image plane is cleared. The previous-image plane keeps
+    // only the new-image plane is cleared. The old-image plane keeps
     // the image that is on the glass, so the next refresh applies the deep
     // black-to-white erase waveform to previously-black pixels, instead of
     // the gentler white-to-white one. In gray4 mode, both planes carry the
@@ -405,7 +405,7 @@ result<void> uc8179::do_restore_baseline(const mono_framebuffer& fb) {
     if (_io_handle == nullptr) {
         return error(errc::invalid_state);
     }
-    // A partial refresh drives each pixel from its previous-image (0x10)
+    // A partial refresh drives each pixel from its old-image (0x10)
     // value to its new-image (0x13) value, so the frame on the glass is
     // written into both planes. A later region-only write then leaves every
     // other pixel unchanged. The planes share the framebuffer's encoding (the
@@ -823,9 +823,9 @@ result<void> uc8179::_update() {
     // Give the controller time to assert BUSY before anything polls it.
     // Then return while the glass is still updating. The base class waits
     // for BUSY (default do_wait) before the next controller command. There
-    // is no old-plane bookkeeping to defer. The N2OCP bit in the
+    // is no old-image plane bookkeeping to defer. The N2OCP bit in the
     // VCOM/data-interval register makes the controller copy the new-image
-    // RAM to the previous-image RAM when the refresh completes.
+    // plane to the old-image plane when the refresh completes.
     idfxx::delay(10ms);
     return {};
 }

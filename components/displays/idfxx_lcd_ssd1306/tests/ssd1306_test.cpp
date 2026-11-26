@@ -27,7 +27,7 @@ inline constexpr auto TEST_SCL = idfxx::gpio_9;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // ssd1306::config is default-constructible
@@ -166,7 +166,8 @@ TEST_CASE("ssd1306 draw_bitmap requires page-aligned regions", "[idfxx][lcd][ssd
     TEST_ASSERT_FALSE(written.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::invalid_state), written.error().value());
 
-    // Unswapped again, the framebuffer and the row-aligned regions pass once more.
+    // Unswapped again, a framebuffer write passes. The region that passed while swapped is
+    // rejected, because its rows [4, 12) are not page-aligned.
     TEST_ASSERT_TRUE(display->try_swap_xy(false).has_value());
     TEST_ASSERT_FALSE(display->axes_swapped());
     TEST_ASSERT_TRUE(display->try_write(*fb).has_value());

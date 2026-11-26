@@ -22,7 +22,7 @@ namespace idfxx::sdcard::test {
 
 #if CONFIG_IDFXX_TEST_SD_RIG_E1004
 
-// Seeed Studio reTerminal E1004: the microSD slot is on SPI2, shared with the e-paper panel.
+// Seeed Studio reTerminal E1004: the microSD slot is on SPI2, shared with the ePaper panel.
 inline constexpr bool has_board = true;
 inline constexpr const char* rig_name = "reTerminal E1004";
 inline constexpr gpio sclk = gpio_7;
@@ -51,7 +51,7 @@ inline constexpr std::array<gpio, 2> other_cs{gpio_1, gpio_38}; // TFT and touch
 
 #else
 
-// No SD card board: card_inserted() reports an empty slot, so every [hw] SD test is ignored.
+// No SD card board: has_board is false, so IDFXX_REQUIRE_SD_CARD() ignores every [hw] SD test.
 // The pins are left unconnected so that this header builds for every target.
 inline constexpr bool has_board = false;
 inline constexpr const char* rig_name = "none";

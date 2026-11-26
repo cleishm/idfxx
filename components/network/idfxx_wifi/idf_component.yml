@@ -1,5 +1,5 @@
 version: "4.0.0"
-description: "Type-safe WiFi station management for ESP32"
+description: "Type-safe Wi-Fi station management for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/network/idfxx_wifi"
 repository: "https://github.com/cleishm/idfxx.git"
 license: "Apache-2.0"

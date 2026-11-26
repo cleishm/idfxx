@@ -99,7 +99,7 @@ concept eq_comparable = requires(const A& a, const B& b) {
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // No default constructor

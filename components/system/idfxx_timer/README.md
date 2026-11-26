@@ -102,7 +102,7 @@ auto timer = idfxx::timer::start_periodic(
 idfxx::delay(1s);
 
 // Stop the timer
-timer->stop();
+timer.stop();
 // count should be ~10
 ```
 
@@ -274,8 +274,8 @@ Each has overloads for std::move_only_function and raw function pointer callback
   (ESP-IDF 6.1+)
 - `stop_and_wait(duration)` / `try_stop_and_wait(duration)` - Stop and wait, up to a timeout, for a
   running callback to finish (ESP-IDF 6.1+)
-- `start_once_isr(us)` / `start_periodic_isr(us)` / `restart_isr(us)` / `stop_isr()` - ISR-safe
-  methods
+- `try_start_once_isr(us)` / `try_start_periodic_isr(us)` / `try_restart_isr(us)` /
+  `try_stop_isr()` - ISR-safe methods. They return an `esp_err_t`
 
 ### Status
 

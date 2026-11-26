@@ -48,7 +48,7 @@ constexpr crypto::key_algorithm aes_algorithm{};
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 #ifndef PSA_WANT_KEY_TYPE_RAW_DATA

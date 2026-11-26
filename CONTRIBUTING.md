@@ -45,7 +45,7 @@ as its own Unity app:
 
 - `system`: the core library, FreeRTOS primitives, events, timers, GPIO and peripherals, sleep,
   storage (NVS, partitions, OTA, SD cards, FAT), buses and the sensor, RTC and radio drivers
-- `network`: networking, WiFi, HTTP clients and servers, and cryptography
+- `network`: networking, Wi-Fi, HTTP clients and servers, and cryptography
 - `display`: panel I/O, LCD and ePaper panels and drivers, touch, graphics, fonts and images
 
 `tests/groups.cmake` lists each group's components. Every component with tests must be in exactly

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Makes a new kind of image source work with the renderer, and with anything else that takes an
-// image::decoder, such as the LCD and e-paper image writers. A real decoder would read a file
+// image::decoder, such as the LCD and ePaper image writers. A real decoder would read a file
 // format. This one draws a disc.
 
 #include <idfxx/error>

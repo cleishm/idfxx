@@ -361,11 +361,14 @@ public:
     // =========================================================================
 
     /**
-     * @brief Overwrites the last item in the queue, or sends if the queue is not full.
+     * @brief Writes an item to a queue of length 1, replacing the item that it holds.
      *
-     * If the queue is full, the most recently written item is overwritten.
-     * If the queue is not full, the item is added to the back. This is most
-     * useful with a queue of length 1 to implement a "latest value" mailbox.
+     * If the queue holds an item, the new item replaces it. If the queue is
+     * empty, the item is added. Use it to implement a "latest value" mailbox.
+     *
+     * The queue must have a length of 1. On a longer queue, a FreeRTOS
+     * assertion fails, which aborts the program when assertions are enabled
+     * (the default).
      *
      * This operation never blocks and always succeeds.
      *
@@ -657,9 +660,16 @@ public:
     }
 
     /**
-     * @brief Overwrites the last item in the queue from ISR context.
+     * @brief Writes an item to a queue of length 1 from ISR context, replacing the item that it
+     *        holds.
      *
-     * If the queue is full, the most recently written item is overwritten.
+     * If the queue holds an item, the new item replaces it. If the queue is
+     * empty, the item is added.
+     *
+     * The queue must have a length of 1. On a longer queue, a FreeRTOS
+     * assertion fails, which aborts the program when assertions are enabled
+     * (the default).
+     *
      * This operation always succeeds.
      *
      * @param item The item to write.

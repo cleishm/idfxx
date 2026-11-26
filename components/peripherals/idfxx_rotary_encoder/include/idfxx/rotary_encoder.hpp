@@ -38,7 +38,8 @@ namespace idfxx {
  * Tracks rotary encoder shaft rotation and delivers position change deltas
  * via a callback. Supports acceleration for faster turning.
  *
- * This type is non-copyable and move-only.
+ * This type is non-copyable and move-only. A moved-from object must not be used: any operation
+ * other than destruction or assignment is undefined behavior.
  */
 class rotary_encoder {
 public:
@@ -117,8 +118,6 @@ public:
      * When enabled, faster turning produces larger position deltas. The
      * acceleration coefficient controls the sensitivity.
      *
-     * Has no effect on a moved-from encoder.
-     *
      * @param coeff Acceleration coefficient. Higher values increase acceleration.
      */
     void enable_acceleration(uint16_t coeff);
@@ -127,8 +126,6 @@ public:
      * @brief Disables acceleration on the encoder.
      *
      * Each position delta is then a single step, regardless of turning speed.
-     *
-     * Has no effect on a moved-from encoder.
      */
     void disable_acceleration();
 

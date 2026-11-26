@@ -9,7 +9,7 @@ get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 # because in IDF's requirements pass, the code after it never runs.
 idf_build_get_property(idfxx_tests IDFXX_TESTS)
 
-# idfxx_wifi is only available on targets that have WiFi. On other targets, it is excluded from the
+# idfxx_wifi is only available on targets that have Wi-Fi. On other targets, it is excluded from the
 # build (see the top-level CMakeLists.txt), so it and its tests are left out of the app.
 # Requirements can't depend on sdkconfig, because IDF's requirements pass runs before sdkconfig is
 # generated. So tests that depend on the config are left out by the component that registers them

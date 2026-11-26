@@ -240,9 +240,8 @@ the chip's DMA controller. The value is ignored on chips whose burst size is not
 
 ## Important Notes
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<master_bus>` (always available)
-  - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `make()` returns `idfxx::result<master_bus>`. The constructor throws
+  `std::system_error` and requires `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - Only one bus can be initialized per SPI host
 - The bus must remain alive while devices using it exist
 - DMA enables larger transfers but requires DMA-capable memory

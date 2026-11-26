@@ -48,8 +48,8 @@ namespace idfxx::radio {
  *
  * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::radio::sx126x`) customize behavior by overriding the protected
- * `do_*` hooks. This is the standard library's non-virtual-interface
- * pattern (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  *
  * Three coordinated styles are exposed:
  * - Blocking calls: `transmit`, `receive` and `scan_channel`.

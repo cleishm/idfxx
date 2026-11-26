@@ -48,8 +48,8 @@ idfxx::gfx::draw_text(fb, idfxx::font::spleen_8x16, 4, 16, "23.7", true, 2);
 
 ## Important Notes
 
-- The original BDF sources are included under `fonts/` and can be regenerated with `idfxx_font`'s
-  `scripts/bdf_to_c.py`.
+- The original BDF sources are included under `fonts/`. `idfxx_font`'s `scripts/bdf_to_c.py`
+  generates the font sources in `src/` from them.
 - Spleen is Copyright (c) 2018-2026 Frederic Cambus.
 
 ## License

@@ -114,10 +114,8 @@ Drivers implement the protected `do_now()` and `do_set_time()` hooks.
 
 ## Error Handling
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires
-    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - **Time that is not valid**: not an error. `now()` returns `std::nullopt` while the chip has lost
   track of the time (such as on first boot or after a battery change), the clock is stopped, or it
   holds a time that the chip can't represent. Set the time again with `set_time()`, which also

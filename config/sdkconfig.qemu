@@ -1,7 +1,8 @@
 # QEMU-specific configuration for ESP32-S3
 # This file is copied to the build directory's sdkconfig before building for QEMU
 
-# Inherit base C++ settings from sdkconfig.defaults
+# The same C++ settings as config/sdkconfig.defaults. They are repeated here because
+# `just test` builds with this file as the only defaults file.
 CONFIG_COMPILER_CXX_EXCEPTIONS=y
 CONFIG_COMPILER_CXX_RTTI=y
 

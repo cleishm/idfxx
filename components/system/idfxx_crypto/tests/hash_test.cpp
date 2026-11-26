@@ -672,7 +672,7 @@ constexpr bool has_hasher_traits() {
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The test app enables every algorithm (sdkconfig.defaults / sdkconfig.qemu).

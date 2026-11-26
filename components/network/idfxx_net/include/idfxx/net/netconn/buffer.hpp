@@ -179,8 +179,8 @@ public:
      * }
      * @endcode
      *
-     * The range is safe to obtain from a moved-from or empty buffer. In that case,
-     * the range is empty.
+     * The range is empty when the buffer holds no data. This includes a
+     * default-constructed buffer.
      *
      * @return A `segment_view` spanning the buffer's segments in order.
      */

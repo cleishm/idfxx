@@ -38,7 +38,7 @@ namespace img = jpeg_test_images;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 static_assert(std::is_error_code_enum_v<jpeg::errc>);

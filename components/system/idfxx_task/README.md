@@ -461,7 +461,7 @@ std::string_view name = idfxx::task::current_name();
 - `name()` - Get task name
 - `priority()` - Get current priority
 - `stop_requested()` - Check if stop has been requested
-- `is_completed()` - Check if task function returned (move_only_function only)
+- `is_completed()` - Check if task function returned (false if detached)
 - `joinable()` - Check if task is owned
 
 ### Static Methods (current task operations)

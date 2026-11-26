@@ -221,7 +221,8 @@ void IRAM_ATTR gpio_isr_handler(void* arg) {
 
 ### Overwrite
 
-- `overwrite(item)` - Overwrite last item or send if not full (never blocks)
+- `overwrite(item)` - Replace the item in a queue of length 1, or add it if the queue is empty
+  (never blocks)
 
 ### ISR Operations
 
@@ -258,8 +259,9 @@ All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without 
 - **RAII cleanup**: The destructor automatically deletes the queue and discards any remaining items.
 - **ISR safety**: Use the `*_from_isr` methods in interrupt context. Pass the `yield` field to
   `idfxx::yield_from_isr()` to perform any necessary context switch.
-- **Overwrite semantics**: `overwrite()` is most useful with a queue of length 1. With longer
-  queues, it overwrites the most recently written item when the queue is full.
+- **Overwrite semantics**: `overwrite()` and `overwrite_from_isr()` work only on a queue of length
+  1, where they replace the item that the queue holds. On a longer queue, a FreeRTOS assertion
+  fails, which aborts the program when assertions are enabled (the default).
 
 ## License
 

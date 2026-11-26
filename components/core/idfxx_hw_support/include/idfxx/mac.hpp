@@ -35,8 +35,8 @@ namespace idfxx {
  */
 enum class mac_type : int {
     // clang-format off
-    wifi_sta       = 0, ///< WiFi station interface.
-    wifi_softap    = 1, ///< WiFi soft-AP interface.
+    wifi_sta       = 0, ///< Wi-Fi station interface.
+    wifi_softap    = 1, ///< Wi-Fi soft-AP interface.
     bt             = 2, ///< Bluetooth interface.
     ethernet       = 3, ///< Ethernet interface.
 #if SOC_IEEE802154_SUPPORTED

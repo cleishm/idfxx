@@ -24,7 +24,7 @@ using namespace idfxx::radio;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The lora_transceiver base is abstract. It contains no concrete chip details.

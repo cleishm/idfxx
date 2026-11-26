@@ -388,8 +388,6 @@ be moved out with `std::move(cfg.callback).get()`.
 - `free(ptr)` - Free memory allocated by allocation functions
 - `aligned_alloc(alignment, size, caps)` - Aligned allocation from matching regions
 - `aligned_calloc(alignment, n, size, caps)` - Aligned, zero-initialized allocation
-- `memory::capabilities` - Composable flags enum for memory capability flags (such as `internal`,
-  `spiram`, `dma` and `dram`)
 - `memory::info` - Struct containing heap region statistics
 - `memory::total_size(caps)` - Total size of heap regions matching capabilities
 - `memory::free_size(caps)` - Current free size of matching heap regions

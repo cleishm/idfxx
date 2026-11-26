@@ -146,6 +146,11 @@ loop.listener_add(idfxx::radio::rx_done,
 radio.start_listening();
 ```
 
+The driver queues packets for `read_received` in a receive FIFO that holds 4 packets. When a fifth
+packet arrives before the handler reads one, the driver drops the oldest packet. After a drop, the
+`rx_info` of an `rx_done` event can describe an older packet than the one that `read_received`
+returns, so use the `rx_info` that `read_received` returns.
+
 If `config::loop` is left null, the radio still works in blocking mode. It drops events instead of
 posting them.
 

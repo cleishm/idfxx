@@ -5,8 +5,8 @@
 // Continuous conversion needs real analog hardware. These tests cover the API
 // surface, the no-hardware error paths, and a lifecycle pass on a floating
 // ADC1 pin. esp_adc's boot-time calibration hangs under QEMU, so idfxx_adc
-// is kept out of the QEMU test image (see tests/CMakeLists.txt) and these
-// run on hardware.
+// is kept out of the QEMU test image (see idfxx_adc's CMakeLists.txt) and
+// these run on hardware.
 
 #include "idfxx/adc"
 #include "sdkconfig.h"

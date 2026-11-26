@@ -22,15 +22,15 @@ namespace idfxx::net::detail {
 [[nodiscard]] std::optional<endpoint> from_sockaddr(const sockaddr* sa, socklen_t len) noexcept;
 
 /// Convert an endpoint into a sockaddr_storage. Returns the populated length,
-/// or 0 if the endpoint is default-constructed (holds no address).
+/// or 0 if the endpoint holds an IPv6 address and CONFIG_LWIP_IPV6 is disabled.
 [[nodiscard]] socklen_t to_sockaddr(const endpoint& ep, sockaddr_storage& out) noexcept;
 
 /// Convert an idfxx::net::address_family to a POSIX AF_* constant. Returns
 /// AF_UNSPEC for std::nullopt.
 [[nodiscard]] int family_to_af(std::optional<address_family> f) noexcept;
 
-/// Reads the local endpoint bound to the given fd. Used by both `socket` and
-/// `listener`.
+/// Reads the local endpoint bound to the given fd. Used by `ip_socket_base`,
+/// which every socket type and `listener` derive from.
 [[nodiscard]] result<endpoint> get_local_endpoint(int fd) noexcept;
 
 /// Reads the peer endpoint connected to the given fd.

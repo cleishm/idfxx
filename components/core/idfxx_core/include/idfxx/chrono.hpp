@@ -62,7 +62,7 @@ template<class Rep, class Period>
  * @brief Steady clock based on FreeRTOS tick count.
  *
  * Provides a std::chrono-compatible clock with tick-based precision.
- * The tick rate is determined by `configTICK_RATE_HZ`.
+ * The tick rate is set by `CONFIG_FREERTOS_HZ` (the FreeRTOS `configTICK_RATE_HZ`).
  */
 struct tick_clock {
     using rep = TickType_t;

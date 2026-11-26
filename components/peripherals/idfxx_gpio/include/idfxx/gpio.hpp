@@ -223,7 +223,7 @@ public:
 
     /**
      * @headerfile <idfxx/gpio>
-     * @brief Configuration parameters for idfxx::gpio_config
+     * @brief Configuration parameters for idfxx::configure_gpios().
      */
     struct config {
         enum mode mode = mode::disable;
@@ -643,7 +643,7 @@ public:
     /**
      * @brief Removes a specific ISR handler.
      * @retval invalid_state If called on gpio::nc().
-     * @retval invalid_arg If the handle is not valid for this gpio.
+     * @retval invalid_arg If the handle belongs to a different gpio.
      */
     result<void> try_isr_handler_remove(isr_handle handle);
     /**

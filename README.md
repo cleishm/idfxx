@@ -21,7 +21,7 @@ idfxx is a family of independently installable components covering:
 - **[System services](components/system/README.md):** tasks, timers, queues, event loops and event
   groups, sleep, and an interactive console
 - **[Networking](components/network/README.md):** TCP/UDP sockets and DNS, network interfaces, and
-  WiFi
+  Wi-Fi
 - **[Radio](components/radio/README.md):** LoRa transceivers
 - **[Peripherals](components/peripherals/README.md):** GPIO, I2C, SPI, 1-Wire, PWM, ADC, buttons,
   and rotary encoders

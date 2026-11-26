@@ -646,8 +646,8 @@ public:
      *         any "data" type partition that has the subtype value set to "nvs_keys".
      *      2. If the NVS key partition obtained in the previous step is empty,
      *         generate and store new keys in that NVS key partition.
-     *      3. Internally call "nvs::flash::secure_init()" with
-     *         the security configurations obtained/generated in the previous steps.
+     *      3. Initialize the partition with the security configuration from the
+     *         previous steps, as init(const secure_config&) does.
      *
      * After initialization, the NVS read and write APIs are the same whether or not NVS
      * encryption is enabled.
@@ -769,8 +769,8 @@ public:
      *         any "data" type partition that has the subtype value set to "nvs_keys".
      *      2. If the NVS key partition obtained in the previous step is empty,
      *         generate and store new keys in that NVS key partition.
-     *      3. Internally call "nvs::flash::try_init()" with
-     *         the security configurations obtained/generated in the previous steps.
+     *      3. Initialize the partition with the security configuration from the
+     *         previous steps, as try_init(const secure_config&) does.
      *
      * After initialization, the NVS read and write APIs are the same whether or not NVS
      * encryption is enabled.
@@ -778,9 +778,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init();
@@ -796,9 +795,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(const secure_config& cfg);
@@ -814,9 +812,8 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::part_not_found if no partition with label "nvs" is found in the partition
-     table.
-
+     * @retval idfxx::errc::not_found if no partition with label "nvs" is found in the partition
+     *         table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t);
@@ -829,8 +826,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(std::string_view partition_label);
@@ -844,8 +840,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void>
@@ -861,8 +856,7 @@ public:
      * @return Success, or an error.
      * @retval nvs::errc::no_free_pages if the NVS storage contains no empty pages
      *         (which may happen if NVS partition was truncated).
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
-
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      * @retval Other error codes from the underlying flash storage driver.
      */
     [[nodiscard]] static result<void> try_init(insecure_t, std::string_view partition_label);
@@ -1002,8 +996,8 @@ public:
     /**
      * @brief Erases the default NVS partition.
      * @return Success, or an error.
-     * @retval nvs::errc::not_found if there is no NVS partition labeled "nvs" in the partition
-     * table.
+     * @retval idfxx::errc::not_found if there is no NVS partition labeled "nvs" in the partition
+     *         table.
      */
     [[nodiscard]] static result<void> try_erase();
 
@@ -1013,7 +1007,7 @@ public:
      * @param partition_label Label of the partition. Must be no longer than 16 characters.
      *
      * @return Success, or an error.
-     * @retval nvs::errc::not_found if specified partition is not found in the partition table.
+     * @retval idfxx::errc::not_found if the partition is not found in the partition table.
      */
     [[nodiscard]] static result<void> try_erase(std::string_view partition_label);
 

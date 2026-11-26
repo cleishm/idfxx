@@ -179,17 +179,17 @@ API reference.
 
 GPIO operations use error codes from `idfxx::errc`:
 
-- `invalid_arg` - Invalid GPIO number or configuration
+- `invalid_arg` - Invalid GPIO number or configuration, or an ISR handle that belongs to a
+  different GPIO
 - `invalid_state` - Operation not valid in current state
-- `not_found` - ISR handler not found for removal
 
 All `try_*` methods return `idfxx::result<T>`. Exception-based methods (without `try_` prefix) throw
 `std::system_error` when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 
 ## Important Notes
 
-- **Dual API Pattern**: Methods prefixed with `try_` return `result<T>`. Unprefixed methods throw
-  exceptions (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - Call `idfxx::gpio::install_isr_service()` once before using interrupts
 - ISR handlers run in interrupt context. Keep them short and use IRAM-safe functions
 - **Exceptions in ISR handlers**: ISR handlers must not throw, as throwing is not permitted in

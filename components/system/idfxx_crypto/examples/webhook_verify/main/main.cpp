@@ -64,7 +64,7 @@ static idfxx::http::error_status failure_status(std::error_code ec) {
 
 extern "C" void app_main() {
     try {
-        // --- Connect to WiFi ---
+        // --- Connect to Wi-Fi ---
         idfxx::event_loop::create_system();
         idfxx::netif::init();
         auto sta_netif = idfxx::wifi::make_sta_netif();

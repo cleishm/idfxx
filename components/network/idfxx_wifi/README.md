@@ -1,12 +1,12 @@
 # idfxx_wifi
 
-Type-safe WiFi management for ESP32.
+Type-safe Wi-Fi management for ESP32.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__wifi.html)**
 
 ## Features
 
-- WiFi lifecycle management via namespace-level free functions
+- Wi-Fi lifecycle management via namespace-level free functions
 - Station (STA) mode with connection management and power save
 - Access point (AP) mode with station tracking and deauthentication
 - AP scanning with blocking and non-blocking modes
@@ -40,7 +40,7 @@ Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 ### Quick Station Connect
 
 `connect_sta` performs the common station start-up sequence. It sets the station as the only role,
-applies the configuration, starts WiFi, connects, and blocks until an IPv4 address is acquired (or
+applies the configuration, starts Wi-Fi, connects, and blocks until an IPv4 address is acquired (or
 the timeout elapses):
 
 ```cpp
@@ -281,28 +281,28 @@ complete details.
 
 ## Error Handling
 
-The `idfxx::wifi::errc` enum provides WiFi-specific error codes:
+The `idfxx::wifi::errc` enum provides Wi-Fi-specific error codes:
 
-- `not_init` - WiFi driver not initialized
-- `not_started` - WiFi driver not started
-- `not_stopped` - WiFi driver not stopped
-- `if_error` - WiFi interface error
-- `mode` - WiFi mode error
-- `state` - WiFi internal state error
-- `conn` - WiFi internal control block of station error
-- `nvs` - WiFi internal NVS module error
+- `not_init` - Wi-Fi driver not initialized
+- `not_started` - Wi-Fi driver not started
+- `not_stopped` - Wi-Fi driver not stopped
+- `if_error` - Wi-Fi interface error
+- `mode` - Wi-Fi mode error
+- `state` - Wi-Fi internal state error
+- `conn` - Wi-Fi internal control block of station error
+- `nvs` - Wi-Fi internal NVS module error
 - `mac` - MAC address is invalid
 - `ssid` - Invalid SSID
 - `password` - Invalid password
 - `timeout` - Operation timed out
-- `wake_fail` - WiFi is in sleep state and wakeup failed
+- `wake_fail` - Wi-Fi is in sleep state and wakeup failed
 - `would_block` - The caller would block
 - `not_connect` - Station not connected
-- `post` - Failed to post event to WiFi task
-- `init_state` - Invalid WiFi state when init/deinit is called
-- `stop_state` - WiFi stop in progress
-- `not_assoc` - WiFi connection not associated
-- `tx_disallow` - WiFi TX is disallowed
+- `post` - Failed to post event to Wi-Fi task
+- `init_state` - Invalid Wi-Fi state when init/deinit is called
+- `stop_state` - Wi-Fi stop in progress
+- `not_assoc` - Wi-Fi connection not associated
+- `tx_disallow` - Wi-Fi TX is disallowed
 - `twt_full` - No available TWT flow ID
 - `twt_setup_timeout` - TWT setup response timeout
 - `twt_setup_txfail` - TWT setup frame TX failed
@@ -312,9 +312,9 @@ The `idfxx::wifi::errc` enum provides WiFi-specific error codes:
 
 ## Events
 
-WiFi and IP events are available via the idfxx event loop using type-safe typed events:
+Wi-Fi and IP events are available via the idfxx event loop using type-safe typed events:
 
-- `wifi::events` — WiFi event base (station start/stop, connect/disconnect, scan, AP events, FTM,
+- `wifi::events` — Wi-Fi event base (station start/stop, connect/disconnect, scan, AP events, FTM,
   TWT, NAN)
 - `netif::ip_events` — IP event base (got IP, lost IP, AP station IP assigned, got IPv6), defined
   in `idfxx_netif`
@@ -324,11 +324,11 @@ data type. With them, listener registration is type-safe, and callbacks receive 
 type directly:
 
 ```cpp
-// WiFi events with data - callback receives const reference
+// Wi-Fi events with data - callback receives const reference
 loop.listener_add(wifi::sta_connected,
     [](const wifi::connected_event_data& info) { ... });
 
-// WiFi events without data - callback takes no arguments
+// Wi-Fi events without data - callback takes no arguments
 loop.listener_add(wifi::sta_start, []() { ... });
 
 // IP events (from idfxx_netif)
@@ -338,15 +338,15 @@ loop.listener_add(netif::sta_got_ip4,
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs.
-  Exception-based functions require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
-- **Procedural API**: WiFi is managed through namespace-level free functions rather than class
-  instances, because the WiFi subsystem is global.
-- **Prerequisites**: Create the system event loop before using WiFi functions. Most applications
+- **Dual API Pattern**: `try_*` functions return `idfxx::result<T>`. Throwing functions raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`.
+- **Procedural API**: Wi-Fi is managed through namespace-level free functions rather than class
+  instances, because the Wi-Fi subsystem is global.
+- **Prerequisites**: Create the system event loop before using Wi-Fi functions. Most applications
   will also need to initialize `idfxx::netif::init()` and create the appropriate default netif
   (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
-- **Persisted configuration**: With WiFi NVS enabled (the default), the driver stores the roles and
+- **Persisted configuration**: With Wi-Fi NVS enabled (the default), the driver stores the roles and
   configurations that you set in flash and restores them at the next `init()`, even after a reboot.
   Set the roles and configuration that you need each session rather than relying on `get_roles()`
   or the `get_*_config()` values after `init()`.
@@ -358,10 +358,10 @@ loop.listener_add(netif::sta_got_ip4,
   power in 0.25 dBm steps, and `quanta::electro::centi_dbm` holds the exact value. The hardware may
   also clamp the power to a lower supported level, so the value read back can differ from the value
   set.
-- **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the WiFi task context. Keep
+- **Callback context**: Promiscuous mode, CSI, and FTM callbacks run in the Wi-Fi task context. Keep
   processing minimal or defer work to another task.
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a promiscuous-mode,
-  vendor IE, or CSI callback is logged and otherwise ignored. WiFi continues to deliver later
+  vendor IE, or CSI callback is logged and otherwise ignored. Wi-Fi continues to deliver later
   packets and records.
 - **FTM support**: Requires both initiator and responder to support FTM. Check
   `ap_record::ftm_responder` and `ap_record::ftm_initiator` fields from scan results.

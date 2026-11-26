@@ -268,7 +268,7 @@ idfxx::log::info("HTTP", "Status: {}", c.status_code());
   `config` setting is given an out-of-range value: a `port`, `timeout`, buffer size, redirect count
   or keep-alive setting of 0 or less, an empty `path`, or a negative `max_authorization_retries`
 - **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
-  `std::system_error`
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 
 ## Important Notes
 

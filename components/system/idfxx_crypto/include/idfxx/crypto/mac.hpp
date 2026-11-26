@@ -1253,7 +1253,7 @@ using hmac_sha3_512 = authenticator<algorithm::hmac_sha3_512>;
  * @brief AES-CMAC (NIST SP 800-38B, RFC 4493) authenticator, producing a 16-byte tag. Takes a
  *        128-, 192- or 256-bit AES key.
  *
- * @note On ESP-IDF 5.x with `CONFIG_MBEDTLS_HARDWARE_AES`, a 192-bit key fails with
+ * @note On ESP-IDF 5.5 with `CONFIG_MBEDTLS_HARDWARE_AES`, a 192-bit key fails with
  *       `errc::not_supported` on targets whose AES engine doesn't support 192-bit keys (all but
  *       the esp32 and esp32s2). Don't rely on 192-bit keys on those targets with ESP-IDF 6.x
  *       either. Use 128- or 256-bit keys.

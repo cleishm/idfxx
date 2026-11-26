@@ -433,7 +433,7 @@ Using a moved-from driver object is undefined behavior.
 - **A row's padding is always written as white,** whatever value the frame contains, so a frame
   can't change a framebuffer's padding. A `color6` padding nibble must still be a valid value.
 - Drivers keep an internal shadow copy of the last-written frame to maintain the controller's
-  previous-image plane for partial refreshes. Allow roughly one frame of heap per panel (see each
+  old-image plane for partial refreshes. Allow roughly one frame of heap per panel (see each
   driver's README for exact numbers).
 
 ## License

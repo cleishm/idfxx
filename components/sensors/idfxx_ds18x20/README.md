@@ -175,10 +175,8 @@ try {
 
 ## Error Handling
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `try_*` methods return `idfxx::result<T>` (always available)
-  - Methods without `try_` prefix throw `std::system_error` (requires
-    `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 
 ## Important Notes
 

@@ -249,7 +249,7 @@ TEST_CASE("dhcp server config applies options before starting", "[netif]") {
 }
 
 TEST_CASE("dhcp server config applies options after a stop", "[netif]") {
-    // This matches a WiFi AP interface before WiFi starts. The test stops the server before it
+    // This matches a Wi-Fi AP interface before Wi-Fi starts. The test stops the server before it
     // runs, then starts it with a configuration
     auto netif = make_dhcps_netif("DHCPS_STOPPED");
     TEST_ASSERT_TRUE(netif.try_dhcp_server_stop().has_value());

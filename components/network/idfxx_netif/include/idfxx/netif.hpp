@@ -439,7 +439,7 @@ public:
      *
      * Used with take(esp_netif_t*, destroy_fn) for handles that must be released with something
      * other than `esp_netif_destroy`, such as `esp_netif_destroy_default_wifi` for the default
-     * WiFi interfaces.
+     * Wi-Fi interfaces.
      */
     using destroy_fn = void (*)(esp_netif_t*);
 
@@ -924,7 +924,7 @@ public:
      *
      * Applies the options set in @p cfg, then starts the server. Options can only be changed while
      * the server is stopped. If the server is running, this call fails and changes nothing. On a
-     * WiFi access point interface the server starts automatically, so stop it first.
+     * Wi-Fi access point interface the server starts automatically, so stop it first.
      *
      * The whole configuration is checked before any option is applied. If applying an option or
      * starting the server then fails, the server is left stopped and the options applied before
@@ -978,7 +978,7 @@ public:
      *
      * Applies the options set in @p cfg, then starts the server. Options can only be changed while
      * the server is stopped. If the server is running, this call fails and changes nothing. On a
-     * WiFi access point interface the server starts automatically, so stop it first.
+     * Wi-Fi access point interface the server starts automatically, so stop it first.
      *
      * The whole configuration is checked before any option is applied. If applying an option or
      * starting the server then fails, the server is left stopped and the options applied before

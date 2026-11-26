@@ -115,7 +115,8 @@ Error codes from `idfxx::errc`:
 
 ## Important Notes
 
-- **Non-copyable/move-only**: Encoder is non-copyable and move-only.
+- **Non-copyable/move-only**: Encoder is non-copyable and move-only. A moved-from object must not
+  be used: any operation other than destruction or assignment is undefined behavior.
 - **Automatic cleanup**: The destructor automatically stops tracking and releases resources.
 - **Callback context**: Callbacks are invoked from a timer task context. They must not block or call
   back into the encoder API.

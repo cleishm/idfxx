@@ -6,13 +6,13 @@
 /**
  * @headerfile <idfxx/epaper/image_writer>
  * @file image_writer.hpp
- * @brief Shows decoded images on e-paper panels and surfaces, in a panel's measured colors.
+ * @brief Shows decoded images on ePaper panels and surfaces, in a panel's measured colors.
  *
  * @defgroup idfxx_epaper_image ePaper Image Component
  * @ingroup idfxx_epaper
- * @brief Shows decoded images on e-paper panels and surfaces, in a panel's measured colors.
+ * @brief Shows decoded images on ePaper panels and surfaces, in a panel's measured colors.
  *
- * @ref idfxx::epaper::write_image places the image from a decoder on an e-paper
+ * @ref idfxx::epaper::write_image places the image from a decoder on an ePaper
  * panel, as an @ref idfxx::image::placement describes. It turns the image,
  * crops it, resamples it to its target rectangle and clips it to the screen.
  * Then it converts the picture to the panel's inks, using a
@@ -586,7 +586,7 @@ template<image::decoder Decoder>
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel.
+ * @brief Shows an image on an ePaper panel.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it
  * to inks with @p cal, and writes it to the panel a band of rows at a time.
@@ -649,7 +649,7 @@ void write_image(
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image filling an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image filling an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image to fill the panel, upright according to its own
  * orientation, converts it to inks with @p cal, and writes it to the panel a band of
@@ -700,7 +700,7 @@ void write_image(panel& display, const calibration& cal, Decoder& decoder, Overl
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image on an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it to
  * inks with @p cal, and writes it to the panel a band of rows at a time, calling
@@ -769,7 +769,7 @@ void write_image(
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image on an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it to
  * inks with @p cal, and writes it to the panel a band of rows at a time, calling
@@ -890,7 +890,7 @@ void write_image(
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel.
+ * @brief Shows an image on an ePaper panel.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it
  * to inks with @p cal, and writes it to the panel a band of rows at a time.
@@ -929,7 +929,7 @@ template<image::decoder Decoder>
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image filling an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image filling an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image to fill the panel, upright according to its own
  * orientation, converts it to inks with @p cal, and writes it to the panel a band of
@@ -967,7 +967,7 @@ try_write_image(panel& display, const calibration& cal, Decoder& decoder, Overla
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image on an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it to
  * inks with @p cal, and writes it to the panel a band of rows at a time, calling
@@ -1019,7 +1019,7 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
 
 /**
  * @headerfile <idfxx/epaper/image_writer>
- * @brief Shows an image on an e-paper panel, with an overlay drawn over each band.
+ * @brief Shows an image on an ePaper panel, with an overlay drawn over each band.
  *
  * Renders the decoder's image as @p where places it on the panel, converts it to
  * inks with @p cal, and writes it to the panel a band of rows at a time, calling

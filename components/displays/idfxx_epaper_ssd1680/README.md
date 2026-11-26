@@ -156,11 +156,11 @@ Using a moved-from driver object is undefined behavior.
   follows Seeed's driver for this glass. **gray4 loads an explicit grayscale waveform** (the Good
   Display reference recipe). Quality varies by panel batch and temperature. Validate on hardware,
   and prefer `full` refreshes if you are not sure.
-- **Fast refresh leaves black pixels weakly held.** The shortened waveform under-drives the ink.
-  The black pixels look black on their own, but the first partial refresh after the fast refresh
-  settles them to a visibly gray level. This is a one-time step, not progressive fading. Start a
-  long partial-refresh sequence from a `full` refresh, which drives pixels to their stable
-  extremes.
+- **Black pixels from a fast refresh turn gray at the next partial refresh.** The shortened waveform
+  under-drives the ink. The black pixels look black on their own, but the first partial refresh
+  after the fast refresh settles them to a visibly gray level. This is a one-time step, not
+  progressive fading. Start a long partial-refresh sequence from a `full` refresh, which drives
+  pixels to their stable extremes.
 - **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean accumulated ghosting.
 - **`mirror_x`/`mirror_y`** use the controller's address-decrement modes. On glasses whose width is
   not a multiple of 8 (e.g. 122), `mirror_x` shifts the image by the row-padding bits. Verify on

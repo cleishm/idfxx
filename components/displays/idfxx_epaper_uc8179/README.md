@@ -15,7 +15,7 @@ UC8179 ePaper panel driver (up to 800x600, e.g. 7.5" 800x480).
 - Deep sleep and wake (hardware reset + re-initialization).
 - `restore_baseline()` support, to keep partial refreshes across a wake or an ESP32 deep sleep (in
   `color_mode::mono`).
-- No shadow frame: the UC8179 copies the new-image RAM to the previous-image RAM when a refresh
+- No shadow frame: the UC8179 copies the new-image plane to the old-image plane when a refresh
   completes, so partial refreshes start from the image on the glass without host-side bookkeeping.
 - Configurable dimensions covering all UC8179 glasses (up to 800 sources x 600 gates). The defaults
   match the 7.5" 800x480 GDEY075T7 glass.
@@ -195,11 +195,11 @@ Using a moved-from driver object is undefined behavior.
     source-switching load).
 
   The gray levels move with either setting, so recalibrate any gray mapping after changing them.
-- **Fast refresh gives less durable contrast.** The shortened waveform under-drives the ink, and
-  leaves black pixels in a weakly held state. They look black on their own, but a later partial
-  refresh can change them to a visibly gray level. This is a one-time step, not progressive fading.
-  Start a long partial-refresh sequence with a `full` refresh, which drives pixels to their stable
-  extremes.
+- **Black pixels from a fast refresh can turn gray at a later partial refresh.** The shortened
+  waveform under-drives the ink, and leaves black pixels in a weakly held state. They look black
+  on their own, but a later partial refresh can change them to a visibly gray level. This is a
+  one-time step, not progressive fading. Start a long partial-refresh sequence with a `full`
+  refresh, which drives pixels to their stable extremes.
 - **Ghosting**: issue a `full` refresh every ~10 partial refreshes to clean accumulated ghosting.
 - **A white border flashes with each full refresh.** The controller has no fixed-level border
   drive. It drives the border with the black-to-white pixel waveform, so with `border::white` the

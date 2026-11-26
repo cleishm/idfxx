@@ -135,12 +135,11 @@ result<void> arm_stream_receive(
         !e) {
         return e;
     }
-    // Reset the receive write pointer (SetBufferBaseAddress, §13.4.8). It is
-    // NOT reset by SetRx: it advances with every packet received in continuous
-    // mode, and once it has crept past 256 - payload_len an incoming packet
-    // crosses the buffer boundary and is silently lost (preamble fires; no
-    // rx_done and no error). The worker re-resets it after draining each packet
-    // for the same reason.
+    // Reset the receive write pointer (SetBufferBaseAddress, §13.4.8). SetRx
+    // does NOT reset it. It advances with every packet received in continuous
+    // mode. When it is past 256 - payload_len, an incoming packet crosses the
+    // buffer boundary and is lost without a report: the preamble IRQ fires,
+    // but no rx_done and no error follow.
     std::array<uint8_t, 2> bases{0x00, 0x00};
     if (auto e = s.write_command(internal::op_set_buffer_base_addr, bases); !e) {
         return e;

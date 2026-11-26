@@ -1,6 +1,6 @@
 # idfxx_epaper_image
 
-Decoded images on e-paper panels and surfaces, in a panel's measured colors, placed, sized and
+Decoded images on ePaper panels and surfaces, in a panel's measured colors, placed, sized and
 oriented on the screen.
 
 📚 **[Full API Documentation](https://cleishm.github.io/idfxx/group__idfxx__epaper__image.html)**
@@ -196,7 +196,7 @@ be spared.
 - **Progressive JPEGs** hold about 3 bytes per source pixel in the decoder at any output scale,
   beyond all of the above. A 12-megapixel one needs about 36 MB. Set the decoder's `memory_limit` to
   have it fail with `image::errc::too_large`.
-- **No `swap_xy` on e-paper.** Placement coordinates are always the panel's native ones. To show a
+- **No `swap_xy` on ePaper.** Placement coordinates are always the panel's native ones. To show a
   photo upright on a display mounted a quarter turn from the panel's native layout, use
   `placement::orientation`, or render into a `gfx::rotated` surface and write the framebuffer to the
   panel. Pick the quarter turn that cancels the photo's own orientation if you can: a photo stored

@@ -79,7 +79,7 @@ auto cores = info.cores();           // e.g. 2
 auto rev = info.revision();          // e.g. 100 (v1.0)
 
 if (info.features().contains(idfxx::chip_feature::wifi)) {
-    // Chip has WiFi
+    // Chip has Wi-Fi
 }
 ```
 

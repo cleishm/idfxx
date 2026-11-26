@@ -45,6 +45,9 @@ namespace idfxx::lcd {
  * when the coordinates along the page axis are not multiples of 8. Writing a
  * `mono_framebuffer` needs the axes unswapped. While they are swapped, the
  * write fails with `idfxx::errc::invalid_state`.
+ *
+ * This type is non-copyable and move-only. A moved-from object must not be used: any operation
+ * other than destruction or assignment is undefined behavior.
  */
 class ssd1306 : public panel {
 public:
@@ -145,7 +148,6 @@ public:
      * @param level Contrast level, 0x00 (dimmest) to 0xFF (brightest).
      *
      * @return Nothing, or an error.
-     * @retval idfxx::errc::invalid_state if the panel has been moved from.
      */
     [[nodiscard]] result<void> try_set_contrast(uint8_t level);
 

@@ -128,7 +128,8 @@ Timer and output operations return `idfxx::result<T>` or throw `std::system_erro
 
 - `invalid_arg` — Invalid frequency, duty resolution, GPIO, or duty value
 - `invalid_state` — Timer not configured
-- `fail` — Requested frequency cannot be achieved
+- `fail` — Requested frequency cannot be achieved, or a fade operation was called before the fade
+  service was installed
 
 ## Important Notes
 

@@ -847,7 +847,7 @@ bool wifi::error_category::equivalent(
 }
 
 // =============================================================================
-// WiFi error helper
+// Wi-Fi error helper
 // =============================================================================
 
 static bool is_wifi_error(esp_err_t e) noexcept {

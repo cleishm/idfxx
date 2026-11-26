@@ -1223,7 +1223,7 @@ constexpr bool tag_size_matches_psa() {
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The test app enables HMAC and every hash algorithm it can (see hash_test.cpp), and AES-CMAC
@@ -2074,7 +2074,7 @@ TEST_CASE("crypto cmac rejects keys of the wrong size", "[idfxx][crypto]") {
 }
 
 // AES-192 keys import on every target, but only the esp32 and esp32s2 AES engines take 192-bit
-// keys. Elsewhere, with hardware AES, ESP-IDF 5.x fails with not_supported. On ESP-IDF 6.x, the
+// keys. Elsewhere, with hardware AES, ESP-IDF 5.5 fails with not_supported. On ESP-IDF 6.x, the
 // outcome is not established, so either an authenticator that computes correct tags or
 // not_supported is accepted. The authenticator is created either way: the crypto library reports
 // the key size only when a message starts.

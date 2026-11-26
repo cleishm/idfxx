@@ -177,7 +177,7 @@ wrappers guarded by `CONFIG_COMPILER_CXX_EXCEPTIONS`.
 - `header_type` — `variable` or `fixed`.
 - `ramp_time` — semantic buckets (`us_10`, `us_40`, `us_200`, `us_800`, `us_3400`). Drivers map to
   the closest supported value.
-- `chip_mode` — `sleep`, `stdby`, `fs`, `tx`, `rx`, `cad`.
+- `chip_mode` — `sleep`, `stdby`, `tx`, `rx`, `cad`.
 - `lora_modulation`, `lora_packet_params` — packet/modulation config structs.
 - `rx_duty_cycle` — listen/sleep windows for duty-cycled receive.
 - `rx_info`, `cad_info`, `packet_status` — result payloads.

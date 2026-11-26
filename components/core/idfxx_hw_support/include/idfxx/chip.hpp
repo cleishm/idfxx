@@ -68,14 +68,14 @@ enum class chip_model : int {
  * @code
  * auto info = idfxx::chip_info::get();
  * if (info.features().contains(idfxx::chip_feature::wifi)) {
- *     // Chip has WiFi
+ *     // Chip has Wi-Fi
  * }
  * @endcode
  */
 enum class chip_feature : uint32_t {
     // clang-format off
     embedded_flash  = 1u << 0,  ///< Chip has embedded flash memory.
-    wifi            = 1u << 1,  ///< Chip has 2.4GHz WiFi.
+    wifi            = 1u << 1,  ///< Chip has 2.4GHz Wi-Fi.
     ble             = 1u << 4,  ///< Chip has Bluetooth LE.
     bt_classic      = 1u << 5,  ///< Chip has Bluetooth Classic.
     ieee802154      = 1u << 6,  ///< Chip has IEEE 802.15.4 (Zigbee/Thread).

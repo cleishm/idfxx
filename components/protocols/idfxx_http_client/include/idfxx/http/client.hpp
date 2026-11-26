@@ -1221,7 +1221,7 @@ static_assert(idfxx::byte_source<idfxx::http::client>);
  *        error codes where possible.
  *
  * Converts the ESP-IDF error code to an HTTP client-specific error code if a mapping
- * exists. Otherwise, falls back to the default IDFXX error category.
+ * exists. Otherwise, uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

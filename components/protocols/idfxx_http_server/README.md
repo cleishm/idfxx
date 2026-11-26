@@ -259,7 +259,7 @@ idfxx::http::server srv({.server_port = 80, .bind_to_device = "st1"});
   - `alloc_mem` - Memory allocation failed
   - `task` - Failed to create server task
 - **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
-  `std::system_error`
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
 
 ## Important Notes
 

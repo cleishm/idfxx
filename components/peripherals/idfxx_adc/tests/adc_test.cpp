@@ -4,8 +4,8 @@
 // Unit tests for idfxx_adc
 // Reads need real analog hardware. These tests cover the API surface and the
 // no-hardware error paths. esp_adc's boot-time calibration hangs under QEMU, so
-// idfxx_adc is kept out of the QEMU test image (see tests/CMakeLists.txt) and
-// these run on hardware.
+// idfxx_adc is kept out of the QEMU test image (see idfxx_adc's CMakeLists.txt)
+// and these run on hardware.
 
 #include "idfxx/adc"
 #include "sdkconfig.h"

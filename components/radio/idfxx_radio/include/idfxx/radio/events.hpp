@@ -52,8 +52,10 @@ inline constexpr event<event_id> tx_done{event_id::tx_done};
  * The payload describes the packet that raised the event, which suits
  * metadata-only listeners (e.g. signal monitoring). To read the packet's
  * bytes, call `lora_transceiver::read_received` and pair the bytes with the
- * @ref rx_info *it* returns — the receive cache holds only the most recent
- * packet, which may already be newer than the one that raised this event.
+ * @ref rx_info that *it* returns. The driver queues packets received while
+ * listening in a small FIFO, and drops the oldest packet when the FIFO
+ * overflows. After an overflow, the packet that `read_received` returns can
+ * be newer than the one that raised this event.
  */
 inline constexpr event<event_id, rx_info> rx_done{event_id::rx_done};
 

@@ -164,7 +164,7 @@ request/response API.
 
 - **Error codes**: Uses `server::errc` error codes (from `idfxx::http::server`)
 - **Dual API Pattern**: `ssl_server::make` returns `idfxx::result<ssl_server>`. `ssl_server(cfg)`
-  throws `std::system_error`
+  throws `std::system_error` and requires `CONFIG_COMPILER_CXX_EXCEPTIONS`
 
 ## Important Notes
 

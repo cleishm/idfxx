@@ -31,7 +31,7 @@ using namespace idfxx::http;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // Note: Enum values are verified against ESP-IDF constants in client.cpp
 // =============================================================================
 

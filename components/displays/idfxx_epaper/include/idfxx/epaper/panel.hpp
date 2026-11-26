@@ -128,8 +128,8 @@ enum class border : uint8_t {
  *
  * The public interface is non-virtual. Concrete drivers (e.g.
  * `idfxx::epaper::ssd1680`) customize behavior by overriding the protected
- * `do_*` hooks. This is the standard library's non-virtual-interface pattern
- * (cf. `std::pmr::memory_resource`).
+ * `do_*` hooks. This is the non-virtual-interface pattern that the standard
+ * library also uses (for example, `std::pmr::memory_resource`).
  *
  * The interface follows the ePaper update cycle:
  *
@@ -1222,8 +1222,8 @@ protected:
 
     /// Hook for @ref try_restore_baseline. @p fb matches the panel's
     /// dimensions, and the panel is awake and in @ref color_mode::mono.
-    /// Must load @p fb into both the previous-image (old) and current (new)
-    /// image RAM, so that a later write of only a region followed by a
+    /// Must load @p fb into both the old-image plane and the new-image
+    /// plane, so that a later write of only a region followed by a
     /// partial refresh leaves the rest of the glass undisturbed. Must not
     /// reference @p fb's storage after returning. The base class records
     /// the baseline on success and invalidates it on failure. The default
@@ -1243,7 +1243,7 @@ protected:
     /// next controller hook (and in @ref try_refresh). The BUSY line must
     /// already be asserted on return, so that a @ref try_start_refresh
     /// future cannot read a stale idle level. A driver with post-update work
-    /// (for example re-arming a previous-image plane) defers it to its
+    /// (for example re-arming an old-image plane) defers it to its
     /// @ref do_wait override.
     [[nodiscard]] virtual result<void> do_refresh(refresh_mode mode) = 0;
 

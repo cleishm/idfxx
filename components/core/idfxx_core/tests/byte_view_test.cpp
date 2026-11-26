@@ -20,7 +20,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // byte_view accepts contiguous ranges of std::byte and uint8_t, const or not

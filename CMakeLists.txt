@@ -14,7 +14,7 @@ endforeach()
 list(REMOVE_DUPLICATES _idfxx_area_dirs)
 set(EXTRA_COMPONENT_DIRS ${_idfxx_area_dirs} "${CMAKE_SOURCE_DIR}/tests")
 
-# idfxx_wifi is restricted to chips that have WiFi (see its idf_component.yml).
+# idfxx_wifi is restricted to chips that have Wi-Fi (see its idf_component.yml).
 # Exclude it from the build on other targets, or the component manager rejects
 # the whole project. Before project() runs, IDF_TARGET is set in the cache
 # (set-target) or in the environment (idf.py).

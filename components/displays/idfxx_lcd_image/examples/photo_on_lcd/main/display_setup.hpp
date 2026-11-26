@@ -27,8 +27,8 @@ inline constexpr auto PIN_BL = idfxx::gpio_15;
 // The panel's native portrait layout is swapped to landscape by the example.
 inline constexpr size_t DISPLAY_W = 320;
 
-// Everything that the display needs while it is in use. The members are declared parents first, so
-// they are destroyed children first.
+// Everything that the display needs while it runs. The members are declared parents first, so they
+// are destroyed children first.
 struct board {
     // band_rows is the number of rows that the example writes to the panel at a time.
     explicit board(size_t band_rows)

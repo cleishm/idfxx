@@ -32,8 +32,8 @@ constexpr uint8_t cmd_write_temp = 0x1A;      // Write temperature register
 constexpr uint8_t cmd_master_activate = 0x20; // Execute the staged update sequence
 constexpr uint8_t cmd_update_ctrl1 = 0x21;    // Display update control (RAM content options)
 constexpr uint8_t cmd_update_ctrl2 = 0x22;    // Display update sequence selection
-constexpr uint8_t cmd_write_ram = 0x24;       // Write RAM (new image plane)
-constexpr uint8_t cmd_write_ram_old = 0x26;   // Write RAM (old image plane)
+constexpr uint8_t cmd_write_ram = 0x24;       // Write RAM (new-image plane)
+constexpr uint8_t cmd_write_ram_old = 0x26;   // Write RAM (old-image plane)
 constexpr uint8_t cmd_write_vcom = 0x2C;      // VCOM voltage
 constexpr uint8_t cmd_write_lut = 0x32;       // Write LUT register (waveform)
 constexpr uint8_t cmd_border = 0x3C;          // Border waveform control
@@ -619,7 +619,8 @@ result<void> ssd1680::_sync_old_plane() {
 
 result<void> ssd1680::_settle(std::optional<std::chrono::milliseconds> timeout) {
     // Completes the update that do_refresh left running. It waits for BUSY to
-    // release, then (for differential modes) re-arms the old-image plane.
+    // release. After a monochrome refresh (any mode, not gray4), it then
+    // re-arms the old-image plane.
     // The base class calls this (through do_wait) before every controller
     // hook. A running refresh therefore delays the *next* operation instead
     // of blocking the caller of refresh. The destructor and move-assignment

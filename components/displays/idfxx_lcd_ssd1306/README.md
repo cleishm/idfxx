@@ -215,7 +215,6 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
 
 - `make()` returns `idfxx::errc::invalid_arg` if `config.height` is not 64 or 32
 - Panel operations return/throw errors propagated from the underlying I/O transfer
-- Operations on a default-state (e.g. moved-from) panel return `idfxx::errc::invalid_state`
 
 ## Important Notes
 
@@ -238,6 +237,8 @@ auto alt_config = idfxx::lcd::ssd1306::i2c_io_config(0x3D, 100_kHz);
 - `swap_xy` and `mirror` only affect subsequent draws. Redraw the frame after changing them
 - The `panel_io` must be created before the panel, and must outlive it
 - The `ssd1306` class inherits from the `panel` base class provided by `idfxx_lcd`
+- `ssd1306` is non-copyable and move-only. A moved-from object must not be used: any operation
+  other than destruction or assignment is undefined behavior
 
 ## License
 

@@ -37,7 +37,7 @@ using idfxx::lcd::rgb565_framebuffer;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // The idfxx_lcd framebuffers satisfy pixel_surface.

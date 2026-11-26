@@ -16,7 +16,7 @@ using namespace idfxx;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // random_device satisfies UniformRandomBitGenerator

@@ -18,7 +18,7 @@ using namespace idfxx::log;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // level enum values match ESP-IDF constants

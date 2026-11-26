@@ -109,7 +109,8 @@ extern "C" void app_main() {
         auto rx_handle =
             loop.listener_add(idfxx::radio::rx_done, [&](const idfxx::radio::rx_info&) {
                 // Pair the read bytes with the rx_info that read_received returns.
-                // The event's payload may describe an older packet than that one.
+                // After the receive FIFO overflows, the event's payload can describe
+                // an older packet than that one.
                 if (auto r = radio.try_read_received(rx_buf)) {
                     std::string_view sv{reinterpret_cast<const char*>(rx_buf.data()), r->length};
                     logger.info("rx [{}B rssi={} snr={}]: {}", r->length, r->rssi, r->snr, sv);

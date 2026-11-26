@@ -18,7 +18,7 @@ using namespace std::chrono_literals;
 
 // =============================================================================
 // Compile-time tests (static_assert)
-// These verify correctness at compile time - if this file compiles, they pass.
+// These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
 // wakeup_source values up to uart match ESP-IDF constants in every IDF version.

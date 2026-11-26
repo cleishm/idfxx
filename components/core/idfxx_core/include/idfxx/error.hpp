@@ -481,18 +481,15 @@ invoke_guarded(const char* tag, const char* context, const char* subject, F&& fn
 /**
  * @brief Aborts the program if the result contains an error.
  *
- * This overload invokes an optional callback before aborting. The callback can
- * log the error or clean up. The callback is invoked inline without type
- * erasure, so it adds no overhead.
- *
- * @warning For std::function or std::move_only_function, ensure the callback is
- *          not null to avoid std::bad_function_call.
+ * This overload invokes a callback before aborting. The callback can log the
+ * error or clean up. The callback is invoked inline without type erasure, so it
+ * adds no overhead. If the callback is an empty function wrapper (such as an
+ * empty std::function), the program aborts without invoking it.
  *
  * @tparam T The success value type.
  * @tparam Callback The callback type (deduced).
  * @param result The result to check.
- * @param on_error Function called with the error code before aborting. Must be
- *                 a valid callable (not null for function wrappers).
+ * @param on_error Function called with the error code before aborting.
  */
 template<typename T, typename Callback>
     requires std::invocable<Callback, std::error_code> &&

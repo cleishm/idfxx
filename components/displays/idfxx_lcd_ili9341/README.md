@@ -8,7 +8,7 @@ ILI9341 LCD panel driver (240x320).
 
 - ILI9341 display controller driver (240x320 displays)
 - Display orientation and mirroring controls
-- Integration with `idfxx_lcd` panel I/O
+- Uses `idfxx::panel_io` from `idfxx_panel_io` to send commands and pixel data
 
 ## Requirements
 
@@ -282,9 +282,8 @@ idfxx::lcd::panel::config panel_config{
 
 ## Important Notes
 
-- **Dual API Pattern**: The component provides both result-based and exception-based APIs
-  - `make()` returns `result<ili9341>` (always available)
-  - Constructor throws `std::system_error` (requires `CONFIG_COMPILER_CXX_EXCEPTIONS`)
+- **Dual API Pattern**: `make()` returns `idfxx::result<ili9341>`. The constructor throws
+  `std::system_error` and requires `CONFIG_COMPILER_CXX_EXCEPTIONS`
 - The `panel_io` must be created before creating the panel
 - The caller must ensure `panel_io` outlives the panel
 - Reset pin is optional (use `idfxx::gpio::nc()` if not connected)

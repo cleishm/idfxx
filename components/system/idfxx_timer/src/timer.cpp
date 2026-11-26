@@ -144,8 +144,8 @@ void timer::_stop_and_delete() noexcept {
 namespace {
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
-// How many times an absolute-time call with a time clamped to now is retried when the clamped
-// time has passed before the call checks it.
+// How many times in total an absolute-time call with a time clamped to now is made. The call is
+// made again when the clamped time has passed before the call checks it.
 constexpr int max_clamp_attempts = 3;
 
 // Microseconds since boot of a time point, as taken by the esp_timer absolute-time API.

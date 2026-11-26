@@ -6,12 +6,12 @@
 /**
  * @headerfile <idfxx/wifi>
  * @file wifi.hpp
- * @brief WiFi type definitions and free function API.
+ * @brief Wi-Fi type definitions and free function API.
  *
- * @defgroup idfxx_wifi WiFi Component
- * @brief Type-safe WiFi management with station and access point mode support.
+ * @defgroup idfxx_wifi Wi-Fi Component
+ * @brief Type-safe Wi-Fi management with station and access point mode support.
  *
- * Provides WiFi lifecycle management, station (STA) and access point (AP) modes,
+ * Provides Wi-Fi lifecycle management, station (STA) and access point (AP) modes,
  * scanning, promiscuous mode, CSI, FTM, and advanced configuration.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_event for
@@ -51,7 +51,7 @@ namespace idfxx::wifi {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi role (station and/or access point).
+ * @brief Wi-Fi role (station and/or access point).
  *
  * Combined via `flags<role>` to specify which roles are active
  * (e.g. `set_roles(role::sta | role::ap)`), or passed individually to
@@ -66,7 +66,7 @@ enum class role : uint32_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi authentication mode.
+ * @brief Wi-Fi authentication mode.
  */
 enum class auth_mode : int {
     // clang-format off
@@ -90,7 +90,7 @@ enum class auth_mode : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi power save mode.
+ * @brief Wi-Fi power save mode.
  */
 enum class power_save : int {
     // clang-format off
@@ -102,7 +102,7 @@ enum class power_save : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi channel bandwidth.
+ * @brief Wi-Fi channel bandwidth.
  */
 enum class bandwidth : int {
     // clang-format off
@@ -116,7 +116,7 @@ enum class bandwidth : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi scan type.
+ * @brief Wi-Fi scan type.
  */
 enum class scan_type : int {
     // clang-format off
@@ -127,7 +127,7 @@ enum class scan_type : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi secondary channel position relative to the primary channel.
+ * @brief Wi-Fi secondary channel position relative to the primary channel.
  */
 enum class second_channel : int {
     // clang-format off
@@ -138,7 +138,7 @@ enum class second_channel : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi AP sort method for connection.
+ * @brief Wi-Fi AP sort method for connection.
  */
 enum class sort_method : int {
     // clang-format off
@@ -149,7 +149,7 @@ enum class sort_method : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi disconnection reason codes.
+ * @brief Wi-Fi disconnection reason codes.
  *
  * Values 1-68 are IEEE 802.11 standard reason codes.
  * Values 200+ are vendor-specific reason codes for events such as beacon timeout and authentication
@@ -225,7 +225,7 @@ enum class disconnect_reason : uint16_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi cipher type.
+ * @brief Wi-Fi cipher type.
  */
 enum class cipher_type : int {
     // clang-format off
@@ -247,7 +247,7 @@ enum class cipher_type : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi PHY mode.
+ * @brief Wi-Fi PHY mode.
  */
 enum class phy_mode : int {
     // clang-format off
@@ -264,7 +264,7 @@ enum class phy_mode : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi frequency band.
+ * @brief Wi-Fi frequency band.
  */
 enum class band : int {
     // clang-format off
@@ -275,7 +275,7 @@ enum class band : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi band mode.
+ * @brief Wi-Fi band mode.
  */
 enum class band_mode : int {
     // clang-format off
@@ -287,7 +287,7 @@ enum class band_mode : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief 5 GHz WiFi channel flags.
+ * @brief 5 GHz Wi-Fi channel flags.
  *
  * Each value represents a specific 5 GHz channel. Can be combined using
  * bitwise operators via the flags<channel_5g> type to form a channel mask.
@@ -328,7 +328,7 @@ enum class channel_5g : uint32_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi configuration storage location.
+ * @brief Wi-Fi configuration storage location.
  */
 enum class storage : int {
     // clang-format off
@@ -339,7 +339,7 @@ enum class storage : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi country policy.
+ * @brief Wi-Fi country policy.
  */
 enum class country_policy : int {
     // clang-format off
@@ -350,7 +350,7 @@ enum class country_policy : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi scan method.
+ * @brief Wi-Fi scan method.
  */
 enum class scan_method : int {
     // clang-format off
@@ -384,7 +384,7 @@ enum class sae_pk_mode : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi protocol flags.
+ * @brief Wi-Fi protocol flags.
  *
  * Can be combined using bitwise operators via the flags<protocol> type.
  */
@@ -455,7 +455,7 @@ enum class promiscuous_ctrl_filter : uint32_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi event mask flags.
+ * @brief Wi-Fi event mask flags.
  *
  * Controls which events are suppressed from the event loop.
  * Can be combined using bitwise operators via the flags<event_mask> type.
@@ -470,9 +470,9 @@ enum class event_mask : uint32_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi statistics module flags.
+ * @brief Wi-Fi statistics module flags.
  *
- * Identifies which internal WiFi modules should dump their statistics.
+ * Identifies which internal Wi-Fi modules should dump their statistics.
  * Can be combined using bitwise operators via the flags<statis_module> type.
  */
 enum class statis_module : uint32_t {
@@ -529,7 +529,7 @@ enum class ftm_status : int {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi PHY transmission rate.
+ * @brief Wi-Fi PHY transmission rate.
  *
  * Specifies the physical layer data rate for 802.11 frame transmission.
  * Includes rates for 802.11b (long/short preamble), OFDM (802.11a/g),
@@ -620,7 +620,7 @@ namespace idfxx::wifi {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Error codes for WiFi operations.
+ * @brief Error codes for Wi-Fi operations.
  *
  * The category's `equivalent()` member recognizes codes that map to standard
  * `std::errc` synonyms (e.g. `value_too_large`), so callers can compare error
@@ -630,26 +630,26 @@ namespace idfxx::wifi {
 enum class errc : esp_err_t {
     // clang-format off
     // ----- 0x3001..0x301C — ESP_ERR_WIFI_* aliases -----
-    not_init            = 0x3001, /*!< WiFi driver was not initialized. */
-    not_started         = 0x3002, /*!< WiFi driver was not started. */
-    not_stopped         = 0x3003, /*!< WiFi driver was not stopped. */
-    if_error            = 0x3004, /*!< WiFi interface error. */
-    mode                = 0x3005, /*!< WiFi mode error. */
-    state               = 0x3006, /*!< WiFi internal state error. */
-    conn                = 0x3007, /*!< WiFi internal control block of station error. */
-    nvs                 = 0x3008, /*!< WiFi internal NVS module error. */
+    not_init            = 0x3001, /*!< Wi-Fi driver was not initialized. */
+    not_started         = 0x3002, /*!< Wi-Fi driver was not started. */
+    not_stopped         = 0x3003, /*!< Wi-Fi driver was not stopped. */
+    if_error            = 0x3004, /*!< Wi-Fi interface error. */
+    mode                = 0x3005, /*!< Wi-Fi mode error. */
+    state               = 0x3006, /*!< Wi-Fi internal state error. */
+    conn                = 0x3007, /*!< Wi-Fi internal control block of station error. */
+    nvs                 = 0x3008, /*!< Wi-Fi internal NVS module error. */
     mac                 = 0x3009, /*!< MAC address is invalid. */
     ssid                = 0x300A, /*!< SSID is invalid. */
     password            = 0x300B, /*!< Password is invalid. */
-    timeout             = 0x300C, /*!< WiFi timeout. */
-    wake_fail           = 0x300D, /*!< WiFi is in sleep state and wakeup failed. */
+    timeout             = 0x300C, /*!< Wi-Fi timeout. */
+    wake_fail           = 0x300D, /*!< Wi-Fi is in sleep state and wakeup failed. */
     would_block         = 0x300E, /*!< The caller would block. */
     not_connect         = 0x300F, /*!< Station still in disconnect status. */
-    post                = 0x3012, /*!< Failed to post event to WiFi task. */
-    init_state          = 0x3013, /*!< Invalid WiFi state when init/deinit is called. */
-    stop_state          = 0x3014, /*!< WiFi stop in progress. */
-    not_assoc           = 0x3015, /*!< WiFi connection not associated. */
-    tx_disallow         = 0x3016, /*!< WiFi TX is disallowed. */
+    post                = 0x3012, /*!< Failed to post event to Wi-Fi task. */
+    init_state          = 0x3013, /*!< Invalid Wi-Fi state when init/deinit is called. */
+    stop_state          = 0x3014, /*!< Wi-Fi stop in progress. */
+    not_assoc           = 0x3015, /*!< Wi-Fi connection not associated. */
+    tx_disallow         = 0x3016, /*!< Wi-Fi TX is disallowed. */
     twt_full            = 0x3017, /*!< No available TWT flow ID. */
     twt_setup_timeout   = 0x3018, /*!< TWT setup response timeout. */
     twt_setup_txfail    = 0x3019, /*!< TWT setup frame TX failed. */
@@ -664,7 +664,7 @@ enum class errc : esp_err_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Error category for WiFi errors.
+ * @brief Error category for Wi-Fi errors.
  */
 class error_category : public std::error_category {
 public:
@@ -677,7 +677,7 @@ public:
     /**
      * @brief Tests whether an `errc` value is equivalent to a standard condition.
      *
-     * Allows callers to compare a WiFi error code against either the
+     * Allows callers to compare a Wi-Fi error code against either the
      * domain-specific `errc` value or the portable `std::errc` synonym, e.g.
      * @code
      * ec == idfxx::wifi::errc::value_too_large
@@ -714,7 +714,7 @@ struct he_ap_info {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi country configuration.
+ * @brief Wi-Fi country configuration.
  */
 struct country_config {
     /// Country code string.
@@ -739,7 +739,7 @@ struct country_config {
  * @headerfile <idfxx/wifi>
  * @brief Information about a discovered access point.
  *
- * Contains the details of an AP found during a WiFi scan.
+ * Contains the details of an AP found during a Wi-Fi scan.
  */
 struct ap_record {
     /// MAC address of the access point.
@@ -847,10 +847,10 @@ struct ftm_report_entry {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Configuration for WiFi initialization.
+ * @brief Configuration for Wi-Fi initialization.
  *
  * Controls buffer allocation, AMPDU settings, NVS persistence, and task
- * pinning for the WiFi subsystem. All fields default to @c std::nullopt,
+ * pinning for the Wi-Fi subsystem. All fields default to @c std::nullopt,
  * which preserves the Kconfig default values. On ESP-IDF 6.1 and later, station
  * privacy settings are also available.
  *
@@ -871,8 +871,8 @@ struct init_config {
     std::optional<unsigned int> rx_ba_win;          /*!< Block Ack RX window size. */
     std::optional<bool> ampdu_rx_enable;            /*!< AMPDU RX feature enable. */
     std::optional<bool> ampdu_tx_enable;            /*!< AMPDU TX feature enable. */
-    std::optional<bool> nvs_enable;                 /*!< NVS flash for WiFi config persistence. */
-    std::optional<core_id> wifi_task_core_id;       /*!< WiFi task core ID. */
+    std::optional<bool> nvs_enable;                 /*!< NVS flash for Wi-Fi config persistence. */
+    std::optional<core_id> wifi_task_core_id;       /*!< Wi-Fi task core ID. */
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0) || defined(__DOXYGEN__)
     /**
      * @brief Privacy enhancements for the station interface.
@@ -911,7 +911,7 @@ struct pmf_config {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Configuration for WiFi station mode.
+ * @brief Configuration for Wi-Fi station mode.
  */
 struct sta_config {
     /// SSID of the target access point, up to 32 bytes.
@@ -963,7 +963,7 @@ struct sta_config {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Configuration for WiFi access point mode.
+ * @brief Configuration for Wi-Fi access point mode.
  */
 struct ap_config {
     /// SSID of the access point, up to 32 bytes.
@@ -994,7 +994,7 @@ struct ap_config {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Configuration for a WiFi scan operation.
+ * @brief Configuration for a Wi-Fi scan operation.
  */
 struct scan_config {
     std::string ssid;                             /*!< SSID to filter for (empty = all). */
@@ -1046,7 +1046,7 @@ struct bandwidths_config {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi channel information.
+ * @brief Wi-Fi channel information.
  */
 struct channel_info {
     /// Primary channel number.
@@ -1145,12 +1145,12 @@ struct csi_config {
 #endif
 
 // =============================================================================
-// WiFi events
+// Wi-Fi events
 // =============================================================================
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi event IDs.
+ * @brief Wi-Fi event IDs.
  *
  * Used with the wifi::events event base to register listeners and post events.
  *
@@ -1163,7 +1163,7 @@ struct csi_config {
  */
 enum class event_id : int32_t {
     // clang-format off
-    ready                                      = 0,  /*!< WiFi ready. */
+    ready                                      = 0,  /*!< Wi-Fi ready. */
     scan_done                                  = 1,  /*!< Scan completed. */
     sta_start                                  = 2,  /*!< Station started. */
     sta_stop                                   = 3,  /*!< Station stopped. */
@@ -1223,10 +1223,10 @@ enum class event_id : int32_t {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief WiFi event base.
+ * @brief Wi-Fi event base.
  *
- * Event base for WiFi events. Use with the idfxx event loop to register listeners for
- * WiFi lifecycle, connection, and scan events.
+ * Event base for Wi-Fi events. Use with the idfxx event loop to register listeners for
+ * Wi-Fi lifecycle, connection, and scan events.
  */
 extern const event_base<event_id> events;
 
@@ -1430,7 +1430,7 @@ struct ftm_report_event_data {
 // Typed events
 // =============================================================================
 
-// WiFi events with data
+// Wi-Fi events with data
 /** @brief Station connected event with connection details. */
 inline constexpr idfxx::event<event_id, connected_event_data> sta_connected{
     event_id::sta_connected
@@ -1468,8 +1468,8 @@ inline constexpr idfxx::event<event_id, home_channel_change_event_data> home_cha
 /** @brief FTM report received event. */
 inline constexpr idfxx::event<event_id, ftm_report_event_data> ftm_report{event_id::ftm_report};
 
-// WiFi events without data
-/** @brief WiFi ready event. */
+// Wi-Fi events without data
+/** @brief Wi-Fi ready event. */
 inline constexpr idfxx::event<event_id> ready{event_id::ready};
 /** @brief Station started event. */
 inline constexpr idfxx::event<event_id> sta_start{event_id::sta_start};
@@ -1560,9 +1560,9 @@ inline constexpr idfxx::event<event_id> dpp_failed{event_id::dpp_failed};
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Initializes the WiFi subsystem.
+ * @brief Initializes the Wi-Fi subsystem.
  *
- * Must be called before any other WiFi functions. When called with no
+ * Must be called before any other Wi-Fi functions. When called with no
  * arguments or an empty config, all Kconfig defaults are used.
  *
  * @param cfg Initialization configuration. Defaults to Kconfig values.
@@ -1573,7 +1573,7 @@ inline constexpr idfxx::event<event_id> dpp_failed{event_id::dpp_failed};
 void init(const init_config& cfg = {});
 
 /**
- * @brief Deinitializes the WiFi subsystem and frees resources.
+ * @brief Deinitializes the Wi-Fi subsystem and frees resources.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -1581,7 +1581,7 @@ void init(const init_config& cfg = {});
 void deinit();
 
 /**
- * @brief Starts the WiFi subsystem.
+ * @brief Starts the Wi-Fi subsystem.
  *
  * After starting, configured interfaces become active. The roles must be
  * set before starting.
@@ -1592,7 +1592,7 @@ void deinit();
 void start();
 
 /**
- * @brief Stops the WiFi subsystem.
+ * @brief Stops the Wi-Fi subsystem.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -1600,7 +1600,7 @@ void start();
 void stop();
 
 /**
- * @brief Restores WiFi stack persistent settings to defaults.
+ * @brief Restores Wi-Fi stack persistent settings to defaults.
  *
  * Resets configuration stored in NVS to factory defaults.
  *
@@ -1611,9 +1611,9 @@ void restore();
 #endif
 
 /**
- * @brief Initializes the WiFi subsystem.
+ * @brief Initializes the Wi-Fi subsystem.
  *
- * Must be called before any other WiFi functions. When called with no
+ * Must be called before any other Wi-Fi functions. When called with no
  * arguments or an empty config, all Kconfig defaults are used.
  *
  * @param cfg Initialization configuration. Defaults to Kconfig values.
@@ -1622,14 +1622,14 @@ void restore();
 [[nodiscard]] result<void> try_init(const init_config& cfg = {});
 
 /**
- * @brief Deinitializes the WiFi subsystem and frees resources.
+ * @brief Deinitializes the Wi-Fi subsystem and frees resources.
  *
  * @return Success, or an error.
  */
 result<void> try_deinit();
 
 /**
- * @brief Starts the WiFi subsystem.
+ * @brief Starts the Wi-Fi subsystem.
  *
  * After starting, configured interfaces become active. The roles must be
  * set before starting.
@@ -1639,14 +1639,14 @@ result<void> try_deinit();
 [[nodiscard]] result<void> try_start();
 
 /**
- * @brief Stops the WiFi subsystem.
+ * @brief Stops the Wi-Fi subsystem.
  *
  * @return Success, or an error.
  */
 result<void> try_stop();
 
 /**
- * @brief Restores WiFi stack persistent settings to defaults.
+ * @brief Restores Wi-Fi stack persistent settings to defaults.
  *
  * Resets configuration stored in NVS to factory defaults.
  *
@@ -1660,7 +1660,7 @@ result<void> try_stop();
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the active WiFi roles.
+ * @brief Sets the active Wi-Fi roles.
  *
  * @param roles The roles to activate (e.g. `role::sta`, `role::sta | role::ap`).
  *
@@ -1670,7 +1670,7 @@ result<void> try_stop();
 void set_roles(flags<role> roles);
 
 /**
- * @brief Gets the currently active WiFi roles.
+ * @brief Gets the currently active Wi-Fi roles.
  *
  * @return The active roles.
  *
@@ -1681,7 +1681,7 @@ void set_roles(flags<role> roles);
 #endif
 
 /**
- * @brief Sets the active WiFi roles.
+ * @brief Sets the active Wi-Fi roles.
  *
  * @param roles The roles to activate (e.g. `role::sta`, `role::sta | role::ap`).
  * @return Success, or an error.
@@ -1689,7 +1689,7 @@ void set_roles(flags<role> roles);
 [[nodiscard]] result<void> try_set_roles(flags<role> roles);
 
 /**
- * @brief Gets the currently active WiFi roles.
+ * @brief Gets the currently active Wi-Fi roles.
  *
  * @return The active roles, or an error.
  */
@@ -1701,7 +1701,7 @@ void set_roles(flags<role> roles);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi station configuration.
+ * @brief Sets the Wi-Fi station configuration.
  *
  * @param cfg The station configuration.
  *
@@ -1711,7 +1711,7 @@ void set_roles(flags<role> roles);
 void set_sta_config(const sta_config& cfg);
 
 /**
- * @brief Gets the current WiFi station configuration.
+ * @brief Gets the current Wi-Fi station configuration.
  *
  * @return The current station configuration.
  *
@@ -1722,7 +1722,7 @@ void set_sta_config(const sta_config& cfg);
 #endif
 
 /**
- * @brief Sets the WiFi station configuration.
+ * @brief Sets the Wi-Fi station configuration.
  *
  * @param cfg The station configuration.
  * @return Success, or an error.
@@ -1730,7 +1730,7 @@ void set_sta_config(const sta_config& cfg);
 [[nodiscard]] result<void> try_set_sta_config(const sta_config& cfg);
 
 /**
- * @brief Gets the current WiFi station configuration.
+ * @brief Gets the current Wi-Fi station configuration.
  *
  * @return The current station configuration, or an error.
  */
@@ -1742,7 +1742,7 @@ void set_sta_config(const sta_config& cfg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi access point configuration.
+ * @brief Sets the Wi-Fi access point configuration.
  *
  * @param cfg The access point configuration.
  *
@@ -1752,7 +1752,7 @@ void set_sta_config(const sta_config& cfg);
 void set_ap_config(const ap_config& cfg);
 
 /**
- * @brief Gets the current WiFi access point configuration.
+ * @brief Gets the current Wi-Fi access point configuration.
  *
  * @return The current access point configuration.
  *
@@ -1794,7 +1794,7 @@ void deauth_sta(uint16_t aid);
 #endif
 
 /**
- * @brief Sets the WiFi access point configuration.
+ * @brief Sets the Wi-Fi access point configuration.
  *
  * @param cfg The access point configuration.
  * @return Success, or an error.
@@ -1802,7 +1802,7 @@ void deauth_sta(uint16_t aid);
 [[nodiscard]] result<void> try_set_ap_config(const ap_config& cfg);
 
 /**
- * @brief Gets the current WiFi access point configuration.
+ * @brief Gets the current Wi-Fi access point configuration.
  *
  * @return The current access point configuration, or an error.
  */
@@ -1839,8 +1839,8 @@ void deauth_sta(uint16_t aid);
 /**
  * @brief Connects to the configured access point.
  *
- * The WiFi subsystem must be started before connecting. Connection progress
- * is reported via WiFi and IP events.
+ * The Wi-Fi subsystem must be started before connecting. Connection progress
+ * is reported via Wi-Fi and IP events.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -1851,7 +1851,7 @@ void connect();
  * @brief Connects to the configured access point and waits for an IPv4 address.
  *
  * Initiates the connection, then blocks until the station acquires an IPv4 address, is
- * disconnected, or @p timeout elapses. The WiFi subsystem must be started with the station role
+ * disconnected, or @p timeout elapses. The Wi-Fi subsystem must be started with the station role
  * enabled, and a station netif (make_sta_netif()) and the system event loop
  * (event_loop::create_system()) must exist.
  *
@@ -1881,7 +1881,7 @@ template<typename Rep, typename Period>
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
  * Performs the common station start-up sequence: sets the station as the only role, applies
- * @p cfg, starts WiFi, initiates the connection, and blocks until the station acquires an IPv4
+ * @p cfg, starts Wi-Fi, initiates the connection, and blocks until the station acquires an IPv4
  * address or @p timeout elapses.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
@@ -1889,7 +1889,7 @@ template<typename Rep, typename Period>
  * finish it with connect(std::chrono::duration<Rep, Period>).
  *
  * Requires the system event loop (event_loop::create_system()), a station
- * netif (make_sta_netif()), and an initialized WiFi subsystem
+ * netif (make_sta_netif()), and an initialized Wi-Fi subsystem
  * (init()) before calling.
  *
  * @code
@@ -1952,8 +1952,8 @@ void clear_fast_connect();
 /**
  * @brief Connects to the configured access point.
  *
- * The WiFi subsystem must be started before connecting. Connection progress
- * is reported via WiFi and IP events.
+ * The Wi-Fi subsystem must be started before connecting. Connection progress
+ * is reported via Wi-Fi and IP events.
  *
  * @return Success, or an error.
  */
@@ -1963,7 +1963,7 @@ void clear_fast_connect();
  * @brief Connects to the configured access point and waits for an IPv4 address.
  *
  * Initiates the connection, then blocks until the station acquires an IPv4 address, is
- * disconnected, or @p timeout elapses. The WiFi subsystem must be started with the station role
+ * disconnected, or @p timeout elapses. The Wi-Fi subsystem must be started with the station role
  * enabled, and a station netif (try_make_sta_netif()) and the system event loop
  * (event_loop::try_create_system()) must exist.
  *
@@ -1989,7 +1989,7 @@ template<typename Rep, typename Period>
  * @brief Connects to an access point as a station and waits for an IPv4 address.
  *
  * Performs the common station start-up sequence: sets the station as the only role, applies
- * @p cfg, starts WiFi, initiates the connection, and blocks until the station acquires an IPv4
+ * @p cfg, starts Wi-Fi, initiates the connection, and blocks until the station acquires an IPv4
  * address or @p timeout elapses.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
@@ -1997,7 +1997,7 @@ template<typename Rep, typename Period>
  * try_start) and finish it with try_connect(std::chrono::milliseconds).
  *
  * Requires the system event loop (event_loop::try_create_system()), a station
- * netif (try_make_sta_netif()), and an initialized WiFi subsystem
+ * netif (try_make_sta_netif()), and an initialized Wi-Fi subsystem
  * (try_init()) before calling.
  *
  * @param cfg The station configuration (SSID, credentials, etc.).
@@ -2253,7 +2253,7 @@ void set_power_save(enum power_save ps);
 /**
  * @brief Sets the channel bandwidth for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param bw The bandwidth.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2264,7 +2264,7 @@ void set_bandwidth(enum role iface, enum bandwidth bw);
 /**
  * @brief Gets the current channel bandwidth for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The current bandwidth.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2275,7 +2275,7 @@ void set_bandwidth(enum role iface, enum bandwidth bw);
 /**
  * @brief Sets bandwidths for dual-band operation on the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param bw The bandwidth configuration for both bands.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2286,7 +2286,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Gets bandwidths for dual-band operation on the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The bandwidth configuration for both bands.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2298,7 +2298,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Sets the channel bandwidth for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param bw The bandwidth.
  * @return Success, or an error.
  */
@@ -2307,7 +2307,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Gets the current channel bandwidth for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The current bandwidth, or an error.
  */
 [[nodiscard]] result<enum bandwidth> try_get_bandwidth(enum role iface);
@@ -2315,7 +2315,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Sets bandwidths for dual-band operation on the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param bw The bandwidth configuration for both bands.
  * @return Success, or an error.
  */
@@ -2324,7 +2324,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Gets bandwidths for dual-band operation on the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The bandwidth configuration for both bands, or an error.
  */
 [[nodiscard]] result<bandwidths_config> try_get_bandwidths(enum role iface);
@@ -2337,7 +2337,7 @@ void set_bandwidths(enum role iface, const bandwidths_config& bw);
 /**
  * @brief Sets the MAC address for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param mac The MAC address as a 6-byte array.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2348,7 +2348,7 @@ void set_mac(enum role iface, mac_address mac);
 /**
  * @brief Gets the MAC address for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The MAC address.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2360,7 +2360,7 @@ void set_mac(enum role iface, mac_address mac);
 /**
  * @brief Sets the MAC address for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param mac The MAC address.
  * @return Success, or an error.
  */
@@ -2369,7 +2369,7 @@ void set_mac(enum role iface, mac_address mac);
 /**
  * @brief Gets the MAC address for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The MAC address, or an error.
  */
 [[nodiscard]] result<mac_address> try_get_mac(enum role iface);
@@ -2447,7 +2447,7 @@ try_set_channel(uint8_t primary, std::optional<enum second_channel> second = std
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi country configuration.
+ * @brief Sets the Wi-Fi country configuration.
  *
  * @param cfg The country configuration.
  *
@@ -2457,7 +2457,7 @@ try_set_channel(uint8_t primary, std::optional<enum second_channel> second = std
 void set_country(const country_config& cfg);
 
 /**
- * @brief Gets the current WiFi country configuration.
+ * @brief Gets the current Wi-Fi country configuration.
  *
  * @return The country configuration.
  *
@@ -2489,7 +2489,7 @@ void set_country_code(std::string_view cc, bool ieee80211d_enabled);
 #endif
 
 /**
- * @brief Sets the WiFi country configuration.
+ * @brief Sets the Wi-Fi country configuration.
  *
  * @param cfg The country configuration.
  * @return Success, or an error.
@@ -2497,7 +2497,7 @@ void set_country_code(std::string_view cc, bool ieee80211d_enabled);
 [[nodiscard]] result<void> try_set_country(const country_config& cfg);
 
 /**
- * @brief Gets the current WiFi country configuration.
+ * @brief Gets the current Wi-Fi country configuration.
  *
  * @return The country configuration, or an error.
  */
@@ -2610,9 +2610,9 @@ void set_rssi_threshold(quanta::electro::dbm threshold);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the enabled WiFi protocols for the specified interface.
+ * @brief Sets the enabled Wi-Fi protocols for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param protos The protocol flags to enable.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2621,9 +2621,9 @@ void set_rssi_threshold(quanta::electro::dbm threshold);
 void set_protocol(enum role iface, flags<protocol> protos);
 
 /**
- * @brief Gets the enabled WiFi protocols for the specified interface.
+ * @brief Gets the enabled Wi-Fi protocols for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The enabled protocol flags.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2632,9 +2632,9 @@ void set_protocol(enum role iface, flags<protocol> protos);
 [[nodiscard]] flags<protocol> get_protocol(enum role iface);
 
 /**
- * @brief Sets the enabled WiFi protocols for dual-band operation.
+ * @brief Sets the enabled Wi-Fi protocols for dual-band operation.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param cfg The protocol configuration for both bands.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2643,9 +2643,9 @@ void set_protocol(enum role iface, flags<protocol> protos);
 void set_protocols(enum role iface, const protocols_config& cfg);
 
 /**
- * @brief Gets the enabled WiFi protocols for dual-band operation.
+ * @brief Gets the enabled Wi-Fi protocols for dual-band operation.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The protocol configuration for both bands.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2655,35 +2655,35 @@ void set_protocols(enum role iface, const protocols_config& cfg);
 #endif
 
 /**
- * @brief Sets the enabled WiFi protocols for the specified interface.
+ * @brief Sets the enabled Wi-Fi protocols for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param protos The protocol flags to enable.
  * @return Success, or an error.
  */
 [[nodiscard]] result<void> try_set_protocol(enum role iface, flags<protocol> protos);
 
 /**
- * @brief Gets the enabled WiFi protocols for the specified interface.
+ * @brief Gets the enabled Wi-Fi protocols for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The enabled protocol flags, or an error.
  */
 [[nodiscard]] result<flags<protocol>> try_get_protocol(enum role iface);
 
 /**
- * @brief Sets the enabled WiFi protocols for dual-band operation.
+ * @brief Sets the enabled Wi-Fi protocols for dual-band operation.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param cfg The protocol configuration for both bands.
  * @return Success, or an error.
  */
 [[nodiscard]] result<void> try_set_protocols(enum role iface, const protocols_config& cfg);
 
 /**
- * @brief Gets the enabled WiFi protocols for dual-band operation.
+ * @brief Gets the enabled Wi-Fi protocols for dual-band operation.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The protocol configuration for both bands, or an error.
  */
 [[nodiscard]] result<protocols_config> try_get_protocols(enum role iface);
@@ -2694,7 +2694,7 @@ void set_protocols(enum role iface, const protocols_config& cfg);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi band.
+ * @brief Sets the Wi-Fi band.
  *
  * @param b The frequency band.
  *
@@ -2704,7 +2704,7 @@ void set_protocols(enum role iface, const protocols_config& cfg);
 void set_band(enum band b);
 
 /**
- * @brief Gets the current WiFi band.
+ * @brief Gets the current Wi-Fi band.
  *
  * @return The current frequency band.
  *
@@ -2714,7 +2714,7 @@ void set_band(enum band b);
 [[nodiscard]] enum band get_band();
 
 /**
- * @brief Sets the WiFi band mode.
+ * @brief Sets the Wi-Fi band mode.
  *
  * @param m The band mode.
  *
@@ -2724,7 +2724,7 @@ void set_band(enum band b);
 void set_band_mode(enum band_mode m);
 
 /**
- * @brief Gets the current WiFi band mode.
+ * @brief Gets the current Wi-Fi band mode.
  *
  * @return The current band mode.
  *
@@ -2735,7 +2735,7 @@ void set_band_mode(enum band_mode m);
 #endif
 
 /**
- * @brief Sets the WiFi band.
+ * @brief Sets the Wi-Fi band.
  *
  * @param b The frequency band.
  * @return Success, or an error.
@@ -2743,14 +2743,14 @@ void set_band_mode(enum band_mode m);
 [[nodiscard]] result<void> try_set_band(enum band b);
 
 /**
- * @brief Gets the current WiFi band.
+ * @brief Gets the current Wi-Fi band.
  *
  * @return The current frequency band, or an error.
  */
 [[nodiscard]] result<enum band> try_get_band();
 
 /**
- * @brief Sets the WiFi band mode.
+ * @brief Sets the Wi-Fi band mode.
  *
  * @param m The band mode.
  * @return Success, or an error.
@@ -2758,7 +2758,7 @@ void set_band_mode(enum band_mode m);
 [[nodiscard]] result<void> try_set_band_mode(enum band_mode m);
 
 /**
- * @brief Gets the current WiFi band mode.
+ * @brief Gets the current Wi-Fi band mode.
  *
  * @return The current band mode, or an error.
  */
@@ -2770,7 +2770,7 @@ void set_band_mode(enum band_mode m);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi configuration storage location.
+ * @brief Sets the Wi-Fi configuration storage location.
  *
  * @param s The storage location (flash or RAM).
  *
@@ -2781,7 +2781,7 @@ void set_storage(enum storage s);
 #endif
 
 /**
- * @brief Sets the WiFi configuration storage location.
+ * @brief Sets the Wi-Fi configuration storage location.
  *
  * @param s The storage location (flash or RAM).
  * @return Success, or an error.
@@ -2796,7 +2796,7 @@ void set_storage(enum storage s);
 /**
  * @brief Sets the inactive time before a station is deauthenticated.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param timeout Inactive time before deauthentication (whole seconds; max 65535 s).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2807,7 +2807,7 @@ void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 /**
  * @brief Gets the inactive time before a station is deauthenticated.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The inactive time in seconds.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -2819,7 +2819,7 @@ void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 /**
  * @brief Sets the inactive time before a station is deauthenticated.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param timeout Inactive time before deauthentication (whole seconds; max 65535 s).
  * @return Success, or an error.
  */
@@ -2828,7 +2828,7 @@ void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 /**
  * @brief Gets the inactive time before a station is deauthenticated.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The inactive time in seconds, or an error.
  */
 [[nodiscard]] result<std::chrono::seconds> try_get_inactive_time(enum role iface);
@@ -2839,7 +2839,7 @@ void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Sets the WiFi event mask.
+ * @brief Sets the Wi-Fi event mask.
  *
  * Controls which events are sent to the event loop.
  *
@@ -2851,7 +2851,7 @@ void set_inactive_time(enum role iface, std::chrono::seconds timeout);
 void set_event_mask(flags<event_mask> mask);
 
 /**
- * @brief Gets the current WiFi event mask.
+ * @brief Gets the current Wi-Fi event mask.
  *
  * @return The current event mask.
  *
@@ -2862,7 +2862,7 @@ void set_event_mask(flags<event_mask> mask);
 #endif
 
 /**
- * @brief Sets the WiFi event mask.
+ * @brief Sets the Wi-Fi event mask.
  *
  * Controls which events are sent to the event loop.
  *
@@ -2872,7 +2872,7 @@ void set_event_mask(flags<event_mask> mask);
 [[nodiscard]] result<void> try_set_event_mask(flags<event_mask> mask);
 
 /**
- * @brief Gets the current WiFi event mask.
+ * @brief Gets the current Wi-Fi event mask.
  *
  * @return The current event mask, or an error.
  */
@@ -2884,9 +2884,9 @@ void set_event_mask(flags<event_mask> mask);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Acquires a WiFi wakeup lock.
+ * @brief Acquires a Wi-Fi wakeup lock.
  *
- * Prevents the WiFi modem from entering sleep while the lock is held.
+ * Prevents the Wi-Fi modem from entering sleep while the lock is held.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -2894,7 +2894,7 @@ void set_event_mask(flags<event_mask> mask);
 void force_wakeup_acquire();
 
 /**
- * @brief Releases a WiFi wakeup lock.
+ * @brief Releases a Wi-Fi wakeup lock.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -2903,16 +2903,16 @@ void force_wakeup_release();
 #endif
 
 /**
- * @brief Acquires a WiFi wakeup lock.
+ * @brief Acquires a Wi-Fi wakeup lock.
  *
- * Prevents the WiFi modem from entering sleep while the lock is held.
+ * Prevents the Wi-Fi modem from entering sleep while the lock is held.
  *
  * @return Success, or an error.
  */
 [[nodiscard]] result<void> try_force_wakeup_acquire();
 
 /**
- * @brief Releases a WiFi wakeup lock.
+ * @brief Releases a Wi-Fi wakeup lock.
  *
  * @return Success, or an error.
  */
@@ -3076,7 +3076,7 @@ void set_promiscuous_ctrl_filter(flags<promiscuous_ctrl_filter> filter);
  * @brief Callback invoked when a raw 802.11 frame transmission completes.
  *
  * Receives the transmission result and frame details for the completed send.
- * The callback is called directly by the WiFi driver and must not throw.
+ * The callback is called directly by the Wi-Fi driver and must not throw.
  */
 using tx_80211_done_cb = void (*)(const esp_80211_tx_info_t* tx_info);
 
@@ -3084,7 +3084,7 @@ using tx_80211_done_cb = void (*)(const esp_80211_tx_info_t* tx_info);
 /**
  * @brief Transmits a raw 802.11 frame.
  *
- * @param iface The WiFi interface to transmit on.
+ * @param iface The Wi-Fi interface to transmit on.
  * @param buffer The raw frame, starting with the 802.11 MAC header.
  * @param en_sys_seq Whether to use system-managed sequence numbers.
  *
@@ -3110,7 +3110,7 @@ void register_80211_tx_cb(tx_80211_done_cb cb);
 /**
  * @brief Transmits a raw 802.11 frame.
  *
- * @param iface The WiFi interface to transmit on.
+ * @param iface The Wi-Fi interface to transmit on.
  * @param buffer The raw frame, starting with the 802.11 MAC header.
  * @param en_sys_seq Whether to use system-managed sequence numbers.
  * @return Success, or an error.
@@ -3425,14 +3425,14 @@ result<void> try_ftm_end_session();
  *
  * This function does not return an error. It always returns a timestamp.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return The TSF time in microseconds.
  */
 [[nodiscard]] int64_t get_tsf_time(enum role iface);
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Dumps WiFi statistics for the specified modules.
+ * @brief Dumps Wi-Fi statistics for the specified modules.
  *
  * @param modules Flags indicating which modules to dump statistics for.
  *
@@ -3444,7 +3444,7 @@ void statis_dump(flags<statis_module> modules);
 /**
  * @brief Enables or disables 802.11b rate for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param disable True to disable 11b rate, false to enable.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -3455,7 +3455,7 @@ void config_11b_rate(enum role iface, bool disable);
 /**
  * @brief Sets the 802.11 TX rate for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param rate The PHY transmission rate.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -3466,7 +3466,7 @@ void config_80211_tx_rate(enum role iface, enum phy_rate rate);
 /**
  * @brief Disables PMF (Protected Management Frames) for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -3496,7 +3496,7 @@ void connectionless_module_set_wake_interval(std::chrono::milliseconds interval)
 #endif
 
 /**
- * @brief Dumps WiFi statistics for the specified modules.
+ * @brief Dumps Wi-Fi statistics for the specified modules.
  *
  * @param modules Flags indicating which modules to dump statistics for.
  * @return Success, or an error.
@@ -3506,7 +3506,7 @@ void connectionless_module_set_wake_interval(std::chrono::milliseconds interval)
 /**
  * @brief Enables or disables 802.11b rate for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param disable True to disable 11b rate, false to enable.
  * @return Success, or an error.
  */
@@ -3515,7 +3515,7 @@ void connectionless_module_set_wake_interval(std::chrono::milliseconds interval)
 /**
  * @brief Sets the 802.11 TX rate for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @param rate The PHY transmission rate.
  * @return Success, or an error.
  */
@@ -3524,7 +3524,7 @@ void connectionless_module_set_wake_interval(std::chrono::milliseconds interval)
 /**
  * @brief Disables PMF (Protected Management Frames) for the specified interface.
  *
- * @param iface The WiFi interface.
+ * @param iface The Wi-Fi interface.
  * @return Success, or an error.
  */
 [[nodiscard]] result<void> try_disable_pmf_config(enum role iface);
@@ -3889,9 +3889,9 @@ inline void connectionless_module_set_wake_interval(std::chrono::milliseconds in
 
 #ifdef CONFIG_COMPILER_CXX_EXCEPTIONS
 /**
- * @brief Creates a default WiFi station network interface.
+ * @brief Creates a default Wi-Fi station network interface.
  *
- * Creates and returns an RAII netif configured as a WiFi station with
+ * Creates and returns an RAII netif configured as a Wi-Fi station with
  * default settings. Must be called after netif::init().
  *
  * @return The network interface.
@@ -3902,9 +3902,9 @@ inline void connectionless_module_set_wake_interval(std::chrono::milliseconds in
 netif::interface make_sta_netif();
 
 /**
- * @brief Creates a default WiFi access point network interface.
+ * @brief Creates a default Wi-Fi access point network interface.
  *
- * Creates and returns an RAII netif configured as a WiFi access point with
+ * Creates and returns an RAII netif configured as a Wi-Fi access point with
  * default settings. Must be called after netif::init().
  *
  * @return The network interface.
@@ -3916,9 +3916,9 @@ netif::interface make_ap_netif();
 #endif
 
 /**
- * @brief Creates a default WiFi station network interface.
+ * @brief Creates a default Wi-Fi station network interface.
  *
- * Creates and returns an RAII netif configured as a WiFi station with
+ * Creates and returns an RAII netif configured as a Wi-Fi station with
  * default settings. Must be called after netif::init().
  *
  * @return Result containing the network interface, or an error code.
@@ -3926,9 +3926,9 @@ netif::interface make_ap_netif();
 [[nodiscard]] result<netif::interface> try_make_sta_netif();
 
 /**
- * @brief Creates a default WiFi access point network interface.
+ * @brief Creates a default Wi-Fi access point network interface.
  *
- * Creates and returns an RAII netif configured as a WiFi access point with
+ * Creates and returns an RAII netif configured as a Wi-Fi access point with
  * default settings. Must be called after netif::init().
  *
  * @return Result containing the network interface, or an error code.
@@ -3940,7 +3940,7 @@ netif::interface make_ap_netif();
 namespace idfxx {
 
 /**
- * @brief Returns a reference to the WiFi error category singleton.
+ * @brief Returns a reference to the Wi-Fi error category singleton.
  *
  * @return Reference to the singleton wifi::error_category instance.
  */
@@ -3948,11 +3948,11 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Creates an unexpected error from an ESP-IDF error code, mapping to WiFi error codes where
+ * @brief Creates an unexpected error from an ESP-IDF error code, mapping to Wi-Fi error codes where
  * possible.
  *
- * Converts the ESP-IDF error code to a WiFi-specific error code if a mapping exists. Otherwise,
- * the error code uses the default IDFXX error category.
+ * Converts the ESP-IDF error code to a Wi-Fi-specific error code if a mapping exists.
+ * Otherwise, uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.
@@ -3965,7 +3965,7 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Returns a string representation of active WiFi roles.
+ * @brief Returns a string representation of active Wi-Fi roles.
  *
  * @param roles The active roles.
  * @return "none", "sta", "ap", "sta|ap", or "unknown(N)" for unrecognized values.
@@ -3974,7 +3974,7 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Returns a string representation of a WiFi authentication mode.
+ * @brief Returns a string representation of a Wi-Fi authentication mode.
  *
  * @param m The authentication mode to convert.
  * @return "OPEN", "WPA2_PSK", etc., or "unknown(N)" for unrecognized values.
@@ -3983,7 +3983,7 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Returns a string representation of a WiFi cipher type.
+ * @brief Returns a string representation of a Wi-Fi cipher type.
  *
  * @param c The cipher type to convert.
  * @return "NONE", "CCMP", etc., or "unknown(N)" for unrecognized values.
@@ -3992,7 +3992,7 @@ namespace idfxx {
 
 /**
  * @headerfile <idfxx/wifi>
- * @brief Returns a string representation of a WiFi disconnect reason.
+ * @brief Returns a string representation of a Wi-Fi disconnect reason.
  *
  * @param r The disconnect reason to convert.
  * @return A human-readable reason string, or "unknown(N)" for unrecognized values.
@@ -4007,7 +4007,7 @@ namespace idfxx::wifi {
  * @headerfile <idfxx/wifi>
  * @brief Creates an error code from an idfxx::wifi::errc value.
  *
- * @param e The WiFi error code enumerator.
+ * @param e The Wi-Fi error code enumerator.
  * @return The corresponding std::error_code.
  */
 [[nodiscard]] inline std::error_code make_error_code(errc e) noexcept {

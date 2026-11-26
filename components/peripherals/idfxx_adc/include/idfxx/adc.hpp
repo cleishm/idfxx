@@ -666,8 +666,6 @@ public:
      *         is configured with more than one pin, or
      *         idfxx::errc::not_supported if the chip has no usable calibration
      *         data (check @ref calibrated).
-     * @retval idfxx::errc::timeout The conversion result was invalid, or the
-     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] quanta::electro::millivolts to_voltage(int raw) const {
         return unwrap(try_to_voltage(raw));
@@ -703,8 +701,6 @@ public:
      *         sampler's configured pins.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
-     * @retval idfxx::errc::timeout The conversion result was invalid, or the
-     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<quanta::electro::millivolts> try_to_voltage(const sample& s) const;
 
@@ -720,8 +716,6 @@ public:
      *         than one pin.
      * @retval idfxx::errc::not_supported The chip has no usable calibration
      *         data (check @ref calibrated).
-     * @retval idfxx::errc::timeout The conversion result was invalid, or the
-     *         ADC unit is in use by another reader. The read may be retried.
      */
     [[nodiscard]] result<quanta::electro::millivolts> try_to_voltage(int raw) const;
 

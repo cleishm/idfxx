@@ -227,8 +227,8 @@ Uses standard `idfxx::errc` error codes:
 
 ## Important Notes
 
-- **Dual API Pattern**: Component provides both result-based (`try_*`) and exception-based APIs
-  - Exception-based methods require `CONFIG_COMPILER_CXX_EXCEPTIONS` to be enabled
+- **Dual API Pattern**: `try_*` methods return `idfxx::result<T>`. Throwing methods raise
+  `std::system_error` and require `CONFIG_COMPILER_CXX_EXCEPTIONS`
   - Use result-based API when exceptions are disabled or for explicit error handling
   - Use exception-based API for cleaner code when exceptions are available
 - Partition handles are copyable and remain valid for the entire application lifetime

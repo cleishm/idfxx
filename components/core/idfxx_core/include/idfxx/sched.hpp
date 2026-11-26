@@ -30,7 +30,7 @@ namespace idfxx {
  * @brief Delays the calling task for at least the specified duration.
  *
  * How the delay is carried out depends on its length relative to the scheduler
- * tick period (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz):
+ * tick period (`1 / CONFIG_FREERTOS_HZ`; 10 ms at the default 100 Hz):
  *
  * - Durations of one tick or more block the task, so other tasks can run during
  *   the delay. The task wakes on a tick boundary, so the delay is never shorter
@@ -113,7 +113,7 @@ inline constexpr next_tick_t next_tick{};
  *
  * The shortest delay that gives up the CPU. The task is suspended until the
  * next tick interrupt. This takes from almost no time up to one full tick
- * period (`1 / configTICK_RATE_HZ`; 10 ms at the default 100 Hz). While the
+ * period (`1 / CONFIG_FREERTOS_HZ`; 10 ms at the default 100 Hz). While the
  * task is suspended, every other ready task can run, whatever its priority.
  * Use it as the back-off in polling loops:
  *

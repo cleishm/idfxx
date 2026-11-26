@@ -34,7 +34,7 @@ inline void ipv6_to_ip_addr(ipv6_addr addr, ::ip_addr_t& out) noexcept {
 #endif
 
 /// Convert an endpoint to an lwIP ip_addr_t + port. Returns std::nullopt if
-/// the endpoint holds no address.
+/// the endpoint holds an IPv6 address and CONFIG_LWIP_IPV6 is disabled.
 [[nodiscard]] std::optional<std::pair<::ip_addr_t, uint16_t>>
 endpoint_to_ip_addr(const endpoint& ep) noexcept;
 
