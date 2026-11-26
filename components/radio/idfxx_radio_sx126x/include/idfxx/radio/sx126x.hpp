@@ -237,7 +237,7 @@ public:
         std::chrono::milliseconds busy_timeout{100};
         /// IRQ flags latched by the chip and routed to DIO1. Leave unset for
         /// the driver default (tx_done, rx_done, preamble_detected, crc_err,
-        /// cad_done, cad_detected). Wake-on-radio designs that sleep the host
+        /// header_err, cad_done, cad_detected). Wake-on-radio designs that sleep the host
         /// while the chip listens typically leave out preamble_detected, so
         /// that DIO1 only rises once a packet has fully arrived.
         std::optional<flags<sx126x_irq_flag>> dio1_mask = std::nullopt;
