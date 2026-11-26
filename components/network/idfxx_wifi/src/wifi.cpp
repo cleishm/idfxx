@@ -487,27 +487,27 @@ result<void> try_init(const init_config& cfg) {
 
     auto err = esp_wifi_init(&init_cfg);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to initialize WiFi: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to initialize Wi-Fi: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
-    ESP_LOGD(TAG, "WiFi initialized");
+    ESP_LOGD(TAG, "Wi-Fi initialized");
     return {};
 }
 
 result<void> try_deinit() {
-    return check(esp_wifi_deinit(), "Failed to deinitialize WiFi");
+    return check(esp_wifi_deinit(), "Failed to deinitialize Wi-Fi");
 }
 
 result<void> try_start() {
-    return check(esp_wifi_start(), "Failed to start WiFi");
+    return check(esp_wifi_start(), "Failed to start Wi-Fi");
 }
 
 result<void> try_stop() {
-    return check(esp_wifi_stop(), "Failed to stop WiFi");
+    return check(esp_wifi_stop(), "Failed to stop Wi-Fi");
 }
 
 result<void> try_restore() {
-    return check(esp_wifi_restore(), "Failed to restore WiFi");
+    return check(esp_wifi_restore(), "Failed to restore Wi-Fi");
 }
 
 // =============================================================================
@@ -516,7 +516,7 @@ result<void> try_restore() {
 
 result<void> try_set_roles(flags<role> roles) {
     return check(
-        esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set WiFi roles"
+        esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set Wi-Fi roles"
     );
 }
 
@@ -524,7 +524,7 @@ result<flags<role>> try_get_roles() {
     wifi_mode_t m;
     auto err = esp_wifi_get_mode(&m);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to get WiFi roles: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to get Wi-Fi roles: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
     return flags<role>(static_cast<int>(m));
@@ -593,12 +593,12 @@ result<void> try_set_sta_config(const sta_config& cfg) {
 
     auto err = esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set WiFi STA config: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to set Wi-Fi STA config: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
 
     ESP_LOGD(
-        TAG, "WiFi STA configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
+        TAG, "Wi-Fi STA configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
     );
     return {};
 }
@@ -607,7 +607,7 @@ result<sta_config> try_get_sta_config() {
     wifi_config_t wifi_cfg{};
     auto err = esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to get WiFi STA config: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to get Wi-Fi STA config: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
     return from_idf_sta_config(wifi_cfg.sta);
@@ -630,12 +630,12 @@ result<void> try_set_ap_config(const ap_config& cfg) {
 
     auto err = esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to set WiFi AP config: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to set Wi-Fi AP config: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
 
     ESP_LOGD(
-        TAG, "WiFi AP configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
+        TAG, "Wi-Fi AP configured (SSID: %.*s)", static_cast<int>(cfg.ssid.size()), cfg.ssid.data()
     );
     return {};
 }
@@ -644,7 +644,7 @@ result<ap_config> try_get_ap_config() {
     wifi_config_t wifi_cfg{};
     auto err = esp_wifi_get_config(WIFI_IF_AP, &wifi_cfg);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "Failed to get WiFi AP config: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "Failed to get Wi-Fi AP config: %s", esp_err_to_name(err));
         return wifi_error(err);
     }
     return from_idf_ap_config(wifi_cfg.ap);
@@ -685,7 +685,7 @@ result<uint16_t> try_ap_get_sta_aid(mac_address mac) {
 // =============================================================================
 
 result<void> try_connect() {
-    return check(esp_wifi_connect(), "Failed to connect WiFi");
+    return check(esp_wifi_connect(), "Failed to connect Wi-Fi");
 }
 
 result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout) {
@@ -756,7 +756,7 @@ result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milli
 }
 
 result<void> try_disconnect() {
-    return check(esp_wifi_disconnect(), "Failed to disconnect WiFi");
+    return check(esp_wifi_disconnect(), "Failed to disconnect Wi-Fi");
 }
 
 result<void> try_clear_fast_connect() {

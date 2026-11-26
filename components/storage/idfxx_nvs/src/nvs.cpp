@@ -74,11 +74,12 @@ std::string nvs::error_category::message(int ec) const {
     case nvs::errc::not_initialized:
         return "NVS storage was not initialized";
     case nvs::errc::not_found:
-        return "A requested entry couldn't be found or namespace doesn't exist yet and mode is NVS_READONLY";
+        return "A requested entry couldn't be found, or the namespace doesn't exist yet and the "
+               "handle was opened read-only";
     case nvs::errc::type_mismatch:
         return "The type of set or get operation doesn't match the type of value stored in NVS";
     case nvs::errc::read_only:
-        return "Storage handle was opened as read only";
+        return "Storage handle was opened as read-only";
     case nvs::errc::not_enough_space:
         return "There is not enough space in the underlying storage to save the value";
     case nvs::errc::invalid_name:
@@ -86,7 +87,8 @@ std::string nvs::error_category::message(int ec) const {
     case nvs::errc::invalid_handle:
         return "Handle has been closed or is NULL";
     case nvs::errc::remove_failed:
-        return "The value wasn't updated because flash write operation has failed";
+        return "The value was written, but a flash write operation failed. The update finishes "
+               "after NVS is initialized again";
     case nvs::errc::key_too_long:
         return "Key name is too long";
     case nvs::errc::invalid_state:
@@ -492,7 +494,7 @@ result<void> nvs::flash::try_init(const secure_config& cfg) {
 result<void> nvs::flash::try_init(insecure_t) {
     esp_err_t err = nvs_flash_secure_init(nullptr);
     if (err != ESP_OK) {
-        ESP_LOGD(TAG, "nvs_flash_init failed: %s", esp_err_to_name(err));
+        ESP_LOGD(TAG, "nvs_flash_secure_init failed: %s", esp_err_to_name(err));
         return nvs_error(err);
     }
     return {};
@@ -538,7 +540,7 @@ result<void> nvs::flash::try_init(insecure_t, std::string_view partition_label) 
     if (err != ESP_OK) {
         ESP_LOGD(
             TAG,
-            "nvs_flash_init_partition('%s') failed: %s",
+            "nvs_flash_secure_init_partition('%s') failed: %s",
             label_str.c_str(),
             esp_err_to_name(err)
         );
@@ -638,7 +640,7 @@ result<void> nvs::flash::try_init(insecure_t, const partition& part) {
     if (err != ESP_OK) {
         ESP_LOGD(
             TAG,
-            "nvs_flash_init_partition('%.*s') failed: %s",
+            "nvs_flash_secure_init_partition('%.*s') failed: %s",
             static_cast<int>(part.label().size()),
             part.label().data(),
             esp_err_to_name(err)

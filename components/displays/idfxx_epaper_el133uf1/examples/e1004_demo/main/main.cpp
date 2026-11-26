@@ -68,7 +68,7 @@ void draw_color_screen(Canvas& canvas) {
     }
     canvas.fill_rect(0, canvas.height() - 120, canvas.width(), 120, color6::white);
     canvas.draw_text(
-        idfxx::font::spleen_8x16, 24, canvas.height() - 96, "idfxx epaper", color6::black, 4
+        idfxx::font::spleen_8x16, 24, canvas.height() - 96, "idfxx ePaper", color6::black, 4
     );
     canvas.draw_text(
         idfxx::font::spleen_8x16,
@@ -85,7 +85,7 @@ void draw_color_screen(Canvas& canvas) {
 // band, and it describes the complete 1200x1600 (portrait) frame each time.
 void draw_text_page(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas, bool closing) {
     canvas.fill_rect(0, 0, 1200, 96, true);
-    canvas.draw_text(idfxx::font::spleen_8x16, 32, 24, "idfxx epaper", false, 3);
+    canvas.draw_text(idfxx::font::spleen_8x16, 32, 24, "idfxx ePaper", false, 3);
     if (closing) {
         canvas.draw_text(idfxx::font::spleen_8x16, 32, 200, "demo complete", true, 6);
         return;

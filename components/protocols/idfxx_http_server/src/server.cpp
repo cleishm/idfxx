@@ -235,7 +235,7 @@ std::string server::error_category::message(int ec) const {
     case server::errc::handler_exists:
         return "URI handler already registered";
     case server::errc::invalid_request:
-        return "Invalid request";
+        return "Invalid or incomplete request, or receiving it failed";
     case server::errc::result_truncated:
         return "Result string truncated";
     case server::errc::resp_header:

@@ -53,7 +53,7 @@ void draw_title_screen(
     bool fast_note
 ) {
     canvas.fill_rect(0, 0, 800, 48, true);
-    canvas.draw_text(idfxx::font::spleen_8x16, 16, 8, "idfxx epaper", false, 2);
+    canvas.draw_text(idfxx::font::spleen_8x16, 16, 8, "idfxx ePaper", false, 2);
     canvas.draw_rect(16, 72, 380, 160, true);
     canvas.draw_text(idfxx::font::spleen_8x16, 40, 104, "hello", true, 6);
     canvas.draw_text(idfxx::font::spleen_8x16, 16, 260, "UC8179 800x480", true, 2);
@@ -176,7 +176,7 @@ extern "C" void app_main() {
         // --- Stage 6: closing screen ---
         idfxx::gfx::render_banded(band, display, display.height(), [](auto& canvas) {
             canvas.fill_rect(0, 0, 800, 48, true);
-            canvas.draw_text(idfxx::font::spleen_8x16, 16, 8, "idfxx epaper", false, 2);
+            canvas.draw_text(idfxx::font::spleen_8x16, 16, 8, "idfxx ePaper", false, 2);
             canvas.draw_text(idfxx::font::spleen_8x16, 16, 120, "demo complete", true, 4);
         });
         display.refresh();

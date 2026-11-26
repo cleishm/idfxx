@@ -43,7 +43,7 @@ std::string crypto::error_category::message(int ec) const {
     case crypto::errc::insufficient_storage:
         return "Insufficient persistent storage";
     case crypto::errc::communication_failure:
-        return "Communication with cryptoprocessor failed";
+        return "Communication with the cryptoprocessor failed";
     case crypto::errc::storage_failure:
         return "Persistent storage failure";
     case crypto::errc::data_corrupt:
@@ -57,7 +57,7 @@ std::string crypto::error_category::message(int ec) const {
     case crypto::errc::insufficient_entropy:
         return "Insufficient entropy";
     case crypto::errc::invalid_signature:
-        return "Invalid signature";
+        return "Invalid signature, MAC or hash";
     case crypto::errc::invalid_padding:
         return "Invalid padding";
     case crypto::errc::insufficient_data:

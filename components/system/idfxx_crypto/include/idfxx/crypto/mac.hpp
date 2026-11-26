@@ -674,7 +674,7 @@ class authenticator {
     // Only for a known algorithm, so that an unknown one fails just the assertion above
     static_assert(
         mac::tag_size(Alg) == 0 || detail::valid_mac_tag_size(Alg, TagSize),
-        "TagSize must be at least 4 bytes and at most the algorithm's full tag length"
+        "TagSize must be at least 4 bytes and at most the algorithm's full tag size"
     );
 
 public:

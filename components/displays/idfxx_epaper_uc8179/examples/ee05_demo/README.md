@@ -70,7 +70,7 @@ Replace `PORT` with your board's serial port. Press `Ctrl-]` to exit the monitor
 
 The panel steps through six screens, about five seconds apart:
 
-1. A title screen with "idfxx epaper" on a black banner, a large "hello" in a box, and "UC8179
+1. A title screen with "idfxx ePaper" on a black banner, a large "hello" in a box, and "UC8179
    800x480"
 2. Four horizontal bands, from white through light and dark gray to black
 3. The title screen again, back in black and white

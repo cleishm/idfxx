@@ -97,7 +97,7 @@ constexpr size_t bar_h = 12;
 void draw_static_layout(idfxx::gfx::canvas<idfxx::epaper::mono_framebuffer>& canvas) {
     canvas.clear();
     canvas.fill_rect(0, 0, canvas.width(), 14, true);
-    canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx epaper", false);
+    canvas.draw_text(idfxx::font::spleen_5x8, 3, 3, "idfxx ePaper", false);
     canvas.draw_text(idfxx::font::spleen_8x16, 4, 22, "deep sleep", true);
     canvas.draw_text(idfxx::font::spleen_5x8, 4, 42, "partial refresh", true);
     canvas.draw_hline(0, 56, canvas.width(), true);

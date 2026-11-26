@@ -63,7 +63,8 @@ TEST_CASE("crypto error codes have messages", "[idfxx][crypto]") {
         TEST_ASSERT_TRUE(msg.find("Unknown") == std::string::npos);
     }
     TEST_ASSERT_EQUAL_STRING(
-        "Invalid signature", std::error_code(crypto::errc::invalid_signature).message().c_str()
+        "Invalid signature, MAC or hash",
+        std::error_code(crypto::errc::invalid_signature).message().c_str()
     );
     TEST_ASSERT_TRUE(crypto_category().message(9999).find("Unknown") != std::string::npos);
 }

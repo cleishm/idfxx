@@ -103,7 +103,7 @@ public:
         not_found            = 0x1102,
         /// The type of set or get operation doesn't match the type of value stored in NVS
         type_mismatch        = 0x1103,
-        /// Storage handle was opened as read only
+        /// Storage handle was opened as read-only
         read_only            = 0x1104,
         /// There is not enough space in the underlying storage to save the value
         not_enough_space     = 0x1105,

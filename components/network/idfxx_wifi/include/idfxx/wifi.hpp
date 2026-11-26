@@ -644,7 +644,7 @@ enum class errc : esp_err_t {
     timeout             = 0x300C, /*!< Wi-Fi timeout. */
     wake_fail           = 0x300D, /*!< Wi-Fi is in sleep state and wakeup failed. */
     would_block         = 0x300E, /*!< The caller would block. */
-    not_connect         = 0x300F, /*!< Station still in disconnect status. */
+    not_connect         = 0x300F, /*!< Station is still disconnected. */
     post                = 0x3012, /*!< Failed to post event to Wi-Fi task. */
     init_state          = 0x3013, /*!< Invalid Wi-Fi state when init/deinit is called. */
     stop_state          = 0x3014, /*!< Wi-Fi stop in progress. */
