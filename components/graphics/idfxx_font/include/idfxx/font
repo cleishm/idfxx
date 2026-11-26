@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/font.hpp>
+#include <idfxx/font.hpp> // IWYU pragma: export

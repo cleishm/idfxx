@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/lcd/rgb565_framebuffer.hpp>
+#include <idfxx/lcd/rgb565_framebuffer.hpp> // IWYU pragma: export

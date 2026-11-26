@@ -1,0 +1,7 @@
+# The compile database comes from the GCC toolchain. Remove the GCC-only flags that clangd does
+# not know.
+CompileFlags:
+  Remove:
+    - -fno-shrink-wrap
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion

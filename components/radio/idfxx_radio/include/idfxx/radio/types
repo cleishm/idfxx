@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/radio/types.hpp>
+#include <idfxx/radio/types.hpp> // IWYU pragma: export

@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/button.hpp>
+#include <idfxx/button.hpp> // IWYU pragma: export
