@@ -8,7 +8,10 @@
 #include "unity.h"
 
 #include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <bit>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -414,6 +417,59 @@ TEST_CASE("gpio ISR handler remove of a removed handler returns not_found", "[id
     TEST_ASSERT_FALSE(after_all.has_value());
     TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_found), after_all.error().value());
 
+    gpio::uninstall_isr_service();
+}
+
+namespace {
+struct isr_remove_probe {
+    gpio pin = gpio::nc();
+    std::optional<gpio::isr_handle> handle;
+    int calls = 0;
+    int first = -1;
+    int second = -1;
+};
+isr_remove_probe isr_probe;
+} // namespace
+
+TEST_CASE("gpio ISR handler removed twice from an ISR returns not_found", "[idfxx][gpio][hw]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    isr_probe = {};
+    isr_probe.pin = gpio::make(18).value();
+    auto& g = isr_probe.pin;
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input_output).has_value());
+    g.set_level(gpio::level::low);
+    g.set_intr_type(gpio::intr_type::posedge);
+
+    // The handler removes itself twice, from ISR context. 0 is success.
+    auto handle_result = g.try_isr_handler_add(
+        [](void*) {
+            ++isr_probe.calls;
+            auto r1 = isr_probe.pin.try_isr_handler_remove(*isr_probe.handle);
+            auto r2 = isr_probe.pin.try_isr_handler_remove(*isr_probe.handle);
+            isr_probe.first = r1 ? 0 : r1.error().value();
+            isr_probe.second = r2 ? 0 : r2.error().value();
+        },
+        nullptr
+    );
+    TEST_ASSERT_TRUE(handle_result.has_value());
+    isr_probe.handle = *handle_result;
+    g.intr_enable();
+
+    g.set_level(gpio::level::high);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    g.set_level(gpio::level::low);
+    g.set_level(gpio::level::high);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // The second edge must not call the removed handler.
+    TEST_ASSERT_EQUAL(1, isr_probe.calls);
+    TEST_ASSERT_EQUAL(0, isr_probe.first);
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_found), isr_probe.second);
+
+    g.intr_disable();
+    g.set_level(gpio::level::low);
     gpio::uninstall_isr_service();
 }
 
