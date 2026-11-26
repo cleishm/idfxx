@@ -391,6 +391,32 @@ TEST_CASE("gpio ISR handler add and remove with functional callback", "[idfxx][g
     gpio::uninstall_isr_service();
 }
 
+TEST_CASE("gpio ISR handler remove of a removed handler returns not_found", "[idfxx][gpio]") {
+    auto install_result = gpio::try_install_isr_service();
+    TEST_ASSERT_TRUE(install_result.has_value());
+
+    gpio g = gpio::make(0).value();
+    TEST_ASSERT_TRUE(g.try_set_direction(gpio::mode::input).has_value());
+    g.set_intr_type(gpio::intr_type::anyedge);
+
+    auto h1 = g.try_isr_handler_add([](void*) {}, nullptr);
+    TEST_ASSERT_TRUE(h1.has_value());
+    auto h2 = g.try_isr_handler_add([]() {});
+    TEST_ASSERT_TRUE(h2.has_value());
+
+    TEST_ASSERT_TRUE(g.try_isr_handler_remove(*h1).has_value());
+    auto again = g.try_isr_handler_remove(*h1);
+    TEST_ASSERT_FALSE(again.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_found), again.error().value());
+
+    g.isr_handler_remove_all();
+    auto after_all = g.try_isr_handler_remove(*h2);
+    TEST_ASSERT_FALSE(after_all.has_value());
+    TEST_ASSERT_EQUAL(std::to_underlying(idfxx::errc::not_found), after_all.error().value());
+
+    gpio::uninstall_isr_service();
+}
+
 TEST_CASE("gpio ISR handler remove all", "[idfxx][gpio]") {
     auto install_result = gpio::try_install_isr_service();
     TEST_ASSERT_TRUE(install_result.has_value());

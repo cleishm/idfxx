@@ -4,6 +4,7 @@
 #include <idfxx/gpio>
 #include <idfxx/memory>
 
+#include <algorithm>
 #include <atomic>
 #include <driver/gpio.h>
 #include <esp_idf_version.h>
@@ -423,18 +424,22 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
     }
 
     auto& gpio_handler = handlers[_num];
+    // A handler that is already flagged inactive was removed earlier, from an ISR.
+    bool found = false;
 
     if (xPortInIsrContext()) {
         // In ISR: handlers_mux may already be held, so only flag for removal
         portENTER_CRITICAL_ISR(&active_mux);
         for (auto& entry : gpio_handler.raw) {
             if (entry.id == handle._id) {
+                found = entry.active;
                 entry.active = false;
                 break;
             }
         }
         for (auto& entry : gpio_handler.functional) {
             if (entry.id == handle._id) {
+                found = found || entry.active;
                 entry.active = false;
                 break;
             }
@@ -446,8 +451,12 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
         portENTER_CRITICAL(&handlers_mux);
         portENTER_CRITICAL(&active_mux);
 
-        std::erase_if(gpio_handler.raw, [&](auto& e) { return e.id == handle._id; });
-        std::erase_if(gpio_handler.functional, [&](auto& e) { return e.id == handle._id; });
+        auto matches = [&](const auto& e) { return e.id == handle._id; };
+        auto active_match = [&](const auto& e) { return e.id == handle._id && e.active; };
+        found = std::ranges::any_of(gpio_handler.raw, active_match) ||
+            std::ranges::any_of(gpio_handler.functional, active_match);
+        std::erase_if(gpio_handler.raw, matches);
+        std::erase_if(gpio_handler.functional, matches);
         needs_remove = gpio_handler.compact();
 
         portEXIT_CRITICAL(&active_mux);
@@ -466,6 +475,9 @@ result<void> gpio::try_isr_handler_remove(isr_handle handle) {
         }
     }
 
+    if (!found) {
+        return error(errc::not_found);
+    }
     return {};
 }
 
