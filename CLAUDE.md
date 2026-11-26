@@ -201,11 +201,14 @@ perspective. Implementation details are appropriate only when exposed through th
 English: Doxygen, READMEs, Kconfig help, code comments and example comments. The reader looks for a
 fact and must not need to read a sentence twice.
 - Write short declarative sentences in the present tense and the active voice, with one fact per
-  sentence. Use a bullet list for a set of items, not one long sentence joined with commas and
-  semicolons.
+  sentence. A semicolon between two facts becomes a period. Use a bullet list for a set of items,
+  not one long sentence joined with commas and semicolons.
 - Use one term for one thing, and use the same term in the header, the Kconfig help and the README.
+  Text that repeats across overloads or components keeps one wording. Write "Wi-Fi" and "ePaper"
+  in prose.
 - Name the actor and use ordinary verbs: a sink "receives" a line, the code "passes" it, a line is
-  "shortened".
+  "shortened". A level, option or setting is not an actor: write "a line that is more verbose than
+  the level", not "a line that the level hides".
 - Keep "that" and "which": "a line that the sink receives", not "a line the sink receives".
 - Do not use figurative or personified wording ("costs no formatting", "the level lets it"),
   idioms, inverted sentences ("Not given are…"), invented noun phrases, or clipped asides ("and the

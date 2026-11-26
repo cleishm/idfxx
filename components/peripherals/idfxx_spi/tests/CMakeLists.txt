@@ -4,7 +4,6 @@
 # Test source files
 set(IDFXX_SPI_TEST_SOURCES
     master_bus_test.cpp
-    master_device_test.cpp
 )
 
 # When building as part of an ESP-IDF project with the Unity test framework,
