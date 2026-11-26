@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/radio/lora_transceiver.hpp>
+#include <idfxx/radio/lora_transceiver.hpp> // IWYU pragma: export

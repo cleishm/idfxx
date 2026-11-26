@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/epaper/uc8179.hpp>
+#include <idfxx/epaper/uc8179.hpp> // IWYU pragma: export

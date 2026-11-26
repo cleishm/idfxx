@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/utf8.hpp>
+#include <idfxx/utf8.hpp> // IWYU pragma: export

@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/font/spleen.hpp>
+#include <idfxx/font/spleen.hpp> // IWYU pragma: export

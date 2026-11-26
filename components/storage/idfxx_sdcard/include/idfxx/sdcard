@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/sdcard.hpp>
+#include <idfxx/sdcard.hpp> // IWYU pragma: export

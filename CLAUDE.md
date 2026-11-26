@@ -99,6 +99,12 @@ Components live at `components/<area>/<name>/`, one area directory for each sect
 `components/README.md` catalog. A new component goes in the area directory of its section and gets
 a row in that area's `README.md`. Tooling finds a component by name with `components/*/<name>`.
 
+Each public header `include/idfxx/<name>.hpp` has a header without an extension,
+`include/idfxx/<name>`, that users include. It holds only the license line and
+`#include <idfxx/<name>.hpp> // IWYU pragma: export`. The pragma tells clangd's include checker
+that the short header provides the symbols of the `.hpp`. Without it, clangd reports the short
+header as unused.
+
 Supported targets: esp32, esp32s2, esp32s3, esp32c3, esp32c6, esp32h2
 
 ### Core Patterns

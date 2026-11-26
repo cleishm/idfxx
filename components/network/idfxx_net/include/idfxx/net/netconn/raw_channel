@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <idfxx/net/netconn/raw_channel.hpp>
+#include <idfxx/net/netconn/raw_channel.hpp> // IWYU pragma: export
