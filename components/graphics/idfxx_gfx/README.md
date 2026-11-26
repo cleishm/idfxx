@@ -24,8 +24,8 @@ Drawing primitives for pixel surfaces: shapes, lines, 1-bit bitmaps, and bitmap-
   its outline. Outlines are the fill's one-pixel boundary. Ellipses work the same way for even and
   odd sizes.
 - 1-bit bitmaps (`mono_bitmap`) with MSB-first or LSB-first rows. LSB-first matches XBM. A bitmap is
-  drawn transparently, so that images drawn at one origin in different inks appear as layers, or
-  opaquely over a paper value.
+  drawn either transparently, so that images drawn at one origin in different inks appear as layers,
+  or opaquely over a paper value.
 - Text in fixed-cell bitmap fonts (`mono_font`) with integer scaling (`scale = 2` turns an 8x16 font
   into 16x32 glyphs)
 - Text in proportional fonts (`proportional_font`) rasterized at their real size from
@@ -189,10 +189,10 @@ widget-local drawing.
 
 ### Rotated surfaces
 
-To draw on a panel that is mounted a quarter turn from the drawing layout, use a `rotated` view.
-This is typically a portrait-native ePaper panel used in landscape orientation. The view swaps the
-reported dimensions and remaps `set_pixel`, so that drawing uses viewer coordinates. The
-framebuffer keeps its native layout and is written to the panel as usual:
+To draw on a panel that is mounted a quarter turn from the drawing layout, use a `rotated` view. The
+panel is typically a portrait-native ePaper panel used in landscape orientation. The view swaps the
+reported dimensions and remaps `set_pixel`, so that drawing uses viewer coordinates. The framebuffer
+keeps its native layout and is written to the panel as usual:
 
 ```cpp
 idfxx::epaper::mono_framebuffer fb(display.width(), display.height()); // 122x250 portrait

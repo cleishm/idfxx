@@ -70,9 +70,8 @@ TEST_CASE("core and net timeout codes share a default_error_condition", "[net]")
 TEST_CASE("net netconn error codes map to std::errc", "[net]") {
     // Codes from the netconn API that have a clean POSIX synonym must compare
     // equal to it, exactly like the code from the socket API for the same logical
-    // condition.
-    // Then `ec == std::errc::connection_reset` holds regardless of which layer
-    // produced the error.
+    // condition. As a result, `ec == std::errc::connection_reset` holds
+    // regardless of which layer produced the error.
     auto ec = make_error_code(idfxx::net::errc::netconn_reset);
     TEST_ASSERT_TRUE(ec == std::errc::connection_reset);
 

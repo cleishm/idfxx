@@ -301,10 +301,10 @@ clip_bitmap(const clip_rect& clip, wide x, wide y, size_t width, size_t height) 
 
 // Returns the drawable rectangle of a surface. If argument-dependent lookup
 // finds a gfx_clip_rect(surface), the result is the rectangle that it
-// returns. A canvas returns the part of its coordinate space that is backed
-// by its surface. Otherwise the result is the whole surface. In both cases
-// the result is within coordinate_limit, because the returned rectangles
-// stay within it themselves.
+// returns, which is already within coordinate_limit. Otherwise the result is
+// the whole surface, clamped to coordinate_limit. A canvas is an example of
+// the first case: its gfx_clip_rect returns the part of its coordinate space
+// that is backed by its surface.
 template<pixel_surface Surface>
 [[nodiscard]] constexpr clip_rect clip_of(const Surface& surface) noexcept {
     if constexpr (requires {
@@ -1366,12 +1366,12 @@ void fill_triangle(
 /**
  * @brief Outlines a triangle with the given ink.
  *
- * Draws each of the triangle's three edges as @ref draw_line does, from the
- * edge's upper endpoint (the left one for a horizontal edge) to the other
- * endpoint. Both endpoints are drawn. So the pixels drawn do not depend on
- * the order in which the vertices are given. @ref fill_triangle also fills
- * these pixels for the same vertices, so a filled triangle and its outline
- * line up. Any part falling outside the surface is clipped.
+ * Draws each of the triangle's three edges as @ref draw_line does. Both
+ * endpoints are drawn. Each edge is drawn from its upper endpoint (the left
+ * one for a horizontal edge) to the other endpoint, so the pixels drawn do
+ * not depend on the order in which the vertices are given. @ref fill_triangle
+ * also fills these pixels for the same vertices, so a filled triangle and its
+ * outline line up. Any part falling outside the surface is clipped.
  *
  * @tparam Surface The surface type (satisfies @ref pixel_surface).
  * @param surface The surface to draw on.
@@ -2106,10 +2106,10 @@ size_t draw_text_box(
  * Each drawing member is equivalent to the free function of the same name
  * applied to the underlying surface, with the same ink-only rendering and
  * clipping contract. @ref fill and @ref clear use the surface's own
- * `fill`/`clear` when it provides them. Framebuffers fill their backing
- * store directly. Otherwise @ref fill and @ref clear use per-pixel writes.
- * A canvas only draws. To show the image on screen, write the surface that
- * the canvas draws on to the display, for example
+ * `fill`/`clear` when it provides them (framebuffers do, and fill their
+ * backing store directly). Otherwise @ref fill and @ref clear use per-pixel
+ * writes. A canvas only draws. To show the image on screen, write the
+ * surface that the canvas draws on to the display, for example
  * `panel.write(band, 0, 40)`.
  *
  * A canvas can also place its surface within a larger drawing-coordinate
@@ -2582,13 +2582,13 @@ public:
     /**
      * @brief Outlines a triangle with the given ink.
      *
-     * Draws each of the triangle's three edges as @ref draw_line does, from
-     * the edge's upper endpoint (the left one for a horizontal edge) to the
-     * other endpoint. Both endpoints are drawn. So the pixels drawn do not
-     * depend on the order in which the vertices are given. @ref fill_triangle
-     * also fills these pixels for the same vertices, so a filled triangle and
-     * its outline line up.
-     * Any part falling outside the canvas is clipped.
+     * Draws each of the triangle's three edges as @ref draw_line does. Both
+     * endpoints are drawn. Each edge is drawn from its upper endpoint (the
+     * left one for a horizontal edge) to the other endpoint, so the pixels
+     * drawn do not depend on the order in which the vertices are given.
+     * @ref fill_triangle also fills these pixels for the same vertices, so a
+     * filled triangle and its outline line up. Any part falling outside the
+     * canvas is clipped.
      *
      * @param x0  Column of the first vertex, in pixels; may be negative or off the canvas.
      * @param y0  Row of the first vertex, in pixels; may be negative or off the canvas.

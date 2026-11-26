@@ -1003,11 +1003,11 @@ public:
      * @brief Puts the panel controller into deep sleep.
      *
      * ePaper retains its image without power, so sleeping between updates does
-     * not change what is shown. Sleeping is strongly recommended, both for
-     * power and for panel longevity, because controllers left active can
-     * degrade the glass. While the panel is asleep, writes and refreshes
-     * report `errc::invalid_state`. Call @ref wake to resume. A no-op if the
-     * panel is already asleep.
+     * not change what is shown. Sleeping is strongly recommended, both to save
+     * power and for panel longevity. Controllers left active can degrade the
+     * glass. While the panel is asleep, writes and refreshes report
+     * `errc::invalid_state`. Call @ref wake to resume. A no-op if the panel is
+     * already asleep.
      *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure.
@@ -1039,11 +1039,11 @@ public:
      * @brief Puts the panel controller into deep sleep.
      *
      * ePaper retains its image without power, so sleeping between updates does
-     * not change what is shown. Sleeping is strongly recommended, both for
-     * power and for panel longevity, because controllers left active can
-     * degrade the glass. While the panel is asleep, writes and refreshes
-     * report `errc::invalid_state`. Call @ref try_wake to resume. A no-op if
-     * the panel is already asleep.
+     * not change what is shown. Sleeping is strongly recommended, both to save
+     * power and for panel longevity. Controllers left active can degrade the
+     * glass. While the panel is asleep, writes and refreshes report
+     * `errc::invalid_state`. Call @ref try_wake to resume. A no-op if the panel
+     * is already asleep.
      *
      * @return Success, or an error.
      */

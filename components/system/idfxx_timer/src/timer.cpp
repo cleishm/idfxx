@@ -145,7 +145,7 @@ namespace {
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
 // How many times in total an absolute-time call with a time clamped to now is made. The call is
-// made again when the clamped time has passed before the call checks it.
+// made again when the clamped time is already too far in the past when ESP-IDF checks it.
 constexpr int max_clamp_attempts = 3;
 
 // Microseconds since boot of a time point, as taken by the esp_timer absolute-time API.

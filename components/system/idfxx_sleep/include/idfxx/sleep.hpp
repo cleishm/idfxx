@@ -22,8 +22,9 @@
  *     idfxx::sleep::gpio_wake{button, idfxx::gpio::level::low});
  * @endcode
  *
- * A lower-level interface (`enable_*` / `disable_*`) is also provided for
- * arming wake-up sources persistently across multiple sleeps.
+ * A lower-level interface (`enable_wakeup()`, `disable_wakeup_source()` and
+ * `disable_all_wakeup_sources()`) is also provided for arming wake-up sources
+ * persistently across multiple sleeps.
  *
  * Depends on @ref idfxx_core for error handling and @ref idfxx_gpio for pin
  * types.
@@ -395,11 +396,12 @@ template<wake_spec... Sources>
  * not delivered while sleeping. Re-check any interrupt-driven state after
  * waking.
  *
- * With no arguments, sleeps on the wake-up sources previously armed with the
- * `enable_*` functions. Such sources stay armed afterward, except when a
- * source of the same kind (or the same pin, for pin-level sources) is passed
- * here. In that case, the passed source replaces the armed one for this
- * sleep, and neither is armed after the call returns.
+ * Wake-up sources previously armed with `enable_wakeup()` can also
+ * wake the chip. With no arguments, the call sleeps on those sources only.
+ * They stay armed after the call returns, except when a source of the same
+ * kind (or the same pin, for pin-level sources) is passed here. In that case,
+ * the passed source replaces the armed one for this sleep, and neither is
+ * armed after the call returns.
  *
  * @tparam Sources Wake-up source specification types (see @ref wake_spec).
  * @param sources The sources that may wake the chip.
@@ -437,11 +439,12 @@ template<wake_spec... Sources>
  * not delivered while sleeping. Re-check any interrupt-driven state after
  * waking.
  *
- * With no arguments, sleeps on the wake-up sources previously armed with the
- * `try_enable_*` functions. Such sources stay armed afterward, except when a
- * source of the same kind (or the same pin, for pin-level sources) is passed
- * here. In that case, the passed source replaces the armed one for this
- * sleep, and neither is armed after the call returns.
+ * Wake-up sources previously armed with `try_enable_wakeup()` can also
+ * wake the chip. With no arguments, the call sleeps on those sources only.
+ * They stay armed after the call returns, except when a source of the same
+ * kind (or the same pin, for pin-level sources) is passed here. In that case,
+ * the passed source replaces the armed one for this sleep, and neither is
+ * armed after the call returns.
  *
  * @tparam Sources Wake-up source specification types (see @ref wake_spec).
  * @param sources The sources that may wake the chip.
@@ -475,7 +478,7 @@ template<wake_spec... Sources>
  *
  * Equivalent to `light_sleep(timer_wake{duration})`. This is a low-power
  * counterpart to `std::this_thread::sleep_for`. Wake-up sources previously
- * armed with the `enable_*` functions may wake the chip sooner.
+ * armed with `enable_wakeup()` may wake the chip sooner.
  *
  * @param duration Time to sleep before waking.
  * @return The source that woke the chip (normally
@@ -495,7 +498,7 @@ template<wake_spec... Sources>
  *
  * Equivalent to `try_light_sleep(timer_wake{duration})`. This is a low-power
  * counterpart to `std::this_thread::sleep_for`. Wake-up sources previously
- * armed with the `try_enable_*` functions may wake the chip sooner.
+ * armed with `try_enable_wakeup()` may wake the chip sooner.
  *
  * @param duration Time to sleep before waking.
  * @return The source that woke the chip (normally @ref wakeup_source::timer),
@@ -588,7 +591,7 @@ template<wake_spec First, wake_spec... Rest>
  * @brief Enters deep sleep until a previously armed wake-up source triggers.
  *
  * Powers down the CPU and most peripherals, waking on the sources armed with
- * the `enable_*` functions. Waking restarts the application from the
+ * `enable_wakeup()`. Waking restarts the application from the
  * beginning. Use @ref wakeup_cause to detect the wake and its source after
  * the restart.
  *

@@ -364,7 +364,8 @@ public:
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error on failure: `errc::invalid_argument` if `material` is empty or not
      *         a valid size for the key type, or if `cfg.algorithm` is a MAC algorithm that doesn't
-     *         take the key type, or `errc::not_supported` if the key type or size is not supported.
+     *         take the key type. The error is `errc::not_supported` if the key type or size is not
+     *         supported.
      */
     [[nodiscard]] static key import(const config& cfg, byte_view material) {
         return unwrap(try_import(cfg, material));

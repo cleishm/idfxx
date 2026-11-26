@@ -77,8 +77,9 @@ result<panel_io> panel_io::make(idfxx::spi::master_bus& spi_bus, panel_io::spi_c
     };
     // Assign the bitfield flags individually rather than via a designated
     // initializer. Value-initializing the struct above zeroes every flag bit.
-    // This keeps the code compatible when ESP-IDF adds new flags, which would
-    // otherwise cause a -Werror=missing-field-initializers error.
+    // Assigning each flag after this zeroing keeps the code compatible when
+    // ESP-IDF adds new flags, which would otherwise cause a
+    // -Werror=missing-field-initializers error.
     lcd_config.flags.dc_high_on_cmd = cfg.flags.dc_high_on_cmd;
     lcd_config.flags.dc_low_on_data = cfg.flags.dc_low_on_data;
     lcd_config.flags.dc_low_on_param = cfg.flags.dc_low_on_param;

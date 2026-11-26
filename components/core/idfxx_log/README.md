@@ -104,7 +104,7 @@ void configure_logging() {
 ### Sinks
 
 A sink receives the lines that it wants. Its choice is independent of the console's log levels, so
-it can receive a line whose severity is below the level set with `set_level()`. Derive a class
+it can receive a line that is more verbose than the level set with `set_level()`. Derive a class
 from `idfxx::log::sink` and add an instance of it:
 
 ```cpp
@@ -241,8 +241,8 @@ The logging functions do not report errors.
   static storage duration strings.
 - **Three filtering layers**: Macros provide compile-time filtering. Template functions check
   `LOG_LOCAL_LEVEL`. Before formatting, they also check the tag's runtime level with
-  `esp_log_level_get()`. A line whose severity is below the tag's runtime level is still formatted
-  if a sink wants it.
+  `esp_log_level_get()`. A line that is more verbose than the tag's runtime level is still
+  formatted if a sink wants it.
 - **Sink lifetime**: A sink must remain valid until it is removed. `remove_sink()` returns once no
   call into the sink is in progress, so the sink can be destroyed afterward. While a removal waits,
   other sinks can be added and removed, but the sink being removed still counts toward

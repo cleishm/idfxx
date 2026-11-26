@@ -3952,7 +3952,7 @@ namespace idfxx {
  * possible.
  *
  * Converts the ESP-IDF error code to a Wi-Fi-specific error code if a mapping exists.
- * Otherwise, uses the default IDFXX error category.
+ * Otherwise, the error code uses the default IDFXX error category.
  *
  * @param e The ESP-IDF error code.
  * @return An unexpected value suitable for returning from result-returning functions.

@@ -846,7 +846,7 @@ TEST_CASE("log all-lines sink takes a line below the console's runtime level", "
     install_silent_vprintf();
     sink_test::set_console_level("sk_rt", ESP_LOG_ERROR);
     ESP_LOGW("sk_rt", "sk below the console %d", 1);
-    // A Wi-Fi library's three calls, below the console's level for its tag.
+    // A Wi-Fi library's three calls, more verbose than the console's level for its tag.
     esp_log_write(ESP_LOG_WARN, "sk_rt", "%c (%d) %s:", 'W', 200, "sk_rt");
     esp_log_write(ESP_LOG_WARN, "sk_rt", "%s", "sk blob below the console");
     esp_log_write(ESP_LOG_WARN, "sk_rt", "%s", "\n");
@@ -868,11 +868,11 @@ TEST_CASE("log all-lines sink has idfxx::log format only the lines it wants", "[
     add_all_lines(s_all);
     sink_test::set_console_level("sk_rt", ESP_LOG_ERROR);
     sink_test::s_formatted = 0;
-    // Below the console's level but at the sink's level, so the line is formatted and the sink
-    // receives it.
+    // More verbose than the console's level but at the sink's level, so the line is formatted and
+    // the sink receives it.
     lg::warn("sk_rt", "sk idfxx kept {}", sink_test::counted{});
     TEST_ASSERT_EQUAL(1, sink_test::s_formatted);
-    // Below both levels, so the line is never formatted.
+    // More verbose than both levels, so the line is never formatted.
     lg::info("sk_rt", "sk idfxx unwanted {}", sink_test::counted{});
     TEST_ASSERT_EQUAL(1, sink_test::s_formatted);
     TEST_ASSERT_TRUE(s_all.has(level::warn, "sk_rt", "sk idfxx kept counted"));

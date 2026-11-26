@@ -655,7 +655,7 @@ TEST_CASE("lcd write_image accepts a pointer to member function as the overlay",
 }
 
 TEST_CASE("lcd write_image memory_limit bounds the renderer and the band together", "[lcd_image]") {
-    // The smallest limit, to the nearest 16 bytes, under which a band of this height is accepted.
+    // The smallest limit, to the nearest 16 bytes, at which a band of this height is accepted.
     const auto smallest_limit = [](size_t band_rows) {
         for (size_t limit = 0; limit < 256 * 1024; limit += 16) {
             screen_panel display(screen_w, screen_h);

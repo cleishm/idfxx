@@ -771,8 +771,8 @@ TEST_CASE("master_device read_register with an empty buffer fails with invalid_a
 }
 
 TEST_CASE("master_device fixed-size, read-into and literal forms reach the bus", "[idfxx][i2c][master_device]") {
-    // No device is present at 0x50. Each form starts a transfer on the bus, which is NACKed (or times out on the bus)
-    // and reports invalid_response. No form is rejected before anything is sent.
+    // No device is present at 0x50. Each form starts a transfer. The transfer is NACKed (or times out on the bus) and
+    // reports invalid_response. No form is rejected before anything is sent.
     bool device_created = false;
     std::error_code transmit_literal_ec, transmit_multi_ec, receive_into_ec, receive_fixed_ec, read_into_ec,
         read_fixed_ec, write_literal_ec, multi_literal_ec;

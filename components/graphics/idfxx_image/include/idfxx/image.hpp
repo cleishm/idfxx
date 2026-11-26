@@ -1474,8 +1474,8 @@ struct decode_plan {
  *   @ref idfxx::image::rgb888 and returns `idfxx::result<void>`. It delivers the
  *   image to the sink in the stored orientation, as blocks of full-width rows
  *   from the top row down. Each block is at column zero and starts at the row
- *   after the previous block. If the sink fails, it returns the sink's error
- *   unchanged.
+ *   after the previous block. If the sink fails, `try_decode` returns the
+ *   sink's error unchanged.
  *
  * A decoder is decoded once. @ref idfxx::image::render and
  * @ref idfxx::image::renderer take one that has not been decoded yet.
@@ -1780,8 +1780,8 @@ public:
      * @param out The destination for the output rows. If it returns an error,
      *            the push stops and fails with that error.
      *
-     * @note During a long operation, this yields so that lower-priority tasks can run.
-     *       So it must not be called where blocking is not allowed (from an ISR or
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
      *       critical section).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_state if the block is
@@ -1816,8 +1816,8 @@ public:
      * @param out The destination for the output rows. If it returns an error,
      *            the push stops and fails with that error.
      *
-     * @note During a long operation, this yields so that lower-priority tasks can run.
-     *       So it must not be called where blocking is not allowed (from an ISR or
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
      *       critical section).
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_state The block is not the next one in the
@@ -1924,8 +1924,8 @@ renderer::renderer(Decoder& decoder, const placement& where, const render_config
  * @param where Where and how to place the picture.
  * @param config The screen, and the limits of rendering on it.
  *
- * @note During a long operation, this yields so that lower-priority tasks can run.
- *       So it must not be called where blocking is not allowed (from an ISR or
+ * @note During a long operation, this yields to let lower-priority tasks run, so
+ *       it must not be called where blocking is not allowed (from an ISR or
  *       critical section).
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error with idfxx::errc::invalid_arg if the image, the
@@ -1983,8 +1983,8 @@ void render(Decoder& decoder, S&& out, const placement& where, const render_conf
  * @param where Where and how to place the picture.
  * @param config The screen, and the limits of rendering on it.
  *
- * @note During a long operation, this yields so that lower-priority tasks can run.
- *       So it must not be called where blocking is not allowed (from an ISR or
+ * @note During a long operation, this yields to let lower-priority tasks run, so
+ *       it must not be called where blocking is not allowed (from an ISR or
  *       critical section).
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg The image, the screen or the target is empty,

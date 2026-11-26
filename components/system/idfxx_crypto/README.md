@@ -425,7 +425,7 @@ at least the tag size, and the filled prefix is returned as a `byte_span`.
 
 - `mac::operation(key)` / `make(key)` → `result<mac::operation>` - An operation ready for a new
   message, once the key is checked to permit a MAC algorithm and computing or checking tags
-- `algorithm()`, `tag_size()` - The key's MAC algorithm (at its full size) and its tag size in
+- `algorithm()`, `tag_size()` - The key's MAC algorithm (at its full tag size) and its tag size in
   bytes (shorter for a key that permits truncated tags)
 - `compute(key, data, tag)` → `byte_span` / `try_compute(...)` → `result<byte_span>` - The tag of a
   complete message (needs `key_usage::sign_message`)
@@ -577,9 +577,9 @@ if (!op && op.error() == std::errc::not_supported) {
   Shorter tags are easier to forge by guessing, so use the tag size that your protocol specifies.
   The tag size is part of a key's policy. A key from `authenticator<alg, N>::import_key()` or
   `generate_key()` (or created with `key_algorithm{alg, N}`) works only with
-  `authenticator<alg, N>`. The aliases (`hmac_sha256`, `cmac`, ...) are full size, and refuse such
-  a key with `crypto::errc::not_permitted`. In the same way, `authenticator<alg, N>` refuses a
-  full-length key.
+  `authenticator<alg, N>`. The aliases (`hmac_sha256`, `cmac`, ...) produce full-size tags, and
+  refuse such a key with `crypto::errc::not_permitted`. In the same way, `authenticator<alg, N>`
+  refuses a key for full-size tags.
 - **Reuse.** After `finish()`, `verify()` or `reset()`, and after a failed `update()`, `finish()`
   or `verify()`, a hasher or authenticator is ready for a new message. A failure discards the
   partial message. A failed `clone()` leaves a hasher unchanged. The same holds for

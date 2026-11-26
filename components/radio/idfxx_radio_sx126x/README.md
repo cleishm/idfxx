@@ -257,9 +257,9 @@ Uses `idfxx::result<T>` / `idfxx::errc` from `idfxx_core`:
   `idfxx::gpio::install_isr_service()` once at startup.
 - The constructor performs these steps:
   1. It pulses NRESET and waits for BUSY low.
-  2. It applies a default LoRa configuration (sync word `0x3444`, buffer base 0/0) and the variant's
-     `SetPaConfig` table.
-  3. When `config::tcxo` is set, it runs a full chip calibration.
+  2. When `config::tcxo` is set, it runs a full chip calibration.
+  3. It applies a default LoRa configuration: the variant's `SetPaConfig` table, then buffer base
+     0/0 and sync word `0x3444`.
   4. It writes the sync-word register and reads it back, to confirm that a chip is actually
      answering. Without this check, bring-up can succeed with nothing attached if the BUSY line is
      floating.

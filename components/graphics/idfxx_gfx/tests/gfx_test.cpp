@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_gfx
-// Pure pixel rendering. Runs everywhere, including QEMU.
+// Pure pixel rendering. They run everywhere, including QEMU.
 
 #include "idfxx/epaper/color6_framebuffer"
 #include "idfxx/epaper/gray4_framebuffer"

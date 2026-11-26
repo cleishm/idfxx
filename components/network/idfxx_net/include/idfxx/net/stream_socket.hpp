@@ -595,9 +595,9 @@ public:
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
      * On failure, including a receive timeout or the peer closing early, an
-     * unspecified number of bytes have already been consumed from the stream. The
-     * contents of @p buf are unspecified, and the position in the stream is no
-     * longer known.
+     * unspecified number of bytes have already been consumed from the stream.
+     * Because of this, the position in the stream is no longer known. The contents
+     * of @p buf are unspecified.
      *
      * @param buf Buffer to fill exactly.
      *
@@ -615,9 +615,9 @@ public:
      * @brief Receives until @p buf is filled, treating premature close as an error.
      *
      * On failure, including a receive timeout or the peer closing early, an
-     * unspecified number of bytes have already been consumed from the stream. The
-     * contents of @p buf are unspecified, and the position in the stream is no
-     * longer known.
+     * unspecified number of bytes have already been consumed from the stream.
+     * Because of this, the position in the stream is no longer known. The contents
+     * of @p buf are unspecified.
      *
      * @param buf Buffer to fill exactly.
      * @return Success, or an error.

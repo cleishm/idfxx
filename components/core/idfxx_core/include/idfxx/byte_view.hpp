@@ -15,17 +15,17 @@
  * `idfxx::byte_view` and `idfxx::byte_span` refer to a contiguous run of bytes that they do not
  * own, like a `std::span` of `std::byte`. They are the parameter types of APIs that move bytes
  * without interpreting them. The bytes can be payloads, file and flash contents, or bus transfers.
- * A caller can pass any of these:
+ * A caller can pass the bytes in any of these forms:
  *
  * - any contiguous range of `std::byte` or `uint8_t`: `std::array`, `std::vector`, `std::span`, a
  *   built-in array, or another byte view
  * - the bytes of any object, through `std::as_bytes` / `std::as_writable_bytes`
  * - a pointer and a length, as `{ptr, len}`
  *
- * Ranges of `char` are not accepted. Pass text through an API's `std::string_view` overload if it
- * has one. Otherwise, pass it as `std::as_bytes(std::span{str})`. As a result, a string literal
- * does not silently include its terminating NUL. Also, an API can offer a `std::string_view`
- * overload beside a byte-view overload without ambiguity.
+ * Ranges of `char` are not accepted. Because of this, a string literal does not silently include
+ * its terminating NUL. Also, an API can offer a `std::string_view` overload beside a byte-view
+ * overload without ambiguity. Pass text through an API's `std::string_view` overload if it has one.
+ * Otherwise, pass it as `std::as_bytes(std::span{str})`.
  *
  * @code
  * void send(idfxx::byte_view data);

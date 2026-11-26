@@ -276,10 +276,10 @@ and `color6_framebuffer`) uploads at a pixel offset.
 must be a multiple of the framebuffer's `x_alignment`. This is 8 for the 1-bpp formats, because
 controller RAM is byte-packed along the row, and 2 for `color6_framebuffer`, which has two pixels
 per byte. Rows are written in whole bytes too. So a framebuffer whose width is not a multiple of the
-`x_alignment` also writes its white row padding over the panel columns up to the next byte
-boundary. To leave the neighboring columns untouched, make the width of a partial framebuffer a
-multiple of the `x_alignment`. `clear()` fills
-the RAM with white without needing a framebuffer, and promotes the next partial refresh to full.
+`x_alignment` also writes its white row padding over the panel columns up to the next byte boundary.
+To leave the neighboring columns untouched, make the width of a partial framebuffer a multiple of
+the `x_alignment`. `clear()` fills the RAM with white without needing a framebuffer, and promotes
+the next partial refresh to full.
 
 **Partial-refresh baseline:** `restore_baseline(fb)` / `try_restore_baseline(fb)` load a panel-sized
 `mono_framebuffer` that holds the image already on the glass. The next partial refresh then diffs

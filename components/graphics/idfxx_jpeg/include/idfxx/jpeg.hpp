@@ -208,8 +208,8 @@ struct read_failure {
  * used: any operation other than destruction or assignment is undefined
  * behavior.
  *
- * Running out of memory follows the idfxx policy. `std::bad_alloc` is thrown
- * when exceptions are enabled, otherwise the program aborts. The working
+ * Running out of memory follows the idfxx policy: `std::bad_alloc` is thrown
+ * when exceptions are enabled. Otherwise, the program aborts. The working
  * memory that a decode needs depends on the image's headers. It grows with
  * the image width, and a progressive JPEG needs a buffer for the coefficients
  * of the whole image. Set @ref config::memory_limit to the memory that can be
@@ -399,8 +399,9 @@ public:
      *            @ref output_height pixels. A buffer of that size converts
      *            to a view implicitly.
      *
-     * @note During a long operation, lower-priority tasks can run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with idfxx::errc::invalid_state if the image
      *         has already been decoded, idfxx::errc::invalid_size if @p dst
@@ -425,8 +426,9 @@ public:
      *            @ref output_height pixels. A buffer of that size converts
      *            to a view implicitly.
      *
-     * @note During a long operation, lower-priority tasks can run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @return Success, or an error. On error, the contents of @p dst are
      *         unspecified.
      * @retval idfxx::errc::invalid_state The image has already been decoded.
@@ -454,8 +456,9 @@ public:
      *             exception thrown by it ends the decode and propagates from
      *             this call.
      *
-     * @note During a long operation, lower-priority tasks can run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
      * @throws std::system_error with the error returned by @p sink,
      *         idfxx::errc::invalid_state if the image has already been
@@ -486,8 +489,9 @@ public:
      *             exception thrown by it ends the decode and propagates from
      *             this call.
      *
-     * @note During a long operation, lower-priority tasks can run, so this must not
-     *       be called where blocking is not allowed (from an ISR or critical section).
+     * @note During a long operation, this yields to let lower-priority tasks run, so
+     *       it must not be called where blocking is not allowed (from an ISR or
+     *       critical section).
      * @return Success, or an error.
      * @retval idfxx::errc::invalid_state The image has already been decoded.
      * @retval jpeg::errc::invalid_data The data is corrupt.

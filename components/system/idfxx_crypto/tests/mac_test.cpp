@@ -911,8 +911,8 @@ void check_throwing_operation(const mac_params& p, const std::vector<kat>& kats)
 }
 #endif
 
-// Checks a truncated authenticator against full-length known answers: its tags are the leftmost
-// bytes of the full tags, and a full-length tag never matches.
+// Checks a truncated authenticator against known answers for full-size tags: its tags are the
+// leftmost bytes of the full-size tags, and a full-size tag never matches.
 template<typename M>
 void check_full_length_tags(const std::vector<kat>& full) {
     for (const auto& v : full) {
@@ -934,8 +934,8 @@ void check_full_length_tags(const std::vector<kat>& full) {
 }
 
 // Checks that the tag size is part of a key's policy: the truncated authenticator M refuses a
-// full-length key and a key for another truncated length, and the authenticators for those lengths
-// refuse M's keys. Each key works with its own authenticator, and the tags agree.
+// key for full-size tags and a key for another truncated tag size, and the authenticators for
+// those tag sizes refuse M's keys. Each key works with its own authenticator, and the tags agree.
 template<typename M>
 void check_tag_length_policy(const std::vector<uint8_t>& material) {
     using full_mac = crypto::mac::authenticator<M::algorithm>;
@@ -1118,7 +1118,7 @@ void check_operation(const mac_params& p, const std::vector<kat>& kats) {
 }
 
 // Input longer than the chunk size, whole and in pieces that straddle chunk boundaries, through an
-// authenticator. `full_tag` is the full-length tag of patterned_message(3 * 4096 + 7) under
+// authenticator. `full_tag` is the full-size tag of patterned_message(3 * 4096 + 7) under
 // `material`.
 template<typename M>
 void check_chunked_input(const std::vector<uint8_t>& material, std::string_view full_tag) {

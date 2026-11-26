@@ -610,10 +610,9 @@ result<card> card::make(spi::master_bus& bus, const spi_config& cfg) {
     s->spi_cs = cs;
 
     // On a bus without DMA, the card's data transfers would fail. (With DMA, transactions can be
-    // at least 4092 bytes long, whatever the bus's max_transfer_sz.) This is checked after the
-    // card's device is added to the bus, because ESP-IDF reports the length only for a bus with a
-    // device. It is also checked before the card is contacted. On failure, destroying the state
-    // removes the device again.
+    // at least 4092 bytes long, whatever the bus's max_transfer_sz.) The check is made after the
+    // card's device is added to the bus (ESP-IDF reports the length only for a bus with a device),
+    // and before the card is contacted. On failure, destroying the state removes the device again.
     if (bus.max_transaction_length() < sdspi_max_transaction_length) {
         return error(errc::invalid_arg);
     }

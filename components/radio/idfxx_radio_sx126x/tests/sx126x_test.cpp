@@ -312,10 +312,10 @@ TEST_CASE("pack_rx_duty_cycle lays out rx then sleep, MSB first", "[idfxx][radio
 // Hardware-dependent tests: chip presence with nothing attached
 //
 // Use the pins the SPI hardware tests already treat as unpopulated. BUSY is
-// pulled low to model the absent-chip case in which the line reads "ready" and
-// bring-up would otherwise succeed without any check. The driver only sets the
-// pin's direction, so the pull persists. GPIO 4/5 are free inputs on the test
-// board.
+// pulled low to model the absent-chip case in which the line reads "ready".
+// Without the presence check, bring-up can succeed in this case even though no
+// chip is attached. The driver only sets the pin's direction, so the pull
+// persists. GPIO 4/5 are free inputs on the test board.
 // =============================================================================
 
 namespace {

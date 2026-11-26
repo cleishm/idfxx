@@ -54,7 +54,7 @@ namespace idfxx::log {
  * @brief Log severity level.
  *
  * Severity levels matching ESP-IDF's log levels, from most to least severe.
- * Messages are only output when their level is at or above the configured
+ * Messages are only output when their severity is at or above the configured
  * threshold for the associated tag.
  */
 enum class level : uint8_t {
@@ -70,7 +70,7 @@ enum class level : uint8_t {
 namespace detail {
 
 // Returns true if any added sink wants the line. log() uses this to decide whether to format a line
-// whose severity is below the tag's runtime level. Always false in an interrupt, while the flash
+// that is more verbose than the tag's runtime level. Always false in an interrupt, while the flash
 // cache is disabled, before the scheduler starts, and while the calling task is inside a sink.
 [[nodiscard]] bool wanted_by_sink(level lvl, const char* tag) noexcept;
 
@@ -244,8 +244,8 @@ inline void verbose(const char* tag, std::string_view msg) {
  * @headerfile <idfxx/log>
  * @brief Set the runtime log level for a specific tag.
  *
- * Messages with a severity below the configured level are suppressed at
- * runtime for the specified tag.
+ * Messages more verbose than the configured level are suppressed at runtime
+ * for the specified tag.
  *
  * @param tag The log tag to configure.
  * @param lvl The minimum severity level to output.
@@ -532,8 +532,8 @@ public:
     /**
      * @brief Set the runtime log level for this logger's tag.
      *
-     * Messages with a severity below the configured level are suppressed
-     * at runtime.
+     * Messages more verbose than the configured level are suppressed at
+     * runtime.
      *
      * @param lvl The minimum severity level to output.
      */
@@ -628,7 +628,7 @@ private:
  *
  * A sink added with @ref add_sink receives each line that it wants. For example, a sink can store
  * the log in flash or send it over the network. A sink's choice of lines is independent of the
- * console's log levels: a sink can receive a line whose severity is below the level set with
+ * console's log levels: a sink can receive a line that is more verbose than the level set with
  * `set_level()`.
  *
  * Both functions are called from the task that logged the line, and several tasks can call them
@@ -723,7 +723,7 @@ inline constexpr all_lines_t all_lines{};
  *
  * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
  * Each line is passed to the sink complete and as formatted, after the console has printed it. A
- * line whose severity is below the console's log level is still passed to the sink.
+ * line that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive:
  * - buffer dumps (@ref buffer_hex and the related functions),
@@ -751,7 +751,7 @@ void add_sink(sink& s);
  *
  * The sink receives the lines logged with @ref log, a @ref logger and the `IDFXX_LOGx` macros.
  * Each line is passed to the sink complete and as formatted, after the console has printed it. A
- * line whose severity is below the console's log level is still passed to the sink.
+ * line that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive:
  * - buffer dumps (@ref buffer_hex and the related functions),
@@ -780,7 +780,7 @@ void add_sink(sink& s);
  * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
  * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
  * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
- * whose severity is below the console's log level is still passed to the sink.
+ * that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive these ESP-IDF log lines:
  * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),
@@ -832,7 +832,7 @@ void add_sink(all_lines_t, sink& s);
  * The sink receives every line logged through ESP-IDF's log: `ESP_LOGx`, `ESP_LOG_BUFFER_*`,
  * `esp_log_write`, and the libraries that log through them. It also receives the lines logged
  * through idfxx::log. Each line is passed to the sink after the console has printed it. A line
- * whose severity is below the console's log level is still passed to the sink.
+ * that is more verbose than the console's log level is still passed to the sink.
  *
  * The sink does not receive these ESP-IDF log lines:
  * - early and DRAM lines (`ESP_EARLY_LOGx`, `ESP_DRAM_LOGx`),

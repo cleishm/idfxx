@@ -46,8 +46,8 @@ the EE05's display wiring:
 To use a different board, change the `PIN_*` constants at the top of `main/main.cpp`.
 
 > [!NOTE]
-> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example takes over for
-> the display. Log output is still shown on the monitor through the USB Serial/JTAG port, which is
+> GPIO 43 and 44 are the ESP32-S3's default UART0 TX and RX pins, which the example uses for the
+> display. Log output still reaches the monitor through the USB Serial/JTAG port, which is
 > enabled as a secondary console by default.
 
 ## How to use

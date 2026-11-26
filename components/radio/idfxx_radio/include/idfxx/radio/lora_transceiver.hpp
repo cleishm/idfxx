@@ -1087,8 +1087,8 @@ protected:
 
     /// Hook for @ref rx_duty_cycle_for. Returns the shortest sleep window worth
     /// duty-cycling for on this chip. Drivers add any oscillator start-up time
-    /// on each wake to the generic default (e.g. the SX126x adds its
-    /// configured TCXO start-up delay).
+    /// that the chip needs on each wake to the generic default (e.g. the SX126x
+    /// adds its configured TCXO start-up delay).
     [[nodiscard]] virtual std::chrono::microseconds do_rx_duty_cycle_min_sleep() const noexcept {
         return default_min_rx_sleep;
     }

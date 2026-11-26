@@ -49,9 +49,9 @@ as its own Unity app:
 - `display`: panel I/O, LCD and ePaper panels and drivers, touch, graphics, fonts and images
 
 `tests/groups.cmake` lists each group's components. Every component with tests must be in exactly
-one group. Otherwise, configuring fails. So a new component must be added there. Pick the group that
-its tests are closest to. If a group's app outgrows the `ota_0` partition, rebalance or split the
-groups rather than growing the partition.
+one group. Otherwise, configuring fails. Add a new component to `tests/groups.cmake`, in the group
+that its tests are closest to. If a group's app outgrows the `ota_0` partition, rebalance or split
+the groups rather than growing the partition.
 
 Because each app holds only its group's tests, a test can't rely on another component's tests having
 run first. Set up what a test needs, such as NVS or the default event loop, in the test itself.

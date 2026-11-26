@@ -178,9 +178,8 @@ be spared.
   also be such a multiple, unless it reaches the right edge of the screen. Otherwise `write_image`
   returns `invalid_arg`, before decoding, unless `placement::fill_to_alignment` is set. With it set,
   the picture stays exactly where it was placed, and the write extends to the alignment with
-  `background`. A framebuffer or other
-  surface has no such rule, whether or not it is written to a panel afterward at an aligned
-  position.
+  `background`. A framebuffer or other surface has no such rule, whether or not it is written to a
+  panel afterward at an aligned position.
 - **Time.** A full EL133UF1 frame takes 70 to 90 s to convert when built with `-O2` at 240 MHz, as
   measured on the E1004. It takes over twice that with ESP-IDF's default `-Og` at 160 MHz. The
   refresh takes about 30 s. During the conversion, the task yields for one tick about every half

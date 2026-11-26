@@ -28,7 +28,7 @@ Add to your project's `idf_component.yml`:
 ```yaml
 dependencies:
   idfxx_https_server:
-    version: "^3.0.0"
+    version: "^4.0.0"
 ```
 
 Or add `idfxx_https_server` to the `REQUIRES` list in your component's `CMakeLists.txt`.

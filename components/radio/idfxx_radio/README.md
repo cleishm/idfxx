@@ -160,9 +160,10 @@ configured link parameters. For compile-time use, call the `constexpr` free func
 `time_on_air(mod, pkt, payload_length)` in `<idfxx/radio/airtime>`.
 
 **Duty-cycle windows:** `radio.rx_duty_cycle_for()` returns listen/sleep windows for the configured
-link parameters. The driver adds its oscillator start-up time on each wake (e.g. TCXO start-up) to
-the minimum worthwhile sleep. For compile-time use, call the `constexpr` free function
-`rx_duty_cycle_for(mod, sender_preamble, min_symbols, min_sleep)` in `<idfxx/radio/duty_cycle>`.
+link parameters. The driver adds the oscillator start-up time that the chip needs on each wake (e.g.
+TCXO start-up) to the minimum worthwhile sleep. For compile-time use, call the `constexpr` free
+function `rx_duty_cycle_for(mod, sender_preamble, min_symbols, min_sleep)` in
+`<idfxx/radio/duty_cycle>`.
 Both return `std::optional<rx_duty_cycle>`. They return `std::nullopt` when continuous receive is
 required.
 

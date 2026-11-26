@@ -19,7 +19,8 @@ using namespace quanta::frequency_literals;
 // These verify correctness at compile time. If this file compiles, they pass.
 // =============================================================================
 
-// timer is a value type: copyable and movable (not default constructible, because it needs a number)
+// timer is a value type: copyable and movable. It is not default constructible, because it
+// needs a number.
 static_assert(!std::is_default_constructible_v<timer>);
 static_assert(std::is_copy_constructible_v<timer>);
 static_assert(std::is_copy_assignable_v<timer>);

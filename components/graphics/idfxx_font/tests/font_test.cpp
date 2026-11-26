@@ -2,7 +2,7 @@
 // Copyright 2026 Chris Leishman
 
 // Unit tests for idfxx_font
-// Pure font-model arithmetic. Runs everywhere, including QEMU.
+// Pure font-model arithmetic. They run everywhere, including QEMU.
 
 #include "idfxx/font"
 #include "unity.h"

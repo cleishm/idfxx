@@ -4,7 +4,7 @@ get_property(IDFXX_TEST_SOURCES GLOBAL PROPERTY IDFXX_TEST_SOURCES)
 # Components whose tests the app runs: the components of one group (tests/groups.cmake), the
 # components named in IDFXX_TESTS, or the components of every group (see the top-level
 # CMakeLists.txt). The app requires them. It also requires the components that their tests use
-# beyond the components' own dependencies, which are declared in
+# beyond the components' own dependencies. Each component declares these extra components in
 # components/<area>/<name>/tests/requires.cmake. This has to happen before idf_component_register,
 # because in IDF's requirements pass, the code after it never runs.
 idf_build_get_property(idfxx_tests IDFXX_TESTS)

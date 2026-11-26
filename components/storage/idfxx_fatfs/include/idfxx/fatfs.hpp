@@ -309,10 +309,10 @@ public:
         /// When set, a mount that finds no recognizable FAT filesystem on the card (including a
         /// damaged boot sector, and an exFAT filesystem on a partitioned card, which is not
         /// supported) formats the card with `format` and mounts it. The card's contents are lost.
-        /// Otherwise, such a mount fails with fatfs::errc::no_filesystem. The card is given a
-        /// partition table with a single partition covering it. Read errors never cause a format.
-        /// The mount fails with fatfs::errc::disk_err instead. Damage beyond the boot sector (in
-        /// the FAT or a directory) isn't detected when mounting.
+        /// When it is not set, such a mount fails with fatfs::errc::no_filesystem. The card is
+        /// given a partition table with a single partition covering it. Read errors never cause a
+        /// format. The mount fails with fatfs::errc::disk_err instead. Damage beyond the boot
+        /// sector (in the FAT or a directory) isn't detected when mounting.
         bool format_if_missing = false;
         /// Settings for the format that is done when a mount finds no filesystem. Unused unless
         /// `format_if_missing` is set. An invalid `allocation_unit_size` is rejected with
@@ -344,10 +344,10 @@ public:
         size_t max_files = 5;
         /// When set, a mount that finds no recognizable FAT filesystem on the partition (for
         /// example, when it is erased, or its boot sector is damaged) formats the partition with
-        /// `format` and mounts it. The partition's contents are lost. Otherwise, such a mount fails
-        /// with fatfs::errc::no_filesystem. Read errors never cause a format. The mount fails with
-        /// fatfs::errc::disk_err instead. Damage beyond the boot sector (in the FAT or a directory)
-        /// isn't detected when mounting.
+        /// `format` and mounts it. The partition's contents are lost. When it is not set, such a
+        /// mount fails with fatfs::errc::no_filesystem. Read errors never cause a format. The mount
+        /// fails with fatfs::errc::disk_err instead. Damage beyond the boot sector (in the FAT or a
+        /// directory) isn't detected when mounting.
         bool format_if_missing = false;
         /// Settings for the format that is done when a mount finds no filesystem. Unused unless
         /// `format_if_missing` is set. An invalid `allocation_unit_size` is rejected with

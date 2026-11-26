@@ -197,7 +197,7 @@ clock is stopped, its time is not valid, and `now()` returns `std::nullopt`.
   - The clock is stopped
   - The time registers hold corrupt BCD, an impossible date, or the century bit
 
-  Reseed the clock with `set_time()`, which also restarts a stopped clock
+  Set the time again with `set_time()`, which also restarts a stopped clock
 - **Error codes**:
   - `errc::invalid_arg` - An I2C clock above 400 kHz, a time outside 2000–2099, an alarm field out
     of range, a timer period that the timer can't produce exactly, or a timer count of 0. Nothing is
@@ -235,8 +235,8 @@ clock is stopped, its time is not valid, and `now()` returns `std::nullopt`.
   must use an integer rep. `start_timer()` disables the timer with the new source and count, sets
   the interrupt mode, then enables it. The timer repeats until `stop_timer()`.
 - **Interrupt pin**: The chip's INT pin is an open-drain, active-low output. The chip pulls it low
-  while an enabled alarm or timer interrupt is signaling, so it needs a pull-up. The driver sets the
-  interrupt enables and reads the flags. It doesn't configure a GPIO or ISR for INT.
+  while an enabled alarm or timer interrupt is signaling, so INT needs a pull-up. The driver sets
+  the interrupt enables and reads the flags. It doesn't configure a GPIO or ISR for INT.
 - **Thread safety**: A driver is not thread-safe. Use it from one task, or synchronize access
   externally. Using a moved-from driver object is undefined behavior.
 

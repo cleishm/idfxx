@@ -52,7 +52,7 @@ namespace idfxx::epaper {
  * and white, so existing text and banded-rendering code works unchanged).
  * The glass supports full and fast refreshes. A full refresh takes about
  * 25-30 seconds. A fast refresh runs the same waveform on a faster frame
- * clock. It takes between about two-thirds and under half of the full
+ * clock. It takes from under half to about two-thirds of the full
  * refresh's time, and gives lower image quality. See @ref fast_quality and
  * @ref config::fast_refresh_quality. During both refresh types, the glass
  * flashes through the color passes. `partial` refresh requests always

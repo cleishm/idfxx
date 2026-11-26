@@ -139,9 +139,9 @@ be spared.
   own EXIF orientation. To show a photo upright on a display mounted a quarter turn from the
   panel's native layout, use `orientation::rotate_90` or `rotate_270` rather than `swap_xy`, or use
   `swap_xy` and write in the swapped coordinates.
-- **Memory for turned pictures.** Only a picture displayed upright or flipped horizontally streams.
-  Any other orientation (a quarter turn, a half turn or a vertical flip) is held as one frame of the
-  output size, in RGB888 (3 bytes per pixel), until the last source row has been read.
+- **Memory for turned pictures.** Only a picture displayed upright or flipped horizontally is
+  streamed. Any other orientation (a quarter turn, a half turn or a vertical flip) is held as one
+  frame of the output size, in RGB888 (3 bytes per pixel), until the last source row has been read.
   `memory_limit` counts it.
 - **The band** is the output width times `band_rows`, at 2 bytes per pixel, in addition to the
   renderer's memory. `memory_limit` counts it at the full display width. Larger bands make fewer,

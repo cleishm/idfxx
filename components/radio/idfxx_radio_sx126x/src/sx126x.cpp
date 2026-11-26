@@ -807,9 +807,9 @@ result<sx126x> sx126x::make(spi::master_bus& bus, config cfg) {
             return error(e.error());
         }
 
-        // Bring-up succeeds without any check when nothing is attached and
-        // BUSY reads ready, so confirm that a chip actually answered before
-        // returning the driver.
+        // Bring-up can succeed even though no chip is attached, when BUSY
+        // reads ready. Confirm that a chip actually answered before returning
+        // the driver.
         if (auto e = probe_chip(*s); !e) {
             if (e.error() == errc::not_found) {
                 ESP_LOGE(TAG, "no SX126x answered on the SPI bus");

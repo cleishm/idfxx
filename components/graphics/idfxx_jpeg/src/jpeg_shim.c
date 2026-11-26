@@ -24,8 +24,8 @@
 
 #define IDFXX_JPEG_INPUT_BUFFER_SIZE 4096
 
-// Yield often enough that the idle task can satisfy the task watchdog, but rarely enough that
-// yielding costs little time.
+// Often enough that the idle task runs before the task watchdog times out, and rarely enough that
+// yielding takes little time.
 #define IDFXX_JPEG_YIELD_INTERVAL pdMS_TO_TICKS(500)
 
 static const char* TAG = "idfxx::jpeg";
@@ -123,10 +123,10 @@ static void log_warning(j_common_ptr cinfo) {
 // Three warnings are the exception: stray bytes skipped before a marker, a
 // JFIF version other than 1.x and an unrecognized Adobe color transform.
 // Real-world files commonly have them (e.g. padding before the EOI marker).
-// These files decode correctly with libjpeg's workaround, which other
-// decoders also use. The warnings are logged, and the decode continues. Stray
-// bytes can
-// also follow damaged scan data, but most such damage is undetectable anyway.
+// These files decode correctly with libjpeg's workaround, which is what other
+// decoders also do, so the warnings are logged and the decode continues.
+// Stray bytes can also follow damaged scan data, but most such damage is
+// undetectable anyway.
 static void emit_message(j_common_ptr cinfo, int msg_level) {
     if (msg_level >= 0) {
         return;

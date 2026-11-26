@@ -284,7 +284,7 @@ TEST_CASE("log sink is given idfxx::log's lines whole, not ESP-IDF's", "[idfxx][
     lg::warn("sk_free", "two\nlines");
     logger.error("from a logger {}", 1);
     IDFXX_LOGW("sk_macro", "from a macro {}", 2);
-    // Below the sink's level, so the sink doesn't receive it.
+    // More verbose than the sink's level, so the sink doesn't receive it.
     lg::info("sk_free", "informed {}", 4);
     // These are not idfxx::log's lines.
     ESP_LOGW("sk_free", "esp line %d", 5);
@@ -326,12 +326,12 @@ TEST_CASE("log sink takes a line the console's level skips, formatted only then"
     add_checked(s_rec);
     sink_test::set_console_level("sk_rt", ESP_LOG_ERROR);
     sink_test::s_formatted = 0;
-    // Below the console's level but at the sink's level, so the line is formatted and the sink
-    // receives it.
+    // More verbose than the console's level but at the sink's level, so the line is formatted and
+    // the sink receives it.
     lg::warn("sk_rt", "kept {}", sink_test::counted{});
     TEST_ASSERT_EQUAL(1, sink_test::s_formatted);
     TEST_ASSERT_TRUE(s_rec.has(level::warn, "sk_rt", "kept counted"));
-    // Below both levels, so the line is never formatted.
+    // More verbose than both levels, so the line is never formatted.
     lg::info("sk_rt", "unwanted {}", sink_test::counted{});
     TEST_ASSERT_EQUAL(1, sink_test::s_formatted);
     // After the sink is removed, it receives nothing, and the line that the console skips isn't

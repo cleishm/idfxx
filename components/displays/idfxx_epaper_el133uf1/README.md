@@ -251,10 +251,10 @@ Using a moved-from driver object is undefined behavior.
 - **Without a reset line, the driver cannot wake the panel from deep sleep.** Only a hardware reset
   wakes the controllers, so with no `reset_gpio`, `wake()` fails with `errc::invalid_state`. After
   `sleep()` or the destructor, only cycling the panel's power wakes the controllers. A driver
-  created before the power is cycled fails with `errc::not_found` when `check_presence` is set.
-  Without the check, it succeeds, but writes and refreshes leave the glass unchanged. Without a
-  reset line, construction waits for BUSY to release instead of resetting, so it works with a panel
-  that is still finishing an earlier update.
+  created after `sleep()` or the destructor, and before the power is cycled, fails with
+  `errc::not_found` when `check_presence` is set. Without the check, it succeeds, but writes and
+  refreshes leave the glass unchanged. Without a reset line, construction waits for BUSY to release
+  instead of resetting, so it works with a panel that is still finishing an earlier update.
 - The initialization sequence follows Seeed Studio's drivers for the T133A01 module. Several
   registers are undocumented and carried over verbatim.
 

@@ -1026,8 +1026,9 @@ TEST_CASE("jpeg EXIF orientation comes from the first Exif segment", "[idfxx][jp
 TEST_CASE("jpeg APP1 segments don't count toward memory_limit", "[idfxx][jpeg]") {
     const size_t needed = smallest_limit(with_segments({}));
 
-    // An Exif segment padded out to 60 KB, as a thumbnail would. APP1 segments are skipped rather than kept. The
-    // padding is written directly into the image, because the test heap has no room for copies of it.
+    // An Exif segment padded out to 60 KB, as a thumbnail would. APP1 segments are read by a
+    // marker processor rather than saved. The padding is written directly into the image, because
+    // the test heap has no room for copies of it.
     constexpr size_t big_length = 60000;
     std::vector<uint8_t> data = with_segments({app1(exif_payload({.value = 6}))});
     const size_t at = marker_offset(data, 0xE1);

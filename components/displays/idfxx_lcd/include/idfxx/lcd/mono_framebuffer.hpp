@@ -40,8 +40,8 @@ namespace idfxx::lcd {
  * Draw into the framebuffer with @ref set_pixel, @ref fill and @ref clear.
  * Then draw it on a panel with @ref panel::write (full frame),
  * @ref panel::write_rows (a horizontal band) or @ref panel::write_region (a
- * rectangle). This is a
- * plain value type: copyable, movable, and independent of any panel.
+ * rectangle). This is a plain value type: copyable, movable, and independent
+ * of any panel.
  *
  * @code
  * idfxx::lcd::mono_framebuffer fb(display.width(), display.height());

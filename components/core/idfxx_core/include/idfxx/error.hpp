@@ -432,13 +432,12 @@ invoke_guarded_impl(const char* tag, const char* context, const char* subject, F
  *
  * When exceptions are enabled, an exception thrown by the callback is caught
  * and returned as an error. A std::system_error is returned as its error code.
- * Any other exception is returned as errc::fail. The caught exception is
- * logged as an error, as "<context> threw: <what>". The only exception that is
- * not logged is a std::system_error thrown by a callback that returns
- * `result<T>`. It is treated exactly like a returned error code, and the
- * caller handles it. A std::bad_alloc is not caught. Allocation failure
- * terminates the program, as elsewhere in idfxx. Without exceptions, the
- * callback is invoked directly.
+ * Any other exception is returned as errc::fail. Every caught exception is
+ * logged as an error, as "<context> threw: <what>", except a std::system_error
+ * thrown by a callback that returns `result<T>`. That exception is treated
+ * exactly like a returned error code, and the caller handles it. A
+ * std::bad_alloc is not caught. Allocation failure terminates the program, as
+ * elsewhere in idfxx. Without exceptions, the callback is invoked directly.
  *
  * If the callback does not return `result<T>`, an error from it is already
  * logged. The caller does not need to log it again.

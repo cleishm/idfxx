@@ -17,7 +17,7 @@
  * `idfxx::crypto::mac::cmac`, ...). Its static `import_key()` and `generate_key()` create a key for
  * it. Its static `compute()` and `compare()` authenticate a complete message in one call. Its
  * instances authenticate a message supplied in pieces with `update()`. The aliases produce
- * full-length tags. For truncated tags, name the `authenticator` template with a tag size
+ * full-size tags. For truncated tags, name the `authenticator` template with a tag size
  * (`mac::authenticator<mac::algorithm::cmac, 4>`). Use these when the algorithm is known at compile
  * time.
  *
@@ -429,7 +429,7 @@ public:
      * @brief Returns the size of a tag.
      *
      * @return The size of a tag, in bytes: the truncated size that the key permits, or
-     *         `mac::tag_size(algorithm())` for a key that permits full-length tags.
+     *         `mac::tag_size(algorithm())` for a key that permits full-size tags.
      */
     [[nodiscard]] std::size_t tag_size() const noexcept;
 
@@ -609,7 +609,7 @@ private:
  * or `verify()`, the authenticator is ready for a new message. A failure discards the partially
  * authenticated message.
  *
- * For full-length tags, use one of the algorithm aliases (`hmac_sha256`, `cmac`, ...) rather than
+ * For full-size tags, use one of the algorithm aliases (`hmac_sha256`, `cmac`, ...) rather than
  * naming the template directly. When the algorithm is only known at runtime, use `mac::operation`
  * instead.
  *

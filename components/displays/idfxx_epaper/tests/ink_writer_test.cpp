@@ -1155,7 +1155,8 @@ TEST_CASE("epaper write_inks can be verified by a CRC as bytes pass", "[idfxx][e
         assert_bytes_equal(std::span<const uint8_t>(bytes).last(4), trailer);
     }
 
-    // A frame with a flipped bit is still a valid frame, but the CRC differs.
+    // Every byte value is valid in a mono frame, so a frame with a flipped bit is still written,
+    // but its CRC differs.
     auto corrupt = f.packed;
     corrupt[7] ^= 0x10;
     capture_panel display(24, 10, color_mode::mono);

@@ -868,8 +868,8 @@ void write_image(
  * @param decoder The decoder of the image. It decodes once.
  * @param where   Where and how the picture is placed. By default, it fills the
  *                surface.
- * @param options `band_rows` must still be non-zero. Otherwise, only the rendering
- *                intent and `memory_limit` apply.
+ * @param options `band_rows` must still be non-zero. Apart from that, only the
+ *                rendering intent and `memory_limit` apply.
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled in menuconfig.
  * @throws std::system_error on error, including `errc::invalid_arg` when the
  *         surface's pixel type doesn't match the calibration's color mode or `band_rows`
@@ -1086,8 +1086,8 @@ template<typename Framebuffer, image::decoder Decoder, typename Overlay>
  * @param decoder The decoder of the image. It decodes once.
  * @param where   Where and how the picture is placed. By default, it fills the
  *                surface.
- * @param options `band_rows` must still be non-zero. Otherwise, only the rendering
- *                intent and `memory_limit` apply.
+ * @param options `band_rows` must still be non-zero. Apart from that, only the
+ *                rendering intent and `memory_limit` apply.
  * @return Success, or an error.
  * @retval idfxx::errc::invalid_arg The surface's pixel type doesn't match the
  *         calibration's color mode, `band_rows` is zero, or the rendering intent is

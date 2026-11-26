@@ -477,7 +477,7 @@ TEST_CASE("queue::make with explicit internal storage", "[idfxx][queue]") {
 
 #if CONFIG_SPIRAM
 
-// The esp32s3 test app enables PSRAM, but the module may have none fitted
+// The esp32s3 test app enables PSRAM, but the module may have no PSRAM fitted
 // (and QEMU emulates none). Boot then continues without it. PSRAM-backed
 // tests are skipped in that case, because allocation failure aborts.
 static bool psram_available() {

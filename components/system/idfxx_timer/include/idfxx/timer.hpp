@@ -892,7 +892,8 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state Timer is already running.
-     * @retval invalid_arg @p first had passed before the timer could be started, on every attempt.
+     * @retval invalid_arg The start time (@p first, or the current time if @p first has passed)
+     *         was too far in the past when ESP-IDF checked it, on every attempt.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void> try_start_periodic(
@@ -1025,7 +1026,8 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state The timer could not be started.
-     * @retval invalid_arg @p next had passed before the timer could be rearmed, on every attempt.
+     * @retval invalid_arg The rearm time (@p next, or the current time if @p next has passed) was
+     *         too far in the past when ESP-IDF checked it, on every attempt.
      */
     [[nodiscard]] result<void> try_restart(clock::time_point next);
 
@@ -1045,7 +1047,8 @@ public:
      * @return Success, or an error.
      * @note Only available on ESP-IDF 6.1 and later.
      * @retval invalid_state The timer could not be started.
-     * @retval invalid_arg @p next had passed before the timer could be rearmed, on every attempt.
+     * @retval invalid_arg The rearm time (@p next, or the current time if @p next has passed) was
+     *         too far in the past when ESP-IDF checked it, on every attempt.
      */
     template<typename Rep, typename Period>
     [[nodiscard]] result<void>

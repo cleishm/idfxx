@@ -144,7 +144,7 @@ extern "C" void app_main() {
         idfxx::delay(5s);
 
         // --- Stage 5: partial-refresh counter loop ---
-        // Fast-refresh output is weakly driven and would change to gray
+        // Fast-refresh output is weakly driven and would settle to gray
         // under partial refreshes, so start the sequence with a full
         // refresh, which drives pixels to their stable extremes.
         display.refresh();

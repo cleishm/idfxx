@@ -796,9 +796,9 @@ TEST_CASE("task with explicit internal stack memory", "[idfxx][task]") {
 
 #if CONFIG_SPIRAM
 
-// The esp32s3 test app enables PSRAM, but the module may have no PSRAM fitted,
-// and QEMU emulates none. Boot then continues without PSRAM. PSRAM-backed
-// tests skip in that case, since allocation failure aborts.
+// The esp32s3 test app enables PSRAM, but the module may have no PSRAM fitted
+// (and QEMU emulates none). Boot then continues without it. PSRAM-backed
+// tests are skipped in that case, because allocation failure aborts.
 static bool psram_available() {
     return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
 }

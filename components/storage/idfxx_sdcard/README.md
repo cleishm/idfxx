@@ -14,7 +14,8 @@ SD and MMC/eMMC memory cards over SPI or SDMMC, with raw sector access.
 - Card-detect and write-protect pins
 - Raw sector reads and writes, serialized per card, with buffers anywhere in memory (also for a
   filesystem mounted through `idf_handle()`)
-- Erase, discard and whole-card erase, and sanitize on MMC/eMMC
+- Erase, discard and whole-card erase
+- Sanitize on MMC/eMMC
 - Configuration checked up front: invalid pins, data-pin groups, bus widths and clock limits are
   rejected before the bus or host is used
 - The card's state stays at a fixed address when the object is moved, so a filesystem mounted on it
