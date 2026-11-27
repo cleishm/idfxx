@@ -6,6 +6,7 @@
 #include <idfxx/http/client>
 #include <idfxx/log>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/sched>
 #include <idfxx/wifi>
 
@@ -29,6 +30,17 @@ static constexpr auto DOWNLOAD_URL = "https://httpbin.org/image/png";
 extern "C" void app_main() {
     try {
         // --- Connect to Wi-Fi ---
+        // Wi-Fi stores its settings in NVS. Erase NVS if it is full or has a newer format.
+        try {
+            idfxx::nvs::flash::init();
+        } catch (const std::system_error& e) {
+            if (e.code() != idfxx::nvs::errc::no_free_pages &&
+                e.code() != idfxx::nvs::errc::new_version_found) {
+                throw;
+            }
+            idfxx::nvs::flash::erase();
+            idfxx::nvs::flash::init();
+        }
         idfxx::event_loop::create_system();
         idfxx::netif::init();
         auto sta_netif = idfxx::wifi::make_sta_netif();

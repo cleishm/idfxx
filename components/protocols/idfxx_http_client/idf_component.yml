@@ -1,4 +1,4 @@
-version: "3.0.0"
+version: "3.0.1"
 description: "Type-safe HTTP client for ESP32"
 url: "https://github.com/cleishm/idfxx/tree/main/components/protocols/idfxx_http_client"
 repository: "https://github.com/cleishm/idfxx.git"

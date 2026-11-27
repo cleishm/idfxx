@@ -5,6 +5,8 @@ every 10 seconds.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Creating the default event loop with `idfxx::event_loop::create_system()`, initializing the
   network stack with `idfxx::netif::init()`, and creating the Wi-Fi station interface with
   `idfxx::wifi::make_sta_netif()`

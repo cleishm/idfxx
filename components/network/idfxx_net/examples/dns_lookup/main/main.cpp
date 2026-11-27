@@ -12,6 +12,7 @@
 #include <idfxx/log>
 #include <idfxx/net/resolver>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/sched>
 #include <idfxx/wifi>
 
@@ -112,6 +113,17 @@ void resolve_host(
 // Also registers a listener that reconnects automatically for the rest of the
 // program's lifetime. Returns the assigned address. Call once.
 idfxx::net::ipv4_addr connect_to_wifi() {
+    // Wi-Fi stores its settings in NVS. Erase NVS if it is full or has a newer format.
+    try {
+        idfxx::nvs::flash::init();
+    } catch (const std::system_error& e) {
+        if (e.code() != idfxx::nvs::errc::no_free_pages &&
+            e.code() != idfxx::nvs::errc::new_version_found) {
+            throw;
+        }
+        idfxx::nvs::flash::erase();
+        idfxx::nvs::flash::init();
+    }
     idfxx::event_loop::create_system();
     idfxx::netif::init();
     static auto sta_netif = idfxx::wifi::make_sta_netif();

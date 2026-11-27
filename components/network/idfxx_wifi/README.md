@@ -20,6 +20,8 @@ Type-safe Wi-Fi management for ESP32.
 - ESP-IDF 5.5 or later
 - C++23 compiler
 - System event loop must be created before use
+- NVS flash must be initialized before `init()` while Wi-Fi NVS is enabled (the default), for
+  example with `idfxx::nvs::flash::init()` from `idfxx_nvs`
 
 ## Installation
 
@@ -46,10 +48,12 @@ the timeout elapses):
 ```cpp
 #include <idfxx/wifi>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/event>
 
 using namespace std::chrono_literals;
 
+idfxx::nvs::flash::init();
 idfxx::event_loop::create_system();
 idfxx::netif::init();
 auto sta_netif = idfxx::wifi::make_sta_netif();
@@ -69,10 +73,12 @@ enabled:
 ```cpp
 #include <idfxx/wifi>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/event>
 #include <idfxx/log>
 
 // Initialize prerequisites (call once at startup)
+idfxx::nvs::flash::init();
 idfxx::event_loop::create_system();
 idfxx::netif::init();
 auto sta_netif = idfxx::wifi::make_sta_netif();
@@ -116,10 +122,12 @@ try {
 ```cpp
 #include <idfxx/wifi>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/event>
 #include <idfxx/log>
 
 // Initialize prerequisites (call once at startup)
+idfxx::nvs::flash::init();
 idfxx::event_loop::create_system();
 idfxx::netif::init();
 auto ap_netif = idfxx::wifi::make_ap_netif();
@@ -165,9 +173,11 @@ If `CONFIG_COMPILER_CXX_EXCEPTIONS` is *not* enabled, the result-based API must 
 ```cpp
 #include <idfxx/wifi>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/log>
 
 // Initialize prerequisites
+idfxx::nvs::flash::try_init();
 idfxx::event_loop::try_create_system();
 idfxx::netif::try_init();
 auto netif = idfxx::wifi::try_make_sta_netif();
@@ -345,6 +355,14 @@ loop.listener_add(netif::sta_got_ip4,
 - **Prerequisites**: Create the system event loop before using Wi-Fi functions. Most applications
   will also need to initialize `idfxx::netif::init()` and create the appropriate default netif
   (`idfxx::wifi::make_sta_netif()` for STA, `idfxx::wifi::make_ap_netif()` for AP).
+- **NVS**: With Wi-Fi NVS enabled (the default), the driver stores its settings in NVS, and
+  `init()` fails if NVS flash is not initialized. Initialize it first with
+  `idfxx::nvs::flash::init()`. If that fails with `nvs::errc::no_free_pages` or
+  `nvs::errc::new_version_found`, erase NVS with `idfxx::nvs::flash::erase()` and initialize it
+  again, as the examples do.
+- **Listener stack**: Listeners on the system event loop run on the system event task. Its stack
+  is `CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE` (2304 bytes by default), which is too small for
+  listeners that format log messages. The examples set it to 4096.
 - **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
 - **Persisted configuration**: With Wi-Fi NVS enabled (the default), the driver stores the roles and
   configurations that you set in flash and restores them at the next `init()`, even after a reboot.

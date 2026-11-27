@@ -8,6 +8,8 @@ server built on `idfxx::net::listener` and `stream_socket`.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an
   `idfxx::event_group`
 - Binding and listening on a port with `idfxx::net::netconn::listener`

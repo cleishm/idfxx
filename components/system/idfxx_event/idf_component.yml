@@ -1,4 +1,4 @@
-version: "1.0.3"
+version: "1.0.4"
 description: "Type-safe event loop for asynchronous event handling"
 url: "https://github.com/cleishm/idfxx/tree/main/components/system/idfxx_event"
 repository: "https://github.com/cleishm/idfxx.git"

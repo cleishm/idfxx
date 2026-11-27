@@ -5,6 +5,8 @@ it arrives.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network and waiting for an IP address with `idfxx::wifi::connect_sta()`
 - Creating an `idfxx::http::client` for a URL, and checking the server's certificate against the
   ESP-IDF certificate bundle with the `crt_bundle_attach` option
