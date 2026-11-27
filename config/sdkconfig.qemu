@@ -65,3 +65,7 @@ CONFIG_MBEDTLS_THREADING_PTHREAD=y
 # With this option enabled, idfxx_log's tests can add sinks that receive every log line. The option
 # is off by default.
 CONFIG_IDFXX_LOG_ALL_LINES=y
+
+# The mDNS console commands for idfxx_mdns need the console component, which the network test app
+# doesn't include
+# CONFIG_MDNS_ENABLE_CONSOLE_CLI is not set
