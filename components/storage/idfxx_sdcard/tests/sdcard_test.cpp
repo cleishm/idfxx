@@ -775,14 +775,15 @@ TEST_CASE("sdcard reports identity and geometry", "[idfxx][sdcard][hw]") {
 TEST_CASE("sdcard over SPI runs at or below max_frequency", "[idfxx][sdcard][hw]") {
     IDFXX_REQUIRE_SD_CARD();
     rig::card_fixture f;
-    // 27 MHz is above 20 MHz on most buses (26.7 MHz from an 80 MHz source), so a card is switched
-    // to high speed
+    // 27 MHz and 26 MHz are above the 20 MHz default speed. A card that supports high speed over SPI
+    // runs at the highest bus clock at or below the cap (26.7 MHz from an 80 MHz source). A card
+    // that does not support it runs at 20 MHz.
     const quanta::frequency::hertz caps[] = {27_MHz, 26_MHz, 10_MHz, 400_kHz};
     for (auto cap : caps) {
         auto& c = f.reopen(cap);
         const auto hz = static_cast<int32_t>(c.frequency().count());
         TEST_ASSERT_LESS_OR_EQUAL_INT32(static_cast<int32_t>(cap.count()), hz);
-        // The highest clock at or below the cap, so not far below it
+        // Not far below the cap. 20 MHz for a 27 MHz cap is still more than half of it.
         TEST_ASSERT_GREATER_OR_EQUAL_INT32(static_cast<int32_t>(cap.count() / 2), hz);
         TEST_ASSERT_TRUE(c.try_probe().has_value());
     }
