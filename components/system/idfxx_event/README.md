@@ -221,6 +221,9 @@ when `CONFIG_COMPILER_CXX_EXCEPTIONS` is enabled.
 - Create the system event loop with `event_loop::create_system()` before registering system event
   listeners
 - Event callbacks may be invoked from different task contexts depending on loop configuration
+- **System event task stack**: Listeners on the system event loop run on the system event task.
+  The stack size of that task is `CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE`. The default size is
+  too small for listeners that format log messages. Set it to 4096 or more for those listeners
 - **Exceptions in callbacks**: With exceptions enabled, an exception thrown by a listener is logged
   and otherwise ignored. Other listeners for the event still run, and the event loop keeps
   dispatching later events

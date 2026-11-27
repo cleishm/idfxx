@@ -4,6 +4,8 @@ Runs an HTTPS server on port 443, using a self-signed certificate built into the
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and reconnecting with `idfxx::wifi::try_connect()`
   when the connection drops
 - Starting an `idfxx::http::ssl_server` on port 443, with the certificate and private key passed as

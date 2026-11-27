@@ -4,6 +4,8 @@ Connects to `example.com` over TCP, sends a plain HTTP request, and logs the res
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an
   `idfxx::event_group`
 - Resolving a host name and connecting in one step with the `idfxx::net::stream_socket` (host, port)

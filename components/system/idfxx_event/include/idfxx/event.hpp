@@ -319,6 +319,10 @@ public:
     /**
      * @brief Creates the system (default) event loop.
      *
+     * Listeners on the system event loop run on the system event task. The
+     * stack size of that task is CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE.
+     * The default size is too small for listeners that format log messages.
+     *
      * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
      * @throws std::system_error on failure.
      */
@@ -335,6 +339,10 @@ public:
 
     /**
      * @brief Creates the system (default) event loop.
+     *
+     * Listeners on the system event loop run on the system event task. The
+     * stack size of that task is CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE.
+     * The default size is too small for listeners that format log messages.
      *
      * @return Success or an error if already created or on failure.
      */

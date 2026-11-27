@@ -10,6 +10,8 @@ malformed, or if the signature doesn't match.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network and waiting for an IP address with `idfxx::wifi::connect_sta()`
 - Importing the shared secret as a key with `idfxx::crypto::mac::hmac_sha256::import_key()`
 - Starting an `idfxx::http::server` and registering a POST handler with `on_post()`

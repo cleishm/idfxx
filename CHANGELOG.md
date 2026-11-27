@@ -22,6 +22,15 @@ component changes.
 - `idfxx_lcd_touch_stmpe610` `4.0.1` — the `touch_paint` example mirrors the panel and the touch
   X axis in portrait. The Touch Orientation section of the README gives touch settings that match
   the `idfxx_lcd_ili9341` orientation table.
+- `idfxx_wifi` `4.0.1`, `idfxx_net` `3.0.1`, `idfxx_netif` `2.2.0`, `idfxx_http_client` `3.0.1`,
+  `idfxx_http_server` `3.0.1`, `idfxx_https_server` `4.0.1`, `idfxx_crypto` `1.0.1` — the Wi-Fi
+  examples initialize NVS before `wifi::init()`. Without NVS, `wifi::init()` failed. The examples
+  with listeners on the system event loop set `CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE` to 4096.
+  Their listeners format log messages and overflowed the default stack. The `idfxx_wifi` docs say
+  that `init()` needs NVS.
+- `idfxx_event` `1.0.4` — the docs say that listeners on the system event loop run on the system
+  event task, and that its default stack is too small for listeners that format log messages. The
+  `event_loop_demo` example sets the stack to 4096.
 
 ## v2026.11.18
 

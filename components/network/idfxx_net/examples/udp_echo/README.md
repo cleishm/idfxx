@@ -4,6 +4,8 @@ A UDP server that sends each datagram it receives back to its sender.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an
   `idfxx::event_group`
 - Opening an IPv4 `idfxx::net::datagram_socket` and binding it to a port with `bind()`

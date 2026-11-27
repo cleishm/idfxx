@@ -4,6 +4,8 @@ Sends a single ping (ICMP echo request) over a raw socket and logs the reply and
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and waiting for an IP address with an
   `idfxx::event_group`
 - Parsing the target address with `idfxx::net::resolve_one()` and the `numeric_host` option

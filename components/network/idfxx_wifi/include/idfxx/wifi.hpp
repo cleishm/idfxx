@@ -1565,6 +1565,10 @@ inline constexpr idfxx::event<event_id> dpp_failed{event_id::dpp_failed};
  * Must be called before any other Wi-Fi functions. When called with no
  * arguments or an empty config, all Kconfig defaults are used.
  *
+ * With Wi-Fi NVS enabled (the default), the driver stores its settings in
+ * NVS. Initialize NVS flash first, for example with
+ * idfxx::nvs::flash::init(). Otherwise, this function fails.
+ *
  * @param cfg Initialization configuration. Defaults to Kconfig values.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -1615,6 +1619,10 @@ void restore();
  *
  * Must be called before any other Wi-Fi functions. When called with no
  * arguments or an empty config, all Kconfig defaults are used.
+ *
+ * With Wi-Fi NVS enabled (the default), the driver stores its settings in
+ * NVS. Initialize NVS flash first, for example with
+ * idfxx::nvs::flash::init(). Otherwise, this function fails.
  *
  * @param cfg Initialization configuration. Defaults to Kconfig values.
  * @return Success, or an error.

@@ -5,6 +5,8 @@ with its own pages.
 
 ## What it demonstrates
 
+- Initializing NVS with `idfxx::nvs::flash::init()`, which Wi-Fi uses to store its settings, and
+  erasing it with `idfxx::nvs::flash::erase()` if it is full or has a newer format
 - Joining a Wi-Fi network with `idfxx::wifi`, and reconnecting with `idfxx::wifi::try_connect()`
   when the connection drops
 - Starting an `idfxx::http::server` on port 80 with `wildcard_uri_match` enabled

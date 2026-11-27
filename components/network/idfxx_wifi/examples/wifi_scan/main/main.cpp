@@ -2,6 +2,7 @@
 
 #include <idfxx/log>
 #include <idfxx/netif>
+#include <idfxx/nvs>
 #include <idfxx/wifi>
 
 static constexpr idfxx::log::logger logger{"example"};
@@ -9,6 +10,17 @@ static constexpr idfxx::log::logger logger{"example"};
 extern "C" void app_main() {
     try {
         // --- Prerequisites ---
+        // Wi-Fi stores its settings in NVS. Erase NVS if it is full or has a newer format.
+        try {
+            idfxx::nvs::flash::init();
+        } catch (const std::system_error& e) {
+            if (e.code() != idfxx::nvs::errc::no_free_pages &&
+                e.code() != idfxx::nvs::errc::new_version_found) {
+                throw;
+            }
+            idfxx::nvs::flash::erase();
+            idfxx::nvs::flash::init();
+        }
         idfxx::event_loop::create_system();
         idfxx::netif::init();
         auto sta_netif = idfxx::wifi::make_sta_netif();
