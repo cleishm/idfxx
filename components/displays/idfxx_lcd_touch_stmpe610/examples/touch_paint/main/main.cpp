@@ -98,6 +98,9 @@ extern "C" void app_main() {
                 .bits_per_pixel = 16,
             }
         );
+        // Most ILI9341 modules need the image mirrored horizontally in portrait.
+        // If the image is mirrored on your module, use mirror(false, false) instead.
+        panel.mirror(true, false);
         panel.display_on(true);
 
         // --- Touch (STMPE610) on TOUCH_CS, 1 MHz ---
@@ -118,6 +121,8 @@ extern "C" void app_main() {
             {
                 .x_max = DISPLAY_W,
                 .y_max = DISPLAY_H,
+                // Set mirror_x as in the panel's mirror(), so that a dot is under the finger
+                .mirror_x = true,
             }
         );
 

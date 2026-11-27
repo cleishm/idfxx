@@ -271,31 +271,43 @@ idfxx::lcd::touch::config touch_config{
     .x_max = 240,
     .y_max = 320,
     // rst_gpio and int_gpio default to gpio::nc()
-    .swap_xy = false,  // Adjust based on orientation
-    .mirror_x = false, // Adjust based on orientation
-    .mirror_y = false, // Adjust based on orientation
+    .swap_xy = false, // Portrait (see Touch Orientation)
+    .mirror_x = true,
+    .mirror_y = false,
 };
 ```
 
 ## Touch Orientation
 
-The `swap_xy`, `mirror_x`, and `mirror_y` flags should match your display orientation:
+On a module where the STMPE610 sits on an ILI9341 panel, set `swap_xy`, `mirror_x` and `mirror_y`
+to the same values as the panel's `swap_xy()` and `mirror()`. Then a touch reports the position of
+the pixel under the finger. These settings match the orientation table in the `idfxx_lcd_ili9341`
+README:
 
-**Portrait (240x320):**
 ```cpp
+// Portrait - 240 wide x 320 tall
 .swap_xy = false,
-.mirror_x = false,
-.mirror_y = false,
-```
-
-**Landscape (320x240):**
-```cpp
-.swap_xy = true,
 .mirror_x = true,
 .mirror_y = false,
+
+// Portrait turned 180 degrees
+.swap_xy = false,
+.mirror_x = false,
+.mirror_y = true,
+
+// Landscape - 320 wide x 240 tall (module turned 90 degrees counter-clockwise)
+.swap_xy = true,
+.mirror_x = false,
+.mirror_y = false,
+
+// Landscape turned the other way (module turned 90 degrees clockwise)
+.swap_xy = true,
+.mirror_x = true,
+.mirror_y = true,
 ```
 
-Adjust these values to match your specific display module and mounting orientation.
+Keep `x_max = 240` and `y_max = 320` in landscape. The driver scales each reading to `x_max` and
+`y_max`. It mirrors the reading before it swaps X and Y.
 
 ## Important Notes
 

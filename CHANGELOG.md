@@ -19,6 +19,9 @@ component changes.
   horizontally in portrait, as most ILI9341 modules need. The orientation table in the
   `idfxx_lcd_ili9341` README gives the `swap_xy()` and `mirror()` settings that these modules need
   for each orientation.
+- `idfxx_lcd_touch_stmpe610` `4.0.1` — the `touch_paint` example mirrors the panel and the touch
+  X axis in portrait. The Touch Orientation section of the README gives touch settings that match
+  the `idfxx_lcd_ili9341` orientation table.
 
 ## v2026.11.18
 
