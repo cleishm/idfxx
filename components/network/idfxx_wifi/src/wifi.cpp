@@ -39,6 +39,40 @@ static result<void> check(esp_err_t err, const char* what) {
     return {};
 }
 
+namespace {
+
+// Calls that end the station's connection also end each try_connect(timeout) wait. The driver does
+// not always report a disconnect while it connects, so the waits cannot rely on a sta_disconnected
+// event. The sta_stop event is no help either: one from an earlier stop() can arrive after a later
+// wait starts.
+//
+// try_disconnect() ends the waits before it calls the driver, so that a wait does not connect again
+// after the driver disconnects. try_stop() and try_set_roles() end them after the driver call
+// succeeds. A connect call fails after those calls.
+struct connect_waits {
+    std::mutex mutex;
+    std::condition_variable cv;
+    uint32_t generation = 0;
+    esp_err_t ended_with = ESP_OK;
+};
+
+connect_waits& waits() {
+    static connect_waits w;
+    return w;
+}
+
+void end_connect_waits(esp_err_t err) {
+    auto& w = waits();
+    {
+        std::lock_guard lock(w.mutex);
+        ++w.generation;
+        w.ended_with = err;
+    }
+    w.cv.notify_all();
+}
+
+} // namespace
+
 // Trampolines bridging ESP-IDF callback signatures to the typed callbacks.
 // ESP-IDF holds a single global registration for each, so a single stored
 // user callback matches the underlying semantics. An exception thrown by a
@@ -503,7 +537,11 @@ result<void> try_start() {
 }
 
 result<void> try_stop() {
-    return check(esp_wifi_stop(), "Failed to stop Wi-Fi");
+    auto r = check(esp_wifi_stop(), "Failed to stop Wi-Fi");
+    if (r) {
+        end_connect_waits(ESP_ERR_WIFI_NOT_STARTED);
+    }
+    return r;
 }
 
 result<void> try_restore() {
@@ -515,9 +553,12 @@ result<void> try_restore() {
 // =============================================================================
 
 result<void> try_set_roles(flags<role> roles) {
-    return check(
-        esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set Wi-Fi roles"
-    );
+    auto r =
+        check(esp_wifi_set_mode(static_cast<wifi_mode_t>(roles.bits)), "Failed to set Wi-Fi roles");
+    if (r && !roles.contains(role::sta)) {
+        end_connect_waits(ESP_ERR_WIFI_MODE);
+    }
+    return r;
 }
 
 result<flags<role>> try_get_roles() {
@@ -689,54 +730,128 @@ result<void> try_connect() {
 }
 
 result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout) {
-    struct waiter {
-        std::mutex mutex;
-        std::condition_variable cv;
+    struct attempt {
         std::optional<net::ipv4_info> ip;
-        bool disconnected = false;
+        std::optional<disconnect_reason> disconnected;
     };
-    auto w = std::make_shared<waiter>();
+    auto a = std::make_shared<attempt>();
+    auto& w = waits();
 
     auto& loop = event_loop::system();
-    auto got_ip = loop.try_listener_add(netif::sta_got_ip4, [w](const netif::ip4_event_data& data) {
-        {
-            std::lock_guard lock(w->mutex);
-            w->ip = data.ip4;
-        }
-        w->cv.notify_all();
-    });
+    auto got_ip =
+        loop.try_listener_add(netif::sta_got_ip4, [a, &w](const netif::ip4_event_data& data) {
+            {
+                std::lock_guard lock(w.mutex);
+                a->ip = data.ip4;
+            }
+            w.cv.notify_all();
+        });
     if (!got_ip) {
         return error(got_ip.error());
     }
     event_loop::unique_listener_handle got_ip_guard{*got_ip};
 
     auto disconnect_listener =
-        loop.try_listener_add(sta_disconnected, [w](const disconnected_event_data&) {
+        loop.try_listener_add(sta_disconnected, [a, &w](const disconnected_event_data& data) {
             {
-                std::lock_guard lock(w->mutex);
-                w->disconnected = true;
+                std::lock_guard lock(w.mutex);
+                a->disconnected = data.reason;
             }
-            w->cv.notify_all();
+            w.cv.notify_all();
         });
     if (!disconnect_listener) {
         return error(disconnect_listener.error());
     }
     event_loop::unique_listener_handle disconnect_guard{*disconnect_listener};
 
-    if (auto r = try_connect(); !r) {
+    // A station that already has an address does not report it again
+    if (wifi_ap_record_t ap{}; esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        if (auto sta = netif::find_by_key("WIFI_STA_DEF")) {
+            if (auto info = sta->get_ipv4_info(); !info.ip.is_any()) {
+                return info;
+            }
+        }
+    }
+
+    // Clamp the timeout, so that the deadline does not overflow
+    const auto now = std::chrono::steady_clock::now();
+    const auto max_timeout = std::chrono::floor<std::chrono::milliseconds>(
+        std::chrono::steady_clock::time_point::max() - now
+    );
+    const auto deadline = now + std::min(timeout, max_timeout);
+
+    std::unique_lock lock(w.mutex);
+    const auto generation = w.generation;
+
+    // Calls connect with the lock released. If a call that ends the wait runs at the same time, the
+    // connect call can reach the driver after it. In that case, disconnect again.
+    //
+    // A first call fails with ESP_ERR_WIFI_CONN if an attempt is already in progress or the driver
+    // is in a bad state. A retry treats it as success: an application listener can have connected
+    // again after the same disconnect, and that attempt also reports its result.
+    auto connect_once = [&](bool retry) -> result<void> {
+        lock.unlock();
+        auto err = esp_wifi_connect();
+        lock.lock();
+        if (w.generation != generation) {
+            lock.unlock();
+            (void)esp_wifi_disconnect();
+            lock.lock();
+        }
+        if (retry && err == ESP_ERR_WIFI_CONN) {
+            ESP_LOGD(TAG, "A connection attempt is already in progress");
+            return {};
+        }
+        return check(err, "Failed to connect Wi-Fi");
+    };
+
+    if (auto r = connect_once(false); !r) {
         return error(r.error());
     }
 
-    std::unique_lock lock(w->mutex);
-    w->cv.wait_for(lock, timeout, [&] { return w->ip.has_value() || w->disconnected; });
-    if (w->ip) {
-        return *w->ip;
+    // A single attempt can fail although a later attempt succeeds. The disconnect reason does not
+    // tell such a failure from a wrong password. So try again after each disconnect until the
+    // deadline.
+    std::optional<disconnect_reason> last_reason;
+    while (true) {
+        const bool woke = w.cv.wait_until(lock, deadline, [&] {
+            return a->ip || a->disconnected || w.generation != generation;
+        });
+        if (w.generation != generation) {
+            ESP_LOGD(TAG, "Stopped waiting for an address: %s", esp_err_to_name(w.ended_with));
+            return wifi_error(w.ended_with);
+        }
+        if (a->ip) {
+            return *a->ip;
+        }
+        if (!woke) {
+            break;
+        }
+        last_reason = std::exchange(a->disconnected, std::nullopt);
+        if (std::chrono::steady_clock::now() >= deadline) {
+            break;
+        }
+        ESP_LOGD(
+            TAG, "Station disconnected (%s), connecting again", to_string(*last_reason).c_str()
+        );
+        if (auto r = connect_once(true); !r) {
+            return error(r.error());
+        }
     }
-    if (w->disconnected) {
-        ESP_LOGD(TAG, "Station disconnected while waiting for an address");
-        return wifi_error(ESP_ERR_WIFI_CONN);
+    lock.unlock();
+
+    // Stop the attempt in progress, so that the station does not connect after a failed call.
+    // Call the driver directly, so that other waits do not end.
+    (void)esp_wifi_disconnect();
+    if (last_reason) {
+        ESP_LOGW(
+            TAG,
+            "Timed out waiting for an address, last disconnect reason: %s",
+            to_string(*last_reason).c_str()
+        );
+    } else {
+        ESP_LOGD(TAG, "Timed out waiting for an address");
     }
-    ESP_LOGD(TAG, "Timed out waiting for an address");
     return wifi_error(ESP_ERR_WIFI_TIMEOUT);
 }
 
@@ -756,6 +871,7 @@ result<net::ipv4_info> try_connect_sta(const sta_config& cfg, std::chrono::milli
 }
 
 result<void> try_disconnect() {
+    end_connect_waits(ESP_ERR_WIFI_NOT_CONNECT);
     return check(esp_wifi_disconnect(), "Failed to disconnect Wi-Fi");
 }
 
