@@ -43,7 +43,8 @@ Or add `idfxx_wifi` to the `REQUIRES` list in your component's `CMakeLists.txt`.
 
 `connect_sta` performs the common station start-up sequence. It sets the station as the only role,
 applies the configuration, starts Wi-Fi, connects, and blocks until an IPv4 address is acquired (or
-the timeout elapses):
+the timeout elapses). Each time the station is disconnected before it acquires an address, it
+connects again:
 
 ```cpp
 #include <idfxx/wifi>
@@ -363,7 +364,9 @@ loop.listener_add(netif::sta_got_ip4,
 - **Listener stack**: Listeners on the system event loop run on the system event task. Its stack
   is `CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE` (2304 bytes by default), which is too small for
   listeners that format log messages. The examples set it to 4096.
-- **No auto-reconnect**: Reconnection logic should be implemented via event handlers.
+- **No auto-reconnect**: `connect(timeout)` and `connect_sta` connect again only until the station
+  acquires an address. Implement reconnection after a later disconnect in a `sta_disconnected`
+  listener.
 - **Persisted configuration**: With Wi-Fi NVS enabled (the default), the driver stores the roles and
   configurations that you set in flash and restores them at the next `init()`, even after a reboot.
   Set the roles and configuration that you need each session rather than relying on `get_roles()`

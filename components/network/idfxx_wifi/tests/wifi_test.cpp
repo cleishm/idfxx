@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Chris Leishman
 
+#include "test_cleanup.hpp"
+
 #include <idfxx/nvs>
 #include <idfxx/wifi>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <concepts>
 #include <cstddef>
@@ -15,6 +18,7 @@
 #include <span>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <type_traits>
 #include <unity.h>
 #include <utility>
@@ -452,4 +456,144 @@ TEST_CASE("wifi ap config round-trips a 32-byte SSID", "[idfxx][wifi][hw]") {
 
     auto deinit_result = try_deinit();
     TEST_ASSERT_TRUE(deinit_result.has_value());
+}
+
+// =============================================================================
+// Connect and wait
+// =============================================================================
+
+namespace {
+
+// The station and listeners of the current test. stop_missing_ap_station() removes them.
+std::optional<idfxx::netif::interface> s_sta_netif;
+bool s_created_loop = false;
+std::vector<idfxx::event_loop::listener_handle> s_test_listeners;
+
+// Static, because a listener can run after the test that added it returns
+std::atomic<int> s_failures{0};
+
+void stop_missing_ap_station() {
+    for (auto handle : s_test_listeners) {
+        std::ignore = idfxx::event_loop::system().try_listener_remove(handle);
+    }
+    s_test_listeners.clear();
+    if (s_sta_netif) {
+        std::ignore = try_stop();
+        std::ignore = try_deinit();
+        s_sta_netif.reset();
+    }
+    if (s_created_loop) {
+        std::ignore = idfxx::event_loop::try_destroy_system();
+        s_created_loop = false;
+    }
+}
+
+// Starts a station whose configured SSID does not exist. The station and the listeners in
+// s_test_listeners are removed after the test, also when an assertion fails.
+void start_missing_ap_station() {
+    idfxx::test::run_after_each_test(stop_missing_ap_station);
+    // Another test may have left the system event loop running
+    s_created_loop = idfxx::event_loop::try_create_system().has_value();
+    ensure_nvs_init();
+    std::ignore = idfxx::netif::try_init();
+    auto n = try_make_sta_netif();
+    TEST_ASSERT_TRUE(n.has_value());
+    s_sta_netif.emplace(std::move(*n));
+    TEST_ASSERT_TRUE(try_init().has_value());
+    TEST_ASSERT_TRUE(try_set_roles(role::sta).has_value());
+    TEST_ASSERT_TRUE(
+        try_set_sta_config({.ssid = "idfxx-missing-ap", .password = "password"}).has_value()
+    );
+    TEST_ASSERT_TRUE(try_start().has_value());
+}
+
+// Starts try_connect(30s) on a station whose SSID does not exist. Another thread calls end after
+// 3 s. Checks that the wait ends early with the expected error.
+void check_call_ends_wait(idfxx::result<void> (*end)(), errc expected) {
+    using namespace std::chrono_literals;
+    start_missing_ap_station();
+
+    std::thread other([end] {
+        std::this_thread::sleep_for(3s);
+        std::ignore = end();
+    });
+
+    auto start = std::chrono::steady_clock::now();
+    auto r = try_connect(30s);
+    auto elapsed = std::chrono::steady_clock::now() - start;
+    other.join();
+
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == expected);
+    TEST_ASSERT_TRUE(elapsed < 15s);
+}
+
+} // namespace
+
+TEST_CASE("wifi try_connect(timeout) connects again after a disconnect", "[idfxx][wifi][hw]") {
+    using namespace std::chrono_literals;
+    start_missing_ap_station();
+
+    // Count the failed attempts. assoc_leave comes from the disconnect at the deadline.
+    s_failures = 0;
+    auto listener = idfxx::event_loop::system().try_listener_add(
+        sta_disconnected,
+        [](const disconnected_event_data& data) {
+            if (data.reason != disconnect_reason::assoc_leave) {
+                s_failures++;
+            }
+        }
+    );
+    TEST_ASSERT_TRUE(listener.has_value());
+    s_test_listeners.push_back(*listener);
+
+    auto start = std::chrono::steady_clock::now();
+    auto r = try_connect(10s);
+    auto elapsed = std::chrono::steady_clock::now() - start;
+
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::timeout);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT32(2, s_failures.load());
+    TEST_ASSERT_TRUE(elapsed >= 10s);
+}
+
+TEST_CASE(
+    "wifi try_connect(timeout) waits when a listener also connects again", "[idfxx][wifi][hw]"
+) {
+    using namespace std::chrono_literals;
+    start_missing_ap_station();
+
+    // An application listener that reconnects, as in the wifi_sta example
+    auto listener = idfxx::event_loop::system().try_listener_add(
+        sta_disconnected,
+        [](const disconnected_event_data& data) {
+            if (data.reason != disconnect_reason::assoc_leave) {
+                std::ignore = try_connect();
+            }
+        }
+    );
+    TEST_ASSERT_TRUE(listener.has_value());
+    s_test_listeners.push_back(*listener);
+
+    auto start = std::chrono::steady_clock::now();
+    auto r = try_connect(10s);
+    auto elapsed = std::chrono::steady_clock::now() - start;
+
+    TEST_ASSERT_FALSE(r.has_value());
+    TEST_ASSERT_TRUE(r.error() == errc::timeout);
+    TEST_ASSERT_TRUE(elapsed >= 10s);
+}
+
+TEST_CASE("wifi try_connect(timeout) stops when try_disconnect is called", "[idfxx][wifi][hw]") {
+    check_call_ends_wait([] { return try_disconnect(); }, errc::not_connect);
+}
+
+TEST_CASE("wifi try_connect(timeout) stops when try_stop is called", "[idfxx][wifi][hw]") {
+    check_call_ends_wait([] { return try_stop(); }, errc::not_started);
+}
+
+TEST_CASE(
+    "wifi try_connect(timeout) stops when try_set_roles removes the station", "[idfxx][wifi][hw]"
+) {
+    check_call_ends_wait([] { return try_set_roles(role::ap); }, errc::mode);
 }

@@ -1598,6 +1598,8 @@ void start();
 /**
  * @brief Stops the Wi-Fi subsystem.
  *
+ * A connect(std::chrono::duration<Rep, Period>) call that waits in another task fails.
+ *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
  */
@@ -1649,6 +1651,9 @@ result<void> try_deinit();
 /**
  * @brief Stops the Wi-Fi subsystem.
  *
+ * A try_connect(std::chrono::milliseconds) call that waits in another task fails with
+ * ESP_ERR_WIFI_NOT_STARTED.
+ *
  * @return Success, or an error.
  */
 result<void> try_stop();
@@ -1670,6 +1675,9 @@ result<void> try_stop();
 /**
  * @brief Sets the active Wi-Fi roles.
  *
+ * If @p roles does not include role::sta, a connect(std::chrono::duration<Rep, Period>) call
+ * that waits in another task fails.
+ *
  * @param roles The roles to activate (e.g. `role::sta`, `role::sta | role::ap`).
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
@@ -1690,6 +1698,9 @@ void set_roles(flags<role> roles);
 
 /**
  * @brief Sets the active Wi-Fi roles.
+ *
+ * If @p roles does not include role::sta, a try_connect(std::chrono::milliseconds) call that
+ * waits in another task fails with ESP_ERR_WIFI_MODE.
  *
  * @param roles The roles to activate (e.g. `role::sta`, `role::sta | role::ap`).
  * @return Success, or an error.
@@ -1858,8 +1869,17 @@ void connect();
 /**
  * @brief Connects to the configured access point and waits for an IPv4 address.
  *
- * Initiates the connection, then blocks until the station acquires an IPv4 address, is
- * disconnected, or @p timeout elapses. The Wi-Fi subsystem must be started with the station role
+ * Initiates the connection, then blocks until the station acquires an IPv4 address or @p timeout
+ * elapses. Each time the station is disconnected before it acquires an address, the call connects
+ * again. When @p timeout elapses, the call stops the connection attempt in progress. If the
+ * station already has an IPv4 address, the call returns it.
+ *
+ * These calls from another task end the wait:
+ * - disconnect()
+ * - stop()
+ * - set_roles() with roles that do not include role::sta
+ *
+ * The Wi-Fi subsystem must be started with the station role
  * enabled, and a station netif (make_sta_netif()) and the system event loop
  * (event_loop::create_system()) must exist.
  *
@@ -1880,7 +1900,8 @@ void connect();
  * @return The acquired IPv4 address information.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
- * @throws std::system_error on failure, disconnection during the attempt, or timeout.
+ * @throws std::system_error on failure, on timeout, or when a call from another task ends the
+ *         wait.
  */
 template<typename Rep, typename Period>
 [[nodiscard]] net::ipv4_info connect(std::chrono::duration<Rep, Period> timeout);
@@ -1890,7 +1911,8 @@ template<typename Rep, typename Period>
  *
  * Performs the common station start-up sequence: sets the station as the only role, applies
  * @p cfg, starts Wi-Fi, initiates the connection, and blocks until the station acquires an IPv4
- * address or @p timeout elapses.
+ * address or @p timeout elapses. Each time the station is disconnected before it acquires an
+ * address, the call connects again.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
  * perform the start-up sequence yourself (set_roles, set_ap_config, set_sta_config, start) and
@@ -1914,7 +1936,8 @@ template<typename Rep, typename Period>
  * @return The acquired IPv4 address information.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
- * @throws std::system_error on failure, disconnection during the attempt, or timeout.
+ * @throws std::system_error on failure, on timeout, or when a call from another task ends the
+ *         wait.
  */
 template<typename Rep, typename Period>
 [[nodiscard]] net::ipv4_info
@@ -1922,6 +1945,8 @@ connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeout);
 
 /**
  * @brief Disconnects from the current access point.
+ *
+ * A connect(std::chrono::duration<Rep, Period>) call that waits in another task fails.
  *
  * @note Only available when CONFIG_COMPILER_CXX_EXCEPTIONS is enabled.
  * @throws std::system_error on failure.
@@ -1970,8 +1995,18 @@ void clear_fast_connect();
 /**
  * @brief Connects to the configured access point and waits for an IPv4 address.
  *
- * Initiates the connection, then blocks until the station acquires an IPv4 address, is
- * disconnected, or @p timeout elapses. The Wi-Fi subsystem must be started with the station role
+ * Initiates the connection, then blocks until the station acquires an IPv4 address or @p timeout
+ * elapses. Each time the station is disconnected before it acquires an address, the call connects
+ * again. When @p timeout elapses, the call stops the connection attempt in progress. If the
+ * station already has an IPv4 address, the call returns it.
+ *
+ * These calls from another task end the wait:
+ * - try_disconnect(), which makes the call fail with ESP_ERR_WIFI_NOT_CONNECT
+ * - try_stop(), which makes the call fail with ESP_ERR_WIFI_NOT_STARTED
+ * - try_set_roles() with roles that do not include role::sta, which makes the call fail with
+ *   ESP_ERR_WIFI_MODE
+ *
+ * The Wi-Fi subsystem must be started with the station role
  * enabled, and a station netif (try_make_sta_netif()) and the system event loop
  * (event_loop::try_create_system()) must exist.
  *
@@ -1980,8 +2015,8 @@ void clear_fast_connect();
  *
  * @param timeout Maximum time to wait for an IPv4 address.
  * @return The acquired IPv4 address information, or an error. Fails with
- *         ESP_ERR_WIFI_CONN if the station is disconnected during the
- *         attempt, or ESP_ERR_WIFI_TIMEOUT if @p timeout elapses.
+ *         ESP_ERR_WIFI_TIMEOUT if @p timeout elapses. Fails with the error listed above if a
+ *         call from another task ends the wait.
  */
 [[nodiscard]] result<net::ipv4_info> try_connect(std::chrono::milliseconds timeout);
 
@@ -1998,7 +2033,8 @@ template<typename Rep, typename Period>
  *
  * Performs the common station start-up sequence: sets the station as the only role, applies
  * @p cfg, starts Wi-Fi, initiates the connection, and blocks until the station acquires an IPv4
- * address or @p timeout elapses.
+ * address or @p timeout elapses. Each time the station is disconnected before it acquires an
+ * address, the call connects again.
  *
  * Setting the roles stops a running access point. To run an access point alongside the station,
  * perform the start-up sequence yourself (try_set_roles, try_set_ap_config, try_set_sta_config,
@@ -2011,8 +2047,8 @@ template<typename Rep, typename Period>
  * @param cfg The station configuration (SSID, credentials, etc.).
  * @param timeout Maximum time to wait for an IPv4 address.
  * @return The acquired IPv4 address information, or an error. Fails with
- *         ESP_ERR_WIFI_CONN if the station is disconnected during the
- *         attempt, or ESP_ERR_WIFI_TIMEOUT if @p timeout elapses.
+ *         ESP_ERR_WIFI_TIMEOUT if @p timeout elapses. Fails with the error that
+ *         try_connect(std::chrono::milliseconds) lists if a call from another task ends the wait.
  */
 [[nodiscard]] result<net::ipv4_info>
 try_connect_sta(const sta_config& cfg, std::chrono::milliseconds timeout);
@@ -2028,6 +2064,9 @@ try_connect_sta(const sta_config& cfg, std::chrono::duration<Rep, Period> timeou
 
 /**
  * @brief Disconnects from the current access point.
+ *
+ * A try_connect(std::chrono::milliseconds) call that waits in another task fails with
+ * ESP_ERR_WIFI_NOT_CONNECT.
  *
  * @return Success, or an error.
  */
