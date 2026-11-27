@@ -32,6 +32,12 @@ component changes.
   event task, and that its default stack is too small for listeners that format log messages. The
   `event_loop_demo` example sets the stack to 4096.
 
+### New components
+
+- `idfxx_mdns` `1.0.0` — mDNS hostname and DNS-SD service advertisement with TXT records, subtypes
+  and delegated hosts; one-shot PTR, SRV, TXT, A and AAAA queries, blocking or as a future; browsers
+  that follow a service type; and local lookups of advertised services
+
 ## v2026.11.18
 
 Six new components add SD and MMC card access, FAT filesystems on cards and flash, message digests

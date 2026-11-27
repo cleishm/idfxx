@@ -56,6 +56,7 @@ set(IDFXX_TEST_GROUP_network
     idfxx_http_server
     idfxx_https_server
     idfxx_crypto
+    idfxx_mdns
 )
 
 # Displays, graphics, fonts and images
