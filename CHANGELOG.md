@@ -15,6 +15,10 @@ component changes.
   refresh.
 - `idfxx_netif` `2.2.0` — deprecates `dhcp_option_id`, which nothing in idfxx uses. Set DHCP server
   options with `dhcp_server_config`.
+- `idfxx_gfx` `3.0.1`, `idfxx_lcd_ili9341` `4.0.1` — the ILI9341 examples mirror the image
+  horizontally in portrait, as most ILI9341 modules need. The orientation table in the
+  `idfxx_lcd_ili9341` README gives the `swap_xy()` and `mirror()` settings that these modules need
+  for each orientation.
 
 ## v2026.11.18
 

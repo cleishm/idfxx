@@ -154,6 +154,9 @@ extern "C" void app_main() {
             }
         );
 
+        // Most ILI9341 modules need the image mirrored horizontally in portrait.
+        // If the image is mirrored on your module, use mirror(false, false) instead.
+        panel.mirror(true, false);
         panel.display_on(true);
         logger.info("Display initialized ({}x{})", DISPLAY_W, DISPLAY_H);
 
