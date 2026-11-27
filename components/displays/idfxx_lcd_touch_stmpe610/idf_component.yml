@@ -1,4 +1,4 @@
-version: "4.0.0"
+version: "4.0.1"
 description: "STMPE610 resistive touch controller driver"
 url: "https://github.com/cleishm/idfxx/tree/main/components/displays/idfxx_lcd_touch_stmpe610"
 repository: "https://github.com/cleishm/idfxx.git"

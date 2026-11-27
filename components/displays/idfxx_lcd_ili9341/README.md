@@ -84,7 +84,7 @@ try {
 
     // Operations throw on error
     panel.swap_xy(true);
-    panel.mirror(false, true);
+    panel.mirror(false, false);
     panel.display_on(true);
 
 } catch (const std::system_error& e) {
@@ -159,11 +159,11 @@ idfxx::lcd::ili9341 panel(panel_io, std::move(panel_config));
 // Assumes panel_io and panel_config defined as in Basic Example above
 idfxx::lcd::ili9341 panel(panel_io, std::move(panel_config));
 
-// Swap X and Y axes for portrait/landscape
+// Swap X and Y axes for landscape
 panel.swap_xy(true);
 
-// Mirror display
-panel.mirror(true, false);  // Mirror X, don't mirror Y
+// Mirror X and Y (with swap_xy(true), this turns landscape the other way)
+panel.mirror(true, true);
 
 // Invert colors
 panel.invert_color(true);
@@ -187,22 +187,25 @@ panel.draw_bitmap(0, 0, 240, 40, std::as_bytes(std::span{band}));
 ### Display Orientation Examples
 
 ```cpp
-// Portrait (default) - 240 wide x 320 tall
+// Portrait - 240 wide x 320 tall
 panel.swap_xy(false);
-panel.mirror(false, false);
-
-// Landscape - 320 wide x 240 tall
-panel.swap_xy(true);
 panel.mirror(true, false);
 
-// Portrait (flipped)
+// Portrait turned 180 degrees
 panel.swap_xy(false);
-panel.mirror(true, true);
-
-// Landscape (flipped)
-panel.swap_xy(true);
 panel.mirror(false, true);
+
+// Landscape - 320 wide x 240 tall (module turned 90 degrees counter-clockwise)
+panel.swap_xy(true);
+panel.mirror(false, false);
+
+// Landscape turned the other way (module turned 90 degrees clockwise)
+panel.swap_xy(true);
+panel.mirror(true, true);
 ```
+
+Some modules show each of these orientations mirrored. On those modules, invert `mirror_x` in every
+row.
 
 ### Integration with LVGL
 
@@ -290,6 +293,8 @@ idfxx::lcd::panel::config panel_config{
 - RGB element order depends on specific display module (try both if colors are wrong)
 - 16-bit color depth (RGB565) is most common for ILI9341
 - Call `display_on(true)` after initialization to turn on the display
+- Most ILI9341 modules need `mirror(true, false)` for portrait. See
+  [Display Orientation Examples](#display-orientation-examples) for the other orientations
 - The panel handle can be used with ESP-IDF LCD API or LVGL
 - The `ili9341` class inherits from the `panel` base class provided by `idfxx_lcd`
 
